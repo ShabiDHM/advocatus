@@ -1,9 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// 1. Transaction cards use `hover-lift` and `border-border-main`.
-// 2. Buttons use `btn-primary` / `btn-secondary` (already applied).
-// 3. History items use `hover-lift` and proper borders.
-// 4. All modal backgrounds use `glass-panel` and `border-border-main`.
+// PHOENIX PROTOCOL - FINANCE TAB V6.2 (VISUAL CONSISTENCY REPAIR)
+// 1. Standardized typography scale for analytic metrics (removed sub-12px text).
+// 2. Increased padding and visual weight for analytics sub-cards to match main stats.
+// 3. Harmonized border and background styles for sub-components.
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -41,7 +40,7 @@ const QuickActionButton = ({ icon, label, onClick, color, locked = false }: { ic
     <button 
         onClick={onClick} 
         disabled={locked}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border-main transition-all duration-200 text-sm font-semibold group relative overflow-hidden
+        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-border-main transition-all duration-200 text-sm font-semibold group relative overflow-hidden
         ${locked 
             ? 'bg-surface/30 opacity-60 cursor-not-allowed hover:bg-surface/30' 
             : 'bg-surface/20 hover:bg-hover hover:border-primary-start/30'
@@ -253,11 +252,17 @@ export const FinanceTab: React.FC = () => {
                         <SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-primary-start" />
                         
                         {analyticsData && (
-                            <div className="pt-4 border-t border-border-main mt-4">
-                                <h4 className="text-[10px] font-bold text-primary-start uppercase tracking-wider mb-2">{t('finance.analytics.periodTitle')}</h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-start">{t('finance.analytics.totalSales')}</p><p className="font-bold text-text-primary">€{analyticsData.total_revenue_period.toFixed(2)}</p></div>
-                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-start">{t('finance.analytics.invoiceCount')}</p><p className="font-bold text-text-primary">{analyticsData.total_transactions_period}</p></div>
+                            <div className="pt-6 border-t border-border-main/60 mt-4">
+                                <h4 className="text-xs font-bold text-primary-start uppercase tracking-widest mb-4">{t('finance.analytics.periodTitle')}</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="card-panel p-4 bg-surface/10 border border-border-main/40 text-center flex flex-col justify-center gap-1">
+                                        <p className="text-xs text-text-secondary font-bold uppercase truncate">{t('finance.analytics.totalSales')}</p>
+                                        <p className="text-xl font-bold text-text-primary tracking-tight">€{analyticsData.total_revenue_period.toFixed(2)}</p>
+                                    </div>
+                                    <div className="card-panel p-4 bg-surface/10 border border-border-main/40 text-center flex flex-col justify-center gap-1">
+                                        <p className="text-xs text-text-secondary font-bold uppercase truncate">{t('finance.analytics.invoiceCount')}</p>
+                                        <p className="text-xl font-bold text-text-primary tracking-tight">{analyticsData.total_transactions_period}</p>
+                                    </div>
                                 </div>
                             </div>
                         )}
