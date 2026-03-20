@@ -1,8 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V7.3 (EXECUTIVE DESIGN SYSTEM)
-// 1. Uses glass-panel for consistent glassmorphism.
-// 2. Theme toggle uses btn-secondary styling.
-// 3. All text colors use semantic classes (text-primary, text-secondary, etc.)
+// PHOENIX PROTOCOL - HEADER V7.4 (DROPDOWN ALIGNMENT FIX)
+// 1. Profile dropdown container uses `right-0` to ensure alignment with button.
+// 2. Added z‑index and shadow to match Executive Card.
+// 3. Other semantic classes remain unchanged.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';

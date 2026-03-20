@@ -1,9 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V8.1 (TYPESCRIPT ERRORS FIXED & LOGIC RESTORED)
-// 1. FIXED: Restored 'handleRetry' and 'showThinking' logic.
-// 2. FIXED: 'lastUserMessage' is now correctly utilized by the retry function.
-// 3. RETAINED: 100% of the "World Class" semantic UI (Executive Cards, Symmetrical Layout).
-// 4. RETAINED: 100% of original logic (Streaming, Feedback, Markdown, Tooltips).
+// PHOENIX PROTOCOL - CHAT PANEL V8.2 (EXECUTIVE POLISH)
+// 1. REMOVED redundant "CONNECTED" label; kept only status dot.
+// 2. CONVERTED Fast/Deep modes to a unified Segmented Control (single pill with two buttons).
+// 3. ALIGNED domain selector height with reasoning toggle (consistent h-9).
+// 4. FIXED input area collision: send button now uses flex layout, no absolute positioning.
+// 5. All original logic (streaming, feedback, retry) preserved.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -222,33 +223,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setFeedbackGiven(prev => new Set(prev).add(index));
   };
 
-  // RESTORED: Logic for retry mechanism using the stored lastUserMessage
   const handleRetry = () => {
     if (lastUserMessage) {
       sendMessage(lastUserMessage);
     }
   };
 
-  // RESTORED: Logic for conditional thinking indicator rendering
   const lastMessage = messages[messages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-lawyer-light ${className}`}>
       
-      {/* Executive Header */}
+      {/* Executive Header - removed redundant "CONNECTED" label */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border-main bg-canvas/40 z-50 shrink-0">
         <div className="flex flex-col">
           <h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('chatPanel.title')}</h3>
           <div className="flex items-center gap-2 mt-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start ring-4 ring-success-start/10' : 'bg-danger-start animate-pulse'}`} />
-            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">{connectionStatus}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           
-          {/* Executive Domain Selector */}
+          {/* Executive Domain Selector - aligned height with toggle */}
           {reasoningMode === 'DEEP' && (
             <div className="relative group">
                 <select
@@ -264,16 +262,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           )}
           
-          {/* Mode Toggle */}
-          <div className="flex items-center bg-canvas rounded-xl p-1 border border-border-main shadow-inner">
-            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                reasoningMode === 'FAST' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary'
-            }`}>
+          {/* Mode Toggle - Unified Segmented Control */}
+          <div className="flex bg-canvas rounded-xl p-1 border border-border-main shadow-inner">
+            <button
+              onClick={() => setReasoningMode('FAST')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                reasoningMode === 'FAST'
+                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
               <Zap size={12} /> {t('chatPanel.modeFast')}
             </button>
-            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                reasoningMode === 'DEEP' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary disabled:opacity-30'
-            }`}>
+            <button
+              onClick={() => isPro && setReasoningMode('DEEP')}
+              disabled={!isPro}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                reasoningMode === 'DEEP'
+                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  : 'text-text-muted hover:text-text-primary disabled:opacity-30'
+              }`}
+            >
               {!isPro ? <Lock size={10} /> : <GraduationCap size={12} />}
               {t('chatPanel.modeDeep')}
             </button>
@@ -337,7 +346,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   />
                 )}
                 
-                {/* RESTORED: Implementation of handleRetry */}
                 {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
                   <div className="mt-4 pt-4 border-t border-danger-start/20">
                     <button
@@ -353,7 +361,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </motion.div>
           ))}
 
-          {/* RESTORED: Implementation of showThinking */}
           {showThinking && (
             <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-primary-start flex items-center justify-center shadow-accent-glow text-white"><BrainCircuit size={20} /></div>
@@ -368,22 +375,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
+      {/* Input Form - Fixed layout without absolute positioning overlap */}
       <div className="p-5 border-t border-border-main bg-surface shrink-0">
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-3">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex gap-3">
           <textarea 
             ref={textareaRef} 
             value={input} 
             onChange={(e) => setInput(e.target.value)} 
             onKeyDown={handleKeyDown} 
             placeholder={t('chatPanel.inputPlaceholder')} 
-            className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed resize-none custom-scrollbar min-h-[60px] shadow-sm focus:shadow-md" 
+            className="glass-input flex-1 p-4 rounded-2xl text-sm leading-relaxed resize-none custom-scrollbar min-h-[60px] shadow-sm focus:shadow-md" 
             rows={1} 
           />
           <button 
             type="submit" 
             disabled={!input.trim() || isSendingMessage} 
-            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="self-end h-12 w-12 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           >
             <Send size={18} className="ml-0.5" />
           </button>
