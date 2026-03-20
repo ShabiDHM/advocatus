@@ -1,9 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V7.2 (EXECUTIVE DESIGN SYSTEM)
-// 1. Briefing card uses theme‑aware `briefing-gradient-optimal` class.
-// 2. Empty state uses `card-panel` for consistency.
-// 3. “RAST I RI” button uses `btn-primary`.
-// 4. All other semantic classes (glass-panel, border-main, etc.) are already in use.
+// PHOENIX PROTOCOL - DASHBOARD V7.3 (HOLIDAY INTEGRATION FIXED)
+// 1. Fixed missing 'count' property in synthetic holiday briefing.
+// 2. Removed unused i18n variable.
+// 3. Holiday greeting now uses dedicated translation keys for holidays.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,9 +16,10 @@ import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getCurrentBriefingHoliday } from '../utils/kosovoHolidays';
 
 const DashboardPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(); // removed i18n
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -36,6 +36,13 @@ const DashboardPage: React.FC = () => {
   const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
 
+  // Client-side holiday detection
+  const holidayBriefing = useMemo(() => {
+    const today = new Date();
+    const holiday = getCurrentBriefingHoliday(today, (key: string) => t(key));
+    return holiday;
+  }, [t]);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -51,8 +58,29 @@ const DashboardPage: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
+  // Determine final briefing status and message, preferring client-side holiday if applicable
+  const effectiveBriefing = useMemo(() => {
+    const backend = briefing;
+    const hasHoliday = holidayBriefing.isHoliday;
+    if (hasHoliday && (!backend || backend.status !== 'HOLIDAY')) {
+      // Override: create a synthetic briefing response with holiday info
+      const synthetic: BriefingResponse = {
+        status: 'HOLIDAY',
+        greeting_key: `holiday.${holidayBriefing.holiday?.greetingKey || 'generic'}`,
+        message_key: `holiday.${holidayBriefing.holiday?.greetingKey || 'generic'}`,
+        data: {
+          holiday: holidayBriefing.holiday?.name,
+        },
+        risk_radar: backend?.risk_radar || [],
+        count: 0, // required property
+      };
+      return synthetic;
+    }
+    return backend;
+  }, [briefing, holidayBriefing]);
+
   const theme = useMemo(() => {
-    const status = briefing?.status || 'OPTIMAL';
+    const status = effectiveBriefing?.status || 'OPTIMAL';
     switch (status) {
       case 'HOLIDAY': 
         return { 
@@ -80,7 +108,7 @@ const DashboardPage: React.FC = () => {
           icon: <CheckCircle2 className="h-6 w-6 text-indigo-400" /> 
         };
     }
-  }, [briefing?.status]);
+  }, [effectiveBriefing?.status]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -154,11 +182,11 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-full flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
-        {briefing && (
+        {effectiveBriefing && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className="shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl briefing-gradient-optimal"
+            className={`shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl briefing-gradient-optimal`}
           >
             <div className="p-6 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
@@ -172,7 +200,24 @@ const DashboardPage: React.FC = () => {
                     </h2>
                     <p className="font-black text-xl sm:text-2xl text-text-primary tracking-tight leading-tight">
                       {(() => {
-                        const fullGreeting = t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string;
+                        // If we have a synthetic holiday briefing, use the holiday's greeting directly
+                        if (holidayBriefing.isHoliday && effectiveBriefing?.status === 'HOLIDAY') {
+                          // Use the greeting from the holiday engine (already translated)
+                          // We need to split at comma for mobile wrapping
+                          const fullGreeting = holidayBriefing.greeting;
+                          const commaIndex = fullGreeting.indexOf(',');
+                          if (commaIndex === -1) return fullGreeting;
+                          const before = fullGreeting.substring(0, commaIndex + 1);
+                          const after = fullGreeting.substring(commaIndex + 1).trim();
+                          return (
+                            <>
+                              <span className="block sm:inline">{before}</span>
+                              <span className="block sm:inline sm:ml-1">{after}</span>
+                            </>
+                          );
+                        }
+                        // Fall back to backend greeting
+                        const fullGreeting = t(`briefing.greetings.${effectiveBriefing.greeting_key}`, effectiveBriefing.data || {}) as string;
                         const commaIndex = fullGreeting.indexOf(',');
                         if (commaIndex === -1) return fullGreeting;
                         const before = fullGreeting.substring(0, commaIndex + 1);
@@ -186,19 +231,25 @@ const DashboardPage: React.FC = () => {
                       })()}
                     </p>
                     <p className="text-text-secondary font-semibold mt-2 text-sm sm:text-base italic">
-                        {t(`briefing.messages.${briefing.message_key}`, { 
-                          ...(briefing.data || {}), 
-                          holiday_name: briefing.data?.holiday ? t(`holidays.${briefing.data.holiday}`) : '' 
-                        }) as string}
+                        {(() => {
+                          if (holidayBriefing.isHoliday && effectiveBriefing?.status === 'HOLIDAY') {
+                            // Use the holiday greeting message from the engine
+                            return holidayBriefing.greeting;
+                          }
+                          return t(`briefing.messages.${effectiveBriefing.message_key}`, { 
+                            ...(effectiveBriefing.data || {}), 
+                            holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : '' 
+                          }) as string;
+                        })()}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex-1 w-full max-w-2xl">
-                    {briefing.risk_radar && briefing.risk_radar.length > 0 ? (
+                    {effectiveBriefing.risk_radar && effectiveBriefing.risk_radar.length > 0 ? (
                         <div className="space-y-3">
                             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/30 ml-1 italic">RADARI I RREZIKUT</h3>
-                            {briefing.risk_radar.map((item: RiskAlert) => (
+                            {effectiveBriefing.risk_radar.map((item: RiskAlert) => (
                                 <div key={item.id} className={`p-4 rounded-2xl border flex items-center justify-between gap-4 backdrop-blur-xl transition-all ${item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-danger-start/10 border-danger-start/30' : 'bg-warning-start/10 border-warning-start/20'}`}>
                                     <div className="flex items-center gap-3 min-w-0">
                                         <div className={`w-2 h-2 rounded-full shrink-0 ${item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-danger-start animate-ping' : 'bg-warning-start'}`} />
@@ -215,11 +266,11 @@ const DashboardPage: React.FC = () => {
                         </div>
                     ) : (
                         <div className="h-full flex items-center">
-                            {briefing.status === 'OPTIMAL' && briefing.data?.quote_key && (
+                            {effectiveBriefing.status === 'OPTIMAL' && effectiveBriefing.data?.quote_key && (
                                 <div className="glass-panel p-5 rounded-2xl w-full border border-main">
                                     <QuoteIcon size={18} className="text-primary-start shrink-0 mt-1 opacity-40 inline mr-2" />
                                     <span className="text-text-secondary text-sm sm:text-base leading-relaxed tracking-wide font-medium">
-                                        {t(`briefing.quotes.${briefing.data.quote_key}`) as string}
+                                        {t(`briefing.quotes.${effectiveBriefing.data.quote_key}`) as string}
                                     </span>
                                 </div>
                             )}
@@ -263,7 +314,7 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-8">
           {cases.length === 0 ? (
-             <div className="card-panel flex flex-col items-center justify-center py-24">
+             <div className="card-panel flex flex-col items-center justify-center py-24 border border-border-main">
                 <div className="w-20 h-20 bg-surface/50 rounded-3xl flex items-center justify-center mb-6 border border-border-main">
                     <ShieldAlert size={40} className="opacity-20 text-text-secondary" />
                 </div>
