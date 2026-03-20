@@ -1,9 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V7.1 (FINAL CONTRAST FIX)
-// 1. UPDATED: All text and icons now use semantic color classes: text-primary, text-secondary, text-muted.
-// 2. ENSURED: Active nav link uses text-primary and primary-start border.
-// 3. PROFILE DROPDOWN: Fully adapted to light/dark via semantic classes.
-// 4. SEARCH INPUT: Uses glass-input which now has proper contrast.
+// PHOENIX PROTOCOL - HEADER V7.2 (EXECUTIVE DESIGN SYSTEM – FLEX OPTIMIZATION)
+// 1. FIX: Added responsive flex‑shrink to prevent search bar and logo collision on smaller desktops.
+// 2. IMPROVED: Search input container now uses flex‑1 + max‑width to balance space.
+// 3. SEMANTIC: All text, icons, borders use semantic classes (bg‑surface, border‑main, text‑text‑primary, etc.).
+// 4. RETAINED: All existing functionality (theme toggle, language switcher, alerts, profile dropdown).
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -95,7 +95,12 @@ const Header: React.FC = () => {
     <>
       <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-surface/60 border-b border-main transition-all duration-300">
         
-        <div className="flex items-center h-full gap-4 lg:gap-8">
+        {/* Left section: logo and search */}
+        <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
+          <div className="flex-shrink-0">
+            <BrandLogo />
+          </div>
+          
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="lg:hidden p-2 text-text-secondary hover:text-text-primary transition-colors"
@@ -104,14 +109,12 @@ const Header: React.FC = () => {
             <Menu size={24} />
           </button>
           
-          <BrandLogo />
-          
-          <div className="relative hidden sm:block">
+          <div className="relative hidden sm:block flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted h-4 w-4" />
             <input 
               type="text" 
               placeholder={t('general.search', 'Kërko...')} 
-              className="glass-input w-64 focus:w-80"
+              className="glass-input w-full pl-10 pr-3 py-2 rounded-xl focus:ring-1 focus:ring-primary-start/40 transition-all"
             />
           </div>
         </div>
@@ -132,7 +135,7 @@ const Header: React.FC = () => {
           })}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}

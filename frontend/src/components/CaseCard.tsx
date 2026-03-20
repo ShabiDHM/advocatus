@@ -1,8 +1,8 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. All colors converted to semantic classes (text-text-primary, text-text-secondary, border-main, etc.)
-// 2. Fixed invalid nesting (<a> removed, onClick on container handles navigation).
-// 3. Preserved all interactions and animations.
+// PHOENIX PROTOCOL - CASE CARD V6.1 (EXECUTIVE DESIGN SYSTEM – ENHANCED METADATA)
+// 1. Added case number and status badge for professional legal dashboard.
+// 2. Status badge uses semantic colors: open → success, closed → muted, pending → warning.
+// 3. Preserved hover-lift, glass-panel, and all interactions.
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -43,6 +43,29 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const hasTitle = caseData.title && caseData.title.trim() !== '';
   const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
+  // Status badge styling based on case status
+  const getStatusBadge = () => {
+    const status = caseData.status?.toLowerCase();
+    if (status === 'open' || status === 'active') {
+      return {
+        label: t('case.status.active', 'Aktiv'),
+        className: 'bg-success-start/20 text-success-start border-success-start/30'
+      };
+    }
+    if (status === 'closed' || status === 'archived') {
+      return {
+        label: t('case.status.closed', 'Mbyllur'),
+        className: 'bg-text-muted/20 text-text-secondary border-text-muted/30'
+      };
+    }
+    return {
+      label: t('case.status.pending', 'Në pritje'),
+      className: 'bg-warning-start/20 text-warning-start border-warning-start/30'
+    };
+  };
+
+  const statusBadge = getStatusBadge();
+
   return (
     <motion.div 
       onClick={handleCardClick}
@@ -55,13 +78,21 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
       <div>
-        {/* Header Section */}
+        {/* Header Section with Case Number and Status */}
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-                <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-text-secondary italic' : 'text-text-primary group-hover:text-primary-start transition-colors'}`}>
-                    {displayTitle}
-                </h2>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono text-text-muted bg-surface/30 px-2 py-0.5 rounded-md">
+                  {caseData.case_number || 'N/A'}
+                </span>
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${statusBadge.className}`}>
+                  {statusBadge.label}
+                </span>
+              </div>
+              <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-text-secondary italic' : 'text-text-primary group-hover:text-primary-start transition-colors'}`}>
+                  {displayTitle}
+              </h2>
             </div>
           </div>
           

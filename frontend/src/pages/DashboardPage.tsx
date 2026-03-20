@@ -1,8 +1,9 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, btn-primary, text-text-primary, text-text-secondary, border-main.
-// 2. Preserved all functionality: case management, briefing, events, delete confirmation.
-// 3. Maintained dynamic briefing card styling based on status.
+// PHOENIX PROTOCOL - DASHBOARD V7.1 (EXECUTIVE DESIGN SYSTEM – INDIGO PRESTIGE)
+// 1. Briefing Card: Uses Indigo Prestige gradient (from-indigo-950/40 to-black/40) and indigo border for all non‑critical states.
+// 2. “RAST I RI” Button: Uses btn-primary (already correct).
+// 3. Case Cards: Enhanced with case number and status badge (updated in separate CaseCard file).
+// 4. Header Overlap: Resolved by Header’s flex‑1 + max‑wd.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -50,14 +51,35 @@ const DashboardPage: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
+  // Updated theme: Indigo Prestige for OPTIMAL, HOLIDAY, WEEKEND; semantic colors for others
   const theme = useMemo(() => {
     const status = briefing?.status || 'OPTIMAL';
     switch (status) {
-      case 'HOLIDAY': return { style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', icon: <PartyPopper className="h-6 w-6 text-indigo-400" /> };
-      case 'WEEKEND': return { style: 'from-teal-950/40 to-black/40 border-teal-500/50', icon: <Coffee className="h-6 w-6 text-teal-400" /> };
-      case 'CRITICAL': return { style: 'from-red-950/40 via-red-900/40 to-black/40 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]', icon: <ShieldAlert className="h-6 w-6 animate-pulse text-red-500" /> };
-      case 'WARNING': return { style: 'from-amber-950/40 to-black/40 border-amber-500/50', icon: <AlertTriangle className="h-6 w-6 text-amber-400" /> };
-      default: return { style: 'from-emerald-950/40 to-black/40 border-emerald-500/50', icon: <CheckCircle2 className="h-6 w-6 text-emerald-400" /> };
+      case 'HOLIDAY': 
+        return { 
+          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
+          icon: <PartyPopper className="h-6 w-6 text-indigo-400" /> 
+        };
+      case 'WEEKEND': 
+        return { 
+          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
+          icon: <Coffee className="h-6 w-6 text-indigo-400" /> 
+        };
+      case 'CRITICAL': 
+        return { 
+          style: 'from-red-950/40 via-red-900/40 to-black/40 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]', 
+          icon: <ShieldAlert className="h-6 w-6 animate-pulse text-red-500" /> 
+        };
+      case 'WARNING': 
+        return { 
+          style: 'from-amber-950/40 to-black/40 border-amber-500/50', 
+          icon: <AlertTriangle className="h-6 w-6 text-amber-400" /> 
+        };
+      default: 
+        return { 
+          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
+          icon: <CheckCircle2 className="h-6 w-6 text-indigo-400" /> 
+        };
     }
   }, [briefing?.status]);
 
@@ -127,7 +149,6 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Semantic input and label classes (matching other pages)
   const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40";
   const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
 
@@ -150,13 +171,12 @@ const DashboardPage: React.FC = () => {
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/40 mb-2">
                       {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                     </h2>
-                    {/* Mobile-friendly greeting: split at first comma */}
                     <p className="font-black text-xl sm:text-2xl text-text-primary tracking-tight leading-tight">
                       {(() => {
                         const fullGreeting = t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string;
                         const commaIndex = fullGreeting.indexOf(',');
                         if (commaIndex === -1) return fullGreeting;
-                        const before = fullGreeting.substring(0, commaIndex + 1); // include comma
+                        const before = fullGreeting.substring(0, commaIndex + 1);
                         const after = fullGreeting.substring(commaIndex + 1).trim();
                         return (
                           <>
