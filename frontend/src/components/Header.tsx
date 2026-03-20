@@ -1,7 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V7.0 (SEMANTIC DESIGN SYSTEM)
-// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, etc.
-// 2. RETAINED: Theme toggle, alerts, profile dropdown.
+// PHOENIX PROTOCOL - HEADER V7.1 (FINAL CONTRAST FIX)
+// 1. UPDATED: All text and icons now use semantic color classes: text-primary, text-secondary, text-muted.
+// 2. ENSURED: Active nav link uses text-primary and primary-start border.
+// 3. PROFILE DROPDOWN: Fully adapted to light/dark via semantic classes.
+// 4. SEARCH INPUT: Uses glass-input which now has proper contrast.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -25,7 +27,6 @@ const Header: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // BASE NAVIGATION (Visible to all authenticated users)
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
@@ -33,7 +34,6 @@ const Header: React.FC = () => {
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // ADMIN-ONLY: Insert Admin Panel link at index 1 (after Zyra)
   if (user?.role === 'ADMIN') {
       navItems.splice(1, 0, {
           icon: Shield,
