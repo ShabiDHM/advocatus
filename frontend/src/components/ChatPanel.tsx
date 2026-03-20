@@ -1,8 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V6.10 (SEMANTIC THEME VARIABLES)
-// 1. REPLACED: background-dark/light, glass-edge with canvas, surface, surface-border.
-// 2. RETAINED: All features (document count badge, domain selector, export, retry, feedback).
-// 3. FIXED: Unused useTheme import (kept but not needed, could be removed if desired).
+// PHOENIX PROTOCOL - CHAT PANEL V6.11 (EXECUTIVE PAPER SURFACE)
+// 1. CHANGED: Message area now uses `paper-surface` class for the legal‑paper background.
+// 2. RETAINED: All features (document badge, domain selector, export, retry, feedback).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,7 +15,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
-// import { useTheme } from '../context/ThemeContext'; // Not needed, kept for future use if required
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -153,7 +151,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-high text-xs text-text-secondary rounded-xl border surface-border shadow-2xl z-50"
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-high text-xs text-text-secondary rounded-xl border border-surface-border shadow-2xl z-50"
                     >
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
                     </motion.div>
@@ -165,9 +163,9 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
 
 // Custom markdown components
 const MarkdownComponents = (t: TFunction) => ({
-    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b surface-border pb-2 uppercase tracking-wider" {...props} />,
-    h2: ({node, ...props}: any) => <h2 className="text-lg font-bold text-primary-start mb-3 mt-5" {...props} />,
-    h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-accent-end mb-2 mt-4 flex items-center gap-2" {...props} />,
+    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-surface-border pb-2 uppercase tracking-wider" {...props} />,
+    h2: ({node, ...props}: any) => <h2 className="text-lg font-bold text-accent-primary mb-3 mt-5" {...props} />,
+    h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-accent-hover mb-2 mt-4 flex items-center gap-2" {...props} />,
     p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-text-secondary" {...props} />, 
     a: ({href, children}: any) => {
         if (href?.startsWith('/laws/')) {
@@ -176,7 +174,7 @@ const MarkdownComponents = (t: TFunction) => ({
                 <LawPreviewTooltip chunkId={chunkId} t={t}>
                     <Link
                         to={href}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:shadow-lg hover:scale-105 bg-secondary-start/20 text-secondary-start border-secondary-start/30"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:shadow-lg hover:scale-105 bg-accent-subtle text-accent-primary border-accent-primary/30"
                     >
                         <Scale size={12} />
                         {children}
@@ -190,7 +188,7 @@ const MarkdownComponents = (t: TFunction) => ({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-start hover:underline cursor-pointer"
+                className="text-accent-primary hover:underline cursor-pointer"
             >
                 {children}
             </a>
@@ -237,14 +235,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
   return (
-    <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
+    <div className={`flex flex-col glass-panel rounded-3xl overflow-hidden h-full w-full ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b surface-border bg-surface/5 backdrop-blur-sm z-50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border bg-surface/5 backdrop-blur-sm z-50">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
-          <h3 className="text-sm font-bold text-text-primary">{t('chatPanel.title')}</h3>
+          <h3 className="text-sm font-black text-text-primary">{t('chatPanel.title')}</h3>
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
-            <div className="flex items-center gap-1 bg-surface/20 border surface-border rounded-full px-2 py-0.5 text-xs text-text-secondary">
+            <div className="flex items-center gap-1 bg-surface/20 border border-surface-border rounded-full px-2 py-0.5 text-xs text-text-secondary">
               <span>{selectedDocumentCount} dokumente</span>
             </div>
           )}
@@ -255,7 +253,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="bg-surface/20 border surface-border rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-start/40"
+              className="bg-surface/20 border border-surface-border rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:ring-1 focus:ring-accent-primary/40"
             >
               {Object.entries(domainLabels).map(([value, label]) => (
                 <option key={value} value={value} className="bg-surface">{label}</option>
@@ -263,7 +261,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </select>
           )}
           {/* Mode toggle */}
-          <div className="flex items-center bg-surface/20 rounded-lg p-0.5 border surface-border">
+          <div className="flex items-center bg-surface/20 rounded-lg p-0.5 border border-surface-border">
             <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-text-secondary'}`}>
               <Zap size={12} /> {t('chatPanel.modeFast')}
             </button>
@@ -274,7 +272,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
           {/* Export button */}
           {onExportChat && (
-            <button onClick={onExportChat} className="p-2 text-text-secondary hover:text-primary-start transition-colors" title="Shkarko bisedën">
+            <button onClick={onExportChat} className="p-2 text-text-secondary hover:text-accent-primary transition-colors" title="Shkarko bisedën">
               <Download size={16} />
             </button>
           )}
@@ -282,12 +280,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-canvas/20 custom-scrollbar relative">
+      {/* Message area – now with paper-surface */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-10 paper-surface custom-scrollbar">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-text-primary" /></div>}
-              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-text-primary rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
+              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-primary to-accent-hover flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-text-inverse" /></div>}
+              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-accent-primary to-accent-hover text-text-inverse rounded-br-none' : 'bg-surface text-text-primary rounded-bl-none'}`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -304,7 +303,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="flex items-center gap-2 mt-2">
                     <button
                       onClick={handleRetry}
-                      className="px-3 py-1 bg-primary-start/20 hover:bg-primary-start/30 text-primary-start rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+                      className="px-3 py-1 bg-accent-subtle hover:bg-accent-primary/20 text-accent-primary rounded-lg text-xs font-medium transition-all flex items-center gap-1"
                     >
                       <RefreshCw size={12} />
                       {t('chat.retry', 'Provo përsëri')}
@@ -312,14 +311,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   </div>
                 )}
               </div>
-              {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center border surface-border shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
+              {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center border border-surface-border shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
             </motion.div>
           ))}
 
           {showThinking && (
             <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-text-primary" /></div>
-              <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
+              <div className="w-8 h-8 rounded-full bg-accent-primary flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-text-inverse" /></div>
+              <div className="bg-surface text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
                 {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
               </div>
             </motion.div>
@@ -329,10 +328,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t surface-border bg-surface/5 backdrop-blur-md">
+      <div className="p-4 border-t border-surface-border bg-surface/5 backdrop-blur-md">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2">
           <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
-          <button type="submit" disabled={!input.trim() || isSendingMessage} className="p-3 bg-gradient-to-r from-primary-start to-primary-end text-text-primary rounded-xl shadow-lg shadow-primary-start/20 active:scale-95 transition-all"><Send size={18} /></button>
+          <button type="submit" disabled={!input.trim() || isSendingMessage} className="btn-primary p-3 flex items-center gap-2"><Send size={18} /></button>
         </form>
       </div>
     </div>
