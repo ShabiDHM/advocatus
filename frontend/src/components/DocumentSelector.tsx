@@ -1,6 +1,6 @@
 // FILE: src/components/DocumentSelector.tsx
-// PHOENIX PROTOCOL - DOCUMENT SELECTOR V1.4 (EXECUTIVE REFINEMENT)
-// 1. UPDATED: Use semantic variables and `hover-lift` on button.
+// PHOENIX PROTOCOL - DOCUMENT SELECTOR V2.0 (SEMANTIC DESIGN SYSTEM)
+// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, primary-start, etc.
 // 2. RETAINED: Multi‑select functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -65,7 +65,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
         className="glass-input w-full h-12 md:h-11 rounded-xl flex items-center justify-between gap-2 px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface/10 transition-colors disabled:opacity-50 hover-lift"
       >
         <span className="flex items-center gap-2 truncate">
-          <FileText size={16} className="text-accent-primary shrink-0" />
+          <FileText size={16} className="text-primary-start shrink-0" />
           <span className="truncate">{buttonLabel}</span>
         </span>
         <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -77,16 +77,16 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto glass-panel border border-surface-border rounded-xl shadow-xl z-50 p-2"
+            className="absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto glass-panel border border-main rounded-xl shadow-xl z-50 p-2"
           >
             {documents.length === 0 ? (
-              <div className="text-xs text-text-secondary/70 p-2">Nuk ka dokumente</div>
+              <div className="text-xs text-text-muted p-2">Nuk ka dokumente</div>
             ) : (
               <>
-                <div className="flex items-center gap-2 p-1 border-b border-surface-border mb-1">
+                <div className="flex items-center gap-2 p-1 border-b border-main mb-1">
                   <button
                     onClick={selectAll}
-                    className="text-xs text-accent-primary hover:underline"
+                    className="text-xs text-primary-start hover:underline"
                   >
                     {allSelected ? 'Çzgjidh të gjitha' : 'Zgjidh të gjitha'}
                   </button>
@@ -100,7 +100,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
                       type="checkbox"
                       checked={selectedIds.includes(doc.id)}
                       onChange={() => toggleDocument(doc.id)}
-                      className="rounded border-surface-border bg-canvas text-accent-primary checked:bg-accent-primary checked:border-transparent focus:ring-accent-primary"
+                      className="rounded border-main bg-canvas text-primary-start checked:bg-primary-start checked:border-transparent focus:ring-primary-start"
                     />
                     <span className="text-xs text-text-secondary truncate">{doc.file_name}</span>
                   </label>

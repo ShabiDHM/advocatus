@@ -1,8 +1,7 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.6 (EXECUTIVE REFINEMENT) – SINGLE VERSION
-// 1. REPLACED: All hardcoded colors with semantic CSS variables.
-// 2. UPDATED: Mobile menu to use same variables.
-// 3. RETAINED: Theme toggle, alerts, profile dropdown.
+// PHOENIX PROTOCOL - HEADER V7.0 (SEMANTIC DESIGN SYSTEM)
+// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, etc.
+// 2. RETAINED: Theme toggle, alerts, profile dropdown.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -94,7 +93,7 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-surface/60 border-b border-surface-border transition-all duration-300">
+      <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-surface/60 border-b border-main transition-all duration-300">
         
         <div className="flex items-center h-full gap-4 lg:gap-8">
           <button
@@ -124,7 +123,7 @@ const Header: React.FC = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${isCurrentActive ? 'text-text-primary border-b-2 border-accent-primary' : 'text-text-secondary hover:text-text-primary hover:bg-surface/10'}`}
+                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${isCurrentActive ? 'text-text-primary border-b-2 border-primary-start' : 'text-text-secondary hover:text-text-primary hover:bg-surface/10'}`}
               >
                 <item.icon className="h-4 w-4 mr-2" />
                 {item.label}
@@ -150,23 +149,23 @@ const Header: React.FC = () => {
           <Link to="/calendar" className="p-2 text-text-secondary hover:text-text-primary hover:bg-surface/10 rounded-lg transition-colors relative" title="Kalendari">
             <Bell size={20} />
             {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
             )}
           </Link>
           
-          <div className="h-6 w-px bg-surface-border"></div>
+          <div className="h-6 w-px bg-main"></div>
 
           <div className="relative">
             <button 
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-surface/10 border-surface-border' : 'border-transparent hover:bg-surface/10 hover:border-surface-border'}`}
+              className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-surface/10 border-main' : 'border-transparent hover:bg-surface/10 hover:border-main'}`}
             >
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-text-primary">{user?.username || 'User'}</p>
                 <p className="text-xs text-text-secondary uppercase tracking-wider">{user?.role || 'LAWYER'}</p>
               </div>
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-white font-bold shadow-accent-glow">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
@@ -174,22 +173,22 @@ const Header: React.FC = () => {
             {isProfileOpen && (
               <div 
                 ref={dropdownRef}
-                className="absolute right-0 mt-2 w-60 bg-surface/90 backdrop-blur-xl border border-surface-border rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
+                className="absolute right-0 mt-2 w-60 bg-surface/90 backdrop-blur-xl border border-main rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
               >
-                <div className="px-4 py-3 border-b border-surface-border mb-1 bg-surface/5">
+                <div className="px-4 py-3 border-b border-main mb-1 bg-surface/5">
                   <p className="text-sm text-text-primary font-medium truncate">{user?.username}</p>
                   <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
                 <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-surface/10 transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <UserIcon size={16} className="mr-3 text-accent-primary" />
+                  <UserIcon size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.account', 'Llogaria Ime')}
                 </Link>
                 <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-surface/10 transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <MessageSquare size={16} className="mr-3 text-accent-primary" />
+                  <MessageSquare size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.support', 'Mbështetja')}
                 </Link>
-                <div className="h-px bg-surface-border my-1"></div>
-                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors">
+                <div className="h-px bg-main my-1"></div>
+                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 hover:text-danger-start transition-colors">
                   <LogOut size={16} className="mr-3" />
                   {t('general.logout', 'Dilni')}
                 </button>
@@ -201,7 +200,7 @@ const Header: React.FC = () => {
 
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-0 bg-surface/95 backdrop-blur-xl z-50 animate-in fade-in">
-          <div className="flex items-center justify-between h-16 px-4 border-b border-surface-border">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-main">
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}

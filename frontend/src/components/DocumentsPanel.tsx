@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V8.4 (EXECUTIVE REFINEMENT)
-// 1. ADDED: `hover-lift` effect on document items.
-// 2. UPDATED: Use `btn-primary` for primary actions (none here, but kept consistency).
-// 3. RETAINED: All features (upload, delete, archive, import, bulk selection).
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V9.0 (SEMANTIC DESIGN SYSTEM)
+// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, etc.
+// 2. RETAINED: All features (upload, delete, archive, import, bulk selection).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -167,9 +166,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
-      case 'CONNECTED': return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]';
-      case 'CONNECTING': return 'bg-accent-start animate-pulse';
-      default: return 'bg-red-500';
+      case 'CONNECTED': return 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]';
+      case 'CONNECTING': return 'bg-warning-start animate-pulse';
+      default: return 'bg-danger-start';
     }
   };
 
@@ -189,10 +188,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   return (
     <>
-    <div className={`glass-panel p-4 rounded-3xl flex flex-col h-full overflow-hidden ${className}`}>
+    <div className={`glass-panel p-4 rounded-panel flex flex-col h-full overflow-hidden ${className}`}>
       
       {/* Header Bar */}
-      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-red-500/30 bg-red-900/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-3xl' : 'border-surface-border'}`}>
+      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-danger-start/30 bg-danger-start/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-panel' : 'border-main'}`}>
         
         {isSelectionMode ? (
             <div className="flex items-center justify-between w-full">
@@ -205,7 +204,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <button 
                     onClick={handleBulkDelete} 
                     disabled={isBulkDeleting}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-lg font-bold text-sm transition-colors shadow-lg"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-danger-start/80 hover:bg-danger-start text-white rounded-lg font-bold text-sm transition-colors shadow-lg"
                 >
                     {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={16} />}
                     Fshi Të Gjitha
@@ -215,7 +214,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             <>
                 <div className="flex items-center gap-3 min-w-0">
                     <button onClick={toggleSelectAll} className="text-text-secondary hover:text-text-primary transition-colors" title="Select All">
-                        {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-accent-primary" /> : <Square size={20} />}
+                        {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary-start" /> : <Square size={20} />}
                     </button>
                     <h2 className="text-lg font-black text-text-primary truncate">{t('documentsPanel.title')}</h2>
                     <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
@@ -228,7 +227,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
                         disabled={isSystemBusy}
                         whileTap={{ scale: 0.95 }}
-                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-surface/10 text-text-secondary cursor-not-allowed border border-surface-border' : 'bg-accent-primary text-text-inverse shadow-accent-xs hover:shadow-accent-sm hover:brightness-110'}`}
+                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-surface/10 text-text-secondary cursor-not-allowed border border-main' : 'bg-primary-start text-white shadow-accent-glow hover:brightness-110'}`}
                         title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
@@ -240,12 +239,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-12 w-56 glass-panel border border-surface-border rounded-xl shadow-xl z-50 overflow-hidden"
+                                className="absolute right-0 top-12 w-56 glass-panel border border-main rounded-xl shadow-xl z-50 overflow-hidden"
                             >
                                 <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-surface/10 flex items-center gap-3 text-sm text-text-secondary transition-colors">
-                                    <FilePlus size={16} className="text-accent-primary" /> Ngarko Dokument
+                                    <FilePlus size={16} className="text-primary-start" /> Ngarko Dokument
                                 </button>
-                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-surface/10 flex items-center gap-3 text-sm text-text-secondary border-t border-surface-border transition-colors">
+                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-surface/10 flex items-center gap-3 text-sm text-text-secondary border-t border-main transition-colors">
                                     <HardDrive size={16} className="text-success-start" /> Importo nga Arkiva
                                 </button>
                             </motion.div>
@@ -258,7 +257,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
       </div>
 
-      {uploadError && (<div className="p-3 text-xs text-red-200 bg-red-500/20 border border-red-500/30 rounded-xl mb-4 font-medium">{uploadError}</div>)}
+      {uploadError && (<div className="p-3 text-xs text-danger-start bg-danger-start/20 border border-danger-start/30 rounded-xl mb-4 font-medium">{uploadError}</div>)}
       
       <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0 bg-canvas/20 rounded-xl p-2">
         {displayDocuments.length === 0 && (
@@ -272,9 +271,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isUploadingState = doc.status === 'UPLOADING';
           const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
           const progressPercent = doc.progress_percent || 0;
-          const barColor = isUploadingState ? "bg-accent-primary" : "bg-blue-500";
+          const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
-          const statusTextColor = isUploadingState ? "text-accent-primary" : "text-blue-400";
+          const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
           const canInteract = !isUploadingState && !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
@@ -283,7 +282,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 key={doc.id} 
                 layout="position" 
                 onClick={() => !isUploadingState && toggleSelect(doc.id)} 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer hover-lift ${isSelected ? 'bg-accent-subtle border-accent-primary/50' : 'bg-surface/10 hover:bg-surface/20 border-surface-border hover:border-surface-border'}`}
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer hover-lift ${isSelected ? 'bg-primary-start/10 border-primary-start/50' : 'bg-surface/10 hover:bg-surface/20 border-main hover:border-main'}`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
             >
@@ -305,13 +304,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 )}
                 
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-surface/20 rounded-lg text-accent-primary transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-surface/20 rounded-lg text-primary-start transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} className="p-1.5 hover:bg-surface/20 rounded-lg text-text-secondary hover:text-text-primary transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
                 )}
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-danger-start/20 rounded-lg text-danger-start hover:text-danger-start/80 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
                 )}
                 {!canInteract && (
                     <Lock size={14} className="text-text-secondary/30" />

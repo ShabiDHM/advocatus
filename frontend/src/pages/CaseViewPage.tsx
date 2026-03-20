@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.15 (EXECUTIVE REFINEMENT)
-// 1. UPDATED: Use `btn-primary` for primary buttons.
-// 2. ADDED: `hover-lift` effect on panels.
-// 3. RETAINED: All features (document selection, analysis, chat, export).
+// PHOENIX PROTOCOL - CASE VIEW V11.0 (SEMANTIC DESIGN SYSTEM)
+// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, btn-primary, etc.
+// 2. RETAINED: All features (document selection, analysis, chat, export).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -85,22 +84,22 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 group" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="absolute inset-0 rounded-3xl overflow-hidden border border-surface-border shadow-xl">
+          <div className="absolute inset-0 rounded-panel overflow-hidden border border-main shadow-xl">
               <div className="absolute inset-0 bg-surface/40 backdrop-blur-md" />
-              <div className="absolute top-0 right-0 p-32 bg-accent-primary/5 blur-[100px] rounded-full pointer-events-none" />
+              <div className="absolute top-0 right-0 p-32 bg-primary-start/5 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               <div className="flex flex-col gap-1">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary tracking-tight leading-snug break-words">{caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}</h1>
-                  <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-accent-primary" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
+                  <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-primary-start" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
               </div>
 
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-surface-border to-transparent" />
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-main to-transparent" />
 
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     {/* Date badge */}
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border border-surface-border text-text-secondary text-sm font-medium whitespace-nowrap">
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
@@ -121,14 +120,14 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border border-surface-border text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-accent-subtle border-accent-primary text-accent-primary' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/10 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
-                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-accent-primary" />}
+                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-primary-start" />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* Analyze button – now using btn-primary */}
+                    {/* Analyze button */}
                     <button
                         onClick={onAnalyze}
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
@@ -340,8 +339,8 @@ const CaseViewPage: React.FC = () => {
   const handleExpandViewer = () => { if (minimizedDocument) { handleViewOriginal(minimizedDocument); } };
   const handleRename = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch (error) { alert(t('error.generic')); } };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary"></div></div>;
-  if (error || !caseData.details) return <div className="p-8 text-center text-red-400 border border-red-600 rounded-md bg-red-900/50 mt-10 mx-4"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
+  if (error || !caseData.details) return <div className="p-8 text-center text-danger-start border border-danger-start/30 rounded-md bg-danger-start/10 mt-10 mx-4"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
 
   return (
     <motion.div className="w-full min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
