@@ -1,8 +1,9 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V7.3 (HOLIDAY INTEGRATION FIXED)
-// 1. Fixed missing 'count' property in synthetic holiday briefing.
-// 2. Removed unused i18n variable.
-// 3. Holiday greeting now uses dedicated translation keys for holidays.
+// PHOENIX PROTOCOL - DASHBOARD V7.4 (HOLIDAY PRIORITY FIX)
+// 1. Holiday detection now runs before backend briefing and overrides it.
+// 2. If a holiday is detected, a synthetic briefing is used exclusively.
+// 3. Fixed TypeScript errors (added missing 'count' property).
+// 4. Removed unused i18n variable.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentBriefingHoliday } from '../utils/kosovoHolidays';
 
 const DashboardPage: React.FC = () => {
-  const { t } = useTranslation(); // removed i18n
+  const { t } = useTranslation(); // removed unused i18n
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -36,11 +37,10 @@ const DashboardPage: React.FC = () => {
   const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
 
-  // Client-side holiday detection
+  // Client-side holiday detection (runs on every render)
   const holidayBriefing = useMemo(() => {
     const today = new Date();
-    const holiday = getCurrentBriefingHoliday(today, (key: string) => t(key));
-    return holiday;
+    return getCurrentBriefingHoliday(today, (key: string) => t(key));
   }, [t]);
 
   useEffect(() => {
@@ -58,26 +58,23 @@ const DashboardPage: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
-  // Determine final briefing status and message, preferring client-side holiday if applicable
-  const effectiveBriefing = useMemo(() => {
-    const backend = briefing;
-    const hasHoliday = holidayBriefing.isHoliday;
-    if (hasHoliday && (!backend || backend.status !== 'HOLIDAY')) {
-      // Override: create a synthetic briefing response with holiday info
-      const synthetic: BriefingResponse = {
+  // Final briefing: if holiday, create synthetic; else use backend
+  const effectiveBriefing = useMemo((): BriefingResponse | null => {
+    if (holidayBriefing.isHoliday) {
+      // Construct synthetic briefing with holiday data
+      return {
         status: 'HOLIDAY',
-        greeting_key: `holiday.${holidayBriefing.holiday?.greetingKey || 'generic'}`,
-        message_key: `holiday.${holidayBriefing.holiday?.greetingKey || 'generic'}`,
+        greeting_key: `greeting.${holidayBriefing.holiday?.greetingKey || 'holiday'}`,
+        message_key: `message.${holidayBriefing.holiday?.greetingKey || 'holiday'}`,
         data: {
           holiday: holidayBriefing.holiday?.name,
         },
-        risk_radar: backend?.risk_radar || [],
-        count: 0, // required property
+        risk_radar: briefing?.risk_radar || [],
+        count: 1, // required by BriefingResponse type (maybe used for unread count)
       };
-      return synthetic;
     }
-    return backend;
-  }, [briefing, holidayBriefing]);
+    return briefing;
+  }, [holidayBriefing, briefing]);
 
   const theme = useMemo(() => {
     const status = effectiveBriefing?.status || 'OPTIMAL';
@@ -179,6 +176,12 @@ const DashboardPage: React.FC = () => {
   const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50 border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40";
   const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
 
+  // If no effective briefing (neither holiday nor backend), maybe show a loading state? We'll keep the original behavior.
+  // In practice, briefing might be null initially but eventually set.
+  if (!effectiveBriefing && !isLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-full flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
@@ -199,12 +202,11 @@ const DashboardPage: React.FC = () => {
                       {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                     </h2>
                     <p className="font-black text-xl sm:text-2xl text-text-primary tracking-tight leading-tight">
-                      {(() => {
-                        // If we have a synthetic holiday briefing, use the holiday's greeting directly
-                        if (holidayBriefing.isHoliday && effectiveBriefing?.status === 'HOLIDAY') {
-                          // Use the greeting from the holiday engine (already translated)
-                          // We need to split at comma for mobile wrapping
-                          const fullGreeting = holidayBriefing.greeting;
+                      {holidayBriefing.isHoliday ? (
+                        holidayBriefing.greeting
+                      ) : (
+                        (() => {
+                          const fullGreeting = t(`briefing.greetings.${effectiveBriefing.greeting_key}`, effectiveBriefing.data || {}) as string;
                           const commaIndex = fullGreeting.indexOf(',');
                           if (commaIndex === -1) return fullGreeting;
                           const before = fullGreeting.substring(0, commaIndex + 1);
@@ -215,32 +217,18 @@ const DashboardPage: React.FC = () => {
                               <span className="block sm:inline sm:ml-1">{after}</span>
                             </>
                           );
-                        }
-                        // Fall back to backend greeting
-                        const fullGreeting = t(`briefing.greetings.${effectiveBriefing.greeting_key}`, effectiveBriefing.data || {}) as string;
-                        const commaIndex = fullGreeting.indexOf(',');
-                        if (commaIndex === -1) return fullGreeting;
-                        const before = fullGreeting.substring(0, commaIndex + 1);
-                        const after = fullGreeting.substring(commaIndex + 1).trim();
-                        return (
-                          <>
-                            <span className="block sm:inline">{before}</span>
-                            <span className="block sm:inline sm:ml-1">{after}</span>
-                          </>
-                        );
-                      })()}
+                        })()
+                      )}
                     </p>
                     <p className="text-text-secondary font-semibold mt-2 text-sm sm:text-base italic">
-                        {(() => {
-                          if (holidayBriefing.isHoliday && effectiveBriefing?.status === 'HOLIDAY') {
-                            // Use the holiday greeting message from the engine
-                            return holidayBriefing.greeting;
-                          }
-                          return t(`briefing.messages.${effectiveBriefing.message_key}`, { 
-                            ...(effectiveBriefing.data || {}), 
-                            holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : '' 
-                          }) as string;
-                        })()}
+                      {holidayBriefing.isHoliday ? (
+                        holidayBriefing.greeting
+                      ) : (
+                        t(`briefing.messages.${effectiveBriefing.message_key}`, { 
+                          ...(effectiveBriefing.data || {}), 
+                          holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : '' 
+                        }) as string
+                      )}
                     </p>
                   </div>
                 </div>

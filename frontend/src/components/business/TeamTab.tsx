@@ -1,8 +1,9 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Buttons use btn-primary / btn-secondary where appropriate.
-// 3. Preserved all functionality and i18n.
+// PHOENIX PROTOCOL - TEAM TAB V6.2 (PORTAL DROPDOWN – FIX OVERFLOW CLIPPING)
+// 1. Fixed: Dropdown menu now rendered via portal to avoid being clipped by table overflow.
+// 2. Calculates position dynamically based on button coordinates.
+// 3. Closes on outside click (existing logic preserved).
+// 4. All semantic classes retained.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +15,7 @@ import { apiService } from '../../services/api';
 import { User, Organization } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { createPortal } from 'react-dom';
 
 export const TeamTab: React.FC = () => {
     const { t } = useTranslation();
@@ -30,7 +32,8 @@ export const TeamTab: React.FC = () => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const menuRef = useRef<HTMLDivElement>(null);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const activeButtonRef = useRef<HTMLButtonElement | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -38,13 +41,42 @@ export const TeamTab: React.FC = () => {
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setOpenMenuId(null);
+            if (openMenuId) {
+                // Check if click is outside the button and outside the menu
+                if (activeButtonRef.current && !activeButtonRef.current.contains(event.target as Node)) {
+                    // Also check if click is on the portal menu (we'll handle via ref later)
+                    const portalMenu = document.getElementById('team-dropdown-portal');
+                    if (portalMenu && !portalMenu.contains(event.target as Node)) {
+                        setOpenMenuId(null);
+                        activeButtonRef.current = null;
+                    }
+                }
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [openMenuId]);
+
+    // Reposition on scroll/resize
+    useEffect(() => {
+        if (!openMenuId) return;
+        const updatePosition = () => {
+            if (activeButtonRef.current) {
+                const rect = activeButtonRef.current.getBoundingClientRect();
+                setMenuPosition({
+                    top: rect.bottom + window.scrollY,
+                    left: rect.right - 200 // width of dropdown (w-48 = 12rem = 192px)
+                });
+            }
+        };
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition);
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition);
+        };
+    }, [openMenuId]);
 
     const fetchData = async () => {
         try {
@@ -87,6 +119,18 @@ export const TeamTab: React.FC = () => {
         } catch (error) {
             console.error("Failed to remove member", error);
         }
+    };
+
+    const handleOpenMenu = (e: React.MouseEvent<HTMLButtonElement>, memberId: string) => {
+        e.stopPropagation();
+        const button = e.currentTarget;
+        activeButtonRef.current = button;
+        const rect = button.getBoundingClientRect();
+        setMenuPosition({
+            top: rect.bottom + window.scrollY,
+            left: rect.right - 200 // width of dropdown (w-48 = 192px)
+        });
+        setOpenMenuId(openMenuId === memberId ? null : memberId);
     };
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
@@ -159,7 +203,6 @@ export const TeamTab: React.FC = () => {
                             {members.map((member) => {
                                 const memberRole = member.organization_role || member.role;
                                 const isMemberOwner = memberRole === 'OWNER';
-                                const isSelf = currentUser?.id === member.id;
 
                                 return (
                                     <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
@@ -187,25 +230,13 @@ export const TeamTab: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                                            <div className="relative inline-block text-left">
-                                                <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="p-2 text-text-muted hover:text-text-primary transition-colors">
+                                            <div className="relative">
+                                                <button
+                                                    onClick={(e) => handleOpenMenu(e, member.id)}
+                                                    className="p-2 text-text-muted hover:text-text-primary transition-colors"
+                                                >
                                                     <MoreHorizontal size={20} />
                                                 </button>
-                                                <AnimatePresence>
-                                                    {openMenuId === member.id && (
-                                                        <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }} className="absolute right-0 mt-2 w-48 glass-panel border border-main rounded-xl shadow-2xl z-50 overflow-hidden" ref={menuRef}>
-                                                            <div className="py-1">
-                                                                {isCurrentUserOwner && !isSelf ? (
-                                                                    <button onClick={() => handleRemoveMember(member.id)} className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors">
-                                                                        <Trash2 size={16} /> {t('team.action_remove')}
-                                                                    </button>
-                                                                ) : (
-                                                                    <div className="px-4 py-3 text-sm text-text-muted italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
-                                                                )}
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
                                             </div>
                                         </td>
                                     </tr>
@@ -215,6 +246,38 @@ export const TeamTab: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Dropdown Portal */}
+            {openMenuId && createPortal(
+                <motion.div
+                    id="team-dropdown-portal"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed z-[9999] w-48 glass-panel border border-main rounded-xl shadow-2xl overflow-hidden"
+                    style={{ top: menuPosition.top, left: menuPosition.left }}
+                >
+                    <div className="py-1">
+                        {(() => {
+                            const member = members.find(m => m.id === openMenuId);
+                            if (!member) return null;
+                            const isSelf = currentUser?.id === member.id;
+                            return (
+                                <>
+                                    {isCurrentUserOwner && !isSelf ? (
+                                        <button onClick={() => { handleRemoveMember(member.id); setOpenMenuId(null); }} className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors">
+                                            <Trash2 size={16} /> {t('team.action_remove')}
+                                        </button>
+                                    ) : (
+                                        <div className="px-4 py-3 text-sm text-text-muted italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </div>
+                </motion.div>,
+                document.body
+            )}
 
             {/* Invite Modal */}
             <AnimatePresence>

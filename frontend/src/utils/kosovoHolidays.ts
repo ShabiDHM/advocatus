@@ -1,6 +1,5 @@
 // FILE: src/utils/kosovoHolidays.ts
-// PHOENIX PROTOCOL - KOSOVO HOLIDAY ENGINE V1.1 (FIXED)
-// Removed unused imports, fixed t() call.
+// PHOENIX PROTOCOL - KOSOVO HOLIDAY ENGINE V1.2 (TIMEZONE SAFE)
 
 import { isSameDay, addDays } from 'date-fns';
 
@@ -19,15 +18,14 @@ export interface Holiday {
 // Fixed holidays (same date every year)
 export const fixedHolidays: Omit<Holiday, 'date'>[] = [
   { name: 'Viti i Ri', type: 'LEGAL', greetingKey: 'new_year', isMoveable: false },
-  { name: 'Dita e Pavarësisë së Kosovës', type: 'LEGAL', greetingKey: 'independence_day', isMoveable: false }, // 17 February
-  { name: 'Dita e Kushtetutës së Kosovës', type: 'LEGAL', greetingKey: 'constitution_day', isMoveable: false }, // 9 April
-  { name: 'Dita e Evropës', type: 'INTERNATIONAL', greetingKey: 'europe_day', isMoveable: false }, // 9 May
-  { name: 'Dita e Çlirimit të Kosovës', type: 'LEGAL', greetingKey: 'liberation_day', isMoveable: false }, // 12 June
-  { name: 'Dita e Forcës së Sigurisë së Kosovës', type: 'LEGAL', greetingKey: 'security_force_day', isMoveable: false }, // 30 November
-  { name: 'Dita e Mësuesit', type: 'INTERNATIONAL', greetingKey: 'teachers_day', isMoveable: false }, // 7 March
+  { name: 'Dita e Pavarësisë së Kosovës', type: 'LEGAL', greetingKey: 'independence_day', isMoveable: false },
+  { name: 'Dita e Kushtetutës së Kosovës', type: 'LEGAL', greetingKey: 'constitution_day', isMoveable: false },
+  { name: 'Dita e Evropës', type: 'INTERNATIONAL', greetingKey: 'europe_day', isMoveable: false },
+  { name: 'Dita e Çlirimit të Kosovës', type: 'LEGAL', greetingKey: 'liberation_day', isMoveable: false },
+  { name: 'Dita e Forcës së Sigurisë së Kosovës', type: 'LEGAL', greetingKey: 'security_force_day', isMoveable: false },
+  { name: 'Dita e Mësuesit', type: 'INTERNATIONAL', greetingKey: 'teachers_day', isMoveable: false },
 ];
 
-// Helper to get fixed holiday for a given year
 function getFixedHoliday(holiday: typeof fixedHolidays[0], year: number): Holiday {
   let monthDay: [number, number];
   switch (holiday.name) {
@@ -44,9 +42,7 @@ function getFixedHoliday(holiday: typeof fixedHolidays[0], year: number): Holida
   return { ...holiday, date: new Date(year, month - 1, day) };
 }
 
-// ============ 2. EASTER CALCULATIONS ============
-
-// Computus algorithm for Catholic Easter (Gregorian)
+// Catholic Easter
 function calculateCatholicEaster(year: number): Date {
   const a = year % 19;
   const b = Math.floor(year / 100);
@@ -65,33 +61,25 @@ function calculateCatholicEaster(year: number): Date {
   return new Date(year, month - 1, day);
 }
 
-// Orthodox Easter (Julian) – use Meeus/Jones algorithm
+// Orthodox Easter
 function calculateOrthodoxEaster(year: number): Date {
-  // Convert Gregorian year to Julian approximation
   let a = year % 19;
   let b = year % 4;
   let c = year % 7;
   let d = (19 * a + 15) % 30;
   let e = (2 * b + 4 * c + 6 * d + 6) % 7;
   let f = d + e;
-  // Orthodox Easter is March 22 + f (Julian), but in Gregorian we add 13 days after 1900
   let day = f + 22;
   let month = 3;
   if (day > 31) {
     day -= 31;
     month = 4;
   }
-  // Convert Julian date to Gregorian (add offset)
   const julianDate = new Date(year, month - 1, day);
-  const gregorianDate = addDays(julianDate, 13);
-  return gregorianDate;
+  return addDays(julianDate, 13);
 }
 
-// ============ 3. EID APPROXIMATIONS ============
-
-// Approximate dates for Eid al-Fitr and Eid al-Adha for years 2024–2035
-// Based on astronomical calculations from reliable sources (e.g., Umm al-Qura calendar).
-// These are approximations; actual dates depend on moon sighting.
+// Eid approximations (for 2024–2035)
 const eidDates: Record<string, { fitr: [number, number], adha: [number, number] }> = {
   '2024': { fitr: [4, 10], adha: [6, 16] },
   '2025': { fitr: [3, 31], adha: [6, 6] },
@@ -119,36 +107,31 @@ function getEidHolidays(year: number): Holiday[] {
   ];
 }
 
-// ============ 4. MAIN HOLIDAY GENERATOR ============
-
 export function getHolidaysForYear(year: number): Holiday[] {
   const holidays: Holiday[] = [];
-
-  // Fixed holidays
-  fixedHolidays.forEach(h => {
-    holidays.push(getFixedHoliday(h, year));
-  });
-
-  // Easter
+  fixedHolidays.forEach(h => holidays.push(getFixedHoliday(h, year)));
   holidays.push({ name: 'Pashkët Katolike', type: 'RELIGIOUS', date: calculateCatholicEaster(year), greetingKey: 'easter_catholic', isMoveable: true });
   holidays.push({ name: 'Pashkët Ortodokse', type: 'RELIGIOUS', date: calculateOrthodoxEaster(year), greetingKey: 'easter_orthodox', isMoveable: true });
-
-  // Eid
   holidays.push(...getEidHolidays(year));
-
   return holidays;
 }
 
+// Normalize to local date (midnight)
+function normalizeDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export function getHolidayForDate(date: Date): Holiday | null {
-  const year = date.getFullYear();
+  const normalized = normalizeDate(date);
+  const year = normalized.getFullYear();
   const holidays = getHolidaysForYear(year);
-  return holidays.find(h => isSameDay(h.date, date)) || null;
+  return holidays.find(h => isSameDay(normalizeDate(h.date), normalized)) || null;
 }
 
 export interface HolidayBriefing {
   isHoliday: boolean;
   holiday: Holiday | null;
-  greeting: string; // translation key
+  greeting: string; // translated message
 }
 
 export function getCurrentBriefingHoliday(date: Date, t: (key: string) => string): HolidayBriefing {
@@ -162,16 +145,4 @@ export function getCurrentBriefingHoliday(date: Date, t: (key: string) => string
     holiday,
     greeting: t(`holidays.${greetingKey}`),
   };
-}
-
-// Optional: get the nearest upcoming holiday (for countdown)
-export function getNextHoliday(fromDate: Date = new Date()): Holiday | null {
-  const year = fromDate.getFullYear();
-  let holidays = getHolidaysForYear(year);
-  // Also include next year's holidays that may be within range
-  const nextYearHolidays = getHolidaysForYear(year + 1);
-  holidays = [...holidays, ...nextYearHolidays];
-  holidays.sort((a, b) => a.date.getTime() - b.date.getTime());
-  const future = holidays.filter(h => h.date >= fromDate);
-  return future[0] || null;
 }
