@@ -1,7 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V7.0 (SEMANTIC DESIGN SYSTEM)
-// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, btn-primary, etc.
-// 2. RETAINED: All features (document badge, domain selector, export, retry, feedback).
+// PHOENIX PROTOCOL - CHAT PANEL V7.1 (EXECUTIVE DOMAIN SELECTOR & UNIFIED BUTTON)
+// 1. RESTYLED: Domain selector now matches action bar cards (same height, border, bg-surface/10, hover-lift).
+// 2. UNIFIED: Send button uses bg-primary-start with brightness hover.
+// 3. FIXED: All colors use semantic variables.
+// 4. RETAINED: All features (document badge, export, retry, feedback).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -64,13 +66,14 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
         try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error(err); }
     };
     return (
-        <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/10 text-white/70' : 'bg-surface/10 text-text-secondary hover:text-text-primary'}`}>
+        <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${
+            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/10 text-white/70' : 'bg-surface/10 text-text-secondary hover:text-text-primary'
+        }`}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
     );
 };
 
-// Feedback buttons component
 const FeedbackButtons: React.FC<{
     messageIndex: number;
     caseId: string;
@@ -248,24 +251,28 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Domain selection dropdown – only visible in deep mode */}
+          {/* Domain selection dropdown – only visible in deep mode, styled like action cards */}
           {reasoningMode === 'DEEP' && (
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="bg-surface/20 border border-main rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-start/40"
+              className="h-8 md:h-7 rounded-lg border border-main bg-surface/10 text-text-secondary text-xs font-medium px-2 focus:outline-none focus:ring-1 focus:ring-primary-start/40 hover:bg-surface/20 hover-lift transition-all"
             >
               {Object.entries(domainLabels).map(([value, label]) => (
-                <option key={value} value={value} className="bg-surface">{label}</option>
+                <option key={value} value={value} className="bg-surface text-text-primary">{label}</option>
               ))}
             </select>
           )}
           {/* Mode toggle */}
-          <div className="flex items-center bg-surface/20 rounded-lg p-0.5 border border-main">
-            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-text-secondary'}`}>
+          <div className="flex items-center bg-surface/10 rounded-lg p-0.5 border border-main">
+            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-text-secondary'
+            }`}>
               <Zap size={12} /> {t('chatPanel.modeFast')}
             </button>
-            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-text-secondary'}`}>
+            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-text-secondary'
+            }`}>
               {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
               {t('chatPanel.modeDeep')}
             </button>
@@ -286,7 +293,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
-              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'bg-surface/80 backdrop-blur-sm border border-main text-text-primary rounded-bl-none'}`}>
+              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${
+                  msg.role === 'user' 
+                      ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' 
+                      : 'bg-surface/80 backdrop-blur-sm border border-main text-text-primary rounded-bl-none'
+              }`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -328,10 +339,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input area */}
       <div className="p-4 border-t border-main bg-surface/5 backdrop-blur-md">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2">
           <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
-          <button type="submit" disabled={!input.trim() || isSendingMessage} className="btn-primary p-3 flex items-center gap-2"><Send size={18} /></button>
+          <button type="submit" disabled={!input.trim() || isSendingMessage} className="h-12 w-12 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            <Send size={18} />
+          </button>
         </form>
       </div>
     </div>

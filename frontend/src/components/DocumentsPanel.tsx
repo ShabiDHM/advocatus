@@ -1,7 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V9.0 (SEMANTIC DESIGN SYSTEM)
-// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, etc.
-// 2. RETAINED: All features (upload, delete, archive, import, bulk selection).
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V9.1 (UNIFIED BUTTON & SEMANTIC FIX)
+// 1. FIXED: "+" button now uses bg-primary-start and proper hover.
+// 2. UNIFIED: Document items use semantic colors and hover-lift.
+// 3. RETAINED: All features (upload, delete, archive, import, bulk selection).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -227,7 +228,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
                         disabled={isSystemBusy}
                         whileTap={{ scale: 0.95 }}
-                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-surface/10 text-text-secondary cursor-not-allowed border border-main' : 'bg-primary-start text-white shadow-accent-glow hover:brightness-110'}`}
+                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all hover-lift ${
+                            isSystemBusy 
+                                ? 'bg-surface/10 text-text-secondary cursor-not-allowed border border-main' 
+                                : 'bg-primary-start text-white shadow-accent-glow hover:brightness-110'
+                        }`}
                         title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
@@ -282,7 +287,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 key={doc.id} 
                 layout="position" 
                 onClick={() => !isUploadingState && toggleSelect(doc.id)} 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer hover-lift ${isSelected ? 'bg-primary-start/10 border-primary-start/50' : 'bg-surface/10 hover:bg-surface/20 border-main hover:border-main'}`}
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer hover-lift ${
+                    isSelected 
+                        ? 'bg-primary-start/10 border-primary-start/50' 
+                        : 'bg-surface/10 hover:bg-surface/20 border-main hover:border-main'
+                }`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
             >
