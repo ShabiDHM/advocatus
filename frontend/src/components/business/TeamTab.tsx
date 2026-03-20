@@ -1,9 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V6.2 (PORTAL DROPDOWN – FIX OVERFLOW CLIPPING)
-// 1. Fixed: Dropdown menu now rendered via portal to avoid being clipped by table overflow.
-// 2. Calculates position dynamically based on button coordinates.
-// 3. Closes on outside click (existing logic preserved).
-// 4. All semantic classes retained.
+// PHOENIX PROTOCOL - TEAM TAB V6.4 (IMPROVED DROPDOWN POSITIONING)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -42,14 +38,13 @@ export const TeamTab: React.FC = () => {
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (openMenuId) {
-                // Check if click is outside the button and outside the menu
-                if (activeButtonRef.current && !activeButtonRef.current.contains(event.target as Node)) {
-                    // Also check if click is on the portal menu (we'll handle via ref later)
-                    const portalMenu = document.getElementById('team-dropdown-portal');
-                    if (portalMenu && !portalMenu.contains(event.target as Node)) {
-                        setOpenMenuId(null);
-                        activeButtonRef.current = null;
-                    }
+                // Check if click is outside the button AND outside the portal menu
+                const portalMenu = document.getElementById('team-dropdown-portal');
+                const isClickInsideButton = activeButtonRef.current?.contains(event.target as Node);
+                const isClickInsidePortal = portalMenu?.contains(event.target as Node);
+                if (!isClickInsideButton && !isClickInsidePortal) {
+                    setOpenMenuId(null);
+                    activeButtonRef.current = null;
                 }
             }
         };
@@ -57,18 +52,25 @@ export const TeamTab: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [openMenuId]);
 
-    // Reposition on scroll/resize
+    // Position the dropdown when openMenuId changes
     useEffect(() => {
-        if (!openMenuId) return;
+        if (!openMenuId || !activeButtonRef.current) return;
+
         const updatePosition = () => {
-            if (activeButtonRef.current) {
-                const rect = activeButtonRef.current.getBoundingClientRect();
-                setMenuPosition({
-                    top: rect.bottom + window.scrollY,
-                    left: rect.right - 200 // width of dropdown (w-48 = 12rem = 192px)
-                });
-            }
+            if (!activeButtonRef.current) return;
+            const rect = activeButtonRef.current.getBoundingClientRect();
+            const menuWidth = 192; // w-48 = 12rem = 192px
+            const viewportWidth = window.innerWidth;
+            // Calculate left position: try to align with right edge, but flip if off-screen
+            let left = rect.right - menuWidth;
+            if (left < 0) left = rect.left;
+            if (left + menuWidth > viewportWidth) left = viewportWidth - menuWidth - 8;
+            setMenuPosition({
+                top: rect.bottom + window.scrollY + 4,
+                left: left + window.scrollX,
+            });
         };
+
         updatePosition();
         window.addEventListener('resize', updatePosition);
         window.addEventListener('scroll', updatePosition);
@@ -116,6 +118,7 @@ export const TeamTab: React.FC = () => {
         try {
             await apiService.removeOrganizationMember(userId);
             fetchData();
+            setOpenMenuId(null);
         } catch (error) {
             console.error("Failed to remove member", error);
         }
@@ -125,11 +128,6 @@ export const TeamTab: React.FC = () => {
         e.stopPropagation();
         const button = e.currentTarget;
         activeButtonRef.current = button;
-        const rect = button.getBoundingClientRect();
-        setMenuPosition({
-            top: rect.bottom + window.scrollY,
-            left: rect.right - 200 // width of dropdown (w-48 = 192px)
-        });
         setOpenMenuId(openMenuId === memberId ? null : memberId);
     };
 
@@ -202,8 +200,7 @@ export const TeamTab: React.FC = () => {
                         <tbody className="divide-y divide-main text-sm">
                             {members.map((member) => {
                                 const memberRole = member.organization_role || member.role;
-                                const isMemberOwner = memberRole === 'OWNER';
-
+                                const isOwner = memberRole === 'OWNER';
                                 return (
                                     <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -219,8 +216,8 @@ export const TeamTab: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                {isMemberOwner ? <Crown size={14} className="text-warning-start" /> : <Briefcase size={14} className="text-text-muted" />}
-                                                <span className={isMemberOwner ? 'text-warning-start font-bold' : 'text-text-secondary'}>{memberRole}</span>
+                                                {isOwner ? <Crown size={14} className="text-warning-start" /> : <Briefcase size={14} className="text-text-muted" />}
+                                                <span className={isOwner ? 'text-warning-start font-bold' : 'text-text-secondary'}>{memberRole}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -250,6 +247,7 @@ export const TeamTab: React.FC = () => {
             {/* Dropdown Portal */}
             {openMenuId && createPortal(
                 <motion.div
+                    key="team-dropdown-portal"
                     id="team-dropdown-portal"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -265,11 +263,16 @@ export const TeamTab: React.FC = () => {
                             return (
                                 <>
                                     {isCurrentUserOwner && !isSelf ? (
-                                        <button onClick={() => { handleRemoveMember(member.id); setOpenMenuId(null); }} className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors">
+                                        <button 
+                                            onClick={() => { handleRemoveMember(member.id); }} 
+                                            className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors"
+                                        >
                                             <Trash2 size={16} /> {t('team.action_remove')}
                                         </button>
                                     ) : (
-                                        <div className="px-4 py-3 text-sm text-text-muted italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
+                                        <div className="px-4 py-3 text-sm text-text-muted italic text-center">
+                                            {isSelf ? t('team.label_current_user') : t('team.label_no_actions')}
+                                        </div>
                                     )}
                                 </>
                             );
