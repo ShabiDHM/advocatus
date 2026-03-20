@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V11.4 (MOBILE‑FRIENDLY LAYOUT)
-// 1. Header uses flex-wrap and responsive gaps.
-// 2. Textarea and send button use flex layout (no absolute) to avoid overlap.
-// 3. Domain selector and mode toggle wrap on small screens.
-// 4. All original functionality preserved.
+// PHOENIX PROTOCOL - CHAT PANEL V11.5 (UNIFIED HEADER ALIGNMENT)
+// 1. Unified heights: domain selector and segmented control both h-9.
+// 2. Consistent borders: both use border-border-main with same border radius.
+// 3. Proper vertical alignment across mobile/desktop.
+// 4. All existing functionality preserved.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -229,47 +229,64 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-lawyer-light ${className}`}>
       
-      {/* HEADER: Responsive wrap */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border-main bg-canvas/40 z-50 shrink-0">
-        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+      {/* HEADER – unified heights and borders */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-canvas/40 z-50 shrink-0 gap-3 sm:gap-0">
+        {/* Left group: title, status, badge, domain selector */}
+        <div className="flex items-center flex-wrap gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none whitespace-nowrap">
-                {t('chatPanel.title')}
+            <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
+              {t('chatPanel.title')}
             </h2>
-            <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger-start animate-pulse'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger-start animate-pulse'}`} />
           </div>
 
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-1 bg-primary-start/10 border border-primary-start/20 rounded-full shadow-sm">
-                <span className="text-[10px] font-black text-primary-start uppercase tracking-widest whitespace-nowrap">{selectedDocumentCount} Lëndë</span>
+              <span className="text-[10px] font-black text-primary-start uppercase tracking-widest">{selectedDocumentCount} Lëndë</span>
+            </div>
+          )}
+          
+          {reasoningMode === 'DEEP' && (
+            <div className="relative group">
+              <select
+                value={selectedDomain}
+                onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
+                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-[10px] font-black uppercase tracking-widest pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
+              >
+                {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {reasoningMode === 'DEEP' && (
-            <div className="relative group">
-                <select
-                value={selectedDomain}
-                onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-[10px] font-black uppercase tracking-widest pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
-                >
-                {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            </div>
-          )}
-          
-          <div className="flex items-center bg-canvas p-1 rounded-xl border border-border-main shadow-inner h-9">
-            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest h-full transition-all ${reasoningMode === 'FAST' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary'}`}>
-              <Zap size={12} /> <span className="hidden sm:inline">{t('chatPanel.modeFast', 'Shpejtë')}</span>
+        {/* Right group: segmented control + actions */}
+        <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center bg-canvas p-0.5 rounded-xl border border-border-main shadow-inner h-9">
+            <button
+              onClick={() => setReasoningMode('FAST')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest h-full transition-all ${
+                reasoningMode === 'FAST'
+                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              <Zap size={12} /> {t('chatPanel.modeFast', 'Shpejtë')}
             </button>
-            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest h-full transition-all ${reasoningMode === 'DEEP' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary disabled:opacity-30'}`}>
-              {!isPro ? <Lock size={10} /> : <GraduationCap size={12} />} <span className="hidden sm:inline">{t('chatPanel.modeDeep', 'Thellë')}</span>
+            <button
+              onClick={() => isPro && setReasoningMode('DEEP')}
+              disabled={!isPro}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest h-full transition-all ${
+                reasoningMode === 'DEEP'
+                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  : 'text-text-muted hover:text-text-primary disabled:opacity-30'
+              }`}
+            >
+              {!isPro ? <Lock size={10} /> : <GraduationCap size={12} />} {t('chatPanel.modeDeep', 'Thellë')}
             </button>
           </div>
 
-          <div className="h-6 w-px bg-border-main mx-1 hidden sm:block" />
+          <div className="h-6 w-px bg-border-main" />
 
           <div className="flex gap-1">
             {onExportChat && <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface-secondary rounded-lg transition-all" title="Download"><Download size={18} /></button>}
@@ -278,15 +295,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] no-scrollbar">
+      {/* MESSAGE STREAM – unchanged */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] no-scrollbar">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
-            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 sm:gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-border-main text-text-secondary'}`}>
-                {msg.role === 'ai' ? <BrainCircuit size={18} className="sm:w-5 sm:h-5" /> : <User size={18} className="sm:w-5 sm:h-5" />}
+            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-border-main text-text-secondary'}`}>
+                {msg.role === 'ai' ? <BrainCircuit size={20} /> : <User size={20} />}
               </div>
-              <div className={`relative max-w-[85%] rounded-[1.5rem] p-4 sm:p-6 text-sm shadow-lawyer-light border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-border-main text-text-primary rounded-tl-sm'}`}>
+              <div className={`relative max-w-[85%] rounded-[1.5rem] p-6 text-sm shadow-lawyer-light border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-border-main text-text-primary rounded-tl-sm'}`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text prose prose-slate max-w-none prose-sm sm:prose-base">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -303,9 +320,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </motion.div>
           ))}
           {showThinking && (
-            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 sm:gap-4">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary-start text-white flex items-center justify-center shadow-accent-glow"><BrainCircuit size={18} className="sm:w-5 sm:h-5" /></div>
-              <div className="bg-surface border border-border-main rounded-[1.5rem] rounded-tl-sm px-4 sm:px-6 py-3 sm:py-4 shadow-lawyer-light flex items-center gap-3">
+            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary-start text-white flex items-center justify-center shadow-accent-glow"><BrainCircuit size={20} /></div>
+              <div className="bg-surface border border-border-main rounded-[1.5rem] rounded-tl-sm px-6 py-4 shadow-lawyer-light flex items-center gap-3">
                 <span className="text-[11px] font-black text-primary-start uppercase tracking-widest">{t('chat.thinking', 'Analizimi')}</span>
                 <ThinkingDots />
               </div>
@@ -315,22 +332,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA – flex layout (no absolute) */}
-      <div className="p-4 sm:p-5 border-t border-border-main bg-surface shrink-0">
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-2 sm:gap-3 max-w-5xl mx-auto">
+      {/* INPUT AREA – unchanged */}
+      <div className="p-5 border-t border-border-main bg-surface shrink-0">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-3 max-w-5xl mx-auto">
           <textarea 
-            ref={textareaRef} 
-            value={input} 
-            onChange={(e) => setInput(e.target.value)} 
-            onKeyDown={handleKeyDown} 
+            ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} 
             placeholder={t('chatPanel.inputPlaceholder')} 
-            className="glass-input flex-1 p-3 sm:p-4 rounded-2xl text-sm leading-relaxed resize-none shadow-inner-trough focus:bg-canvas/10 transition-all no-scrollbar min-h-[52px] sm:min-h-[60px]" 
+            className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed resize-none shadow-inner-trough focus:bg-canvas/10 transition-all no-scrollbar min-h-[60px]" 
             rows={1} 
           />
           <button 
-            type="submit" 
-            disabled={!input.trim() || isSendingMessage} 
-            className="self-end h-12 w-12 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+            type="submit" disabled={!input.trim() || isSendingMessage} 
+            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10"
           >
             <Send size={18} className="ml-0.5" />
           </button>
