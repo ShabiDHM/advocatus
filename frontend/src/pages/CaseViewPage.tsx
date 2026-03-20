@@ -1,9 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V11.1 (EXECUTIVE ACTION BAR)
-// 1. UNIFIED: Date, Document Selector, Analyst Toggle, Analyze button now share exact same height and base styling.
-// 2. ADDED: hover-lift to all interactive items for premium feedback.
-// 3. ACTIVE STATE: Analyst toggle uses primary-start border and subtle background when active.
-// 4. RETAINED: All features (document selection, analysis, chat, export).
+// PHOENIX PROTOCOL - CASE VIEW V11.2 (SYMMETRICAL ACTION BAR)
+// 1. UNIFIED: All four action bar items now have identical background, border, and hover effects.
+// 2. DISTINGUISHED: Analyze button uses primary color for icon and text instead of a solid background.
+// 3. RETAINED: All features (document selection, analysis, chat, export).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -99,7 +98,7 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-main to-transparent" />
 
-              {/* Executive Action Bar - All items same height, rounded-xl, and hover-lift where interactive */}
+              {/* Executive Action Bar - All items share same base styling */}
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     {/* Date badge (static, no hover) */}
                     <div className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2 px-4 bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
@@ -123,27 +122,37 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border hover-lift ${!isPro ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/10 border-primary-start text-primary-start' : 'bg-surface/10 border-main text-text-secondary hover:text-text-primary hover:bg-surface/20'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
+                            !isPro 
+                                ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' 
+                                : viewMode === 'analyst' 
+                                    ? 'bg-primary-start/10 border-primary-start text-primary-start' 
+                                    : 'bg-surface/10 border-main text-text-secondary hover:text-text-primary hover:bg-surface/20'
+                        }`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
                         {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-text-secondary'} />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* Analyze button (primary action) */}
+                    {/* Analyze button – now matches other cards, distinguished by primary color */}
                     <button
                         onClick={onAnalyze}
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
-                        className="md:col-span-1 h-12 md:h-11 btn-primary disabled:opacity-50 disabled:cursor-not-allowed hover-lift"
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
+                            !isPro || isAnalyzing || viewMode !== 'workspace'
+                                ? 'bg-surface/10 border-main text-text-secondary cursor-not-allowed opacity-70'
+                                : 'bg-surface/10 border-main text-primary-start hover:bg-primary-start/5 hover:border-primary-start'
+                        }`}
                         type="button"
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
                         {isAnalyzing ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> <span>{t('analysis.analyzing', 'Duke analizuar...')}</span></>
+                            <><Loader2 size={16} className="animate-spin text-primary-start" /> <span>{t('analysis.analyzing', 'Duke analizuar...')}</span></>
                         ) : !isPro ? (
-                            <><Lock size={16} /> <span>{analyzeButtonText}</span></>
+                            <><Lock size={16} className="text-text-secondary" /> <span>{analyzeButtonText}</span></>
                         ) : (
-                            <><ShieldCheck size={16} /> <span>{analyzeButtonText}</span></>
+                            <><ShieldCheck size={16} className="text-primary-start" /> <span className="text-primary-start">{analyzeButtonText}</span></>
                         )}
                     </button>
               </div>
