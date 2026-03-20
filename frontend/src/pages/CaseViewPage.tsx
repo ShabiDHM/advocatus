@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V11.2 (SYMMETRICAL ACTION BAR)
-// 1. UNIFIED: All four action bar items now have identical background, border, and hover effects.
-// 2. DISTINGUISHED: Analyze button uses primary color for icon and text instead of a solid background.
-// 3. RETAINED: All features (document selection, analysis, chat, export).
+// PHOENIX PROTOCOL - CASE VIEW V11.4 (FIXED UNUSED isAdmin)
+// 1. Removed unused 'isAdmin' prop from CaseHeader.
+// 2. All mobile-friendly improvements retained.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -74,14 +73,23 @@ const CaseHeader: React.FC<{
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
     isPro: boolean; 
-    isAdmin: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-}> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin, selectedDocumentIds, onDocumentSelectionChange }) => {
+}> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
     
     const analyzeButtonText = selectedDocumentIds.length === 0
         ? t('analysis.analyzeButton', 'Analizo Rastin')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
+
+    // Determine which buttons to show based on view mode and pro status
+    const showDateBadge = true;
+    const showDocumentSelector = viewMode === 'workspace';
+    const showAnalystToggle = true;
+    const showAnalyzeButton = viewMode === 'workspace';
+
+    // Grid columns count on mobile: 1; on md: 4 (all buttons visible)
+    const buttonCount = [showDateBadge, showDocumentSelector, showAnalystToggle, showAnalyzeButton].filter(Boolean).length;
+    const gridColsClass = buttonCount === 4 ? 'grid-cols-1 md:grid-cols-4' : 'grid-cols-1';
 
     return (
         <motion.div className="relative mb-6 group" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
@@ -98,17 +106,20 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-main to-transparent" />
 
-              {/* Executive Action Bar - All items share same base styling */}
-              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
-                    {/* Date badge (static, no hover) */}
-                    <div className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2 px-4 bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
-                        <Calendar className="h-4 w-4 text-blue-400" />
-                        {new Date(caseDetails.created_at).toLocaleDateString()}
-                    </div>
+              {/* Executive Action Bar - responsive grid */}
+              <div className={`grid ${gridColsClass} gap-3 w-full animate-in fade-in slide-in-from-top-2`}>
+                    {/* Date badge */}
+                    {showDateBadge && (
+                        <div className="h-12 md:h-11 rounded-xl flex items-center justify-center gap-2 px-4 bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
+                            <Calendar className="h-4 w-4 text-blue-400" />
+                            <span className="hidden xs:inline">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+                            <span className="xs:hidden">{new Date(caseDetails.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                    )}
                     
-                    {/* Document selector (interactive) */}
-                    {viewMode === 'workspace' && (
-                        <div className="md:col-span-1 h-12 md:h-11 min-w-0">
+                    {/* Document selector (only in workspace) */}
+                    {showDocumentSelector && (
+                        <div className="h-12 md:h-11 min-w-0">
                             <DocumentSelector
                                 documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
                                 selectedIds={selectedDocumentIds}
@@ -118,43 +129,48 @@ const CaseHeader: React.FC<{
                         </div>
                     )}
                     
-                    {/* Analyst toggle (interactive) */}
-                    <button
-                        onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
-                            !isPro 
-                                ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' 
-                                : viewMode === 'analyst' 
-                                    ? 'bg-primary-start/10 border-primary-start text-primary-start' 
-                                    : 'bg-surface/10 border-main text-text-secondary hover:text-text-primary hover:bg-surface/20'
-                        }`}
-                        title={!isPro ? "Available on Pro Plan" : ""}
-                    >
-                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-text-secondary'} />}
-                        <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
-                    </button>
+                    {/* Analyst toggle */}
+                    {showAnalystToggle && (
+                        <button
+                            onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                            disabled={!isPro}
+                            className={`h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
+                                !isPro 
+                                    ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' 
+                                    : viewMode === 'analyst' 
+                                        ? 'bg-primary-start/10 border-primary-start text-primary-start' 
+                                        : 'bg-surface/10 border-main text-text-secondary hover:text-text-primary hover:bg-surface/20'
+                            }`}
+                            title={!isPro ? "Available on Pro Plan" : ""}
+                        >
+                            {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-text-secondary'} />}
+                            <span className="hidden xs:inline">{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
+                            <span className="xs:hidden">{t('caseView.financialAnalystShort', 'Analist')}</span>
+                        </button>
+                    )}
 
-                    {/* Analyze button – now matches other cards, distinguished by primary color */}
-                    <button
-                        onClick={onAnalyze}
-                        disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
-                            !isPro || isAnalyzing || viewMode !== 'workspace'
-                                ? 'bg-surface/10 border-main text-text-secondary cursor-not-allowed opacity-70'
-                                : 'bg-surface/10 border-main text-primary-start hover:bg-primary-start/5 hover:border-primary-start'
-                        }`}
-                        type="button"
-                        title={!isPro ? "Available on Pro Plan" : ""}
-                    >
-                        {isAnalyzing ? (
-                            <><Loader2 size={16} className="animate-spin text-primary-start" /> <span>{t('analysis.analyzing', 'Duke analizuar...')}</span></>
-                        ) : !isPro ? (
-                            <><Lock size={16} className="text-text-secondary" /> <span>{analyzeButtonText}</span></>
-                        ) : (
-                            <><ShieldCheck size={16} className="text-primary-start" /> <span className="text-primary-start">{analyzeButtonText}</span></>
-                        )}
-                    </button>
+                    {/* Analyze button */}
+                    {showAnalyzeButton && (
+                        <button
+                            onClick={onAnalyze}
+                            disabled={!isPro || isAnalyzing}
+                            className={`h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-medium transition-all duration-300 whitespace-nowrap border hover-lift ${
+                                !isPro || isAnalyzing
+                                    ? 'bg-surface/10 border-main text-text-secondary cursor-not-allowed opacity-70'
+                                    : 'bg-surface/10 border-main text-primary-start hover:bg-primary-start/5 hover:border-primary-start'
+                            }`}
+                            type="button"
+                            title={!isPro ? "Available on Pro Plan" : ""}
+                        >
+                            {isAnalyzing ? (
+                                <><Loader2 size={16} className="animate-spin text-primary-start" /> <span>{t('analysis.analyzing', 'Duke analizuar...')}</span></>
+                            ) : !isPro ? (
+                                <><Lock size={16} className="text-text-secondary" /> <span className="hidden xs:inline">{analyzeButtonText}</span><span className="xs:hidden">{t('analysis.analyzeShort', 'Analizo')}</span></>
+                            ) : (
+                                <><ShieldCheck size={16} className="text-primary-start" /> <span className="hidden xs:inline">{analyzeButtonText}</span><span className="xs:hidden">{t('analysis.analyzeShort', 'Analizo')}</span></>
+                            )}
+                        </button>
+                    )}
               </div>
           </div>
         </motion.div>
@@ -186,10 +202,6 @@ const CaseViewPage: React.FC = () => {
   const isPro = useMemo(() => {
       if (!user) return false;
       return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
-  }, [user]);
-
-  const isAdmin = useMemo(() => {
-      return user?.role === 'ADMIN';
   }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -367,44 +379,47 @@ const CaseViewPage: React.FC = () => {
                 viewMode={viewMode}
                 setViewMode={setViewMode}
                 isPro={isPro}
-                isAdmin={isAdmin}
                 selectedDocumentIds={selectedDocumentIds}
                 onDocumentSelectionChange={setSelectedDocumentIds}
             />
         </div>
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
-                <motion.div key="workspace" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">
-                    <DocumentsPanel 
-                        caseId={caseData.details.id} 
-                        documents={liveDocuments} 
-                        t={t} 
-                        connectionStatus={connectionStatus} 
-                        reconnect={reconnect} 
-                        onDocumentUploaded={handleDocumentUploaded} 
-                        onDocumentDeleted={handleDocumentDeleted} 
-                        onViewOriginal={handleViewOriginal} 
-                        onRename={(doc) => setDocumentToRename(doc)} 
-                        className="h-[500px] lg:h-full shadow-xl hover-lift" 
-                    />
-                    <ChatPanel 
-                        messages={chatMessages}
-                        connectionStatus={connectionStatus}
-                        reconnect={reconnect}
-                        onSendMessage={handleChatSubmit}
-                        isSendingMessage={isSendingMessage}
-                        onClearChat={handleClearChat}
-                        onExportChat={handleExportChat}
-                        t={t}
-                        className="!h-[600px] lg!h-full w-full shadow-xl hover-lift"
-                        activeContextId={caseId || 'general'}
-                        isPro={isPro}
-                        selectedDocumentCount={selectedDocumentIds.length}
-                    />
+                <motion.div key="workspace" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="flex flex-col lg:flex-row gap-6 mt-6 min-h-[500px]">
+                    <div className="flex-1 min-w-0">
+                        <DocumentsPanel 
+                            caseId={caseData.details.id} 
+                            documents={liveDocuments} 
+                            t={t} 
+                            connectionStatus={connectionStatus} 
+                            reconnect={reconnect} 
+                            onDocumentUploaded={handleDocumentUploaded} 
+                            onDocumentDeleted={handleDocumentDeleted} 
+                            onViewOriginal={handleViewOriginal} 
+                            onRename={(doc) => setDocumentToRename(doc)} 
+                            className="h-full w-full shadow-xl hover-lift" 
+                        />
+                    </div>
+                    <div className="flex-1 min-w-0 mt-6 lg:mt-0">
+                        <ChatPanel 
+                            messages={chatMessages}
+                            connectionStatus={connectionStatus}
+                            reconnect={reconnect}
+                            onSendMessage={handleChatSubmit}
+                            isSendingMessage={isSendingMessage}
+                            onClearChat={handleClearChat}
+                            onExportChat={handleExportChat}
+                            t={t}
+                            className="h-full w-full shadow-xl hover-lift"
+                            activeContextId={caseId || 'general'}
+                            isPro={isPro}
+                            selectedDocumentCount={selectedDocumentIds.length}
+                        />
+                    </div>
                 </motion.div>
             )}
             {viewMode === 'analyst' && isPro && (
-                <motion.div key="analyst" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }}>
+                <motion.div key="analyst" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }} className="mt-6">
                     <SpreadsheetAnalyst caseId={caseData.details.id} />
                 </motion.div>
             )}
