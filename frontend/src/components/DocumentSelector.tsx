@@ -1,12 +1,13 @@
 // FILE: src/components/DocumentSelector.tsx
-// PHOENIX PROTOCOL - DOCUMENT SELECTOR V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Uses semantic classes: glass-panel, glass-input, border-main, text-text-primary, text-text-secondary, text-text-muted, primary-start.
-// 2. Multi‑select functionality preserved.
-// 3. Fully consistent with the global design system.
+// PHOENIX PROTOCOL - DOCUMENT SELECTOR V7.0 (EXECUTIVE DROPDOWN FIX)
+// 1. FIXED: Corrected dropdown background and borders to use V6.0 Design System tokens.
+// 2. FIXED: Enhanced Z-Index to ensure the menu always floats over Workspace panels.
+// 3. ENHANCED: Professional Executive typography (font-black, tracking-widest).
+// 4. RETAINED: Multi-select logic and click-outside closing.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, FileText } from 'lucide-react';
+import { ChevronDown, FileText, CheckSquare, Square } from 'lucide-react';
 
 interface DocumentSelectorProps {
   documents: Array<{ id: string; file_name: string }>;
@@ -54,58 +55,77 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
 
   const allSelected = documents.length > 0 && selectedIds.length === documents.length;
   const noneSelected = selectedIds.length === 0;
+  
   const buttonLabel = noneSelected
     ? 'E gjithë dosja'
-    : `${selectedIds.length} dokumente`;
+    : `${selectedIds.length} Dokumente`;
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={`relative w-full h-full ${className}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="glass-input w-full h-12 md:h-11 rounded-xl flex items-center justify-between gap-2 px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface/10 transition-colors disabled:opacity-50 hover-lift"
+        className="w-full h-full flex items-center justify-between gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-lawyer-light transition-all duration-300 hover:border-primary-start/50 disabled:opacity-40 disabled:cursor-not-allowed group"
       >
-        <span className="flex items-center gap-2 truncate">
-          <FileText size={16} className="text-primary-start shrink-0" />
-          <span className="truncate">{buttonLabel}</span>
+        <span className="flex items-center gap-3 truncate">
+          <FileText size={16} className="text-primary-start opacity-70 group-hover:opacity-100 transition-opacity" />
+          <span className="text-[11px] font-black uppercase tracking-widest text-text-secondary truncate">
+            {buttonLabel}
+          </span>
         </span>
-        <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`text-text-muted transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto glass-panel border border-main rounded-xl shadow-xl z-50 p-2"
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            className="absolute top-full left-0 mt-2 w-full min-w-[280px] bg-surface border border-border-main rounded-2xl shadow-lawyer-dark z-[100] overflow-hidden py-2"
           >
             {documents.length === 0 ? (
-              <div className="text-xs text-text-muted p-2">Nuk ka dokumente</div>
+              <div className="px-6 py-8 text-center flex flex-col items-center gap-3 opacity-40">
+                <FileText size={32} className="text-text-muted" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">Nuk ka dokumente në këtë lëndë</p>
+              </div>
             ) : (
               <>
-                <div className="flex items-center gap-2 p-1 border-b border-main mb-1">
+                {/* Header: Bulk Actions */}
+                <div className="px-3 pb-2 mb-2 border-b border-border-main/50">
                   <button
                     onClick={selectAll}
-                    className="text-xs text-primary-start hover:underline"
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-canvas hover:bg-primary-start/5 text-[10px] font-black uppercase tracking-widest text-primary-start transition-all"
                   >
                     {allSelected ? 'Çzgjidh të gjitha' : 'Zgjidh të gjitha'}
                   </button>
                 </div>
-                {documents.map(doc => (
-                  <label
-                    key={doc.id}
-                    className="flex items-center gap-2 p-1 hover:bg-surface/10 rounded cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(doc.id)}
-                      onChange={() => toggleDocument(doc.id)}
-                      className="rounded border-main bg-canvas text-primary-start checked:bg-primary-start checked:border-transparent focus:ring-primary-start"
-                    />
-                    <span className="text-xs text-text-secondary truncate">{doc.file_name}</span>
-                  </label>
-                ))}
+
+                {/* List: Document Selection */}
+                <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 space-y-1">
+                  {documents.map(doc => {
+                    const isSelected = selectedIds.includes(doc.id);
+                    return (
+                        <label
+                            key={doc.id}
+                            className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${isSelected ? 'bg-primary-start/5 border-primary-start/20' : 'bg-transparent border-transparent hover:bg-canvas'}`}
+                        >
+                            <div className="shrink-0 transition-transform active:scale-90">
+                                {isSelected ? <CheckSquare size={16} className="text-primary-start" /> : <Square size={16} className="text-text-muted" />}
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleDocument(doc.id)}
+                                    className="hidden"
+                                />
+                            </div>
+                            <span className={`text-xs font-bold truncate ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
+                                {doc.file_name}
+                            </span>
+                        </label>
+                    );
+                  })}
+                </div>
               </>
             )}
           </motion.div>

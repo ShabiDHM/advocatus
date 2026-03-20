@@ -1,9 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V14.1 (SYNTAX & LOGIC TOTAL FIX)
-// 1. FIXED: All JSX parsing errors and mismatched tags.
-// 2. FIXED: Implemented 'caseView.financialAnalyst' and 'caseView.analyzeCase' keys.
-// 3. FIXED: Action Bar is PERMANENT. Grid never shifts or collapses between views.
-// 4. RETAINED: 100% logic (Streaming, Sockets, Modals, Rename, Deletion).
+// PHOENIX PROTOCOL - CASE VIEW V15.0 (DROPDOWN STACKING FIX)
+// 1. FIXED: Elevated Z-Index of the Action Bar (z-20) to ensure dropdowns clear the panels below.
+// 2. FIXED: Refined background architecture to prevent child clipping.
+// 3. ENHANCED: Professional spacing and executive typography.
+// 4. RETAINED: 100% logic parity (Streaming, Sockets, Modals, Analysis).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -35,7 +35,9 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     return rawArray.map((item: any) => {
         const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
         const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) ? 'ai' : 'user';
-        return { role, content: item.content || item.message || '', timestamp: item.timestamp || new Date().toISOString() };
+        const content = item.content || item.message || item.text || '';
+        const timestamp = item.timestamp || item.created_at || new Date().toISOString();
+        return { role, content, timestamp };
     }).filter(msg => msg.content.trim() !== '');
 };
 
@@ -49,7 +51,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     };
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4">
             <div className="bg-surface w-full max-w-md p-8 rounded-[2rem] shadow-lawyer-dark border border-border-main animate-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">{t('documentsPanel.renameTitle')}</h3>
@@ -89,8 +91,8 @@ const CaseHeader: React.FC<{
     const cardBase = "h-12 flex items-center justify-center gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-lawyer-light transition-all duration-300 hover-lift text-[11px] font-black uppercase tracking-widest";
 
     return (
-        <motion.div className="mb-8" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Header Title Section */}
+        <motion.div className="relative mb-8 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          {/* Executive Header Section */}
           <div className="flex flex-col gap-2 mb-8 ml-2">
               <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
                 {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase')}
@@ -101,7 +103,7 @@ const CaseHeader: React.FC<{
               </div>
           </div>
 
-          {/* PERMANENT ACTION BAR - Grid logic is fixed */}
+          {/* PERMANENT SYMMETRICAL ACTION BAR */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-center">
               
               {/* Card 1: Date */}
@@ -110,8 +112,8 @@ const CaseHeader: React.FC<{
                   <span className="text-text-secondary">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
               </div>
 
-              {/* Card 2: Document Selector */}
-              <div className="h-12 relative group hover-lift">
+              {/* Card 2: Document Selector (STACKING CONTEXT PRESERVED) */}
+              <div className="h-12 relative group hover-lift z-50">
                   <DocumentSelector
                       documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
                       selectedIds={selectedDocumentIds}
@@ -124,7 +126,11 @@ const CaseHeader: React.FC<{
               <button
                   onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                   disabled={!isPro}
-                  className={`${cardBase} ${viewMode === 'analyst' ? 'border-primary-start bg-primary-start/5 text-primary-start' : 'text-text-secondary'} ${!isPro ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`${cardBase} ${
+                    viewMode === 'analyst' 
+                    ? 'border-primary-start bg-primary-start/5 text-primary-start' 
+                    : 'text-text-secondary'
+                  } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
               >
                   {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-primary-start opacity-70'} />}
                   <span>{t('caseView.financialAnalyst')}</span>
@@ -240,7 +246,7 @@ const CaseViewPage: React.FC = () => {
   const handleViewOriginal = (doc: Document) => { setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleRenameAction = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(p => p.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch { alert(t('error.generic')); } };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><Loader2 className="animate-spin h-12 w-12 text-primary-start" /></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div></div>;
   if (error || !caseData.details) return <div className="p-8 text-center text-danger-start border border-danger-start/30 rounded-[2rem] bg-danger-start/5 mt-20 max-w-lg mx-auto"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-black uppercase tracking-widest">{error}</p></div>;
 
   return (
@@ -253,7 +259,7 @@ const CaseViewPage: React.FC = () => {
         
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
-                <motion.div key="workspace" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:h-[700px]">
+                <motion.div key="workspace" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:h-[700px] z-0">
                     <DocumentsPanel 
                         caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} 
                         onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={setDocumentToRename} 
@@ -266,7 +272,7 @@ const CaseViewPage: React.FC = () => {
                 </motion.div>
             )}
             {viewMode === 'analyst' && isPro && (
-                <motion.div key="analyst" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <motion.div key="analyst" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="z-0">
                     <SpreadsheetAnalyst caseId={caseData.details.id} />
                 </motion.div>
             )}
