@@ -1,9 +1,9 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.5 (TS TYPES FIXED)
-// 1. FIXED: Explicitly used 'CachedState' in save logic to resolve TS6196.
-// 2. FIXED: Refined error display and added Executive Requirements guide.
-// 3. RETAINED: Unified Action Bar Symmetry and 'bg-paper' surface.
-// 4. RETAINED: 100% Logic parity (Caching, Interrogation, Typewriter).
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.6 (TRANSLATION ROBUSTNESS)
+// 1. FIXED: Added hardcoded Albanian fallbacks for all 't()' calls to prevent key leakage.
+// 2. FIXED: Aligned loading state keys with the global 'analysis' namespace.
+// 3. RETAINED: Executive Action Bar symmetry (h-12 cards).
+// 4. RETAINED: 100% Logic parity and TS type safety.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -85,7 +85,7 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
                 {message.evidenceCount !== undefined && (
                     <div className="mt-3 pt-3 border-t border-border-main/50 flex items-center gap-2 text-[10px] font-black text-text-muted uppercase tracking-widest">
                         <ShieldAlert className="w-3.5 h-3.5 text-success-start" />
-                        {t('analyst.verifiedAgainst', { count: message.evidenceCount })}
+                        {t('analyst.verifiedAgainst', 'Verifikuar kundrejt {{count}} dëshmive', { count: message.evidenceCount })}
                     </div>
                 )}
             </div>
@@ -120,7 +120,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     useEffect(() => {
         if (result && !typingMessage) {
             const cache = getCache();
-            // FIXED: Explicitly type the object as CachedState to resolve TS6196
             const dataToCache: CachedState = { report: result, chat: chatHistory, fileName: fileName || 'File' };
             cache[caseId] = dataToCache;
             localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
@@ -151,7 +150,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     <div className="flex flex-col gap-1">
                         <h2 className="text-2xl font-black text-text-primary tracking-tighter uppercase leading-none flex items-center gap-3">
                             <Activity className="text-primary-start" size={24} />
-                            {t('analyst.title')}
+                            {t('analyst.title', 'Analizë Financiare Forenzike')}
                             {result && <CheckCircle className="w-6 h-6 text-success-start shadow-accent-glow rounded-full" />}
                         </h2>
                         {fileName && <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 ml-9">{fileName}</p>}
@@ -162,14 +161,17 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="flex gap-3">
                                 <button onClick={async () => {
                                     setIsArchiving(true);
-                                    try { await apiService.archiveForensicReport(caseId, `${t('analyst.forensicMemo')} - ${fileName}`, result.executive_summary); setArchiveSuccess(true); setTimeout(() => setArchiveSuccess(false), 3000); } 
-                                    catch { setError(t('analyst.errorArchive')); } finally { setIsArchiving(false); }
+                                    try { 
+                                        await apiService.archiveForensicReport(caseId, `${t('analyst.forensicMemo', 'Memorandum Forenzik')} - ${fileName}`, result.executive_summary); 
+                                        setArchiveSuccess(true); setTimeout(() => setArchiveSuccess(false), 3000); 
+                                    } 
+                                    catch { setError(t('analyst.errorArchive', 'Arkivimi dështoi.')); } finally { setIsArchiving(false); }
                                 }} disabled={isArchiving || archiveSuccess} className={`h-12 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${archiveSuccess ? 'bg-success-start text-white border-success-start' : 'bg-primary-start text-white border-primary-start shadow-accent-glow'}`}>
                                     {isArchiving ? <RefreshCw className="animate-spin" size={16} /> : archiveSuccess ? <CheckCircle size={16} /> : <Save size={16} />}
-                                    {archiveSuccess ? t('analyst.archived') : t('analyst.archiveMemo')}
+                                    {archiveSuccess ? t('analyst.archived', 'Arkivuar!') : t('analyst.archiveMemo', 'Arkivo Memo')}
                                 </button>
                                 <button onClick={() => {setFileName(null); setResult(null); setChatHistory([]); const c = getCache(); delete c[caseId]; localStorage.setItem(CACHE_KEY, JSON.stringify(c));}} className="h-12 px-6 rounded-xl border border-border-main bg-surface text-text-muted hover:text-text-primary text-[10px] font-black uppercase tracking-widest hover-lift transition-all flex items-center gap-2">
-                                    <RefreshCw size={16} /> {t('analyst.newAnalysis')}
+                                    <RefreshCw size={16} /> {t('analyst.newAnalysis', 'Analizë e Re')}
                                 </button>
                             </div>
                         )}
@@ -196,7 +198,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="flex-1 bg-paper p-10 overflow-y-auto custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]"><div className="max-w-2xl mx-auto font-serif">{renderMarkdown(result.executive_summary)}</div></div>
                         </div>
                         <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-lawyer-dark">
-                            <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0"><Bot className="text-primary-start w-5 h-5 shadow-accent-glow rounded-full" /><div><h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('analyst.interrogationTitle')}</h3><p className="text-[9px] font-bold text-text-muted uppercase tracking-tighter mt-1">{t('analyst.interrogationSubtitle')}</p></div></div>
+                            <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0"><Bot className="text-primary-start w-5 h-5 shadow-accent-glow rounded-full" /><div><h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('analyst.interrogationTitle', 'Interrogimi i Dëshmive')}</h3><p className="text-[9px] font-bold text-text-muted uppercase tracking-tighter mt-1">{t('analyst.interrogationSubtitle', 'Bëni pyetje rreth gjetjeve të memorandumit.')}</p></div></div>
                             <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar no-scrollbar">
                                 {(chatHistory || []).map((msg) => (
                                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] rounded-[1.5rem] p-5 text-sm leading-relaxed shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-none' : 'bg-surface text-text-primary border-border-main rounded-tl-none'}`}>{renderMarkdown(msg.content)}</div></div>
@@ -204,14 +206,42 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 {typingMessage && <TypingChatMessage message={typingMessage} onComplete={() => {setChatHistory(p => [...p, typingMessage]); setTypingMessage(null);}} />}
                                 <div ref={chatEndRef} />
                             </div>
-                            <div className="p-6 border-t border-border-main bg-surface shrink-0"><form onSubmit={async (e) => { e.preventDefault(); if (!question.trim() || isInterrogating || typingMessage) return; const cur = question; setQuestion(''); setChatHistory(p => [...p, { id: Date.now().toString(), role: 'user', content: cur, timestamp: new Date() }]); setIsInterrogating(true); try { const r = await apiService.forensicInterrogateEvidence(caseId, cur); setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: r.answer || t('analyst.noAnswer'), timestamp: new Date(), evidenceCount: r.supporting_evidence_count }); } catch { setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: t('analyst.errorConnection'), timestamp: new Date() }); } finally { setIsInterrogating(false); } }} className="relative flex items-end gap-3 max-w-5xl mx-auto"><input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.placeholderQuestion')} className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed shadow-inner-trough"/><button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30"><Send size={18} /></button></form></div>
+                            <div className="p-6 border-t border-border-main bg-surface shrink-0">
+                                <form onSubmit={async (e) => { 
+                                    e.preventDefault(); 
+                                    if (!question.trim() || isInterrogating || typingMessage) return; 
+                                    const cur = question; setQuestion(''); 
+                                    setChatHistory(p => [...p, { id: Date.now().toString(), role: 'user', content: cur, timestamp: new Date() }]); 
+                                    setIsInterrogating(true); 
+                                    try { 
+                                        const r = await apiService.forensicInterrogateEvidence(caseId, cur); 
+                                        setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: r.answer || t('analyst.noAnswer', 'Nuk u gjet përgjigje.'), timestamp: new Date(), evidenceCount: r.supporting_evidence_count }); 
+                                    } catch { 
+                                        setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: t('analyst.errorConnection', 'Lidhja dështoi.'), timestamp: new Date() }); 
+                                    } finally { setIsInterrogating(false); } 
+                                }} className="relative flex items-end gap-3 max-w-5xl mx-auto">
+                                    <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.placeholderQuestion', 'Bëni një pyetje rreth dosjes...')} className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed shadow-inner-trough"/>
+                                    <button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30">
+                                        <Send size={18} />
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
             
             {isAnalyzing && !result && (
-                <div className="flex flex-col items-center justify-center py-40"><div className="relative mb-8"><div className="w-20 h-20 rounded-full border-4 border-primary-start/10 border-t-primary-start animate-spin shadow-accent-glow"></div><Activity className="absolute inset-0 m-auto w-8 h-8 text-primary-start animate-pulse" /></div><h3 className="text-xl font-black text-text-primary uppercase tracking-widest">{t('analyst.analyzing')}</h3></div>
+                <div className="flex flex-col items-center justify-center py-40">
+                    <div className="relative mb-8">
+                        <div className="w-20 h-20 rounded-full border-4 border-primary-start/10 border-t-primary-start animate-spin shadow-accent-glow"></div>
+                        <Activity className="absolute inset-0 m-auto w-8 h-8 text-primary-start animate-pulse" />
+                    </div>
+                    <h3 className="text-xl font-black text-text-primary uppercase tracking-widest">
+                        {t('analysis.analyzing', 'Sokrati duke analizuar dhënat...')}
+                    </h3>
+                    <p className="text-text-muted text-[10px] font-black uppercase tracking-[0.3em] mt-3">Algoritmi Forenzik i Juristi AI</p>
+                </div>
             )}
 
             {!result && !isAnalyzing && (
@@ -228,7 +258,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"/>
                             <div className="h-full flex items-center justify-center gap-4 px-12 rounded-[1.2rem] bg-primary-start text-white shadow-accent-glow transition-all duration-300 hover:brightness-110 active:scale-95 group-hover:shadow-lg">
                                 <FileSpreadsheet className="w-5 h-5" />
-                                <span className="text-[11px] font-black uppercase tracking-[0.2em]">{t('analyst.selectFile', 'Zgjidh Skedarin')}</span>
+                                <span className="text-xs font-black uppercase tracking-[0.2em]">{t('analyst.selectFile', 'Zgjidh Skedarin')}</span>
                             </div>
                         </div>
                     </div>
