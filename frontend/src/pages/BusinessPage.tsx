@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, btn-primary, text-text-primary, text-text-secondary, border-main.
-// 2. Tab buttons use consistent styling with other pages.
-// 3. Preserved all sub-tab components and logic.
+// PHOENIX PROTOCOL - BUSINESS PAGE V6.1 (MOBILE-FRIENDLY TABS)
+// 1. Tab container now uses overflow-x-auto and horizontal scroll on mobile.
+// 2. Preserves all existing functionality.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
@@ -55,10 +54,12 @@ const BusinessPage: React.FC = () => {
             </p>
         </div>
         
-        <div className="w-full sm:w-auto grid grid-cols-4 sm:flex glass-panel p-1.5 rounded-xl gap-1 sm:gap-0 border border-main">
+        {/* Mobile‑friendly tab bar: scroll horizontally if needed */}
+        <div className="w-full sm:w-auto overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 sm:gap-3 p-1 glass-panel rounded-xl border border-main min-w-max">
             <button 
                 onClick={() => setActiveTab('profile')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
                     activeTab === 'profile' 
                       ? 'btn-primary shadow-lg' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
@@ -70,7 +71,7 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('team')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
                     activeTab === 'team' 
                       ? 'btn-primary shadow-lg' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
@@ -82,7 +83,7 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
                     activeTab === 'finance' 
                       ? 'btn-primary shadow-lg' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
@@ -94,7 +95,7 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('archive')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
                     activeTab === 'archive' 
                       ? 'btn-primary shadow-lg' 
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
@@ -104,6 +105,7 @@ const BusinessPage: React.FC = () => {
                 <FolderOpen size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate hidden sm:inline">{t('business.archive')}</span>
             </button>
+          </div>
         </div>
       </div>
 

@@ -1,9 +1,9 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// 1. Sidebar headings now use `font-black` and proper tracking.
-// 2. Action bar: added `items-center` and consistent vertical spacing.
-// 3. Profile dropdown fixed via Header.tsx (see above).
-// 4. All borders use `border-border-main`.
+// PHOENIX PROTOCOL - CALENDAR V6.2 (MOBILE‑FRIENDLY SIDEBAR + TOUCH OPTIMIZATIONS)
+// 1. Sidebar now hidden by default on mobile, toggled via a menu button.
+// 2. Sidebar slides in as an overlay on small screens (z‑index high, backdrop).
+// 3. On desktop (xl), sidebar remains visible as before.
+// 4. All existing functionality preserved.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -18,7 +18,7 @@ import { sq, enUS } from 'date-fns/locale';
 import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
   Search, FileText, Gavel, AlertTriangle, XCircle, Bell, ChevronDown, Scale, MessageSquare,
-  Eye, EyeOff, ShieldAlert, History, Filter, Loader2, ChevronRight as ChevronRightIcon
+  Eye, EyeOff, ShieldAlert, History, Filter, Loader2, ChevronRight as ChevronRightIcon, Menu, X
 } from 'lucide-react';
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -179,6 +179,7 @@ const CalendarPage: React.FC = () => {
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
   const [selectedDateForModal, setSelectedDateForModal] = useState<Date | null>(null);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
   const loadData = useCallback(async () => {
@@ -277,64 +278,110 @@ const CalendarPage: React.FC = () => {
   
   if (loading) return <div className="flex items-center justify-center h-[calc(100dvh-64px)]"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
 
+  // Sidebar content (reused for both mobile and desktop)
+  const sidebarContent = (
+    <div className="flex flex-col gap-8 min-h-0">
+      <div className="glass-panel flex-1 p-6 sm:p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col border border-main">
+        <h3 className="text-sm font-black text-text-primary mb-8 flex items-center gap-3 uppercase tracking-wider"><Bell className="text-accent-start" size={16} />{t('calendar.upcomingAlerts')}</h3>
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2">
+          {upcomingAlerts.length === 0 ? (<div className="h-full flex items-center justify-center text-center px-4 italic text-text-secondary text-sm font-medium">S'ka afate.</div>) : (upcomingAlerts.map(ev => { const style = getEventStyle(ev.event_type, ev.category); return (<button key={getEventId(ev)} onClick={() => setSelectedEvent(ev)} className="w-full flex gap-5 items-start group text-left p-4 rounded-2xl hover:bg-surface/50 transition-all border border-transparent hover:border-main active:scale-95"><div className={`mt-2 w-2 h-2 rounded-full shrink-0 ${style.indicator} shadow-[0_0_12px_currentColor]`} /><div className="min-w-0 flex-1"><h4 className="text-sm font-bold text-text-secondary group-hover:text-primary-start transition-colors truncate tracking-tight">{ev.title}</h4><p className="text-[11px] text-text-secondary/50 mt-2 font-bold uppercase tracking-wider">{format(parseISO(ev.start_date), 'dd MMM')} • {t(`calendar.types.${ev.event_type}`)}</p></div></button>)}))}
+        </div>
+      </div>
+      <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] shrink-0 border border-main">
+        <h3 className="text-sm font-black text-text-primary mb-6 uppercase tracking-wider flex items-center gap-3"><Filter size={16} className="text-primary-start" /> {t('calendar.eventTypes')}</h3>
+        <div className="space-y-2 overflow-y-auto max-h-[220px] custom-scrollbar pr-2">
+          {Object.keys(t('calendar.types', { returnObjects: true }) as object).map((key) => { 
+            const style = getEventStyle(key); return (<div key={key} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-surface/50 transition-all cursor-pointer border border-transparent hover:border-main" onClick={() => setFilterType(filterType === key ? 'ALL' : key)}><div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${style.border} ${style.bg} ${style.text} shadow-inner`}>{React.cloneElement(style.icon as React.ReactElement, { size: 16 })}</div><span className={`text-[12px] uppercase tracking-wider font-medium ${filterType === key ? 'text-text-primary' : 'text-text-secondary'}`}>{t(`calendar.types.${key}`)}</span>{filterType === key && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-start" />}</div>);
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-[calc(100dvh-64px)] overflow-hidden bg-canvas flex flex-col font-sans selection:bg-primary-start/30">
-        <div id="react-datepicker-portal"></div>
-        <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 min-h-0">
-            {error && (<motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 bg-danger-start/10 border border-danger-start/30 rounded-2xl p-4 flex items-center gap-4"><AlertCircle className="h-5 w-5 text-danger-start" /><span className="text-danger-start text-sm font-bold">{error}</span></motion.div>)}
+      <div id="react-datepicker-portal"></div>
+      <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 min-h-0">
+        {error && (<motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 bg-danger-start/10 border border-danger-start/30 rounded-2xl p-4 flex items-center gap-4"><AlertCircle className="h-5 w-5 text-danger-start" /><span className="text-danger-start text-sm font-bold">{error}</span></motion.div>)}
 
-            {/* Action bar: ensure vertical alignment with "NGJARJE E RE" button */}
-            <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center justify-between sm:justify-start gap-4">
-                    <div className="glass-panel flex items-center p-1.5 shrink-0 border border-main">
-                        <button onClick={() => navigateMonth('prev')} className="p-2 hover:bg-surface/50 rounded-xl transition-all active:scale-90"><ChevronLeft size={20} className="text-text-secondary" /></button>
-                        <button onClick={() => setCurrentDate(new Date())} className="px-5 text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors">{t('calendar.today')}</button>
-                        <button onClick={() => navigateMonth('next')} className="p-2 hover:bg-surface/50 rounded-xl transition-all active:scale-90"><ChevronRight size={20} className="text-text-secondary" /></button>
-                    </div>
-                    <div className="hidden sm:block"><h1 className="text-2xl font-bold text-text-primary tracking-tight capitalize">{format(currentDate, 'LLLL yyyy', { locale: currentLocale })}</h1></div>
-                </div>
-                <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary flex items-center justify-center gap-3 px-8 h-12 rounded-2xl text-xs uppercase tracking-widest shrink-0">
-                    <Plus size={18} strokeWidth={3} /> {t('calendar.newEvent')}
-                </button>
+        {/* Action bar */}
+        <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto">
+            <div className="glass-panel flex items-center p-1.5 shrink-0 border border-main">
+              <button onClick={() => navigateMonth('prev')} className="p-2 hover:bg-surface/50 rounded-xl transition-all active:scale-90"><ChevronLeft size={20} className="text-text-secondary" /></button>
+              <button onClick={() => setCurrentDate(new Date())} className="px-5 text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors">{t('calendar.today')}</button>
+              <button onClick={() => navigateMonth('next')} className="p-2 hover:bg-surface/50 rounded-xl transition-all active:scale-90"><ChevronRight size={20} className="text-text-secondary" /></button>
             </div>
-            
-            <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center">
-                <div className="relative flex-1 h-12">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                    <input type="text" placeholder={t('calendar.searchPlaceholder') as string} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full h-full pl-12 pr-6 rounded-2xl text-sm font-medium border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" />
-                </div>
-                <div className="flex gap-4 h-12 sm:w-auto">
-                    <button onClick={() => setShowFacts(!showFacts)} className={`glass-input flex items-center justify-center gap-3 px-6 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${showFacts ? 'bg-primary-start text-white border-primary-start' : 'border-main text-text-secondary'}`}><History size={14} /> {showFacts ? 'Gjithçka' : 'Afatet'}</button>
-                    <div className="glass-panel flex p-1.5 rounded-2xl border border-main">
-                        <button onClick={() => setViewMode('month')} className={`px-5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'month' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>Muaji</button>
-                        <button onClick={() => setViewMode('list')} className={`px-5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'list' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>Lista</button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex-1 grid grid-cols-1 xl:grid-cols-4 gap-8 min-h-0">
-                <div className="xl:col-span-3 flex flex-col min-h-0">{viewMode === 'list' ? renderListView() : renderMonthView()}</div>
-                <div className="hidden xl:flex xl:col-span-1 flex-col gap-8 min-h-0">
-                    <div className="glass-panel flex-1 p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col border border-main">
-                        <h3 className="text-sm font-black text-text-primary mb-8 flex items-center gap-3 uppercase tracking-wider"><Bell className="text-accent-start" size={16} />{t('calendar.upcomingAlerts')}</h3>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2">
-                            {upcomingAlerts.length === 0 ? (<div className="h-full flex items-center justify-center text-center px-4 italic text-text-secondary text-sm font-medium">S'ka afate.</div>) : (upcomingAlerts.map(ev => { const style = getEventStyle(ev.event_type, ev.category); return (<button key={getEventId(ev)} onClick={() => setSelectedEvent(ev)} className="w-full flex gap-5 items-start group text-left p-4 rounded-2xl hover:bg-surface/50 transition-all border border-transparent hover:border-main active:scale-95"><div className={`mt-2 w-2 h-2 rounded-full shrink-0 ${style.indicator} shadow-[0_0_12px_currentColor]`} /><div className="min-w-0 flex-1"><h4 className="text-sm font-bold text-text-secondary group-hover:text-primary-start transition-colors truncate tracking-tight">{ev.title}</h4><p className="text-[11px] text-text-secondary/50 mt-2 font-bold uppercase tracking-wider">{format(parseISO(ev.start_date), 'dd MMM')} • {t(`calendar.types.${ev.event_type}`)}</p></div></button>)}))}
-                        </div>
-                    </div>
-                    <div className="glass-panel p-8 rounded-[2.5rem] shrink-0 border border-main">
-                        <h3 className="text-sm font-black text-text-primary mb-6 uppercase tracking-wider flex items-center gap-3"><Filter size={16} className="text-primary-start" /> {t('calendar.eventTypes')}</h3>
-                        <div className="space-y-2 overflow-y-auto max-h-[220px] custom-scrollbar pr-2">
-                            {Object.keys(t('calendar.types', { returnObjects: true }) as object).map((key) => { 
-                                const style = getEventStyle(key); return (<div key={key} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-surface/50 transition-all cursor-pointer border border-transparent hover:border-main" onClick={() => setFilterType(filterType === key ? 'ALL' : key)}><div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${style.border} ${style.bg} ${style.text} shadow-inner`}>{React.cloneElement(style.icon as React.ReactElement, { size: 16 })}</div><span className={`text-[12px] uppercase tracking-wider font-medium ${filterType === key ? 'text-text-primary' : 'text-text-secondary'}`}>{t(`calendar.types.${key}`)}</span>{filterType === key && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-start" />}</div>);
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div className="hidden sm:block"><h1 className="text-2xl font-bold text-text-primary tracking-tight capitalize">{format(currentDate, 'LLLL yyyy', { locale: currentLocale })}</h1></div>
+            {/* Mobile filter toggle */}
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="xl:hidden p-2 text-text-secondary hover:text-text-primary">
+              <Menu size={20} />
+            </button>
+          </div>
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary flex items-center justify-center gap-3 px-8 h-12 rounded-2xl text-xs uppercase tracking-widest shrink-0 w-full sm:w-auto">
+            <Plus size={18} strokeWidth={3} /> {t('calendar.newEvent')}
+          </button>
         </div>
-        {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadData} />}
-        {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={loadData} />}
-        <DayEventsModal isOpen={isDayModalOpen} onClose={() => setIsDayModalOpen(false)} date={selectedDateForModal} events={filteredEvents.filter(e => selectedDateForModal && isSameDay(parseISO(e.start_date), selectedDateForModal))} t={t} onAddEvent={() => { setIsDayModalOpen(false); setIsCreateModalOpen(true); }} />
+
+        {/* Search and view toggle */}
+        <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center">
+          <div className="relative flex-1 h-12 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+            <input type="text" placeholder={t('calendar.searchPlaceholder') as string} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full h-full pl-12 pr-6 rounded-2xl text-sm font-medium border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" />
+          </div>
+          <div className="flex gap-4 h-12 w-full sm:w-auto">
+            <button onClick={() => setShowFacts(!showFacts)} className={`glass-input flex items-center justify-center gap-3 px-6 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${showFacts ? 'bg-primary-start text-white border-primary-start' : 'border-main text-text-secondary'}`}><History size={14} /> {showFacts ? 'Gjithçka' : 'Afatet'}</button>
+            <div className="glass-panel flex p-1.5 rounded-2xl border border-main">
+              <button onClick={() => setViewMode('month')} className={`px-5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'month' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>Muaji</button>
+              <button onClick={() => setViewMode('list')} className={`px-5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${viewMode === 'list' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>Lista</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content area */}
+        <div className="flex-1 grid grid-cols-1 xl:grid-cols-4 gap-8 min-h-0 relative">
+          <div className="xl:col-span-3 flex flex-col min-h-0">{viewMode === 'list' ? renderListView() : renderMonthView()}</div>
+          
+          {/* Desktop sidebar (always visible on xl) */}
+          <div className="hidden xl:flex xl:col-span-1 flex-col gap-8 min-h-0">
+            {sidebarContent}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[1000] xl:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween', duration: 0.3 }}
+              className="fixed right-0 top-0 h-full w-80 max-w-[85vw] bg-canvas border-l border-main shadow-2xl z-[1001] flex flex-col p-6 gap-6 overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-black text-text-primary">Filtrat & Njoftimet</h3>
+                <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-text-secondary hover:text-text-primary">
+                  <X size={20} />
+                </button>
+              </div>
+              {sidebarContent}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadData} />}
+      {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={loadData} />}
+      <DayEventsModal isOpen={isDayModalOpen} onClose={() => setIsDayModalOpen(false)} date={selectedDateForModal} events={filteredEvents.filter(e => selectedDateForModal && isSameDay(parseISO(e.start_date), selectedDateForModal))} t={t} onAddEvent={() => { setIsDayModalOpen(false); setIsCreateModalOpen(true); }} />
     </div>
   );
 };
