@@ -1,8 +1,9 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted, btn-primary.
-// 2. Preserved all client portal functionality: timeline, documents, PDF viewer.
-// 3. Maintained mobile responsiveness and touch-optimized targets.
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. Timeline cards use `card-panel` and `hover-lift`.
+// 2. Document cards use `glass-panel` and `hover-lift`.
+// 3. Borders use `border-border-main` CSS variable.
+// 4. All icons use semantic color variables.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -86,7 +87,7 @@ const ClientPortalPage: React.FC = () => {
 
     const getEventIcon = (type: string) => {
         const typeKey = type.toUpperCase();
-        if (typeKey === 'DEADLINE') return <AlertCircle size={14} className="text-accent-start" />;
+        if (typeKey === 'DEADLINE') return <AlertCircle size={14} className="text-status-danger" />;
         if (typeKey === 'HEARING') return <Gavel size={14} className="text-secondary-start" />;
         if (typeKey === 'MEETING') return <Users size={14} className="text-primary-start" />;
         return <Calendar size={14} className="text-text-muted" />;
@@ -101,7 +102,7 @@ const ClientPortalPage: React.FC = () => {
 
     if (error || !data) return (
         <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-center">
-            <ShieldCheck className="w-12 h-12 text-danger-start mb-4 mx-auto" />
+            <ShieldCheck className="w-12 h-12 text-status-danger mb-4 mx-auto" />
             <h1 className="text-xl font-bold text-text-primary mb-2">{t('portal.error', 'Gabim')}</h1>
             <p className="text-text-secondary text-sm">{error}</p>
         </div>
@@ -118,7 +119,7 @@ const ClientPortalPage: React.FC = () => {
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary-start/5 rounded-full blur-[120px]"></div>
             </div>
 
-            <header className="sticky top-0 z-50 bg-canvas/80 backdrop-blur-xl border-b border-main h-16 flex items-center px-4 sm:px-6">
+            <header className="sticky top-0 z-50 bg-glass backdrop-blur-xl border-b border-border-main h-16 flex items-center px-4 sm:px-6">
                 <div className="max-w-4xl mx-auto w-full flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         {logoSrc && !imgError ? (
@@ -132,7 +133,7 @@ const ClientPortalPage: React.FC = () => {
                             {data.organization_name || t('branding.fallback', 'Zyra Ligjore')}
                         </span>
                     </div>
-                    <div className="text-[10px] font-bold text-success-start bg-success-start/10 px-2.5 py-1 rounded-full border border-success-start/20 flex items-center gap-1.5">
+                    <div className="text-[10px] font-bold text-status-success bg-success-start/10 px-2.5 py-1 rounded-full border border-success-start/20 flex items-center gap-1.5">
                         <ShieldCheck size={12} /> {t('portal.secure_connection', 'Sigurt')}
                     </div>
                 </div>
@@ -140,7 +141,7 @@ const ClientPortalPage: React.FC = () => {
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 relative z-10">
                 {/* Hero Panel */}
-                <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-main mb-6 shadow-2xl">
+                <div className="card-panel p-6 sm:p-8 rounded-2xl mb-6 shadow-2xl">
                     <h1 className="text-2xl sm:text-3xl font-bold text-primary-start mb-1">{data.title}</h1>
                     <p className="text-text-muted text-[10px] sm:text-sm mb-6">
                         {t('portal.created_at', 'Krijuar më')}: {new Date(data.created_at || Date.now()).toLocaleDateString(t('locale.date', 'sq-AL'))}
@@ -167,7 +168,7 @@ const ClientPortalPage: React.FC = () => {
                 </div>
 
                 {/* Tabs Switcher */}
-                <div className="flex justify-center mb-8 gap-1 p-1 bg-surface/30 rounded-full w-fit mx-auto border border-main backdrop-blur-md">
+                <div className="flex justify-center mb-8 gap-1 p-1 bg-surface/30 rounded-full w-fit mx-auto border border-border-main backdrop-blur-md">
                     <button 
                         onClick={() => setActiveTab('timeline')} 
                         className={`px-6 sm:px-10 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 ${
@@ -201,18 +202,18 @@ const ClientPortalPage: React.FC = () => {
                     {activeTab === 'timeline' ? (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
                             {timeline.length === 0 ? (
-                                <div className="text-center py-20 opacity-30 text-xs bg-surface/20 rounded-2xl border border-dashed border-main">
+                                <div className="text-center py-20 opacity-30 text-xs card-panel border border-dashed border-border-main">
                                     <Calendar size={48} className="mx-auto mb-4 text-text-muted" />
                                     <p className="text-text-secondary">{t('portal.empty_timeline', 'Nuk ka termine.')}</p>
                                 </div>
                             ) : (
                                 timeline.map((ev, i) => (
                                     <div key={i} className="relative pl-6 pb-6 last:pb-0 group">
-                                        <div className="absolute left-[11px] top-[24px] bottom-0 w-px bg-main last:hidden" />
-                                        <div className="absolute left-0 top-0 w-6 h-6 rounded-full bg-canvas border border-main flex items-center justify-center z-10 group-hover:border-primary-start transition-colors">
+                                        <div className="absolute left-[11px] top-[24px] bottom-0 w-px bg-border-main last:hidden" />
+                                        <div className="absolute left-0 top-0 w-6 h-6 rounded-full bg-canvas border border-border-main flex items-center justify-center z-10 group-hover:border-primary-start transition-colors">
                                             {getEventIcon(ev.type)}
                                         </div>
-                                        <div className="glass-panel p-4 sm:p-6 rounded-xl border border-main ml-3 hover:bg-surface/20 transition-all">
+                                        <div className="card-panel p-4 sm:p-6 rounded-xl ml-3 hover-lift">
                                             <div className="flex flex-col sm:flex-row justify-between items-start mb-2 gap-1">
                                                 <h3 className="font-bold text-text-primary text-sm sm:text-base">{ev.title}</h3>
                                                 <span className="text-[9px] font-mono font-bold bg-surface/30 px-2 py-0.5 rounded text-primary-start">
@@ -228,13 +229,13 @@ const ClientPortalPage: React.FC = () => {
                     ) : (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid gap-3">
                             {documents.length === 0 ? (
-                                <div className="text-center py-20 opacity-30 text-xs bg-surface/20 rounded-2xl border border-dashed border-main">
+                                <div className="text-center py-20 opacity-30 text-xs card-panel border border-dashed border-border-main">
                                     <FileText size={48} className="mx-auto mb-4 text-text-muted" />
                                     <p className="text-text-secondary">{t('portal.empty_documents', 'Nuk ka skedarë.')}</p>
                                 </div>
                             ) : (
                                 documents.map((doc, i) => (
-                                    <div key={i} className="glass-panel p-3 rounded-xl flex items-center justify-between border border-main hover:bg-surface/20 transition-all">
+                                    <div key={i} className="glass-panel p-3 rounded-xl flex items-center justify-between border border-border-main hover-lift">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className="w-10 h-10 rounded-lg bg-primary-start/10 flex items-center justify-center text-primary-start shrink-0">
                                                 <FileText size={18} />
@@ -249,14 +250,14 @@ const ClientPortalPage: React.FC = () => {
                                         <div className="flex gap-1 sm:gap-2">
                                             <button 
                                                 onClick={() => handleView(doc)} 
-                                                className="p-2 bg-surface/30 hover:bg-surface/60 rounded-lg text-text-secondary hover:text-text-primary transition-all"
+                                                className="p-2 bg-surface/30 hover:bg-hover rounded-lg text-text-secondary hover:text-text-primary transition-all"
                                                 title={t('actions.view', 'Shiko')}
                                             >
                                                 <Eye size={16} />
                                             </button>
                                             <button 
                                                 onClick={() => window.open(getDocUrl(doc.id, doc.source), '_blank')} 
-                                                className="p-2 bg-surface/30 hover:bg-surface/60 rounded-lg text-text-secondary hover:text-text-primary transition-all"
+                                                className="p-2 bg-surface/30 hover:bg-hover rounded-lg text-text-secondary hover:text-text-primary transition-all"
                                                 title={t('actions.download', 'Shkarko')}
                                             >
                                                 <Download size={16} />

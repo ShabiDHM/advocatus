@@ -1,8 +1,10 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Preserved all analysis, chat, and archival functionality.
-// 3. Uses semantic color variables consistently.
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. Main result panel uses `card-panel`.
+// 2. Chat area uses `glass-panel` and `border-border-main`.
+// 3. Buttons use `btn-primary` / `btn-secondary`.
+// 4. All borders use `border-border-main` CSS variable.
+// 5. Added `hover-lift` to interactive elements.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,14 +38,14 @@ const renderMarkdown = (text: string) => {
         const trimmed = line.trim();
 
         if (trimmed === '---') {
-            return <hr key={i} className="border-main my-6" />;
+            return <hr key={i} className="border-border-main my-6" />;
         }
         if (!trimmed) {
             return <div key={i} className="h-3" />;
         }
         if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
             const content = trimmed.slice(2, -2);
-            return <h3 key={i} className="text-text-primary font-bold text-lg mt-6 mb-4 pb-2 border-b border-main">{content}</h3>;
+            return <h3 key={i} className="text-text-primary font-bold text-lg mt-6 mb-4 pb-2 border-b border-border-main">{content}</h3>;
         }
         if (/^\d\.\d\.?/.test(trimmed) || /^\d\.\s/.test(trimmed)) {
              return <h4 key={i} className="text-primary-start font-semibold text-md mt-5 mb-3">{trimmed}</h4>;
@@ -90,10 +92,10 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
     
     return (
         <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words bg-surface/20 text-text-secondary border border-main rounded-bl-none">
+            <div className="max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words bg-surface/20 text-text-secondary border border-border-main rounded-bl-none">
                 <div>{renderMarkdown(displayText)}</div>
                 {message.evidenceCount !== undefined && (
-                    <div className="mt-2 pt-2 border-t border-main flex items-center gap-2 text-[10px] text-text-muted">
+                    <div className="mt-2 pt-2 border-t border-border-main flex items-center gap-2 text-[10px] text-text-muted">
                         <ShieldAlert className="w-3 h-3" />
                         {t('analyst.verifiedAgainst', { count: message.evidenceCount })}
                     </div>
@@ -225,20 +227,20 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
 
     return (
         <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-2 sm:p-1">
-            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-main bg-surface/10 flex-shrink-0">
+            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-border-main bg-surface/10 flex-shrink-0">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h2 className="text-xl sm:text-2xl font-bold text-text-primary flex items-center gap-2">
                             <Activity className="text-primary-start" />
                             {t('analyst.title', 'Analizë Financiare Forenzike')}
-                            {result && <CheckCircle className="w-5 h-5 text-success-start" />}
+                            {result && <CheckCircle className="w-5 h-5 text-status-success" />}
                         </h2>
                     </div>
                     <div className="flex items-center gap-3 w-full md:w-auto">
                         {!result && !isAnalyzing && (
                             <div className="relative group flex-1">
                                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"/>
-                                <div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-surface/20 border-main hover:border-primary-start/50">
+                                <div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-surface/20 border-border-main hover:border-primary-start/50">
                                     <FileSpreadsheet className="w-5 h-5 text-text-muted" />
                                     <span className="text-sm text-text-secondary">{t('analyst.selectFile', 'Zgjidh Excel/CSV...')}</span>
                                 </div>
@@ -251,7 +253,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     disabled={isArchiving || archiveSuccess} 
                                     className={`px-4 py-2 border rounded-xl text-sm transition-all flex justify-center items-center gap-2 ${
                                         archiveSuccess 
-                                            ? 'bg-success-start/20 border-success-start/50 text-success-start' 
+                                            ? 'bg-status-success/20 border-status-success/50 text-status-success' 
                                             : 'bg-primary-start/10 border-primary-start/30 text-primary-start hover:bg-primary-start/20'
                                     }`}
                                 >
@@ -260,7 +262,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </button>
                                 <button 
                                     onClick={handleReset} 
-                                    className="px-4 py-2 border border-main text-text-secondary hover:text-text-primary rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-surface/20"
+                                    className="btn-secondary px-4 py-2 rounded-xl text-sm flex justify-center items-center gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" />
                                     {t('analyst.newAnalysis', 'Analizë e Re')}
@@ -270,7 +272,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </div>
                 </div>
                 {error && (
-                    <div className="mt-4 p-3 bg-danger-start/30 border border-danger-start/50 rounded-lg flex items-center gap-2 text-danger-start">
+                    <div className="mt-4 p-3 bg-status-danger/30 border border-status-danger/50 rounded-lg flex items-center gap-2 text-status-danger">
                         <ShieldAlert className="w-5 h-5" />{error}
                     </div>
                 )}
@@ -280,13 +282,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 {result && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]">
                         <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full lg:pr-2">
-                            <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-main bg-surface/10">
+                            <div className="card-panel p-6 sm:p-8 rounded-2xl border border-border-main">
                                 {renderMarkdown(result.executive_summary)}
                             </div>
                         </div>
                         
                         <div className="glass-panel rounded-2xl border border-primary-start/30 bg-canvas/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl">
-                            <div className="p-4 border-b border-main bg-surface/20 flex items-center gap-3 shrink-0">
+                            <div className="p-4 border-b border-border-main bg-surface/20 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
                                     <h3 className="text-sm font-bold text-text-primary">{t('analyst.interrogationTitle', 'Interrogimi i Dëshmive')}</h3>
@@ -299,7 +301,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                         <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words ${
                                             msg.role === 'user' 
                                                 ? 'btn-primary text-text-primary rounded-br-none' 
-                                                : 'bg-surface/20 text-text-secondary border border-main rounded-bl-none'
+                                                : 'bg-surface/20 text-text-secondary border border-border-main rounded-bl-none'
                                         }`}>
                                             {renderMarkdown(msg.content)}
                                         </div>
@@ -317,18 +319,18 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 )}
                                 <div ref={chatEndRef} />
                             </div>
-                            <form onSubmit={handleInterrogate} className="p-4 border-t border-main bg-surface/20 flex gap-2 shrink-0">
+                            <form onSubmit={handleInterrogate} className="p-4 border-t border-border-main bg-surface/20 flex gap-2 shrink-0">
                                 <input 
                                     type="text" 
                                     value={question} 
                                     onChange={(e) => setQuestion(e.target.value)} 
                                     placeholder={t('analyst.placeholderQuestion', 'Bëni një pyetje rreth dosjes...')} 
-                                    className="flex-1 glass-input rounded-xl px-4 py-3 text-text-primary focus:outline-none focus:border-primary-start/50"
+                                    className="glass-input flex-1 rounded-xl px-4 py-3 text-text-primary focus:outline-none focus:border-primary-start/50"
                                 />
                                 <button 
                                     type="submit" 
                                     disabled={!question.trim() || isInterrogating || !!typingMessage} 
-                                    className="p-3 btn-primary rounded-xl disabled:opacity-50 transition-colors"
+                                    className="btn-primary p-3 rounded-xl disabled:opacity-50 transition-colors hover-lift"
                                 >
                                     <Send className="w-5 h-5" />
                                 </button>
@@ -342,7 +344,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 {isAnalyzing && !result && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32">
                         <div className="relative">
-                            <div className="w-16 h-16 rounded-full border-4 border-main border-t-primary-start animate-spin"></div>
+                            <div className="w-16 h-16 rounded-full border-4 border-border-main border-t-primary-start animate-spin"></div>
                             <Activity className="absolute inset-0 m-auto w-6 h-6 text-primary-start" />
                         </div>
                         <p className="text-xl text-text-primary font-medium mt-6">{t('analyst.analyzing', 'Duke kryer Analizën Forenzike...')}</p>
@@ -352,7 +354,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             
             <AnimatePresence>
                 {!result && !isAnalyzing && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-main">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center text-center py-20 px-6 card-panel rounded-2xl border border-border-main">
                         <FileSpreadsheet className="w-12 h-12 text-text-muted mb-6" />
                         <h3 className="text-lg font-bold text-text-primary mb-2">{t('analyst.readyTitle', 'Gati për Hulumtim Forenzik')}</h3>
                         <p className="text-sm text-text-secondary max-w-md mb-4">{t('analyst.readySubtitle', 'Zgjidhni një skedar Excel ose CSV për të filluar analizën dhe për të gjeneruar një memorandum strategjik.')}</p>

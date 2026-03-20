@@ -1,8 +1,8 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Preserved all functionality, PDF streaming optimization, and modal behavior.
-// 3. Uses semantic color variables consistently.
+// PHOENIX PROTOCOL - FILE VIEWER V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. Converted all hardcoded border classes to `border-border-main`.
+// 2. Modal background uses `bg-canvas/95` for consistency.
+// 3. Preserved PDF streaming optimization and all functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -185,9 +185,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     if (viewerMode === 'DOWNLOAD' || error) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <AlertTriangle size={64} className="text-danger-start/50 mb-6" />
+            <AlertTriangle size={64} className="text-status-danger/50 mb-6" />
             <h3 className="text-xl font-bold text-text-primary mb-2">{t('pdfViewer.previewNotAvailable')}</h3>
-            {error && <p className="text-danger-start text-xs mb-6 font-mono bg-danger-start/10 px-4 py-2 rounded-lg border border-danger-start/20">{error}</p>}
+            {error && <p className="text-status-danger text-xs mb-6 font-mono bg-danger-start/10 px-4 py-2 rounded-lg border border-danger-start/20">{error}</p>}
             <button onClick={handleDownloadOriginal} disabled={isDownloading} className="btn-primary px-8 py-3 rounded-xl flex items-center gap-2 active:scale-95 transition-all">
                 {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal')}
             </button>
@@ -217,7 +217,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                             scale={scale}
                             renderTextLayer={false} 
                             renderAnnotationLayer={false}
-                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main" 
+                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-border-main" 
                         />
                     </PdfDocument>
                 )}
@@ -234,7 +234,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       case 'TEXT':
         return (
           <div className="p-6 sm:p-10 h-full overflow-auto bg-canvas/40">
-            <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main">
+            <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-border-main">
                 <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed">{textContent}</pre>
             </div>
           </div>
@@ -242,19 +242,19 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       case 'CSV':
         return (
             <div className="p-4 sm:p-8 h-full overflow-auto bg-canvas/40">
-                <div className="glass-panel p-0 rounded-2xl border border-main overflow-hidden shadow-2xl">
+                <div className="glass-panel p-0 rounded-2xl border border-border-main overflow-hidden shadow-2xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-surface/20">
                                 <tr>
                                     {csvContent?.[0]?.map((header, i) => (
-                                        <th key={i} className="p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-main whitespace-nowrap">
+                                        <th key={i} className="p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-border-main whitespace-nowrap">
                                             {header}
                                         </th>
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-main">
+                            <tbody className="divide-y divide-border-main">
                                 {csvContent?.slice(1).map((row, i) => (
                                     <tr key={i} className="hover:bg-surface/10 transition-colors">
                                         {row.map((cell, j) => (
@@ -273,7 +273,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       case 'IMAGE':
         return (
             <div className="flex items-center justify-center h-full p-4 sm:p-10 bg-canvas/40">
-                <img src={fileSource!} alt="Preview" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-main" />
+                <img src={fileSource!} alt="Preview" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-border-main" />
             </div>
         );
       default: return null;
@@ -283,9 +283,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const modalUI = (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-canvas/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-panel w-full h-full sm:max-w-6xl sm:max-h-[95vh] sm:rounded-3xl shadow-2xl flex flex-col border border-main" onClick={e => e.stopPropagation()}>
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-panel w-full h-full sm:max-w-6xl sm:max-h-[95vh] sm:rounded-3xl shadow-2xl flex flex-col border border-border-main" onClick={e => e.stopPropagation()}>
           
-          <header className="flex items-center justify-between p-4 border-b border-main bg-surface/20 shrink-0">
+          <header className="flex items-center justify-between p-4 border-b border-border-main bg-surface/20 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-primary-start/20 rounded-lg hidden sm:block">
                     {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
@@ -298,7 +298,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             
             <div className="flex items-center gap-1 sm:gap-2">
               {viewerMode === 'PDF' && (
-                  <div className="hidden sm:flex items-center gap-1 bg-canvas/40 rounded-lg p-1 border border-main mr-2">
+                  <div className="hidden sm:flex items-center gap-1 bg-canvas/40 rounded-lg p-1 border border-border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.zoomOut')}><ZoomOut size={16} /></button>
                       <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.reset')}><Maximize size={16} /></button>
                       <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.zoomIn')}><ZoomIn size={16} /></button>
@@ -306,14 +306,14 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               )}
               <button onClick={handleDownloadOriginal} className="p-2 text-primary-start hover:bg-surface/20 rounded-xl transition-all"><Download size={20} /></button>
               {onMinimize && <button onClick={onMinimize} className="p-2 text-text-muted hover:bg-surface/20 rounded-xl transition-all"><Minus size={20} /></button>}
-              <button onClick={onClose} className="p-2 text-text-muted hover:text-danger-start transition-all"><X size={24} /></button>
+              <button onClick={onClose} className="p-2 text-text-muted hover:text-status-danger transition-all"><X size={24} /></button>
             </div>
           </header>
           
           <div className="flex-grow relative overflow-hidden">{renderContent()}</div>
           
           {viewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-canvas/80 px-5 py-2 rounded-full border border-main flex items-center gap-4 backdrop-blur-xl z-[100]">
+            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-canvas/80 px-5 py-2 rounded-full border border-border-main flex items-center gap-4 backdrop-blur-xl z-[100]">
               <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-1 text-text-primary disabled:opacity-30"><ChevronLeft size={20} /></button>
               <span className="text-[10px] sm:text-xs font-bold text-text-primary font-mono">{pageNumber} / {numPages}</span>
               <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="p-1 text-text-primary disabled:opacity-30"><ChevronRight size={20} /></button>

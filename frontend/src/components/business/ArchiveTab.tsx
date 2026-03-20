@@ -1,9 +1,8 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Buttons use btn-primary / btn-secondary where appropriate.
-// 3. Removed the line displaying folder icon and "archive.folder" text as previously requested.
-// 4. Preserved all functionality.
+// PHOENIX PROTOCOL - ARCHIVE TAB V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. ArchiveCard now uses `hover-lift` class.
+// 2. All borders use `border-border-main` (CSS variable).
+// 3. Status indicators (shared) use semantic colors.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,13 +46,13 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
     const isShared = item.is_shared === true;
 
     return (
-        <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer glass-panel border border-main hover:bg-surface/20 hover:-translate-y-1 hover:shadow-2xl`}>
+        <div onClick={onClick} className="glass-panel group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl hover-lift cursor-pointer border-border-main">
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             
             <div>
                 <div className="flex flex-col mb-4 relative z-10">
                     <div className="flex justify-between items-start gap-2">
-                        <div className="p-2.5 rounded-xl bg-surface/30 border border-main group-hover:scale-110 transition-transform duration-300 shadow-inner">
+                        <div className="p-2.5 rounded-xl bg-surface/30 border border-border-main group-hover:scale-110 transition-transform duration-300 shadow-inner">
                             {isFolder ? <FolderOpen className="w-5 h-5 text-accent-start" /> : getFileIcon(item.file_type, item.category)}
                         </div>
                         
@@ -74,12 +73,11 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                     </div>
                 </div>
                 <div className="flex flex-col mb-6 relative z-10">
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-main">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border-main">
                         <Info className="w-3.5 h-3.5 text-primary-start" />
                         <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{isFolder ? t('archive.contents', 'Contents') : t('archive.details', 'Details')}</span>
                     </div>
                     <div className="space-y-1.5 pl-1">
-                        {/* Removed the line with folder icon and "archive.folder" text as requested */}
                         <div className="flex items-center gap-2 text-xs text-text-secondary">
                             <Hash className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="truncate">{isFolder ? t('archive.caseFolders') : `${(item.file_size / 1024).toFixed(1)} KB`}</span>
@@ -88,25 +86,25 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                 </div>
             </div>
             
-            <div className="relative z-10 pt-4 border-t border-main flex items-center justify-between min-h-[3rem]">
+            <div className="relative z-10 pt-4 border-t border-border-main flex items-center justify-between min-h-[3rem]">
                 <span className="text-xs font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1 uppercase tracking-wide">
                     {isFolder ? t('archive.openFolder', 'Open Folder') : ''}
                 </span>
                 
                 <div className="flex gap-1 items-center">
                     {!isFolder && onShare && (
-                        <button onClick={(e) => { e.stopPropagation(); onShare(); }} className={`p-2 rounded-lg transition-colors ${isShared ? 'bg-success-start/20 text-success-start hover:bg-success-start/30' : 'text-text-secondary hover:text-text-primary hover:bg-surface/30'}`} title={isShared ? t('documentsPanel.unshare') : t('documentsPanel.share')}>
+                        <button onClick={(e) => { e.stopPropagation(); onShare(); }} className={`p-2 rounded-lg transition-colors ${isShared ? 'bg-success-start/20 text-success-start hover:bg-success-start/30' : 'text-text-secondary hover:text-text-primary hover:bg-hover'}`} title={isShared ? t('documentsPanel.unshare') : t('documentsPanel.share')}>
                             <Share2 className="h-4 w-4" />
                         </button>
                     )}
                     {onRename && (
-                        <button onClick={(e) => { e.stopPropagation(); onRename(); }} className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface/30 transition-colors" title={t('documentsPanel.rename', 'Riemërto')}>
+                        <button onClick={(e) => { e.stopPropagation(); onRename(); }} className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-hover transition-colors" title={t('documentsPanel.rename', 'Riemërto')}>
                             <Pencil className="h-4 w-4" />
                         </button>
                     )}
                     {!isFolder && <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-text-secondary hover:text-primary-start hover:bg-primary-start/10 transition-colors">{isLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <Eye className="h-4 w-4" />}</button>}
-                    {!isFolder && onDownload && <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-text-secondary hover:text-success-start hover:bg-success-start/10 transition-colors"><Download className="h-4 w-4" /></button>}
-                    {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 rounded-lg text-text-secondary hover:text-danger-start hover:bg-danger-start/10 transition-colors"><Trash2 className="h-4 w-4" /></button>}
+                    {!isFolder && onDownload && <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-text-secondary hover:text-status-success hover:bg-success-start/10 transition-colors"><Download className="h-4 w-4" /></button>}
+                    {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 rounded-lg text-text-secondary hover:text-status-danger hover:bg-danger-start/10 transition-colors"><Trash2 className="h-4 w-4" /></button>}
                 </div>
             </div>
         </div>
@@ -269,7 +267,7 @@ export const ArchiveTab: React.FC = () => {
                         <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-base" />
                     </div>
                 </div>
-                <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 glass-panel rounded-xl border border-main">
+                <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 glass-panel rounded-xl border border-border-main">
                     {currentView.type === 'CASE' && (
                         <button onClick={handleCopyPortalLink} className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border transition-all font-bold text-xs uppercase tracking-wide ${linkCopied ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-primary-start/10 text-primary-start border-primary-start/30 hover:bg-primary-start/20'}`} title={linkCopied ? "Link Copied" : "Copy Client Portal Link"} >
                             {linkCopied ? <CheckCircle size={16} /> : <LinkIcon size={16} />}
@@ -298,7 +296,7 @@ export const ArchiveTab: React.FC = () => {
             <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar pb-2">
                 {breadcrumbs.map((crumb, index) => (
                     <React.Fragment key={crumb.id || 'root'}>
-                        <button onClick={() => handleNavigate(crumb, index)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-text-secondary hover:text-text-primary hover:bg-surface/30'}`}>
+                        <button onClick={() => handleNavigate(crumb, index)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-text-secondary hover:text-text-primary hover:bg-hover'}`}>
                             {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
                             {crumb.name}
                         </button>
@@ -334,8 +332,8 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
-            {showFolderModal && ( <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-panel border border-main w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-text-primary">{t('archive.newFolderTitle')}</h3> <button onClick={() => setShowFolderModal(false)} className="text-text-secondary hover:text-text-primary"><X size={24}/></button> </div> <form onSubmit={handleCreateFolder}> <div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-accent-start" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg placeholder:text-text-muted" /></div> <div className="relative mb-8"> <Tag className="absolute left-4 top-3.5 w-5 h-5 text-text-muted" /> <select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl appearance-none cursor-pointer"> <option value="GENERAL" className="bg-canvas text-text-primary">{t('category.general', 'General')}</option> <option value="EVIDENCE" className="bg-canvas text-text-primary">{t('category.evidence', 'Evidence')}</option> <option value="LEGAL_DOCS" className="bg-canvas text-text-primary">{t('category.legalDocs', 'Legal Docs')}</option> <option value="INVOICES" className="bg-canvas text-text-primary">{t('category.invoices', 'Invoices')}</option> <option value="CONTRACTS" className="bg-canvas text-text-primary">{t('category.contracts', 'Contracts')}</option> </select> </div> <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface/30 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 btn-primary rounded-xl font-bold shadow-lg transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div> </form> </div> </div> )}
-            {itemToRename && ( <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-panel border border-main w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-text-primary">{t('documentsPanel.renameTitle', 'Riemërto')}</h3> <button onClick={() => setItemToRename(null)} className="text-text-secondary hover:text-text-primary"><X size={24}/></button> </div> <form onSubmit={submitRename}> <div className="relative mb-5"> <Pencil className="absolute left-4 top-3.5 w-5 h-5 text-primary-start" /> <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg" /> </div> <div className="flex justify-end gap-3"> <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface/30 transition-colors font-medium">{t('general.cancel')}</button> <button type="submit" className="px-8 py-3 btn-primary rounded-xl font-bold shadow-lg transition-all transform hover:scale-[1.02] flex items-center gap-2"> <Save size={16} /> {t('general.save')} </button> </div> </form> </div> </div> )}
+            {showFolderModal && ( <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-panel border border-main w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-text-primary">{t('archive.newFolderTitle')}</h3> <button onClick={() => setShowFolderModal(false)} className="text-text-secondary hover:text-text-primary"><X size={24}/></button> </div> <form onSubmit={handleCreateFolder}> <div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-accent-start" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg placeholder:text-text-muted" /></div> <div className="relative mb-8"> <Tag className="absolute left-4 top-3.5 w-5 h-5 text-text-muted" /> <select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl appearance-none cursor-pointer"> <option value="GENERAL" className="bg-canvas text-text-primary">{t('category.general', 'General')}</option> <option value="EVIDENCE" className="bg-canvas text-text-primary">{t('category.evidence', 'Evidence')}</option> <option value="LEGAL_DOCS" className="bg-canvas text-text-primary">{t('category.legalDocs', 'Legal Docs')}</option> <option value="INVOICES" className="bg-canvas text-text-primary">{t('category.invoices', 'Invoices')}</option> <option value="CONTRACTS" className="bg-canvas text-text-primary">{t('category.contracts', 'Contracts')}</option> </select> </div> <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 btn-primary rounded-xl font-bold shadow-lg transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div> </form> </div> </div> )}
+            {itemToRename && ( <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-panel border border-main w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-text-primary">{t('documentsPanel.renameTitle', 'Riemërto')}</h3> <button onClick={() => setItemToRename(null)} className="text-text-secondary hover:text-text-primary"><X size={24}/></button> </div> <form onSubmit={submitRename}> <div className="relative mb-5"> <Pencil className="absolute left-4 top-3.5 w-5 h-5 text-primary-start" /> <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg" /> </div> <div className="flex justify-end gap-3"> <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-text-primary hover:bg-hover transition-colors font-medium">{t('general.cancel')}</button> <button type="submit" className="px-8 py-3 btn-primary rounded-xl font-bold shadow-lg transition-all transform hover:scale-[1.02] flex items-center gap-2"> <Save size={16} /> {t('general.save')} </button> </div> </form> </div> </div> )}
             {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} />}
         </motion.div>
     );

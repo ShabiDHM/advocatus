@@ -1,8 +1,9 @@
 // FILE: src/pages/DocumentViewPage.tsx
-// PHOENIX PROTOCOL - DOCUMENT VIEW V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Preserved all functionality.
-// 3. Consistent with other pages.
+// PHOENIX PROTOCOL - DOCUMENT VIEW V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. Uses `card-panel` for details and summary.
+// 2. Borders use `border-border-main` CSS variable.
+// 3. Buttons use `btn-primary` / `btn-secondary`.
+// 4. Added `hover-lift` to download button.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -82,13 +83,13 @@ const DocumentViewPage: React.FC = () => {
     switch (s) {
       case 'READY':
       case 'COMPLETED':
-        return { color: 'bg-success-start/10 text-success-start border border-success-start/20', icon: <Zap size={16} />, label: t('documentView.statusReady') };
+        return { color: 'bg-status-success/10 text-status-success border border-status-success/20', icon: <Zap size={16} />, label: t('documentView.statusReady') };
       case 'PENDING':
-        return { color: 'bg-warning-start/10 text-warning-start border border-warning-start/20', icon: <Clock size={16} />, label: t('documentView.statusPending') };
+        return { color: 'bg-status-warning/10 text-status-warning border border-status-warning/20', icon: <Clock size={16} />, label: t('documentView.statusPending') };
       case 'FAILED':
-        return { color: 'bg-danger-start/10 text-danger-start border border-danger-start/20', icon: <Zap size={16} />, label: t('documentView.statusFailed') };
+        return { color: 'bg-status-danger/10 text-status-danger border border-status-danger/20', icon: <Zap size={16} />, label: t('documentView.statusFailed') };
       default:
-        return { color: 'bg-surface/30 text-text-secondary border border-main', icon: <FileText size={16} />, label: status };
+        return { color: 'bg-surface/30 text-text-secondary border border-border-main', icon: <FileText size={16} />, label: status };
     }
   };
 
@@ -99,7 +100,7 @@ const DocumentViewPage: React.FC = () => {
   );
   
   if (error || !docDetails) return (
-    <div className="text-danger-start text-center py-20 glass-panel rounded-2xl mx-4 border border-main">
+    <div className="text-status-danger text-center py-20 card-panel rounded-2xl mx-4 border border-border-main">
       {error || t('documentView.notFound')}
     </div>
   );
@@ -115,7 +116,7 @@ const DocumentViewPage: React.FC = () => {
         transition={{ duration: 0.3 }}
     >
       {/* Header - Glass Style */}
-      <div className="glass-panel p-6 rounded-2xl border border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
+      <div className="glass-panel p-6 rounded-2xl border border-border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
         <div className="flex flex-col w-full sm:w-auto">
             <Link to={`/case/${caseId}`} className="text-sm text-text-secondary hover:text-text-primary transition-colors mb-2 flex items-center space-x-2 group">
               <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> <span>{t('documentView.backToCase')}</span>
@@ -135,7 +136,7 @@ const DocumentViewPage: React.FC = () => {
             <motion.button 
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="btn-secondary text-white font-bold py-2.5 px-5 rounded-xl transition-all duration-300 shadow-lg disabled:opacity-50 flex items-center justify-center hover:-translate-y-0.5"
+                className="btn-primary text-white font-bold py-2.5 px-5 rounded-xl transition-all duration-300 shadow-lg disabled:opacity-50 flex items-center justify-center hover-lift"
                 whileTap={{ scale: 0.95 }}
                 title={t('documentView.exportPdfTooltip')}
             >
@@ -148,8 +149,8 @@ const DocumentViewPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100%-140px)]">
         {/* Sidebar: Details & Summary */}
         <div className="col-span-1 space-y-6 overflow-y-auto custom-scrollbar pr-1">
-            <div className="glass-panel p-6 rounded-2xl border border-main">
-                <h3 className="text-lg font-bold text-text-primary mb-4 border-b border-main pb-2">{t('documentView.details')}</h3>
+            <div className="card-panel p-6 rounded-2xl border border-border-main">
+                <h3 className="text-lg font-bold text-text-primary mb-4 border-b border-border-main pb-2">{t('documentView.details')}</h3>
                 <div className="space-y-3">
                     <p className="text-sm text-text-secondary break-words flex flex-col">
                         <span className="text-xs font-bold uppercase tracking-wider text-text-muted mb-1">{t('documentView.fileName')}</span>
@@ -166,13 +167,13 @@ const DocumentViewPage: React.FC = () => {
                 </div>
             </div>
             
-            <div className="glass-panel p-6 rounded-2xl flex-1 border border-main">
-                <h3 className="text-lg font-bold text-text-primary mb-4 border-b border-main pb-2">{t('documentView.summary')}</h3>
+            <div className="card-panel p-6 rounded-2xl flex-1 border border-border-main">
+                <h3 className="text-lg font-bold text-text-primary mb-4 border-b border-border-main pb-2">{t('documentView.summary')}</h3>
                 <div className="min-h-[150px] text-text-secondary text-sm sm:text-base leading-relaxed">
                     {isProcessed && docDetails.summary ? (
                         <span className="italic">{docDetails.summary}</span>
                     ) : (
-                        <span className="text-text-muted italic flex items-center justify-center h-32 bg-surface/20 rounded-xl border border-dashed border-main">
+                        <span className="text-text-muted italic flex items-center justify-center h-32 bg-surface/20 rounded-xl border border-dashed border-border-main">
                             {isProcessed ? t('documentView.summaryPlaceholder') : t('documentView.notProcessed')}
                         </span>
                     )}
@@ -181,8 +182,8 @@ const DocumentViewPage: React.FC = () => {
         </div>
 
         {/* Content Area */}
-        <div className="col-span-1 lg:col-span-2 h-[500px] lg:h-full glass-panel rounded-2xl overflow-hidden flex flex-col border border-main">
-            <div className="p-4 border-b border-main bg-surface/20 backdrop-blur-sm">
+        <div className="col-span-1 lg:col-span-2 h-[500px] lg:h-full glass-panel rounded-2xl overflow-hidden flex flex-col border border-border-main">
+            <div className="p-4 border-b border-border-main bg-surface/20 backdrop-blur-sm">
                 <h3 className="text-lg font-bold text-text-primary">{t('documentView.extractedContent')}</h3>
             </div>
             <div className="p-6 overflow-y-auto flex-1 custom-scrollbar bg-canvas/20">

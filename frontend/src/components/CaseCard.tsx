@@ -1,8 +1,9 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V6.1 (EXECUTIVE DESIGN SYSTEM – ENHANCED METADATA)
-// 1. Added case number and status badge for professional legal dashboard.
-// 2. Status badge uses semantic colors: open → success, closed → muted, pending → warning.
-// 3. Preserved hover-lift, glass-panel, and all interactions.
+// PHOENIX PROTOCOL - CASE CARD V6.2 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// 1. Uses `hover-lift` class for consistent lift effect.
+// 2. Status badge uses global `.badge` classes (semantic).
+// 3. Border uses `border-border-main` utility (CSS variable).
+// 4. All interactive elements preserved.
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -43,24 +44,24 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const hasTitle = caseData.title && caseData.title.trim() !== '';
   const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
-  // Status badge styling based on case status
+  // Status badge styling using global badge classes
   const getStatusBadge = () => {
     const status = caseData.status?.toLowerCase();
     if (status === 'open' || status === 'active') {
       return {
         label: t('case.status.active', 'Aktiv'),
-        className: 'bg-success-start/20 text-success-start border-success-start/30'
+        className: 'badge badge-success'
       };
     }
     if (status === 'closed' || status === 'archived') {
       return {
         label: t('case.status.closed', 'Mbyllur'),
-        className: 'bg-text-muted/20 text-text-secondary border-text-muted/30'
+        className: 'badge badge-neutral'
       };
     }
     return {
       label: t('case.status.pending', 'Në pritje'),
-      className: 'bg-warning-start/20 text-warning-start border-warning-start/30'
+      className: 'badge badge-warning'
     };
   };
 
@@ -69,7 +70,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   return (
     <motion.div 
       onClick={handleCardClick}
-      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer border border-main"
+      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl hover-lift cursor-pointer border-border-main"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
@@ -86,9 +87,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-xs font-mono text-text-muted bg-surface/30 px-2 py-0.5 rounded-md">
                   {caseData.case_number || 'N/A'}
                 </span>
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${statusBadge.className}`}>
-                  {statusBadge.label}
-                </span>
+                <div className={statusBadge.className}>{statusBadge.label}</div>
               </div>
               <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-text-secondary italic' : 'text-text-primary group-hover:text-primary-start transition-colors'}`}>
                   {displayTitle}
@@ -105,7 +104,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         
         {/* Client Details Section */}
         <div className="flex flex-col mb-6 relative z-10">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-main">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border-main">
              <User className="w-3.5 h-3.5 text-primary-start" />
              <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.clientLabel', 'Klienti')}</span>
           </div>
@@ -133,7 +132,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       
       <div className="relative z-10">
         {/* Statistics Section */}
-        <div className="pt-4 border-t border-main flex items-center justify-between gap-2">
+        <div className="pt-4 border-t border-border-main flex items-center justify-between gap-2">
           
           <div className="flex items-center gap-4">
               {/* Documents */}
@@ -145,17 +144,17 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
               {/* Alerts */}
               <button 
                 onClick={handleCalendarNav}
-                className="flex items-center gap-1.5 group/icon hover:bg-surface/30 px-1.5 py-0.5 rounded transition-colors" 
+                className="flex items-center gap-1.5 group/icon hover:bg-hover px-1.5 py-0.5 rounded transition-colors" 
                 title={`${caseData.alert_count || 0} Afate`}
               >
-                <AlertTriangle className="h-4 w-4 text-accent-start group-hover/icon:text-accent-start/80 transition-colors" />
+                <AlertTriangle className="h-4 w-4 text-status-warning group-hover/icon:text-warning-start/80 transition-colors" />
                 <span className="text-sm font-medium text-text-secondary group-hover/icon:text-text-primary">{caseData.alert_count || 0}</span>
               </button>
 
               {/* Events */}
               <button 
                 onClick={handleCalendarNav}
-                className="flex items-center gap-1.5 group/icon hover:bg-surface/30 px-1.5 py-0.5 rounded transition-colors" 
+                className="flex items-center gap-1.5 group/icon hover:bg-hover px-1.5 py-0.5 rounded transition-colors" 
                 title={`${caseData.event_count || 0} Ngjarje`}
               >
                 <CalendarDays className="h-4 w-4 text-secondary-start group-hover/icon:text-secondary-start/80 transition-colors" />
@@ -165,14 +164,14 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         </div>
 
         {/* Footer: Actions */}
-        <div className="mt-4 pt-4 border-t border-main flex items-center justify-between">
+        <div className="mt-4 pt-4 border-t border-border-main flex items-center justify-between">
           <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1">
             {t('general.view', 'Shiko')} {t('archive.details', 'Detajet')} 
           </span>
           
           <motion.button
             onClick={handleDeleteClick}
-            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-danger-start hover:bg-danger-start/10 transition-colors z-20 relative"
+            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-status-danger hover:bg-danger-start/10 transition-colors z-20 relative"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title={t('general.delete', 'Fshij')}

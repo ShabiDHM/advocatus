@@ -5,55 +5,82 @@
 
 @layer base {
   :root {
-    /* --- WORLD CLASS LIGHT: "Modern Courtroom" --- */
-    --bg-base: #F8FAFC;         /* Slate 50 */
-    --bg-surface: #FFFFFF;      /* Solid White */
-    --bg-surface-secondary: #F1F5F9;
-    --bg-input: #F1F5F9;
-    --bg-glass: rgba(255, 255, 255, 0.8);
-    
-    --accent-primary: #0F172A;  /* Oxford Blue Authority */
-    --accent-hover: #1E293B;
-    --accent-primary-rgb: 15, 23, 42;
-    
-    --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #94A3B8;
-    --text-disabled: #CBD5E1;
-    
-    --border-main: #E2E8F0;
-    
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.04);
-    --shadow-accent: 0 4px 14px 0 rgba(15, 23, 42, 0.1);
-    
+    /* --- WORLD CLASS LIGHT: "Modern Courtroom" (Indigo Prestige) --- */
+    /* Background hierarchy – no pure white */
+    --bg-base: #F4F6F9;           /* Page canvas */
+    --bg-surface: #ECEEF3;        /* Sidebar, nav panels */
+    --bg-card: #FFFFFF;           /* Cards, modals */
+    --bg-glass: rgba(255, 255, 255, 0.65);
+    --bg-input: #EDF0F5;
+    --bg-hover: rgba(99, 115, 255, 0.07);      /* NEW */
+
+    /* Typography – high contrast */
+    --text-primary: #0F1623;
+    --text-secondary: #3D4A5C;
+    --text-muted: #6B7A90;
+    --text-disabled: #A3AFBF;
+    --text-inverse: #FFFFFF;
+
+    /* Accent – Indigo (same in both modes) */
+    --accent-primary: #6366F1;
+    --accent-hover: #4F52D9;
+    --accent-subtle: rgba(99, 102, 241, 0.10);
+    --accent-text: #4345B5;
+    --accent-primary-rgb: 99, 102, 241;
+
+    /* Status colours */
     --status-success: #059669;
     --status-warning: #D97706;
     --status-danger: #DC2626;
+    --status-neutral: #475569;
+
+    /* Multi‑layer directional shadows */
+    --shadow-xs: 0 1px 2px rgba(15, 22, 35, 0.04), 0 1px 3px rgba(15, 22, 35, 0.06);
+    --shadow-sm: 0 2px 4px rgba(15, 22, 35, 0.04), 0 4px 12px rgba(15, 22, 35, 0.06);
+    --shadow-md: 0 4px 8px rgba(15, 22, 35, 0.05), 0 8px 24px rgba(15, 22, 35, 0.08), 0 0 0 1px rgba(99, 102, 241, 0.06);
+    --shadow-lg: 0 8px 16px rgba(15, 22, 35, 0.06), 0 20px 48px rgba(15, 22, 35, 0.10), 0 0 0 1px rgba(15, 22, 35, 0.04);
+    --shadow-xl: 0 16px 32px rgba(15, 22, 35, 0.08), 0 40px 80px rgba(15, 22, 35, 0.14), 0 0 0 1px rgba(15, 22, 35, 0.06);
+
+    /* Glass panel borders (light mode specific) */
+    --glass-border: 1px solid rgba(255, 255, 255, 0.85);
+    --glass-border-bottom: 1px solid rgba(203, 213, 225, 0.50);
+    --glass-border-right: 1px solid rgba(203, 213, 225, 0.50);
+    --border-main: #E2E8F0;      /* fallback for non‑glass elements */
   }
 
   .dark {
-    /* --- WORLD CLASS DARK: "Executive Suite" --- */
-    --bg-base: #020617;         /* Deepest Midnight */
-    --bg-surface: #0B1120;      /* Midnight Surface */
-    --bg-surface-secondary: #1E293B;
-    --bg-input: #111827;
+    /* --- WORLD CLASS DARK: "Executive Suite" (Indigo Prestige) --- */
+    --bg-base: #020617;
+    --bg-surface: #0B1120;
+    --bg-card: #1C1F35;
     --bg-glass: rgba(11, 17, 32, 0.7);
-    
-    --accent-primary: #6366F1;  /* Indigo Prestige */
-    --accent-hover: #818CF8;
-    --accent-primary-rgb: 99, 102, 241;
-    
+    --bg-input: #111827;
+    --bg-hover: rgba(99, 115, 255, 0.12);      /* NEW */
+
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
     --text-disabled: #334155;
-    
+    --text-inverse: #0F1623;
+
+    /* Indigo remains – brand continuity */
+    --accent-primary: #6366F1;
+    --accent-hover: #818CF8;
+    --accent-subtle: rgba(99, 102, 241, 0.15);
+    --accent-text: #8183F5;
+    --accent-primary-rgb: 99, 102, 241;
+
+    /* Dark shadows – glow style (still multi‑layer) */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.15);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.3), 0 20px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.4), 0 40px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+
+    --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+    --glass-border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    --glass-border-right: 1px solid rgba(255, 255, 255, 0.08);
     --border-main: rgba(255, 255, 255, 0.06);
-    
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    --shadow-accent: 0 0 20px 0 rgba(99, 102, 241, 0.3);
   }
 
   body {
@@ -64,16 +91,24 @@
     transition: background-color 0.4s ease, color 0.4s ease;
   }
 
-  /* Architectural Grid for Light Mode */
+  /* Light mode – subtle dot‑grid texture for glass depth */
   :root body {
-    background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.02) 1px, transparent 0);
-    background-size: 32px 32px;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
-  
-  /* Deep Radial Atmosphere for Dark Mode */
+
+  /* Dark mode – radial atmosphere (preserved) */
   .dark body {
     background-image: radial-gradient(circle at 50% -20%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
     background-attachment: fixed;
+  }
+
+  /* Reduced motion – respect user preference */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   h1, h2, h3, h4 {
@@ -84,47 +119,147 @@
 }
 
 @layer components {
-  /* THE EXECUTIVE PANEL (WORLD CLASS) */
+  /* THE EXECUTIVE PANEL (WORLD CLASS) – light & dark aware */
   .glass-panel {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    box-shadow: var(--shadow-md);
+    background-color: var(--bg-glass);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: var(--glass-border);
+    border-bottom: var(--glass-border-bottom);
+    border-right: var(--glass-border-right);
+    box-shadow: var(--shadow-lg);
     @apply rounded-panel transition-all duration-300;
   }
 
-  .dark .glass-panel {
-    background-color: var(--bg-glass);
-    backdrop-filter: blur(20px) saturate(180%);
+  /* Fallback for non‑glass panels (cards, etc.) */
+  .card-panel {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-main);
+    box-shadow: var(--shadow-sm);
+    @apply rounded-panel transition-all duration-300;
   }
 
-  /* THE PRECISION INPUT */
+  /* Hover lift (for cards, interactive panels) */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: rgba(var(--accent-primary-rgb), 0.2);
+  }
+
+  /* THE PRECISION INPUT – sunken trough effect */
   .glass-input {
     background-color: var(--bg-input);
-    border: 1px solid var(--border-main);
+    border: 1.5px solid rgba(203, 213, 225, 0.8);
     color: var(--text-primary);
+    box-shadow: inset 0 1px 3px rgba(15, 22, 35, 0.06);
     @apply rounded-xl px-4 py-2.5 outline-none transition-all duration-200 font-medium;
   }
-  
   .glass-input:focus {
-    background-color: var(--bg-surface);
+    background-color: var(--bg-card);
     border-color: var(--accent-primary);
-    /* Replace ring with custom box-shadow using RGB variable */
-    box-shadow: 0 0 0 4px rgba(var(--accent-primary-rgb), 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.15), inset 0 1px 2px rgba(15, 22, 35, 0.04);
+  }
+  .glass-input::placeholder {
+    color: var(--text-disabled);
   }
 
-  /* THE COMMAND BUTTON */
+  /* BUTTONS */
   .btn-primary {
-    background: var(--accent-primary);
-    color: white;
-    @apply px-6 py-3 rounded-xl font-bold text-sm tracking-tight shadow-accent-glow hover:brightness-110 active:scale-95 transition-all;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-hover) 100%);
+    color: var(--text-inverse);
+    border: none;
+    box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.25), 0 1px 3px rgba(var(--accent-primary-rgb), 0.15);
+    @apply px-6 py-3 rounded-xl font-bold text-sm tracking-tight transition-all duration-200;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--accent-hover) 0%, #4547C5 100%);
+    box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb), 0.35), 0 2px 6px rgba(var(--accent-primary-rgb), 0.2);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
   }
 
-  .dark .btn-primary {
-    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+  .btn-secondary {
+    background: var(--bg-card);
+    color: var(--accent-text);
+    border: 1.5px solid rgba(var(--accent-primary-rgb), 0.3);
+    box-shadow: var(--shadow-xs);
+    @apply px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200;
+  }
+  .btn-secondary:hover {
+    background: var(--bg-hover);
+    border-color: rgba(var(--accent-primary-rgb), 0.55);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+
+  .btn-danger {
+    background: linear-gradient(135deg, var(--status-danger) 0%, #DC2626 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    @apply px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200;
+  }
+  .btn-danger:hover {
+    background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    transform: translateY(-1px);
+  }
+
+  /* STATUS BADGES – legal‑grade */
+  .badge {
+    @apply text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border inline-flex items-center gap-1;
+  }
+  .badge-success {
+    background: rgba(5, 150, 105, 0.10);
+    color: #065F46;
+    border-color: rgba(5, 150, 105, 0.20);
+  }
+  .dark .badge-success {
+    background: rgba(5, 150, 105, 0.15);
+    color: #34D399;
+    border-color: rgba(5, 150, 105, 0.30);
+  }
+  .badge-warning {
+    background: rgba(217, 119, 6, 0.10);
+    color: #92400E;
+    border-color: rgba(217, 119, 6, 0.20);
+  }
+  .dark .badge-warning {
+    background: rgba(217, 119, 6, 0.15);
+    color: #FBBF24;
+    border-color: rgba(217, 119, 6, 0.30);
+  }
+  .badge-danger {
+    background: rgba(220, 38, 38, 0.08);
+    color: #991B1B;
+    border-color: rgba(220, 38, 38, 0.18);
+  }
+  .dark .badge-danger {
+    background: rgba(220, 38, 38, 0.12);
+    color: #F87171;
+    border-color: rgba(220, 38, 38, 0.25);
+  }
+  .badge-neutral {
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border-color: var(--border-main);
+  }
+
+  /* Background hover utility */
+  .bg-hover {
+    background-color: var(--bg-hover);
+  }
+  /* Border utility */
+  .border-border-main {
+    border-color: var(--border-main);
   }
 }
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }

@@ -1,9 +1,9 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V7.1 (EXECUTIVE DESIGN SYSTEM – INDIGO PRESTIGE)
-// 1. Briefing Card: Uses Indigo Prestige gradient (from-indigo-950/40 to-black/40) and indigo border for all non‑critical states.
-// 2. “RAST I RI” Button: Uses btn-primary (already correct).
-// 3. Case Cards: Enhanced with case number and status badge (updated in separate CaseCard file).
-// 4. Header Overlap: Resolved by Header’s flex‑1 + max‑wd.
+// PHOENIX PROTOCOL - DASHBOARD V7.2 (EXECUTIVE DESIGN SYSTEM)
+// 1. Briefing card uses theme‑aware `briefing-gradient-optimal` class.
+// 2. Empty state uses `card-panel` for consistency.
+// 3. “RAST I RI” button uses `btn-primary`.
+// 4. All other semantic classes (glass-panel, border-main, etc.) are already in use.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +51,6 @@ const DashboardPage: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
-  // Updated theme: Indigo Prestige for OPTIMAL, HOLIDAY, WEEKEND; semantic colors for others
   const theme = useMemo(() => {
     const status = briefing?.status || 'OPTIMAL';
     switch (status) {
@@ -159,9 +158,9 @@ const DashboardPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className={`shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl ${theme.style.split(' ')[2]}`}
+            className="shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl briefing-gradient-optimal"
           >
-            <div className={`p-6 sm:p-8 bg-gradient-to-br ${theme.style}`}>
+            <div className="p-6 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
                 <div className="flex items-start gap-5">
                   <div className="glass-panel p-4 rounded-2xl shrink-0 border border-main shadow-xl">
@@ -264,8 +263,8 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-8">
           {cases.length === 0 ? (
-             <div className="glass-panel flex flex-col items-center justify-center py-24 border border-main">
-                <div className="w-20 h-20 bg-surface/50 rounded-3xl flex items-center justify-center mb-6 border border-main">
+             <div className="card-panel flex flex-col items-center justify-center py-24">
+                <div className="w-20 h-20 bg-surface/50 rounded-3xl flex items-center justify-center mb-6 border border-border-main">
                     <ShieldAlert size={40} className="opacity-20 text-text-secondary" />
                 </div>
                 <p className="font-black uppercase tracking-widest text-xs italic text-text-secondary">Nuk u gjetën raste aktive.</p>
