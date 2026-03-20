@@ -1,9 +1,8 @@
 // FILE: src/pages/DocumentViewPage.tsx
 // PHOENIX PROTOCOL - DOCUMENT VIEW V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// 1. Uses `card-panel` for details and summary.
-// 2. Borders use `border-border-main` CSS variable.
-// 3. Buttons use `btn-primary` / `btn-secondary`.
-// 4. Added `hover-lift` to download button.
+// 1. Converted border classes to `border-border-main`.
+// 2. Download button uses `btn-primary` and `hover-lift`.
+// 3. Back link uses semantic hover effect.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -83,11 +82,11 @@ const DocumentViewPage: React.FC = () => {
     switch (s) {
       case 'READY':
       case 'COMPLETED':
-        return { color: 'bg-status-success/10 text-status-success border border-status-success/20', icon: <Zap size={16} />, label: t('documentView.statusReady') };
+        return { color: 'bg-success-start/10 text-success-start border border-success-start/20', icon: <Zap size={16} />, label: t('documentView.statusReady') };
       case 'PENDING':
-        return { color: 'bg-status-warning/10 text-status-warning border border-status-warning/20', icon: <Clock size={16} />, label: t('documentView.statusPending') };
+        return { color: 'bg-warning-start/10 text-warning-start border border-warning-start/20', icon: <Clock size={16} />, label: t('documentView.statusPending') };
       case 'FAILED':
-        return { color: 'bg-status-danger/10 text-status-danger border border-status-danger/20', icon: <Zap size={16} />, label: t('documentView.statusFailed') };
+        return { color: 'bg-danger-start/10 text-danger-start border border-danger-start/20', icon: <Zap size={16} />, label: t('documentView.statusFailed') };
       default:
         return { color: 'bg-surface/30 text-text-secondary border border-border-main', icon: <FileText size={16} />, label: status };
     }
