@@ -106,7 +106,10 @@
   }
   
   .glass-input:focus {
-    @apply ring-4 ring-primary-start/10 border-primary-start bg-surface;
+    background-color: var(--bg-surface);
+    border-color: var(--accent-primary);
+    /* Replace ring with custom box-shadow using RGB variable */
+    box-shadow: 0 0 0 4px rgba(var(--accent-primary-rgb), 0.1);
   }
 
   /* THE COMMAND BUTTON */
