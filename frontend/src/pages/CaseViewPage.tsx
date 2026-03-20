@@ -1,7 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V11.0 (SEMANTIC DESIGN SYSTEM)
-// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, btn-primary, etc.
-// 2. RETAINED: All features (document selection, analysis, chat, export).
+// PHOENIX PROTOCOL - CASE VIEW V11.1 (EXECUTIVE ACTION BAR)
+// 1. UNIFIED: Date, Document Selector, Analyst Toggle, Analyze button now share exact same height and base styling.
+// 2. ADDED: hover-lift to all interactive items for premium feedback.
+// 3. ACTIVE STATE: Analyst toggle uses primary-start border and subtle background when active.
+// 4. RETAINED: All features (document selection, analysis, chat, export).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -97,14 +99,15 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-main to-transparent" />
 
+              {/* Executive Action Bar - All items same height, rounded-xl, and hover-lift where interactive */}
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
-                    {/* Date badge */}
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
+                    {/* Date badge (static, no hover) */}
+                    <div className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2 px-4 bg-surface/10 border border-main text-text-secondary text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
                     
-                    {/* Document selector */}
+                    {/* Document selector (interactive) */}
                     {viewMode === 'workspace' && (
                         <div className="md:col-span-1 h-12 md:h-11 min-w-0">
                             <DocumentSelector
@@ -116,22 +119,22 @@ const CaseHeader: React.FC<{
                         </div>
                     )}
                     
-                    {/* Analyst toggle */}
+                    {/* Analyst toggle (interactive) */}
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/10 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border hover-lift ${!isPro ? 'bg-surface/10 border border-main text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/10 border-primary-start text-primary-start' : 'bg-surface/10 border-main text-text-secondary hover:text-text-primary hover:bg-surface/20'}`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
-                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-primary-start" />}
+                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-text-secondary'} />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* Analyze button */}
+                    {/* Analyze button (primary action) */}
                     <button
                         onClick={onAnalyze}
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
-                        className="md:col-span-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="md:col-span-1 h-12 md:h-11 btn-primary disabled:opacity-50 disabled:cursor-not-allowed hover-lift"
                         type="button"
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
