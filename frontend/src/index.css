@@ -64,21 +64,32 @@
     --glass-border: 1px solid rgba(255, 255, 255, 0.9);
     --glass-border-bottom: 1px solid rgba(203, 213, 225, 0.6);
     --glass-border-right: 1px solid rgba(203, 213, 225, 0.6);
-    --border-main: #CBD5E1;
-    --border-strong: #94A3B8;
     
-    /* Colorful accent borders */
-    --border-accent-primary: rgba(99, 102, 241, 0.5);
-    --border-accent-success: rgba(5, 150, 105, 0.5);
-    --border-accent-warning: rgba(217, 119, 6, 0.5);
-    --border-accent-danger: rgba(220, 38, 38, 0.5);
-    --border-accent-info: rgba(59, 130, 246, 0.5);
+    /* MAIN BORDERS - More visible with subtle color */
+    --border-main: #A0AEC0;
+    --border-strong: #718096;
     
-    /* Glow effects for borders */
-    --glow-primary: 0 0 0 2px rgba(99, 102, 241, 0.3);
-    --glow-success: 0 0 0 2px rgba(5, 150, 105, 0.3);
-    --glow-warning: 0 0 0 2px rgba(217, 119, 6, 0.3);
-    --glow-danger: 0 0 0 2px rgba(220, 38, 38, 0.3);
+    /* Colorful accent borders for interactive elements */
+    --border-primary: #6366F1;
+    --border-success: #059669;
+    --border-warning: #D97706;
+    --border-danger: #DC2626;
+    --border-info: #3B82F6;
+    
+    /* Subtle border glow for hover states */
+    --border-glow-primary: 0 0 0 1px rgba(99, 102, 241, 0.5);
+    --border-glow-success: 0 0 0 1px rgba(5, 150, 105, 0.5);
+    
+    /* Colorful accent borders (semi-transparent) */
+    --border-accent-primary: rgba(99, 102, 241, 0.7);
+    --border-accent-success: rgba(5, 150, 105, 0.7);
+    --border-accent-warning: rgba(217, 119, 6, 0.7);
+    --border-accent-danger: rgba(220, 38, 38, 0.7);
+    
+    /* Full color borders */
+    --border-primary-solid: #6366F1;
+    --border-success-solid: #059669;
+    --border-danger-solid: #DC2626;
   }
 
   .dark {
@@ -134,23 +145,35 @@
     --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6), 0 40px 80px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15);
 
     /* STRENGTHENED borders - more visible in dark mode */
-    --glass-border: 1px solid rgba(255, 255, 255, 0.2);
-    --glass-border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    --glass-border-right: 1px solid rgba(255, 255, 255, 0.12);
-    --border-main: rgba(255, 255, 255, 0.15);
-    --border-strong: rgba(255, 255, 255, 0.25);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.25);
+    --glass-border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    --glass-border-right: 1px solid rgba(255, 255, 255, 0.15);
     
-    /* Dark mode accent borders - more vibrant */
-    --border-accent-primary: rgba(129, 140, 248, 0.6);
-    --border-accent-success: rgba(16, 185, 129, 0.6);
-    --border-accent-warning: rgba(245, 158, 11, 0.6);
-    --border-accent-danger: rgba(248, 113, 113, 0.6);
-    --border-accent-info: rgba(96, 165, 250, 0.6);
+    /* MAIN BORDERS - Much more visible in dark mode */
+    --border-main: rgba(255, 255, 255, 0.3);
+    --border-strong: rgba(255, 255, 255, 0.45);
     
-    --glow-primary: 0 0 0 2px rgba(129, 140, 248, 0.4);
-    --glow-success: 0 0 0 2px rgba(16, 185, 129, 0.4);
-    --glow-warning: 0 0 0 2px rgba(245, 158, 11, 0.4);
-    --glow-danger: 0 0 0 2px rgba(248, 113, 113, 0.4);
+    /* Colorful accent borders for interactive elements */
+    --border-primary: #818CF8;
+    --border-success: #10B981;
+    --border-warning: #F59E0B;
+    --border-danger: #F87171;
+    --border-info: #60A5FA;
+    
+    /* Subtle border glow for hover states */
+    --border-glow-primary: 0 0 0 1px rgba(129, 140, 248, 0.6);
+    --border-glow-success: 0 0 0 1px rgba(16, 185, 129, 0.6);
+    
+    /* Colorful accent borders - BRIGHTER for dark mode */
+    --border-accent-primary: rgba(129, 140, 248, 0.9);
+    --border-accent-success: rgba(16, 185, 129, 0.9);
+    --border-accent-warning: rgba(245, 158, 11, 0.9);
+    --border-accent-danger: rgba(248, 113, 113, 0.9);
+    
+    /* Full color borders */
+    --border-primary-solid: #818CF8;
+    --border-success-solid: #10B981;
+    --border-danger-solid: #F87171;
   }
 
   body {
@@ -274,8 +297,30 @@
     transition: all 300ms;
   }
   .card-panel:hover {
-    border-color: rgba(var(--accent-primary-rgb), 0.3);
-    box-shadow: var(--shadow-md);
+    border-color: var(--border-primary);
+    box-shadow: var(--border-glow-primary);
+  }
+
+  /* Card with colored border on hover */
+  .card-interactive {
+    border: 1px solid var(--border-main);
+    border-radius: 1.5rem;
+    transition: all 200ms;
+  }
+  .card-interactive:hover {
+    border-color: var(--border-primary);
+    box-shadow: var(--border-glow-primary);
+  }
+  
+  /* Success card */
+  .card-success {
+    border: 1px solid var(--border-main);
+    border-radius: 1.5rem;
+    transition: all 200ms;
+  }
+  .card-success:hover {
+    border-color: var(--border-success);
+    box-shadow: var(--border-glow-success);
   }
 
   /* Hover lift */
@@ -285,7 +330,7 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
-    border-color: rgba(var(--accent-primary-rgb), 0.3);
+    border-color: var(--border-primary);
   }
 
   /* Input fields */
@@ -302,7 +347,7 @@
     transition: all 200ms;
   }
   .glass-input:hover {
-    border-color: rgba(var(--accent-primary-rgb), 0.4);
+    border-color: rgba(var(--accent-primary-rgb), 0.5);
   }
   .glass-input:focus {
     background-color: var(--bg-card);
@@ -469,6 +514,27 @@
     border-color: var(--border-accent-danger);
   }
   
+  /* Table row with colored border on hover */
+  .table-row-hover {
+    border-bottom: 1px solid var(--border-main);
+    transition: all 200ms;
+  }
+  .table-row-hover:hover {
+    border-bottom-color: var(--border-primary);
+    background-color: var(--bg-hover);
+  }
+  
+  /* List item with left accent on hover */
+  .list-item-accent {
+    border-left: 2px solid transparent;
+    transition: all 200ms;
+  }
+  .list-item-accent:hover {
+    border-left-color: var(--border-primary);
+    background-color: var(--bg-hover);
+    padding-left: 0.5rem;
+  }
+  
   /* Divider utility */
   .divider {
     height: 1px;
@@ -507,7 +573,34 @@
   .leading-relaxed { line-height: var(--leading-relaxed); }
   .leading-loose { line-height: var(--leading-loose); }
   
-  /* Table utilities */
+  /* Colorful border left utilities */
+  .border-l-success-accent {
+    border-left-color: var(--border-accent-success) !important;
+  }
+  .border-l-danger-accent {
+    border-left-color: var(--border-accent-danger) !important;
+  }
+  .border-l-primary-accent {
+    border-left-color: var(--border-accent-primary) !important;
+  }
+  
+  /* Solid color borders on hover */
+  .hover\:border-l-success-start:hover {
+    border-left-color: var(--border-success-solid) !important;
+  }
+  .hover\:border-l-danger:hover {
+    border-left-color: var(--border-danger-solid) !important;
+  }
+  .hover\:border-l-primary-start:hover {
+    border-left-color: var(--border-primary-solid) !important;
+  }
+  
+  /* Border width utility */
+  .border-l-4 {
+    border-left-width: 4px !important;
+  }
+  
+  /* Table cell utilities */
   .table-cell-primary {
     border-left: 2px solid var(--accent-primary);
   }
