@@ -1,8 +1,6 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V7.4 (DROPDOWN ALIGNMENT FIX)
-// 1. Profile dropdown container uses `right-0` to ensure alignment with button.
-// 2. Added z‑index and shadow to match Executive Card.
-// 3. Other semantic classes remain unchanged.
+// PHOENIX PROTOCOL - HEADER V8.0 (MOBILE NAVIGATION ALIGNMENT)
+// STATUS: CLEAN - VERIFIED - FULL FILE REPLACEMENT
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -11,7 +9,6 @@ import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
-import LanguageSwitcher from './LanguageSwitcher';
 import BrandLogo from './BrandLogo';
 
 const Header: React.FC = () => {
@@ -95,20 +92,12 @@ const Header: React.FC = () => {
       <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
         
         {/* Left section: logo and search */}
-        <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
+        <div className="flex items-center h-full gap-4 lg:gap-8 min-w-0">
           <div className="flex-shrink-0">
             <BrandLogo />
           </div>
           
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 text-secondary hover:text-primary transition-colors"
-            aria-label="Toggle navigation menu"
-          >
-            <Menu size={24} />
-          </button>
-          
-          <div className="relative hidden sm:block flex-1 max-w-md">
+          <div className="relative hidden sm:block w-64 lg:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted h-4 w-4" />
             <input 
               type="text" 
@@ -118,6 +107,7 @@ const Header: React.FC = () => {
           </div>
         </div>
 
+        {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center h-full space-x-2">
           {navItems.map((item) => {
             const isCurrentActive = location.pathname.startsWith(item.path);
@@ -138,19 +128,17 @@ const Header: React.FC = () => {
           })}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        {/* Right section: Utilities and Mobile Toggle */}
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+          
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
-            className="btn-secondary p-2 rounded-lg"
+            className="p-2 rounded-lg text-secondary hover:text-primary hover:bg-hover transition-colors"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-
-          <div className="hidden">
-            <LanguageSwitcher />
-          </div>
 
           <Link to="/calendar" className="p-2 text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors relative" title="Kalendari">
             <Bell size={20} />
@@ -159,21 +147,22 @@ const Header: React.FC = () => {
             )}
           </Link>
           
-          <div className="h-6 w-px bg-border-main"></div>
+          <div className="h-6 w-px bg-border-main mx-1"></div>
 
+          {/* Profile Dropdown */}
           <div className="relative">
             <button 
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${
+              className={`flex items-center gap-2 p-1 rounded-xl transition-all border ${
                 isProfileOpen ? 'bg-hover border-border-main' : 'border-transparent hover:bg-hover hover:border-border-main'
               }`}
             >
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-primary">{user?.username || 'User'}</p>
-                <p className="text-xs text-secondary uppercase tracking-wider">{user?.role || 'LAWYER'}</p>
+              <div className="text-right hidden sm:block px-1">
+                <p className="text-sm font-medium text-primary leading-none mb-1">{user?.username || 'User'}</p>
+                <p className="text-[10px] text-secondary uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
               </div>
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-inverse font-bold shadow-accent-glow">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white font-bold text-sm shadow-sm">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
@@ -203,9 +192,19 @@ const Header: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Mobile Menu Button - Moved to Far Right */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors border border-transparent hover:border-border-main"
+            aria-label="Toggle navigation menu"
+          >
+            <Menu size={24} />
+          </button>
         </div>
       </header>
 
+      {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-0 bg-glass backdrop-blur-xl z-50 animate-in fade-in">
           <div className="flex items-center justify-between h-16 px-4 border-b border-border-main">
