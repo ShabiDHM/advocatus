@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentSelector.tsx
-// PHOENIX PROTOCOL - DOCUMENT SELECTOR V7.0 (EXECUTIVE DROPDOWN FIX)
+// PHOENIX PROTOCOL - DOCUMENT SELECTOR V8.0 (CONSISTENT TYPOGRAPHY)
 // 1. FIXED: Corrected dropdown background and borders to use V6.0 Design System tokens.
 // 2. FIXED: Enhanced Z-Index to ensure the menu always floats over Workspace panels.
-// 3. ENHANCED: Professional Executive typography (font-black, tracking-widest).
+// 3. TYPOGRAPHY: Standardized text sizes for better readability
 // 4. RETAINED: Multi-select logic and click-outside closing.
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -65,11 +65,11 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="w-full h-full flex items-center justify-between gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-lawyer-light transition-all duration-300 hover:border-primary-start/50 disabled:opacity-40 disabled:cursor-not-allowed group"
+        className="w-full h-full flex items-center justify-between gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-sm transition-all duration-300 hover:border-primary/50 disabled:opacity-40 disabled:cursor-not-allowed group"
       >
         <span className="flex items-center gap-3 truncate">
-          <FileText size={16} className="text-primary-start opacity-70 group-hover:opacity-100 transition-opacity" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-text-secondary truncate">
+          <FileText size={16} className="text-primary opacity-70 group-hover:opacity-100 transition-opacity" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary truncate">
             {buttonLabel}
           </span>
         </span>
@@ -82,12 +82,12 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
             initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            className="absolute top-full left-0 mt-2 w-full min-w-[280px] bg-surface border border-border-main rounded-2xl shadow-lawyer-dark z-[100] overflow-hidden py-2"
+            className="absolute top-full left-0 mt-2 w-full min-w-[280px] bg-glass backdrop-blur-xl border border-border-main rounded-2xl shadow-lg z-[100] overflow-hidden py-2"
           >
             {documents.length === 0 ? (
               <div className="px-6 py-8 text-center flex flex-col items-center gap-3 opacity-40">
                 <FileText size={32} className="text-text-muted" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">Nuk ka dokumente në këtë lëndë</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Nuk ka dokumente në këtë lëndë</p>
               </div>
             ) : (
               <>
@@ -95,7 +95,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
                 <div className="px-3 pb-2 mb-2 border-b border-border-main/50">
                   <button
                     onClick={selectAll}
-                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-canvas hover:bg-primary-start/5 text-[10px] font-black uppercase tracking-widest text-primary-start transition-all"
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-canvas hover:bg-primary/5 text-xs font-semibold uppercase tracking-wide text-primary transition-all"
                   >
                     {allSelected ? 'Çzgjidh të gjitha' : 'Zgjidh të gjitha'}
                   </button>
@@ -108,10 +108,10 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
                     return (
                         <label
                             key={doc.id}
-                            className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${isSelected ? 'bg-primary-start/5 border-primary-start/20' : 'bg-transparent border-transparent hover:bg-canvas'}`}
+                            className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${isSelected ? 'bg-primary/5 border-primary/20' : 'bg-transparent border-transparent hover:bg-hover'}`}
                         >
                             <div className="shrink-0 transition-transform active:scale-90">
-                                {isSelected ? <CheckSquare size={16} className="text-primary-start" /> : <Square size={16} className="text-text-muted" />}
+                                {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} className="text-text-muted" />}
                                 <input
                                     type="checkbox"
                                     checked={isSelected}
@@ -119,7 +119,7 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
                                     className="hidden"
                                 />
                             </div>
-                            <span className={`text-xs font-bold truncate ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
+                            <span className={`text-sm font-medium truncate ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
                                 {doc.file_name}
                             </span>
                         </label>
