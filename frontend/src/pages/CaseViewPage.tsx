@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V15.0 (DROPDOWN STACKING FIX)
-// 1. FIXED: Elevated Z-Index of the Action Bar (z-20) to ensure dropdowns clear the panels below.
-// 2. FIXED: Refined background architecture to prevent child clipping.
+// PHOENIX PROTOCOL - CASE VIEW V16.0 (TYPOGRAPHY FIX)
+// 1. FIXED: Updated all text sizes to use proper typography scale (text-sm, text-base, etc.)
+// 2. FIXED: Removed hardcoded text-[11px] and similar small sizes
 // 3. ENHANCED: Professional spacing and executive typography.
 // 4. RETAINED: 100% logic parity (Streaming, Sockets, Modals, Analysis).
 
@@ -51,16 +51,16 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     };
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4">
-            <div className="bg-surface w-full max-w-md p-8 rounded-[2rem] shadow-lawyer-dark border border-border-main animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+            <div className="bg-card w-full max-w-md p-8 rounded-2xl shadow-xl border border-border-main animate-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">{t('documentsPanel.renameTitle')}</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-surface-secondary rounded-xl transition-colors"><X size={20} /></button>
+                    <h3 className="text-lg font-bold text-text-primary uppercase tracking-wider">{t('documentsPanel.renameTitle')}</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors"><X size={20} /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full mb-6 py-4 font-bold" />
+                    <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full mb-6 py-3 text-base" />
                     <div className="flex justify-end gap-3">
-                        <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-bold text-text-muted">{t('general.cancel')}</button>
+                        <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-medium text-text-muted hover:text-text-primary transition-colors">{t('general.cancel')}</button>
                         <button type="submit" disabled={isSaving} className="btn-primary flex items-center gap-2">
                             {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />} {t('general.save')}
                         </button>
@@ -88,18 +88,18 @@ const CaseHeader: React.FC<{
         ? t('caseView.analyzeCase')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
-    const cardBase = "h-12 flex items-center justify-center gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-lawyer-light transition-all duration-300 hover-lift text-[11px] font-black uppercase tracking-widest";
+    const cardBase = "h-12 flex items-center justify-center gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-sm transition-all duration-300 hover-lift text-sm font-semibold uppercase tracking-wide";
 
     return (
         <motion.div className="relative mb-8 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           {/* Executive Header Section */}
           <div className="flex flex-col gap-2 mb-8 ml-2">
-              <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
+              <h1 className="text-3xl font-black text-text-primary tracking-tight leading-tight">
                 {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase')}
               </h1>
               <div className="flex items-center gap-2 opacity-60">
-                <User size={14} className="text-primary-start" />
-                <span className="text-xs font-bold uppercase tracking-widest text-text-secondary">{caseDetails.client?.name || "Private Client"}</span>
+                <User size={14} className="text-primary" />
+                <span className="text-sm font-medium uppercase tracking-wide text-text-secondary">{caseDetails.client?.name || "Private Client"}</span>
               </div>
           </div>
 
@@ -108,11 +108,11 @@ const CaseHeader: React.FC<{
               
               {/* Card 1: Date */}
               <div className={cardBase}>
-                  <Calendar size={16} className="text-primary-start opacity-70" />
-                  <span className="text-text-secondary">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+                  <Calendar size={16} className="text-primary opacity-70" />
+                  <span className="text-text-secondary text-sm">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
               </div>
 
-              {/* Card 2: Document Selector (STACKING CONTEXT PRESERVED) */}
+              {/* Card 2: Document Selector */}
               <div className="h-12 relative group hover-lift z-50">
                   <DocumentSelector
                       documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
@@ -128,29 +128,29 @@ const CaseHeader: React.FC<{
                   disabled={!isPro}
                   className={`${cardBase} ${
                     viewMode === 'analyst' 
-                    ? 'border-primary-start bg-primary-start/5 text-primary-start' 
+                    ? 'border-primary bg-primary/5 text-primary' 
                     : 'text-text-secondary'
                   } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
               >
-                  {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary-start' : 'text-primary-start opacity-70'} />}
-                  <span>{t('caseView.financialAnalyst')}</span>
+                  {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary' : 'text-primary opacity-70'} />}
+                  <span className="text-sm">{t('caseView.financialAnalyst')}</span>
               </button>
 
               {/* Card 4: Analyze Button */}
               <button
                   onClick={onAnalyze}
                   disabled={!isPro || isAnalyzing}
-                  className={`${cardBase} group border-primary-start/30 active:scale-95 disabled:opacity-40`}
+                  className={`${cardBase} group border-primary/30 active:scale-95 disabled:opacity-40`}
               >
                   {isAnalyzing ? (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
-                        <span className="text-primary-start">{t('analysis.analyzing')}</span>
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span className="text-primary text-sm">{t('analysis.analyzing')}</span>
                       </span>
                   ) : (
                       <span className="flex items-center gap-2">
-                        <ShieldCheck size={18} className="text-primary-start" />
-                        <span className="text-primary-start">{analyzeButtonText}</span>
+                        <ShieldCheck size={18} className="text-primary" />
+                        <span className="text-primary text-sm">{analyzeButtonText}</span>
                       </span>
                   )}
               </button>
@@ -246,8 +246,8 @@ const CaseViewPage: React.FC = () => {
   const handleViewOriginal = (doc: Document) => { setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleRenameAction = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(p => p.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch { alert(t('error.generic')); } };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div></div>;
-  if (error || !caseData.details) return <div className="p-8 text-center text-danger-start border border-danger-start/30 rounded-[2rem] bg-danger-start/5 mt-20 max-w-lg mx-auto"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-black uppercase tracking-widest">{error}</p></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+  if (error || !caseData.details) return <div className="p-8 text-center text-danger border border-danger/30 rounded-2xl bg-danger/5 mt-20 max-w-lg mx-auto"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-bold uppercase tracking-wide">{error}</p></div>;
 
   return (
     <motion.div className="w-full min-h-screen pb-12" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -263,11 +263,11 @@ const CaseViewPage: React.FC = () => {
                     <DocumentsPanel 
                         caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} 
                         onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={setDocumentToRename} 
-                        className="h-full w-full shadow-lawyer-light hover-lift" 
+                        className="h-full w-full shadow-sm hover-lift" 
                     />
                     <ChatPanel 
                         messages={chatMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} 
-                        t={t} className="h-full w-full shadow-lawyer-light hover-lift" activeContextId={currentCaseId} isPro={isPro} selectedDocumentCount={selectedDocumentIds.length}
+                        t={t} className="h-full w-full shadow-sm hover-lift" activeContextId={currentCaseId} isPro={isPro} selectedDocumentCount={selectedDocumentIds.length}
                     />
                 </motion.div>
             )}
