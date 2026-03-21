@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V8.0 (MOBILE NAVIGATION ALIGNMENT)
+// PHOENIX PROTOCOL - HEADER V10.0 (JURISTI AI THEME SYNC)
 // STATUS: CLEAN - VERIFIED - FULL FILE REPLACEMENT
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -92,17 +92,17 @@ const Header: React.FC = () => {
       <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
         
         {/* Left section: logo and search */}
-        <div className="flex items-center h-full gap-4 lg:gap-8 min-w-0">
+        <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
           <div className="flex-shrink-0">
             <BrandLogo />
           </div>
           
-          <div className="relative hidden sm:block w-64 lg:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted h-4 w-4" />
+          <div className="relative hidden sm:block w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted h-4 w-4" />
             <input 
               type="text" 
               placeholder={t('general.search', 'Kërko...')} 
-              className="glass-input w-full pl-10 pr-3 py-2 rounded-xl focus:ring-1 focus:ring-primary-start/40 transition-all"
+              className="glass-input w-full pl-10 pr-3 py-2 focus:ring-1 focus:ring-primary-start/40 transition-all"
             />
           </div>
         </div>
@@ -118,7 +118,7 @@ const Header: React.FC = () => {
                 className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${
                   isCurrentActive 
                     ? 'text-primary border-b-2 border-primary' 
-                    : 'text-secondary hover:text-primary hover:bg-hover'
+                    : 'text-text-secondary hover:text-primary hover:bg-hover'
                 }`}
               >
                 <item.icon className="h-4 w-4 mr-2" />
@@ -128,28 +128,26 @@ const Header: React.FC = () => {
           })}
         </nav>
 
-        {/* Right section: Utilities and Mobile Toggle */}
-        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+        {/* Right section: Utilities */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           
-          {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg text-secondary hover:text-primary hover:bg-hover transition-colors"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-hover transition-colors"
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          <Link to="/calendar" className="p-2 text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors relative" title="Kalendari">
+          <Link to="/calendar" className="p-2 text-text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors relative">
             <Bell size={20} />
             {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-danger rounded-full animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
             )}
           </Link>
           
           <div className="h-6 w-px bg-border-main mx-1"></div>
 
-          {/* Profile Dropdown */}
+          {/* Profile Button - FIXED VISIBILITY */}
           <div className="relative">
             <button 
               ref={buttonRef}
@@ -159,10 +157,11 @@ const Header: React.FC = () => {
               }`}
             >
               <div className="text-right hidden sm:block px-1">
-                <p className="text-sm font-medium text-primary leading-none mb-1">{user?.username || 'User'}</p>
-                <p className="text-[10px] text-secondary uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
+                <p className="text-sm font-medium text-text-primary leading-none mb-1">{user?.username || 'User'}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
               </div>
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              {/* Profile Icon: Now correctly visible using Juristi AI keys */}
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-text-inverse font-bold text-sm shadow-lawyer-light border border-primary/20">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
@@ -173,19 +172,19 @@ const Header: React.FC = () => {
                 className="absolute right-0 mt-2 w-60 bg-glass backdrop-blur-xl border border-border-main rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2"
               >
                 <div className="px-4 py-3 border-b border-border-main mb-1 bg-hover/5">
-                  <p className="text-sm text-primary font-medium truncate">{user?.username}</p>
-                  <p className="text-xs text-secondary truncate">{user?.email}</p>
+                  <p className="text-sm text-text-primary font-medium truncate">{user?.username}</p>
+                  <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
-                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
                   <UserIcon size={16} className="mr-3 text-primary" />
                   {t('sidebar.account', 'Llogaria Ime')}
                 </Link>
-                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
                   <MessageSquare size={16} className="mr-3 text-primary" />
                   {t('sidebar.support', 'Mbështetja')}
                 </Link>
                 <div className="h-px bg-border-main my-1"></div>
-                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors">
+                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors">
                   <LogOut size={16} className="mr-3" />
                   {t('general.logout', 'Dilni')}
                 </button>
@@ -193,26 +192,23 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Mobile Menu Button - Moved to Far Right */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors border border-transparent hover:border-border-main"
-            aria-label="Toggle navigation menu"
+            className="lg:hidden p-2 text-text-secondary hover:text-primary transition-colors"
           >
             <Menu size={24} />
           </button>
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-0 bg-glass backdrop-blur-xl z-50 animate-in fade-in">
           <div className="flex items-center justify-between h-16 px-4 border-b border-border-main">
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="p-2 text-secondary hover:text-primary transition-colors"
-              aria-label="Close navigation menu"
+              className="p-2 text-text-secondary hover:text-primary transition-colors"
             >
               <X size={24} />
             </button>
@@ -226,7 +222,7 @@ const Header: React.FC = () => {
                   to={item.path}
                   onClick={handleMobileLinkClick}
                   className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 ${
-                    isCurrentActive ? 'text-primary bg-hover' : 'text-secondary hover:text-primary hover:bg-hover'
+                    isCurrentActive ? 'text-primary bg-hover' : 'text-text-secondary hover:text-primary hover:bg-hover'
                   }`}
                 >
                   <item.icon className="h-5 w-5 mr-4" />
