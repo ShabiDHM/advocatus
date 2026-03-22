@@ -1,9 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.2 (PUBLIC LEGAL ENDPOINT)
-# 1. ADDED: legal_public router for Haveri integration
-# 2. FIXED: Expanded allow_headers to include all common browser metadata.
-# 3. FIXED: Added 'expose_headers' to allow frontend to read response status correctly.
-# 4. STATUS: Protocol Compliant.
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.3 (FIXED LEGAL ROUTER PREFIX)
+# 1. FIXED: Removed duplicate prefix for legal_public router
+# 2. ADDED: legal_public router for Haveri integration
+# 3. STATUS: Protocol Compliant.
 
 import os
 import logging
@@ -52,6 +51,9 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:5174",
+    "https://haveri.tech",
+    "https://www.haveri.tech",
+    "https://api.haveri.tech",
 ]
 
 app.add_middleware(
@@ -88,7 +90,8 @@ api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", ta
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
-api_v1_router.include_router(legal_public_router, prefix="/legal", tags=["Legal Public"])
+# FIXED: Removed duplicate prefix - legal_public router already has '/legal/public'
+api_v1_router.include_router(legal_public_router, tags=["Legal Public"])
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
@@ -98,7 +101,7 @@ app.include_router(api_v2_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.3.2"}
+    return {"status": "ok", "version": "1.3.3"}
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
