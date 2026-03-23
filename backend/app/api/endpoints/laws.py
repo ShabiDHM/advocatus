@@ -1,7 +1,9 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V8.1 (SEPARATOR CONFLICT FIX)
-# 1. FIXED: Uses [NDARJA] separator to avoid collision with llm_service disclaimer.
-# 2. RETAINED: 100% of retrieval, search, title, and chunk logic. No omissions.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V9.0 (EMPOWERED CITIZEN ARCHITECTURE)
+# 1. ENHANCED: Re-engineered the Citizen Prompt to provide actionable, free legal aid.
+# 2. ENFORCED: Strict 3-part structure (What it is, When it helps, How to use it).
+# 3. RETAINED: [NDARJA] separator logic, Senior Partner persona, and all Pylance fixes.
+# 4. RETAINED: 100% of data retrieval endpoints without omission.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -36,20 +38,28 @@ async def explain_law_article(
 ):
     """
     PHOENIX: Streams a dual-layered AI explanation.
-    Uses the strict [NDARJA] marker to ensure the frontend splits the tabs perfectly,
-    without colliding with the backend's automatic disclaimer.
+    The Citizen perspective is highly engineered to act as free, actionable legal aid.
     """
     system_prompt = (
-        "DETYRA: Analizo këtë nen ligjor nga dy perspektiva të ndryshme.\n\n"
+        "DETYRA: Analizo këtë nen ligjor nga dy perspektiva krejtësisht të ndryshme.\n\n"
+        
         "PJESA 1: Perspektiva e 'Senior Legal Partner'\n"
         "- Toni: Autoritar, teknik, doktrinar.\n"
-        "- Fokusohu: Lidhja me Kushtetutën e Kosovës, Konventën Evropiane për të Drejtat e Njeriut (KEDNJ), "
-        "parimet e procedurës dhe rreziqet statutore.\n\n"
+        "- Fokusohu: Lidhja me Kushtetutën e Kosovës, KEDNJ, jurisprudencën, parimet e procedurës dhe rreziqet statutore.\n\n"
+        
         "FORMATI I DETYRUESHËM: Pasi të mbarosh Pjesën 1, shkruaj SAKTËSISHT fjalën [NDARJA] në një rresht të ri.\n\n"
-        "PJESA 2: Perspektiva e Qytetarit të Thjeshtë\n"
-        "- Toni: Miqësor, i qartë, pa zhargon juridik.\n"
-        "- Fokusohu: Çfarë do të thotë kjo për qytetarin? Cilat janë të drejtat apo detyrimet e tij "
-        "në jetën e përditshme? Jep një shembull praktik.\n\n"
+        
+        "PJESA 2: Perspektiva e Qytetarit (Këshillim Falas & Fuqizues)\n"
+        "- Toni: Empatik, mbrojtës, jashtëzakonisht i qartë. Shkruaj për një qytetar që NUK KA para për avokat.\n"
+        "- Zëvendëso fjalët e rënda me fjalë të përditshme.\n"
+        "- Struktura e DETYRUESHME për këtë pjesë (përdor saktësisht këta tituj me emoji):\n\n"
+        "🔹 ÇFARË ËSHTË KY LIGJ?\n"
+        "(Trego thelbin e nenit në 2-3 fjali shumë të thjeshta).\n\n"
+        "🛡️ PËR ÇFARË MUND T'JU SHËRBEJË?\n"
+        "(Trego në cilat situata jetësore e mbron ky ligj qytetarin nga padrejtësitë apo abuzimet e institucioneve).\n\n"
+        "💡 SI TA PËRDORNI (KËSHILLA PRAKTIKE)?\n"
+        "(Jep hapa konkretë. P.sh. 'Nëse policia/gjykata/punëdhënësi ju thotë X, bazuar në këtë nen ju keni të drejtë të kërkoni Y' ose 'Kujdes: mos bëni gabimin Z sepse ky nen ju ndëshkon').\n\n"
+        
         "GJUHA: Përgjigju VETËM në gjuhën SHQIPE."
     )
     
