@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V10.0 (STRICT TEMPLATE ENFORCEMENT)
-# 1. ENFORCED: AI must use a rigid, unbreakable fill-in-the-blank template.
-# 2. FIXED: Overcomes global persona conflict by defining Pro Bono section.
-# 3. GUARANTEED: The [NDARJA] separator is hardcoded into the structural command.
-# 4. RETAINED: 100% of retrieval and search endpoints.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V11.0 (PREMIUM AI DOCTRINE)
+# 1. FIXED: Eliminated "Prompt Leakage" (AI echoing instructions).
+# 2. ENHANCED: Professional prompt now demands deep doctrinal, constitutional, and procedural analysis.
+# 3. ENHANCED: Citizen prompt remains structured and empowering but highly natural.
+# 4. RETAINED: [NDARJA] logic and all retrieval endpoints.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -37,38 +37,43 @@ async def explain_law_article(
     current_user = Depends(get_current_user)
 ):
     """
-    PHOENIX: Streams a dual-layered AI explanation using STRICT TEMPLATING.
-    This prevents the LLM from hallucinating formats or skipping the separator.
+    PHOENIX: Streams a high-prestige dual-layered AI explanation.
+    Uses strict command constraints to prevent prompt echoing and force deep legal reasoning.
     """
     
-    # We use a rigid template to force the AI to obey the structure
     system_prompt = (
-        "TI DUHET TË GJENEROSH PËRGJIGJEN TËNDE DUKE KOPJUAR SAKTËSISHT KËTË STRUKTURË:\n\n"
+        "ROLI: Ti je partneri kryesor (Senior Legal Partner) në zyrën më prestigjioze ligjore në Kosovë. "
+        "Klientët paguajnë shtrenjtë për mendimin tënd analitik, jo për përmbledhje robotike.\n\n"
         
-        "[Analiza jote si Senior Legal Partner. Fillo direkt me tekstin. Analizo Kushtetutën, KEDNJ, rreziqet procedurale. Përdor zhargon profesional.]\n\n"
+        "RREGULLAT ABSOLUTE:\n"
+        "1. MOS përsërit asnjë nga udhëzimet e mia në përgjigjen tënde. Fillo direkt me analizën.\n"
+        "2. Përgjigju VETËM në gjuhën SHQIPE me gramatikë të përsosur.\n"
+        "3. Ndaji dy nivelet e analizës SAKTËSISHT me fjalën [NDARJA] në një rresht të ri.\n\n"
         
-        "[NDARJA]\n\n"
+        "NIVELI 1: OPINIONI PROFESIONAL (Për Juristët)\n"
+        "Shkruaj një analizë të thellë, me paragrafë të plotë, duke përdorur zhargon të lartë juridik. "
+        "Analiza duhet të theksojë:\n"
+        "- Baza Doktrinare: Cili është parimi thelbësor juridik që mbron ky nen?\n"
+        "- Konteksti Kushtetues & KEDNJ: Si ndërlidhet me Kushtetutën e Kosovës dhe Konventën Evropiane për të Drejtat e Njeriut?\n"
+        "- Implikimet Praktike & Rreziqet: Cilat janë vështirësitë në zbatimin e tij në gjykatat e Kosovës? Cilat janë hapësirat për abuzim procedural?\n\n"
         
+        "NIVELI 2: KËSHILLIM PËR QYTETARIN (Pas fjalës [NDARJA])\n"
+        "Tani ndrysho tonin. Shkruaj për një qytetar pa të ardhura për avokat. Bëhu mbrojtës, i qartë dhe praktik. "
+        "Përdor SAKTËSISHT këta tre tituj me emoji:\n\n"
         "🔹 ÇFARË ËSHTË KY LIGJ?\n"
-        "[Shpjego thelbin me 2-3 fjali shumë të thjeshta për një qytetar pa edukim juridik.]\n\n"
-        
+        "Trego thelbin në 2-3 fjali shumë të thjeshta.\n\n"
         "🛡️ PËR ÇFARË MUND T'JU SHËRBEJË?\n"
-        "[Shpjego situatat e përditshme ku ky nen e mbron qytetarin nga abuzimet.]\n\n"
-        
+        "Jep shembuj konkretë të përditshmërisë se si ky nen i mbron ata nga padrejtësitë.\n\n"
         "💡 SI TA PËRDORNI (KËSHILLA PRAKTIKE)?\n"
-        "[Hapat konkretë që qytetari duhet të ndjekë nëse i shkelen të drejtat bazuar në këtë nen.]\n\n"
-        
-        "RREGULLI ABSOLUT: \n"
-        "1. Mos shkruaj 'Pjesa 1' ose 'Pjesa 2'.\n"
-        "2. Fjala [NDARJA] duhet të jetë e vetme në një rresht për të ndarë dy analizat.\n"
-        "3. Përgjigju VETËM në Shqip."
+        "Tregoju saktësisht se çfarë hapash duhet të ndërmarrin (p.sh. 'Kërkoni me shkrim që...', 'Mos pranoni të...')."
     )
     
     try:
+        # Temperature at 0.3 allows for rich vocabulary while staying strictly on track
         generator = llm_service.stream_text_async(
             sys_p=system_prompt,
             user_p=request.prompt,
-            temp=0.1  # Extremely low temperature to force obedience to the template
+            temp=0.3 
         )
         return StreamingResponse(generator, media_type="text/plain")
     except Exception as e:
