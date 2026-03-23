@@ -3,7 +3,8 @@
 // 1. FIXED: Eradicated hardcoded white/gray/indigo colors. Now uses semantic tokens.
 // 2. FIXED: Page dynamically adapts to Light (Courtroom) and Dark (Executive Suite) modes perfectly.
 // 3. ENHANCED: Applied 'hover-lift' and 'glass-panel' architecture to search results.
-// 4. RETAINED: 100% of authentication protection and API logic.
+// 4. UPDATED: Replaced custom shadows with 'shadow-sm' and removed hardcoded color references.
+// 5. RETAINED: 100% of authentication protection and API logic.
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -65,7 +66,7 @@ export default function LawLibraryPage() {
   if (isLoading) {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen pt-20">
-            <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-accent-glow"></div>
+            <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-sm"></div>
             <p className="text-text-primary font-black uppercase tracking-widest text-sm">Duke ngarkuar...</p>
         </div>
     );
@@ -73,7 +74,7 @@ export default function LawLibraryPage() {
 
   return (
     <motion.div 
-      className="w-full min-h-screen pb-16"
+      className="w-full min-h-screen pb-16 bg-canvas"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
@@ -82,7 +83,7 @@ export default function LawLibraryPage() {
         {/* Executive Page Header */}
         <header className="mb-12 flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-lawyer-light">
+            <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-sm">
               <BookOpen size={24} />
             </div>
             <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
@@ -102,7 +103,7 @@ export default function LawLibraryPage() {
                     <p className="text-sm font-bold uppercase tracking-widest">Qasje e Kufizuar</p>
                     <p className="text-text-primary font-medium">Ju duhet të hyni në llogari për të kryer kërkime në bibliotekë.</p>
                 </div>
-                <Link to="/login" className="ml-auto btn-primary px-6 py-2.5 bg-warning-start shadow-none">Hyni Këtu</Link>
+                <Link to="/login" className="ml-auto btn-primary px-6 py-2.5 hover-lift shadow-sm">Hyni Këtu</Link>
             </div>
         )}
 
@@ -118,13 +119,13 @@ export default function LawLibraryPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Kërkoni (p.sh. Kodi Civil, Neni 45)..."
             disabled={!isAuthenticated}
-            className="w-full pl-14 pr-32 py-5 bg-surface border-2 border-border-main rounded-[1.5rem] shadow-lawyer-light text-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full pl-14 pr-32 py-5 bg-surface border-2 border-border-main rounded-[1.5rem] shadow-sm text-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div className="absolute inset-y-0 right-3 flex items-center">
             <button
               onClick={handleSearch}
               disabled={loading || !isAuthenticated || !query.trim()}
-              className="btn-primary h-10 px-8 disabled:opacity-30 disabled:hover:brightness-100"
+              className="btn-primary h-10 px-8 disabled:opacity-30 disabled:hover:brightness-100 hover-lift shadow-sm"
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : 'KËRKO'}
             </button>
@@ -152,7 +153,7 @@ export default function LawLibraryPage() {
             >
                 <Link
                 to={`/laws/${r.chunk_id}`}
-                className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group hover-lift border-border-main hover:border-primary-start/50"
+                className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group hover-lift border border-border-main hover:border-primary-start/50"
                 >
                 <div className="flex flex-col gap-3 flex-1 min-w-0">
                     
@@ -161,7 +162,7 @@ export default function LawLibraryPage() {
                             <Scale size={12} /> Referencë Ligjore
                         </span>
                         {r.article_number && (
-                            <span className="bg-surface-secondary text-text-primary border border-border-main px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                            <span className="bg-canvas text-text-primary border border-border-main px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
                                 Neni {r.article_number}
                             </span>
                         )}
@@ -179,7 +180,7 @@ export default function LawLibraryPage() {
                     </div>
                 </div>
 
-                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-canvas border border-border-main items-center justify-center text-text-muted group-hover:text-white group-hover:bg-primary-start group-hover:border-primary-start group-hover:shadow-accent-glow transition-all shrink-0">
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-canvas border border-border-main items-center justify-center text-text-muted group-hover:text-white group-hover:bg-primary-start group-hover:border-primary-start group-hover:shadow-sm transition-all shrink-0">
                     <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </div>
                 </Link>

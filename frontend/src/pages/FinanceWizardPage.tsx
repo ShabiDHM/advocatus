@@ -1,8 +1,10 @@
 // FILE: src/pages/FinanceWizardPage.tsx
 // PHOENIX PROTOCOL - FINANCE WIZARD V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted, btn-primary.
+// 1. Converted to semantic classes: bg-canvas, glass-panel, border-border-main, text-text-primary, text-text-secondary, text-text-muted, btn-primary.
 // 2. Preserved all functionality: month selection, audit, tax, ATK copy, report download.
 // 3. Ambient glows replaced with subtle semantic gradients.
+// 4. Updated shadows to shadow-sm and added hover-lift for interactive elements.
+// 5. Replaced all border-main with border-border-main for consistency.
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,10 +40,10 @@ const ATKBox = ({ number, label, value, currency }: { number: string, label: str
     };
 
     return (
-        <div className="bg-surface/30 border border-main p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between group hover:bg-surface/50 hover:border-primary-start/30 transition-all gap-3 sm:gap-0">
+        <div className="bg-surface/30 border border-border-main p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between group hover:bg-surface/50 hover:border-primary-start/30 transition-all gap-3 sm:gap-0 hover-lift shadow-sm">
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-canvas/40 text-text-primary text-xs font-bold px-2 py-0.5 rounded border border-main flex-shrink-0 font-mono">
+                    <span className="bg-canvas/40 text-text-primary text-xs font-bold px-2 py-0.5 rounded border border-border-main flex-shrink-0 font-mono">
                         [{number}]
                     </span>
                     <span className="text-text-secondary text-sm font-medium truncate" title={label}>
@@ -54,10 +56,10 @@ const ATKBox = ({ number, label, value, currency }: { number: string, label: str
             </div>
             <button 
                 onClick={handleCopy}
-                className={`w-full sm:w-auto px-4 py-3 sm:p-3 rounded-lg transition-all flex items-center justify-center gap-2 ${
+                className={`w-full sm:w-auto px-4 py-3 sm:p-3 rounded-lg transition-all flex items-center justify-center gap-2 hover-lift ${
                     copied 
                         ? 'bg-success-start/20 text-success-start border border-success-start/50' 
-                        : 'bg-surface/30 text-text-muted hover:bg-surface/50 hover:text-text-primary border border-transparent'
+                        : 'bg-surface/30 text-text-muted hover:bg-surface/50 hover:text-text-primary border border-border-main'
                 }`}
                 title={t('finance.wizard.atk.copy')}
             >
@@ -88,8 +90,8 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => {
                     <div 
                         className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full border transition-all ${
                             currentStep >= step.id 
-                                ? 'btn-primary shadow-lg' 
-                                : 'bg-surface/30 border-main text-text-muted'
+                                ? 'btn-primary shadow-sm' 
+                                : 'bg-surface/30 border-border-main text-text-muted'
                         }`}
                     >
                         <step.icon size={16} />
@@ -101,7 +103,7 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => {
                     </span>
                     {index < steps.length - 1 && (
                         <div className={`w-8 sm:w-12 h-0.5 mx-2 sm:mx-4 rounded ${
-                            currentStep > step.id ? 'bg-primary-start' : 'bg-main'
+                            currentStep > step.id ? 'bg-primary-start' : 'bg-border-main'
                         }`} />
                     )}
                 </div>
@@ -118,7 +120,7 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
     if (issues.length === 0) {
         return (
             <div className="bg-success-start/10 border border-success-start/30 rounded-2xl p-8 text-center backdrop-blur-sm">
-                <div className="w-16 h-16 bg-success-start/20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-success-start/10">
+                <div className="w-16 h-16 bg-success-start/20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm shadow-success-start/10">
                     <CheckCircle className="text-success-start" size={32} />
                 </div>
                 <h3 className="text-lg sm:text-xl font-bold text-text-primary mb-2">{t('finance.wizard.cleanRecordTitle')}</h3>
@@ -138,7 +140,7 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
                     </h3>
                     <div className="space-y-2">
                         {critical.map(issue => (
-                            <div key={issue.id} className="bg-canvas/40 border border-main p-3 rounded-lg flex items-start">
+                            <div key={issue.id} className="bg-canvas/40 border border-border-main p-3 rounded-lg flex items-start">
                                 <span className="w-1.5 h-1.5 bg-danger-start rounded-full mt-1.5 mr-2 flex-shrink-0 shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
                                 <p className="text-xs sm:text-sm text-text-secondary break-words">{issue.message}</p>
                             </div>
@@ -156,7 +158,7 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
                     </h3>
                     <div className="space-y-2">
                         {warnings.map(issue => (
-                            <div key={issue.id} className="bg-canvas/40 border border-main p-3 rounded-lg flex items-start">
+                            <div key={issue.id} className="bg-canvas/40 border border-border-main p-3 rounded-lg flex items-start">
                                 <span className="w-1.5 h-1.5 bg-warning-start rounded-full mt-1.5 mr-2 flex-shrink-0 shadow-[0_0_5px_rgba(245,158,11,0.5)]" />
                                 <p className="text-xs sm:text-sm text-text-secondary break-words">{issue.message}</p>
                             </div>
@@ -186,7 +188,7 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                     </p>
                 </div>
 
-                <div className="bg-surface/30 border border-main p-4 rounded-xl">
+                <div className="bg-surface/30 border border-border-main p-4 rounded-xl">
                     <p className="text-xs text-text-muted mb-1 uppercase tracking-wider font-bold">{t('finance.wizard.totalSales')}</p>
                     <p className="text-2xl font-bold text-text-primary font-mono">€{data.total_sales_gross.toFixed(2)}</p>
                     {!isSmallBusiness && (
@@ -198,7 +200,7 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                 </div>
 
                 {isSmallBusiness ? (
-                    <div className="bg-surface/30 border border-main p-4 rounded-xl opacity-60">
+                    <div className="bg-surface/30 border border-border-main p-4 rounded-xl opacity-60">
                         <p className="text-xs text-text-muted mb-1 uppercase tracking-wider font-bold">{t('finance.wizard.operationalExpenses')}</p>
                         <p className="text-2xl font-bold text-text-secondary font-mono">€{data.total_purchases_gross.toFixed(2)}</p>
                         <div className="mt-2 text-xs text-text-muted flex items-center">
@@ -206,7 +208,7 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-surface/30 border border-main p-4 rounded-xl">
+                    <div className="bg-surface/30 border border-border-main p-4 rounded-xl">
                         <p className="text-xs text-text-muted mb-1 uppercase tracking-wider font-bold">{t('finance.wizard.totalPurchases')}</p>
                         <p className="text-2xl font-bold text-text-primary font-mono">€{data.total_purchases_gross.toFixed(2)}</p>
                         <div className="mt-2 text-xs text-danger-start flex items-center bg-danger-start/10 w-fit px-2 py-1 rounded border border-danger-start/20">
@@ -218,7 +220,7 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
             </div>
 
             {/* The Result Card */}
-            <div className={`p-8 rounded-2xl border flex flex-col justify-center items-center text-center shadow-2xl backdrop-blur-md ${
+            <div className={`p-8 rounded-2xl border flex flex-col justify-center items-center text-center shadow-sm backdrop-blur-md ${
                 isPayable 
                     ? 'bg-danger-start/10 border-danger-start/30' 
                     : 'bg-success-start/10 border-success-start/30'
@@ -315,10 +317,10 @@ const FinanceWizardPage = () => {
 
              <div className="flex-1 flex flex-col overflow-hidden relative z-10">
                 {/* Header - Glass Style */}
-                <div className="p-4 sm:p-6 border-b border-main flex items-center justify-between bg-canvas/80 backdrop-blur-xl z-20">
+                <div className="p-4 sm:p-6 border-b border-border-main flex items-center justify-between bg-canvas/80 backdrop-blur-xl z-20">
                     <button 
                         onClick={() => navigate('/business')} 
-                        className="flex items-center text-text-secondary hover:text-text-primary transition-colors group"
+                        className="flex items-center text-text-secondary hover:text-text-primary transition-colors group hover-lift"
                     >
                         <ArrowLeft size={20} className="mr-2 group-hover:-translate-x-1 transition-transform" />
                         <span className="hidden sm:inline font-medium">{t('finance.wizard.back')}</span>
@@ -338,7 +340,7 @@ const FinanceWizardPage = () => {
                             <select 
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                                className="glass-input px-6 py-2.5 rounded-xl cursor-pointer capitalize text-sm sm:text-base font-medium min-w-[150px] border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
+                                className="glass-input px-6 py-2.5 rounded-xl cursor-pointer capitalize text-sm sm:text-base font-medium min-w-[150px] border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                                     <option key={m} value={m} className="bg-surface text-text-primary">
@@ -349,7 +351,7 @@ const FinanceWizardPage = () => {
                             <select 
                                 value={selectedYear}
                                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                className="glass-input px-6 py-2.5 rounded-xl cursor-pointer text-sm sm:text-base font-medium border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
+                                className="glass-input px-6 py-2.5 rounded-xl cursor-pointer text-sm sm:text-base font-medium border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
                             >
                                 <option value={2024} className="bg-surface text-text-primary">2024</option>
                                 <option value={2025} className="bg-surface text-text-primary">2025</option>
@@ -363,12 +365,12 @@ const FinanceWizardPage = () => {
                                 <Loader2 className="animate-spin text-primary-start w-12 h-12" />
                             </div>
                         ) : errorMsg ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center glass-panel rounded-2xl p-8 border border-main">
+                            <div className="flex flex-col items-center justify-center py-20 text-center glass-panel rounded-2xl p-8 border border-border-main">
                                 <div className="bg-danger-start/10 p-4 rounded-full mb-4 border border-danger-start/20">
                                     <AlertTriangle className="text-danger-start w-10 h-10" />
                                 </div>
                                 <p className="text-danger-start text-lg mb-4 font-medium">{errorMsg}</p>
-                                <button onClick={fetchData} className="px-6 py-2 bg-surface/50 rounded-lg text-text-primary hover:bg-surface/80 transition-colors border border-main">
+                                <button onClick={fetchData} className="px-6 py-2 bg-surface/50 rounded-lg text-text-primary hover:bg-surface/80 transition-colors border border-border-main hover-lift shadow-sm">
                                     {t('documentsPanel.reconnect')}
                                 </button>
                             </div>
@@ -380,7 +382,7 @@ const FinanceWizardPage = () => {
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -20 }}
                                     transition={{ duration: 0.3 }}
-                                    className="glass-panel rounded-3xl p-6 sm:p-10 shadow-2xl border border-main"
+                                    className="glass-panel rounded-3xl p-6 sm:p-10 shadow-sm border border-border-main"
                                 >
                                     {step === 1 && (
                                         <div>
@@ -402,13 +404,13 @@ const FinanceWizardPage = () => {
                                                 <h2 className="text-xl sm:text-2xl font-bold text-text-primary">{t('finance.wizard.readyToFile')}</h2>
                                                 <button 
                                                     onClick={handleOpenATK}
-                                                    className="text-primary-start hover:text-primary-start/80 text-sm font-bold flex items-center bg-primary-start/10 px-3 py-1.5 rounded-lg border border-primary-start/20 transition-colors"
+                                                    className="text-primary-start hover:text-primary-start/80 text-sm font-bold flex items-center bg-primary-start/10 px-3 py-1.5 rounded-lg border border-primary-start/20 transition-colors hover-lift"
                                                 >
                                                     {t('finance.wizard.atk.openEdi')} <ExternalLink size={14} className="ml-2" />
                                                 </button>
                                             </div>
 
-                                            <div className="bg-canvas/40 rounded-2xl p-6 sm:p-8 border border-main mb-8">
+                                            <div className="bg-canvas/40 rounded-2xl p-6 sm:p-8 border border-border-main mb-8">
                                                 <p className="text-text-secondary mb-6 text-sm font-medium">
                                                     {t('finance.wizard.atk.copyInstruction')}
                                                 </p>
@@ -456,7 +458,7 @@ const FinanceWizardPage = () => {
                                                 <button 
                                                     onClick={handleDownloadReport}
                                                     disabled={downloading}
-                                                    className="btn-secondary px-8 py-3 rounded-xl font-bold flex items-center transition-all disabled:opacity-50 border border-main"
+                                                    className="btn-secondary px-8 py-3 rounded-xl font-bold flex items-center transition-all disabled:opacity-50 border border-border-main hover-lift shadow-sm"
                                                 >
                                                     {downloading ? <Loader2 className="animate-spin mr-2" size={20} /> : <Download className="mr-2" size={20} />}
                                                     {downloading ? t('general.loading') : t('finance.wizard.downloadReport')}
@@ -465,11 +467,11 @@ const FinanceWizardPage = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex justify-between mt-10 pt-6 border-t border-main">
+                                    <div className="flex justify-between mt-10 pt-6 border-t border-border-main">
                                         <button 
                                             onClick={handlePrev}
                                             disabled={step === 1}
-                                            className={`px-6 py-2.5 rounded-xl transition-colors font-medium ${
+                                            className={`px-6 py-2.5 rounded-xl transition-colors font-medium hover-lift ${
                                                 step === 1 ? 'text-text-muted cursor-not-allowed' : 'text-text-secondary hover:text-text-primary hover:bg-surface/30'
                                             }`}
                                         >
@@ -480,7 +482,7 @@ const FinanceWizardPage = () => {
                                             <button 
                                                 onClick={handleNext}
                                                 disabled={step === 1 && !state.ready_to_close}
-                                                className={`flex items-center px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary-start/20 ${
+                                                className={`flex items-center px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm shadow-primary-start/20 hover-lift ${
                                                     step === 1 && !state.ready_to_close
                                                         ? 'bg-surface/30 text-text-muted cursor-not-allowed shadow-none'
                                                         : 'btn-primary'

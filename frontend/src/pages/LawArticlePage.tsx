@@ -1,8 +1,9 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE V8.2 (ROBUST PARSING FIX)
-// 1. FIXED: Splits text using the [NDARJA] marker to avoid AI Disclaimer collision.
-// 2. ENHANCED: Cleanly strips the raw disclaimer from the text block.
-// 3. RETAINED: 100% of Original UI and functionality.
+// PHOENIX PROTOCOL - LAW ARTICLE V8.3 (EXECUTIVE DESIGN SYSTEM)
+// 1. UPDATED: Replaced all custom shadow classes with 'shadow-sm' and 'hover-lift'.
+// 2. UPDATED: Converted to semantic colors: bg-canvas, bg-surface, border-border-main, text-text-*.
+// 3. RETAINED: Robust dual‑perspective parsing using [NDARJA] marker.
+// 4. RETAINED: 100% of original UI logic and AI streaming.
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -88,7 +89,7 @@ export default function LawArticlePage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20">
-        <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-accent-glow"></div>
+        <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-sm"></div>
         <p className="text-text-primary font-black uppercase tracking-widest text-sm">{t('general.loading', 'Duke ngarkuar...')}</p>
       </div>
     );
@@ -97,11 +98,11 @@ export default function LawArticlePage() {
   if (error || !article) {
     return (
       <div className="max-w-3xl mx-auto px-6 pt-32">
-        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-[2rem] flex flex-col items-center text-center shadow-lg shadow-danger-start/10">
+        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-[2rem] flex flex-col items-center text-center shadow-sm">
           <AlertCircle className="text-danger-start w-20 h-20 mb-6" />
           <h2 className="text-2xl font-black text-text-primary uppercase tracking-tighter mb-3">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-lg mb-8">{error}</p>
-          <button onClick={() => navigate('/laws/search')} className="btn-primary flex items-center gap-2"><ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}</button>
+          <button onClick={() => navigate('/laws/search')} className="btn-primary flex items-center gap-2 hover-lift shadow-sm"><ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}</button>
         </div>
       </div>
     );
@@ -110,17 +111,17 @@ export default function LawArticlePage() {
   const paragraphs = article.text.split('\n\n').filter(p => p.trim() !== '');
 
   return (
-    <motion.div className="w-full min-h-screen pb-16" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+    <motion.div className="w-full min-h-screen pb-16 bg-canvas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-28">
         
-        <button onClick={() => navigate(-1)} className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest">
+        <button onClick={() => navigate(-1)} className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest hover-lift">
           <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
             <ArrowLeft size={16} className="text-primary-start" />
           </div>
           {t('general.back', 'Kthehu Mbrapa')}
         </button>
 
-        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-lawyer-dark border-border-main">
+        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-border-main">
           
           {/* Header */}
           <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
@@ -132,12 +133,12 @@ export default function LawArticlePage() {
                             <BookOpen size={14} />
                             <span className="text-[10px] font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                         </div>
-                        <div className="flex items-center gap-2 bg-surface-secondary text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
+                        <div className="flex items-center gap-2 bg-canvas text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
                             <Calendar size={14} />
                             <span className="text-[10px] font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[200px]">{article.source}</span>
                         </div>
                     </div>
-                    <button onClick={handleAiExplain} disabled={isExplaining} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm ${isExplaining ? 'bg-canvas text-text-muted cursor-not-allowed border border-border-main' : 'bg-primary-start text-white hover:bg-primary-hover shadow-accent-glow hover:-translate-y-0.5'}`}>
+                    <button onClick={handleAiExplain} disabled={isExplaining} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm hover-lift ${isExplaining ? 'bg-canvas text-text-muted cursor-not-allowed border border-border-main' : 'btn-primary'}`}>
                         {isExplaining ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                         {isExplaining ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.aiExplain', 'Analizo me AI')}
                     </button>
@@ -151,7 +152,7 @@ export default function LawArticlePage() {
           </div>
 
           {/* Reading Surface */}
-          <div className="bg-paper px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
+          <div className="bg-canvas px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
             <div className="max-w-[75ch] mx-auto">
                 {paragraphs.map((para, idx) => (
                 <p key={idx} className="mb-6 text-[17px] text-text-primary leading-relaxed font-serif whitespace-pre-wrap">{para}</p>
@@ -168,14 +169,14 @@ export default function LawArticlePage() {
                         {/* Switcher */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
                             <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-full sm:w-auto">
-                                <button onClick={() => setActivePerspective('senior')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activePerspective === 'senior' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-canvas'}`}>
+                                <button onClick={() => setActivePerspective('senior')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activePerspective === 'senior' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary hover:bg-canvas'}`}>
                                     <BrainCircuit size={16} /> Analiza Profesionale
                                 </button>
-                                <button onClick={() => setActivePerspective('citizen')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activePerspective === 'citizen' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary hover:bg-canvas'}`}>
+                                <button onClick={() => setActivePerspective('citizen')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activePerspective === 'citizen' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary hover:bg-canvas'}`}>
                                     <User size={16} /> Për Qytetarin
                                 </button>
                             </div>
-                            <button onClick={() => {setRawExplanation(''); setAiError('');}} className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors self-end sm:self-auto"><X size={20} /></button>
+                            <button onClick={() => {setRawExplanation(''); setAiError('');}} className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors hover-lift self-end sm:self-auto"><X size={20} /></button>
                         </div>
 
                         {/* Error State */}
@@ -216,8 +217,8 @@ export default function LawArticlePage() {
 
           {/* Footer Actions */}
           <div className="bg-surface px-8 py-6 flex justify-between items-center border-t border-border-main">
-            <button onClick={() => navigate('/laws/search')} className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2"><ArrowLeft size={14} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}</button>
-            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors bg-canvas px-4 py-2 rounded-lg border border-border-main hover:border-primary-start">{t('general.top', 'Lart')} ↑</button>
+            <button onClick={() => navigate('/laws/search')} className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"><ArrowLeft size={14} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}</button>
+            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors bg-canvas px-4 py-2 rounded-lg border border-border-main hover:border-primary-start hover-lift shadow-sm">{t('general.top', 'Lart')} ↑</button>
           </div>
 
         </div>

@@ -48,7 +48,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   const actionButtonBase = "p-3 bg-surface border border-border-main text-text-muted hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none";
 
   return (
-    <div className="glass-panel border border-border-main p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm rounded-3xl">
+    <div className="glass-panel border border-border-main p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm hover-lift rounded-3xl">
       
       {/* Executive Header Toolbar */}
       <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 z-10">

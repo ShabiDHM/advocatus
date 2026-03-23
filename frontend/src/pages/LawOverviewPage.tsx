@@ -3,7 +3,8 @@
 // 1. FIXED: Removed all hardcoded 'white' colors. Replaced with semantic 'text-text-primary'.
 // 2. FIXED: Header and Article grid now use 'bg-surface' and 'bg-canvas' for flawless theme switching.
 // 3. ENHANCED: Article buttons now feature 'hover-lift' and authoritative typography.
-// 4. RETAINED: 100% of fetching, parsing, and routing logic.
+// 4. UPDATED: Replaced custom shadows with 'shadow-sm' and 'hover-lift'.
+// 5. RETAINED: 100% of fetching, parsing, and routing logic.
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -47,7 +48,7 @@ export default function LawOverviewPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20">
-        <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-accent-glow"></div>
+        <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-sm"></div>
         <p className="text-text-primary font-black uppercase tracking-widest text-sm">{t('general.loading', 'Duke ngarkuar...')}</p>
       </div>
     );
@@ -56,13 +57,13 @@ export default function LawOverviewPage() {
   if (error) {
     return (
       <div className="max-w-3xl mx-auto px-6 pt-32">
-        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-[2rem] flex flex-col items-center text-center shadow-lg shadow-danger-start/10">
+        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-[2rem] flex flex-col items-center text-center shadow-sm">
           <AlertCircle className="text-danger-start w-20 h-20 mb-6" />
           <h2 className="text-2xl font-black text-text-primary uppercase tracking-tighter mb-3">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-lg mb-8">{error}</p>
           <button
             onClick={() => navigate('/laws/search')}
-            className="btn-primary flex items-center gap-2"
+            className="btn-primary flex items-center gap-2 hover-lift shadow-sm"
           >
             <ArrowLeft size={18} />
             {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}
@@ -76,7 +77,7 @@ export default function LawOverviewPage() {
 
   return (
     <motion.div 
-        className="w-full min-h-screen pb-16"
+        className="w-full min-h-screen pb-16 bg-canvas"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
@@ -86,7 +87,7 @@ export default function LawOverviewPage() {
         {/* Navigation Breadcrumb */}
         <button
           onClick={() => navigate(-1)}
-          className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest"
+          className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest hover-lift"
         >
           <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
             <ArrowLeft size={16} className="text-primary-start" />
@@ -95,7 +96,7 @@ export default function LawOverviewPage() {
         </button>
 
         {/* Overview Container */}
-        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-lawyer-dark border-border-main">
+        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-border-main">
           
           {/* Executive Header */}
           <div className="bg-surface px-8 py-10 sm:px-12 sm:py-12 border-b border-border-main relative overflow-hidden">
@@ -145,7 +146,7 @@ export default function LawOverviewPage() {
                 <button
                   key={article}
                   onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
-                  className="flex items-center justify-center px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-lawyer-light hover-lift"
+                  className="flex items-center justify-center px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift"
                 >
                   Neni {article.replace(/\.$/, '')}
                 </button>
@@ -157,7 +158,7 @@ export default function LawOverviewPage() {
           <div className="bg-surface px-8 sm:px-12 py-6 flex justify-between items-center border-t border-border-main">
             <button
               onClick={() => navigate('/laws/search')}
-              className="text-[11px] font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2"
+              className="text-[11px] font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
             >
               <ArrowLeft size={14} />
               {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}
