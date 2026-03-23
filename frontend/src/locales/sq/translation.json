@@ -747,7 +747,13 @@
     "backToSearch": "Kthehu te kërkimi",
     "lawTitle": "LIGJI",
     "article": "Neni",
-    "source": "Burimi"
+    "source": "Burimi",
+      "aiExplain": "Analizo me AI",
+    "analyzing": "Duke Analizuar...",
+    "aiTitle": "Analizë Inteligjente",
+    "aiSubtitle": "Shpjegim Juridik i Thjeshtësuar",
+    "aiDisclaimer": "Rezultati i gjeneruar nga modeli juridik i AI",
+    "aiError": "Dështoi analiza inteligjente."
   },
   "lawOverview": {
     "missingTitle": "Titulli i ligjit mungon.",

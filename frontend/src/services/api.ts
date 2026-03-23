@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.9 (MULTI-DOCUMENT CHAT SUPPORT)
-// 1. ADDED: sendChatMessageStream now accepts documentIds array.
-// 2. RETAINED: All existing functionality.
+// PHOENIX PROTOCOL - API SERVICE V23.0 (AI LAW EXPLANATION SUPPORT)
+// 1. ADDED: explainLawStream method for context-aware legal analysis.
+// 2. RETAINED: 100% of existing logic, Multi-Document Chat, and Forensic support.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -331,6 +331,55 @@ class ApiService {
     public async getLawTitles(): Promise<string[]> {
         const response = await this.axiosInstance.get('/laws/titles');
         return response.data;
+    }
+
+    /**
+     * PHOENIX PROTOCOL - AI EXPLANATION ADDITION
+     * Uses your existing AI infrastructure to synthesize complex law into plain language.
+     */
+    public async *explainLawStream(lawTitle: string, articleNumber: string, articleText: string): AsyncGenerator<string, void, unknown> {
+        let token = tokenManager.get();
+        if (!token) { await this.refreshToken(); token = tokenManager.get(); }
+        
+        // We use a specialized system instruction in the prompt
+        const prompt = `Analizo Nenin ${articleNumber} të ligjit: "${lawTitle}". 
+        Përmbajtja: "${articleText}". 
+        
+        Të lutem ofro:
+        1. Një shpjegim të thjeshtë (për dikë që nuk është jurist).
+        2. Rastet e zbatimit praktik.
+        3. Pasojat ligjore ose vërejtje të rëndësishme.
+        
+        Përgjigju në shqip në mënyrë profesionale.`;
+
+        // Since we don't have a case context here, we use a general chat endpoint 
+        // if your backend supports it, or use a default 'law-research' case ID.
+        // Assuming a dedicated /laws/explain endpoint exists or reuse /chat/general
+        const url = `${API_V1_URL}/laws/explain`; 
+        
+        const response = await fetch(url, { 
+            method: 'POST', 
+            headers: { 
+                'Content-Type': 'application/json', 
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}) 
+            }, 
+            body: JSON.stringify({ prompt, law_title: lawTitle, article_number: articleNumber }) 
+        });
+
+        if (!response.ok) throw new Error("AI Explanation request failed.");
+        if (!response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        try { 
+            while (true) { 
+                const { done, value } = await reader.read(); 
+                if (done) break; 
+                yield decoder.decode(value, { stream: true }); 
+            } 
+        } finally { 
+            reader.releaseLock(); 
+        }
     }
 
     // --- CHAT FEEDBACK ---

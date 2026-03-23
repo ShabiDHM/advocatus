@@ -1,16 +1,16 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE V5.0 (EXECUTIVE READING SURFACE)
-// 1. FIXED: Removed 'text-white' and 'prose-invert' for perfect Light/Dark visibility.
-// 2. ENHANCED: Article body now uses 'bg-paper' (Warm Ivory/Deep Midnight) for optimal legal reading.
-// 3. FIXED: Header uses high-fidelity 'bg-surface' and 'border-border-main' architecture.
-// 4. RETAINED: 100% of fetching, parsing, and error-handling logic.
+// PHOENIX PROTOCOL - LAW ARTICLE V6.0 (AI ANALYST INTEGRATION)
+// 1. ADDED: 'Explain with AI' (Analizo Nenin) streaming functionality.
+// 2. ENHANCED: Professional side-by-side or stacked layout for AI synthesis.
+// 3. FIXED: 100% theme consistency with 'bg-paper' and 'text-text-primary'.
+// 4. RETAINED: All navigation and breadcrumb logic.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ArticleData {
   law_title: string;
@@ -26,6 +26,12 @@ export default function LawArticlePage() {
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // AI State
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [explanation, setExplanation] = useState('');
+  const [aiError, setAiError] = useState('');
+  const aiSectionRef = useRef<HTMLDivElement>(null);
 
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
@@ -44,6 +50,31 @@ export default function LawArticlePage() {
       })
       .finally(() => setLoading(false));
   }, [lawTitle, articleNumber, t]);
+
+  const handleAiExplain = async () => {
+    if (!article || isExplaining) return;
+    
+    setIsExplaining(true);
+    setExplanation('');
+    setAiError('');
+    
+    try {
+        const stream = apiService.explainLawStream(article.law_title, article.article_number, article.text);
+        
+        // Scroll to analysis area once it starts
+        setTimeout(() => {
+            aiSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+
+        for await (const chunk of stream) {
+            setExplanation(prev => prev + chunk);
+        }
+    } catch (err: any) {
+        setAiError(err.message || "Dështoi analiza inteligjente.");
+    } finally {
+        setIsExplaining(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -75,7 +106,6 @@ export default function LawArticlePage() {
 
   if (!article) return null;
 
-  // Split text into paragraphs (double newline separated)
   const paragraphs = article.text.split('\n\n').filter(p => p.trim() !== '');
 
   return (
@@ -103,23 +133,42 @@ export default function LawArticlePage() {
           
           {/* Executive Header */}
           <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
-            {/* Decorative background accent */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
             
             <div className="relative z-10 flex flex-col gap-6">
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1.5 rounded-lg">
-                        <BookOpen size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t('lawArticle.lawTitle', 'LIGJI')}
-                        </span>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1.5 rounded-lg">
+                            <BookOpen size={14} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                            {t('lawArticle.lawTitle', 'LIGJI')}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-surface-secondary text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
+                            <Calendar size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[200px]">
+                            {article.source}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 bg-surface-secondary text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
-                        <Calendar size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest truncate max-w-[200px]">
-                        {article.source}
-                        </span>
-                    </div>
+
+                    {/* AI ANALYST BUTTON */}
+                    <button
+                        onClick={handleAiExplain}
+                        disabled={isExplaining}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm ${
+                            isExplaining 
+                            ? 'bg-canvas text-text-muted cursor-not-allowed border border-border-main' 
+                            : 'bg-primary-start text-white hover:bg-primary-hover shadow-accent-glow'
+                        }`}
+                    >
+                        {isExplaining ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <Sparkles size={14} />
+                        )}
+                        {isExplaining ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.aiExplain', 'Analizo me AI')}
+                    </button>
                 </div>
                 
                 <h1 className="text-3xl sm:text-4xl font-black text-text-primary leading-tight tracking-tighter">
@@ -148,6 +197,67 @@ export default function LawArticlePage() {
                 ))}
             </div>
           </div>
+
+          {/* AI EXPLANATION AREA - Dynamic Shimmer and Result */}
+          <AnimatePresence>
+            {(explanation || isExplaining || aiError) && (
+                <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    ref={aiSectionRef}
+                    className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
+                >
+                    <div className="p-8 sm:p-12 relative">
+                        {/* Header for AI Section */}
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-primary-start text-white">
+                                    <BrainCircuit size={18} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">Analizë Inteligjente</h3>
+                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Shpjegim Juridik i Thjeshtësuar</p>
+                                </div>
+                            </div>
+                            <button onClick={() => {setExplanation(''); setAiError('');}} className="p-2 text-text-muted hover:text-danger-start transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Error State */}
+                        {aiError && (
+                            <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-6 text-danger-start text-sm font-medium flex items-center gap-3">
+                                <AlertCircle size={18} /> {aiError}
+                            </div>
+                        )}
+
+                        {/* Streaming Text Result */}
+                        {explanation && (
+                            <div className="prose prose-sm max-w-none prose-slate">
+                                <div className="whitespace-pre-wrap text-text-secondary leading-loose font-medium text-[15px] space-y-4">
+                                    {explanation}
+                                    {isExplaining && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Loading Shimmer if explanation hasn't started yet */}
+                        {isExplaining && !explanation && (
+                            <div className="space-y-4">
+                                <div className="h-4 bg-primary-start/10 rounded w-full animate-pulse" />
+                                <div className="h-4 bg-primary-start/10 rounded w-5/6 animate-pulse" />
+                                <div className="h-4 bg-primary-start/10 rounded w-4/6 animate-pulse" />
+                            </div>
+                        )}
+                        
+                        <div className="mt-8 pt-6 border-t border-border-main/30 flex items-center gap-2 text-[10px] text-text-muted font-black uppercase tracking-widest">
+                            <Sparkles size={12} className="text-primary-start" /> Rezultati i gjeneruar nga modeli juridik i AI
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Footer Actions */}
           <div className="bg-surface px-8 py-6 flex justify-between items-center border-t border-border-main">
