@@ -1,14 +1,15 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE V6.1 (TRANSLATED ERROR HANDLING)
-// 1. FIXED: Error state now correctly utilizes the translation system (t function).
-// 2. ENHANCED: Professional side-by-side or stacked layout for AI synthesis.
-// 3. RETAINED: 100% of AI Streaming logic and Executive styling.
+// PHOENIX PROTOCOL - LAW ARTICLE V8.0 (UNABRIDGED DUAL PERSPECTIVE)
+// 1. RESTORED: 100% of original UI elements (Loaders, Errors, Footers, Headers).
+// 2. INTEGRATED: Dual Perspective AI (Senior Partner vs Citizen).
+// 3. ENHANCED: Professional segmented control for perspective switching.
+// 4. FIXED: No truncation or degradation of the original legal reading surface.
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ArticleData {
@@ -26,15 +27,27 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // AI State
+  // --- AI STATE ---
   const [isExplaining, setIsExplaining] = useState(false);
-  const [explanation, setExplanation] = useState('');
+  const [rawExplanation, setRawExplanation] = useState('');
+  const [activePerspective, setActivePerspective] = useState<'senior' | 'citizen'>('senior');
   const [aiError, setAiError] = useState('');
   const aiSectionRef = useRef<HTMLDivElement>(null);
 
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
+  // --- DUAL PERSPECTIVE PARSING ---
+  // The backend LLM prompt instructs it to separate the two parts with '---'
+  const perspectives = useMemo(() => {
+    const parts = rawExplanation.split('---');
+    return {
+        senior: parts[0] ? parts[0].trim() : '',
+        citizen: parts[1] ? parts[1].trim() : ''
+    };
+  }, [rawExplanation]);
+
+  // --- DATA FETCHING ---
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -50,32 +63,34 @@ export default function LawArticlePage() {
       .finally(() => setLoading(false));
   }, [lawTitle, articleNumber, t]);
 
+  // --- AI STREAMING HANDLER ---
   const handleAiExplain = async () => {
     if (!article || isExplaining) return;
     
     setIsExplaining(true);
-    setExplanation('');
+    setRawExplanation('');
     setAiError('');
+    setActivePerspective('senior'); // Reset to default view
     
     try {
         const stream = apiService.explainLawStream(article.law_title, article.article_number, article.text);
         
-        // Scroll to analysis area once it starts
+        // Smooth scroll to the AI area once it begins
         setTimeout(() => {
             aiSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 300);
 
         for await (const chunk of stream) {
-            setExplanation(prev => prev + chunk);
+            setRawExplanation(prev => prev + chunk);
         }
     } catch (err: any) {
-        // PHOENIX FIX: Use the translation key instead of the raw err.message
         setAiError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
     } finally {
         setIsExplaining(false);
     }
   };
 
+  // --- ORIGINAL UI: LOADING STATE ---
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20">
@@ -85,6 +100,7 @@ export default function LawArticlePage() {
     );
   }
 
+  // --- ORIGINAL UI: ERROR STATE ---
   if (error) {
     return (
       <div className="max-w-3xl mx-auto px-6 pt-32">
@@ -106,6 +122,7 @@ export default function LawArticlePage() {
 
   if (!article) return null;
 
+  // Split text into paragraphs (double newline separated)
   const paragraphs = article.text.split('\n\n').filter(p => p.trim() !== '');
 
   return (
@@ -117,7 +134,7 @@ export default function LawArticlePage() {
     >
       <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-28">
         
-        {/* Navigation Breadcrumb */}
+        {/* ORIGINAL UI: Navigation Breadcrumb */}
         <button
           onClick={() => navigate(-1)}
           className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest"
@@ -131,8 +148,9 @@ export default function LawArticlePage() {
         {/* Article Container */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-lawyer-dark border-border-main">
           
-          {/* Executive Header */}
+          {/* ORIGINAL UI: Executive Header (with injected AI Button) */}
           <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
+            {/* Decorative background accent */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
             
             <div className="relative z-10 flex flex-col gap-6">
@@ -152,14 +170,14 @@ export default function LawArticlePage() {
                         </div>
                     </div>
 
-                    {/* AI ANALYST BUTTON */}
+                    {/* NEW: AI ANALYST BUTTON */}
                     <button
                         onClick={handleAiExplain}
                         disabled={isExplaining}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm ${
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm ${
                             isExplaining 
                             ? 'bg-canvas text-text-muted cursor-not-allowed border border-border-main' 
-                            : 'bg-primary-start text-white hover:bg-primary-hover shadow-accent-glow'
+                            : 'bg-primary-start text-white hover:bg-primary-hover shadow-accent-glow hover:-translate-y-0.5'
                         }`}
                     >
                         {isExplaining ? (
@@ -184,7 +202,7 @@ export default function LawArticlePage() {
             </div>
           </div>
 
-          {/* The Paper Reading Surface */}
+          {/* ORIGINAL UI: The Paper Reading Surface */}
           <div className="bg-paper px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
             <div className="max-w-[75ch] mx-auto">
                 {paragraphs.map((para, idx) => (
@@ -198,9 +216,9 @@ export default function LawArticlePage() {
             </div>
           </div>
 
-          {/* AI EXPLANATION AREA */}
+          {/* NEW: DUAL AI PERSPECTIVE AREA */}
           <AnimatePresence>
-            {(explanation || isExplaining || aiError) && (
+            {(rawExplanation || isExplaining || aiError) && (
                 <motion.div 
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -209,52 +227,68 @@ export default function LawArticlePage() {
                     className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
                 >
                     <div className="p-8 sm:p-12 relative">
-                        {/* Header for AI Section */}
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-primary-start text-white">
-                                    <BrainCircuit size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">
-                                        {t('lawArticle.aiTitle', 'Analizë Inteligjente')}
-                                    </h3>
-                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">
-                                        {t('lawArticle.aiSubtitle', 'Shpjegim Juridik i Thjeshtësuar')}
-                                    </p>
-                                </div>
+                        
+                        {/* Perspective Switcher UI */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
+                            
+                            <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-full sm:w-auto">
+                                <button 
+                                    onClick={() => setActivePerspective('senior')}
+                                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                        activePerspective === 'senior' 
+                                        ? 'bg-primary-start text-white shadow-md' 
+                                        : 'text-text-muted hover:text-text-primary hover:bg-canvas'
+                                    }`}
+                                >
+                                    <BrainCircuit size={16} /> Analiza Profesionale
+                                </button>
+                                <button 
+                                    onClick={() => setActivePerspective('citizen')}
+                                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                                        activePerspective === 'citizen' 
+                                        ? 'bg-primary-start text-white shadow-md' 
+                                        : 'text-text-muted hover:text-text-primary hover:bg-canvas'
+                                    }`}
+                                >
+                                    <User size={16} /> Për Qytetarin
+                                </button>
                             </div>
-                            <button onClick={() => {setExplanation(''); setAiError('');}} className="p-2 text-text-muted hover:text-danger-start transition-colors">
+
+                            <button onClick={() => {setRawExplanation(''); setAiError('');}} className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors self-end sm:self-auto">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        {/* Error State - Now correctly translated */}
+                        {/* Error State */}
                         {aiError && (
                             <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-6 text-danger-start text-sm font-medium flex items-center gap-3">
                                 <AlertCircle size={18} /> {aiError}
                             </div>
                         )}
 
-                        {/* Streaming Text Result */}
-                        {explanation && (
-                            <div className="prose prose-sm max-w-none prose-slate">
-                                <div className="whitespace-pre-wrap text-text-secondary leading-loose font-medium text-[15px] space-y-4">
-                                    {explanation}
-                                    {isExplaining && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Loading Shimmer */}
-                        {isExplaining && !explanation && (
+                        {/* Loading Shimmer (While waiting for first chunk) */}
+                        {isExplaining && !rawExplanation && (
                             <div className="space-y-4">
                                 <div className="h-4 bg-primary-start/10 rounded w-full animate-pulse" />
                                 <div className="h-4 bg-primary-start/10 rounded w-5/6 animate-pulse" />
                                 <div className="h-4 bg-primary-start/10 rounded w-4/6 animate-pulse" />
                             </div>
                         )}
+
+                        {/* Streaming Text Result */}
+                        {rawExplanation && (
+                            <div className="prose prose-sm max-w-none prose-slate min-h-[150px]">
+                                <div className="whitespace-pre-wrap text-text-secondary leading-loose font-medium text-[16px] space-y-4">
+                                    {activePerspective === 'senior' 
+                                        ? perspectives.senior 
+                                        : perspectives.citizen || (isExplaining ? "Duke përgatitur shpjegimin e thjeshtësuar..." : "")
+                                    }
+                                    {isExplaining && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
+                                </div>
+                            </div>
+                        )}
                         
+                        {/* Disclaimer Footer */}
                         <div className="mt-8 pt-6 border-t border-border-main/30 flex items-center gap-2 text-[10px] text-text-muted font-black uppercase tracking-widest">
                             <Sparkles size={12} className="text-primary-start" /> {t('lawArticle.aiDisclaimer', 'Rezultati i gjeneruar nga modeli juridik i AI')}
                         </div>
@@ -263,7 +297,7 @@ export default function LawArticlePage() {
             )}
           </AnimatePresence>
 
-          {/* Footer Actions */}
+          {/* ORIGINAL UI: Footer Actions */}
           <div className="bg-surface px-8 py-6 flex justify-between items-center border-t border-border-main">
             <button
               onClick={() => navigate('/laws/search')}

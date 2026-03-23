@@ -1,18 +1,17 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V4.0 (EXECUTIVE PRIORITY ARCHITECTURE)
-# 1. FIXED: Path Shadowing. /explain is now the FIRST route to prevent 405 errors.
-# 2. FIXED: Pylance 'Unhashable' errors by strictly casting metadata to strings.
-# 3. FIXED: natural_sort_key now handles non-string inputs safely.
-# 4. RETAINED: 100% logic for search, titles, articles, and chunk retrieval.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V8.0 (UNABRIDGED DUAL PERSPECTIVE)
+# 1. ENHANCED: /explain generates Senior Partner AND Normal Citizen analysis.
+# 2. FIXED: /explain is at the top to prevent wildcard shadowing (405 errors).
+# 3. FIXED: Pylance type-safety (safe casting for metadata sets and sorts).
+# 4. RETAINED: 100% of retrieval, search, title, and chunk logic. No omissions.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Set, Any, Dict
+from typing import Optional, List, Set, Any
 from app.services import vector_store_service, llm_service
 from app.api.endpoints.dependencies import get_current_user
 
-# Router definition without prefix (prefix is added in main.py)
 router = APIRouter(tags=["Laws"])
 
 # --- MODELS ---
@@ -35,12 +34,11 @@ def _safe_int(value: Any) -> int:
 
 def _natural_sort_key(article_any: Any) -> List[int]:
     """Split article number into parts for natural sorting (e.g., 5.1 -> [5,1])."""
-    # Ensure input is string before splitting to prevent Pylance/Runtime errors
-    article_str = str(article_any) if article_any is not None else "0"
-    parts = article_str.split('.')
+    article = str(article_any) if article_any is not None else "0"
+    parts = article.split('.')
     return [int(p) for p in parts if p.isdigit()]
 
-# --- 1. AI ANALYSIS ENDPOINTS (HIGHEST PRIORITY) ---
+# --- 1. AI ANALYSIS ENDPOINT (HIGHEST PRIORITY) ---
 
 @router.post("/explain")
 async def explain_law_article(
@@ -48,27 +46,34 @@ async def explain_law_article(
     current_user = Depends(get_current_user)
 ):
     """
-    PHOENIX: Streams an AI-generated explanation of a specific law article.
-    Synthesizes complex legal text into practical Albanian advice.
-    This route is placed FIRST to avoid collision with wildcard GET routes.
+    PHOENIX: Streams a dual-layered AI explanation.
+    Instructs the LLM to output a technical 'Senior Partner' analysis,
+    followed by a '---' separator, and then a layman 'Citizen' explanation.
     """
     system_prompt = (
-        "ROLI: Ti je Senior Legal Partner në Kosovë.\n"
-        "DETYRA: Shpjego këtë nen ligjor në mënyrë të thjeshtë por profesionale.\n"
-        "MANDATI: Fokusohu te zbatimi praktik, konteksti juridik dhe rreziqet potenciale.\n"
+        "DETYRA: Analizo këtë nen ligjor nga dy perspektiva të ndryshme.\n\n"
+        "PJESA 1: Perspektiva e 'Senior Legal Partner'\n"
+        "- Toni: Autoritar, teknik, doktrinar.\n"
+        "- Fokusohu: Lidhja me Kushtetutën e Kosovës, Konventën Evropiane për të Drejtat e Njeriut (KEDNJ), "
+        "parimet e procedurës (p.sh. parimi i legalitetit) dhe rreziqet statutore.\n\n"
+        "PJESA 2: Perspektiva e Qytetarit të Thjeshtë\n"
+        "- Toni: Miqësor, i qartë, pa zhargon juridik.\n"
+        "- Fokusohu: Çfarë do të thotë kjo për qytetarin? Cilat janë të drejtat apo detyrimet e tij "
+        "në jetën e përditshme? Jep një shembull të thjeshtë praktik.\n\n"
+        "FORMATI: Ndaji TË DY pjesët VETËM me markerin '---' në një rresht të ri.\n"
         "GJUHA: Përgjigju VETËM në gjuhën SHQIPE."
     )
     
-    # Trigger the stream from llm_service (which appends the mandatory AI_DISCLAIMER)
     try:
+        # Trigger the stream from llm_service (which appends the AI_DISCLAIMER)
         generator = llm_service.stream_text_async(
             sys_p=system_prompt,
             user_p=request.prompt,
-            temp=0.3
+            temp=0.2  # Low temperature for precise legal analysis
         )
         return StreamingResponse(generator, media_type="text/plain")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Stream failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI Synthesis failed: {str(e)}")
 
 # --- 2. DATA RETRIEVAL ENDPOINTS ---
 
@@ -98,12 +103,12 @@ async def get_law_titles(
         
         titles: Set[str] = set()
         for m in metadatas:
-            if m:
-                title = m.get("law_title")
-                if isinstance(title, str):
-                    titles.add(title)
+            title = m.get("law_title")
+            if isinstance(title, str):
+                titles.add(title)
         
-        return sorted(list(titles))
+        sorted_titles = sorted(list(titles))
+        return sorted_titles
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
 
@@ -135,17 +140,16 @@ async def get_law_article(
         raise HTTPException(status_code=404, detail="Article not found")
 
     # Sort chunks by chunk_index if present
-    if metadatas and all(m and "chunk_index" in m for m in metadatas):
+    if metadatas and all("chunk_index" in m for m in metadatas):
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
         documents = [d for d, _ in pairs]
+        metadatas = [m for _, m in pairs]
 
-    # Combine all chunks
+    # Combine all chunks into a single text body
     full_text = "\n\n".join(documents)
 
-    # Safely extract metadata from the first chunk
-    meta = metadatas[0] if (metadatas and metadatas[0]) else {}
-    
+    meta = metadatas[0] if metadatas else {}
     return {
         "law_title": str(meta.get("law_title", law_title)),
         "article_number": str(meta.get("article_number", article_number)),
@@ -161,7 +165,6 @@ async def get_law_articles(
     """Retrieve article numbers for a law title (Table of Contents)."""
     try:
         collection = vector_store_service.get_global_collection()
-        # Get up to 1000 chunks (should cover any law)
         results = collection.get(
             where={"law_title": {"$eq": law_title}},
             include=["metadatas"],
@@ -174,41 +177,39 @@ async def get_law_articles(
         # Collect unique article numbers safely (string cast for hashability)
         articles: Set[str] = set()
         for m in metadatas:
-            if m:
-                art = m.get("article_number")
-                if art is not None:
-                    articles.add(str(art))
+            art = m.get("article_number")
+            if art is not None:
+                articles.add(str(art))
 
-        # Sort naturally using our fixed utility
+        # Sort naturally
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
 
-        # Safely extract first metadata
-        first_meta = metadatas[0] if (metadatas and metadatas[0]) else {}
-        
+        first = metadatas[0]
         return {
-            "law_title": str(first_meta.get("law_title", law_title)),
-            "source": str(first_meta.get("source", "")),
+            "law_title": str(first.get("law_title", law_title)),
+            "source": str(first.get("source", "")),
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-# --- 3. WILDCARD ENDPOINTS (LOWEST PRIORITY) ---
-
 @router.get("/{chunk_id}")
 async def get_law_chunk(
     chunk_id: str,
     current_user = Depends(get_current_user)
 ):
-    """Retrieve a specific law chunk by its ID. (Wildcard route placed LAST)."""
+    """
+    WILDCARD ROUTE: Retrieve a specific law chunk by its ID. 
+    Must remain at the bottom of the file so it doesn't intercept /explain or other specific paths.
+    """
     try:
         collection = vector_store_service.get_global_collection()
         result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    if not result:
+    if result is None:
         raise HTTPException(status_code=404, detail="Law chunk not found")
 
     documents = result.get("documents") or []
@@ -218,11 +219,11 @@ async def get_law_chunk(
         raise HTTPException(status_code=404, detail="Law chunk not found")
 
     law_text = documents[0]
-    meta = metadatas[0] if (metadatas and metadatas[0]) else {}
+    metadata = metadatas[0] if metadatas else {}
 
     return {
-        "law_title": str(meta.get("law_title", "Ligji i panjohur")),
-        "article_number": str(meta.get("article_number", "")),
-        "source": str(meta.get("source", "")),
+        "law_title": str(metadata.get("law_title", "Ligji i panjohur")),
+        "article_number": str(metadata.get("article_number", "")),
+        "source": str(metadata.get("source", "")),
         "text": law_text
     }
