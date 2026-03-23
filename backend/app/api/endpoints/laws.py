@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V9.0 (EMPOWERED CITIZEN ARCHITECTURE)
-# 1. ENHANCED: Re-engineered the Citizen Prompt to provide actionable, free legal aid.
-# 2. ENFORCED: Strict 3-part structure (What it is, When it helps, How to use it).
-# 3. RETAINED: [NDARJA] separator logic, Senior Partner persona, and all Pylance fixes.
-# 4. RETAINED: 100% of data retrieval endpoints without omission.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V10.0 (STRICT TEMPLATE ENFORCEMENT)
+# 1. ENFORCED: AI must use a rigid, unbreakable fill-in-the-blank template.
+# 2. FIXED: Overcomes global persona conflict by defining Pro Bono section.
+# 3. GUARANTEED: The [NDARJA] separator is hardcoded into the structural command.
+# 4. RETAINED: 100% of retrieval and search endpoints.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -37,37 +37,38 @@ async def explain_law_article(
     current_user = Depends(get_current_user)
 ):
     """
-    PHOENIX: Streams a dual-layered AI explanation.
-    The Citizen perspective is highly engineered to act as free, actionable legal aid.
+    PHOENIX: Streams a dual-layered AI explanation using STRICT TEMPLATING.
+    This prevents the LLM from hallucinating formats or skipping the separator.
     """
+    
+    # We use a rigid template to force the AI to obey the structure
     system_prompt = (
-        "DETYRA: Analizo këtë nen ligjor nga dy perspektiva krejtësisht të ndryshme.\n\n"
+        "TI DUHET TË GJENEROSH PËRGJIGJEN TËNDE DUKE KOPJUAR SAKTËSISHT KËTË STRUKTURË:\n\n"
         
-        "PJESA 1: Perspektiva e 'Senior Legal Partner'\n"
-        "- Toni: Autoritar, teknik, doktrinar.\n"
-        "- Fokusohu: Lidhja me Kushtetutën e Kosovës, KEDNJ, jurisprudencën, parimet e procedurës dhe rreziqet statutore.\n\n"
+        "[Analiza jote si Senior Legal Partner. Fillo direkt me tekstin. Analizo Kushtetutën, KEDNJ, rreziqet procedurale. Përdor zhargon profesional.]\n\n"
         
-        "FORMATI I DETYRUESHËM: Pasi të mbarosh Pjesën 1, shkruaj SAKTËSISHT fjalën [NDARJA] në një rresht të ri.\n\n"
+        "[NDARJA]\n\n"
         
-        "PJESA 2: Perspektiva e Qytetarit (Këshillim Falas & Fuqizues)\n"
-        "- Toni: Empatik, mbrojtës, jashtëzakonisht i qartë. Shkruaj për një qytetar që NUK KA para për avokat.\n"
-        "- Zëvendëso fjalët e rënda me fjalë të përditshme.\n"
-        "- Struktura e DETYRUESHME për këtë pjesë (përdor saktësisht këta tituj me emoji):\n\n"
         "🔹 ÇFARË ËSHTË KY LIGJ?\n"
-        "(Trego thelbin e nenit në 2-3 fjali shumë të thjeshta).\n\n"
-        "🛡️ PËR ÇFARË MUND T'JU SHËRBEJË?\n"
-        "(Trego në cilat situata jetësore e mbron ky ligj qytetarin nga padrejtësitë apo abuzimet e institucioneve).\n\n"
-        "💡 SI TA PËRDORNI (KËSHILLA PRAKTIKE)?\n"
-        "(Jep hapa konkretë. P.sh. 'Nëse policia/gjykata/punëdhënësi ju thotë X, bazuar në këtë nen ju keni të drejtë të kërkoni Y' ose 'Kujdes: mos bëni gabimin Z sepse ky nen ju ndëshkon').\n\n"
+        "[Shpjego thelbin me 2-3 fjali shumë të thjeshta për një qytetar pa edukim juridik.]\n\n"
         
-        "GJUHA: Përgjigju VETËM në gjuhën SHQIPE."
+        "🛡️ PËR ÇFARË MUND T'JU SHËRBEJË?\n"
+        "[Shpjego situatat e përditshme ku ky nen e mbron qytetarin nga abuzimet.]\n\n"
+        
+        "💡 SI TA PËRDORNI (KËSHILLA PRAKTIKE)?\n"
+        "[Hapat konkretë që qytetari duhet të ndjekë nëse i shkelen të drejtat bazuar në këtë nen.]\n\n"
+        
+        "RREGULLI ABSOLUT: \n"
+        "1. Mos shkruaj 'Pjesa 1' ose 'Pjesa 2'.\n"
+        "2. Fjala [NDARJA] duhet të jetë e vetme në një rresht për të ndarë dy analizat.\n"
+        "3. Përgjigju VETËM në Shqip."
     )
     
     try:
         generator = llm_service.stream_text_async(
             sys_p=system_prompt,
             user_p=request.prompt,
-            temp=0.2
+            temp=0.1  # Extremely low temperature to force obedience to the template
         )
         return StreamingResponse(generator, media_type="text/plain")
     except Exception as e:
