@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.0 (AI LAW EXPLANATION SUPPORT)
-// 1. ADDED: explainLawStream method for context-aware legal analysis.
-// 2. RETAINED: 100% of existing logic, Multi-Document Chat, and Forensic support.
+// PHOENIX PROTOCOL - API SERVICE V23.1 (PROMPT COLLISION FIX)
+// 1. FIXED: Removed hardcoded user prompt in explainLawStream. 
+//    We now only send raw text so the Backend System Prompt takes full control.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -126,13 +126,11 @@ class ApiService {
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
-    // --- ORGANIZATION METHODS ---
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
     public async getOrganization(): Promise<Organization> { const response = await this.axiosInstance.get<Organization>('/organizations/me'); return response.data; }
     public async acceptInvite(data: AcceptInviteRequest): Promise<{ message: string }> { const response = await this.axiosInstance.post('/organizations/accept-invite', data); return response.data; }
     public async removeOrganizationMember(memberId: string): Promise<any> { const response = await this.axiosInstance.delete(`/organizations/members/${memberId}`); return response.data; }
-
     public async getOrganizations(): Promise<Organization[]> { const response = await this.axiosInstance.get<Organization[]>('/admin/organizations'); return response.data; }
     public async upgradeOrganizationTier(orgId: string, tier: string): Promise<Organization> { const response = await this.axiosInstance.put<Organization>(`/admin/organizations/${orgId}/tier`, { tier }); return response.data; }
     public async updateSubscription(userId: string, data: SubscriptionUpdate): Promise<{ message: string }> { const response = await this.axiosInstance.post(`/admin/users/${userId}/subscription`, data); return response.data; }
@@ -141,52 +139,12 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
-        const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`;
-        const response = await this.axiosInstance.post<MobileSessionResponse>(url);
-        return response.data;
-    }
-
-    public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData);
-        return response.data;
-    }
-
-    public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData);
-        return response.data;
-    }
-
-    public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
-        const url = token.startsWith('GEN-') ? `/finance/mobile-upload-status/${token}` : `/cases/mobile-upload-status/${token}`;
-        const response = await this.axiosInstance.get<MobileUploadStatus>(url);
-        return response.data;
-    }
-
-    public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> {
-        const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`;
-        const response = await this.axiosInstance.get(url, { responseType: 'blob' });
-        const disposition = response.headers['content-disposition'];
-        let filename = 'mobile-upload.jpg';
-        if (disposition && disposition.indexOf('filename=') !== -1) {
-            const matches = /filename="([^"]*)"/.exec(disposition);
-            if (matches != null && matches[1]) filename = matches[1];
-        }
-        return { blob: response.data, filename };
-    }
-
-    public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`;
-        const response = await axios.post(url, formData);
-        return response.data;
-    }
-
+    public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> { const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`; const response = await this.axiosInstance.post<MobileSessionResponse>(url); return response.data; }
+    public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData); return response.data; }
+    public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData); return response.data; }
+    public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> { const url = token.startsWith('GEN-') ? `/finance/mobile-upload-status/${token}` : `/cases/mobile-upload-status/${token}`; const response = await this.axiosInstance.get<MobileUploadStatus>(url); return response.data; }
+    public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> { const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`; const response = await this.axiosInstance.get(url, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = 'mobile-upload.jpg'; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
+    public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> { const formData = new FormData(); formData.append('file', file); const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`; const response = await axios.post(url, formData); return response.data; }
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
@@ -236,125 +194,39 @@ class ApiService {
     public async downloadObjection(caseId: string, docId: string): Promise<void> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${docId}/generate-objection`, { responseType: 'blob' }); let filename = 'Kundërshtim.docx'; const disposition = response.headers['content-disposition']; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="?([^"]+)"?/.exec(disposition); if (matches && matches[1]) filename = matches[1]; } const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
-
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
-    
-    // --- DEEP ANALYSIS (PARALLEL READY) ---
     public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
     public async analyzeDeepSimulation(caseId: string): Promise<any> { const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`); return response.data; }
     public async analyzeDeepChronology(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/chronology`); return response.data; }
     public async analyzeDeepContradictions(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/contradictions`); return response.data; }
-
-    public async archiveStrategyReport(caseId: string, legalData: any, deepData: any): Promise<{ status: string; item_id: string }> {
-        const response = await this.axiosInstance.post<{ status: string; item_id: string }>(`/cases/${caseId}/archive-strategy`, { legal_data: legalData, deep_data: deepData });
-        return response.data;
-    }
-
+    public async archiveStrategyReport(caseId: string, legalData: any, deepData: any): Promise<{ status: string; item_id: string }> { const response = await this.axiosInstance.post<{ status: string; item_id: string }>(`/cases/${caseId}/archive-strategy`, { legal_data: legalData, deep_data: deepData }); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
-    
-    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData);
-        return response.data;
-    }
-
-    public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('analyst_id', 'frontend_user'); 
-        formData.append('acquisition_method', 'WEB_UPLOAD');
-        formData.append('lang', lang);
-        const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } });
-        return response.data;
-    }
-
-    public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> {
-        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`);
-        return response.data;
-    }
-
-    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> {
-        const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question });
-        return response.data;
-    }
-
-    public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
-        const response = await this.axiosInstance.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
-        return response.data;
-    }
-
-    public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> {
-        const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content });
-        return response.data;
-    }
-
-    public async downloadForensicReport(caseId: string, data: any): Promise<void> {
-        const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' });
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
-        window.URL.revokeObjectURL(url);
-    }
+    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
+    public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); formData.append('analyst_id', 'frontend_user'); formData.append('acquisition_method', 'WEB_UPLOAD'); formData.append('lang', lang); const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } }); return response.data; }
+    public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> { const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`); return response.data; }
+    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> { const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question }); return response.data; }
+    public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> { const response = await this.axiosInstance.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody }); return response.data; }
+    public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content }); return response.data; }
+    public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
     // --- LAWS METHODS ---
-    public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> {
-        const response = await this.axiosInstance.get('/laws/search', {
-            params: { q: query, jurisdiction, limit }
-        });
-        return response.data;
-    }
-
-    public async getLawByChunkId(chunkId: string): Promise<any> {
-        const response = await this.axiosInstance.get(`/laws/${chunkId}`);
-        return response.data;
-    }
-
-    public async getLawArticle(lawTitle: string, articleNumber: string): Promise<any> {
-        const response = await this.axiosInstance.get('/laws/article', {
-            params: { law_title: lawTitle, article_number: articleNumber }
-        });
-        return response.data;
-    }
-
-    public async getLawArticlesByTitle(lawTitle: string): Promise<any> {
-        const response = await this.axiosInstance.get('/laws/by-title', {
-            params: { law_title: lawTitle }
-        });
-        return response.data;
-    }
-
-    public async getLawTitles(): Promise<string[]> {
-        const response = await this.axiosInstance.get('/laws/titles');
-        return response.data;
-    }
+    public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> { const response = await this.axiosInstance.get('/laws/search', { params: { q: query, jurisdiction, limit } }); return response.data; }
+    public async getLawByChunkId(chunkId: string): Promise<any> { const response = await this.axiosInstance.get(`/laws/${chunkId}`); return response.data; }
+    public async getLawArticle(lawTitle: string, articleNumber: string): Promise<any> { const response = await this.axiosInstance.get('/laws/article', { params: { law_title: lawTitle, article_number: articleNumber } }); return response.data; }
+    public async getLawArticlesByTitle(lawTitle: string): Promise<any> { const response = await this.axiosInstance.get('/laws/by-title', { params: { law_title: lawTitle } }); return response.data; }
+    public async getLawTitles(): Promise<string[]> { const response = await this.axiosInstance.get('/laws/titles'); return response.data; }
 
     /**
-     * PHOENIX PROTOCOL - AI EXPLANATION ADDITION
-     * Uses your existing AI infrastructure to synthesize complex law into plain language.
+     * PHOENIX FIX: We ONLY send the raw text. 
+     * The Backend `system_prompt` completely controls the Dual Perspective output structure.
      */
     public async *explainLawStream(lawTitle: string, articleNumber: string, articleText: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) { await this.refreshToken(); token = tokenManager.get(); }
         
-        // We use a specialized system instruction in the prompt
-        const prompt = `Analizo Nenin ${articleNumber} të ligjit: "${lawTitle}". 
-        Përmbajtja: "${articleText}". 
-        
-        Të lutem ofro:
-        1. Një shpjegim të thjeshtë (për dikë që nuk është jurist).
-        2. Rastet e zbatimit praktik.
-        3. Pasojat ligjore ose vërejtje të rëndësishme.
-        
-        Përgjigju në shqip në mënyrë profesionale.`;
+        // Removed the hardcoded instructions. Send pure data.
+        const prompt = `Ligji: "${lawTitle}"\nNeni: ${articleNumber}\n\nPërmbajtja e Nenit:\n${articleText}`;
 
-        // Since we don't have a case context here, we use a general chat endpoint 
-        // if your backend supports it, or use a default 'law-research' case ID.
-        // Assuming a dedicated /laws/explain endpoint exists or reuse /chat/general
         const url = `${API_V1_URL}/laws/explain`; 
         
         const response = await fetch(url, { 
@@ -382,88 +254,13 @@ class ApiService {
         }
     }
 
-    // --- CHAT FEEDBACK ---
-    public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> {
-        await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, {
-            message_index: messageIndex,
-            feedback: feedback
-        });
-    }
-
-    // --- STREAMING AI METHODS ---
-    public async *sendChatMessageStream(
-        caseId: string, 
-        message: string, 
-        documentIds?: string[], 
-        jurisdiction?: string, 
-        mode: 'FAST' | 'DEEP' = 'FAST',
-        domain: string = 'automatic'
-    ): AsyncGenerator<string, void, unknown> {
-        let token = tokenManager.get();
-        if (!token) { await this.refreshToken(); token = tokenManager.get(); }
-        const url = `${API_V1_URL}/chat/case/${caseId}`;
-        const response = await fetch(url, { 
-            method: 'POST', 
-            headers: { 
-                'Content-Type': 'application/json', 
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}) 
-            }, 
-            body: JSON.stringify({ 
-                message, 
-                document_ids: documentIds || null, 
-                jurisdiction: jurisdiction || 'ks', 
-                mode,
-                domain 
-            }) 
-        });
-        if (!response.ok) throw new Error("Chat request failed.");
-        if (!response.body) return;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        try { 
-            while (true) { 
-                const { done, value } = await reader.read(); 
-                if (done) break; 
-                yield decoder.decode(value, { stream: true }); 
-            } 
-        } finally { 
-            reader.releaseLock(); 
-        }
-    }
-
-    public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> {
-        let token = tokenManager.get();
-        if (!token) { await this.refreshToken(); token = tokenManager.get(); }
-        const url = `${API_V2_URL}/drafting/stream`;
-        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify(data) });
-        if (!response.ok) throw new Error("Drafting failed.");
-        if (!response.body) return;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
-    }
-
-    // --- CALENDAR & BRIEFING ---
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { 
-        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); 
-        return response.data; 
-    }
-
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { 
-        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); 
-        return response.data; 
-    }
-
-    public async getBriefing(): Promise<BriefingResponse> { 
-        const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); 
-        return response.data; 
-    }
-
-    public async getAlertsCount(): Promise<{ count: number }> { 
-        const response = await this.getBriefing();
-        return { count: response.count };
-    }
-
+    public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> { await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, { message_index: messageIndex, feedback: feedback }); }
+    public async *sendChatMessageStream(caseId: string, message: string, documentIds?: string[], jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST', domain: string = 'automatic'): AsyncGenerator<string, void, unknown> { let token = tokenManager.get(); if (!token) { await this.refreshToken(); token = tokenManager.get(); } const url = `${API_V1_URL}/chat/case/${caseId}`; const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_ids: documentIds || null, jurisdiction: jurisdiction || 'ks', mode, domain }) }); if (!response.ok) throw new Error("Chat request failed."); if (!response.body) return; const reader = response.body.getReader(); const decoder = new TextDecoder(); try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } }
+    public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> { let token = tokenManager.get(); if (!token) { await this.refreshToken(); token = tokenManager.get(); } const url = `${API_V2_URL}/drafting/stream`; const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify(data) }); if (!response.ok) throw new Error("Drafting failed."); if (!response.body) return; const reader = response.body.getReader(); const decoder = new TextDecoder(); try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } }
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); return response.data; }
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
+    public async getBriefing(): Promise<BriefingResponse> { const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); return response.data; }
+    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.getBriefing(); return { count: response.count }; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
     public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> { await this.axiosInstance.post('/support/contact', { first_name: data.firstName, last_name: data.lastName, email: data.email, phone: data.phone, message: data.message }); }
