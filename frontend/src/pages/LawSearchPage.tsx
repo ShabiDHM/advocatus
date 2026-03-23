@@ -1,10 +1,4 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V4.0 (EXECUTIVE CONSOLE ARCHITECTURE)
-// 1. FIXED: Eradicated all hardcoded colors (bg-background-dark, text-white).
-// 2. FIXED: Rebuilt the "Filter Dropdown" and "Search Input" into a unified, high-prestige Executive Console.
-// 3. ENHANCED: Search Results now use the 'hover-lift' and 'bg-surface' semantic standards.
-// 4. RETAINED: 100% of the advanced law title fetching, caching, debouncing, and grouping logic.
-
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter } from 'lucide-react';
@@ -84,7 +78,6 @@ export default function LawSearchPage() {
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
   const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
 
-  // Logic: Fetch and enrich titles
   useEffect(() => {
     apiService.getLawTitles()
       .then(async (titles) => {
@@ -202,12 +195,25 @@ export default function LawSearchPage() {
 
   return (
     <motion.div className="w-full min-h-screen pb-16" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      {/* Dynamic Theme-Aware Scrollbar Injection */}
+      <style>{`
+        .custom-dropdown-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-dropdown-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-dropdown-scrollbar::-webkit-scrollbar-thumb { 
+            background: var(--border-main); 
+            border-radius: 10px; 
+        }
+        .custom-dropdown-scrollbar::-webkit-scrollbar-thumb:hover { 
+            background: var(--accent-primary); 
+        }
+      `}</style>
+
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
         
         {/* Executive Header */}
         <header className="mb-10 flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-lawyer-light">
+            <div className="w-12 h-12 rounded-2xl bg-accent-subtle flex items-center justify-center text-accent-primary shadow-sm">
               <BookOpen size={24} />
             </div>
             <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
@@ -217,34 +223,34 @@ export default function LawSearchPage() {
         </header>
 
         {/* The Executive Search Console */}
-        <div className="glass-panel p-6 sm:p-8 mb-12 shadow-lawyer-dark border-border-main flex flex-col gap-4 relative z-50">
+        <div className="glass-panel p-6 sm:p-8 mb-12 shadow-lg border-border-main flex flex-col gap-4 relative z-40">
             
             {/* 1. Dropdown Filter Area */}
-            <div className="relative">
+            <div className="relative z-50">
                 <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-xl border border-border-main bg-canvas text-left transition-all hover:border-primary-start/50 group"
+                className="w-full flex items-center justify-between px-5 py-4 rounded-xl border border-border-main bg-card text-left transition-all hover:border-accent-primary/50 group shadow-sm"
                 disabled={loadingTitles || enrichingTitles.size > 0}
                 >
                 <div className="flex items-center gap-3">
-                    <Filter size={16} className="text-primary-start" />
+                    <Filter size={16} className="text-accent-primary" />
                     <span className="text-sm font-bold text-text-primary">
                         {selectedLaw ? normalizeForDisplay(selectedLaw) : t('lawSearch.selectLaw', 'Shfleto ligje specifike...')}
                     </span>
                 </div>
                 {loadingTitles || enrichingTitles.size > 0 ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
+                    <Loader2 className="h-4 w-4 animate-spin text-accent-primary" />
                 ) : (
                     <ChevronDown size={18} className={`text-text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
                 )}
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown Menu - Explicit bg-card for opacity and z-index to overlay search bar */}
                 <AnimatePresence>
                 {dropdownOpen && (
                     <motion.div 
                         initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-50 mt-2 w-full bg-surface border border-border-main rounded-xl shadow-lawyer-dark max-h-72 overflow-y-auto custom-scrollbar py-2"
+                        className="absolute z-[60] mt-2 w-full bg-card border border-border-strong rounded-xl shadow-xl max-h-72 overflow-y-auto custom-dropdown-scrollbar py-2"
                     >
                     {loadingTitles ? (
                         <div className="p-6 text-center text-text-muted font-bold text-xs uppercase tracking-widest">{t('general.loading', 'Duke ngarkuar...')}</div>
@@ -253,10 +259,10 @@ export default function LawSearchPage() {
                         <button
                             key={title}
                             onClick={() => handleLawSelect(title)}
-                            className="w-full text-left px-5 py-3 hover:bg-canvas text-sm font-medium text-text-primary hover:text-primary-start transition-colors border-b border-border-main/50 last:border-0 flex items-center justify-between"
+                            className="w-full text-left px-5 py-3 hover:bg-hover text-sm font-medium text-text-primary hover:text-accent-primary transition-colors border-b border-border-main/50 last:border-0 flex items-center justify-between"
                         >
                             <span className="truncate pr-4">{normalizeForDisplay(getDisplayTitle(title))}</span>
-                            {enrichingTitles.has(title) && <Loader2 className="shrink-0 h-3 w-3 animate-spin text-primary-start" />}
+                            {enrichingTitles.has(title) && <Loader2 className="shrink-0 h-3 w-3 animate-spin text-accent-primary" />}
                         </button>
                         ))
                     )}
@@ -266,22 +272,22 @@ export default function LawSearchPage() {
             </div>
 
             {/* 2. Primary Deep Search Input */}
-            <div className="relative group">
+            <div className="relative group z-10">
                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-text-muted group-focus-within:text-primary-start'}`} />
+                <Search className={`h-5 w-5 transition-colors ${loading ? 'text-accent-primary animate-pulse' : 'text-text-muted group-focus-within:text-accent-primary'}`} />
                 </div>
                 <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('lawSearch.placeholder', 'Kërko nene, fjalë kyçe, koncepte juridike...')}
-                className="w-full pl-14 pr-14 py-5 bg-surface border border-border-main rounded-xl shadow-inner text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
+                className="w-full pl-14 pr-14 py-5 bg-input border border-border-main rounded-xl shadow-inner text-base font-medium text-text-primary placeholder:text-text-disabled focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all"
                 autoFocus
                 />
                 {query && (
                 <button
                     onClick={handleClear}
-                    className="absolute inset-y-0 right-0 pr-5 flex items-center text-text-muted hover:text-danger-start transition-colors"
+                    className="absolute inset-y-0 right-0 pr-5 flex items-center text-text-muted hover:text-status-danger transition-colors"
                 >
                     <X className="h-5 w-5" />
                 </button>
@@ -306,9 +312,9 @@ export default function LawSearchPage() {
         {/* Error State */}
         <AnimatePresence>
         {error && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel border border-danger-start/30 bg-danger-start/5 p-6 rounded-2xl flex items-start gap-4 shadow-sm mb-8">
-            <AlertCircle className="h-6 w-6 text-danger-start shrink-0" />
-            <p className="text-danger-start font-bold text-sm mt-0.5">{error}</p>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel border border-status-danger/30 bg-status-danger/5 p-6 rounded-2xl flex items-start gap-4 shadow-sm mb-8">
+            <AlertCircle className="h-6 w-6 text-status-danger shrink-0" />
+            <p className="text-status-danger font-bold text-sm mt-0.5">{error}</p>
             </motion.div>
         )}
         </AnimatePresence>
@@ -316,7 +322,7 @@ export default function LawSearchPage() {
         {/* Empty Search Results */}
         {!loading && hasSearched && groupedResults.length === 0 && query.trim() !== '' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel p-16 rounded-[2rem] text-center border-border-main shadow-sm flex flex-col items-center">
-            <div className="w-20 h-20 bg-canvas rounded-full flex items-center justify-center mb-6">
+            <div className="w-20 h-20 bg-base rounded-full flex items-center justify-center mb-6">
                 <BookOpen className="h-10 w-10 text-text-muted" strokeWidth={1.5} />
             </div>
             <p className="text-text-primary text-xl font-black tracking-tight mb-2 uppercase">
@@ -337,21 +343,21 @@ export default function LawSearchPage() {
             
             {groupedResults.map((article, idx) => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} key={idx}>
-                  <div className="glass-panel p-8 rounded-[1.5rem] hover:shadow-lawyer-dark transition-all group border-border-main hover:border-primary-start/50 bg-surface">
+                  <div className="glass-panel p-8 rounded-[1.5rem] hover:shadow-lg transition-all group border-border-main hover:border-accent-primary/50 bg-card">
                     <div className="flex flex-col gap-4">
                         
                         <div className="flex items-center flex-wrap gap-2 mb-1">
-                            <span className="bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <span className="bg-accent-subtle text-accent-primary border border-accent-primary/20 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                                 <Scale size={12} /> Referencë Ligjore
                             </span>
-                            <span className="bg-canvas text-text-primary border border-border-main px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                            <span className="bg-base text-text-primary border border-border-main px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
                                 Neni {article.article_number}
                             </span>
                         </div>
 
                         <Link
                             to={`/laws/overview?lawTitle=${encodeURIComponent(article.law_title)}`}
-                            className="text-xl sm:text-2xl font-black text-text-primary group-hover:text-primary-start transition-colors leading-tight"
+                            className="text-xl sm:text-2xl font-black text-text-primary group-hover:text-accent-primary transition-colors leading-tight"
                             title={t('lawSearch.viewAllArticles', 'Shiko të gjitha nenet')}
                         >
                             {article.law_title}
@@ -363,11 +369,11 @@ export default function LawSearchPage() {
                         
                         <div className="flex items-center justify-between gap-4 mt-4 pt-6 border-t border-border-main">
                             <div className="flex items-center gap-3 text-xs flex-wrap">
-                                <span className="px-3 py-1.5 bg-canvas border border-border-main rounded-lg text-text-muted font-bold">
+                                <span className="px-3 py-1.5 bg-base border border-border-main rounded-lg text-text-muted font-bold">
                                     {article.source}
                                 </span>
                                 {article.chunkCount > 1 && (
-                                <span className="px-3 py-1.5 bg-primary-start/10 text-primary-start rounded-lg font-black uppercase tracking-widest">
+                                <span className="px-3 py-1.5 bg-accent-subtle text-accent-primary rounded-lg font-black uppercase tracking-widest">
                                     {article.chunkCount} Pjesë
                                 </span>
                                 )}
@@ -383,7 +389,7 @@ export default function LawSearchPage() {
                                 </Link>
                                 <Link
                                     to={`/laws/article?lawTitle=${encodeURIComponent(article.law_title)}&articleNumber=${encodeURIComponent(article.article_number)}`}
-                                    className="text-[11px] font-black uppercase tracking-widest text-primary-start hover:text-white hover:bg-primary-start px-4 py-2 rounded-lg border border-primary-start/30 hover:border-primary-start transition-all flex items-center gap-1.5"
+                                    className="text-[11px] font-black uppercase tracking-widest text-accent-primary hover:text-white hover:bg-accent-primary px-4 py-2 rounded-lg border border-accent-primary/30 hover:border-accent-primary transition-all flex items-center gap-1.5"
                                 >
                                     {t('lawSearch.viewDetails', 'Lexo Nenin')} <ChevronRight size={14} />
                                 </Link>
