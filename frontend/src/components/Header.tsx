@@ -1,6 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V10.0 (JURISTI AI THEME SYNC)
-// STATUS: CLEAN - VERIFIED - FULL FILE REPLACEMENT
+// PHOENIX PROTOCOL - HEADER V10.1 (EXECUTIVE DESIGN SYSTEM)
+// 1. Updated to semantic classes: border-border-main, text-text-*, bg-surface, bg-hover.
+// 2. Added hover-lift and shadow-sm to interactive elements.
+// 3. Preserved all logic, theme toggle, alerts, mobile menu.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -89,7 +91,7 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300">
+      <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 shadow-sm border-b border-border-main">
         
         {/* Left section: logo and search */}
         <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
@@ -102,7 +104,7 @@ const Header: React.FC = () => {
             <input 
               type="text" 
               placeholder={t('general.search', 'Kërko...')} 
-              className="glass-input w-full pl-10 pr-3 py-2 focus:ring-1 focus:ring-primary-start/40 transition-all"
+              className="glass-input w-full pl-10 pr-3 py-2 focus:ring-1 focus:ring-primary-start/40 transition-all bg-surface border border-border-main rounded-lg text-text-primary placeholder:text-text-muted"
             />
           </div>
         </div>
@@ -115,10 +117,10 @@ const Header: React.FC = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${
+                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative hover-lift ${
                   isCurrentActive 
-                    ? 'text-primary border-b-2 border-primary' 
-                    : 'text-text-secondary hover:text-primary hover:bg-hover'
+                    ? 'text-primary-start border-b-2 border-primary-start' 
+                    : 'text-text-secondary hover:text-primary-start hover:bg-hover'
                 }`}
               >
                 <item.icon className="h-4 w-4 mr-2" />
@@ -133,12 +135,12 @@ const Header: React.FC = () => {
           
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg text-text-secondary hover:text-primary hover:bg-hover transition-colors"
+            className="p-2 rounded-lg text-text-secondary hover:text-primary-start hover:bg-hover transition-colors hover-lift shadow-sm"
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          <Link to="/calendar" className="p-2 text-text-secondary hover:text-primary hover:bg-hover rounded-lg transition-colors relative">
+          <Link to="/calendar" className="p-2 text-text-secondary hover:text-primary-start hover:bg-hover rounded-lg transition-colors relative hover-lift shadow-sm">
             <Bell size={20} />
             {alertCount > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
@@ -152,7 +154,7 @@ const Header: React.FC = () => {
             <button 
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`flex items-center gap-2 p-1 rounded-xl transition-all border ${
+              className={`flex items-center gap-2 p-1 rounded-xl transition-all border hover-lift shadow-sm ${
                 isProfileOpen ? 'bg-hover border-border-main' : 'border-transparent hover:bg-hover hover:border-border-main'
               }`}
             >
@@ -161,7 +163,7 @@ const Header: React.FC = () => {
                 <p className="text-[10px] text-text-muted uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
               </div>
               {/* Profile Icon: Now correctly visible using Juristi AI keys */}
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-text-inverse font-bold text-sm shadow-lawyer-light border border-primary/20">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-text-inverse font-bold text-sm shadow-sm border border-primary-start/20">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
@@ -169,18 +171,18 @@ const Header: React.FC = () => {
             {isProfileOpen && (
               <div 
                 ref={dropdownRef}
-                className="absolute right-0 mt-2 w-60 bg-glass backdrop-blur-xl border border-border-main rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2"
+                className="absolute right-0 mt-2 w-60 glass-panel border border-border-main rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2"
               >
                 <div className="px-4 py-3 border-b border-border-main mb-1 bg-hover/5">
                   <p className="text-sm text-text-primary font-medium truncate">{user?.username}</p>
                   <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
-                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <UserIcon size={16} className="mr-3 text-primary" />
+                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary-start hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <UserIcon size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.account', 'Llogaria Ime')}
                 </Link>
-                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <MessageSquare size={16} className="mr-3 text-primary" />
+                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary-start hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <MessageSquare size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.support', 'Mbështetja')}
                 </Link>
                 <div className="h-px bg-border-main my-1"></div>
@@ -194,7 +196,7 @@ const Header: React.FC = () => {
 
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 text-text-secondary hover:text-primary transition-colors"
+            className="lg:hidden p-2 text-text-secondary hover:text-primary-start transition-colors hover-lift shadow-sm"
           >
             <Menu size={24} />
           </button>
@@ -203,12 +205,12 @@ const Header: React.FC = () => {
 
       {/* Mobile Sidebar */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-0 bg-glass backdrop-blur-xl z-50 animate-in fade-in">
+        <div className="lg:hidden fixed inset-0 top-0 glass-panel z-50 animate-in fade-in border-r border-border-main">
           <div className="flex items-center justify-between h-16 px-4 border-b border-border-main">
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="p-2 text-text-secondary hover:text-primary transition-colors"
+              className="p-2 text-text-secondary hover:text-primary-start transition-colors hover-lift"
             >
               <X size={24} />
             </button>
@@ -221,8 +223,8 @@ const Header: React.FC = () => {
                   key={item.path}
                   to={item.path}
                   onClick={handleMobileLinkClick}
-                  className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 ${
-                    isCurrentActive ? 'text-primary bg-hover' : 'text-text-secondary hover:text-primary hover:bg-hover'
+                  className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 hover-lift ${
+                    isCurrentActive ? 'text-primary-start bg-hover' : 'text-text-secondary hover:text-primary-start hover:bg-hover'
                   }`}
                 >
                   <item.icon className="h-5 w-5 mr-4" />

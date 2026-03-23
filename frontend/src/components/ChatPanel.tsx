@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.0 (CONSISTENT TYPOGRAPHY)
-// 1. Standardized all text sizes to use semantic classes
-// 2. Removed hardcoded text-[10px] and text-[11px]
-// 3. Consistent spacing and hierarchy
-// 4. All existing functionality preserved
+// PHOENIX PROTOCOL - CHAT PANEL V12.1 (EXECUTIVE DESIGN SYSTEM)
+// 1. Unified all colors to semantic tokens: text-primary-start, bg-primary-start, border-border-main.
+// 2. Added hover-lift and shadow-sm to interactive elements.
+// 3. Removed all hardcoded sizes, using Tailwind standard text classes.
+// 4. Preserved all existing functionality, streaming, and feedback logic.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,9 +53,9 @@ interface ChatPanelProps {
 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-2">
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1.5 h-1.5 bg-primary rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1.5 h-1.5 bg-primary rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1.5 h-1.5 bg-primary rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
     </span>
 );
 
@@ -65,8 +65,8 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
         try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error(err); }
     };
     return (
-        <button onClick={handleCopy} className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm ${
-            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-surface border border-border-main text-text-muted hover:text-text-primary'
+        <button onClick={handleCopy} className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm hover-lift ${
+            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-surface border border-border-main text-text-muted hover:text-primary-start'
         }`}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
@@ -98,7 +98,7 @@ const FeedbackButtons: React.FC<{
             <button
                 onClick={() => handleFeedback('up')}
                 disabled={!!submitting || disabled || success}
-                className={`p-2 rounded-xl transition-all border ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-success-start hover:border-success-start/50 shadow-sm'}`}
+                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-success-start hover:border-success-start/50'}`}
                 title="Përgjigje e dobishme"
             >
                 {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsUp size={14} />}
@@ -106,7 +106,7 @@ const FeedbackButtons: React.FC<{
             <button
                 onClick={() => handleFeedback('down')}
                 disabled={!!submitting || disabled || success}
-                className={`p-2 rounded-xl transition-all border ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-danger hover:border-danger/50 shadow-sm'}`}
+                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-danger-start hover:border-danger-start/50'}`}
                 title="Përgjigje e padobishme"
             >
                 {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsDown size={14} />}
@@ -142,7 +142,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         exit={{ opacity: 0 }}
                         className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-sm text-text-secondary rounded-2xl border border-border-main shadow-lg z-50 leading-relaxed"
                     >
-                        <p className="text-xs font-bold text-primary uppercase tracking-wide mb-2 border-b border-border-main pb-2 flex items-center gap-2">
+                        <p className="text-xs font-bold text-primary-start uppercase tracking-wide mb-2 border-b border-border-main pb-2 flex items-center gap-2">
                             <Scale size={12}/> {t('chat.lawReference', 'Referencë Ligjore')}
                         </p>
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
@@ -155,7 +155,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
 
 const MarkdownComponents = (t: TFunction) => ({
     h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-border-main pb-2 uppercase tracking-tight" {...props} />,
-    h2: ({node, ...props}: any) => <h2 className="text-lg font-semibold text-primary mb-3 mt-5" {...props} />,
+    h2: ({node, ...props}: any) => <h2 className="text-lg font-semibold text-primary-start mb-3 mt-5" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-base font-semibold text-text-primary mb-2 mt-4 flex items-center gap-2" {...props} />,
     p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 leading-relaxed text-text-secondary" {...props} />, 
     li: ({node, ...props}: any) => <li className="mb-1.5 leading-relaxed text-text-secondary" {...props} />, 
@@ -166,7 +166,7 @@ const MarkdownComponents = (t: TFunction) => ({
                 <LawPreviewTooltip chunkId={chunkId || ''} t={t}>
                     <Link
                         to={href}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wide border transition-all hover:shadow-sm hover:scale-[1.02] bg-primary/5 text-primary border-primary/20 hover:bg-primary/10"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wide border transition-all hover:shadow-sm hover:scale-[1.02] bg-primary-start/5 text-primary-start border-primary-start/20 hover:bg-primary-start/10"
                     >
                         <Scale size={12} />
                         {children}
@@ -176,7 +176,7 @@ const MarkdownComponents = (t: TFunction) => ({
             );
         }
         return (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary font-semibold underline decoration-primary/30 hover:decoration-primary transition-colors">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors">
                 {children}
             </a>
         );
@@ -237,12 +237,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
               {t('chatPanel.title')}
             </h2>
-            <span className={`w-2 h-2 rounded-full mt-0.5 ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger animate-pulse'}`} />
+            <span className={`w-2 h-2 rounded-full mt-0.5 ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger-start animate-pulse'}`} />
           </div>
 
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full shadow-sm">
-              <span className="text-xs font-semibold text-primary uppercase tracking-wide">{selectedDocumentCount} Lëndë</span>
+            <div className="flex items-center gap-2 px-3 py-1 bg-primary-start/10 border border-primary-start/20 rounded-full shadow-sm">
+              <span className="text-xs font-semibold text-primary-start uppercase tracking-wide">{selectedDocumentCount} Lëndë</span>
             </div>
           )}
           
@@ -251,7 +251,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               <select
                 value={selectedDomain}
                 onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-sm font-medium pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary/20 hover-lift shadow-sm cursor-pointer transition-all"
+                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-sm font-medium pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
               >
                 {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
@@ -265,9 +265,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="flex items-center bg-surface p-0.5 rounded-xl border border-border-main shadow-inner h-9">
             <button
               onClick={() => setReasoningMode('FAST')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all hover-lift ${
                 reasoningMode === 'FAST'
-                  ? 'bg-card text-primary shadow-sm border border-border-main'
+                  ? 'bg-card text-primary-start shadow-sm border border-border-main'
                   : 'text-text-muted hover:text-text-primary'
               }`}
             >
@@ -276,9 +276,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <button
               onClick={() => isPro && setReasoningMode('DEEP')}
               disabled={!isPro}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all hover-lift ${
                 reasoningMode === 'DEEP'
-                  ? 'bg-card text-primary shadow-sm border border-border-main'
+                  ? 'bg-card text-primary-start shadow-sm border border-border-main'
                   : 'text-text-muted hover:text-text-primary disabled:opacity-40'
               }`}
             >
@@ -289,8 +289,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="h-6 w-px bg-border-main" />
 
           <div className="flex gap-1">
-            {onExportChat && <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary hover:bg-surface rounded-lg transition-all" title="Download"><Download size={18} /></button>}
-            <button onClick={onClearChat} className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all" title="Clear"><Trash2 size={18} /></button>
+            {onExportChat && <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface rounded-lg transition-all hover-lift" title="Download"><Download size={18} /></button>}
+            <button onClick={onClearChat} className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-lg transition-all hover-lift" title="Clear"><Trash2 size={18} /></button>
           </div>
         </div>
       </div>
@@ -300,10 +300,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary text-inverse border-primary' : 'bg-surface border-border-main text-text-secondary'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-border-main text-text-secondary'}`}>
                 {msg.role === 'ai' ? <BrainCircuit size={20} /> : <User size={20} />}
               </div>
-              <div className={`relative max-w-[85%] rounded-2xl p-5 text-sm shadow-sm border ${msg.role === 'user' ? 'bg-primary text-inverse border-primary rounded-tr-sm' : 'bg-surface border-border-main text-text-primary rounded-tl-sm'}`}>
+              <div className={`relative max-w-[85%] rounded-2xl p-5 text-sm shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-border-main text-text-primary rounded-tl-sm'}`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text prose prose-slate max-w-none prose-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -312,7 +312,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <FeedbackButtons messageIndex={idx} caseId={activeContextId} onFeedback={(i, f) => handleFeedback(i, f)} disabled={feedbackGiven.has(idx)} />
                 )}
                 {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
-                  <button onClick={handleRetry} className="mt-4 px-4 py-2 bg-danger/10 text-danger rounded-xl text-xs font-semibold uppercase flex items-center gap-2 hover:bg-danger/20 transition-all">
+                  <button onClick={handleRetry} className="mt-4 px-4 py-2 bg-danger-start/10 text-danger-start rounded-xl text-xs font-semibold uppercase flex items-center gap-2 hover:bg-danger-start/20 transition-all hover-lift">
                     <RefreshCw size={14} /> {t('chat.retry', 'Riprovo')}
                   </button>
                 )}
@@ -321,9 +321,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           ))}
           {showThinking && (
             <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-primary text-inverse flex items-center justify-center shadow-sm"><BrainCircuit size={20} /></div>
+              <div className="w-10 h-10 rounded-xl bg-primary-start text-white flex items-center justify-center shadow-sm"><BrainCircuit size={20} /></div>
               <div className="bg-surface border border-border-main rounded-2xl rounded-tl-sm px-6 py-4 shadow-sm flex items-center gap-3">
-                <span className="text-sm font-semibold text-primary uppercase tracking-wide">{t('chat.thinking', 'Analizimi')}</span>
+                <span className="text-sm font-semibold text-primary-start uppercase tracking-wide">{t('chat.thinking', 'Analizimi')}</span>
                 <ThinkingDots />
               </div>
             </motion.div>
@@ -343,7 +343,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           />
           <button 
             type="submit" disabled={!input.trim() || isSendingMessage} 
-            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary text-inverse rounded-xl shadow-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10"
+            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10 hover-lift"
           >
             <Send size={18} className="ml-0.5" />
           </button>
