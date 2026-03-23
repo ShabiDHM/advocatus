@@ -1,9 +1,8 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE V6.0 (AI ANALYST INTEGRATION)
-// 1. ADDED: 'Explain with AI' (Analizo Nenin) streaming functionality.
+// PHOENIX PROTOCOL - LAW ARTICLE V6.1 (TRANSLATED ERROR HANDLING)
+// 1. FIXED: Error state now correctly utilizes the translation system (t function).
 // 2. ENHANCED: Professional side-by-side or stacked layout for AI synthesis.
-// 3. FIXED: 100% theme consistency with 'bg-paper' and 'text-text-primary'.
-// 4. RETAINED: All navigation and breadcrumb logic.
+// 3. RETAINED: 100% of AI Streaming logic and Executive styling.
 
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -70,7 +69,8 @@ export default function LawArticlePage() {
             setExplanation(prev => prev + chunk);
         }
     } catch (err: any) {
-        setAiError(err.message || "Dështoi analiza inteligjente.");
+        // PHOENIX FIX: Use the translation key instead of the raw err.message
+        setAiError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
     } finally {
         setIsExplaining(false);
     }
@@ -198,7 +198,7 @@ export default function LawArticlePage() {
             </div>
           </div>
 
-          {/* AI EXPLANATION AREA - Dynamic Shimmer and Result */}
+          {/* AI EXPLANATION AREA */}
           <AnimatePresence>
             {(explanation || isExplaining || aiError) && (
                 <motion.div 
@@ -216,8 +216,12 @@ export default function LawArticlePage() {
                                     <BrainCircuit size={18} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">Analizë Inteligjente</h3>
-                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Shpjegim Juridik i Thjeshtësuar</p>
+                                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">
+                                        {t('lawArticle.aiTitle', 'Analizë Inteligjente')}
+                                    </h3>
+                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">
+                                        {t('lawArticle.aiSubtitle', 'Shpjegim Juridik i Thjeshtësuar')}
+                                    </p>
                                 </div>
                             </div>
                             <button onClick={() => {setExplanation(''); setAiError('');}} className="p-2 text-text-muted hover:text-danger-start transition-colors">
@@ -225,7 +229,7 @@ export default function LawArticlePage() {
                             </button>
                         </div>
 
-                        {/* Error State */}
+                        {/* Error State - Now correctly translated */}
                         {aiError && (
                             <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-6 text-danger-start text-sm font-medium flex items-center gap-3">
                                 <AlertCircle size={18} /> {aiError}
@@ -242,7 +246,7 @@ export default function LawArticlePage() {
                             </div>
                         )}
 
-                        {/* Loading Shimmer if explanation hasn't started yet */}
+                        {/* Loading Shimmer */}
                         {isExplaining && !explanation && (
                             <div className="space-y-4">
                                 <div className="h-4 bg-primary-start/10 rounded w-full animate-pulse" />
@@ -252,7 +256,7 @@ export default function LawArticlePage() {
                         )}
                         
                         <div className="mt-8 pt-6 border-t border-border-main/30 flex items-center gap-2 text-[10px] text-text-muted font-black uppercase tracking-widest">
-                            <Sparkles size={12} className="text-primary-start" /> Rezultati i gjeneruar nga modeli juridik i AI
+                            <Sparkles size={12} className="text-primary-start" /> {t('lawArticle.aiDisclaimer', 'Rezultati i gjeneruar nga modeli juridik i AI')}
                         </div>
                     </div>
                 </motion.div>
