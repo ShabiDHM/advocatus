@@ -1,17 +1,18 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V3.5 (EXECUTIVE ANALYST ARCHITECTURE)
-# 1. FIXED: Path shadowing. /explain moved to top to prevent 405 errors from wildcard conflict.
-# 2. FIXED: Pylance Type Safety. Metadata explicitly cast to str for hashing and sorting.
-# 3. FIXED: Null-pointer safety for documents and metadatas subscripting.
-# 4. RETAINED: 100% of search, titles, articles, and chunk retrieval logic.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V4.0 (EXECUTIVE PRIORITY ARCHITECTURE)
+# 1. FIXED: Path Shadowing. /explain is now the FIRST route to prevent 405 errors.
+# 2. FIXED: Pylance 'Unhashable' errors by strictly casting metadata to strings.
+# 3. FIXED: natural_sort_key now handles non-string inputs safely.
+# 4. RETAINED: 100% logic for search, titles, articles, and chunk retrieval.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Set, Any
+from typing import Optional, List, Set, Any, Dict
 from app.services import vector_store_service, llm_service
 from app.api.endpoints.dependencies import get_current_user
 
+# Router definition without prefix (prefix is added in main.py)
 router = APIRouter(tags=["Laws"])
 
 # --- MODELS ---
@@ -34,11 +35,12 @@ def _safe_int(value: Any) -> int:
 
 def _natural_sort_key(article_any: Any) -> List[int]:
     """Split article number into parts for natural sorting (e.g., 5.1 -> [5,1])."""
-    article = str(article_any) if article_any is not None else "0"
-    parts = article.split('.')
+    # Ensure input is string before splitting to prevent Pylance/Runtime errors
+    article_str = str(article_any) if article_any is not None else "0"
+    parts = article_str.split('.')
     return [int(p) for p in parts if p.isdigit()]
 
-# --- AI ANALYSIS ENDPOINTS (HIGHEST PRIORITY) ---
+# --- 1. AI ANALYSIS ENDPOINTS (HIGHEST PRIORITY) ---
 
 @router.post("/explain")
 async def explain_law_article(
@@ -48,24 +50,27 @@ async def explain_law_article(
     """
     PHOENIX: Streams an AI-generated explanation of a specific law article.
     Synthesizes complex legal text into practical Albanian advice.
+    This route is placed FIRST to avoid collision with wildcard GET routes.
     """
     system_prompt = (
         "ROLI: Ti je Senior Legal Partner në Kosovë.\n"
         "DETYRA: Shpjego këtë nen ligjor në mënyrë të thjeshtë por profesionale.\n"
-        "MANDATI: Fokusohu te zbatimi praktik dhe pasojat ligjore.\n"
+        "MANDATI: Fokusohu te zbatimi praktik, konteksti juridik dhe rreziqet potenciale.\n"
         "GJUHA: Përgjigju VETËM në gjuhën SHQIPE."
     )
     
-    # Trigger the stream from llm_service (which appends the AI_DISCLAIMER)
-    generator = llm_service.stream_text_async(
-        sys_p=system_prompt,
-        user_p=request.prompt,
-        temp=0.3
-    )
-    
-    return StreamingResponse(generator, media_type="text/plain")
+    # Trigger the stream from llm_service (which appends the mandatory AI_DISCLAIMER)
+    try:
+        generator = llm_service.stream_text_async(
+            sys_p=system_prompt,
+            user_p=request.prompt,
+            temp=0.3
+        )
+        return StreamingResponse(generator, media_type="text/plain")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Stream failed: {str(e)}")
 
-# --- DATA RETRIEVAL ENDPOINTS ---
+# --- 2. DATA RETRIEVAL ENDPOINTS ---
 
 @router.get("/search")
 async def search_laws(
@@ -93,12 +98,12 @@ async def get_law_titles(
         
         titles: Set[str] = set()
         for m in metadatas:
-            title = m.get("law_title")
-            if isinstance(title, str):
-                titles.add(title)
+            if m:
+                title = m.get("law_title")
+                if isinstance(title, str):
+                    titles.add(title)
         
-        sorted_titles = sorted(list(titles))
-        return sorted_titles
+        return sorted(list(titles))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
 
@@ -130,16 +135,17 @@ async def get_law_article(
         raise HTTPException(status_code=404, detail="Article not found")
 
     # Sort chunks by chunk_index if present
-    if metadatas and all("chunk_index" in m for m in metadatas):
+    if metadatas and all(m and "chunk_index" in m for m in metadatas):
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
         documents = [d for d, _ in pairs]
-        metadatas = [m for _, m in pairs]
 
     # Combine all chunks
     full_text = "\n\n".join(documents)
 
-    meta = metadatas[0] if metadatas else {}
+    # Safely extract metadata from the first chunk
+    meta = metadatas[0] if (metadatas and metadatas[0]) else {}
+    
     return {
         "law_title": str(meta.get("law_title", law_title)),
         "article_number": str(meta.get("article_number", article_number)),
@@ -155,6 +161,7 @@ async def get_law_articles(
     """Retrieve article numbers for a law title (Table of Contents)."""
     try:
         collection = vector_store_service.get_global_collection()
+        # Get up to 1000 chunks (should cover any law)
         results = collection.get(
             where={"law_title": {"$eq": law_title}},
             include=["metadatas"],
@@ -167,36 +174,41 @@ async def get_law_articles(
         # Collect unique article numbers safely (string cast for hashability)
         articles: Set[str] = set()
         for m in metadatas:
-            art = m.get("article_number")
-            if art is not None:
-                articles.add(str(art))
+            if m:
+                art = m.get("article_number")
+                if art is not None:
+                    articles.add(str(art))
 
-        # Sort naturally
+        # Sort naturally using our fixed utility
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
 
-        first = metadatas[0]
+        # Safely extract first metadata
+        first_meta = metadatas[0] if (metadatas and metadatas[0]) else {}
+        
         return {
-            "law_title": str(first.get("law_title", law_title)),
-            "source": str(first.get("source", "")),
+            "law_title": str(first_meta.get("law_title", law_title)),
+            "source": str(first_meta.get("source", "")),
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+# --- 3. WILDCARD ENDPOINTS (LOWEST PRIORITY) ---
+
 @router.get("/{chunk_id}")
 async def get_law_chunk(
     chunk_id: str,
     current_user = Depends(get_current_user)
 ):
-    """Retrieve a specific law chunk by its ID. (Wildcard route placed last)."""
+    """Retrieve a specific law chunk by its ID. (Wildcard route placed LAST)."""
     try:
         collection = vector_store_service.get_global_collection()
         result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    if result is None:
+    if not result:
         raise HTTPException(status_code=404, detail="Law chunk not found")
 
     documents = result.get("documents") or []
@@ -206,11 +218,11 @@ async def get_law_chunk(
         raise HTTPException(status_code=404, detail="Law chunk not found")
 
     law_text = documents[0]
-    metadata = metadatas[0] if metadatas else {}
+    meta = metadatas[0] if (metadatas and metadatas[0]) else {}
 
     return {
-        "law_title": str(metadata.get("law_title", "Ligji i panjohur")),
-        "article_number": str(metadata.get("article_number", "")),
-        "source": str(metadata.get("source", "")),
+        "law_title": str(meta.get("law_title", "Ligji i panjohur")),
+        "article_number": str(meta.get("article_number", "")),
+        "source": str(meta.get("source", "")),
         "text": law_text
     }
