@@ -1,8 +1,9 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V6.2 (VISUAL CONSISTENCY REPAIR)
-// 1. Standardized typography scale for analytic metrics (removed sub-12px text).
-// 2. Increased padding and visual weight for analytics sub-cards to match main stats.
-// 3. Harmonized border and background styles for sub-components.
+// PHOENIX PROTOCOL - FINANCE TAB V7.0 (EXECUTIVE STYLING SYNC)
+// 1. FIXED: Replaced 'card-panel' with 'glass-panel' for outer column consistency.
+// 2. ENHANCED: Standardized all inner cards (Stats, Analytics, Buttons) to 'bg-surface rounded-2xl'.
+// 3. FIXED: Harmonized "Analiza (30 Ditë)" typography to match section headers.
+// 4. RETAINED: 100% of logic, API calls, and localization.
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -22,14 +23,14 @@ import { ExpenseModal } from './finance/ExpenseModal';
 import { FinanceAnalytics } from './finance/FinanceAnalytics';
 import { useAuth } from '../../context/AuthContext';
 
-// --- UI SUB-COMPONENTS ---
+// --- UI SUB-COMPONENTS (UPGRADED STYLING) ---
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
-    <div className="card-panel p-5 hover-lift transition-all duration-300">
+    <div className="bg-surface border border-border-main rounded-2xl p-5 hover:border-primary-start/50 hover:shadow-sm hover-lift transition-all duration-300 relative overflow-hidden group">
         <div className="flex items-center gap-4 relative z-10">
-            <div className={`p-3 rounded-xl ${color.replace('text-', 'bg-')}/10 ${color} shadow-inner`}>{icon}</div>
+            <div className={`p-3 rounded-xl ${color.replace('text-', 'bg-')}/10 ${color} shadow-inner group-hover:scale-110 transition-transform duration-300`}>{icon}</div>
             <div>
-                <p className="text-xs text-text-secondary font-bold uppercase tracking-wider">{title}</p>
-                <p className="text-2xl font-bold text-text-primary tracking-tight">{amount}</p>
+                <p className="text-xs text-text-muted font-bold uppercase tracking-wider">{title}</p>
+                <p className="text-2xl font-black text-text-primary tracking-tight">{amount}</p>
             </div>
         </div>
         <div className={`absolute top-0 right-0 p-8 rounded-full blur-2xl opacity-10 ${color.replace('text-', 'bg-')}`} />
@@ -40,16 +41,16 @@ const QuickActionButton = ({ icon, label, onClick, color, locked = false }: { ic
     <button 
         onClick={onClick} 
         disabled={locked}
-        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border border-border-main transition-all duration-200 text-sm font-semibold group relative overflow-hidden
+        className={`w-full flex items-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 text-sm font-bold group relative overflow-hidden
         ${locked 
-            ? 'bg-surface/30 opacity-60 cursor-not-allowed hover:bg-surface/30' 
-            : 'bg-surface/20 hover:bg-hover hover:border-primary-start/30'
+            ? 'bg-surface/30 border-border-main/50 text-text-disabled cursor-not-allowed' 
+            : 'bg-surface border-border-main hover:border-primary-start/50 hover:shadow-sm text-text-secondary hover:text-text-primary hover-lift'
         }`}
     >
-        <div className={`p-2 rounded-lg transition-transform ${locked ? 'bg-surface/50 text-text-muted' : `${color.replace('text-', 'bg-')}/10 ${color} group-hover:scale-110`}`}>
+        <div className={`p-2.5 rounded-xl transition-transform ${locked ? 'bg-surface/50 text-text-muted' : `${color.replace('text-', 'bg-')}/10 ${color} group-hover:scale-110`}`}>
             {locked ? <Lock size={18} /> : icon}
         </div>
-        <span className={`text-text-secondary ${locked ? '' : 'group-hover:text-text-primary'}`}>{label}</span>
+        <span>{label}</span>
     </button>
 );
 
@@ -244,45 +245,53 @@ export const FinanceTab: React.FC = () => {
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: transparent; } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[600px]">
+                
+                {/* LEFT COLUMN: Stats & Actions */}
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
-                    <div className="card-panel rounded-3xl p-6 space-y-4 flex-none">
-                        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
+                    
+                    {/* STATS PANEL */}
+                    <div className="glass-panel border border-border-main rounded-3xl p-6 space-y-4 flex-none shadow-sm">
+                        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">{t('finance.overview')}</h3>
                         <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-status-success" />
                         <SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-status-danger" />
                         <SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-primary-start" />
                         
                         {analyticsData && (
                             <div className="pt-6 border-t border-border-main/60 mt-4">
-                                <h4 className="text-xs font-bold text-primary-start uppercase tracking-widest mb-4">{t('finance.analytics.periodTitle')}</h4>
+                                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">{t('finance.analytics.periodTitle', 'Analiza (30 Ditë)')}</h4>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="card-panel p-4 bg-surface/10 border border-border-main/40 text-center flex flex-col justify-center gap-1">
-                                        <p className="text-xs text-text-secondary font-bold uppercase truncate">{t('finance.analytics.totalSales')}</p>
-                                        <p className="text-xl font-bold text-text-primary tracking-tight">€{analyticsData.total_revenue_period.toFixed(2)}</p>
+                                    <div className="bg-surface border border-border-main rounded-2xl p-4 text-center hover:border-primary-start/50 transition-all duration-300 hover-lift">
+                                        <p className="text-[10px] text-text-muted font-bold uppercase truncate mb-1">{t('finance.analytics.totalSales')}</p>
+                                        <p className="text-lg font-black text-text-primary tracking-tight">€{analyticsData.total_revenue_period.toFixed(2)}</p>
                                     </div>
-                                    <div className="card-panel p-4 bg-surface/10 border border-border-main/40 text-center flex flex-col justify-center gap-1">
-                                        <p className="text-xs text-text-secondary font-bold uppercase truncate">{t('finance.analytics.invoiceCount')}</p>
-                                        <p className="text-xl font-bold text-text-primary tracking-tight">{analyticsData.total_transactions_period}</p>
+                                    <div className="bg-surface border border-border-main rounded-2xl p-4 text-center hover:border-primary-start/50 transition-all duration-300 hover-lift">
+                                        <p className="text-[10px] text-text-muted font-bold uppercase truncate mb-1">{t('finance.analytics.invoiceCount')}</p>
+                                        <p className="text-lg font-black text-text-primary tracking-tight">{analyticsData.total_transactions_period}</p>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <div className="card-panel rounded-3xl p-6 space-y-3 flex-1 flex flex-col justify-start">
-                        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3>
-                        <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => { setEditingInvoice(null); setShowInvoiceModal(true); }} color="text-status-success" />
-                        <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} color="text-status-danger" />
-                        <QuickActionButton 
-                            icon={<Calculator size={18} />} 
-                            label={t('finance.monthlyClose')} 
-                            onClick={() => isPro && navigate('/finance/wizard')} 
-                            color="text-text-secondary" 
-                            locked={!isPro}
-                        />
+                    {/* QUICK ACTIONS PANEL */}
+                    <div className="glass-panel border border-border-main rounded-3xl p-6 space-y-4 flex-1 flex flex-col justify-start shadow-sm">
+                        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">{t('finance.quickActions')}</h3>
+                        <div className="space-y-3">
+                            <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => { setEditingInvoice(null); setShowInvoiceModal(true); }} color="text-status-success" />
+                            <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} color="text-status-danger" />
+                            <QuickActionButton 
+                                icon={<Calculator size={18} />} 
+                                label={t('finance.monthlyClose')} 
+                                onClick={() => isPro && navigate('/finance/wizard')} 
+                                color="text-text-secondary" 
+                                locked={!isPro}
+                            />
+                        </div>
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
+                {/* RIGHT COLUMN: Activity & Reports */}
+                <div className="lg:col-span-2 glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden shadow-sm">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-border-main pb-4 flex-none">
                         <h2 className="text-lg font-bold text-text-primary shrink-0">{t('finance.activityAndReports')}</h2>
                         <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-surface/20 p-1 rounded-xl border border-border-main">
@@ -301,7 +310,7 @@ export const FinanceTab: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto custom-finance-scroll pr-2 pb-4 content-start">
                                     {filteredTransactions.length === 0 ? <p className="text-text-muted italic text-sm text-center col-span-full py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
-                                        <div key={`${tx.type}-${tx.id}`} className="group relative card-panel rounded-2xl overflow-hidden hover-lift flex flex-col h-fit border-border-main">
+                                        <div key={`${tx.type}-${tx.id}`} className="group relative bg-surface border border-border-main rounded-2xl overflow-hidden hover-lift flex flex-col h-fit">
                                             <div className={`absolute left-0 top-0 bottom-0 w-1 ${tx.type === 'invoice' ? 'bg-status-success' : 'bg-status-danger'}`} />
                                             <div className="p-4 flex-1">
                                                 <div className="flex items-start justify-between mb-3">
@@ -324,7 +333,7 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         {activeTab === 'reports' && (<div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">{!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : <FinanceAnalytics data={analyticsData} />}</div>)}
-                        {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-text-muted" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-text-muted text-center flex-col"><div className="bg-surface/30 p-4 rounded-full mb-3"><Briefcase size={32} className="text-text-muted" /></div><p className="font-bold text-text-secondary">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="card-panel rounded-xl overflow-hidden hover-lift"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-hover transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-primary-start/20 text-primary-start rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-text-primary text-sm">{item.caseData.title}</h4><p className="text-xs text-text-muted">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-text-muted uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-status-success' : 'text-status-danger'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-text-muted"/> : <ChevronRight size={18} className="text-text-muted"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-canvas/40 p-4 border-t border-border-main space-y-2"><h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-border-main last:border-0"><div className="flex items-center gap-3"><span className="text-text-muted text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-text-primary font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-status-success/70' : 'text-status-danger/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-status-success' : 'text-status-danger'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}</div></div></div>
+                        {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-text-muted" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-text-muted text-center flex-col"><div className="bg-surface/30 p-4 rounded-full mb-3"><Briefcase size={32} className="text-text-muted" /></div><p className="font-bold text-text-secondary">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="bg-surface border border-border-main rounded-2xl overflow-hidden hover-lift"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-hover transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-primary-start/20 text-primary-start rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-text-primary text-sm">{item.caseData.title}</h4><p className="text-xs text-text-muted">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-text-muted uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-status-success' : 'text-status-danger'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-text-muted"/> : <ChevronRight size={18} className="text-text-muted"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-canvas/40 p-4 border-t border-border-main space-y-2"><h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-border-main last:border-0"><div className="flex items-center gap-3"><span className="text-text-muted text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-text-primary font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-status-success/70' : 'text-status-danger/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-status-success' : 'text-status-danger'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}</div></div></div>
 
             <InvoiceModal isOpen={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSuccess={handleInvoiceSuccess} cases={cases} editingInvoice={editingInvoice} />
             <ExpenseModal isOpen={showExpenseModal} onClose={() => setShowExpenseModal(false)} onSuccess={handleExpenseSuccess} cases={cases} editingExpense={editingExpense} />
