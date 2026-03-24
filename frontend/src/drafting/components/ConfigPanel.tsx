@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.2 (ENHANCED HOVER + ICON VISIBILITY)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.2 (VISIBLE ICONS + FULL HOVER)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, LayoutTemplate, Lock, Send, RefreshCw, ChevronDown } from 'lucide-react';

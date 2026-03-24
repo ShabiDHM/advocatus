@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RENDERER V2.4 (CUSTOM SCROLLBAR + CONTRAST)
+// PHOENIX PROTOCOL - DRAFT RENDERER V2.5 (FORCE BLACK TEXT)
 
 import React from 'react';
 import { TFunction } from 'i18next';
@@ -29,26 +29,25 @@ export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = Rea
   const disclaimer = t('drafting.subtitle');
 
   return (
-    <div className="legal-document custom-scrollbar">
-      <div className="legal-content">
+    <div className="legal-document">
+      <div className="legal-content text-black [&>*]:text-black [&_strong]:text-black [&_h1]:text-black [&_h2]:text-black [&_h3]:text-black [&_p]:text-black">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            h1: ({ node, ...props }) => <h1 {...props} />,
-            h2: ({ node, ...props }) => <h2 {...props} />,
-            h3: ({ node, ...props }) => <h3 {...props} />,
-            blockquote: ({ node, ...props }) => <blockquote {...props} />,
-            strong: ({ node, ...props }) => <strong {...props} />,
+            h1: ({ node, ...props }) => <h1 {...props} className="text-black font-bold uppercase text-center mb-6 text-xl" />,
+            h2: ({ node, ...props }) => <h2 {...props} className="text-black font-bold uppercase text-center my-4 text-lg" />,
+            h3: ({ node, ...props }) => <h3 {...props} className="text-black font-bold uppercase my-3" />,
+            strong: ({ node, ...props }) => <strong {...props} className="text-black font-bold" />,
             p: ({ node, ...props }) => {
               const content = String(props.children);
               if (content.includes('AI') || content.includes('referencë')) {
                 return (
-                  <p className="text-center italic mt-12 pt-4 border-t border-gray-300 text-[9pt] opacity-70">
+                  <p className="text-center italic mt-12 pt-4 border-t border-gray-300 text-xs text-gray-500">
                     {disclaimer}
                   </p>
                 );
               }
-              return <p {...props} />;
+              return <p {...props} className="text-black mb-4 leading-relaxed" />;
             },
           }}
         >
