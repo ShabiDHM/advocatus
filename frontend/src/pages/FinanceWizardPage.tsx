@@ -1,12 +1,7 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - FINANCE WIZARD V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-border-main, text-text-primary, text-text-secondary, text-text-muted, btn-primary.
-// 2. Preserved all functionality: month selection, audit, tax, ATK copy, report download.
-// 3. Ambient glows replaced with subtle semantic gradients.
-// 4. Updated shadows to shadow-sm and added hover-lift for interactive elements.
-// 5. Replaced all border-main with border-border-main for consistency.
+// PHOENIX PROTOCOL - FINANCE WIZARD V6.1 (DYNAMIC YEAR RANGE)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     AlertTriangle, 
@@ -255,6 +250,14 @@ const FinanceWizardPage = () => {
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth() === 0 ? 12 : today.getMonth());
     const [selectedYear, setSelectedYear] = useState(today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear());
 
+    // Dynamic year range: from currentYear - 5 to currentYear + 1
+    const currentYear = new Date().getFullYear();
+    const yearOptions = useMemo(() => {
+        const startYear = currentYear - 5;
+        const endYear = currentYear + 1;
+        return Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+    }, [currentYear]);
+
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
@@ -353,8 +356,11 @@ const FinanceWizardPage = () => {
                                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                                 className="glass-input px-6 py-2.5 rounded-xl cursor-pointer text-sm sm:text-base font-medium border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
                             >
-                                <option value={2024} className="bg-surface text-text-primary">2024</option>
-                                <option value={2025} className="bg-surface text-text-primary">2025</option>
+                                {yearOptions.map(year => (
+                                    <option key={year} value={year} className="bg-surface text-text-primary">
+                                        {year}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
