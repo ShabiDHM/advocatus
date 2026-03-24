@@ -1,5 +1,5 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V6.2 (FIXED DOUBLE BORDERS)
+// PHOENIX PROTOCOL - ARCHIVE TAB V6.3 (FIXED DOUBLE BORDERS & CONSISTENT BUTTONS)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,7 +21,6 @@ interface ArchiveStatusUpdate {
 }
 
 type Breadcrumb = { id: string | null; name: string; type: 'ROOT' | 'CASE' | 'FOLDER'; };
-
 
 const getMimeType = (fileType: string, fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -264,7 +263,7 @@ export const ArchiveTab: React.FC = () => {
                         <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-base" />
                     </div>
                 </div>
-                {/* Removed duplicate border: glass-panel already includes border */}
+                {/* Action buttons container – glass-panel without extra border */}
                 <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 glass-panel rounded-xl">
                     {currentView.type === 'CASE' && (
                         <button onClick={handleCopyPortalLink} className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border transition-all font-bold text-xs uppercase tracking-wide ${linkCopied ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-primary-start/10 text-primary-start border-primary-start/30 hover:bg-primary-start/20'}`} title={linkCopied ? "Link Copied" : "Copy Client Portal Link"} >
