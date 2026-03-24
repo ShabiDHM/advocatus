@@ -605,6 +605,24 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   
+  /* Custom scrollbar for dark theme - ADDED */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--bg-surface);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border-main);
+    border-radius: 4px;
+    border: 2px solid var(--bg-surface);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+  }
+  
   /* Typography Utilities */
   .text-xs { font-size: var(--text-xs); line-height: var(--leading-normal); }
   .text-sm { font-size: var(--text-sm); line-height: var(--leading-normal); }

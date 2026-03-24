@@ -1,4 +1,6 @@
-// src/drafting/components/DraftResultRenderer.tsx
+// FILE: src/drafting/components/DraftResultRenderer.tsx
+// PHOENIX PROTOCOL - DRAFT RENDERER V2.4 (CUSTOM SCROLLBAR + CONTRAST)
+
 import React from 'react';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
@@ -27,7 +29,7 @@ export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = Rea
   const disclaimer = t('drafting.subtitle');
 
   return (
-    <div className="legal-document">
+    <div className="legal-document custom-scrollbar">
       <div className="legal-content">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -41,7 +43,7 @@ export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = Rea
               const content = String(props.children);
               if (content.includes('AI') || content.includes('referencë')) {
                 return (
-                  <p className="text-center italic mt-12 pt-4 border-t border-black text-[9pt] opacity-60">
+                  <p className="text-center italic mt-12 pt-4 border-t border-gray-300 text-[9pt] opacity-70">
                     {disclaimer}
                   </p>
                 );

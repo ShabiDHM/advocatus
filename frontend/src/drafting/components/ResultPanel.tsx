@@ -1,9 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V10.0 (FULL LOGIC PRESERVATION)
-// 1. FIXED: Restored 100% of the original logic, handlers, and modal integration.
-// 2. FIXED: Harmonized styling with 'glass-panel', 'bg-surface', and 'border-border-main'.
-// 3. ENHANCED: Professional toolbar, improved readability for drafted content.
-// 4. RETAINED: All functional props, notifications, and save/archive workflows.
+// PHOENIX PROTOCOL - RESULT PANEL V10.1 (REMOVED EXTRA WRAPPER + CUSTOM SCROLLBAR)
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -150,9 +146,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                     {notification.msg}
                   </div>
                 )}
-                <div className="bg-white p-12 text-black shadow-lg rounded-sm min-h-[29.7cm]">
-                  <DraftResultRenderer text={currentJob.result} t={t} />
-                </div>
+                {/* Removed extra wrapper; DraftResultRenderer handles its own background and padding */}
+                <DraftResultRenderer text={currentJob.result} t={t} />
               </motion.div>
             ) : (
               <motion.div
