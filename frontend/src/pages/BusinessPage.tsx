@@ -1,7 +1,5 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V6.1 (MOBILE-FRIENDLY TABS)
-// 1. Tab container now uses overflow-x-auto and horizontal scroll on mobile.
-// 2. Preserves all existing functionality.
+// PHOENIX PROTOCOL - BUSINESS PAGE V6.2 (FIXED DOUBLE BORDER ON TABS)
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
@@ -56,7 +54,8 @@ const BusinessPage: React.FC = () => {
         
         {/* Mobile‑friendly tab bar: scroll horizontally if needed */}
         <div className="w-full sm:w-auto overflow-x-auto no-scrollbar">
-          <div className="flex gap-2 sm:gap-3 p-1 glass-panel rounded-xl border border-main min-w-max">
+          {/* Removed `border border-main` to eliminate double border */}
+          <div className="flex gap-2 sm:gap-3 p-1 glass-panel rounded-xl min-w-max">
             <button 
                 onClick={() => setActiveTab('profile')} 
                 className={`flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap ${
