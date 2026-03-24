@@ -1,15 +1,14 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V10.1 (REMOVED EXTRA WRAPPER + CUSTOM SCROLLBAR)
+// PHOENIX PROTOCOL - RESULT PANEL V6.7 (FIXED HOVER DEAD ZONE)
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
-  FileText, Trash2, Archive, Scale, Save, Copy, Download,
+  FileText, Trash2, Archive, Scale, Copy, Download,
   BrainCircuit
 } from 'lucide-react';
 import { ResultPanelProps } from '../types';
-import { SaveModal } from './SaveModal';
 import { ThinkingDots } from './ThinkingDots';
 import { DraftResultRenderer } from './DraftResultRenderer';
 
@@ -19,18 +18,14 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   saving,
   notification,
   onSave,
-  onSaveToCase,
   onRetry,
   onClear,
-  selectedCaseId,
-  saveModalOpen,
-  setSaveModalOpen,
 }) => {
   
   const statusUI = useMemo(() => {
     switch (currentJob.status) {
       case 'COMPLETED':
-        return { text: t('drafting.statusCompleted'), color: 'text-status-success', icon: <CheckCircle className="h-5 w-5" /> };
+        return { text: t('drafting.statusCompleted'), color: 'text-success-start', icon: <CheckCircle className="h-5 w-5" /> };
       case 'FAILED':
         return { text: t('drafting.statusFailed'), color: 'text-danger-start', icon: <AlertCircle className="h-5 w-5" /> };
       case 'PROCESSING':
@@ -40,30 +35,24 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   }, [currentJob.status, t]);
 
-  // Executive Action Button Styling
   const actionButtonBase = "p-3 bg-surface border border-border-main text-text-muted hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none";
 
   return (
-    <div className="glass-panel border border-border-main p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm hover-lift rounded-3xl">
+    <div className="glass-panel border border-border-main p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm hover-lift rounded-3xl hover:border-primary-start/50 transition-all duration-300">
       
-      {/* Executive Header Toolbar */}
-      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 z-10">
+      {/* Executive Header Toolbar - removed z-10 */}
+      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative">
         <div className="flex items-center gap-4">
           <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
             {statusUI.icon}
           </div>
-          <h3 className="text-text-primary text-[10px] font-black uppercase tracking-widest leading-none">
+          <h3 className="text-text-primary text-xs font-black uppercase tracking-widest leading-none">
             {statusUI.text}
           </h3>
         </div>
         
         {/* Action Button Cluster */}
         <div className="flex items-center gap-2">
-          {currentJob.status === 'COMPLETED' && selectedCaseId && (
-            <button onClick={() => setSaveModalOpen(true)} title="Ruaj në lëndë" className={actionButtonBase}>
-              <Save size={16} />
-            </button>
-          )}
           <button
             onClick={onSave}
             title={t('drafting.saveToArchive')}
@@ -104,7 +93,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </button>
           
           {currentJob.status === 'FAILED' && (
-            <button onClick={onRetry} title="Riprovo" className="p-3 text-warning-start bg-surface border border-border-main hover:border-warning-start/30 rounded-xl transition-all">
+            <button onClick={onRetry} title="Riprovo" className="p-3 text-warning-start bg-surface border border-border-main hover:border-warning-start/30 rounded-xl transition-all hover-lift">
               <RefreshCw size={16} />
             </button>
           )}
@@ -115,7 +104,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             onClick={onClear}
             title={t('drafting.clear')}
             disabled={!currentJob.result && currentJob.status !== 'FAILED'}
-            className="p-3 text-status-danger bg-surface border border-border-main hover:border-status-danger/30 rounded-xl transition-all disabled:opacity-30"
+            className="p-3 text-danger-start bg-surface border border-border-main hover:border-danger-start/30 rounded-xl transition-all disabled:opacity-30 hover-lift"
           >
             <Trash2 size={16} />
           </button>
@@ -123,7 +112,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
       </div>
 
       {/* The Paper Reading Surface */}
-      <div className="flex-1 bg-paper overflow-y-auto custom-scrollbar shadow-[inset_0_2px_8px_rgba(0,0,0,0.02)] p-6 sm:p-10">
+      <div className="flex-1 bg-card overflow-y-auto custom-scrollbar shadow-[inset_0_2px_8px_rgba(0,0,0,0.02)] p-6 sm:p-10">
         <div className="min-h-full w-full flex justify-center">
           <AnimatePresence mode="wait">
             {currentJob.result ? (
@@ -136,18 +125,19 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               >
                 {notification && (
                   <div
-                    className={`mb-6 p-4 text-[11px] font-black uppercase tracking-widest rounded-xl flex items-center gap-3 border shadow-sm w-full ${
+                    className={`mb-6 p-4 text-xs font-black uppercase tracking-widest rounded-xl flex items-center gap-3 border shadow-sm w-full ${
                       notification.type === 'success'
-                        ? 'bg-status-success/10 text-status-success border-status-success/20'
-                        : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+                        ? 'bg-success-start/10 text-success-start border-success-start/20'
+                        : 'bg-danger-start/10 text-danger-start border-danger-start/20'
                     }`}
                   >
                     {notification.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
                     {notification.msg}
                   </div>
                 )}
-                {/* Removed extra wrapper; DraftResultRenderer handles its own background and padding */}
-                <DraftResultRenderer text={currentJob.result} t={t} />
+                <div className="p-0 shadow-lg rounded-sm min-h-[29.7cm]">
+                  <DraftResultRenderer text={currentJob.result} t={t} />
+                </div>
               </motion.div>
             ) : (
               <motion.div
@@ -179,14 +169,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Save Modal */}
-      <SaveModal
-        isOpen={saveModalOpen}
-        onClose={() => setSaveModalOpen(false)}
-        onSave={onSaveToCase}
-        saving={saving}
-      />
     </div>
   );
 };
