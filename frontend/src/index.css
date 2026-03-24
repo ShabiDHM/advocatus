@@ -705,4 +705,8 @@
   .glass-panel button:hover svg {
     color: var(--accent-primary);
   }
+
+  .group:hover > .absolute {
+  border-width: 2px !important;
+}
 }

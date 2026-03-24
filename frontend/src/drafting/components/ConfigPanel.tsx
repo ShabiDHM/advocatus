@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.4 (POINTER-EVENTS-AUTO + VISIBLE ICONS)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.5 (ABSOLUTE HOVER BORDER)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, LayoutTemplate, Lock, Send, RefreshCw, ChevronDown } from 'lucide-react';
@@ -80,8 +80,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const isButtonDisabled = isSubmitting || !context.trim();
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary-start/50 pointer-events-auto relative z-10">
-      
+    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm transition-all duration-300 relative group pointer-events-auto z-10">
+      {/* Absolute hover border – never clipped */}
+      <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none" />
+
       {/* Executive Header with visible icon background */}
       <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6 flex-shrink-0">
         <div className="p-2 bg-primary-start/10 rounded-xl border border-primary-start/20">
@@ -105,7 +107,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               </span>
             )}
           </div>
-          
+
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-start pointer-events-none z-10">
               <LayoutTemplate size={16} />
@@ -120,7 +122,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               <span>{getOptionLabel(selectedTemplate)}</span>
               <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
-            
+
             {isOpen && isPro && (
               <div
                 ref={dropdownRef}
