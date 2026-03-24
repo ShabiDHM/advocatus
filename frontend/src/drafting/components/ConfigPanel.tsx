@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.0 (IMPROVED CONTRAST & HOVER FIX)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.2 (ENHANCED HOVER + ICON VISIBILITY)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, LayoutTemplate, Lock, Send, RefreshCw, ChevronDown } from 'lucide-react';
@@ -21,7 +21,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -75,26 +74,26 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   };
 
   const handleGenerateClick = () => {
-    if (typeof onSubmit === 'function') {
-      onSubmit();
-    }
+    if (typeof onSubmit === 'function') onSubmit();
   };
 
   const isButtonDisabled = isSubmitting || !context.trim();
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm hover:border-primary-start/50 transition-all duration-300">
+    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary-start/50">
       
-      {/* Executive Header */}
+      {/* Executive Header with visible icon background */}
       <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6 flex-shrink-0">
-        <FileText className="text-accent-primary" size={20} />
+        <div className="p-2 bg-primary-start/10 rounded-xl border border-primary-start/20">
+          <FileText className="text-primary-start" size={20} />
+        </div>
         <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
           {t('drafting.configuration', 'Konfigurimi')}
         </h2>
       </div>
 
       <div className="flex flex-col gap-6 flex-1 min-h-0 overflow-hidden">
-        {/* Template Selector Only */}
+        {/* Template Selector */}
         <div className="flex-shrink-0 relative z-20">
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
@@ -107,9 +106,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             )}
           </div>
           
-          {/* Custom Dropdown */}
           <div className="relative">
-            <LayoutTemplate className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-accent-primary pointer-events-none z-10" />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-start pointer-events-none z-10">
+              <LayoutTemplate size={16} />
+            </div>
             <button
               ref={buttonRef}
               type="button"
@@ -125,7 +125,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               <div
                 ref={dropdownRef}
                 className="absolute z-[9999] mt-1 w-full bg-card border border-border-main rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar"
-                style={{ backgroundColor: 'var(--bg-card)' }}
               >
                 <div
                   onClick={() => handleSelect('generic')}

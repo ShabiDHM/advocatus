@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V6.7 (FIXED HOVER DEAD ZONE)
+// PHOENIX PROTOCOL - RESULT PANEL V6.8 (VISIBLE ICONS + FULL HOVER)
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,7 +35,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   }, [currentJob.status, t]);
 
-  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-muted hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none";
+  // Updated button style: more visible default color, and hover effect
+  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-secondary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none";
 
   return (
     <div className="glass-panel border border-border-main p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm hover-lift rounded-3xl hover:border-primary-start/50 transition-all duration-300">
