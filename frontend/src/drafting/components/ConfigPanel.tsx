@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.2 (VISIBLE ICONS + FULL HOVER)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.3 (POINTER EVENTS FIX)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, LayoutTemplate, Lock, Send, RefreshCw, ChevronDown } from 'lucide-react';
@@ -80,7 +80,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const isButtonDisabled = isSubmitting || !context.trim();
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary-start/50">
+    <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary-start/50 pointer-events-auto relative z-10">
       
       {/* Executive Header with visible icon background */}
       <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6 flex-shrink-0">

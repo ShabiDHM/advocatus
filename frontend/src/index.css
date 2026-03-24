@@ -696,4 +696,13 @@
   .table-cell-danger {
     border-left: 2px solid var(--status-danger);
   }
+
+  /* Icon visibility - Force high contrast in glass panels */
+  .glass-panel button svg {
+    color: var(--text-primary);
+    transition: color 0.2s ease;
+  }
+  .glass-panel button:hover svg {
+    color: var(--accent-primary);
+  }
 }
