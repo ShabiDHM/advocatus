@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.3 (POINTER EVENTS FIX)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.4 (POINTER-EVENTS-AUTO + VISIBLE ICONS)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, LayoutTemplate, Lock, Send, RefreshCw, ChevronDown } from 'lucide-react';
@@ -115,7 +115,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               type="button"
               onClick={() => isPro && setIsOpen(!isOpen)}
               disabled={!isPro}
-              className="w-full pl-11 pr-10 py-3.5 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 flex items-center justify-between"
+              className="w-full pl-11 pr-10 py-3.5 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 flex items-center justify-between pointer-events-auto"
             >
               <span>{getOptionLabel(selectedTemplate)}</span>
               <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -162,7 +162,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             value={context}
             onChange={(e) => onChangeContext(e.target.value)}
             placeholder={placeholder}
-            className="w-full p-5 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
+            className="w-full p-5 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted pointer-events-auto"
           />
         </div>
 
@@ -170,7 +170,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         <button
           onClick={handleGenerateClick}
           disabled={isButtonDisabled}
-          className="btn-primary w-full h-14 flex items-center justify-center gap-3 mt-2 flex-shrink-0 disabled:opacity-40 shadow-lg shadow-primary-start/20 hover-lift"
+          className="btn-primary w-full h-14 flex items-center justify-center gap-3 mt-2 flex-shrink-0 disabled:opacity-40 shadow-lg shadow-primary-start/20 hover-lift pointer-events-auto"
         >
           {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
           <span className="uppercase tracking-widest font-black text-xs">

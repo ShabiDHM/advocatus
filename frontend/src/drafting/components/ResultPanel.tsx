@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V7.0 (VISIBLE ICONS + FULL HOVER)
+// PHOENIX PROTOCOL - RESULT PANEL V7.1 (POINTER-EVENTS + Z-INDEX FORCE)
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,14 +35,14 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   }, [currentJob.status, t]);
 
-  // Use high‑contrast primary text for icons
-  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none";
+  // Base button style – uses text-text-primary for high contrast
+  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto";
 
   return (
     <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-sm hover-lift pointer-events-auto relative z-10 hover:border-primary-start/50 transition-all duration-300">
       
-      {/* Executive Header Toolbar - z-20 to stay above paper area */}
-      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-20">
+      {/* Executive Header Toolbar – force high z-index and pointer events */}
+      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
         <div className="flex items-center gap-4">
           <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
             {statusUI.icon}
@@ -60,7 +60,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             disabled={!currentJob.result || saving}
             className={actionButtonBase}
           >
-            {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} />}
+            {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} className="stroke-[2.5px]" />}
           </button>
           <button
             onClick={() => {
@@ -72,7 +72,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             disabled={!currentJob.result}
             className={actionButtonBase}
           >
-            <Copy size={18} />
+            <Copy size={18} className="stroke-[2.5px]" />
           </button>
           <button
             onClick={() => {
@@ -90,7 +90,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             disabled={!currentJob.result}
             className={actionButtonBase}
           >
-            <Download size={18} />
+            <Download size={18} className="stroke-[2.5px]" />
           </button>
           
           {currentJob.status === 'FAILED' && (
@@ -105,14 +105,14 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             onClick={onClear}
             title={t('drafting.clear')}
             disabled={!currentJob.result && currentJob.status !== 'FAILED'}
-            className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all disabled:opacity-30 hover-lift"
+            className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all disabled:opacity-30 hover-lift pointer-events-auto"
           >
-            <Trash2 size={18} />
+            <Trash2 size={18} className="stroke-[2.5px]" />
           </button>
         </div>
       </div>
 
-      {/* The Paper Reading Surface – lower z-index so toolbar gets hover */}
+      {/* The Paper Reading Surface – lower z-index so toolbar stays on top */}
       <div className="flex-1 bg-surface/30 overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
         <div className="min-h-full w-full flex justify-center">
           <AnimatePresence mode="wait">
@@ -136,7 +136,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                     {notification.msg}
                   </div>
                 )}
-                {/* White paper wrapper */}
                 <div className="bg-white p-12 text-black shadow-lg rounded-sm min-h-[29.7cm] border border-gray-200">
                   <DraftResultRenderer text={currentJob.result} t={t} />
                 </div>

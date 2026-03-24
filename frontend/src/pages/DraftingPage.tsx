@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V8.0 (RESPONSIVE + TYPE SAFE)
+// PHOENIX PROTOCOL - DRAFTING PAGE V8.2 (POINTER-EVENTS-AUTO ON GRID)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +13,7 @@ import { ConfigPanel } from '../drafting/components/ConfigPanel';
 import { ResultPanel } from '../drafting/components/ResultPanel';
 import { constructSmartPrompt } from '../drafting/utils/promptConstructor';
 
-const lawyerGradeStyles = `...`; // unchanged
+const lawyerGradeStyles = `...`; // unchanged – keep as is
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
@@ -129,14 +129,13 @@ const DraftingPage: React.FC = () => {
           </h1>
         </div>
 
-        {/* Responsive Grid */}
-        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:h-[750px] min-h-0">
+        {/* Responsive Grid - added pointer-events-auto */}
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:h-[750px] min-h-0 pointer-events-auto">
           {/* Config Panel */}
           <div className="h-full overflow-y-auto custom-scrollbar">
             <ConfigPanel
               t={t}
               isPro={isPro}
-              // The ConfigPanel in this app doesn't use cases, so we pass empty arrays and dummy handlers
               cases={[]}
               selectedCaseId={''}
               selectedTemplate={selectedTemplate}
@@ -157,7 +156,6 @@ const DraftingPage: React.FC = () => {
               saving={saving}
               notification={notification}
               onSave={handleSaveToArchive}
-              // These props are required by the type but may not be used in this ResultPanel
               onSaveToCase={async () => {}}
               onRetry={retry}
               onClear={clearJob}
