@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V7.4 (ABSOLUTE HOVER BORDER)
+// PHOENIX PROTOCOL - RESULT PANEL V7.5 (ABSOLUTE HOVER BORDER + Z-INDEX FORCE)
 
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,15 +35,16 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   }, [currentJob.status, t]);
 
+  // Base button style with explicit pointer events and forced icon colors
   const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto";
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] shadow-sm hover-lift transition-all duration-300 relative group overflow-visible">
-      {/* Absolute hover border – never clipped */}
-      <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none" />
+    <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] shadow-sm relative group overflow-visible">
+      {/* Absolute hover border – sits above all content, never clipped */}
+      <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none z-[100]" />
 
       {/* Executive Header Toolbar */}
-      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-[100] pointer-events-auto">
+      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
         <div className="flex items-center gap-4">
           <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
             {statusUI.icon}
@@ -53,6 +54,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </h3>
         </div>
 
+        {/* Action Button Cluster */}
         <div className="flex items-center gap-2">
           <button
             onClick={onSave}
@@ -112,7 +114,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
         </div>
       </div>
 
-      {/* Content area – scrollable, remains below the absolute border */}
+      {/* The Paper Reading Surface */}
       <div className="flex-1 bg-surface/30 overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
         <div className="min-h-full w-full flex justify-center">
           <AnimatePresence mode="wait">
