@@ -672,4 +672,12 @@
   .table-cell-danger {
     border-left: 2px solid var(--status-danger);
   }
+
+  @layer utilities {
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
