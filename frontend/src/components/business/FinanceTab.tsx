@@ -1,9 +1,5 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V7.0 (EXECUTIVE STYLING SYNC)
-// 1. FIXED: Replaced 'card-panel' with 'glass-panel' for outer column consistency.
-// 2. ENHANCED: Standardized all inner cards (Stats, Analytics, Buttons) to 'bg-surface rounded-2xl'.
-// 3. FIXED: Harmonized "Analiza (30 Ditë)" typography to match section headers.
-// 4. RETAINED: 100% of logic, API calls, and localization.
+// PHOENIX PROTOCOL - FINANCE TAB V7.1 (FIXED DOUBLE BORDER ON TABS)
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -294,7 +290,8 @@ export const FinanceTab: React.FC = () => {
                 <div className="lg:col-span-2 glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden shadow-sm">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-border-main pb-4 flex-none">
                         <h2 className="text-lg font-bold text-text-primary shrink-0">{t('finance.activityAndReports')}</h2>
-                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-surface/20 p-1 rounded-xl border border-border-main">
+                        {/* Removed duplicate border from tabs container */}
+                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-surface/20 p-1 rounded-xl">
                             <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                             <TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                             <TabButton label={t('finance.tabHistory')} icon={<History size={16} />} isActive={activeTab === 'history'} onClick={() => setActiveTab('history')} />

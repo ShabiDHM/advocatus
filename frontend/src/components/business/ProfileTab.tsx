@@ -1,9 +1,5 @@
 // FILE: src/components/business/ProfileTab.tsx
-// PHOENIX PROTOCOL - PROFILE TAB V7.0 (EXECUTIVE STYLING SYNC)
-// 1. FIXED: Unified accent colors to 'primary-start' to match the global app theme.
-// 2. ENHANCED: Upgraded container to 'rounded-3xl glass-panel' for perfect tab consistency.
-// 3. ENHANCED: Inputs now use 'bg-surface', deep focus rings, and 'font-black' semantic labels.
-// 4. RETAINED: 100% of form state, logic, and image blob processing.
+// PHOENIX PROTOCOL - PROFILE TAB V7.1 (FIXED DOUBLE TOP BORDER)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -120,9 +116,9 @@ export const ProfileTab: React.FC = () => {
             animate={{ opacity: 1, y: 0 }} 
             className="w-full max-w-5xl mx-auto"
         >
-            <form onSubmit={handleProfileSubmit} className="glass-panel border border-border-main rounded-3xl p-8 sm:p-10 shadow-sm relative overflow-hidden">
+            <form onSubmit={handleProfileSubmit} className="glass-panel border-x border-b border-border-main rounded-3xl p-8 sm:p-10 shadow-sm relative overflow-hidden">
                 
-                {/* Top Border Accent */}
+                {/* Top Border Accent – now the only top border */}
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-hover" />
 
                 {/* --- HEADER SECTION: Title + Logo --- */}

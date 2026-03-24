@@ -1,5 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V6.4 (IMPROVED DROPDOWN POSITIONING)
+// PHOENIX PROTOCOL - TEAM TAB V6.5 (FIXED DOUBLE TOP BORDER)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -144,7 +144,8 @@ export const TeamTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border border-main">
+                {/* First glass-panel: Title & Invite button – now without top border */}
+                <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border-x border-b border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div>
@@ -163,7 +164,8 @@ export const TeamTab: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-main">
+                {/* Plan usage card – keep full border */}
+                <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
@@ -186,7 +188,8 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-main">
+            {/* Members table – keep full border */}
+            <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-border-main">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
                         <thead className="bg-surface/30 text-text-muted text-xs uppercase tracking-wider">
@@ -197,7 +200,7 @@ export const TeamTab: React.FC = () => {
                                 <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.table_actions')}</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-main text-sm">
+                        <tbody className="divide-y divide-border-main text-sm">
                             {members.map((member) => {
                                 const memberRole = member.organization_role || member.role;
                                 const isOwner = memberRole === 'OWNER';
@@ -205,7 +208,7 @@ export const TeamTab: React.FC = () => {
                                     <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-surface/50 to-surface/70 flex items-center justify-center text-text-primary font-bold border border-main">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-surface/50 to-surface/70 flex items-center justify-center text-text-primary font-bold border border-border-main">
                                                     {member.username.substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div>
@@ -252,7 +255,7 @@ export const TeamTab: React.FC = () => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed z-[9999] w-48 glass-panel border border-main rounded-xl shadow-2xl overflow-hidden"
+                    className="fixed z-[9999] w-48 glass-panel border border-border-main rounded-xl shadow-2xl overflow-hidden"
                     style={{ top: menuPosition.top, left: menuPosition.left }}
                 >
                     <div className="py-1">
@@ -286,7 +289,7 @@ export const TeamTab: React.FC = () => {
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-panel border border-main w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-panel border border-border-main w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
                             <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="absolute top-6 right-6 text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
                             
                             <div className="mb-6">
