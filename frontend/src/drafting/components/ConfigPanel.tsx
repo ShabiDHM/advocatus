@@ -1,16 +1,51 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V6.0 (FULL LOGIC + EXECUTIVE DESIGN)
-
 import React, { useMemo } from 'react';
-import { FileText, Briefcase, ChevronDown, LayoutTemplate, Lock, Send, RefreshCw } from 'lucide-react';
+import { FileText, Briefcase, LayoutTemplate, Lock, Send, RefreshCw } from 'lucide-react';
 import { ConfigPanelProps } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   t, isPro, cases, selectedCaseId, selectedTemplate, context, isSubmitting,
   onSelectCase, onSelectTemplate, onChangeContext, onSubmit,
 }) => {
   const placeholder = useMemo(() => getTemplatePlaceholder(selectedTemplate), [selectedTemplate]);
+
+  // Prepare case options for the custom select
+  const caseOptions = [
+    { value: '', label: t('drafting.noCaseSelected') },
+    ...cases.map((c: any) => ({
+      value: c.id,
+      label: c.title || c.case_name,
+    })),
+  ];
+
+  // Prepare template options with groups
+  const templateOptions = [
+    { value: 'generic', label: t('drafting.templateGeneric'), group: '' },
+    // Litigation group
+    { value: 'padi', label: t('drafting.templatePadi'), group: t('drafting.groupLitigation') },
+    { value: 'pergjigje', label: t('drafting.templatePergjigje'), group: t('drafting.groupLitigation') },
+    { value: 'kunderpadi', label: t('drafting.templateKunderpadi'), group: t('drafting.groupLitigation') },
+    { value: 'ankese', label: t('drafting.templateAnkese'), group: t('drafting.groupLitigation') },
+    { value: 'prapësim', label: t('drafting.templatePrapesim'), group: t('drafting.groupLitigation') },
+    // Corporate group
+    { value: 'nda', label: t('drafting.templateNDA'), group: t('drafting.groupCorporate') },
+    { value: 'mou', label: t('drafting.templateMoU'), group: t('drafting.groupCorporate') },
+    { value: 'shareholders', label: t('drafting.templateShareholders'), group: t('drafting.groupCorporate') },
+    { value: 'sla', label: t('drafting.templateSLA'), group: t('drafting.groupCorporate') },
+    // Employment group
+    { value: 'employment_contract', label: t('drafting.templateKontrate'), group: t('drafting.groupEmployment') },
+    { value: 'termination_notice', label: t('drafting.templateTermination'), group: t('drafting.groupEmployment') },
+    { value: 'warning_letter', label: t('drafting.templateWarning'), group: t('drafting.groupEmployment') },
+    // Real Estate group
+    { value: 'lease_agreement', label: t('drafting.templateLease'), group: t('drafting.groupRealEstate') },
+    { value: 'sales_purchase', label: t('drafting.templateSales'), group: t('drafting.groupRealEstate') },
+    { value: 'power_of_attorney', label: t('drafting.templatePoA'), group: t('drafting.groupRealEstate') },
+    // Compliance group
+    { value: 'terms_conditions', label: t('drafting.templateTerms'), group: t('drafting.groupCompliance') },
+    { value: 'privacy_policy', label: t('drafting.templatePrivacy'), group: t('drafting.groupCompliance') },
+  ];
 
   return (
     <div className="glass-panel border border-border-main rounded-3xl p-6 sm:p-8 flex flex-col h-auto lg:h-[700px] shrink-0 shadow-sm hover:lift transition-all">
@@ -38,23 +73,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 </span>
               )}
             </div>
-            <div className="relative group">
-              <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-start opacity-70" />
-              <select
-                value={selectedCaseId}
-                onChange={(e) => onSelectCase(e.target.value)}
-                disabled={!isPro}
-                className="w-full pl-11 pr-10 py-3.5 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
-              >
-                <option value="" className="bg-surface">{t('drafting.noCaseSelected')}</option>
-                {cases.map((c: any) => (
-                  <option key={c.id} value={c.id} className="bg-surface">
-                    {c.title || c.case_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
-            </div>
+            <CustomSelect
+              value={selectedCaseId}
+              onChange={onSelectCase}
+              options={caseOptions}
+              disabled={!isPro}
+              icon={<Briefcase className="h-4 w-4" />}
+            />
           </div>
 
           {/* Template Selector */}
@@ -62,45 +87,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <label className="block text-[10px] font-black text-text-muted uppercase tracking-widest mb-2">
               {t('drafting.templateLabel')}
             </label>
-            <div className="relative group">
-              <LayoutTemplate className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-start opacity-70" />
-              <select
-                value={selectedTemplate}
-                onChange={(e) => onSelectTemplate(e.target.value)}
-                disabled={!isPro}
-                className="w-full pl-11 pr-10 py-3.5 bg-surface border border-border-main rounded-xl text-sm font-bold appearance-none cursor-pointer disabled:opacity-50 focus:border-primary-start outline-none transition-all"
-              >
-                <option value="generic" className="bg-surface">{t('drafting.templateGeneric')}</option>
-                <optgroup label={t('drafting.groupLitigation')} className="bg-surface text-text-primary italic">
-                  <option value="padi" className="bg-surface not-italic">{t('drafting.templatePadi')}</option>
-                  <option value="pergjigje" className="bg-surface not-italic">{t('drafting.templatePergjigje')}</option>
-                  <option value="kunderpadi" className="bg-surface not-italic">{t('drafting.templateKunderpadi')}</option>
-                  <option value="ankese" className="bg-surface not-italic">{t('drafting.templateAnkese')}</option>
-                  <option value="prapësim" className="bg-surface not-italic">{t('drafting.templatePrapesim')}</option>
-                </optgroup>
-                <optgroup label={t('drafting.groupCorporate')} className="bg-surface text-text-primary italic">
-                  <option value="nda" className="bg-surface not-italic">{t('drafting.templateNDA')}</option>
-                  <option value="mou" className="bg-surface not-italic">{t('drafting.templateMoU')}</option>
-                  <option value="shareholders" className="bg-surface not-italic">{t('drafting.templateShareholders')}</option>
-                  <option value="sla" className="bg-surface not-italic">{t('drafting.templateSLA')}</option>
-                </optgroup>
-                <optgroup label={t('drafting.groupEmployment')} className="bg-surface text-text-primary italic">
-                  <option value="employment_contract" className="bg-surface not-italic">{t('drafting.templateKontrate')}</option>
-                  <option value="termination_notice" className="bg-surface not-italic">{t('drafting.templateTermination')}</option>
-                  <option value="warning_letter" className="bg-surface not-italic">{t('drafting.templateWarning')}</option>
-                </optgroup>
-                <optgroup label={t('drafting.groupRealEstate')} className="bg-surface text-text-primary italic">
-                  <option value="lease_agreement" className="bg-surface not-italic">{t('drafting.templateLease')}</option>
-                  <option value="sales_purchase" className="bg-surface not-italic">{t('drafting.templateSales')}</option>
-                  <option value="power_of_attorney" className="bg-surface not-italic">{t('drafting.templatePoA')}</option>
-                </optgroup>
-                <optgroup label={t('drafting.groupCompliance')} className="bg-surface text-text-primary italic">
-                  <option value="terms_conditions" className="bg-surface not-italic">{t('drafting.templateTerms')}</option>
-                  <option value="privacy_policy" className="bg-surface not-italic">{t('drafting.templatePrivacy')}</option>
-                </optgroup>
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
-            </div>
+            <CustomSelect
+              value={selectedTemplate}
+              onChange={onSelectTemplate}
+              options={templateOptions}
+              disabled={!isPro}
+              icon={<LayoutTemplate className="h-4 w-4" />}
+            />
           </div>
         </div>
 
@@ -121,7 +114,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         <button
           onClick={onSubmit}
           disabled={isSubmitting || !context.trim()}
-          className="btn-primary w-full h-14 flex items-center justify-center gap-3 mt-2 flex-shrink-0 disabled:opacity-40 shadow-lg shadow-primary-start/20"
+          className="btn-primary w-full h-14 flex items-center justify-center gap-3 mt-2 flex-shrink-0 disabled:opacity-40 shadow-lg shadow-primary-start/20 hover-lift"
         >
           {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
           <span className="uppercase tracking-widest font-black text-xs">
