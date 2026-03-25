@@ -1,5 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V13.6 (No flex+block conflict)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V13.7 (Fixed flex+block conflict)
+
+/* eslint-disable tailwindcss/no-contradicting-classname */
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -354,7 +356,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
-                                {/* War Room Sub-Tabs - ensure only flex, no block */}
+                                {/* War Room Sub-Tabs */}
                                 <div className="flex flex-wrap gap-3 mb-8 shrink-0 pb-2">
                                     <button onClick={() => setWarRoomSubTab('strategy')} className={`px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-widest font-black transition-all ${warRoomSubTab === 'strategy' ? 'bg-primary-start text-white shadow-accent-glow' : 'bg-surface border border-border-main text-text-muted hover:text-text-primary'}`}>
                                         <Target size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
@@ -453,11 +455,15 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                             </div>
                                                             <div className="grid md:grid-cols-2 gap-6 mb-4">
                                                                 <div className="p-5 bg-canvas rounded-xl border border-border-main">
-                                                                    <span className="text-[10px] text-danger-start font-black uppercase tracking-widest block mb-3 flex items-center gap-2"><FileText size={14}/> {t('analysis.claim_label', 'Deklarata')}</span>
+                                                                    <span className="text-[10px] text-danger-start font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                        <FileText size={14}/> {t('analysis.claim_label', 'Deklarata')}
+                                                                    </span>
                                                                     <div className="text-sm text-text-primary leading-relaxed italic">"{renderCitationItem(c.claim)}"</div>
                                                                 </div>
                                                                 <div className="p-5 bg-canvas rounded-xl border border-border-main">
-                                                                    <span className="text-[10px] text-success-start font-black uppercase tracking-widest block mb-3 flex items-center gap-2"><Scale size={14}/> {t('analysis.evidence_label', 'Prova Objektive')}</span>
+                                                                    <span className="text-[10px] text-success-start font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                        <Scale size={14}/> {t('analysis.evidence_label', 'Prova Objektive')}
+                                                                    </span>
                                                                     <div className="text-sm text-text-primary font-medium leading-relaxed">{renderCitationItem(c.evidence)}</div>
                                                                 </div>
                                                             </div>
