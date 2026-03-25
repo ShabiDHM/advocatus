@@ -1,5 +1,5 @@
-// FILE: src/components/Header.tsx (Second App – Centered Navigation)
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v10.3 (Centered Tabs)
+// FILE: src/components/Header.tsx (Second App – Consistent Typography)
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v10.4 (Standardised Text Sizes)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -157,7 +157,9 @@ const Header: React.FC = () => {
             >
               <div className="text-right hidden sm:block px-1">
                 <p className="text-sm font-medium text-text-primary leading-none mb-1">{user?.username || 'User'}</p>
-                <p className="text-[10px] text-text-muted uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
+                <p className="text-xs text-text-muted uppercase tracking-wider leading-none">
+                  {user?.role ? t(`role.${user.role.toLowerCase()}`, user.role) : t('role.user')}
+                </p>
               </div>
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-text-inverse font-bold text-sm shadow-sm border border-primary-start/20">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}

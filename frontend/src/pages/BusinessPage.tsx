@@ -1,8 +1,5 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.0 (CONFLICT-FREE EXECUTIVE SYNC)
-// 1. FIXED: Removed conflicting 'tracking-tighter' and 'tracking-widest' conflict.
-// 2. FIXED: Used 'tracking-widest' as the primary executive spacing standard.
-// 3. RETAINED: 100% logic and symmetrical flex-row header layout.
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.1 (STANDARDIZED TYPOGRAPHY)
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -50,7 +47,7 @@ const BusinessPage: React.FC = () => {
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             
-            {/* The Greeting - Hierarchy Fixed (Conflict Free) */}
+            {/* The Greeting */}
             <div>
                 <h1 className="text-3xl font-black text-text-primary uppercase tracking-widest mb-1">
                     {t('general.welcome', 'Mirësevini')}
@@ -60,13 +57,13 @@ const BusinessPage: React.FC = () => {
                 </p>
             </div>
 
-            {/* Navigation Tabs - Segmented Bar */}
+            {/* Navigation Tabs - Segmented Bar – standardized typography */}
             <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-fit">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ActiveTab)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                             activeTab === tab.id 
                             ? 'bg-primary-start text-white shadow-md' 
                             : 'text-text-muted hover:text-text-primary hover:bg-canvas'
@@ -78,7 +75,7 @@ const BusinessPage: React.FC = () => {
             </div>
         </div>
 
-        {/* Content Area - Symmetrical */}
+        {/* Content Area */}
         <motion.div 
             key={activeTab}
             initial={{ opacity: 0, y: 10 }} 
