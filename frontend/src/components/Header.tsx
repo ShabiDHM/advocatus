@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx (Second App – Unified with First App)
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v11.0
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v12.0
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -84,8 +84,13 @@ const Header: React.FC = () => {
     };
   }, [isProfileOpen]);
 
-
-  const isActive = (path: string) => location.pathname.startsWith(path);
+  // Active check: for '/business', treat any sub‑path as active
+  const isActive = (path: string) => {
+    if (path === '/business') {
+      return location.pathname.startsWith('/business');
+    }
+    return location.pathname === path;
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/80 backdrop-blur-xl border-b border-border-main">
