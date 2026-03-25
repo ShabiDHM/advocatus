@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V13.10 (Fixed spinner animation)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V13.10(Fixed spinner animation)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
