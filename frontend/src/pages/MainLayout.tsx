@@ -1,9 +1,5 @@
 // FILE: src/layouts/MainLayout.tsx
-// PHOENIX PROTOCOL - LAYOUT V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, text-text-primary, border-main.
-// 2. Ambient glows use semantic color variables (primary-start, secondary-start).
-// 3. Removed sidebar references; full‑width content.
-// 4. Header remains sticky; page scrolls normally.
+// PHOENIX PROTOCOL - LAYOUT V6.1 (Fixed header support)
 
 import React from 'react';
 import { Outlet } from 'react-router-dom';
@@ -20,13 +16,11 @@ const MainLayout: React.FC = () => {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-surface/40 rounded-full blur-[150px] opacity-20"></div>
       </div>
 
-      {/* --- HEADER (fixed navigation) --- */}
-      <header className="sticky top-0 shrink-0 relative z-40">
-        <Header />
-      </header>
+      {/* --- HEADER (fixed) --- */}
+      <Header />
 
-      {/* --- MAIN CONTENT AREA (full width) --- */}
-      <div className="flex-1 flex flex-col relative w-full">
+      {/* --- MAIN CONTENT AREA (with padding-top for fixed header) --- */}
+      <div className="flex-1 flex flex-col relative w-full pt-16">
         <main className="flex-1 scroll-smooth">
           <div className="relative min-h-full pb-20 lg:pb-0">
             <Outlet />
