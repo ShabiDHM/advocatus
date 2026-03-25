@@ -1,5 +1,5 @@
-// FILE: src/components/Header.tsx (Juristi)
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v10.2 (Consistent Typography)
+// FILE: src/components/Header.tsx (Second App – Centered Navigation)
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v10.3 (Centered Tabs)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -90,8 +90,8 @@ const Header: React.FC = () => {
     <>
       <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 shadow-sm border-b border-border-main">
         
-        {/* Left section: logo and search */}
-        <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
+        {/* Left section: logo and search – fixed width, no flex‑grow */}
+        <div className="flex items-center gap-4 lg:gap-8 flex-shrink-0">
           <div className="flex-shrink-0">
             <BrandLogo />
           </div>
@@ -106,8 +106,8 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Desktop Nav – updated to match consistent typography */}
-        <nav className="hidden lg:flex items-center h-full space-x-2">
+        {/* Center: Navigation – flex‑1 to push both sides, justify‑center to center items */}
+        <nav className="hidden lg:flex items-center justify-center flex-1 h-full space-x-2">
           {navItems.map((item) => {
             const isCurrentActive = location.pathname.startsWith(item.path);
             return (
@@ -127,7 +127,7 @@ const Header: React.FC = () => {
           })}
         </nav>
 
-        {/* Right section: Utilities */}
+        {/* Right section: Utilities – flex‑shrink‑0 to stay on the right */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           
           <button
@@ -199,7 +199,7 @@ const Header: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar (unchanged) */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-0 glass-panel z-50 animate-in fade-in border-r border-border-main">
           <div className="flex items-center justify-between h-16 px-4 border-b border-border-main">

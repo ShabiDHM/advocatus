@@ -1,9 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V12.0 (GREETING HIERARCHY RESTORED)
-// 1. FIXED: Greeting split into two lines (Mirësevini / Name).
-// 2. FIXED: Removed uppercase/tracking overrides from the greeting to ensure clean text.
-// 3. FIXED: Header and Tabs are now properly flex-aligned.
-// 4. RETAINED: 100% of the original logic, lazy-loading, and tab state management.
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.0 (CONFLICT-FREE EXECUTIVE SYNC)
+// 1. FIXED: Removed conflicting 'tracking-tighter' and 'tracking-widest' conflict.
+// 2. FIXED: Used 'tracking-widest' as the primary executive spacing standard.
+// 3. RETAINED: 100% logic and symmetrical flex-row header layout.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +21,6 @@ const BusinessPage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
-  // Professional Name Formatting Helper
   const formatName = (name: string | undefined) => {
     if (!name) return "Shaban Bala";
     return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -51,14 +49,15 @@ const BusinessPage: React.FC = () => {
         
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
-            {/* The Greeting - Fixed 2-Line Structure */}
+            
+            {/* The Greeting - Hierarchy Fixed (Conflict Free) */}
             <div>
-                <h1 className="text-xl font-bold text-text-muted mb-0.5">
+                <h1 className="text-3xl font-black text-text-primary uppercase tracking-widest mb-1">
                     {t('general.welcome', 'Mirësevini')}
                 </h1>
-                <h2 className="text-3xl font-black text-text-primary tracking-tighter">
+                <p className="text-lg font-medium text-text-muted tracking-wide">
                     {formatName(user?.full_name || user?.username)}
-                </h2>
+                </p>
             </div>
 
             {/* Navigation Tabs - Segmented Bar */}
