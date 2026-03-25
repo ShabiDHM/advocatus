@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V13.9 (Zoom Control for Readability)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V13.10 (Fixed spinner animation)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
-    Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit,
+    Link as LinkIcon, Clock, Skull, AlertOctagon, 
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle,
     ZoomIn, ZoomOut
 } from 'lucide-react';
@@ -27,6 +27,29 @@ interface AnalysisModalProps {
 }
 
 type ZoomLevel = 'normal' | 'large';
+
+const Spinner = ({ size = 'w-20 h-20' }: { size?: string }) => (
+  <div
+    className={`${size} border-4 border-primary-start border-t-transparent rounded-full`}
+    style={{ animation: 'spin 1s linear infinite' }}
+  />
+);
+
+// Add keyframes globally if not already present. You can also add to index.css.
+// But to ensure it works, we'll inject style on mount. This is safe.
+const injectSpinKeyframes = () => {
+  if (typeof document !== 'undefined' && !document.querySelector('#spinner-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'spinner-keyframes';
+    style.textContent = `
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+};
 
 const safeString = (val: any): string => {
     if (!val) return "";
@@ -135,6 +158,11 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [isContradictLoading, setIsContradictLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
+  // Inject keyframes on mount
+  useEffect(() => {
+    injectSpinKeyframes();
+  }, []);
+
   useEffect(() => {
     if (isOpen) { document.body.style.overflow = 'hidden'; setActiveTab('legal'); setWarRoomSubTab('strategy'); } 
     else { document.body.style.overflow = 'unset'; }
@@ -237,8 +265,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const renderSubTabLoader = () => (
     <div className="flex-1 flex flex-col items-center justify-center text-center py-32">
-        <BrainCircuit className="w-16 h-16 text-primary-start animate-pulse mb-6 opacity-80" />
-        <h3 className="text-xl font-black text-gray-900 dark:text-text-primary uppercase tracking-widest mb-3">{t('analysis.loading_deep_title', 'Duke Simuluar...')}</h3>
+        <Spinner size="w-16 h-16" />
+        <h3 className="text-xl font-black text-gray-900 dark:text-text-primary uppercase tracking-widest mb-3 mt-6">{t('analysis.loading_deep_title', 'Duke Simuluar...')}</h3>
         <p className="text-gray-500 dark:text-text-muted text-[11px] font-bold uppercase tracking-widest">{t('analysis.rag_processing', 'Analiza e thellë statutore...')}</p>
     </div>
   );
@@ -280,8 +308,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
           {isLoading ? (
              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-surface/30">
-                 <div className="w-20 h-20 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-8 shadow-accent-glow"></div>
-                 <h3 className="text-2xl font-black text-gray-900 dark:text-text-primary uppercase tracking-widest mb-3">{t('analysis.loading_title', 'Duke Analizuar...')}</h3>
+                 <Spinner size="w-20 h-20" />
+                 <h3 className="text-2xl font-black text-gray-900 dark:text-text-primary uppercase tracking-widest mb-3 mt-6">{t('analysis.loading_title', 'Duke Analizuar...')}</h3>
                  <p className="text-gray-500 dark:text-text-muted text-[11px] font-bold uppercase tracking-widest">Kjo mund të marrë disa sekonda</p>
              </div>
           ) : (
@@ -519,7 +547,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   }`}
               >
                   {isArchiving ? (
-                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
                   ) : (
                       <CheckCircle2 size={16} />
                   )}

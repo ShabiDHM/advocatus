@@ -1,5 +1,5 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.8 (Fixed scroll & height)
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.9 (Fixed text contrast)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +18,7 @@ interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; tim
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
 
-// --- High-Fidelity Markdown Renderer ---
+// --- High-Fidelity Markdown Renderer (modified to use black text for report) ---
 const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
@@ -26,7 +26,7 @@ const renderMarkdown = (text: string) => {
         if (trimmed === '---') return <hr key={i} className="border-border-main my-8" />;
         if (!trimmed) return <div key={i} className="h-4" />;
         if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-            return <h3 key={i} className="text-sm font-black text-text-primary uppercase tracking-widest mt-8 mb-4 border-b border-border-main/50 pb-2">{trimmed.slice(2, -2)}</h3>;
+            return <h3 key={i} className="text-sm font-black text-black uppercase tracking-widest mt-8 mb-4 border-b border-border-main/50 pb-2">{trimmed.slice(2, -2)}</h3>;
         }
         if (/^\d\.\d\.?/.test(trimmed) || /^\d\.\s/.test(trimmed)) {
              return <h4 key={i} className="text-primary-start font-black text-xs uppercase tracking-tight mt-6 mb-3">{trimmed}</h4>;
@@ -35,7 +35,7 @@ const renderMarkdown = (text: string) => {
             const parts = trimmed.split(/:(.*)/s);
             if (parts.length > 1 && parts[0].length < 35) { 
                 return (
-                    <p key={i} className="text-text-primary text-[15px] leading-relaxed mb-3">
+                    <p key={i} className="text-black text-[15px] leading-relaxed mb-3">
                         <strong className="font-black uppercase text-[10px] tracking-widest text-primary-start mr-2">{parts[0]}:</strong>
                         <span>{parts[1]}</span>
                     </p>
@@ -46,11 +46,11 @@ const renderMarkdown = (text: string) => {
             return (
                 <div key={i} className="flex gap-3 ml-2 mb-3 items-start">
                     <span className="text-primary-start mt-2 w-1.5 h-1.5 rounded-full bg-primary-start shrink-0 shadow-accent-glow"/>
-                    <p className="text-text-primary text-[15px] leading-relaxed">{trimmed.substring(2)}</p>
+                    <p className="text-black text-[15px] leading-relaxed">{trimmed.substring(2)}</p>
                 </div>
             );
         }
-        return <p key={i} className="text-text-primary text-[15px] leading-relaxed mb-3">{trimmed}</p>;
+        return <p key={i} className="text-black text-[15px] leading-relaxed mb-3">{trimmed}</p>;
     });
 };
 
@@ -201,13 +201,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <h3 className="text-xs font-black text-text-primary uppercase tracking-widest">Memorandumi i Gjetjeve</h3>
                             </div>
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                <div className="bg-white text-black shadow-lg rounded-lg p-8 max-w-2xl mx-auto border border-gray-200">
+                                <div className="bg-white shadow-lg rounded-lg p-8 max-w-2xl mx-auto border border-gray-200">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
                         </div>
 
-                        {/* RIGHT PANEL: Chat */}
+                        {/* RIGHT PANEL: Chat (unchanged) */}
                         <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[70vh] min-h-[500px] overflow-hidden shadow-lawyer-dark">
                             <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5 shadow-accent-glow rounded-full" />
