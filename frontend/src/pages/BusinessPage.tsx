@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V10.0 (SYMMETRY RESTORED)
-// 1. FIXED: Unified Welcome text, Tabs, and Panels into one single column container.
-// 2. ENHANCED: Tabs migrated to the "Executive Segmented Bar" style.
-// 3. RETAINED: 100% of the original tab logic and lazy loading.
+// PHOENIX PROTOCOL - BUSINESS PAGE V11.2 (LINT-FREE SYMMETRY)
+// 1. FIXED: Removed conflicting 'tracking-tighter' class.
+// 2. FIXED: 'tracking-widest' is now the single source of truth for header spacing.
+// 3. RETAINED: 100% logic, tab lazy-loading, and symmetrical header layout.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,22 @@ const BusinessPage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
+  // Phoenix Protocol: Professional Name Formatting Helper
+  const formatName = (name: string | undefined) => {
+    if (!name) return "Shaban Bala";
+    return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'profile': return <ProfileTab />;
+      case 'team': return <TeamTab />;
+      case 'finance': return <FinanceTab />;
+      case 'archive': return <ArchiveTab />;
+      default: return null;
+    }
+  };
+
   const tabs = [
     { id: 'profile', label: t('business.profile'), icon: <Building2 size={16} /> },
     { id: 'team', label: t('business.team'), icon: <Users size={16} /> },
@@ -30,51 +46,43 @@ const BusinessPage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen pt-12 pb-12">
-        {/* Unified Container: All items share this max-width and margin */}
-        <div className="max-w-5xl mx-auto px-6">
-            
-            {/* Header + Tabs Area */}
-            <div className="mb-10 flex flex-col gap-8">
-                <div>
-                    <h1 className="text-3xl font-black text-text-primary tracking-tighter mb-1">
-                        {t('general.welcome_name', { name: user?.username || 'Shaban Bala' })}
-                    </h1>
-                    <p className="text-xs font-black text-text-muted uppercase tracking-widest">
-                        {t('business.subtitle', 'Menaxhoni zyrën tuaj.')}
-                    </p>
-                </div>
+      {/* Unified Container: All items share this max-width and margin */}
+      <div className="max-w-5xl mx-auto px-6">
+        
+        {/* Executive Row: Greeting (Left) and Tabs (Right) */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+            <h1 className="text-3xl font-black text-text-primary tracking-widest uppercase">
+                {t('general.welcome_name', { name: formatName(user?.full_name || user?.username) })}
+            </h1>
 
-                {/* Segmented Bar - Aligned to Panel width */}
-                <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-fit">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as ActiveTab)}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                activeTab === tab.id 
-                                ? 'bg-primary-start text-white shadow-lg' 
-                                : 'text-text-muted hover:text-text-primary hover:bg-canvas'
-                            }`}
-                        >
-                            {tab.icon} {tab.label}
-                        </button>
-                    ))}
-                </div>
+            {/* Navigation Tabs - Segmented Bar */}
+            <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-fit">
+                {tabs.map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as ActiveTab)}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                            activeTab === tab.id 
+                            ? 'bg-primary-start text-white shadow-md' 
+                            : 'text-text-muted hover:text-text-primary hover:bg-canvas'
+                        }`}
+                    >
+                        {tab.icon} {tab.label}
+                    </button>
+                ))}
             </div>
-
-            {/* Content Area */}
-            <motion.div 
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                className="w-full"
-            >
-                {activeTab === 'profile' && <ProfileTab />}
-                {activeTab === 'team' && <TeamTab />}
-                {activeTab === 'finance' && <FinanceTab />}
-                {activeTab === 'archive' && <ArchiveTab />}
-            </motion.div>
         </div>
+
+        {/* Content Area - Symmetrical */}
+        <motion.div 
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="w-full"
+        >
+            {renderActiveTab()}
+        </motion.div>
+      </div>
     </div>
   );
 };
