@@ -1,7 +1,10 @@
-// FILE: src/components/Header.tsx (Second App – unified with first app)
+// FILE: src/components/Header.tsx (Second App – Unified with First App)
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v11.0
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
+import { 
+    Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon 
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +31,7 @@ const Header: React.FC = () => {
     { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
-
+  
   if (user?.role === 'ADMIN') {
     navItems.splice(1, 0, {
       icon: Shield,
@@ -59,7 +62,7 @@ const Header: React.FC = () => {
       }
     };
     checkAlerts();
-    const interval = setInterval(checkAlerts, 60000);
+    const interval = setInterval(checkAlerts, 60000); 
     return () => clearInterval(interval);
   }, [user]);
 
@@ -76,17 +79,13 @@ const Header: React.FC = () => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [isProfileOpen]);
 
-  const handleDropdownNavigate = (path: string) => {
-    setIsProfileOpen(false);
-    navigate(path);
-  };
 
-  const isActive = (item: any) => {
-    return location.pathname.startsWith(item.path);
-  };
+  const isActive = (path: string) => location.pathname.startsWith(path);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/80 backdrop-blur-xl border-b border-border-main">
@@ -99,15 +98,15 @@ const Header: React.FC = () => {
         >
           {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <Link to="/dashboard" className="flex items-center">
+        <Link to="/business" className="flex items-center">
           <BrandLogo />
         </Link>
       </div>
 
-      {/* Center: Segmented Glass Bar – hidden on mobile */}
+      {/* Center: Segmented Glass Bar */}
       <div className="hidden lg:flex items-center bg-surface/50 p-1 rounded-2xl border border-border-main shadow-inner">
         {navItems.map((item) => {
-          const active = isActive(item);
+          const active = isActive(item.path);
           return (
             <NavLink
               key={item.path}
@@ -129,7 +128,6 @@ const Header: React.FC = () => {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">
-        {/* Theme toggle */}
         <button 
           onClick={toggleTheme} 
           className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
@@ -138,7 +136,6 @@ const Header: React.FC = () => {
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* Alert bell */}
         <Link to="/calendar" className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg relative">
           <Bell size={18} />
           {alertCount > 0 && (
@@ -146,7 +143,7 @@ const Header: React.FC = () => {
           )}
         </Link>
 
-        {/* User profile (desktop) */}
+        {/* User profile */}
         <div className="relative hidden sm:block">
           <button
             ref={buttonRef}
@@ -165,13 +162,10 @@ const Header: React.FC = () => {
                 <p className="text-xs text-text-muted">{user?.email}</p>
               </div>
 
-              <button onClick={() => handleDropdownNavigate('/account')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
+              <button onClick={() => navigate('/account')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
                 <UserIcon size={16} className="mr-3 text-primary" />{t('sidebar.account')}
               </button>
-              <button onClick={() => handleDropdownNavigate('/profile')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
-                <Building2 size={16} className="mr-3 text-primary" />{t('business.profile', 'Profili')}
-              </button>
-              <button onClick={() => handleDropdownNavigate('/support')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
+              <button onClick={() => navigate('/support')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
                 <MessageSquare size={16} className="mr-3 text-primary" />{t('sidebar.support')}
               </button>
               <div className="h-px bg-border-main my-1"></div>
@@ -179,7 +173,7 @@ const Header: React.FC = () => {
                 onClick={() => { setIsProfileOpen(false); logout(); }} 
                 className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors"
               >
-                <LogOut size={16} className="mr-3" />{t('header.logout')}
+                <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
               </button>
             </div>
           )}
