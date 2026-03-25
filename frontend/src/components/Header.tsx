@@ -1,8 +1,8 @@
-// FILE: src/components/Header.tsx (second app)
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v2.0
+// FILE: src/components/Header.tsx (Juristi)
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v10.2 (Consistent Typography)
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -28,26 +28,25 @@ const Header: React.FC = () => {
     { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
-
+  
   if (user?.role === 'ADMIN') {
-    navItems.splice(1, 0, {
-      icon: Shield,
-      label: t('sidebar.adminPanel', 'Admin'),
-      path: '/admin',
-    });
+      navItems.splice(1, 0, {
+          icon: Shield,
+          label: t('sidebar.adminPanel', 'Admin'),
+          path: '/admin',
+      });
   }
 
-  // Helper to check if a nav item is active
-  const isActive = (item: any) => {
-    return location.pathname.startsWith(item.path);
-  };
-
-  // Mobile menu close on route change
   useEffect(() => {
     if (isMobileMenuOpen) {
-      setIsMobileMenuOpen(false);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
     }
-  }, [location.pathname]);
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     const checkAlerts = async () => {
@@ -60,7 +59,7 @@ const Header: React.FC = () => {
       }
     };
     checkAlerts();
-    const interval = setInterval(checkAlerts, 60000);
+    const interval = setInterval(checkAlerts, 60000); 
     return () => clearInterval(interval);
   }, [user]);
 
@@ -76,8 +75,11 @@ const Header: React.FC = () => {
         setIsProfileOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [isProfileOpen]);
 
   const handleMobileLinkClick = () => {
@@ -86,136 +88,149 @@ const Header: React.FC = () => {
 
   return (
     <>
-      {/* Fixed glass header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/80 backdrop-blur-xl border-b border-border-main">
+      <header className="glass-panel sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 shadow-sm border-b border-border-main">
         
-        {/* Left: Brand + mobile menu toggle */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg"
-          >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <Link to="/dashboard" className="flex items-center">
+        {/* Left section: logo and search */}
+        <div className="flex items-center h-full gap-4 lg:gap-8 flex-1 min-w-0">
+          <div className="flex-shrink-0">
             <BrandLogo />
-          </Link>
+          </div>
+          
+          <div className="relative hidden sm:block w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted h-4 w-4" />
+            <input 
+              type="text" 
+              placeholder={t('general.search', 'Kërko...')} 
+              className="glass-input w-full pl-10 pr-3 py-2 focus:ring-1 focus:ring-primary-start/40 transition-all bg-surface border border-border-main rounded-lg text-text-primary placeholder:text-text-muted"
+            />
+          </div>
         </div>
 
-        {/* Center: Segmented Glass Bar (desktop only) */}
-        <div className="hidden lg:flex items-center bg-surface/50 p-1 rounded-2xl border border-border-main shadow-inner">
+        {/* Desktop Nav – updated to match consistent typography */}
+        <nav className="hidden lg:flex items-center h-full space-x-2">
           {navItems.map((item) => {
-            const active = isActive(item);
+            const isCurrentActive = location.pathname.startsWith(item.path);
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-200
-                  ${active
-                    ? 'bg-canvas text-primary-start shadow-sm'
-                    : 'text-text-muted hover:text-text-primary'
-                  }
-                `}
+                className={`flex items-center px-4 h-full text-sm font-bold transition-all duration-200 relative hover-lift ${
+                  isCurrentActive 
+                    ? 'text-primary-start border-b-2 border-primary-start' 
+                    : 'text-text-secondary hover:text-primary-start hover:bg-hover'
+                }`}
               >
-                <item.icon size={16} />
-                <span className="hidden xl:inline">{item.label}</span>
+                <item.icon className="h-5 w-5 mr-2" />
+                {item.label}
               </NavLink>
             );
           })}
-        </div>
+        </nav>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-3">
-          {/* Theme toggle */}
+        {/* Right section: Utilities */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
-            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+            className="p-2 rounded-lg text-text-secondary hover:text-primary-start hover:bg-hover transition-colors hover-lift shadow-sm"
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          {/* Alert bell */}
-          <Link to="/calendar" className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg relative">
-            <Bell size={18} />
+          <Link to="/calendar" className="p-2 text-text-secondary hover:text-primary-start hover:bg-hover rounded-lg transition-colors relative hover-lift shadow-sm">
+            <Bell size={20} />
             {alertCount > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
             )}
           </Link>
+          
+          <div className="h-6 w-px bg-border-main mx-1"></div>
 
-          {/* User profile */}
-          <div className="relative hidden sm:block">
-            <button
+          {/* Profile Button */}
+          <div className="relative">
+            <button 
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 rounded-full bg-surface/30 border border-border-main hover:bg-surface/50 transition-colors"
+              className={`flex items-center gap-2 p-1 rounded-xl transition-all border hover-lift shadow-sm ${
+                isProfileOpen ? 'bg-hover border-border-main' : 'border-transparent hover:bg-hover hover:border-border-main'
+              }`}
             >
-              <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
-                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              <div className="text-right hidden sm:block px-1">
+                <p className="text-sm font-medium text-text-primary leading-none mb-1">{user?.username || 'User'}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider leading-none">{user?.role || 'LAWYER'}</p>
+              </div>
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-text-inverse font-bold text-sm shadow-sm border border-primary-start/20">
+                {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
 
             {isProfileOpen && (
-              <div
+              <div 
                 ref={dropdownRef}
-                className="absolute right-0 mt-2 w-56 glass-panel border border-border-main rounded-xl shadow-xl py-2 z-50"
+                className="absolute right-0 mt-2 w-60 glass-panel border border-border-main rounded-xl shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-2"
               >
-                <div className="px-4 py-2 border-b border-border-main mb-1">
-                  <p className="text-xs font-bold text-primary">{user?.username}</p>
-                  <p className="text-[10px] text-text-muted">{user?.email}</p>
+                <div className="px-4 py-3 border-b border-border-main mb-1 bg-hover/5">
+                  <p className="text-sm text-text-primary font-medium truncate">{user?.username}</p>
+                  <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
-                <Link
-                  to="/account"
-                  className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  <UserIcon size={16} className="mr-3 text-primary" />
+                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary-start hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <UserIcon size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.account', 'Llogaria Ime')}
                 </Link>
-                <Link
-                  to="/support"
-                  className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover transition-colors"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  <MessageSquare size={16} className="mr-3 text-primary" />
+                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary-start hover:bg-hover transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <MessageSquare size={16} className="mr-3 text-primary-start" />
                   {t('sidebar.support', 'Mbështetja')}
                 </Link>
                 <div className="h-px bg-border-main my-1"></div>
-                <button
-                  onClick={() => { setIsProfileOpen(false); logout(); }}
-                  className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors"
-                >
+                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors">
                   <LogOut size={16} className="mr-3" />
                   {t('general.logout', 'Dilni')}
                 </button>
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 text-text-secondary hover:text-primary-start transition-colors hover-lift shadow-sm"
+          >
+            <Menu size={24} />
+          </button>
         </div>
       </header>
 
-      {/* Mobile Navigation Overlay */}
+      {/* Mobile Sidebar */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-x-0 top-16 bg-card border-b border-border-main p-4 lg:hidden z-40 shadow-lg">
-          <div className="grid grid-cols-2 gap-3">
-            {navItems.map(item => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={handleMobileLinkClick}
-                className="flex flex-col items-center p-4 rounded-xl bg-surface border border-border-main text-text-secondary hover:text-primary hover:bg-hover transition-all"
-              >
-                <item.icon size={24} className="mb-2" />
-                <span className="text-xs font-bold">{item.label}</span>
-              </Link>
-            ))}
+        <div className="lg:hidden fixed inset-0 top-0 glass-panel z-50 animate-in fade-in border-r border-border-main">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-border-main">
+            <BrandLogo />
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 text-text-secondary hover:text-primary-start transition-colors hover-lift"
+            >
+              <X size={24} />
+            </button>
           </div>
+          <nav className="flex flex-col p-4 space-y-2 mt-4">
+            {navItems.map((item) => {
+              const isCurrentActive = location.pathname.startsWith(item.path);
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleMobileLinkClick}
+                  className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 hover-lift ${
+                    isCurrentActive ? 'text-primary-start bg-hover' : 'text-text-secondary hover:text-primary-start hover:bg-hover'
+                  }`}
+                >
+                  <item.icon className="h-5 w-5 mr-4" />
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </nav>
         </div>
       )}
-
-      {/* Add padding to main content to account for fixed header */}
-      <div className="h-16" /> {/* Spacer */}
     </>
   );
 };
