@@ -1,5 +1,5 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.7 (Paper Surface Fix)
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.8 (Fixed scroll & height)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +18,7 @@ interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; tim
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
 
-// --- High-Fidelity Markdown Renderer (preserved) ---
+// --- High-Fidelity Markdown Renderer ---
 const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
@@ -188,15 +188,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             
             <AnimatePresence mode="wait">
                 {result && (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:h-[800px]">
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        exit={{ opacity: 0, y: -20 }} 
+                        className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+                    >
                         {/* LEFT PANEL: Forensic Report (Paper Surface) */}
-                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-surface overflow-hidden shadow-lawyer-dark flex flex-col">
-                            <div className="px-8 py-5 border-b border-border-main bg-canvas/30 flex items-center gap-3">
+                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-surface overflow-hidden shadow-lawyer-dark flex flex-col h-[70vh] min-h-[500px]">
+                            <div className="px-8 py-5 border-b border-border-main bg-canvas/30 flex items-center gap-3 shrink-0">
                                 <FileText size={18} className="text-primary-start" />
                                 <h3 className="text-xs font-black text-text-primary uppercase tracking-widest">Memorandumi i Gjetjeve</h3>
                             </div>
-                            <div className="flex-1 p-10 overflow-y-auto custom-scrollbar">
-                                {/* Paper-like container: white background, black text, proper padding */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                 <div className="bg-white text-black shadow-lg rounded-lg p-8 max-w-2xl mx-auto border border-gray-200">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
@@ -204,7 +208,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </div>
 
                         {/* RIGHT PANEL: Chat */}
-                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-lawyer-dark">
+                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[70vh] min-h-[500px] overflow-hidden shadow-lawyer-dark">
                             <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5 shadow-accent-glow rounded-full" />
                                 <div>
@@ -212,7 +216,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     <p className="text-[9px] font-bold text-text-muted uppercase tracking-tighter mt-1">{t('analyst.interrogationSubtitle', 'Bëni pyetje rreth gjetjeve të memorandumit.')}</p>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar no-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
                                 {(chatHistory || []).map((msg) => (
                                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[85%] rounded-[1.5rem] p-5 text-sm leading-relaxed shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-none' : 'bg-surface text-text-primary border-border-main rounded-tl-none'}`}>
