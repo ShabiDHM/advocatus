@@ -1,5 +1,5 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL – EXECUTIVE CASE CARD (minimalist)
+// PHOENIX PROTOCOL – EXECUTIVE CASE CARD (minimalist, date only)
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -59,8 +59,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           }`}>
             {displayTitle}
           </h2>
-          <div className="flex items-center gap-2 text-sm text-text-muted">
-            <span>{t('caseCard.createdOn', 'Krijuar më')}: {formattedDate}</span>
+          <div className="text-sm text-text-muted">
+            {formattedDate}
           </div>
         </div>
         
