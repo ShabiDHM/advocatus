@@ -203,8 +203,12 @@
     background-attachment: fixed;
   }
 
+  /* ========== PHOENIX FIX: Spinners survive reduced-motion ========== */
   @media (prefers-reduced-motion: reduce) {
-    *, ::before, ::after {
+    /* Exclude any element with a class containing 'spin' from the motion kill-switch */
+    *:not([class*="spin"]),
+    ::before,
+    ::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
