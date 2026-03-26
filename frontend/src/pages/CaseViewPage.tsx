@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.2 (Fixed TypeScript error)
+// PHOENIX PROTOCOL - CASE VIEW V16.3 (Use global robust spinner)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -134,7 +134,7 @@ const CaseHeader: React.FC<{
               >
                   {isAnalyzing ? (
                       <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <Loader2 className="h-4 w-4 animate-spin-robust text-primary" />
                         <span className="text-primary text-sm">{t('analysis.analyzing')}</span>
                       </span>
                   ) : (
