@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V14.3 (Fully opaque backgrounds)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V14.4 (Robust spinner animation)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -28,26 +28,24 @@ interface AnalysisModalProps {
 
 type ZoomLevel = 'normal' | 'large';
 
-const Spinner = ({ size = 'w-20 h-20' }: { size?: string }) => (
-  <div
-    className={`${size} border-4 border-primary-start border-t-transparent rounded-full`}
-    style={{ animation: 'spin 1s linear infinite' }}
-  />
+// Inline keyframes to guarantee they exist
+const SpinnerStyles = () => (
+  <style>{`
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spinner-robust {
+      animation: spin 1s linear infinite !important;
+    }
+  `}</style>
 );
 
-const injectSpinKeyframes = () => {
-  if (typeof document !== 'undefined' && !document.querySelector('#spinner-keyframes')) {
-    const style = document.createElement('style');
-    style.id = 'spinner-keyframes';
-    style.textContent = `
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-};
+const Spinner = ({ size = 'w-20 h-20' }: { size?: string }) => (
+  <div
+    className={`${size} border-4 border-primary-start border-t-transparent rounded-full spinner-robust`}
+  />
+);
 
 const safeString = (val: any): string => {
     if (!val) return "";
@@ -144,7 +142,7 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
     );
 };
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading }) => {
+const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'legal' | 'war_room'>('legal');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
@@ -155,10 +153,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [isChronLoading, setIsChronLoading] = useState(false);
   const [isContradictLoading, setIsContradictLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
-
-  useEffect(() => {
-    injectSpinKeyframes();
-  }, []);
 
   useEffect(() => {
     if (isOpen) { document.body.style.overflow = 'hidden'; setActiveTab('legal'); setWarRoomSubTab('strategy'); } 
@@ -288,6 +282,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           className="w-full h-full sm:h-[90vh] sm:max-w-6xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
+          <SpinnerStyles />
           
           {/* Header */}
           <div className="px-6 py-5 border-b border-border-main flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
@@ -558,7 +553,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   }`}
               >
                   {isArchiving ? (
-                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full" style={{ animation: 'spin 1s linear infinite' }} />
+                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full spinner-robust" />
                   ) : (
                       <CheckCircle2 size={16} />
                   )}
