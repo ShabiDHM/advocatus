@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V14.6 (Use global robust spinner)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V14.6 (Tighter dimensions)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -28,9 +28,22 @@ interface AnalysisModalProps {
 
 type ZoomLevel = 'normal' | 'large';
 
+// Inline keyframes with !important to override any parent transitions
+const SpinnerStyles = () => (
+  <style>{`
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spinner-robust {
+      animation: spin 1s linear infinite !important;
+    }
+  `}</style>
+);
+
 const Spinner = ({ size = 'w-20 h-20' }: { size?: string }) => (
   <div
-    className={`${size} border-4 border-primary-start border-t-transparent rounded-full animate-spin-robust`}
+    className={`${size} border-4 border-primary-start border-t-transparent rounded-full spinner-robust`}
   />
 );
 
@@ -264,9 +277,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
-          className="w-full h-full sm:h-[90vh] sm:max-w-6xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
+          /* MODIFIED: width/height – tighter at zoom */
+          className="w-full h-full sm:h-[85vh] sm:max-w-5xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
+          <SpinnerStyles />
+          
           {/* Header */}
           <div className="px-6 py-5 border-b border-border-main flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
             <h2 className="flex items-center gap-4 min-w-0">
@@ -536,7 +552,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   }`}
               >
                   {isArchiving ? (
-                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full animate-spin-robust" />
+                      <div className="w-4 h-4 border-2 border-success-start border-t-transparent rounded-full spinner-robust" />
                   ) : (
                       <CheckCircle2 size={16} />
                   )}
