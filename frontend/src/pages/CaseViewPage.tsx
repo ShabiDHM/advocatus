@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.3 (Robust spinner, no parent transition conflict)
+// PHOENIX PROTOCOL - CASE VIEW V16.4 (Enhanced spinner visibility)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -127,7 +127,7 @@ const CaseHeader: React.FC<{
                   <span className="text-sm">{t('caseView.financialAnalyst')}</span>
               </button>
 
-              {/* PHOENIX FIX: Wrapped Loader2 in a span with inline animation to survive parent transition and reduced-motion */}
+              {/* PHOENIX FIX: Enhanced spinner with larger size and glow */}
               <button
                   onClick={onAnalyze}
                   disabled={!isPro || isAnalyzing}
@@ -136,7 +136,7 @@ const CaseHeader: React.FC<{
                   {isAnalyzing ? (
                       <span className="flex items-center gap-2">
                         <span className="flex items-center justify-center animate-spin" style={{ animationDuration: '1s', animationIterationCount: 'infinite' }}>
-                            <Loader2 className="h-4 w-4 text-primary" />
+                            <Loader2 className="h-5 w-5 text-primary" style={{ filter: 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.5))' }} />
                         </span>
                         <span className="text-primary text-sm">{t('analysis.analyzing')}</span>
                       </span>
