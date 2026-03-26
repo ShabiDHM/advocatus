@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V14.6 (Tighter dimensions)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V14.7 (Tighter dimensions)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -277,8 +277,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
-          /* MODIFIED: width/height – tighter at zoom */
-          className="w-full h-full sm:h-[85vh] sm:max-w-5xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
+          className="w-full h-full sm:h-[80vh] sm:max-w-4xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
           <SpinnerStyles />
@@ -334,7 +333,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar text-gray-900 dark:text-gray-100"
                   style={{ fontSize: zoomLevel === 'large' ? '1.125rem' : '1rem' }}
                 >
-                    <div className="max-w-4xl mx-auto space-y-8">
+                    <div className="max-w-3xl mx-auto space-y-8">
                         {activeTab === 'legal' && (
                             <>
                                 <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
