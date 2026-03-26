@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V14.4 (Robust spinner animation)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V14.5 (Robust spinner, debug note)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -28,7 +28,7 @@ interface AnalysisModalProps {
 
 type ZoomLevel = 'normal' | 'large';
 
-// Inline keyframes to guarantee they exist
+// Inline keyframes with !important to override any parent transitions
 const SpinnerStyles = () => (
   <style>{`
     @keyframes spin {
@@ -266,7 +266,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const modalContent = (
     <AnimatePresence>
-      {/* Overlay: semi-transparent with blur */}
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
@@ -274,7 +273,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
         className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-6" 
         onClick={onClose}
       >
-        {/* Modal container: fully opaque background */}
         <motion.div 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 

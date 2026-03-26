@@ -1,9 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.0 (TYPOGRAPHY FIX)
-// 1. FIXED: Updated all text sizes to use proper typography scale (text-sm, text-base, etc.)
-// 2. FIXED: Removed hardcoded text-[11px] and similar small sizes
-// 3. ENHANCED: Professional spacing and executive typography.
-// 4. RETAINED: 100% logic parity (Streaming, Sockets, Modals, Analysis).
+// PHOENIX PROTOCOL - CASE VIEW V16.2 (Fixed TypeScript error)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -92,7 +88,6 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-8 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          {/* Executive Header Section */}
           <div className="flex flex-col gap-2 mb-8 ml-2">
               <h1 className="text-3xl font-black text-text-primary tracking-tight leading-tight">
                 {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase')}
@@ -103,16 +98,13 @@ const CaseHeader: React.FC<{
               </div>
           </div>
 
-          {/* PERMANENT SYMMETRICAL ACTION BAR */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-center">
               
-              {/* Card 1: Date */}
               <div className={cardBase}>
                   <Calendar size={16} className="text-primary opacity-70" />
                   <span className="text-text-secondary text-sm">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
               </div>
 
-              {/* Card 2: Document Selector */}
               <div className="h-12 relative group hover-lift z-50">
                   <DocumentSelector
                       documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
@@ -122,7 +114,6 @@ const CaseHeader: React.FC<{
                   />
               </div>
               
-              {/* Card 3: Analyst Toggle */}
               <button
                   onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                   disabled={!isPro}
@@ -136,7 +127,6 @@ const CaseHeader: React.FC<{
                   <span className="text-sm">{t('caseView.financialAnalyst')}</span>
               </button>
 
-              {/* Card 4: Analyze Button */}
               <button
                   onClick={onAnalyze}
                   disabled={!isPro || isAnalyzing}
@@ -280,7 +270,15 @@ const CaseViewPage: React.FC = () => {
       </div>
       {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => {setViewingDocument(null); setViewingUrl(null);}} onMinimize={() => {if(viewingDocument){setMinimizedDocument(viewingDocument); setViewingDocument(null);}}} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
-      {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} caseId={currentCaseId} />)}
+      {analysisResult && (
+        <AnalysisModal 
+          isOpen={activeModal === 'analysis'} 
+          onClose={() => setActiveModal('none')} 
+          result={analysisResult} 
+          caseId={currentCaseId} 
+          isLoading={isAnalyzing}
+        />
+      )}
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
     </motion.div>
   );
