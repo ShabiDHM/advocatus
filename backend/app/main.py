@@ -1,4 +1,4 @@
-# FILE: backend/app/main.py
+# FILE: backend/app/ main.py
 # PHOENIX PROTOCOL - MAIN APPLICATION V13.3 (FIXED LEGAL ROUTER PREFIX)
 # 1. FIXED: Removed duplicate prefix for legal_public router
 # 2. ADDED: legal_public router for Haveri integration
