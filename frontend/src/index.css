@@ -710,9 +710,6 @@
     color: var(--accent-primary);
   }
 
-  .group:hover > .absolute {
-  border-width: 2px !important;
-}
 @keyframes global-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
