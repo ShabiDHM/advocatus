@@ -108,8 +108,8 @@ const Header: React.FC = () => {
         </Link>
       </div>
 
-      {/* Center: Segmented Glass Bar */}
-      <div className="hidden lg:flex items-center bg-surface/50 p-1 rounded-2xl border border-border-main shadow-inner">
+      {/* Center: Segmented Glass Bar (Updated to Haveri dark-square style) */}
+      <div className="hidden lg:flex items-center bg-surface/50 p-1.5 rounded-2xl border border-border-main shadow-inner gap-1">
         {navItems.map((item) => {
           const active = isActive(item.path);
           return (
@@ -117,14 +117,14 @@ const Header: React.FC = () => {
               key={item.path}
               to={item.path}
               className={`
-                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase tracking-widest transition-all duration-200
+                flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
                 ${active 
-                  ? 'bg-canvas text-primary-start shadow-sm' 
-                  : 'text-text-muted hover:text-text-primary'
+                  ? 'bg-canvas text-primary-start shadow-md border border-border-main' 
+                  : 'text-text-muted hover:text-text-primary hover:bg-surface/50 border border-transparent'
                 }
               `}
             >
-              <item.icon size={18} />
+              <item.icon size={16} />
               <span className="hidden xl:inline">{item.label}</span>
             </NavLink>
           );
