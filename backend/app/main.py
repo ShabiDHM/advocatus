@@ -1,8 +1,5 @@
-# FILE: backend/app/ main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.3 (FIXED LEGAL ROUTER PREFIX)
-# 1. FIXED: Removed duplicate prefix for legal_public router
-# 2. ADDED: legal_public router for Haveri integration
-# 3. STATUS: Protocol Compliant.
+# FILE: backend/app/main.py
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.4 (ADDED PUBLIC LAWS ROUTER)
 
 import os
 import logging
@@ -33,6 +30,7 @@ from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
 from .api.endpoints.legal_public import router as legal_public_router
+from .api.endpoints.public_laws import router as public_laws_router  # NEW
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,6 +90,8 @@ api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 # FIXED: Removed duplicate prefix - legal_public router already has '/legal/public'
 api_v1_router.include_router(legal_public_router, tags=["Legal Public"])
+# NEW: Public laws endpoints
+api_v1_router.include_router(public_laws_router, tags=["Legal Public"])
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
