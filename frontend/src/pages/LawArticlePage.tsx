@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V1 (App A)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V2 (Fixed Text Rendering)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -14,6 +14,19 @@ interface ArticleData {
   source: string;
   text: string;
 }
+
+// ========== PHOENIX: NORMALIZE TEXT FOR PROFESSIONAL READING ==========
+// Replaces single newlines with spaces while preserving paragraphs (double newlines)
+const normalizeText = (raw: string): string => {
+  // Split by double newlines (paragraph breaks)
+  const paragraphs = raw.split(/\n\n+/);
+  // Within each paragraph, replace single newlines with a space
+  const normalizedParagraphs = paragraphs.map(para =>
+    para.replace(/\n/g, ' ').trim()
+  );
+  // Join paragraphs with double newline for proper spacing
+  return normalizedParagraphs.filter(p => p.length > 0).join('\n\n');
+};
 
 export default function LawArticlePage() {
   const [searchParams] = useSearchParams();
@@ -50,7 +63,14 @@ export default function LawArticlePage() {
       return;
     }
     apiService.getLawArticle(lawTitle, articleNumber)
-      .then(setArticle)
+      .then((data: ArticleData) => {
+        // Normalize the article text to remove unwanted line breaks
+        const normalizedText = normalizeText(data.text);
+        setArticle({
+          ...data,
+          text: normalizedText,
+        });
+      })
       .catch((err) => {
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
       })
@@ -104,8 +124,6 @@ export default function LawArticlePage() {
       </div>
     );
   }
-
-  const paragraphs = article.text.split('\n\n').filter(p => p.trim() !== '');
 
   return (
     <motion.div
@@ -165,14 +183,12 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* Reading Surface */}
+            {/* Reading Surface - Fixed: single div with normalized text */}
             <div className="bg-surface/50 px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
               <div className="max-w-[75ch] mx-auto">
-                {paragraphs.map((para, idx) => (
-                  <p key={idx} className="mb-6 text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap">
-                    {para}
-                  </p>
-                ))}
+                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
+                  {article.text}
+                </div>
               </div>
             </div>
 

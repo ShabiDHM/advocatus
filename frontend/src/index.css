@@ -710,12 +710,18 @@
     color: var(--accent-primary);
   }
 
-@keyframes global-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+  /* PHOENIX DIRECTIVE: Professional legal text justification */
+  .text-justify {
+    text-align: justify;
+    text-justify: inter-word;
+  }
 
-.animate-spin-robust {
-  animation: global-spin 1s linear infinite !important;
-}
+  @keyframes global-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-spin-robust {
+    animation: global-spin 1s linear infinite !important;
+  }
 }
