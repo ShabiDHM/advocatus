@@ -5,8 +5,6 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import List, Optional, Set, Any
 from app.services import vector_store_service
-from app.core.db import get_db
-from pymongo.database import Database
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +22,6 @@ def _natural_sort_key(article_any: Any) -> List[int]:
     return [int(p) for p in parts if p.isdigit()]
 
 def _safe_str(value: Any, default: str = "") -> str:
-    """Safely convert a value to string, returning default if conversion fails."""
     if value is None:
         return default
     try:
@@ -51,17 +48,18 @@ class LawSearchResult(BaseModel):
     text: str
     chunk_id: str
 
+class LawExplainRequest(BaseModel):
+    law_title: str
+    article_number: str
+    prompt: str
+
 @router.get("/search", response_model=List[LawSearchResult])
 async def public_search_laws(
     q: str = Query(..., description="Search query"),
     limit: int = Query(50, ge=1, le=200)
 ):
-    """
-    Public endpoint for legal search. No authentication required.
-    """
     try:
         results = vector_store_service.query_global_knowledge_base(q, n_results=limit)
-        # Ensure results conform to the expected shape
         return results
     except Exception as e:
         logger.error(f"Public law search failed: {str(e)}")
@@ -69,9 +67,6 @@ async def public_search_laws(
 
 @router.get("/titles", response_model=List[str])
 async def public_get_law_titles():
-    """
-    Public endpoint to get all law titles. No authentication.
-    """
     try:
         collection = vector_store_service.get_global_collection()
         results = collection.get(include=["metadatas"], limit=10000)
@@ -79,11 +74,7 @@ async def public_get_law_titles():
         titles: Set[str] = set()
         for m in metadatas:
             title = m.get("law_title")
-            if isinstance(title, str):
-                titles.add(title)
-            else:
-                # If not a string, attempt to convert safely
-                titles.add(_safe_str(title))
+            titles.add(_safe_str(title))
         return sorted(list(titles))
     except Exception as e:
         logger.error(f"Public law titles fetch failed: {str(e)}")
@@ -94,9 +85,6 @@ async def public_get_law_article(
     law_title: str = Query(...),
     article_number: str = Query(...)
 ):
-    """
-    Public endpoint to get a specific law article.
-    """
     try:
         collection = vector_store_service.get_global_collection()
         results = collection.get(
@@ -112,7 +100,6 @@ async def public_get_law_article(
     if not documents:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    # Sort by chunk index if present
     if metadatas and all("chunk_index" in m for m in metadatas):
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
@@ -130,9 +117,6 @@ async def public_get_law_article(
 async def public_get_law_articles_by_title(
     law_title: str = Query(...)
 ):
-    """
-    Public endpoint to get all articles of a law.
-    """
     try:
         collection = vector_store_service.get_global_collection()
         results = collection.get(
@@ -162,9 +146,6 @@ async def public_get_law_articles_by_title(
 
 @router.get("/{chunk_id}", response_model=LawArticleResponse)
 async def public_get_law_chunk(chunk_id: str):
-    """
-    Public endpoint to get a specific law chunk by its ID.
-    """
     try:
         collection = vector_store_service.get_global_collection()
         result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
@@ -184,3 +165,43 @@ async def public_get_law_chunk(chunk_id: str):
         source=_safe_str(m.get("source")),
         text=docs[0]
     )
+
+@router.post("/explain")
+async def public_explain_law_article(request: LawExplainRequest):
+    from app.services import llm_service
+    from fastapi.responses import StreamingResponse
+
+    system_prompt = (
+        "ROLI: Ti je partneri kryesor (Senior Legal Partner) në zyrën më prestigjioze ligjore në Kosovë. "
+        "Klientët paguajnë shtrenjtë për mendimin tënd analitik, jo për përmbledhje robotike.\n\n"
+        "RREGULLAT ABSOLUTE:\n"
+        "1. MOS përsërit asnjë nga udhëzimet e mia në përgjigjen tënde. Fillo direkt me analizën.\n"
+        "2. Përgjigju VETËM në gjuhën SHQIPE me gramatikë të përsosur.\n"
+        "3. Ndaji dy nivelet e analizës SAKTËSISHT me fjalën [NDARJA] në një rresht të ri.\n\n"
+        "NIVELI 1: OPINIONI PROFESIONAL (Për Juristët)\n"
+        "Shkruaj një analizë të thellë, me paragrafë të plotë, duke përdorur zhargon të lartë juridik. "
+        "Analiza duhet të theksojë:\n"
+        "- Baza Doktrinare: Cili është parimi thelbësor juridik që mbron ky nen?\n"
+        "- Konteksti Kushtetues & KEDNJ: Si ndërlidhet me Kushtetutën e Kosovës dhe Konventën Evropiane për të Drejtat e Njeriut?\n"
+        "- Implikimet Praktike & Rreziqet: Cilat janë vështirësitë në zbatimin e tij në gjykatat e Kosovës? Cilat janë hapësirat për abuzim procedural?\n\n"
+        "NIVELI 2: KËSHILLIM PËR QYTETARIN (Pas fjalës [NDARJA])\n"
+        "Tani ndrysho tonin. Shkruaj për një qytetar pa të ardhura për avokat. Bëhu mbrojtës, i qartë dhe praktik. "
+        "Përdor SAKTËSISHT këta tre tituj me emoji:\n\n"
+        "🔹 ÇFARË ËSHTË KY LIGJ?\n"
+        "Trego thelbin në 2-3 fjali shumë të thjeshta.\n\n"
+        "🛡️ PËR ÇFARË MUND T'JU SHËRBEJË?\n"
+        "Jep shembuj konkretë të përditshmërisë se si ky nen i mbron ata nga padrejtësitë.\n\n"
+        "💡 SI TA PËRDORNI (KËSHILLA PRAKTIKE)?\n"
+        "Tregoju saktësisht se çfarë hapash duhet të ndërmarrin (p.sh. 'Kërkoni me shkrim që...', 'Mos pranoni të...')."
+    )
+
+    try:
+        generator = llm_service.stream_text_async(
+            sys_p=system_prompt,
+            user_p=request.prompt,
+            temp=0.3
+        )
+        return StreamingResponse(generator, media_type="text/plain")
+    except Exception as e:
+        logger.error(f"Public law explanation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="AI explanation failed.")
