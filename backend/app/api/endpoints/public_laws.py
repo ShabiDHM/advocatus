@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/public_laws.py
-# PHOENIX PROTOCOL - PUBLIC LAW ENDPOINTS V1.1 (TYPE SAFE)
+# PHOENIX PROTOCOL - PUBLIC LAW ENDPOINTS (FINAL)
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -22,12 +22,9 @@ def _natural_sort_key(article_any: Any) -> List[int]:
     return [int(p) for p in parts if p.isdigit()]
 
 def _safe_str(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    try:
-        return str(value)
-    except Exception:
-        return default
+    if value is None: return default
+    try: return str(value)
+    except Exception: return default
 
 class LawArticleResponse(BaseModel):
     law_title: str
