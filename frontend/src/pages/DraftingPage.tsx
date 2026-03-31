@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V8.5 (FIXED CONTEXT ERRORS)
+// ARCHITECTURE: ZERO-HALLUCINATION KOSOVO LEGAL ENGINE & PERSISTENT STATE
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,9 +20,53 @@ const lawyerGradeStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--primary-start); }
 `;
 
+// ============================================================================
+// CORE LEGAL ENGINE: ZERO-HALLUCINATION PROMPT MATRIX
+// ============================================================================
+const buildKosovoSystemPrompt = (template: string, basePrompt: string): string => {
+  let statute = "";
+  
+  // Map Document Templates directly to strict Kosovo Statutes
+  switch (true) {
+    case ['padi', 'pergjigje', 'kunderpadi', 'ankese', 'prapësim'].includes(template):
+      statute = "Ligjin për Procedurën Kontestimore (Nr. 03/L-006) të Republikës së Kosovës"; 
+      break;
+    case ['nda', 'mou', 'shareholders', 'sla'].includes(template):
+      statute = "Ligjin për Shoqëritë Tregtare (Nr. 06/L-016) dhe Ligjin për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) të Republikës së Kosovës"; 
+      break;
+    case ['employment_contract', 'termination_notice', 'warning_letter'].includes(template):
+      statute = "Ligjin e Punës (Nr. 03/L-212) të Republikës së Kosovës"; 
+      break;
+    case ['lease_agreement', 'sales_purchase', 'power_of_attorney'].includes(template):
+      statute = "Ligjin për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) të Republikës së Kosovës"; 
+      break;
+    case ['terms_conditions', 'privacy_policy'].includes(template):
+      statute = "Ligjin për Mbrojtjen e të Dhënave Personale (Nr. 06/L-082) dhe Ligjin për Mbrojtjen e Konsumatorit (Nr. 06/L-034) të Republikës së Kosovës"; 
+      break;
+    default:
+      statute = "Kornizën e Përgjithshme Ligjore të Republikës së Kosovës";
+  }
+
+  return `[SYSTEM DIRECTIVE - STRICT KOSOVO LEGAL ENGINE]
+ROLI YT: Ti je një Avokat dhe Ekspert Ligjor i licencuar në Republikën e Kosovës. Detyra jote është të hartosh një dokument ligjor profesional me standardet më të larta juridike.
+
+RREGULLAT E RREPTA (ZERO HALLUCINATION PROTOCOL):
+1. BAZA LIGJORE (KOSOVO ONLY): Ky dokument duhet të bazohet EKSKLUZIVISHT në ${statute}. Ndalohet rreptësisht përdorimi apo citimi i ligjeve të shteteve të tjera (p.sh. Shqipëria, SHBA, BE).
+2. GJUHA: Përdor vetëm Gjuhën Zyrtare Shqipe (standarde, formale, terminologji juridike e saktë).
+3. STRUKTURA PROFESIONALE: 
+   - Fillo me një TITULL të qartë, të qendërzuar dhe me shkronja të mëdha.
+   - Përfshi identifikimin e saktë të palëve.
+   - Përfshi bazën ligjore dhe arsyetimin/dispozitat e qarta.
+   - Përfundo dokumentin me hapësirat për nënshkrime (psh. "PËR PALËN A: _________________").
+4. PLACEHOLDERS (TË DHËNAT QË MUNGOJNË): Mos shpik të dhëna fiktive ose emra të rremë! Për çdo të dhënë që mungon përdor formatin me kllapa katrore: [EMRI_MBIEMRI], [DATA], [ADRESA], [SHUMA], [NR_LETERNJOFTIMIT], etj.
+
+KONTEKSTI DHE KËRKESA E KLIENTIT:
+${basePrompt}`;
+};
+
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // workspace removed
+  const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
@@ -53,11 +97,10 @@ const DraftingPage: React.FC = () => {
     [user]
   );
 
-  // Fetch Cases - removed workspace argument
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const data = await apiService.getCases(); // Expected 0 arguments
+        const data = await apiService.getCases();
         setCases(data);
       } catch (err) {
         console.error("Failed to fetch cases", err);
@@ -80,9 +123,16 @@ const DraftingPage: React.FC = () => {
     setCurrentJob({ status: 'PROCESSING', result: '', error: null });
     setNotification(null);
     let acc = '';
+    
     try {
+      // 1. Generate base prompt
+      const basePrompt = constructSmartPrompt(context.trim(), selectedTemplate, t);
+      
+      // 2. Wrap base prompt in our strict Kosovo Legal Engine matrix
+      const securePrompt = buildKosovoSystemPrompt(selectedTemplate, basePrompt);
+
       const stream = await apiService.draftLegalDocumentStream({
-        user_prompt: constructSmartPrompt(context.trim(), selectedTemplate, t),
+        user_prompt: securePrompt, // Safely injected with strict parameters
         document_type: isPro ? selectedTemplate : 'generic',
         case_id: selectedCaseId || undefined
       });
@@ -134,7 +184,7 @@ const DraftingPage: React.FC = () => {
             <PenTool size={24} />
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-text-primary tracking-tighter leading-none">
-            {t('drafting.title')}
+            {t('drafting.title', 'Hartimi Ligjor')}
           </h1>
         </div>
 
@@ -144,8 +194,8 @@ const DraftingPage: React.FC = () => {
               t={t}
               isPro={isPro}
               cases={cases}
-              selectedCaseId={selectedCaseId}
-              onSelectCase={setSelectedCaseId}
+              selectedCaseId={selectedCaseId || undefined}
+              onSelectCase={(id: string | undefined) => setSelectedCaseId(id || '')}
               selectedTemplate={selectedTemplate}
               context={context}
               isSubmitting={isSubmitting}

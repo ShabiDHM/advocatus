@@ -1,19 +1,42 @@
-// src/drafting/utils/templateHelpers.ts
+// FILE: src/drafting/utils/templateHelpers.ts
+// ARCHITECTURE: TEMPLATE ORCHESTRATION LAYER
+
 import { TemplateType } from '../types';
 import { templateConfigs } from '../templates';
 
 /**
- * Returns the structure instructions for the given template.
- * Falls back to generic template if the specific template is not found.
+ * Safely retrieves structure instructions.
+ * If the template is missing, it logs a warning in development and falls back to generic.
  */
 export const getDocumentStructureInstructions = (template: TemplateType): string => {
-  return templateConfigs[template]?.structureInstructions || templateConfigs.generic.structureInstructions;
+  const config = templateConfigs[template];
+  
+  if (!config) {
+    console.warn(`[DraftingEngine] Template '${template}' not found. Falling back to generic.`);
+    return templateConfigs.generic.structureInstructions;
+  }
+
+  // Ensure instructions are clean and well-spaced for the LLM prompt injection
+  return config.structureInstructions.trim();
 };
 
 /**
- * Returns the example placeholder text for the given template.
- * Falls back to generic placeholder if the specific template is not found.
+ * Safely retrieves placeholder text for the UI.
+ * Provides the user with a specific hint on how to structure their input.
  */
 export const getTemplatePlaceholder = (template: TemplateType): string => {
-  return templateConfigs[template]?.placeholder || templateConfigs.generic.placeholder;
+  const config = templateConfigs[template];
+  
+  if (!config) {
+    return templateConfigs.generic.placeholder;
+  }
+
+  return config.placeholder;
+};
+
+/**
+ * Optional: Helper to get the display label for the UI (future-proofing)
+ */
+export const getTemplateLabel = (template: TemplateType): string => {
+  return templateConfigs[template]?.label || 'Dokument i Përgjithshëm';
 };

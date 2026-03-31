@@ -1,11 +1,15 @@
-// src/drafting/types.ts
+// FILE: src/drafting/types.ts
+// ARCHITECTURE: CORE TYPE DEFINITIONS FOR HAVERI AI / ADVOKATUS
+
 import { TFunction } from 'i18next';
 import { Case } from '../data/types';
 
 export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
+// Closed union type: Add new templates here to activate them throughout the app
 export type TemplateType =
-  | 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim'
+  | 'generic' 
+  | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim'
   | 'nda' | 'mou' | 'shareholders' | 'sla'
   | 'employment_contract' | 'termination_notice' | 'warning_letter'
   | 'terms_conditions' | 'privacy_policy'
@@ -24,22 +28,21 @@ export interface NotificationState {
 }
 
 export interface TemplateConfig {
-  structureInstructions: string;   // the format guidelines for the AI
-  placeholder: string;             // example prompt for the user
-  label: string;                   // display name (may be translated later)
+  structureInstructions: string;   // The internal prompt matrix
+  placeholder: string;             // UI Hint for the user
+  label: string;                   // UI Display name
 }
 
-// Props for subcomponents
 export interface ConfigPanelProps {
   t: TFunction;
   isPro: boolean;
   cases: Case[];
-  selectedCaseId: string;
+  selectedCaseId: string | undefined; // Allowed to be undefined when no case is selected
   selectedTemplate: TemplateType;
   context: string;
   isSubmitting: boolean;
-  onSelectCase: (id: string) => void;
-  onSelectTemplate: (val: string) => void;
+  onSelectCase: (id: string | undefined) => void;
+  onSelectTemplate: (val: TemplateType) => void;
   onChangeContext: (val: string) => void;
   onSubmit: () => void;
 }
@@ -53,7 +56,7 @@ export interface ResultPanelProps {
   onSaveToCase: (title: string) => Promise<void>;
   onRetry: () => void;
   onClear: () => void;
-  selectedCaseId: string;
+  selectedCaseId: string | undefined;
   saveModalOpen: boolean;
   setSaveModalOpen: (open: boolean) => void;
 }

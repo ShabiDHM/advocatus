@@ -1,12 +1,12 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL - RESULT PANEL V7.5 (ABSOLUTE HOVER BORDER + Z-INDEX FORCE)
+// ARCHITECTURE: PROFESSIONAL LEGAL OUTPUT UI & RESTORED "SAVE TO CASE" MODAL (TS FIXED)
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
   FileText, Trash2, Archive, Scale, Copy, Download,
-  BrainCircuit
+  BrainCircuit, Briefcase, X
 } from 'lucide-react';
 import { ResultPanelProps } from '../types';
 import { ThinkingDots } from './ThinkingDots';
@@ -20,158 +20,272 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   onSave,
   onRetry,
   onClear,
+  selectedCaseId,
+  saveModalOpen,
+  setSaveModalOpen,
+  onSaveToCase
 }) => {
+  // Local state to capture the document title before saving to a Case
+  const [documentTitle, setDocumentTitle] = useState('');
 
   const statusUI = useMemo(() => {
     switch (currentJob.status) {
       case 'COMPLETED':
-        return { text: t('drafting.statusCompleted'), color: 'text-success-start', icon: <CheckCircle className="h-5 w-5" /> };
+        return { text: t('drafting.statusCompleted', 'Përfunduar'), color: 'text-success-start', icon: <CheckCircle className="h-5 w-5" /> };
       case 'FAILED':
-        return { text: t('drafting.statusFailed'), color: 'text-danger-start', icon: <AlertCircle className="h-5 w-5" /> };
+        return { text: t('drafting.statusFailed', 'Dështoi'), color: 'text-danger-start', icon: <AlertCircle className="h-5 w-5" /> };
       case 'PROCESSING':
-        return { text: t('drafting.statusWorking'), color: 'text-warning-start', icon: <Clock className="h-5 w-5 animate-pulse" /> };
+        return { text: t('drafting.statusWorking', 'Duke Gjeneruar...'), color: 'text-warning-start', icon: <Clock className="h-5 w-5 animate-pulse" /> };
       default:
         return { text: t('drafting.statusResult', 'Rezultati'), color: 'text-primary-start', icon: <Scale className="h-5 w-5" /> };
     }
   }, [currentJob.status, t]);
 
-  // Base button style with explicit pointer events and forced icon colors
-  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto";
+  // Base button style with explicit pointer events
+  const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto flex items-center justify-center";
+
+  const handleCopy = () => {
+    if (currentJob.result) {
+      navigator.clipboard.writeText(currentJob.result);
+    }
+  };
+
+  const handleDownload = () => {
+    if (currentJob.result) {
+      const blob = new Blob([currentJob.result], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Professional naming convention
+      const casePrefix = selectedCaseId ? `Rasti_${selectedCaseId}_` : '';
+      a.download = `Advokatus_${casePrefix}Dokument_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleOpenSaveModal = () => {
+    setDocumentTitle(''); // Reset title input on open
+    setSaveModalOpen(true);
+  };
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] shadow-sm relative group overflow-visible">
-      {/* Absolute hover border – sits above all content, never clipped */}
-      <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none z-[100]" />
+    <>
+      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] shadow-sm relative group overflow-visible">
+        {/* Absolute hover border */}
+        <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none z-[100]" />
 
-      {/* Executive Header Toolbar */}
-      <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
-        <div className="flex items-center gap-4">
-          <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
-            {statusUI.icon}
+        {/* Executive Header Toolbar */}
+        <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto rounded-t-3xl">
+          <div className="flex items-center gap-4">
+            <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
+              {statusUI.icon}
+            </div>
+            <h3 className="text-text-primary text-xs font-black uppercase tracking-widest leading-none">
+              {statusUI.text}
+            </h3>
           </div>
-          <h3 className="text-text-primary text-xs font-black uppercase tracking-widest leading-none">
-            {statusUI.text}
-          </h3>
-        </div>
 
-        {/* Action Button Cluster */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSave}
-            title={t('drafting.saveToArchive')}
-            disabled={!currentJob.result || saving}
-            className={actionButtonBase}
-          >
-            {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} className="stroke-[2.5px] text-text-primary" />}
-          </button>
-          <button
-            onClick={() => {
-              if (currentJob.result) {
-                navigator.clipboard.writeText(currentJob.result);
-              }
-            }}
-            title={t('drafting.copy')}
-            disabled={!currentJob.result}
-            className={actionButtonBase}
-          >
-            <Copy size={18} className="stroke-[2.5px] text-text-primary" />
-          </button>
-          <button
-            onClick={() => {
-              if (currentJob.result) {
-                const blob = new Blob([currentJob.result], { type: 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `draft-${Date.now()}.txt`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }
-            }}
-            title={t('drafting.download')}
-            disabled={!currentJob.result}
-            className={actionButtonBase}
-          >
-            <Download size={18} className="stroke-[2.5px] text-text-primary" />
-          </button>
-
-          {currentJob.status === 'FAILED' && (
-            <button onClick={onRetry} title="Riprovo" className={actionButtonBase}>
-              <RefreshCw size={18} className="text-text-primary" />
+          {/* Action Button Cluster */}
+          <div className="flex items-center gap-2">
+            
+            {/* Archive Button */}
+            <button
+              onClick={onSave}
+              title={t('drafting.saveToArchive', 'Ruaj në Arkivë')}
+              disabled={!currentJob.result || saving}
+              className={actionButtonBase}
+            >
+              {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} className="stroke-[2.5px]" />}
             </button>
-          )}
 
-          <div className="h-6 w-px bg-border-main mx-1" />
+            {/* Save to Case Button */}
+            <button
+              onClick={handleOpenSaveModal}
+              title={t('drafting.saveToCase', 'Lidh me Rastin')}
+              disabled={!currentJob.result || !selectedCaseId || saving}
+              className={actionButtonBase}
+            >
+              <Briefcase size={18} className="stroke-[2.5px]" />
+            </button>
+            
+            <button
+              onClick={handleCopy}
+              title={t('drafting.copy', 'Kopjo Dokumentin')}
+              disabled={!currentJob.result}
+              className={actionButtonBase}
+            >
+              <Copy size={18} className="stroke-[2.5px]" />
+            </button>
+            
+            <button
+              onClick={handleDownload}
+              title={t('drafting.download', 'Shkarko si TXT')}
+              disabled={!currentJob.result}
+              className={actionButtonBase}
+            >
+              <Download size={18} className="stroke-[2.5px]" />
+            </button>
 
-          <button
-            onClick={onClear}
-            title={t('drafting.clear')}
-            disabled={!currentJob.result && currentJob.status !== 'FAILED'}
-            className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all disabled:opacity-30 hover-lift pointer-events-auto"
-          >
-            <Trash2 size={18} className="stroke-[2.5px] text-danger-start" />
-          </button>
+            {currentJob.status === 'FAILED' && (
+              <button onClick={onRetry} title={t('common.retry', 'Riprovo')} className={actionButtonBase}>
+                <RefreshCw size={18} className="text-danger-start" />
+              </button>
+            )}
+
+            <div className="h-6 w-px bg-border-main mx-1" />
+
+            <button
+              onClick={onClear}
+              title={t('drafting.clear', 'Pastro')}
+              disabled={!currentJob.result && currentJob.status !== 'FAILED'}
+              className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-30 hover-lift pointer-events-auto flex items-center justify-center"
+            >
+              <Trash2 size={18} className="stroke-[2.5px]" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* The Paper Reading Surface */}
-      <div className="flex-1 bg-surface/30 overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
-        <div className="min-h-full w-full flex justify-center">
-          <AnimatePresence mode="wait">
-            {currentJob.result ? (
-              <motion.div
-                key="result"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="w-full max-w-[21cm]"
+        {/* The Paper Reading Surface */}
+        <div className="flex-1 bg-[#F5F5F5] dark:bg-black/50 overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10 rounded-b-3xl">
+          <div className="min-h-full w-full flex flex-col items-center">
+            
+            {/* Floating Notification */}
+            {notification && (
+              <motion.div 
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className={`mb-6 px-5 py-3 text-xs font-black uppercase tracking-widest rounded-xl flex items-center gap-3 border shadow-md w-full max-w-[21cm] z-20 ${
+                  notification.type === 'success'
+                    ? 'bg-success-start/10 text-success-start border-success-start/20'
+                    : 'bg-danger-start/10 text-danger-start border-danger-start/20'
+                }`}
               >
-                {notification && (
-                  <div
-                    className={`mb-6 p-4 text-xs font-black uppercase tracking-widest rounded-xl flex items-center gap-3 border shadow-sm w-full ${
-                      notification.type === 'success'
-                        ? 'bg-success-start/10 text-success-start border-success-start/20'
-                        : 'bg-danger-start/10 text-danger-start border-danger-start/20'
-                    }`}
-                  >
-                    {notification.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                    {notification.msg}
-                  </div>
-                )}
-                <div className="bg-white p-12 text-black shadow-lg rounded-sm min-h-[29.7cm] border border-gray-200">
-                  <DraftResultRenderer text={currentJob.result} t={t} />
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none opacity-40"
-              >
-                {currentJob.status === 'PROCESSING' ? (
-                  <div className="flex flex-col items-center">
-                    <div className="w-20 h-20 rounded-[1.5rem] bg-primary-start flex items-center justify-center shadow-accent-glow mb-8 animate-pulse">
-                      <BrainCircuit className="w-10 h-10 text-white" />
-                    </div>
-                    <p className="text-text-primary font-black uppercase tracking-widest text-xs">
-                      {t('drafting.statusWorking', 'Duke Gjeneruar...')}
-                      <ThinkingDots />
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <FileText size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
-                    <p className="text-text-muted font-black text-xs uppercase tracking-widest">
-                      {t('drafting.emptyState', 'Rezultati do të shfaqet këtu')}
-                    </p>
-                  </div>
-                )}
+                {notification.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                {notification.msg}
               </motion.div>
             )}
-          </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              {currentJob.result ? (
+                <motion.div
+                  key="result"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  className="w-full max-w-[21cm]"
+                >
+                  <div className="bg-white text-black p-12 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-gray-300 font-serif leading-relaxed text-[11pt]">
+                    <DraftResultRenderer text={currentJob.result} t={t} />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="empty"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none opacity-40"
+                >
+                  {currentJob.status === 'PROCESSING' ? (
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 rounded-[1.5rem] bg-primary-start flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary-start-rgb),0.5)] mb-8 animate-pulse">
+                        <BrainCircuit className="w-10 h-10 text-white" />
+                      </div>
+                      <p className="text-text-primary font-black uppercase tracking-widest text-xs">
+                        {t('drafting.statusWorking', 'Duke Gjeneruar Dokumentin')}
+                        <ThinkingDots />
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <FileText size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
+                      <p className="text-text-muted font-black text-xs uppercase tracking-widest">
+                        {t('drafting.emptyState', 'Rezultati do të shfaqet këtu')}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Save to Case Modal Overlay */}
+      <AnimatePresence>
+        {saveModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface border border-border-main rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary-start/10 rounded-xl border border-primary-start/20 text-primary-start">
+                    <Briefcase size={20} />
+                  </div>
+                  <h3 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
+                    {t('drafting.saveToCaseModalTitle', 'Lidh me Rastin')}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setSaveModalOpen(false)}
+                  className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <p className="text-sm font-medium text-text-muted mb-6 leading-relaxed">
+                {t('drafting.saveToCaseModalDesc', 'Eksporto këtë dokument drejtpërdrejt në dosjen e rastit tuaj aktiv.')}
+              </p>
+
+              {/* TS FIX: Input to provide the 'title' argument */}
+              <div className="mb-8">
+                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
+                  {t('drafting.documentTitleLabel', 'Titulli i Dokumentit')}
+                </label>
+                <input 
+                  type="text" 
+                  value={documentTitle}
+                  onChange={(e) => setDocumentTitle(e.target.value)}
+                  placeholder={t('drafting.documentTitlePlaceholder', 'psh. Kontratë Pune ose Padi...')}
+                  className="w-full p-4 bg-canvas border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted/50"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={() => setSaveModalOpen(false)}
+                  className="flex-1 py-3.5 px-4 bg-transparent border border-border-main text-text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-hover hover:text-text-primary transition-all"
+                >
+                  {t('common.cancel', 'Anulo')}
+                </button>
+                <button
+                  onClick={() => {
+                    // Passed exactly 1 argument to satisfy TS (falling back to default string if empty)
+                    onSaveToCase(documentTitle.trim() || t('drafting.untitledDocument', 'Dokument i Paemërtuar'));
+                    setSaveModalOpen(false);
+                  }}
+                  className="flex-1 py-3.5 px-4 bg-primary-start text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary-start/20 transition-all"
+                >
+                  {t('common.confirm', 'Ruaj')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
