@@ -5,7 +5,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { PenTool } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 import { TemplateType, DraftingJobState, NotificationState } from '../drafting/types';
@@ -179,16 +178,7 @@ const DraftingPage: React.FC = () => {
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8 flex flex-col h-full">
         <style>{lawyerGradeStyles}</style>
 
-        <div className="flex items-center gap-4 mb-8 flex-shrink-0">
-          <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-sm">
-            <PenTool size={24} />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-text-primary tracking-tighter leading-none">
-            {t('drafting.title', 'Hartimi Ligjor')}
-          </h1>
-        </div>
-
-        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:h-[750px] min-h-0 pointer-events-auto">
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 mt-4 flex-1 lg:h-[750px] min-h-0 pointer-events-auto">
           <div className="h-full overflow-y-auto custom-scrollbar">
             <ConfigPanel
               t={t}
