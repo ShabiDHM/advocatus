@@ -126,7 +126,7 @@ const DraftingPage: React.FC = () => {
     
     try {
       // 1. Generate base prompt
-      const basePrompt = constructSmartPrompt(context.trim(), selectedTemplate, t);
+      const basePrompt = constructSmartPrompt(context.trim(), selectedTemplate);
       
       // 2. Wrap base prompt in our strict Kosovo Legal Engine matrix
       const securePrompt = buildKosovoSystemPrompt(selectedTemplate, basePrompt);
