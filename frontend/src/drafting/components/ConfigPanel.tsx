@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V8.2 (STABLE UI / THEME SYNC)
+// PHOENIX PROTOCOL - CONFIG PANEL V8.3 (PREMIUM OPAQUE DROPDOWN FIX)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -45,7 +45,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
   const getOptionLabel = (value: string) => {
     const map: Record<string, string> = {
-      generic: t('drafting.templateGeneric', 'Dokument i Përgjithshëm'),
+      generic: t('drafting.templateGeneric', 'Dokument i Përgjithshëm (I lirë)'),
       padi: t('drafting.templatePadi', 'Padi (Lawsuit)'),
       pergjigje: t('drafting.templatePergjigje', 'Përgjigje në Padi'),
       kunderpadi: t('drafting.templateKunderpadi', 'Kundërpadi'),
@@ -103,36 +103,48 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION (Strict Theme Adherence) */}
+        {/* TEMPLATE SELECTION (Fixed Opaque Dropdown) */}
         <div className="relative" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
-            <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">{t('drafting.templateLabel', 'Lloji i Dokumentit')}</label>
-            {!isPro && <span className="text-[9px] text-warning-start font-black bg-warning-start/10 px-2 py-0.5 rounded border border-warning-start/20 uppercase tracking-widest flex items-center gap-1"><Lock size={10} /> PRO</span>}
+            <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
+              {t('drafting.templateLabel', 'Lloji i Dokumentit')}
+            </label>
+            {!isPro && (
+              <span className="text-[9px] text-warning-start font-black bg-warning-start/10 px-2 py-0.5 rounded border border-warning-start/20 uppercase tracking-widest flex items-center gap-1">
+                <Lock size={10} /> PRO
+              </span>
+            )}
           </div>
           
-          <button type="button" onClick={() => isPro && setIsOpen(!isOpen)} disabled={!isPro} 
+          <button 
+            type="button" 
+            onClick={() => isPro && setIsOpen(!isOpen)} 
+            disabled={!isPro} 
             className="w-full px-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-between transition-all hover:border-primary-start focus:border-primary-start focus:ring-1 focus:ring-primary-start"
           >
             <span className="truncate">{getOptionLabel(selectedTemplate)}</span>
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Fixed Dropdown Theme Classes */}
+          {/* BULLETPROOF OPAQUE MENU */}
           {isOpen && isPro && (
-            <div className="absolute w-full mt-2 bg-surface border border-border-main rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] max-h-60 overflow-y-auto z-[100] custom-scrollbar">
+            <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0B1221] border border-[#1E293B] rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,1)] max-h-[300px] overflow-y-auto z-[9999] ring-1 ring-white/5 flex flex-col custom-scrollbar">
               {templateGroups.map((group) => (
-                <div key={group.label}>
-                  <div className="px-4 py-2 text-[9px] font-black uppercase text-primary-start bg-primary-start/5 border-b border-border-main/20">
+                <div key={group.label} className="flex flex-col">
+                  {/* Sticky Opaque Header */}
+                  <div className="sticky top-0 px-4 py-2.5 text-[9px] font-black uppercase text-slate-400 bg-[#0B1221] border-b border-[#1E293B] z-10 tracking-wider">
                     {group.label}
                   </div>
+                  {/* Options */}
                   {group.options.map((opt) => (
-                    <div 
-                      key={opt} 
-                      onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }} 
-                      className="px-4 py-2.5 hover:bg-hover cursor-pointer text-sm font-semibold text-text-primary border-b border-border-main/10 last:border-none transition-colors"
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
+                      className="w-full text-left px-4 py-3 hover:bg-[#161F33] cursor-pointer text-sm font-medium text-slate-200 border-b border-[#1E293B]/50 last:border-none transition-colors"
                     >
                       {getOptionLabel(opt)}
-                    </div>
+                    </button>
                   ))}
                 </div>
               ))}
@@ -141,7 +153,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </div>
 
         {/* INSTRUCTIONS */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 relative z-0">
           <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
             {t('drafting.instructionsLabel', 'Udhëzimet')}
           </label>

@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: BULLETPROOF A4 CANVAS & LEGAL OUTPUT UI
+// ARCHITECTURE: UNIFIED THEME & BULLETPROOF A4 CANVAS
 
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,6 +70,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   return (
     <>
+      {/* Outer wrapper: strictly uses the app's glass-panel and bg-surface */}
       <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface">
         
         {/* Executive Header Toolbar */}
@@ -129,8 +130,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
         </div>
 
-        {/* The Desk & Paper Reading Surface (ISOLATED FROM DARK MODE) */}
-        <div className="flex-1 bg-gray-100 dark:bg-[#0A0A0A] overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
+        {/* The "Viewer" Area - Now perfectly synced with app theme using bg-black/10 for slight inset depth */}
+        <div className="flex-1 bg-black/10 shadow-inner overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10 rounded-b-3xl">
           <div className="min-h-full w-full flex flex-col items-center">
             
             {notification && (
@@ -154,8 +155,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   exit={{ opacity: 0, scale: 0.98 }}
                   className="w-full max-w-[21cm]"
                 >
-                  {/* BULLETPROOF A4 CANVAS */}
-                  <div className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.6)] rounded-sm min-h-[29.7cm] border border-gray-200 dark:border-neutral-800 font-serif leading-relaxed text-[11pt]">
+                  {/* BULLETPROOF A4 CANVAS (Stays purely white despite dark mode) */}
+                  <div className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.4)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]">
                     <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
                       <DraftResultRenderer text={currentJob.result} t={t} />
                     </div>
@@ -166,7 +167,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   key="empty"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none opacity-40"
+                  className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none opacity-50"
                 >
                   {currentJob.status === 'PROCESSING' ? (
                     <div className="flex flex-col items-center">
@@ -193,7 +194,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
         </div>
       </div>
 
-      {/* Save Modal Overlays (Unchanged) */}
+      {/* Save Modal Overlays */}
       <AnimatePresence>
         {saveModalOpen && (
           <motion.div
