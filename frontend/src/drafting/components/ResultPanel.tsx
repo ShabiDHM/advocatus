@@ -1,7 +1,7 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX
+// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX – COPY FROM RENDERED DOM
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
@@ -25,6 +25,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   onSaveToCase
 }) => {
   const [documentTitle, setDocumentTitle] = useState('');
+  // Ref to the white A4 canvas that holds the rendered document
+  const documentRef = useRef<HTMLDivElement>(null);
 
   const statusUI = useMemo(() => {
     switch (currentJob.status) {
@@ -42,7 +44,14 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto flex items-center justify-center";
 
   const handleCopy = () => {
-    if (currentJob.result) {
+    if (!currentJob.result) return;
+    // Prefer rendered plain text from the DOM (matches on-screen appearance)
+    if (documentRef.current) {
+      // Use innerText to get plain text without HTML tags or Markdown syntax
+      const plainText = documentRef.current.innerText;
+      navigator.clipboard.writeText(plainText);
+    } else {
+      // Fallback to raw Markdown if ref is not available
       navigator.clipboard.writeText(currentJob.result);
     }
   };
@@ -148,7 +157,10 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   className="w-full max-w-[21cm]"
                 >
                   {/* BULLETPROOF A4 CANVAS (Stays purely white despite dark mode) */}
-                  <div className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.4)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]">
+                  <div
+                    ref={documentRef}
+                    className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.4)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]"
+                  >
                     <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
                       <DraftResultRenderer text={currentJob.result} t={t} />
                     </div>
