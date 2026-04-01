@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX – COPY FROM RENDERED DOM
+// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX – COPY EXACT VISIBLE CONTENT
 
 import React, { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,13 +45,37 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   const handleCopy = () => {
     if (!currentJob.result) return;
-    // Prefer rendered plain text from the DOM (matches on-screen appearance)
+
+    // Try to copy the exact visible content by programmatically selecting the document area.
     if (documentRef.current) {
-      // Use innerText to get plain text without HTML tags or Markdown syntax
-      const plainText = documentRef.current.innerText;
-      navigator.clipboard.writeText(plainText);
+      // Save current selection (if any)
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(documentRef.current);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      try {
+        // Copy the selected content
+        const success = document.execCommand('copy');
+        if (success) {
+          // Clear selection
+          selection?.removeAllRanges();
+          // Optional: show a small notification that it worked (already handled via toast?)
+          return;
+        }
+      } catch (err) {
+        console.warn('Copy failed, falling back to innerText', err);
+      } finally {
+        // Ensure selection is cleared
+        selection?.removeAllRanges();
+      }
+    }
+
+    // Fallback: copy innerText (or raw markdown)
+    if (documentRef.current) {
+      navigator.clipboard.writeText(documentRef.current.innerText);
     } else {
-      // Fallback to raw Markdown if ref is not available
       navigator.clipboard.writeText(currentJob.result);
     }
   };
