@@ -1,4 +1,6 @@
 // FILE: src/drafting/templates/index.ts
+// ARCHITECTURE: PHOENIX PROTOCOL – DETERMINISTIC, SELF‑CONTAINED TEMPLATES
+
 import { TemplateConfig, TemplateType } from '../types';
 
 import { genericTemplate } from './generic';
@@ -20,44 +22,24 @@ import { powerOfAttorneyTemplate } from './real_estate/power_of_attorney';
 import { termsConditionsTemplate } from './compliance/terms_conditions';
 import { privacyPolicyTemplate } from './compliance/privacy_policy';
 
-const withCompliance = (config: TemplateConfig, domain: 'FAMILY' | 'CORPORATE' | 'CIVIL' | 'LABOR'): TemplateConfig => ({
-  ...config,
-  structureInstructions: `
-[STRICT LEGAL SCHEMA]
-DOMAIN: ${domain}
-MANDATORY CITATIONS: 
-${domain === 'FAMILY' ? '- Ligji i Familjes së Kosovës (Nr. 2004/25)' : ''}
-${domain === 'CORPORATE' ? '- Ligji Nr. 06/L-016 për Shoqëritë Tregtare' : ''}
-${domain === 'LABOR' ? '- Ligji i Punës Nr. 03/L-212' : ''}
-${domain === 'CIVIL' ? '- Kodi Civil i Republikës së Kosovës' : ''}
-
-RULES:
-1. NEVER cite laws from other domains.
-2. If the user input is a family dispute, you are forbidden from mentioning commercial or corporate statutes.
-3. If data (names, dates, IDs) is missing, use exactly this placeholder: [_____].
-
-[INSTRUCTIONS]
-${config.structureInstructions}
-  `.trim()
-});
-
+// No wrapper – each template is fully self‑contained with deterministic instructions.
 export const templateConfigs: Record<TemplateType, TemplateConfig> = {
-  generic: withCompliance(genericTemplate, 'CIVIL'),
-  padi: withCompliance(padiTemplate, 'FAMILY'),
-  pergjigje: withCompliance(pergjigjeTemplate, 'FAMILY'),
-  kunderpadi: withCompliance(kunderpadiTemplate, 'FAMILY'),
-  ankese: withCompliance(ankeseTemplate, 'CIVIL'),
-  prapësim: withCompliance(prapesimTemplate, 'CIVIL'),
-  nda: withCompliance(ndaTemplate, 'CORPORATE'),
-  mou: withCompliance(mouTemplate, 'CORPORATE'),
-  shareholders: withCompliance(shareholdersTemplate, 'CORPORATE'),
-  sla: withCompliance(slaTemplate, 'CORPORATE'),
-  employment_contract: withCompliance(employmentContractTemplate, 'LABOR'),
-  termination_notice: withCompliance(terminationNoticeTemplate, 'LABOR'),
-  warning_letter: withCompliance(warningLetterTemplate, 'LABOR'),
-  lease_agreement: withCompliance(leaseAgreementTemplate, 'CIVIL'),
-  sales_purchase: withCompliance(salesPurchaseTemplate, 'CIVIL'),
-  power_of_attorney: withCompliance(powerOfAttorneyTemplate, 'CIVIL'),
-  terms_conditions: withCompliance(termsConditionsTemplate, 'CIVIL'),
-  privacy_policy: withCompliance(privacyPolicyTemplate, 'CIVIL'),
+  generic: genericTemplate,
+  padi: padiTemplate,
+  pergjigje: pergjigjeTemplate,
+  kunderpadi: kunderpadiTemplate,
+  ankese: ankeseTemplate,
+  prapësim: prapesimTemplate,
+  nda: ndaTemplate,
+  mou: mouTemplate,
+  shareholders: shareholdersTemplate,
+  sla: slaTemplate,
+  employment_contract: employmentContractTemplate,
+  termination_notice: terminationNoticeTemplate,
+  warning_letter: warningLetterTemplate,
+  lease_agreement: leaseAgreementTemplate,
+  sales_purchase: salesPurchaseTemplate,
+  power_of_attorney: powerOfAttorneyTemplate,
+  terms_conditions: termsConditionsTemplate,
+  privacy_policy: privacyPolicyTemplate,
 };
