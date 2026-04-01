@@ -1,5 +1,5 @@
-// FILE: src/components/Header.tsx (Second App – Unified with First App)
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v12.0
+// FILE: src/components/Header.tsx
+// PHOENIX PROTOCOL – EXECUTIVE SOLID/GLASS HEADER v12.1
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -84,7 +84,6 @@ const Header: React.FC = () => {
     };
   }, [isProfileOpen]);
 
-  // Active check: for '/business', treat any sub‑path as active
   const isActive = (path: string) => {
     if (path === '/business') {
       return location.pathname.startsWith('/business');
@@ -93,117 +92,154 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/80 backdrop-blur-xl border-b border-border-main">
-      
-      {/* Left: Brand */}
-      <div className="flex items-center gap-3 shrink-0">
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-          className="p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg"
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-        <Link to="/business" className="flex items-center">
-          <BrandLogo />
-        </Link>
-      </div>
-
-      {/* Center: Segmented Glass Bar (Updated to Haveri dark-square style) */}
-      <div className="hidden lg:flex items-center bg-surface/50 p-1.5 rounded-2xl border border-border-main shadow-inner gap-1">
-        {navItems.map((item) => {
-          const active = isActive(item.path);
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={`
-                flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
-                ${active 
-                  ? 'bg-canvas text-primary-start shadow-md border border-border-main' 
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface/50 border border-transparent'
-                }
-              `}
-            >
-              <item.icon size={16} />
-              <span className="hidden xl:inline">{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </div>
-
-      {/* Right: Actions */}
-      <div className="flex items-center gap-3">
-        <button 
-          onClick={toggleTheme} 
-          className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
-          aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-
-        <Link to="/calendar" className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg relative">
-          <Bell size={18} />
-          {alertCount > 0 && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
-          )}
-        </Link>
-
-        {/* User profile */}
-        <div className="relative hidden sm:block">
-          <button
-            ref={buttonRef}
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-2 p-1 rounded-full bg-surface/30 border border-border-main hover:bg-surface/50 transition-colors"
+    <>
+      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas lg:bg-canvas/80 lg:backdrop-blur-xl border-b border-border-main">
+        
+        {/* Left: Brand */}
+        <div className="flex items-center gap-3 shrink-0">
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+            className="p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg transition-colors"
           >
-            <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
-              {user?.username?.charAt(0).toUpperCase() || 'U'}
-            </div>
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          <Link to="/business" className="flex items-center">
+            <BrandLogo />
+          </Link>
+        </div>
+
+        {/* Center: Segmented Glass Bar (Desktop Only) */}
+        <div className="hidden lg:flex items-center bg-surface/50 p-1.5 rounded-2xl border border-border-main shadow-inner gap-1">
+          {navItems.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
+                  ${active 
+                    ? 'bg-canvas text-primary-start shadow-md border border-border-main' 
+                    : 'text-text-muted hover:text-text-primary hover:bg-surface/50 border border-transparent'
+                  }
+                `}
+              >
+                <item.icon size={16} />
+                <span className="hidden xl:inline">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={toggleTheme} 
+            className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
+            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          {isProfileOpen && (
-            <div ref={dropdownRef} className="absolute right-0 mt-2 w-56 glass-panel border border-border-main rounded-xl shadow-xl py-2 z-50">
-              <div className="px-4 py-2 border-b border-border-main mb-1">
-                <p className="text-sm font-bold text-primary">{user?.username}</p>
-                <p className="text-xs text-text-muted">{user?.email}</p>
-              </div>
+          <Link to="/calendar" className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg relative">
+            <Bell size={18} />
+            {alertCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
+            )}
+          </Link>
 
-              <button onClick={() => navigate('/account')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
-                <UserIcon size={16} className="mr-3 text-primary" />{t('sidebar.account')}
-              </button>
-              <button onClick={() => navigate('/support')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
-                <MessageSquare size={16} className="mr-3 text-primary" />{t('sidebar.support')}
-              </button>
-              <div className="h-px bg-border-main my-1"></div>
+          {/* User profile */}
+          <div className="relative hidden sm:block">
+            <button
+              ref={buttonRef}
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center gap-2 p-1 rounded-full bg-surface/30 border border-border-main hover:bg-surface/50 transition-colors"
+            >
+              <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+            </button>
+
+            {isProfileOpen && (
+              <div ref={dropdownRef} className="absolute right-0 mt-2 w-56 glass-panel border border-border-main rounded-xl shadow-xl py-2 z-[70]">
+                <div className="px-4 py-2 border-b border-border-main mb-1">
+                  <p className="text-sm font-bold text-primary">{user?.username}</p>
+                  <p className="text-xs text-text-muted">{user?.email}</p>
+                </div>
+
+                <button onClick={() => navigate('/account')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
+                  <UserIcon size={16} className="mr-3 text-primary" />{t('sidebar.account')}
+                </button>
+                <button onClick={() => navigate('/support')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
+                  <MessageSquare size={16} className="mr-3 text-primary" />{t('sidebar.support')}
+                </button>
+                <div className="h-px bg-border-main my-1"></div>
+                <button 
+                  onClick={() => { setIsProfileOpen(false); logout(); }} 
+                  className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors"
+                >
+                  <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Navigation Overlay - Solid Background Isolation */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 top-[57px] bg-canvas z-[50] lg:hidden animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="p-4 h-full overflow-y-auto">
+            <div className="grid grid-cols-2 gap-3 pb-20">
+              {navItems.map(item => {
+                const active = isActive(item.path);
+                return (
+                  <Link 
+                    key={item.path} 
+                    to={item.path} 
+                    onClick={() => setIsMobileMenuOpen(false)} 
+                    className={`
+                      flex flex-col items-center justify-center p-6 rounded-2xl border transition-all duration-200
+                      ${active 
+                        ? 'bg-surface border-primary-start text-primary-start shadow-sm' 
+                        : 'bg-surface/40 border-border-main text-text-secondary hover:bg-surface'
+                      }
+                    `}
+                  >
+                    <item.icon size={28} className={active ? 'text-primary-start' : 'text-text-muted'} />
+                    <span className="text-xs font-black uppercase tracking-widest mt-3 text-center leading-tight">
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+              
+              {/* Mobile Account Link */}
               <button 
-                onClick={() => { setIsProfileOpen(false); logout(); }} 
-                className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors"
+                onClick={() => { setIsMobileMenuOpen(false); navigate('/account'); }}
+                className="col-span-2 flex items-center gap-4 p-5 rounded-2xl bg-surface/40 border border-border-main text-text-secondary mt-2"
               >
-                <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
+                <div className="h-10 w-10 rounded-full bg-primary-start text-white flex items-center justify-center text-sm font-black">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-text-primary">{user?.username}</p>
+                  <p className="text-[10px] text-text-muted uppercase tracking-widest">{t('sidebar.account')}</p>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => { setIsMobileMenuOpen(false); logout(); }}
+                className="col-span-2 flex items-center justify-center gap-3 p-5 rounded-2xl bg-danger-start/5 border border-danger-start/20 text-danger-start font-bold uppercase text-[10px] tracking-widest mt-2"
+              >
+                <LogOut size={16} />
+                {t('general.logout', 'Dilni')}
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile Navigation Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-x-0 top-16 bg-card border-b border-border-main p-4 lg:hidden z-40 shadow-lg">
-          <div className="grid grid-cols-2 gap-3">
-            {navItems.map(item => (
-              <Link 
-                key={item.path} 
-                to={item.path} 
-                onClick={() => setIsMobileMenuOpen(false)} 
-                className="flex flex-col items-center p-4 rounded-xl bg-surface border border-border-main text-text-secondary hover:text-primary hover:bg-hover transition-all"
-              >
-                <item.icon size={24} className="mb-2" />
-                <span className="text-xs font-bold">{item.label}</span>
-              </Link>
-            ))}
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 };
 
