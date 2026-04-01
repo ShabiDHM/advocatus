@@ -179,6 +179,12 @@
     --border-danger-solid: #F87171;
   }
 
+  /* ========== PHOENIX FIX: Ensure root containers fill viewport ========== */
+  html, body, #root {
+    height: 100%;
+    min-height: 100vh;
+  }
+
   body {
     background-color: var(--bg-base);
     color: var(--text-secondary);
