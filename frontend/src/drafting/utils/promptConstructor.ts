@@ -1,40 +1,28 @@
 // FILE: src/drafting/utils/promptConstructor.ts
+// PHOENIX PROTOCOL - USER CONTEXT PARSER V2 (DE-DUPLICATED)
+
 import { TemplateType } from '../types';
 import { getDocumentStructureInstructions } from './templateHelpers';
 
-// STRICT REGISTRY: Maps templates to specific Kosovo Legislation.
-const LEGAL_WHITELIST: Record<string, { law: string; focus: string }> = {
-  padi: { law: "Ligji i Familjes së Kosovës (Nr. 2004/25) dhe Ligji për Procedurën Kontestimore", focus: "Family Law & Civil Procedure" },
-  pergjigje: { law: "Ligji i Familjes së Kosovës (Nr. 2004/25) dhe Ligji për Procedurën Kontestimore", focus: "Family Law Defense" },
-  kunderpadi: { law: "Ligji i Familjes së Kosovës (Nr. 2004/25)", focus: "Family Law Counter-claim" },
-  nda: { law: "Ligji Nr. 06/L-016 për Shoqëritë Tregtare dhe Kodi Civil", focus: "Corporate Confidentiality" },
-  employment_contract: { law: "Ligji i Punës Nr. 03/L-212", focus: "Employment Rights" },
-  generic: { law: "Kodi Civil i Republikës së Kosovës", focus: "General Civil Obligations" }
-};
-
 export const constructSmartPrompt = (userText: string, template: TemplateType): string => {
-  const meta = LEGAL_WHITELIST[template] || LEGAL_WHITELIST['generic'];
+  // NOTE: The conflicting LEGAL_WHITELIST has been intentionally removed from here.
+  // The strict Kosovo statute mapping and System Directives are now securely handled 
+  // by the Zero-Hallucination Protocol in DraftingPage.tsx.
 
   return `
-[SYSTEM ROLE]
-You are a senior attorney in the Republic of Kosovo. 
-TASK: Draft a professional legal document based on the input.
-
-[STRICT LEGAL CONSTRAINTS]
-1. CITATION SOURCE: You are restricted to using: ${meta.law}.
-2. PROHIBITION: DO NOT cite the 'Ligji për Marrëdhëniet e Detyrimeve' if the case is Family Law.
-3. OUTPUT FORMAT: Begin immediately with the court header. No conversational filler.
-4. PLACEHOLDERS: Use [_____] for any information not provided by the user. Do not invent facts.
-
-[DOCUMENT STRUCTURE]
-${getDocumentStructureInstructions(template)}
-
-[USER INPUT]
+[FAKTET DHE KËRKESA E KLIENTIT]
+Të dhënat e ofruara nga përdoruesi për këtë rast:
+"""
 ${userText}
+"""
 
-[DRAFTING INSTRUCTIONS]
-- Use the structure defined above.
-- Apply formal Albanian legal terminology.
-- Maintain professional tone.
-  `;
+[UDHËZIME SHTESË PËR KËTË DRAFT]
+1. Ndërto dokumentin duke u bazuar KREJTËSISHT te faktet e mësipërme.
+2. Për çdo të dhënë që klienti nuk e ka ofruar në tekstin e mësipërm, NDALOHET përdorimi i vijave të zbrazëta (si p.sh. "_____").
+3. TI DUHET të përdorësh emërtime të qarta brenda kllapave katrore për të dhënat që mungojnë. 
+   Shembuj të saktë: [NUMRI_PERSONAL_I_PADITËSIT], [DATA_E_LIDHJES_SË_KONTRATËS], [SHUMA_E_DETYRIMIT], [ADRESA_E_TË_PADITURIT].
+
+[STRUKTURA SPECIFIKE E DOKUMENTIT TË ZGJEDHUR]
+${getDocumentStructureInstructions(template)}
+  `.trim();
 };

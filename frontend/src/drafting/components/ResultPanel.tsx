@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: PROFESSIONAL LEGAL OUTPUT UI & RESTORED "SAVE TO CASE" MODAL (TS FIXED)
+// ARCHITECTURE: BULLETPROOF A4 CANVAS & LEGAL OUTPUT UI
 
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,7 +25,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   setSaveModalOpen,
   onSaveToCase
 }) => {
-  // Local state to capture the document title before saving to a Case
   const [documentTitle, setDocumentTitle] = useState('');
 
   const statusUI = useMemo(() => {
@@ -41,7 +40,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   }, [currentJob.status, t]);
 
-  // Base button style with explicit pointer events
   const actionButtonBase = "p-3 bg-surface border border-border-main text-text-primary hover:text-primary-start hover:border-primary-start/50 rounded-xl transition-all shadow-sm hover:shadow-md hover-lift disabled:opacity-30 disabled:hover:shadow-none pointer-events-auto flex items-center justify-center";
 
   const handleCopy = () => {
@@ -56,7 +54,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      // Professional naming convention
       const casePrefix = selectedCaseId ? `Rasti_${selectedCaseId}_` : '';
       a.download = `Advokatus_${casePrefix}Dokument_${new Date().toISOString().split('T')[0]}.txt`;
       document.body.appendChild(a);
@@ -67,18 +64,16 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   };
 
   const handleOpenSaveModal = () => {
-    setDocumentTitle(''); // Reset title input on open
+    setDocumentTitle(''); 
     setSaveModalOpen(true);
   };
 
   return (
     <>
-      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[700px] shadow-sm relative group overflow-visible">
-        {/* Absolute hover border */}
-        <div className="absolute inset-0 rounded-3xl border border-transparent group-hover:border-primary-start transition-colors duration-300 pointer-events-none z-[100]" />
-
+      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface">
+        
         {/* Executive Header Toolbar */}
-        <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto rounded-t-3xl">
+        <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
           <div className="flex items-center gap-4">
             <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
               {statusUI.icon}
@@ -88,10 +83,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             </h3>
           </div>
 
-          {/* Action Button Cluster */}
           <div className="flex items-center gap-2">
-            
-            {/* Archive Button */}
             <button
               onClick={onSave}
               title={t('drafting.saveToArchive', 'Ruaj në Arkivë')}
@@ -101,7 +93,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} className="stroke-[2.5px]" />}
             </button>
 
-            {/* Save to Case Button */}
             <button
               onClick={handleOpenSaveModal}
               title={t('drafting.saveToCase', 'Lidh me Rastin')}
@@ -111,21 +102,11 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               <Briefcase size={18} className="stroke-[2.5px]" />
             </button>
             
-            <button
-              onClick={handleCopy}
-              title={t('drafting.copy', 'Kopjo Dokumentin')}
-              disabled={!currentJob.result}
-              className={actionButtonBase}
-            >
+            <button onClick={handleCopy} title={t('drafting.copy', 'Kopjo')} disabled={!currentJob.result} className={actionButtonBase}>
               <Copy size={18} className="stroke-[2.5px]" />
             </button>
             
-            <button
-              onClick={handleDownload}
-              title={t('drafting.download', 'Shkarko si TXT')}
-              disabled={!currentJob.result}
-              className={actionButtonBase}
-            >
+            <button onClick={handleDownload} title={t('drafting.download', 'Shkarko')} disabled={!currentJob.result} className={actionButtonBase}>
               <Download size={18} className="stroke-[2.5px]" />
             </button>
 
@@ -141,26 +122,22 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               onClick={onClear}
               title={t('drafting.clear', 'Pastro')}
               disabled={!currentJob.result && currentJob.status !== 'FAILED'}
-              className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-30 hover-lift pointer-events-auto flex items-center justify-center"
+              className="p-3 bg-surface border border-border-main text-danger-start hover:text-danger-start/80 hover:border-danger-start/30 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-30 hover-lift flex items-center justify-center"
             >
               <Trash2 size={18} className="stroke-[2.5px]" />
             </button>
           </div>
         </div>
 
-        {/* The Paper Reading Surface */}
-        <div className="flex-1 bg-[#F5F5F5] dark:bg-black/50 overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10 rounded-b-3xl">
+        {/* The Desk & Paper Reading Surface (ISOLATED FROM DARK MODE) */}
+        <div className="flex-1 bg-gray-100 dark:bg-[#0A0A0A] overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
           <div className="min-h-full w-full flex flex-col items-center">
             
-            {/* Floating Notification */}
             {notification && (
               <motion.div 
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
+                initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                 className={`mb-6 px-5 py-3 text-xs font-black uppercase tracking-widest rounded-xl flex items-center gap-3 border shadow-md w-full max-w-[21cm] z-20 ${
-                  notification.type === 'success'
-                    ? 'bg-success-start/10 text-success-start border-success-start/20'
-                    : 'bg-danger-start/10 text-danger-start border-danger-start/20'
+                  notification.type === 'success' ? 'bg-success-start/10 text-success-start border-success-start/20' : 'bg-danger-start/10 text-danger-start border-danger-start/20'
                 }`}
               >
                 {notification.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
@@ -177,8 +154,11 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   exit={{ opacity: 0, scale: 0.98 }}
                   className="w-full max-w-[21cm]"
                 >
-                  <div className="bg-white text-black p-12 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-gray-300 font-serif leading-relaxed text-[11pt]">
-                    <DraftResultRenderer text={currentJob.result} t={t} />
+                  {/* BULLETPROOF A4 CANVAS */}
+                  <div className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.6)] rounded-sm min-h-[29.7cm] border border-gray-200 dark:border-neutral-800 font-serif leading-relaxed text-[11pt]">
+                    <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
+                      <DraftResultRenderer text={currentJob.result} t={t} />
+                    </div>
                   </div>
                 </motion.div>
               ) : (
@@ -213,7 +193,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
         </div>
       </div>
 
-      {/* Save to Case Modal Overlay */}
+      {/* Save Modal Overlays (Unchanged) */}
       <AnimatePresence>
         {saveModalOpen && (
           <motion.div
@@ -237,19 +217,13 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                     {t('drafting.saveToCaseModalTitle', 'Lidh me Rastin')}
                   </h3>
                 </div>
-                <button 
-                  onClick={() => setSaveModalOpen(false)}
-                  className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors"
-                >
+                <button onClick={() => setSaveModalOpen(false)} className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors">
                   <X size={18} />
                 </button>
               </div>
-              
               <p className="text-sm font-medium text-text-muted mb-6 leading-relaxed">
                 {t('drafting.saveToCaseModalDesc', 'Eksporto këtë dokument drejtpërdrejt në dosjen e rastit tuaj aktiv.')}
               </p>
-
-              {/* TS FIX: Input to provide the 'title' argument */}
               <div className="mb-8">
                 <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
                   {t('drafting.documentTitleLabel', 'Titulli i Dokumentit')}
@@ -263,17 +237,12 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   autoFocus
                 />
               </div>
-              
               <div className="flex gap-4 w-full">
-                <button
-                  onClick={() => setSaveModalOpen(false)}
-                  className="flex-1 py-3.5 px-4 bg-transparent border border-border-main text-text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-hover hover:text-text-primary transition-all"
-                >
+                <button onClick={() => setSaveModalOpen(false)} className="flex-1 py-3.5 px-4 bg-transparent border border-border-main text-text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-hover transition-all">
                   {t('common.cancel', 'Anulo')}
                 </button>
                 <button
                   onClick={() => {
-                    // Passed exactly 1 argument to satisfy TS (falling back to default string if empty)
                     onSaveToCase(documentTitle.trim() || t('drafting.untitledDocument', 'Dokument i Paemërtuar'));
                     setSaveModalOpen(false);
                   }}

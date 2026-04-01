@@ -20,46 +20,70 @@ const lawyerGradeStyles = `
 `;
 
 // ============================================================================
-// CORE LEGAL ENGINE: ZERO-HALLUCINATION PROMPT MATRIX
+// CORE LEGAL ENGINE: ZERO-HALLUCINATION PROMPT MATRIX V2 (STRUCTURAL DETERMINISM)
 // ============================================================================
 const buildKosovoSystemPrompt = (template: string, basePrompt: string): string => {
   let statute = "";
+  let structuralBlueprint = "";
   
-  // Map Document Templates directly to strict Kosovo Statutes
+  // Map Document Templates directly to strict Kosovo Statutes AND Structural Blueprints
   switch (true) {
     case ['padi', 'pergjigje', 'kunderpadi', 'ankese', 'prapësim'].includes(template):
       statute = "Ligjin për Procedurën Kontestimore (Nr. 03/L-006) të Republikës së Kosovës"; 
+      structuralBlueprint = `
+STRUKTURA E DETYRUESHME E KOKËS SË DOKUMENTIT (OBLIGATIVE):
+GJYKATËS THEMELORE NË [QYTETI]
+Departamenti: [DEPARTAMENTI]
+
+Paditësi: [EMRI_MBIEMRI_PADITËSIT], me adresë në [ADRESA_E_PADITËSIT], nr. personal [NR_PERSONAL_PADITËSIT].
+E Paditura/I Padituri: [EMRI_MBIEMRI_TË_PADITURIT], me adresë në [ADRESA_E_TË_PADITURIT], nr. personal [NR_PERSONAL_TË_PADITURIT].
+
+OBJEKTI I PADISË: [PËRSHKRIMI_I_SHKURTËR]
+VLERA E KONTESTIT: [SHUMA] EUR
+BAZA LIGJORE: Sipas ${statute}...
+`;
       break;
     case ['nda', 'mou', 'shareholders', 'sla'].includes(template):
       statute = "Ligjin për Shoqëritë Tregtare (Nr. 06/L-016) dhe Ligjin për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) të Republikës së Kosovës"; 
+      structuralBlueprint = `
+STRUKTURA E DETYRUESHME E KOKËS SË DOKUMENTIT (OBLIGATIVE):
+TITULLI I DOKUMENTIT (Qendërzuar, Shkronja të Mëdha)
+
+Kjo marrëveshje lidhet më datë [DATA] në [QYTETI], ndërmjet:
+Palës A: [EMRI_KOMPANISË_OSE_INDIVIDIT], me seli/adresë në [ADRESA], NUI [NUMRI_UNIK_IDENTIFIKUES], përfaqësuar nga [PËRFAQËSUESI].
+Palës B: [EMRI_KOMPANISË_OSE_INDIVIDIT], me seli/adresë në [ADRESA], NUI [NUMRI_UNIK_IDENTIFIKUES], përfaqësuar nga [PËRFAQËSUESI].
+`;
       break;
     case ['employment_contract', 'termination_notice', 'warning_letter'].includes(template):
       statute = "Ligjin e Punës (Nr. 03/L-212) të Republikës së Kosovës"; 
+      structuralBlueprint = `STRUKTURA E KOKËS: Punëdhënësi [EMRI_KOMPANISË], NUI [NUI] dhe Punëmarrësi [EMRI_MBIEMRI], nr. personal [NR_PERSONAL].`;
       break;
     case ['lease_agreement', 'sales_purchase', 'power_of_attorney'].includes(template):
       statute = "Ligjin për Marrëdhëniet e Detyrimeve (Nr. 04/L-077) të Republikës së Kosovës"; 
+      structuralBlueprint = `STRUKTURA E KOKËS: Përfshi identifikimin e saktë të palëve me [EMRI], [ADRESA], dhe [NR_PERSONAL]/[NUI].`;
       break;
     case ['terms_conditions', 'privacy_policy'].includes(template):
       statute = "Ligjin për Mbrojtjen e të Dhënave Personale (Nr. 06/L-082) dhe Ligjin për Mbrojtjen e Konsumatorit (Nr. 06/L-034) të Republikës së Kosovës"; 
+      structuralBlueprint = `STRUKTURA: Formulo si një dokument politikash, me seksione të qarta dhe të numëruara.`;
       break;
     default:
       statute = "Kornizën e Përgjithshme Ligjore të Republikës së Kosovës";
+      structuralBlueprint = "STRUKTURA: Përdor formatin standard ligjor me palët, objektin dhe bazën ligjore të qartë.";
   }
 
   return `[SYSTEM DIRECTIVE - STRICT KOSOVO LEGAL ENGINE]
 ROLI YT: Ti je një Avokat dhe Ekspert Ligjor i licencuar në Republikën e Kosovës. Detyra jote është të hartosh një dokument ligjor profesional me standardet më të larta juridike.
 
 RREGULLAT E RREPTA (ZERO HALLUCINATION PROTOCOL):
-1. BAZA LIGJORE (KOSOVO ONLY): Ky dokument duhet të bazohet EKSKLUZIVISHT në ${statute}. Ndalohet rreptësisht përdorimi apo citimi i ligjeve të shteteve të tjera (p.sh. Shqipëria, SHBA, BE).
-2. GJUHA: Përdor vetëm Gjuhën Zyrtare Shqipe (standarde, formale, terminologji juridike e saktë).
-3. STRUKTURA PROFESIONALE: 
-   - Fillo me një TITULL të qartë, të qendërzuar dhe me shkronja të mëdha.
-   - Përfshi identifikimin e saktë të palëve.
-   - Përfshi bazën ligjore dhe arsyetimin/dispozitat e qarta.
-   - Përfundo dokumentin me hapësirat për nënshkrime (psh. "PËR PALËN A: _________________").
-4. PLACEHOLDERS (TË DHËNAT QË MUNGOJNË): Mos shpik të dhëna fiktive ose emra të rremë! Për çdo të dhënë që mungon përdor formatin me kllapa katrore: [EMRI_MBIEMRI], [DATA], [ADRESA], [SHUMA], [NR_LETERNJOFTIMIT], etj.
+1. BAZA LIGJORE (KOSOVO ONLY): Ky dokument duhet të bazohet EKSKLUZIVISHT në ${statute}. Ndalohet rreptësisht përdorimi apo citimi i ligjeve të shteteve të tjera.
+2. GJUHA DHE FORMATI: Përdor vetëm Gjuhën Zyrtare Shqipe (standarde, formale, terminologji juridike e saktë). Dokumenti duhet të duket si një draft origjinal nga zyra e avokatit.
+3. STRUKTURA E DETUAR (OBLIGATIVE): Ti DUHET të fillosh dokumentin ekzaktësisht me këtë strukturë të mëposhtme, duke mos lënë jashtë asnjë rresht:
+${structuralBlueprint}
+4. PLACEHOLDERS (TË DHËNAT QË MUNGOJNË): 
+   - KJO ËSHTË KRITIKE: Mos shpik TË DHËNA, EMRA, ADRESA, OSE NUMRA PERSONALE fiktive! 
+   - Për çdo të dhënë që mungon në kërkesën e klientit, TI DUHET të përdorësh formatin me kllapa katrore ekzaktësisht si vijon: [EMRI_MBIEMRI], [DATA], [ADRESA], [NR_PERSONAL], [SHUMA_NË_EURO].
 
-KONTEKSTI DHE KËRKESA E KLIENTIT:
+KONTEKSTI DHE KËRKESA E KLIENTIT TËND:
 ${basePrompt}`;
 };
 

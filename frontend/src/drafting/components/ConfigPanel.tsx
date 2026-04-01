@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V8.1 (FULL UNTRUNCATED SOURCE)
+// PHOENIX PROTOCOL - CONFIG PANEL V8.2 (STABLE UI / THEME SYNC)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -24,7 +24,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click ensuring state stability
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -90,7 +90,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           <div className="relative flex items-center">
             <Briefcase size={16} className="absolute left-4 text-primary-start" />
             <select
-              className="w-full pl-11 pr-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none appearance-none cursor-pointer"
+              className="w-full pl-11 pr-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start outline-none appearance-none cursor-pointer transition-all"
               value={selectedCaseId || ''}
               onChange={(e) => onSelectCase?.(e.target.value)}
             >
@@ -103,7 +103,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION */}
+        {/* TEMPLATE SELECTION (Strict Theme Adherence) */}
         <div className="relative" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">{t('drafting.templateLabel', 'Lloji i Dokumentit')}</label>
@@ -111,19 +111,26 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
           
           <button type="button" onClick={() => isPro && setIsOpen(!isOpen)} disabled={!isPro} 
-            className="w-full px-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-between transition-all hover:border-primary-start"
+            className="w-full px-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-between transition-all hover:border-primary-start focus:border-primary-start focus:ring-1 focus:ring-primary-start"
           >
             <span className="truncate">{getOptionLabel(selectedTemplate)}</span>
-            <ChevronDown size={16} className={`text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
+          {/* Fixed Dropdown Theme Classes */}
           {isOpen && isPro && (
-            <div className="absolute w-full mt-2 bg-white dark:bg-gray-900 border border-border-main rounded-xl shadow-2xl max-h-60 overflow-y-auto z-[100] custom-scrollbar">
+            <div className="absolute w-full mt-2 bg-surface border border-border-main rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] max-h-60 overflow-y-auto z-[100] custom-scrollbar">
               {templateGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="px-4 py-2 text-[9px] font-black uppercase text-primary-start bg-primary-start/5 border-b border-border-main/20">{group.label}</div>
+                  <div className="px-4 py-2 text-[9px] font-black uppercase text-primary-start bg-primary-start/5 border-b border-border-main/20">
+                    {group.label}
+                  </div>
                   {group.options.map((opt) => (
-                    <div key={opt} onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }} className="px-4 py-2.5 hover:bg-hover cursor-pointer text-sm font-semibold border-b border-border-main/10 last:border-none">
+                    <div 
+                      key={opt} 
+                      onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }} 
+                      className="px-4 py-2.5 hover:bg-hover cursor-pointer text-sm font-semibold text-text-primary border-b border-border-main/10 last:border-none transition-colors"
+                    >
                       {getOptionLabel(opt)}
                     </div>
                   ))}
@@ -142,7 +149,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             value={context} 
             onChange={(e) => onChangeContext(e.target.value)} 
             placeholder={placeholder} 
-            className="w-full p-4 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start outline-none shadow-inner" 
+            className="w-full p-4 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start outline-none shadow-inner transition-all custom-scrollbar" 
           />
         </div>
 
@@ -150,7 +157,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         <button 
           onClick={() => onSubmit()} 
           disabled={isSubmitting || !context.trim()} 
-          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs"
+          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
           {isSubmitting ? t('drafting.statusWorking', 'Duke Gjeneruar...') : t('drafting.generateBtn', 'Gjenero Dokumentin')}
