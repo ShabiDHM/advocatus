@@ -1,4 +1,4 @@
-// FILE: src/drafting/components/ConfigPanel.tsx
+// FILE: src/drafting /components/ConfigPanel.tsx
 // PHOENIX PROTOCOL - CONFIG PANEL V8.3 (PREMIUM OPAQUE DROPDOWN FIX)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
