@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX – COPY EXACT VISIBLE CONTENT
+// PHOENIX PROTOCOL – RESTORED & VISUALLY REINFORCED v12.3
 
 import React, { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,7 +25,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   onSaveToCase
 }) => {
   const [documentTitle, setDocumentTitle] = useState('');
-  // Ref to the white A4 canvas that holds the rendered document
   const documentRef = useRef<HTMLDivElement>(null);
 
   const statusUI = useMemo(() => {
@@ -45,38 +44,19 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   const handleCopy = () => {
     if (!currentJob.result) return;
-
-    // Try to copy the exact visible content by programmatically selecting the document area.
     if (documentRef.current) {
-      // Save current selection (if any)
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(documentRef.current);
       selection?.removeAllRanges();
       selection?.addRange(range);
-
       try {
-        // Copy the selected content
-        const success = document.execCommand('copy');
-        if (success) {
-          // Clear selection
-          selection?.removeAllRanges();
-          // Optional: show a small notification that it worked (already handled via toast?)
-          return;
-        }
+        document.execCommand('copy');
       } catch (err) {
-        console.warn('Copy failed, falling back to innerText', err);
+        navigator.clipboard.writeText(documentRef.current.innerText);
       } finally {
-        // Ensure selection is cleared
         selection?.removeAllRanges();
       }
-    }
-
-    // Fallback: copy innerText (or raw markdown)
-    if (documentRef.current) {
-      navigator.clipboard.writeText(documentRef.current.innerText);
-    } else {
-      navigator.clipboard.writeText(currentJob.result);
     }
   };
 
@@ -102,11 +82,10 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   return (
     <>
-      {/* Outer wrapper: Strictly "glass-panel" without any hardcoded background colors */}
-      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden">
+      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface/20">
         
         {/* Executive Header Toolbar */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto bg-transparent">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto bg-surface/40 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
               {statusUI.icon}
@@ -117,8 +96,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            
-            {/* Save to Case Button - Now unconditionally active if there is a result */}
             <button
               onClick={handleOpenSaveModal}
               title={t('drafting.saveToCase', 'Lidh me Rastin')}
@@ -155,10 +132,9 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
         </div>
 
-        {/* The "Viewer" Area - Now COMPLETELY transparent so the glass-panel matches the left side 100% */}
+        {/* Viewer Area */}
         <div className="flex-1 bg-transparent overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
           <div className="min-h-full w-full flex flex-col items-center">
-            
             {notification && (
               <motion.div 
                 initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
@@ -177,13 +153,11 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   key="result"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
                   className="w-full max-w-[21cm]"
                 >
-                  {/* BULLETPROOF A4 CANVAS (Stays purely white despite dark mode) */}
                   <div
                     ref={documentRef}
-                    className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.4)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]"
+                    className="bg-white text-black p-12 sm:p-16 shadow-[0_0_40px_rgba(0,0,0,0.1)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]"
                   >
                     <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
                       <DraftResultRenderer text={currentJob.result} t={t} />
@@ -191,83 +165,77 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                   </div>
                 </motion.div>
               ) : (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none opacity-50"
-                >
-                  {currentJob.status === 'PROCESSING' ? (
-                    <div className="flex flex-col items-center">
-                      <div className="w-20 h-20 rounded-[1.5rem] bg-primary-start flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary-start-rgb),0.5)] mb-8 animate-pulse">
-                        <BrainCircuit className="w-10 h-10 text-white" />
-                      </div>
-                      <p className="text-text-primary font-black uppercase tracking-widest text-xs">
-                        {t('drafting.statusWorking', 'Duke Gjeneruar Dokumentin')}
-                        <ThinkingDots />
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <FileText size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
-                      <p className="text-text-muted font-black text-xs uppercase tracking-widest">
-                        {t('drafting.emptyState', 'Rezultati do të shfaqet këtu')}
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
+                <div className="flex flex-col items-center justify-center text-center mt-32 opacity-50">
+                   {currentJob.status === 'PROCESSING' ? (
+                     <div className="flex flex-col items-center">
+                        <BrainCircuit className="w-10 h-10 text-primary-start animate-pulse mb-4" />
+                        <p className="text-text-primary font-black uppercase tracking-widest text-xs">
+                          {t('drafting.statusWorking', 'Duke Gjeneruar Dokumentin')}
+                          <ThinkingDots />
+                        </p>
+                     </div>
+                   ) : (
+                     <FileText size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
+                   )}
+                </div>
               )}
             </AnimatePresence>
           </div>
         </div>
       </div>
 
-      {/* Save Modal Overlays */}
+      {/* Save Modal - REPAIRED FOR FULL VISIBILITY */}
       <AnimatePresence>
         {saveModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#000000CC] backdrop-blur-md p-4"
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-surface border border-border-main rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-[#12141C] border-2 border-white/10 rounded-[2.5rem] p-8 w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] relative"
             >
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary-start/10 rounded-xl border border-primary-start/20 text-primary-start">
-                    <Briefcase size={20} />
+              <div className="flex justify-between items-center mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary-start text-white rounded-2xl shadow-lg shadow-primary-start/20">
+                    <Briefcase size={22} />
                   </div>
-                  <h3 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight">
                     {t('drafting.saveToCaseModalTitle', 'Lidh me Rastin')}
                   </h3>
                 </div>
-                <button onClick={() => setSaveModalOpen(false)} className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors">
-                  <X size={18} />
+                <button onClick={() => setSaveModalOpen(false)} className="p-2 text-white/40 hover:text-white transition-colors">
+                  <X size={20} />
                 </button>
               </div>
-              <p className="text-sm font-medium text-text-muted mb-6 leading-relaxed">
+
+              <p className="text-sm font-semibold text-white/60 mb-8 leading-relaxed italic">
                 {t('drafting.saveToCaseModalDesc', 'Eksporto këtë dokument drejtpërdrejt në dosjen e rastit tuaj aktiv.')}
               </p>
-              <div className="mb-8">
-                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
+
+              <div className="mb-10">
+                <label className="text-[11px] font-black text-primary-start uppercase tracking-[0.2em] mb-3 block ml-1">
                   {t('drafting.documentTitleLabel', 'Titulli i Dokumentit')}
                 </label>
                 <input 
                   type="text" 
                   value={documentTitle}
                   onChange={(e) => setDocumentTitle(e.target.value)}
-                  placeholder={t('drafting.documentTitlePlaceholder', 'psh. Kontratë Pune ose Padi...')}
-                  className="w-full p-4 bg-canvas border border-border-main rounded-xl text-sm font-bold text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted/50"
+                  placeholder={t('drafting.documentTitlePlaceholder', 'psh. Kontratë Pune...')}
+                  className="w-full p-5 bg-white/5 border-2 border-white/10 rounded-2xl text-sm font-bold text-white focus:border-primary-start outline-none transition-all placeholder:text-white/20 shadow-inner"
                   autoFocus
                 />
               </div>
-              <div className="flex gap-4 w-full">
-                <button onClick={() => setSaveModalOpen(false)} className="flex-1 py-3.5 px-4 bg-transparent border border-border-main text-text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-hover transition-all">
+
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => setSaveModalOpen(false)} 
+                  className="py-4 px-6 bg-white/5 border border-white/10 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
+                >
                   {t('common.cancel', 'Anulo')}
                 </button>
                 <button
@@ -275,7 +243,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                     onSaveToCase(documentTitle.trim() || t('drafting.untitledDocument', 'Dokument i Paemërtuar'));
                     setSaveModalOpen(false);
                   }}
-                  className="flex-1 py-3.5 px-4 bg-primary-start text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary-start/20 transition-all"
+                  className="py-4 px-6 bg-primary-start text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:shadow-xl hover:shadow-primary-start/30 transition-all active:scale-95"
                 >
                   {t('common.confirm', 'Ruaj')}
                 </button>
