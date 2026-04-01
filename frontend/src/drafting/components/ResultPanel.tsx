@@ -1,11 +1,11 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// ARCHITECTURE: UNIFIED THEME & BULLETPROOF A4 CANVAS
+// ARCHITECTURE: PIXEL-PERFECT THEME SYNC & STREAMLINED UX
 
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
-  FileText, Trash2, Archive, Scale, Copy, Download,
+  FileText, Trash2, Scale, Copy, Download,
   BrainCircuit, Briefcase, X
 } from 'lucide-react';
 import { ResultPanelProps } from '../types';
@@ -17,7 +17,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   currentJob,
   saving,
   notification,
-  onSave,
   onRetry,
   onClear,
   selectedCaseId,
@@ -70,11 +69,11 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   return (
     <>
-      {/* Outer wrapper: strictly uses the app's glass-panel and bg-surface */}
-      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface">
+      {/* Outer wrapper: Strictly "glass-panel" without any hardcoded background colors */}
+      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden">
         
         {/* Executive Header Toolbar */}
-        <div className="flex justify-between items-center px-6 py-4 bg-surface border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto bg-transparent">
           <div className="flex items-center gap-4">
             <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
               {statusUI.icon}
@@ -85,19 +84,12 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onSave}
-              title={t('drafting.saveToArchive', 'Ruaj në Arkivë')}
-              disabled={!currentJob.result || saving}
-              className={actionButtonBase}
-            >
-              {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} className="stroke-[2.5px]" />}
-            </button>
-
+            
+            {/* Save to Case Button - Now unconditionally active if there is a result */}
             <button
               onClick={handleOpenSaveModal}
               title={t('drafting.saveToCase', 'Lidh me Rastin')}
-              disabled={!currentJob.result || !selectedCaseId || saving}
+              disabled={!currentJob.result || saving}
               className={actionButtonBase}
             >
               <Briefcase size={18} className="stroke-[2.5px]" />
@@ -130,8 +122,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
         </div>
 
-        {/* The "Viewer" Area - Now perfectly synced with app theme using bg-black/10 for slight inset depth */}
-        <div className="flex-1 bg-black/10 shadow-inner overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10 rounded-b-3xl">
+        {/* The "Viewer" Area - Now COMPLETELY transparent so the glass-panel matches the left side 100% */}
+        <div className="flex-1 bg-transparent overflow-y-auto custom-scrollbar p-6 sm:p-10 relative z-10">
           <div className="min-h-full w-full flex flex-col items-center">
             
             {notification && (
