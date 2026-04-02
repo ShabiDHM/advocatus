@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V8.0 (Removed heading, added search, smaller cards, no motivational quote)
+// PHOENIX PROTOCOL - DASHBOARD V8.1 (Removed fallback message)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -213,7 +213,7 @@ const DashboardPage: React.FC = () => {
     return '';
   };
 
-  // Strict priority content for the right panel (motivational quote removed)
+  // Strict priority content for the right panel (no motivational quote, no fallback message)
   const getMainContent = () => {
     // Priority 1: Holiday
     if (holidayBriefing.isHoliday) {
@@ -277,12 +277,8 @@ const DashboardPage: React.FC = () => {
       );
     }
 
-    // Fallback (no motivational quote)
-    return (
-      <div className="h-full flex items-center justify-center">
-        <p className="text-text-muted text-xs italic">Asnjë njoftim për momentin</p>
-      </div>
-    );
+    // No content – return empty div (removed fallback message)
+    return <div className="h-full"></div>;
   };
 
   if (!effectiveBriefing && !isLoading) {
