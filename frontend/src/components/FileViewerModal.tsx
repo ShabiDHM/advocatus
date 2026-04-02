@@ -1,8 +1,8 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - DRAFT-AWARE LEGAL VIEWER V6.3
-// 1. CLEANUP: Removed unused Document type import to resolve TS6133.
-// 2. INTEGRATION: Maintains DraftResultRenderer for .txt legal drafts.
-// 3. VISUAL SYNC: Renders legal drafts in a white A4 canvas.
+// PHOENIX PROTOCOL - FORMATTED LEGAL EXPORT V6.4
+// 1. DYNAMIC EXPORT: Intercepts .txt downloads for legal drafts.
+// 2. HTML EMBED: Generates a standalone HTML file with embedded Legal CSS.
+// 3. EDITABLE: The exported file is text-based and remains fully editable.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -14,15 +14,12 @@ import {
     Download, ZoomIn, ZoomOut, Maximize, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
-
-// Import the renderer used in the Drafting page
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
 
-// PDFJS Worker Configuration
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
-  documentData: any; // Handles both Document and ArchiveItemOut types
+  documentData: any;
   caseId?: string; 
   onClose: () => void;
   onMinimize?: () => void;
@@ -45,20 +42,16 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [fileSource, setFileSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
-  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0); 
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
-
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Logic to determine if this text file should be rendered as a professional legal document
   const isLegalDraft = (documentData.category === 'DRAFT' || 
                         documentData.file_name?.toLowerCase().includes('draft') ||
                         documentData.file_name?.toLowerCase().includes('kontrat') ||
@@ -106,10 +99,14 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       setIsLoading(false);
   };
 
+  // --- NEW FORMATTED DOWNLOAD LOGIC ---
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
       let blob: Blob;
+      let filename = documentData.file_name || documentData.title || 'dokument.txt';
+
+      // 1. Fetch the data
       if (directUrl) {
           if (isAuth) {
               const res = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
@@ -122,10 +119,45 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           blob = await apiService.getOriginalDocument(caseId, documentData.id);
       } else { throw new Error("No source"); }
 
+      // 2. If it's a legal draft, package it as a styled HTML document
+      if (isLegalDraft && textContent) {
+          const htmlContent = `
+            <!DOCTYPE html>
+            <html lang="sq">
+            <head>
+                <meta charset="UTF-8">
+                <title>${filename}</title>
+                <style>
+                    body { background: #f4f4f7; padding: 50px; font-family: "Times New Roman", Times, serif; color: black; line-height: 1.6; }
+                    .a4-page { background: white; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box; }
+                    h1 { text-align: center; font-size: 18pt; text-transform: uppercase; margin-bottom: 30px; }
+                    h2 { text-align: center; font-size: 14pt; text-transform: uppercase; margin-top: 25px; margin-bottom: 15px; }
+                    p { text-align: justify; margin-bottom: 15px; font-size: 11pt; }
+                    .placeholder { background: #fef3c7; border: 1px solid #fcd34d; padding: 0 4px; font-weight: bold; border-radius: 2px; }
+                    @media print { body { background: white; padding: 0; } .a4-page { box-shadow: none; margin: 0; width: 100%; } }
+                </style>
+            </head>
+            <body>
+                <div class="a4-page">
+                    ${textContent
+                        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                        .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+                        .replace(/\[([^\]]+)\]/g, '<span class="placeholder">[$1]</span>')
+                        .split('\n\n').map(p => p.trim().startsWith('<h') ? p : `<p>${p}</p>`).join('')}
+                </div>
+            </body>
+            </html>
+          `;
+          blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          filename = filename.replace('.txt', '.html');
+          if (!filename.endsWith('.html')) filename += '.html';
+      }
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = documentData.file_name || documentData.title;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -275,7 +307,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary"><ZoomIn size={16} /></button>
                   </div>
               )}
-              <button onClick={handleDownloadOriginal} className="p-2 text-primary-start hover:bg-surface/20 rounded-xl transition-all"><Download size={20} /></button>
+              <button onClick={handleDownloadOriginal} disabled={isDownloading} className="p-2 text-primary-start hover:bg-surface/20 rounded-xl transition-all">
+                  {isDownloading ? <Loader className="animate-spin" size={20} /> : <Download size={20} />}
+              </button>
               {onMinimize && <button onClick={onMinimize} className="p-2 text-text-muted hover:bg-surface/20 rounded-xl transition-all"><Minus size={20} /></button>}
               <button onClick={onClose} className="p-2 text-text-muted hover:text-status-danger transition-all"><X size={24} /></button>
             </div>

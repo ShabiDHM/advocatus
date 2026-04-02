@@ -1,11 +1,11 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL – RESTORED & VISUALLY REINFORCED v12.3
+// PHOENIX PROTOCOL – REMOVED DOWNLOAD BUTTON
 
 import React, { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
-  FileText, Trash2, Scale, Copy, Download,
+  FileText, Trash2, Scale, Copy,
   BrainCircuit, Briefcase, X
 } from 'lucide-react';
 import { ResultPanelProps } from '../types';
@@ -19,7 +19,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   notification,
   onRetry,
   onClear,
-  selectedCaseId,
   saveModalOpen,
   setSaveModalOpen,
   onSaveToCase
@@ -60,21 +59,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   };
 
-  const handleDownload = () => {
-    if (currentJob.result) {
-      const blob = new Blob([currentJob.result], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const casePrefix = selectedCaseId ? `Rasti_${selectedCaseId}_` : '';
-      a.download = `Advokatus_${casePrefix}Dokument_${new Date().toISOString().split('T')[0]}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  };
-
   const handleOpenSaveModal = () => {
     setDocumentTitle(''); 
     setSaveModalOpen(true);
@@ -107,10 +91,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             
             <button onClick={handleCopy} title={t('drafting.copy', 'Kopjo')} disabled={!currentJob.result} className={actionButtonBase}>
               <Copy size={18} className="stroke-[2.5px]" />
-            </button>
-            
-            <button onClick={handleDownload} title={t('drafting.download', 'Shkarko')} disabled={!currentJob.result} className={actionButtonBase}>
-              <Download size={18} className="stroke-[2.5px]" />
             </button>
 
             {currentJob.status === 'FAILED' && (
