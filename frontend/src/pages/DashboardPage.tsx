@@ -1,11 +1,11 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V8.0 (Removed heading, added search, smaller cards)
+// PHOENIX PROTOCOL - DASHBOARD V8.0 (Removed heading, added search, smaller cards, no motivational quote)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
-  PartyPopper, Coffee, Quote as QuoteIcon, Timer, Trash2, Calendar, Search
+  PartyPopper, Coffee, Timer, Trash2, Calendar, Search
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
@@ -202,7 +202,7 @@ const DashboardPage: React.FC = () => {
 
   const getSubtitle = (): string => {
     if (holidayBriefing.isHoliday) {
-      return holidayBriefing.greeting; // same as greeting for now
+      return holidayBriefing.greeting;
     }
     if (effectiveBriefing) {
       return t(`briefing.messages.${effectiveBriefing.message_key}`, { 
@@ -213,13 +213,9 @@ const DashboardPage: React.FC = () => {
     return '';
   };
 
-  // Strict priority content for the right panel
+  // Strict priority content for the right panel (motivational quote removed)
   const getMainContent = () => {
-    // Priority 1: Holiday – already displayed in greeting; risk radar still appears if any?
-    // Actually holiday should override everything? The brief says holiday > risk > events > quote.
-    // So if it's a holiday, we should NOT show risk, events, or quote in the right panel? 
-    // The design shows a festive atmosphere; often the right panel remains empty or shows a holiday message.
-    // We'll show a festive message if holiday, else proceed.
+    // Priority 1: Holiday
     if (holidayBriefing.isHoliday) {
       return (
         <div className="h-full flex items-center justify-center text-center">
@@ -281,21 +277,7 @@ const DashboardPage: React.FC = () => {
       );
     }
 
-    // Priority 4: Motivational Quote
-    if (effectiveBriefing?.status === 'OPTIMAL' && effectiveBriefing.data?.quote_key) {
-      return (
-        <div className="h-full flex items-center">
-          <div className="glass-panel p-5 rounded-2xl w-full border border-border-main">
-            <QuoteIcon size={18} className="text-primary-start shrink-0 mt-1 opacity-40 inline mr-2" />
-            <span className="text-text-secondary text-sm sm:text-base leading-relaxed tracking-wide font-medium">
-              {t(`briefing.quotes.${effectiveBriefing.data.quote_key}`) as string}
-            </span>
-          </div>
-        </div>
-      );
-    }
-
-    // Fallback
+    // Fallback (no motivational quote)
     return (
       <div className="h-full flex items-center justify-center">
         <p className="text-text-muted text-xs italic">Asnjë njoftim për momentin</p>
