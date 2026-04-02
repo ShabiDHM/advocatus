@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.4 (Enhanced spinner visibility)
+// PHOENIX PROTOCOL - CASE VIEW V16.5 (Removed case title & client name)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +15,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -67,6 +67,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
+// MODIFIED: Removed case title and client name
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -87,17 +88,8 @@ const CaseHeader: React.FC<{
     const cardBase = "h-12 flex items-center justify-center gap-3 px-6 rounded-xl bg-surface border border-border-main shadow-sm transition-all duration-300 hover-lift text-sm font-semibold uppercase tracking-wide";
 
     return (
-        <motion.div className="relative mb-8 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="flex flex-col gap-2 mb-8 ml-2">
-              <h1 className="text-3xl font-black text-text-primary tracking-tight leading-tight">
-                {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase')}
-              </h1>
-              <div className="flex items-center gap-2 opacity-60">
-                <User size={14} className="text-primary" />
-                <span className="text-sm font-medium uppercase tracking-wide text-text-secondary">{caseDetails.client?.name || "Private Client"}</span>
-              </div>
-          </div>
-
+        <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          {/* No title or client name – only the action row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-center">
               
               <div className={cardBase}>
