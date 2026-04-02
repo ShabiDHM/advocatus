@@ -194,21 +194,20 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         exit={{ opacity: 0, y: -20 }} 
                         className="grid grid-cols-1 lg:grid-cols-2 gap-8"
                     >
-                        {/* LEFT PANEL: Forensic Report (Theme-aware paper surface) */}
-                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-surface overflow-hidden shadow-lawyer-dark flex flex-col h-[70vh] min-h-[500px]">
-                            <div className="px-8 py-5 border-b border-border-main bg-canvas/30 flex items-center gap-3 shrink-0">
+                        {/* LEFT PANEL: Forensic Report */}
+                        <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[70vh] min-h-[500px] overflow-hidden shadow-lawyer-dark">
+                            <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0">
                                 <FileText size={18} className="text-primary-start" />
                                 <h3 className="text-xs font-black text-text-primary uppercase tracking-widest">Memorandumi i Gjetjeve</h3>
                             </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                {/* Dynamic theme container: light background in light mode, dark surface in dark mode */}
-                                <div className="bg-white dark:bg-surface/80 shadow-lg rounded-lg p-8 max-w-2xl mx-auto border border-border-main">
+                            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                                <div className="max-w-3xl mx-auto">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
                         </div>
 
-                        {/* RIGHT PANEL: Chat (unchanged) */}
+                        {/* RIGHT PANEL: Chat */}
                         <div className="glass-panel p-0 rounded-[2rem] border border-border-main bg-canvas/40 flex flex-col h-[70vh] min-h-[500px] overflow-hidden shadow-lawyer-dark">
                             <div className="px-8 py-5 border-b border-border-main bg-surface/80 backdrop-blur-md flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5 shadow-accent-glow rounded-full" />

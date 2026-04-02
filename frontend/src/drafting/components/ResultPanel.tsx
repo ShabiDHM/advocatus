@@ -56,10 +56,10 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
 
   return (
     <>
-      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface/20">
+      <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden">
         
         {/* Executive Header Toolbar */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto bg-surface/40 backdrop-blur-md">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-border-main flex-shrink-0 relative z-50 pointer-events-auto">
           <div className="flex items-center gap-4">
             <div className={`${statusUI.color} p-2 bg-canvas border border-border-main rounded-xl shadow-inner`}>
               {statusUI.icon}
