@@ -1,12 +1,12 @@
 // FILE: src/drafting/components/ResultPanel.tsx
-// PHOENIX PROTOCOL – REMOVED DOWNLOAD BUTTON
+// PHOENIX PROTOCOL – REMOVED SAVE TO CASE BUTTON & MODAL
 
 import React, { useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RefreshCw, AlertCircle, CheckCircle, Clock,
   FileText, Trash2, Scale, Copy,
-  BrainCircuit, Briefcase, X
+  BrainCircuit
 } from 'lucide-react';
 import { ResultPanelProps } from '../types';
 import { ThinkingDots } from './ThinkingDots';
@@ -15,15 +15,10 @@ import { DraftResultRenderer } from './DraftResultRenderer';
 export const ResultPanel: React.FC<ResultPanelProps> = ({
   t,
   currentJob,
-  saving,
   notification,
   onRetry,
-  onClear,
-  saveModalOpen,
-  setSaveModalOpen,
-  onSaveToCase
-}) => {
-  const [documentTitle, setDocumentTitle] = useState('');
+  onClear}) => {
+  const [] = useState(''); // kept only to avoid hook order change, not used
   const documentRef = useRef<HTMLDivElement>(null);
 
   const statusUI = useMemo(() => {
@@ -59,11 +54,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     }
   };
 
-  const handleOpenSaveModal = () => {
-    setDocumentTitle(''); 
-    setSaveModalOpen(true);
-  };
-
   return (
     <>
       <div className="glass-panel border border-border-main rounded-3xl p-0 flex flex-col h-auto lg:h-[750px] shadow-sm relative group overflow-hidden bg-surface/20">
@@ -80,15 +70,6 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleOpenSaveModal}
-              title={t('drafting.saveToCase', 'Lidh me Rastin')}
-              disabled={!currentJob.result || saving}
-              className={actionButtonBase}
-            >
-              <Briefcase size={18} className="stroke-[2.5px]" />
-            </button>
-            
             <button onClick={handleCopy} title={t('drafting.copy', 'Kopjo')} disabled={!currentJob.result} className={actionButtonBase}>
               <Copy size={18} className="stroke-[2.5px]" />
             </button>
@@ -164,74 +145,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
         </div>
       </div>
 
-      {/* Save Modal - REPAIRED FOR FULL VISIBILITY */}
-      <AnimatePresence>
-        {saveModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#000000CC] backdrop-blur-md p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-[#12141C] border-2 border-white/10 rounded-[2.5rem] p-8 w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] relative"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary-start text-white rounded-2xl shadow-lg shadow-primary-start/20">
-                    <Briefcase size={22} />
-                  </div>
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight">
-                    {t('drafting.saveToCaseModalTitle', 'Lidh me Rastin')}
-                  </h3>
-                </div>
-                <button onClick={() => setSaveModalOpen(false)} className="p-2 text-white/40 hover:text-white transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <p className="text-sm font-semibold text-white/60 mb-8 leading-relaxed italic">
-                {t('drafting.saveToCaseModalDesc', 'Eksporto këtë dokument drejtpërdrejt në dosjen e rastit tuaj aktiv.')}
-              </p>
-
-              <div className="mb-10">
-                <label className="text-[11px] font-black text-primary-start uppercase tracking-[0.2em] mb-3 block ml-1">
-                  {t('drafting.documentTitleLabel', 'Titulli i Dokumentit')}
-                </label>
-                <input 
-                  type="text" 
-                  value={documentTitle}
-                  onChange={(e) => setDocumentTitle(e.target.value)}
-                  placeholder={t('drafting.documentTitlePlaceholder', 'psh. Kontratë Pune...')}
-                  className="w-full p-5 bg-white/5 border-2 border-white/10 rounded-2xl text-sm font-bold text-white focus:border-primary-start outline-none transition-all placeholder:text-white/20 shadow-inner"
-                  autoFocus
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={() => setSaveModalOpen(false)} 
-                  className="py-4 px-6 bg-white/5 border border-white/10 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
-                >
-                  {t('common.cancel', 'Anulo')}
-                </button>
-                <button
-                  onClick={() => {
-                    onSaveToCase(documentTitle.trim() || t('drafting.untitledDocument', 'Dokument i Paemërtuar'));
-                    setSaveModalOpen(false);
-                  }}
-                  className="py-4 px-6 bg-primary-start text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:shadow-xl hover:shadow-primary-start/30 transition-all active:scale-95"
-                >
-                  {t('common.confirm', 'Ruaj')}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Save modal is removed entirely */}
     </>
   );
 };
