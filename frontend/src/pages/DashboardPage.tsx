@@ -1,17 +1,11 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V7.6 (STRICT PRIORITY HIERARCHY & ALIGNED KEYS)
-// 1. Implements strict priority: Holiday > Risk Alerts > Today's Events > Motivational Quote.
-// 2. Uses aligned holiday keys (fiter_bajram, labor_day, etc.) from kosovoHolidays.ts.
-// 3. Ensures no raw translation keys leak.
-// 4. Preserves all existing functionality.
-// 5. Updated to Executive Design System: glass-panel, border-border-main, semantic text, hover-lift & shadow-sm.
-// 6. Fixed conflicting shadow utilities: removed shadow-lg, kept shadow-sm.
+// PHOENIX PROTOCOL - DASHBOARD V8.0 (Removed heading, added search, smaller cards)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
-  PartyPopper, Coffee, Quote as QuoteIcon, Timer, Trash2, Calendar
+  PartyPopper, Coffee, Quote as QuoteIcon, Timer, Trash2, Calendar, Search
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
@@ -38,6 +32,9 @@ const DashboardPage: React.FC = () => {
 
   const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
+  
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Client-side holiday detection (runs on every render)
   const holidayBriefing = useMemo(() => {
@@ -126,7 +123,6 @@ const DashboardPage: React.FC = () => {
         const matches = eData.filter(e => isSameDay(parseISO(e.start_date), today));
         if (matches.length > 0) {
           setTodaysEvents(matches);
-          // We'll keep isBriefingOpen false until user clicks "më shumë" or opens modal.
         }
         hasCheckedBriefing.current = true;
       }
@@ -173,6 +169,17 @@ const DashboardPage: React.FC = () => {
       setIsDeletingCase(false);
     }
   };
+
+  // Filter cases based on search term
+  const filteredCases = useMemo(() => {
+    if (!searchTerm.trim()) return cases;
+    const term = searchTerm.toLowerCase();
+    return cases.filter(c => 
+      c.title?.toLowerCase().includes(term) ||
+      c.client?.name?.toLowerCase().includes(term) ||
+      c.client?.email?.toLowerCase().includes(term)
+    );
+  }, [cases, searchTerm]);
 
   const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50 border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40";
   const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
@@ -345,19 +352,23 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Rest of the dashboard unchanged */}
-      <div className="flex flex-row justify-between items-end mb-8 gap-4 px-2">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-text-primary tracking-tight">
-            {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
-          </h1>
-          <p className="text-xs sm:text-sm text-text-secondary font-bold mt-1 uppercase tracking-widest opacity-60">
-            {t('dashboard.subtitle', 'Menaxhimi i Lëndëve Aktive')}
-          </p>
+      {/* Header with Search and Create Button - Removed old heading */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 px-2">
+        {/* Search input */}
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
+          <input
+            type="text"
+            placeholder={t('dashboard.searchPlaceholder', 'Kërko rast...')}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="glass-input w-full pl-11 pr-4 py-3 rounded-xl text-sm border-border-main bg-surface focus:border-primary-start"
+          />
         </div>
+        
         <button 
             onClick={() => setShowCreateModal(true)} 
-            className="btn-primary flex items-center gap-3 px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.1em] active:scale-[0.98] shrink-0 hover-lift shadow-sm"
+            className="btn-primary flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-[0.1em] active:scale-[0.98] shrink-0 hover-lift shadow-sm"
         >
           <Plus size={18} strokeWidth={4} /> 
           <span className="hidden sm:inline">{t('dashboard.newCase', 'Rast i Ri')}</span>
@@ -368,21 +379,24 @@ const DashboardPage: React.FC = () => {
         <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary-start" /></div>
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-8">
-          {cases.length === 0 ? (
+          {filteredCases.length === 0 ? (
              <div className="glass-panel flex flex-col items-center justify-center py-24 border border-border-main">
                 <div className="w-20 h-20 bg-surface/50 rounded-3xl flex items-center justify-center mb-6 border border-border-main">
                     <ShieldAlert size={40} className="opacity-20 text-text-secondary" />
                 </div>
-                <p className="font-black uppercase tracking-widest text-xs italic text-text-secondary">Nuk u gjetën raste aktive.</p>
+                <p className="font-black uppercase tracking-widest text-xs italic text-text-secondary">
+                  {searchTerm ? t('dashboard.noSearchResults', 'Nuk u gjet asnjë rast për këtë kërkim.') : t('dashboard.noCases', 'Nuk u gjetën raste aktive.')}
+                </p>
              </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cases.map((c) => (<CaseCard key={c.id} caseData={c} onDelete={(id) => setCaseToDeleteId(id)} />))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredCases.map((c) => (<CaseCard key={c.id} caseData={c} onDelete={(id) => setCaseToDeleteId(id)} />))}
             </div>
           )}
         </div>
       )}
 
+      {/* Modals (unchanged) */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 bg-canvas/60 backdrop-blur-xl flex items-center justify-center z-[100] p-4">
