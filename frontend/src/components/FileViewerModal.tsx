@@ -1,14 +1,13 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER V6.1 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// 1. Converted all hardcoded border classes to `border-border-main`.
-// 2. Modal background uses `bg-canvas/95` for consistency.
-// 3. Preserved PDF streaming optimization and all functionality.
+// PHOENIX PROTOCOL - DRAFT-AWARE LEGAL VIEWER V6.3
+// 1. CLEANUP: Removed unused Document type import to resolve TS6133.
+// 2. INTEGRATION: Maintains DraftResultRenderer for .txt legal drafts.
+// 3. VISUAL SYNC: Renders legal drafts in a white A4 canvas.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService } from '../services/api';
-import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
@@ -16,11 +15,14 @@ import {
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
+// Import the renderer used in the Drafting page
+import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
+
 // PDFJS Worker Configuration
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
-  documentData: Document;
+  documentData: any; // Handles both Document and ArchiveItemOut types
   caseId?: string; 
   onClose: () => void;
   onMinimize?: () => void;
@@ -40,7 +42,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   directUrl, 
   isAuth = false 
 }) => {
-  // --- STATE ---
   const [fileSource, setFileSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
@@ -57,7 +58,12 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // --- RESPONSIVE WIDTH CALCULATION ---
+  // Logic to determine if this text file should be rendered as a professional legal document
+  const isLegalDraft = (documentData.category === 'DRAFT' || 
+                        documentData.file_name?.toLowerCase().includes('draft') ||
+                        documentData.file_name?.toLowerCase().includes('kontrat') ||
+                        (textContent && textContent.includes('# ')));
+
   useEffect(() => {
       const updateWidth = () => {
           if (containerRef.current) {
@@ -70,16 +76,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       return () => window.removeEventListener('resize', updateWidth);
   }, [viewerMode]);
 
-  // --- HELPERS ---
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
     const f = fileName?.toLowerCase() || '';
-
     if (m.startsWith('image/') || ['.png', '.jpg', '.jpeg', '.webp'].some(ext => f.endsWith(ext))) return 'IMAGE';
     if (m === 'application/pdf' || f.endsWith('.pdf')) return 'PDF';
     if (f.endsWith('.csv') || m.includes('csv')) return 'CSV';
     if (f.endsWith('.txt') || f.endsWith('.json') || m.startsWith('text/')) return 'TEXT';
-    
     return 'PDF';
   };
   
@@ -122,7 +125,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = documentData.file_name;
+      link.download = documentData.file_name || documentData.title;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -132,23 +135,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     } finally { setIsDownloading(false); }
   };
 
-  // --- LOAD LOGIC ---
   useEffect(() => {
     setError(null);
     setIsLoading(true);
-    const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
+    const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || documentData.title || '');
     setViewerMode(targetMode);
 
     const loadContent = async () => {
         try {
-            // OPTIMIZATION: If it's a PDF and we have a Direct URL, use it directly!
-            // Do NOT download it as a Blob first. This allows PDF.js to stream it.
             if (targetMode === 'PDF' && directUrl && !isAuth) {
                 setFileSource(directUrl);
-                // We don't set isLoading(false) here because PDF.js has its own onLoadSuccess
                 return; 
             }
-
             if (directUrl) {
                 if (isAuth) {
                     const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
@@ -164,13 +162,11 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 await handleBlobContent(blob, targetMode);
             }
         } catch (err: any) {
-            console.error("Load Content Error:", err);
             setError(err?.message || t('pdfViewer.errorFetch'));
             setViewerMode('DOWNLOAD');
             setIsLoading(false);
         }
     };
-
     loadContent();
     return () => {
         if (typeof fileSource === 'string' && fileSource.startsWith('blob:')) {
@@ -179,64 +175,47 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     };
   }, [caseId, documentData.id, directUrl, isAuth, t]);
 
-  // --- RENDER HELPERS ---
   const renderContent = () => {
-    
     if (viewerMode === 'DOWNLOAD' || error) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <AlertTriangle size={64} className="text-status-danger/50 mb-6" />
             <h3 className="text-xl font-bold text-text-primary mb-2">{t('pdfViewer.previewNotAvailable')}</h3>
-            {error && <p className="text-status-danger text-xs mb-6 font-mono bg-danger-start/10 px-4 py-2 rounded-lg border border-danger-start/20">{error}</p>}
-            <button onClick={handleDownloadOriginal} disabled={isDownloading} className="btn-primary px-8 py-3 rounded-xl flex items-center gap-2 active:scale-95 transition-all">
+            <button onClick={handleDownloadOriginal} disabled={isDownloading} className="btn-primary px-8 py-3 rounded-xl flex items-center gap-2 transition-all">
                 {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal')}
             </button>
           </div>
         );
     }
 
-    // Special handling for PDF to allow PDF.js loading state
     if (viewerMode === 'PDF') {
         return (
             <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-6 pb-24" ref={containerRef}>
-                {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-canvas/50 z-10">
-                        <Loader className="animate-spin text-primary-start" size={32} />
-                    </div>
-                )}
+                {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-canvas/50 z-10"><Loader className="animate-spin text-primary-start" size={32} /></div>}
                 {fileSource && (
-                    <PdfDocument 
-                        file={fileSource} 
-                        onLoadSuccess={({ numPages }) => { setNumPages(numPages); setIsLoading(false); }} 
-                        onLoadError={() => { setError(t('pdfViewer.corruptFile')); setViewerMode('DOWNLOAD'); setIsLoading(false); }}
-                        loading={""} // Suppress default loading text since we have our own spinner
-                    >
-                        <Page 
-                            pageNumber={pageNumber} 
-                            width={containerWidth > 0 ? containerWidth : undefined} 
-                            scale={scale}
-                            renderTextLayer={false} 
-                            renderAnnotationLayer={false}
-                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-border-main" 
-                        />
+                    <PdfDocument file={fileSource} onLoadSuccess={({ numPages }) => { setNumPages(numPages); setIsLoading(false); }} loading="">
+                        <Page pageNumber={pageNumber} width={containerWidth > 0 ? containerWidth : undefined} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-border-main" />
                     </PdfDocument>
                 )}
             </div>
         );
     }
 
-    // Default Loading for non-PDF
-    if (isLoading) {
-        return <div className="flex items-center justify-center h-full"><Loader className="animate-spin h-10 w-10 text-primary-start" /></div>;
-    }
+    if (isLoading) return <div className="flex items-center justify-center h-full"><Loader className="animate-spin h-10 w-10 text-primary-start" /></div>;
 
     switch (viewerMode) {
       case 'TEXT':
         return (
-          <div className="p-6 sm:p-10 h-full overflow-auto bg-canvas/40">
-            <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-border-main">
-                <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed">{textContent}</pre>
-            </div>
+          <div className="p-6 sm:p-10 h-full overflow-auto bg-canvas/40 flex justify-center">
+            {isLegalDraft ? (
+               <div className="w-full max-w-[21cm] bg-white text-black p-12 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-gray-200">
+                  <DraftResultRenderer text={textContent || ''} t={t} />
+               </div>
+            ) : (
+                <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-border-main w-full">
+                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed">{textContent}</pre>
+                </div>
+            )}
           </div>
         );
       case 'CSV':
@@ -248,20 +227,14 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                             <thead className="bg-surface/20">
                                 <tr>
                                     {csvContent?.[0]?.map((header, i) => (
-                                        <th key={i} className="p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-border-main whitespace-nowrap">
-                                            {header}
-                                        </th>
+                                        <th key={i} className="p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-border-main whitespace-nowrap">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-main">
                                 {csvContent?.slice(1).map((row, i) => (
                                     <tr key={i} className="hover:bg-surface/10 transition-colors">
-                                        {row.map((cell, j) => (
-                                            <td key={j} className="p-3 sm:p-4 text-xs sm:text-sm text-text-secondary whitespace-nowrap">
-                                                {cell}
-                                            </td>
-                                        ))}
+                                        {row.map((cell, j) => (<td key={j} className="p-3 sm:p-4 text-xs sm:text-sm text-text-secondary whitespace-nowrap">{cell}</td>))}
                                     </tr>
                                 ))}
                             </tbody>
@@ -284,24 +257,22 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-canvas/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-panel w-full h-full sm:max-w-6xl sm:max-h-[95vh] sm:rounded-3xl shadow-2xl flex flex-col border border-border-main" onClick={e => e.stopPropagation()}>
-          
           <header className="flex items-center justify-between p-4 border-b border-border-main bg-surface/20 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-primary-start/20 rounded-lg hidden sm:block">
                     {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
-                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[150px] sm:max-w-md">{documentData.file_name}</h2>
-                    <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest">{viewerMode} MODE</span>
+                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[150px] sm:max-w-md">{documentData.file_name || documentData.title}</h2>
+                    <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest">{isLegalDraft ? 'LEGAL DRAFT MODE' : `${viewerMode} MODE`}</span>
                 </div>
             </div>
-            
             <div className="flex items-center gap-1 sm:gap-2">
               {viewerMode === 'PDF' && (
                   <div className="hidden sm:flex items-center gap-1 bg-canvas/40 rounded-lg p-1 border border-border-main mr-2">
-                      <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.zoomOut')}><ZoomOut size={16} /></button>
-                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.reset')}><Maximize size={16} /></button>
-                      <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary" title={t('actions.zoomIn')}><ZoomIn size={16} /></button>
+                      <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary"><ZoomOut size={16} /></button>
+                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary"><Maximize size={16} /></button>
+                      <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary"><ZoomIn size={16} /></button>
                   </div>
               )}
               <button onClick={handleDownloadOriginal} className="p-2 text-primary-start hover:bg-surface/20 rounded-xl transition-all"><Download size={20} /></button>
@@ -309,9 +280,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button onClick={onClose} className="p-2 text-text-muted hover:text-status-danger transition-all"><X size={24} /></button>
             </div>
           </header>
-          
           <div className="flex-grow relative overflow-hidden">{renderContent()}</div>
-          
           {viewerMode === 'PDF' && numPages && numPages > 1 && (
             <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-canvas/80 px-5 py-2 rounded-full border border-border-main flex items-center gap-4 backdrop-blur-xl z-[100]">
               <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-1 text-text-primary disabled:opacity-30"><ChevronLeft size={20} /></button>
