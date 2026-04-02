@@ -141,7 +141,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     return (
         <div className="w-full flex flex-col gap-8 pb-10">
             {/* EXECUTIVE TOOLBAR */}
-            <div className="glass-panel p-6 sm:p-8 rounded-[1.5rem] border border-border-main bg-surface shadow-lawyer-light transition-all">
+            <div className="glass-panel p-6 sm:p-8 rounded-[1.5rem] border border-border-main bg-canvas/40 shadow-lawyer-light transition-all">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-8">
                     <div className="flex flex-col gap-1">
                         <h2 className="text-2xl font-black text-text-primary tracking-tighter uppercase leading-none flex items-center gap-3">

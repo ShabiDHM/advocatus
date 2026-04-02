@@ -67,7 +67,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// MODIFIED: Symmetrical, overflow‑safe header
+// MODIFIED: Symmetrical, overflow‑safe header aligned perfectly to the 2-column grid
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -85,69 +85,64 @@ const CaseHeader: React.FC<{
         ? t('caseView.analyzeCase')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
-    const cardBase = "h-12 flex items-center justify-center gap-3 px-4 rounded-xl bg-surface border border-border-main shadow-sm transition-all duration-300 hover-lift text-sm font-semibold uppercase tracking-wide w-full";
+    const cardBase = "h-12 flex items-center justify-center gap-3 px-4 rounded-xl glass-panel bg-canvas/40 border border-border-main shadow-sm transition-all duration-300 hover-lift text-xs font-black uppercase tracking-widest w-full text-text-primary";
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <div className="flex flex-wrap gap-4 items-stretch">
+            {/* 4-column grid with gap-8 exactly mirrors the vertical alignment of the 2-column bottom grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 items-center">
+                
                 {/* Date */}
-                <div className="flex-1 min-w-[130px]">
-                    <div className={cardBase}>
-                        <Calendar size={16} className="text-primary opacity-70" />
-                        <span className="text-text-secondary text-sm truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
-                    </div>
+                <div className={cardBase}>
+                    <Calendar size={16} className="text-primary opacity-70" />
+                    <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                 </div>
 
                 {/* Document selector - E gjithë dosja */}
-                <div className="flex-1 min-w-[150px]">
-                    <div className="h-12 w-full">
-                        <DocumentSelector
-                            documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
-                            selectedIds={selectedDocumentIds}
-                            onChange={onDocumentSelectionChange}
-                            disabled={!isPro}
-                        />
-                    </div>
+                <div className="h-12 w-full relative z-[60]">
+                    <DocumentSelector
+                        documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
+                        selectedIds={selectedDocumentIds}
+                        onChange={onDocumentSelectionChange}
+                        disabled={!isPro}
+                    />
                 </div>
                 
                 {/* Financial analyst toggle */}
-                <div className="flex-1 min-w-[150px]">
-                    <button
-                        onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        disabled={!isPro}
-                        className={`${cardBase} ${
-                            viewMode === 'analyst' 
-                            ? 'border-primary bg-primary/5 text-primary' 
-                            : 'text-text-secondary'
-                        } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
-                    >
-                        {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary' : 'text-primary opacity-70'} />}
-                        <span className="text-sm truncate">{t('caseView.financialAnalyst')}</span>
-                    </button>
-                </div>
+                <button
+                    onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                    disabled={!isPro}
+                    className={`${cardBase} ${
+                        viewMode === 'analyst' 
+                        ? 'border-primary bg-primary/10 text-primary shadow-accent-glow' 
+                        : 'hover:border-primary/50 text-text-primary'
+                    } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
+                >
+                    {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary' : 'text-primary opacity-70'} />}
+                    <span className="truncate">{t('caseView.financialAnalyst')}</span>
+                </button>
 
                 {/* Analyze button */}
-                <div className="flex-1 min-w-[140px]">
-                    <button
-                        onClick={onAnalyze}
-                        disabled={!isPro || isAnalyzing}
-                        className={`${cardBase} group border-primary/30 active:scale-95 disabled:opacity-40`}
-                    >
-                        {isAnalyzing ? (
-                            <span className="flex items-center gap-2">
-                                <span className="flex items-center justify-center animate-spin" style={{ animationDuration: '1s', animationIterationCount: 'infinite' }}>
-                                    <Loader2 className="h-5 w-5 text-primary" style={{ filter: 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.5))' }} />
-                                </span>
-                                <span className="text-primary text-sm">{t('analysis.analyzing')}</span>
+                <button
+                    onClick={onAnalyze}
+                    disabled={!isPro || isAnalyzing}
+                    className={`${cardBase} hover:border-primary/50 active:scale-95 disabled:opacity-40`}
+                >
+                    {isAnalyzing ? (
+                        <span className="flex items-center gap-2">
+                            <span className="flex items-center justify-center animate-spin" style={{ animationDuration: '1s', animationIterationCount: 'infinite' }}>
+                                <Loader2 className="h-4 w-4 text-primary" style={{ filter: 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.5))' }} />
                             </span>
-                        ) : (
-                            <span className="flex items-center gap-2">
-                                <ShieldCheck size={18} className="text-primary" />
-                                <span className="text-primary text-sm truncate">{analyzeButtonText}</span>
-                            </span>
-                        )}
-                    </button>
-                </div>
+                            <span className="text-primary truncate">{t('analysis.analyzing')}</span>
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-2">
+                            <ShieldCheck size={16} className="text-primary" />
+                            <span className="text-primary truncate">{analyzeButtonText}</span>
+                        </span>
+                    )}
+                </button>
+
             </div>
         </motion.div>
     );
