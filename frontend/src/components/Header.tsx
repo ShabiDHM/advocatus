@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – EXECUTIVE SOLID/GLASS HEADER v12.1 (STANDARDIZED)
+// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v12.2 (MOBILE‑FRIENDLY DRAWER)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -24,6 +24,7 @@ const Header: React.FC = () => {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
@@ -40,6 +41,7 @@ const Header: React.FC = () => {
     });
   }
 
+  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -49,6 +51,31 @@ const Header: React.FC = () => {
     return () => {
       document.body.style.overflow = 'auto';
     };
+  }, [isMobileMenuOpen]);
+
+  // Close mobile menu on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  // Click outside to close mobile menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isMobileMenuOpen &&
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target as Node) &&
+        !(event.target as HTMLElement).closest('.mobile-menu-button')
+      ) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
@@ -67,7 +94,7 @@ const Header: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutsideProfile = (event: MouseEvent) => {
       if (
         isProfileOpen &&
         dropdownRef.current &&
@@ -78,10 +105,8 @@ const Header: React.FC = () => {
         setIsProfileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    document.addEventListener('mousedown', handleClickOutsideProfile);
+    return () => document.removeEventListener('mousedown', handleClickOutsideProfile);
   }, [isProfileOpen]);
 
   const isActive = (path: string) => {
@@ -93,22 +118,23 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/90 backdrop-blur-xl border-b border-border-main">
+      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 bg-canvas/90 backdrop-blur-xl border-b border-border-main">
         
         {/* Left: Brand */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-            className="p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg transition-colors"
+            onClick={() => setIsMobileMenuOpen(true)} 
+            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg transition-colors"
+            aria-label={t('header.menu', 'Menu')}
           >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <Menu size={22} />
           </button>
           <Link to="/business" className="flex items-center">
             <BrandLogo />
           </Link>
         </div>
 
-        {/* Center: Segmented Glass Bar (Desktop Only) - Unified Theme */}
+        {/* Center: Segmented Glass Bar (Desktop Only) */}
         <div className="hidden lg:flex items-center glass-panel bg-canvas/40 p-1.5 rounded-2xl border border-border-main gap-1">
           {navItems.map((item) => {
             const active = isActive(item.path);
@@ -132,10 +158,11 @@ const Header: React.FC = () => {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={toggleTheme} 
             className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
+            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -147,7 +174,7 @@ const Header: React.FC = () => {
             )}
           </Link>
 
-          {/* User profile */}
+          {/* User profile (desktop and tablet) */}
           <div className="relative hidden sm:block">
             <button
               ref={buttonRef}
@@ -184,6 +211,85 @@ const Header: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Mobile Navigation Drawer (Left Side) */}
+      <div
+        className={`fixed inset-0 z-[70] transition-all duration-300 ease-in-out ${
+          isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        {/* Backdrop */}
+        <div
+          className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+            isMobileMenuOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+        
+        {/* Drawer */}
+        <div
+          ref={mobileMenuRef}
+          className={`absolute top-0 left-0 bottom-0 w-72 max-w-[85vw] glass-panel rounded-r-2xl border-y border-r border-border-main shadow-xl transition-transform duration-300 ease-in-out ${
+            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          } flex flex-col`}
+        >
+          {/* Drawer Header */}
+          <div className="flex justify-between items-center p-4 border-b border-border-main">
+            <BrandLogo />
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg transition-colors"
+              aria-label={t('general.close', 'Close')}
+            >
+              <X size={22} />
+            </button>
+          </div>
+
+          {/* Navigation Items */}
+          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+            {navItems.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`
+                    flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all duration-200
+                    ${active 
+                      ? 'bg-primary-start text-white shadow-accent-glow' 
+                      : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
+                    }
+                  `}
+                >
+                  <item.icon size={20} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+
+          {/* Optional user info at bottom (if not logged in, you could show login) */}
+          <div className="p-4 border-t border-border-main">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-full bg-primary-start text-white flex items-center justify-center text-sm font-black">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-text-primary truncate">{user?.username || t('header.guest')}</p>
+                <p className="text-xs text-text-muted truncate">{user?.email || t('header.notLoggedIn')}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setIsMobileMenuOpen(false); logout(); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-danger-start/10 text-danger-start hover:bg-danger-start/20 transition-colors text-xs font-black uppercase tracking-widest"
+            >
+              <LogOut size={16} />
+              {t('general.logout', 'Dilni')}
+            </button>
+          </div>
+        </div>
+      </div>
     </>
   );
 };

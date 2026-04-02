@@ -1,5 +1,5 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.1 (STANDARDIZED TYPOGRAPHY & THEME)
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.2 (MOBILE‑FRIENDLY LAYOUT)
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -42,34 +42,40 @@ const BusinessPage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen pt-12 pb-12">
-      <div className="max-w-5xl mx-auto px-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
         
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             
             {/* The Greeting */}
-            <div>
-                <h1 className="text-3xl font-black text-text-primary uppercase tracking-widest mb-1">
+            <div className="text-center lg:text-left">
+                <h1 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-widest mb-1">
                     {t('general.welcome', 'Mirësevini')}
                 </h1>
-                <p className="text-lg font-medium text-text-muted tracking-wide">
+                <p className="text-base sm:text-lg font-medium text-text-muted tracking-wide">
                     {formatName(user?.full_name || user?.username)}
                 </p>
             </div>
 
-            {/* Navigation Tabs - Unified Glass Panel Theme */}
-            <div className="glass-panel p-1.5 rounded-2xl bg-canvas/40 border border-border-main shadow-sm w-fit flex">
+            {/* Navigation Tabs - Responsive: wraps and centers on small screens, scrolls if too many */}
+            <div className="glass-panel p-1.5 rounded-2xl bg-canvas/40 border border-border-main shadow-sm w-full lg:w-auto flex flex-wrap justify-center gap-1">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ActiveTab)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                            activeTab === tab.id 
-                            ? 'bg-primary-start text-white shadow-accent-glow' 
-                            : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
-                        }`}
+                        className={`
+                            flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-[10px] sm:text-xs 
+                            font-black uppercase tracking-widest transition-all whitespace-nowrap
+                            ${activeTab === tab.id 
+                                ? 'bg-primary-start text-white shadow-accent-glow' 
+                                : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
+                            }
+                        `}
                     >
-                        {tab.icon} {tab.label}
+                        {tab.icon} 
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        {/* Show only icon on very small screens to save space */}
+                        <span className="sm:hidden">{tab.label.substring(0, 3)}</span>
                     </button>
                 ))}
             </div>
