@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V15.0 (Increased text size for readability)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V16.0 (WIDER, SPACIOUS LAYOUT)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -201,9 +201,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const getFontSize = () => {
     switch (zoomLevel) {
-      case 'large': return '1rem';      // 16px
-      case 'xlarge': return '1.125rem'; // 18px
-      default: return '0.9375rem';      // 15px
+      case 'large': return '1rem';
+      case 'xlarge': return '1.125rem';
+      default: return '0.9375rem';
     }
   };
 
@@ -288,12 +288,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
-          className="w-full h-full sm:h-[80vh] sm:max-w-4xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
+          // MODIFIED: Wider modal on large screens
+          className="w-full h-full sm:h-[85vh] sm:max-w-7xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
           <SpinnerStyles />
           
-          {/* Header */}
+          {/* Header (unchanged) */}
           <div className="px-6 py-5 border-b border-border-main flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
             <h2 className="flex items-center gap-4 min-w-0">
               <div className="w-12 h-12 bg-primary-start text-white rounded-2xl flex items-center justify-center shadow-accent-glow shrink-0">
@@ -339,30 +340,34 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     </button>
                 </div>
 
-                {/* Content Body */}
+                {/* Content Body – wider, with better spacing and responsive grid */}
                 <div 
                   className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar text-gray-900 dark:text-gray-100"
                   style={{ fontSize: getFontSize() }}
                 >
-                    <div className="max-w-3xl mx-auto space-y-8">
+                    <div className="max-w-6xl mx-auto space-y-8">
                         {activeTab === 'legal' && (
                             <>
-                                <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
-                                    <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
-                                        <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
-                                    </h3>
-                                    <div className="text-gray-700 dark:text-gray-300 leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1">{renderCitationItem(summary)}</div>
+                                {/* Two‑column layout for summary and burden of proof */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
+                                        <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
+                                            <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
+                                        </h3>
+                                        <div className="text-gray-700 dark:text-gray-300 leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1">{renderCitationItem(summary)}</div>
+                                    </div>
+
+                                    {burden_of_proof && (
+                                        <div className="bg-gray-50 dark:bg-gray-800/50 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
+                                            <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
+                                                <Gavel size={16} className="text-primary-start"/> {t('analysis.section_burden', 'Barra e Provës')}
+                                            </h3>
+                                            <div className="text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-2 border-border-main pl-5 ml-1">{renderCitationItem(burden_of_proof)}</div>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {burden_of_proof && (
-                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
-                                        <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
-                                            <Gavel size={16} className="text-primary-start"/> {t('analysis.section_burden', 'Barra e Provës')}
-                                        </h3>
-                                        <div className="text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-2 border-border-main pl-5 ml-1">{renderCitationItem(burden_of_proof)}</div>
-                                    </div>
-                                )}
-
+                                {/* Missing evidence (full width) */}
                                 {missing_evidence && missing_evidence.length > 0 && (
                                     <div className="bg-danger-start/5 p-8 rounded-[1.5rem] border border-danger-start/20 shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-danger-start uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -379,12 +384,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </div>
                                 )}
 
+                                {/* Key issues (full width, but can be multi‑column) */}
                                 {key_issues && key_issues.length > 0 && (
                                     <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
                                             <FileText size={16} className="text-primary-start"/> {t('analysis.section_issues', 'Çështjet Kryesore')}
                                         </h3>
-                                        <div className="grid gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {key_issues.map((issue: any, idx: number) => (
                                                 <div key={idx} className="flex items-start gap-4 bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-border-main">
                                                     <span className="text-primary-start font-black text-base leading-none opacity-50 mt-0.5">#{idx + 1}</span>
@@ -395,6 +401,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </div>
                                 )}
 
+                                {/* Legal basis (full width) */}
                                 {legal_basis && legal_basis.length > 0 && (
                                     <div className="bg-primary-start/5 p-8 rounded-[1.5rem] border border-primary-start/20 shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-primary-start uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -417,6 +424,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             </>
                         )}
                         
+                        {/* War Room content (already mostly full width, but we can adjust later) */}
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
                                 {/* War Room Sub-Tabs */}
@@ -550,7 +558,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </>
           )}
           
-          {/* Footer Actions */}
+          {/* Footer Actions (unchanged) */}
           <div className="px-8 py-5 border-t border-border-main bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row gap-4 justify-between items-center shrink-0">
               <button 
                   onClick={handleArchiveStrategy} 
