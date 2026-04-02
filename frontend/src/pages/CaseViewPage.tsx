@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.7 (Symmetrical, overflow‑safe header)
+// PHOENIX PROTOCOL - CASE VIEW V16.8 (MOBILE‑FRIENDLY)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -67,7 +67,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// MODIFIED: Symmetrical, overflow‑safe header aligned perfectly to the 2-column grid
+// MOBILE‑FRIENDLY HEADER: uses responsive grid and smaller gaps on mobile
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -89,12 +89,12 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            {/* 4-column grid with gap-8 exactly mirrors the vertical alignment of the 2-column bottom grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8 items-center">
+            {/* Responsive grid: 1 column on phones, 2 columns on tablets, 4 columns on desktop */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-8 items-center">
                 
                 {/* Date */}
                 <div className={cardBase}>
-                    <Calendar size={16} className="text-primary opacity-70" />
+                    <Calendar size={16} className="text-primary opacity-70 shrink-0" />
                     <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                 </div>
 
@@ -118,7 +118,7 @@ const CaseHeader: React.FC<{
                         : 'hover:border-primary/50 text-text-primary'
                     } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
                 >
-                    {!isPro ? <Lock size={16} /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary' : 'text-primary opacity-70'} />}
+                    {!isPro ? <Lock size={16} className="shrink-0" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary shrink-0' : 'text-primary opacity-70 shrink-0'} />}
                     <span className="truncate">{t('caseView.financialAnalyst')}</span>
                 </button>
 
@@ -129,20 +129,19 @@ const CaseHeader: React.FC<{
                     className={`${cardBase} hover:border-primary/50 active:scale-95 disabled:opacity-40`}
                 >
                     {isAnalyzing ? (
-                        <span className="flex items-center gap-2">
-                            <span className="flex items-center justify-center animate-spin" style={{ animationDuration: '1s', animationIterationCount: 'infinite' }}>
-                                <Loader2 className="h-4 w-4 text-primary" style={{ filter: 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.5))' }} />
+                        <span className="flex items-center gap-2 min-w-0">
+                            <span className="flex items-center justify-center animate-spin shrink-0">
+                                <Loader2 className="h-4 w-4 text-primary" />
                             </span>
                             <span className="text-primary truncate">{t('analysis.analyzing')}</span>
                         </span>
                     ) : (
-                        <span className="flex items-center gap-2">
-                            <ShieldCheck size={16} className="text-primary" />
+                        <span className="flex items-center gap-2 min-w-0">
+                            <ShieldCheck size={16} className="text-primary shrink-0" />
                             <span className="text-primary truncate">{analyzeButtonText}</span>
                         </span>
                     )}
                 </button>
-
             </div>
         </motion.div>
     );
@@ -240,7 +239,8 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-6 sm:px-8 pt-24 pb-8">
+      {/* Responsive container padding: smaller on mobile */}
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8">
         <CaseHeader 
             caseDetails={caseData.details} documents={liveDocuments} t={t} 
             onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} viewMode={viewMode} setViewMode={setViewMode} isPro={isPro} selectedDocumentIds={selectedDocumentIds} onDocumentSelectionChange={setSelectedDocumentIds}
@@ -248,16 +248,28 @@ const CaseViewPage: React.FC = () => {
         
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
-                <motion.div key="workspace" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:h-[700px] z-0">
-                    <DocumentsPanel 
-                        caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} 
-                        onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={setDocumentToRename} 
-                        className="h-full w-full shadow-sm hover-lift" 
-                    />
-                    <ChatPanel 
-                        messages={chatMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} 
-                        t={t} className="h-full w-full shadow-sm hover-lift" activeContextId={currentCaseId} isPro={isPro} selectedDocumentCount={selectedDocumentIds.length}
-                    />
+                <motion.div 
+                    key="workspace" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    transition={{ duration: 0.2 }} 
+                    // Responsive grid: stack on mobile, side‑by‑side on desktop
+                    className="flex flex-col lg:flex-row gap-6 lg:gap-8 h-auto lg:h-[700px] z-0"
+                >
+                    <div className="w-full lg:w-1/2">
+                        <DocumentsPanel 
+                            caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} 
+                            onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={setDocumentToRename} 
+                            className="h-full w-full shadow-sm hover-lift" 
+                        />
+                    </div>
+                    <div className="w-full lg:w-1/2 mt-6 lg:mt-0">
+                        <ChatPanel 
+                            messages={chatMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} 
+                            t={t} className="h-full w-full shadow-sm hover-lift" activeContextId={currentCaseId} isPro={isPro} selectedDocumentCount={selectedDocumentIds.length}
+                        />
+                    </div>
                 </motion.div>
             )}
             {viewMode === 'analyst' && isPro && (
