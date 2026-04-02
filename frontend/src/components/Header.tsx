@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – EXECUTIVE SOLID/GLASS HEADER v12.1
+// PHOENIX PROTOCOL – EXECUTIVE SOLID/GLASS HEADER v12.1 (STANDARDIZED)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -93,7 +93,7 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas lg:bg-canvas/80 lg:backdrop-blur-xl border-b border-border-main">
+      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 bg-canvas/90 backdrop-blur-xl border-b border-border-main">
         
         {/* Left: Brand */}
         <div className="flex items-center gap-3 shrink-0">
@@ -108,8 +108,8 @@ const Header: React.FC = () => {
           </Link>
         </div>
 
-        {/* Center: Segmented Glass Bar (Desktop Only) */}
-        <div className="hidden lg:flex items-center bg-surface/50 p-1.5 rounded-2xl border border-border-main shadow-inner gap-1">
+        {/* Center: Segmented Glass Bar (Desktop Only) - Unified Theme */}
+        <div className="hidden lg:flex items-center glass-panel bg-canvas/40 p-1.5 rounded-2xl border border-border-main gap-1">
           {navItems.map((item) => {
             const active = isActive(item.path);
             return (
@@ -119,7 +119,7 @@ const Header: React.FC = () => {
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
                   ${active 
-                    ? 'bg-canvas text-primary-start shadow-md border border-border-main' 
+                    ? 'bg-primary-start text-white shadow-accent-glow' 
                     : 'text-text-muted hover:text-text-primary hover:bg-surface/50 border border-transparent'
                   }
                 `}
@@ -136,7 +136,6 @@ const Header: React.FC = () => {
           <button 
             onClick={toggleTheme} 
             className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
-            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -185,60 +184,6 @@ const Header: React.FC = () => {
           </div>
         </div>
       </header>
-
-      {/* Mobile Navigation Overlay - Solid Background Isolation */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 top-[57px] bg-canvas z-[50] lg:hidden animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="p-4 h-full overflow-y-auto">
-            <div className="grid grid-cols-2 gap-3 pb-20">
-              {navItems.map(item => {
-                const active = isActive(item.path);
-                return (
-                  <Link 
-                    key={item.path} 
-                    to={item.path} 
-                    onClick={() => setIsMobileMenuOpen(false)} 
-                    className={`
-                      flex flex-col items-center justify-center p-6 rounded-2xl border transition-all duration-200
-                      ${active 
-                        ? 'bg-surface border-primary-start text-primary-start shadow-sm' 
-                        : 'bg-surface/40 border-border-main text-text-secondary hover:bg-surface'
-                      }
-                    `}
-                  >
-                    <item.icon size={28} className={active ? 'text-primary-start' : 'text-text-muted'} />
-                    <span className="text-xs font-black uppercase tracking-widest mt-3 text-center leading-tight">
-                      {item.label}
-                    </span>
-                  </Link>
-                );
-              })}
-              
-              {/* Mobile Account Link */}
-              <button 
-                onClick={() => { setIsMobileMenuOpen(false); navigate('/account'); }}
-                className="col-span-2 flex items-center gap-4 p-5 rounded-2xl bg-surface/40 border border-border-main text-text-secondary mt-2"
-              >
-                <div className="h-10 w-10 rounded-full bg-primary-start text-white flex items-center justify-center text-sm font-black">
-                  {user?.username?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold text-text-primary">{user?.username}</p>
-                  <p className="text-[10px] text-text-muted uppercase tracking-widest">{t('sidebar.account')}</p>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => { setIsMobileMenuOpen(false); logout(); }}
-                className="col-span-2 flex items-center justify-center gap-3 p-5 rounded-2xl bg-danger-start/5 border border-danger-start/20 text-danger-start font-bold uppercase text-[10px] tracking-widest mt-2"
-              >
-                <LogOut size={16} />
-                {t('general.logout', 'Dilni')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

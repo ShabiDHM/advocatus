@@ -1,5 +1,5 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.1 (STANDARDIZED TYPOGRAPHY)
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.1 (STANDARDIZED TYPOGRAPHY & THEME)
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -57,16 +57,16 @@ const BusinessPage: React.FC = () => {
                 </p>
             </div>
 
-            {/* Navigation Tabs - Segmented Bar – standardized typography */}
-            <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-fit">
+            {/* Navigation Tabs - Unified Glass Panel Theme */}
+            <div className="glass-panel p-1.5 rounded-2xl bg-canvas/40 border border-border-main shadow-sm w-fit flex">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ActiveTab)}
                         className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                             activeTab === tab.id 
-                            ? 'bg-primary-start text-white shadow-md' 
-                            : 'text-text-muted hover:text-text-primary hover:bg-canvas'
+                            ? 'bg-primary-start text-white shadow-accent-glow' 
+                            : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
                         }`}
                     >
                         {tab.icon} {tab.label}
