@@ -34,7 +34,7 @@ const highlightPlaceholders = (text: string) => {
 };
 
 export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = React.memo(({ text, t }) => {
-  const disclaimer = t('drafting.subtitle', 'Ky dokument është gjeneruar nga Juristi AI. Ju lutemi rishikojeni me kujdes para përdorimit zyrtar.');
+  const disclaimer = t('drafting.subtitle', 'Kjo përgjigje është gjeneruar nga Juristi AI, vetëm për referencë.');
 
   return (
     <div className="legal-document flex flex-col h-full font-serif">
