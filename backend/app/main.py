@@ -1,5 +1,5 @@
-# FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.6 (REMOVED PUBLIC LAWS ROUTER)
+# FILE: backend/app/main.py (LEGAL APP) - REMOVED legal_public_router
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.7 (CLEANED UNUSED ROUTERS)
 
 import os
 import logging
@@ -29,8 +29,8 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
-from .api.endpoints.legal_public import router as legal_public_router
-# REMOVED: public_laws_router
+# REMOVED: legal_public_router (no longer needed)
+# REMOVED: public_laws_router (already removed)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,8 +88,7 @@ api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", ta
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
-api_v1_router.include_router(legal_public_router, tags=["Legal Public"])
-# REMOVED: public_laws_router inclusion
+# REMOVED: legal_public_router and public_laws_router
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
