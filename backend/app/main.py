@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.4 (ADDED PUBLIC LAWS ROUTER)
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.6 (REMOVED PUBLIC LAWS ROUTER)
 
 import os
 import logging
@@ -30,7 +30,7 @@ from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
 from .api.endpoints.legal_public import router as legal_public_router
-from .api.endpoints.public_laws import router as public_laws_router  # NEW
+# REMOVED: public_laws_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,10 +88,8 @@ api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", ta
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
-# FIXED: Removed duplicate prefix - legal_public router already has '/legal/public'
 api_v1_router.include_router(legal_public_router, tags=["Legal Public"])
-# NEW: Public laws endpoints
-api_v1_router.include_router(public_laws_router, tags=["Legal Public"])
+# REMOVED: public_laws_router inclusion
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
