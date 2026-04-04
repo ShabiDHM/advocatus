@@ -200,13 +200,13 @@ export default function LawSearchPage() {
     <motion.div className="w-full min-h-screen pb-16 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
         
-        {/* Navigation - Back Button */}
+        {/* Navigation - Back Button Styled as Pill */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors mb-6 group w-fit"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/30 border border-border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm mb-6 group w-fit"
         >
           <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
-          {t('general.back', 'Kthehu')}
+          <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('general.back', 'Kthehu')}</span>
         </button>
 
         {/* Removed "Hulumtim Ligjor" header and icon */}
