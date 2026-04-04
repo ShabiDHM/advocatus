@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -66,6 +66,7 @@ function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: numb
 
 export default function LawSearchPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [rawResults, setRawResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -198,6 +199,16 @@ export default function LawSearchPage() {
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
+        
+        {/* Navigation - Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors mb-6 group w-fit"
+        >
+          <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
+          {t('general.back', 'Kthehu')}
+        </button>
+
         {/* Removed "Hulumtim Ligjor" header and icon */}
 
         {/* The Executive Search Console - increased padding and margins */}
