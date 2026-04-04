@@ -1,9 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V4.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic Tailwind classes: glass-panel, border-border-main, text-text-primary, etc.
-// 2. Replaced custom CSS variables with Tailwind utilities.
-// 3. Added hover-lift and shadow-sm where appropriate.
-// 4. Preserved all logic, state handlers, and search functionality.
+// PHOENIX PROTOCOL - LAW SEARCH V4.1 (CLEAN, LARGER, NO EXTRA HEADER/TEXT)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -202,27 +198,16 @@ export default function LawSearchPage() {
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
-        
-        {/* Executive Header */}
-        <header className="mb-10 flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-sm">
-              <BookOpen size={24} />
-            </div>
-            <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
-              {t('lawSearch.title', 'Hulumtim Ligjor')}
-            </h1>
-          </div>
-        </header>
+        {/* Removed "Hulumtim Ligjor" header and icon */}
 
-        {/* The Executive Search Console */}
-        <div className="glass-panel p-6 sm:p-8 mb-12 shadow-sm border border-border-main flex flex-col gap-4 relative isolate z-40">
+        {/* The Executive Search Console - increased padding and margins */}
+        <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 relative isolate z-40">
             
             {/* 1. Dropdown Filter Area */}
             <div className="relative z-[60]">
                 <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-xl border border-border-main bg-surface text-left transition-all hover:border-primary-start/50 group hover-lift shadow-sm"
+                className="w-full flex items-center justify-between px-6 py-5 rounded-xl border border-border-main bg-surface text-left transition-all hover:border-primary-start/50 group hover-lift shadow-sm"
                 disabled={loadingTitles || enrichingTitles.size > 0}
                 >
                 <div className="flex items-center gap-3">
@@ -274,7 +259,7 @@ export default function LawSearchPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('lawSearch.placeholder', 'Kërko nene, fjalë kyçe, koncepte juridike...')}
-                className="w-full pl-14 pr-14 py-5 bg-surface border border-border-main rounded-xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
+                className="w-full pl-14 pr-14 py-6 bg-surface border border-border-main rounded-xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
                 autoFocus
                 />
                 {query && (
@@ -288,7 +273,7 @@ export default function LawSearchPage() {
             </div>
         </div>
 
-        {/* Results / Loading States */}
+        {/* Results / Loading States (unchanged) */}
         {loading && (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -389,14 +374,9 @@ export default function LawSearchPage() {
           </div>
         )}
 
-        {/* Initial Empty State */}
+        {/* Initial Empty State - COMPLETELY REMOVED (no icon, no text) */}
         {!loading && !error && rawResults.length === 0 && query.trim() === '' && (
-          <div className="flex flex-col items-center text-center opacity-30 mt-24">
-            <Search className="h-16 w-16 mb-6 text-text-muted" strokeWidth={1} />
-            <p className="text-xl font-black text-text-primary uppercase tracking-widest">
-                {t('lawSearch.startTyping', 'Hulumtimi Inteligjent')}
-            </p>
-          </div>
+          <div className="h-32" />
         )}
       </div>
     </motion.div>
