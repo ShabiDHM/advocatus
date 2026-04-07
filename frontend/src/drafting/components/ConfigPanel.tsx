@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN TYPOGRAPHY STANDARDIZED
+// PHOENIX PROTOCOL - DROPDOWN SECTION BLOCK STYLING (CATEGORY BARS)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -102,7 +102,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION - STANDARDIZED DROPDOWN TYPOGRAPHY */}
+        {/* TEMPLATE SELECTION - SECTION BLOCK DROPDOWN */}
         <div className="relative" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
@@ -125,26 +125,35 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* DROPDOWN MENU WITH STANDARDIZED TYPOGRAPHY */}
+          {/* SECTION BLOCK DROPDOWN MENU */}
           {isOpen && isPro && (
-            <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0B1221] border border-[#1E293B] rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,1)] max-h-[300px] overflow-y-auto z-[9999] ring-1 ring-white/5 flex flex-col custom-scrollbar">
-              {templateGroups.map((group) => (
+            <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-surface border border-border-main rounded-xl shadow-2xl max-h-[400px] overflow-y-auto z-[9999] flex flex-col custom-scrollbar">
+              {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Category header: standardized small, uppercase, muted */}
-                  <div className="text-[10px] font-black uppercase tracking-widest text-text-muted opacity-70 mb-1 px-4 pt-3 sticky top-0 bg-[#0B1221] z-10">
+                  {/* Category Bar: full-width with background, top/bottom borders */}
+                  <div className={`
+                    px-4 py-2 
+                    text-[11px] font-black uppercase tracking-widest text-text-muted
+                    bg-surface/60
+                    border-t border-border-main
+                    ${groupIdx === 0 ? 'border-t-0 rounded-t-xl' : ''}
+                    border-b border-border-main
+                  `}>
                     {group.label}
                   </div>
-                  {/* Selectable items: uniform text-sm font-semibold, consistent padding */}
-                  {group.options.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-primary-start/10 cursor-pointer text-sm font-semibold text-text-primary transition-colors"
-                    >
-                      {getOptionLabel(opt)}
-                    </button>
-                  ))}
+                  {/* Document Items: large click targets */}
+                  <div className="flex flex-col">
+                    {group.options.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
+                        className="w-full text-left px-6 py-3 hover:bg-primary-start/10 hover:text-primary-start transition-all text-sm font-bold text-text-primary"
+                      >
+                        {getOptionLabel(opt)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
