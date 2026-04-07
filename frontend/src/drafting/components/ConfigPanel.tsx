@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN SECTION BLOCK STYLING (CATEGORY BARS)
+// PHOENIX PROTOCOL - EMERGENCY DROPDOWN FIX (SOLID BG, HIGH Z-INDEX, FLOATING)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -67,10 +67,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   };
 
   return (
-    <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto">
+    <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto overflow-visible">
       
       {/* SECTION HEADER */}
-      <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6">
+      <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6 flex-shrink-0">
         <div className="h-10 w-10 flex items-center justify-center bg-primary-start/10 rounded-xl border border-primary-start/20">
           <FileText className="text-primary-start" size={20} />
         </div>
@@ -79,10 +79,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </h2>
       </div>
 
-      <div className="flex flex-col gap-6 flex-1 min-h-0">
+      <div className="flex flex-col gap-6 flex-1 min-h-0 overflow-visible">
         
         {/* CASE SELECTION */}
-        <div className="relative">
+        <div className="relative flex-shrink-0">
           <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
             {t('drafting.caseLabel', 'Zgjidh rastin')}
           </label>
@@ -102,8 +102,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION - SECTION BLOCK DROPDOWN */}
-        <div className="relative" ref={dropdownRef}>
+        {/* TEMPLATE SELECTION - EMERGENCY FIX: SOLID BG, HIGH Z-INDEX, ABSOLUTE POSITIONING */}
+        <div className="relative flex-shrink-0 overflow-visible" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
               {t('drafting.templateLabel', 'Lloji i Dokumentit')}
@@ -125,23 +125,23 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* SECTION BLOCK DROPDOWN MENU */}
+          {/* DROPDOWN MENU - SOLID BACKGROUND, FLOATING, NO CLIPPING */}
           {isOpen && isPro && (
-            <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-surface border border-border-main rounded-xl shadow-2xl max-h-[400px] overflow-y-auto z-[9999] flex flex-col custom-scrollbar">
+            <div className="absolute left-0 right-0 top-full mt-1 z-[100] bg-[#0B0F1A] border border-border-main rounded-xl shadow-2xl max-h-[400px] overflow-y-auto custom-scrollbar">
               {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Category Bar: full-width with background, top/bottom borders */}
+                  {/* Category Bar: solid background, top/bottom borders */}
                   <div className={`
                     px-4 py-2 
                     text-[11px] font-black uppercase tracking-widest text-text-muted
-                    bg-surface/60
+                    bg-surface/80
                     border-t border-border-main
-                    ${groupIdx === 0 ? 'border-t-0 rounded-t-xl' : ''}
+                    ${groupIdx === 0 ? 'border-t-0' : ''}
                     border-b border-border-main
                   `}>
                     {group.label}
                   </div>
-                  {/* Document Items: large click targets */}
+                  {/* Document Items */}
                   <div className="flex flex-col">
                     {group.options.map((opt) => (
                       <button
