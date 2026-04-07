@@ -1,5 +1,5 @@
-// FILE: src/drafting /components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V8.3 (PREMIUM OPAQUE DROPDOWN FIX)
+// FILE: src/drafting/components/ConfigPanel.tsx
+// PHOENIX PROTOCOL - HEADER SYNCED (text-sm, h-10 icon container)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -24,7 +24,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click ensuring state stability
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -70,12 +69,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   return (
     <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto">
       
-      {/* SECTION HEADER */}
+      {/* SECTION HEADER - SYNCED WITH PREVIOUS STANDARD: h-10 icon container, text-sm title */}
       <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6">
-        <div className="p-2 bg-primary-start/10 rounded-xl border border-primary-start/20">
-          <FileText className="text-primary-start" size={18} />
+        <div className="h-10 w-10 flex items-center justify-center bg-primary-start/10 rounded-xl border border-primary-start/20">
+          <FileText className="text-primary-start" size={20} />
         </div>
-        <h2 className="text-[11px] font-black text-text-primary uppercase tracking-widest leading-none">
+        <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
           {t('drafting.configuration', 'Konfigurimi')}
         </h2>
       </div>
@@ -131,11 +130,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0B1221] border border-[#1E293B] rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,1)] max-h-[300px] overflow-y-auto z-[9999] ring-1 ring-white/5 flex flex-col custom-scrollbar">
               {templateGroups.map((group) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Sticky Opaque Header */}
                   <div className="sticky top-0 px-4 py-2.5 text-[9px] font-black uppercase text-slate-400 bg-[#0B1221] border-b border-[#1E293B] z-10 tracking-wider">
                     {group.label}
                   </div>
-                  {/* Options */}
                   {group.options.map((opt) => (
                     <button
                       key={opt}

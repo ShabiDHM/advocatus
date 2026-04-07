@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V4.1 (CLEAN, LARGER, NO EXTRA HEADER/TEXT)
+// PHOENIX PROTOCOL - LAW SEARCH V4.3 (TYPESCRIPT CLEANUP FIXED)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -54,13 +54,18 @@ function isBareLawNumber(title: string): boolean {
   return true;
 }
 
+// FIXED: Proper cleanup return type (void)
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const debouncedCallback = useCallback((...args: Parameters<T>) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => callback(...args), delay);
   }, [callback, delay]);
-  useEffect(() => () => timeoutRef.current && clearTimeout(timeoutRef.current), []);
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
   return debouncedCallback;
 }
 
