@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - EMERGENCY DROPDOWN FIX (SOLID BG, HIGH Z-INDEX, FLOATING)
+// PHOENIX PROTOCOL - DROPDOWN FLOATING FIX (NO CLIPPING, SOLID BG, HIGH Z-INDEX)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -67,6 +67,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   };
 
   return (
+    // Main panel: overflow-visible to allow dropdown to escape
     <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto overflow-visible">
       
       {/* SECTION HEADER */}
@@ -79,6 +80,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </h2>
       </div>
 
+      {/* Content wrapper: overflow-visible */}
       <div className="flex flex-col gap-6 flex-1 min-h-0 overflow-visible">
         
         {/* CASE SELECTION */}
@@ -102,7 +104,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION - EMERGENCY FIX: SOLID BG, HIGH Z-INDEX, ABSOLUTE POSITIONING */}
+        {/* TEMPLATE SELECTION - FLOATING DROPDOWN FIX */}
         <div className="relative flex-shrink-0 overflow-visible" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
@@ -125,19 +127,18 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* DROPDOWN MENU - SOLID BACKGROUND, FLOATING, NO CLIPPING */}
+          {/* FLOATING DROPDOWN MENU - SOLID BG, HIGH Z-INDEX, NO CLIPPING */}
           {isOpen && isPro && (
-            <div className="absolute left-0 right-0 top-full mt-1 z-[100] bg-[#0B0F1A] border border-border-main rounded-xl shadow-2xl max-h-[400px] overflow-y-auto custom-scrollbar">
+            <div className="absolute left-0 right-0 top-full mt-2 z-[999] bg-[#0B0F1A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] max-h-[350px] overflow-y-auto custom-scrollbar">
               {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Category Bar: solid background, top/bottom borders */}
+                  {/* Category Bar: solid, borders */}
                   <div className={`
                     px-4 py-2 
-                    text-[11px] font-black uppercase tracking-widest text-text-muted
-                    bg-surface/80
-                    border-t border-border-main
+                    text-[10px] font-black uppercase tracking-widest text-text-muted
+                    bg-white/5
+                    border-y border-white/10
                     ${groupIdx === 0 ? 'border-t-0' : ''}
-                    border-b border-border-main
                   `}>
                     {group.label}
                   </div>
@@ -148,7 +149,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                         key={opt}
                         type="button"
                         onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
-                        className="w-full text-left px-6 py-3 hover:bg-primary-start/10 hover:text-primary-start transition-all text-sm font-bold text-text-primary"
+                        className="w-full text-left px-5 py-3 hover:bg-primary-start hover:text-white transition-all text-sm font-bold text-text-primary"
                       >
                         {getOptionLabel(opt)}
                       </button>
@@ -160,7 +161,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           )}
         </div>
 
-        {/* INSTRUCTIONS */}
+        {/* INSTRUCTIONS - relative z-0 to stay below dropdown */}
         <div className="flex-1 flex flex-col min-h-0 relative z-0">
           <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
             {t('drafting.instructionsLabel', 'Udhëzimet')}
@@ -177,7 +178,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         <button 
           onClick={() => onSubmit()} 
           disabled={isSubmitting || !context.trim()} 
-          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-0"
         >
           {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
           {isSubmitting ? t('drafting.statusWorking', 'Duke Gjeneruar...') : t('drafting.generateBtn', 'Gjenero Dokumentin')}
