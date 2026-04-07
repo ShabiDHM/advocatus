@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - HEADER SYNCED (text-sm, h-10 icon container)
+// PHOENIX PROTOCOL - DROPDOWN TYPOGRAPHY STANDARDIZED
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
@@ -69,7 +69,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   return (
     <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto">
       
-      {/* SECTION HEADER - SYNCED WITH PREVIOUS STANDARD: h-10 icon container, text-sm title */}
+      {/* SECTION HEADER */}
       <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6">
         <div className="h-10 w-10 flex items-center justify-center bg-primary-start/10 rounded-xl border border-primary-start/20">
           <FileText className="text-primary-start" size={20} />
@@ -102,7 +102,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION (Fixed Opaque Dropdown) */}
+        {/* TEMPLATE SELECTION - STANDARDIZED DROPDOWN TYPOGRAPHY */}
         <div className="relative" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
@@ -125,20 +125,22 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* BULLETPROOF OPAQUE MENU */}
+          {/* DROPDOWN MENU WITH STANDARDIZED TYPOGRAPHY */}
           {isOpen && isPro && (
             <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0B1221] border border-[#1E293B] rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,1)] max-h-[300px] overflow-y-auto z-[9999] ring-1 ring-white/5 flex flex-col custom-scrollbar">
               {templateGroups.map((group) => (
                 <div key={group.label} className="flex flex-col">
-                  <div className="sticky top-0 px-4 py-2.5 text-[9px] font-black uppercase text-slate-400 bg-[#0B1221] border-b border-[#1E293B] z-10 tracking-wider">
+                  {/* Category header: standardized small, uppercase, muted */}
+                  <div className="text-[10px] font-black uppercase tracking-widest text-text-muted opacity-70 mb-1 px-4 pt-3 sticky top-0 bg-[#0B1221] z-10">
                     {group.label}
                   </div>
+                  {/* Selectable items: uniform text-sm font-semibold, consistent padding */}
                   {group.options.map((opt) => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
-                      className="w-full text-left px-4 py-3 hover:bg-[#161F33] cursor-pointer text-sm font-medium text-slate-200 border-b border-[#1E293B]/50 last:border-none transition-colors"
+                      className="w-full text-left px-4 py-2.5 hover:bg-primary-start/10 cursor-pointer text-sm font-semibold text-text-primary transition-colors"
                     >
                       {getOptionLabel(opt)}
                     </button>
