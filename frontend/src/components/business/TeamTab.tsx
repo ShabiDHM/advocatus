@@ -1,5 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - RESTORED INVITE BUTTON + FALLBACK PERMISSION LOGIC
+// PHOENIX PROTOCOL - FRIENDLY ERROR HANDLING FOR DUPLICATE INVITES
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -105,8 +105,15 @@ export const TeamTab: React.FC = () => {
             setInviteEmail(""); 
             fetchData();
         } catch (err: any) {
-            const detail = err.response?.data?.detail || t('team.invite_error_generic');
-            setErrorMsg(detail);
+            // Friendly error handling for duplicate key (MongoDB E11000)
+            const errorDetail = err?.response?.data?.detail || err?.message || '';
+            const isDuplicateKey = errorDetail.includes('duplicate key') || errorDetail.includes('E11000');
+            
+            if (isDuplicateKey) {
+                setErrorMsg("Ky email është regjistruar tashmë në sistem ose ka një ftesë aktive.");
+            } else {
+                setErrorMsg("Ndodhi një gabim gjatë dërgimit të ftesës. Ju lutem provoni përsëri.");
+            }
         } finally {
             setInviting(false);
         }
@@ -212,7 +219,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Members table (unchanged) */}
+            {/* Members table */}
             <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-border-main">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
@@ -281,7 +288,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Dropdown Portal - Context-Aware Menu (unchanged) */}
+            {/* Dropdown Portal - Context-Aware Menu */}
             {openMenuId && createPortal(
                 <motion.div
                     key="team-dropdown-portal"
@@ -348,7 +355,7 @@ export const TeamTab: React.FC = () => {
                 document.body
             )}
 
-            {/* Invite Modal (unchanged) */}
+            {/* Invite Modal */}
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -368,7 +375,7 @@ export const TeamTab: React.FC = () => {
                                     {errorMsg && (
                                         <div className="p-4 rounded-xl bg-danger-start/20 border border-danger-start/30 text-danger-start flex items-start gap-3">
                                             <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
-                                            <span className="text-sm">{errorMsg}</span>
+                                            <span className="text-sm font-bold">{errorMsg}</span>
                                         </div>
                                     )}
                                     <div className="space-y-2">
