@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V28.0 (ADDED CHAT HISTORY PERSISTENCE)
-# 1. ADDED: PUT /{case_id}/chat endpoint to save chat history.
+# PHOENIX PROTOCOL - CASES ROUTER V28.1 (FIXED CHAT HISTORY PERSISTENCE)
+# 1. FIXED: PUT /{case_id}/chat endpoint now uses model_dump and handles datetime correctly.
 # 2. RESTORED: SubscriptionTier checks (require_pro_tier) for premium features.
 # 3. STATUS: 100% Pylance clean.
 
@@ -135,7 +135,7 @@ async def get_single_case(
         raise HTTPException(status_code=404)
     return case
 
-# NEW ENDPOINT: Save chat history for a case
+# FIXED ENDPOINT: Save chat history for a case (no 500 error)
 @router.put("/{case_id}/chat", status_code=status.HTTP_200_OK)
 async def update_case_chat_history(
     case_id: str,
@@ -154,15 +154,26 @@ async def update_case_chat_history(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     
+    # Convert messages to JSON-serializable dicts (Pydantic v2 compatible)
+    chat_history_dicts = []
+    for msg in update.chat_history:
+        # Use model_dump for Pydantic v2, fallback to dict for v1
+        if hasattr(msg, "model_dump"):
+            msg_dict = msg.model_dump()
+        else:
+            msg_dict = msg.dict()
+        # Ensure timestamp is string (already ISO string from frontend)
+        if isinstance(msg_dict.get("timestamp"), datetime):
+            msg_dict["timestamp"] = msg_dict["timestamp"].isoformat()
+        chat_history_dicts.append(msg_dict)
+    
     # Update chat_history in the case document
-    result = await asyncio.to_thread(
+    await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
-        {"$set": {"chat_history": [msg.dict() for msg in update.chat_history]}}
+        {"$set": {"chat_history": chat_history_dicts}}
     )
-    if result.modified_count == 0:
-        raise HTTPException(status_code=500, detail="Failed to update chat history")
-    
+    # No longer raise error if modified_count == 0 (data may be identical)
     return {"status": "success", "message": "Chat history saved"}
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
