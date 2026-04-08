@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V27.0 (REINSTATED TIER GATES + LIMIT ADJUST)
-# 1. RESTORED: SubscriptionTier checks (require_pro_tier) for premium features.
-# 2. ADJUSTED: No changes to logic; gates are back as originally designed.
+# PHOENIX PROTOCOL - CASES ROUTER V28.0 (ADDED CHAT HISTORY PERSISTENCE)
+# 1. ADDED: PUT /{case_id}/chat endpoint to save chat history.
+# 2. RESTORED: SubscriptionTier checks (require_pro_tier) for premium features.
 # 3. STATUS: 100% Pylance clean.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
@@ -37,6 +37,7 @@ from ...models.user import UserInDB, SubscriptionTier  # RESTORED SubscriptionTi
 from ...models.drafting import DraftRequest
 from ...models.archive import ArchiveItemOut
 from ...models.document import DocumentOut
+from ...models.chat import ChatMessage  # <-- NEW IMPORT (create this model if missing)
 from ...celery_app import celery_app
 
 from .dependencies import get_current_user, get_db, get_sync_redis
@@ -88,6 +89,10 @@ class ArchiveStrategyRequest(BaseModel):
     legal_data: Dict[str, Any]
     deep_data: Dict[str, Any]
 
+# NEW: Chat history update request
+class ChatHistoryUpdate(BaseModel):
+    chat_history: List[ChatMessage]
+
 # --- CORE CASE ENDPOINTS ---
 
 @router.get("", response_model=List[CaseOut], include_in_schema=False)
@@ -129,6 +134,36 @@ async def get_single_case(
     if not case:
         raise HTTPException(status_code=404)
     return case
+
+# NEW ENDPOINT: Save chat history for a case
+@router.put("/{case_id}/chat", status_code=status.HTTP_200_OK)
+async def update_case_chat_history(
+    case_id: str,
+    update: ChatHistoryUpdate,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    # Verify case exists and user owns it
+    case = await asyncio.to_thread(
+        case_service.get_case_by_id,
+        db=db,
+        case_id=case_oid,
+        owner=current_user
+    )
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Update chat_history in the case document
+    result = await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$set": {"chat_history": [msg.dict() for msg in update.chat_history]}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to update chat history")
+    
+    return {"status": "success", "message": "Chat history saved"}
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(

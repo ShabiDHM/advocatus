@@ -1,3 +1,5 @@
+# FILE: backend/app/models/chat.py
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, Literal
@@ -15,3 +17,13 @@ class ChatFeedback(BaseModel):
     class Config:
         allow_population_by_field_name = True
         json_encoders = {ObjectId: str}
+
+# NEW MODEL for chat history persistence
+class ChatMessage(BaseModel):
+    role: Literal["user", "ai"]
+    content: str
+    timestamp: str  # ISO format string
+
+    class Config:
+        # Allow extra fields if needed, but keep strict
+        extra = "forbid"
