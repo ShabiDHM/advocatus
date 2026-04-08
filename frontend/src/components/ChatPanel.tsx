@@ -1,10 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.2 (FIXED NODEJS NAMESPACE ERROR)
+// PHOENIX PROTOCOL - CHAT PANEL V12.4 (CLEANED UNUSED IMPORTS)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye,
+    Send, BrainCircuit, Trash2, User, Copy, Check, Scale, Eye,
     ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
@@ -41,7 +41,7 @@ interface ChatPanelProps {
   t: TFunction;
   className?: string;
   activeContextId: string;
-  isPro?: boolean;
+  isPro?: boolean;  // kept in interface but not used; can be ignored
   selectedDocumentCount?: number;
 }
 
@@ -115,7 +115,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [show, setShow] = useState(false);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout>>(); // FIXED: replaced NodeJS.Timeout
+    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
     useEffect(() => {
         if (show && !preview && !loading) {
@@ -180,10 +180,11 @@ const MarkdownComponents = (t: TFunction) => ({
 });
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, isPro = false, selectedDocumentCount = 0
+    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0
 }) => {
   const [input, setInput] = useState('');
-  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
+  // HARDCODED to 'DEEP' – mode toggle removed
+  const [reasoningMode] = useState<ReasoningMode>('DEEP');
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
@@ -191,7 +192,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { if (!isPro && reasoningMode === 'DEEP') setReasoningMode('FAST'); }, [isPro, reasoningMode]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
   
   useEffect(() => {
@@ -205,6 +205,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
+    // reasoningMode is now always 'DEEP'
     onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks');
     setInput('');
   };
@@ -225,9 +226,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-sm ${className}`}>
       
-      {/* HEADER – unified heights and borders */}
+      {/* HEADER – simplified */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-surface/40 z-50 shrink-0 gap-3 sm:gap-0">
-        {/* Left group: title, status, badge, domain selector */}
+        {/* Left group */}
         <div className="flex items-center flex-wrap gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
@@ -242,52 +243,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           )}
           
-          {reasoningMode === 'DEEP' && (
-            <div className="relative group">
-              <select
-                value={selectedDomain}
-                onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-sm font-medium pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
-              >
-                {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            </div>
-          )}
+          {/* Domain dropdown – always visible */}
+          <div className="relative group">
+            <select
+              value={selectedDomain}
+              onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
+              className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-sm font-medium pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
+            >
+              {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          </div>
         </div>
 
-        {/* Right group: segmented control + actions */}
+        {/* Right group: only export and clear buttons */}
         <div className="flex items-center justify-end gap-3">
-          <div className="flex items-center bg-surface p-0.5 rounded-xl border border-border-main shadow-inner h-9">
-            <button
-              onClick={() => setReasoningMode('FAST')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all hover-lift ${
-                reasoningMode === 'FAST'
-                  ? 'bg-card text-primary-start shadow-sm border border-border-main'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <Zap size={14} /> {t('chatPanel.modeFast', 'Shpejtë')}
+          {onExportChat && (
+            <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface rounded-lg transition-all hover-lift" title="Download">
+              <Download size={18} />
             </button>
-            <button
-              onClick={() => isPro && setReasoningMode('DEEP')}
-              disabled={!isPro}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide h-full transition-all hover-lift ${
-                reasoningMode === 'DEEP'
-                  ? 'bg-card text-primary-start shadow-sm border border-border-main'
-                  : 'text-text-muted hover:text-text-primary disabled:opacity-40'
-              }`}
-            >
-              {!isPro ? <Lock size={12} /> : <GraduationCap size={14} />} {t('chatPanel.modeDeep', 'Thellë')}
-            </button>
-          </div>
-
-          <div className="h-6 w-px bg-border-main" />
-
-          <div className="flex gap-1">
-            {onExportChat && <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface rounded-lg transition-all hover-lift" title="Download"><Download size={18} /></button>}
-            <button onClick={onClearChat} className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-lg transition-all hover-lift" title="Clear"><Trash2 size={18} /></button>
-          </div>
+          )}
+          <button onClick={onClearChat} className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-lg transition-all hover-lift" title="Clear">
+            <Trash2 size={18} />
+          </button>
         </div>
       </div>
 
