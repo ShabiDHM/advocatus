@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.11 (FIXED AUTH FOR CHAT PERSISTENCE)
+// PHOENIX PROTOCOL - CASE VIEW V16.12 (USES API SERVICE FOR CHAT PERSISTENCE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -165,41 +165,14 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- CHAT PERSISTENCE HELPER (FIXED: added Authorization header) ---
+  // --- CHAT PERSISTENCE HELPER (uses apiService) ---
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
-    console.log("🟢 persistChatHistory CALLED for caseId:", caseId, "messages count:", messages.length);
-    if (!caseId) {
-      console.log("🟢 persistChatHistory: no caseId, aborting");
-      return;
-    }
-    
-    // Get authentication token from localStorage (adjust key if needed)
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      console.error("🔴 No auth token found in localStorage. Cannot persist chat.");
-      return;
-    }
-
+    if (!caseId) return;
     try {
-      const url = `${API_V1_URL}/cases/${caseId}/chat`;
-      console.log("🟢 FETCHING PUT to:", url);
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include', // optional, but kept for consistency
-        body: JSON.stringify({ chat_history: messages })
-      });
-      console.log("🟢 RESPONSE status:", response.status);
-      if (!response.ok) {
-        console.error("🟢 PUT failed with status", response.status);
-      } else {
-        console.log("🟢 PUT succeeded");
-      }
+      await apiService.updateChatHistory(caseId, messages);
+      console.log("Chat history saved");
     } catch (err) {
-      console.error('🔴 Failed to persist chat history:', err);
+      console.error('Failed to persist chat history:', err);
     }
   }, [caseId]);
 
@@ -248,7 +221,6 @@ const CaseViewPage: React.FC = () => {
   };
 
   const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => {
-    console.log("🔵 handleChatSubmit STARTED");
     if (!caseId) return;
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
@@ -265,15 +237,12 @@ const CaseViewPage: React.FC = () => {
           return updated;
         });
       }
-      console.log("🔵 Stream finished, about to persist");
       setChatMessages(prev => {
         const finalMessages = [...prev];
-        console.log("🔵 Calling persistChatHistory with finalMessages length:", finalMessages.length);
         persistChatHistory(finalMessages);
         return finalMessages;
       });
-    } catch (err) {
-      console.error("🔴 Stream error:", err);
+    } catch {
       const errorMsg = '[Gabim Teknik]';
       setChatMessages(prev => {
         const withError = [...prev];

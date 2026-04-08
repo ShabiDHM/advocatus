@@ -1,7 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.1 (PROMPT COLLISION FIX)
-// 1. FIXED: Removed hardcoded user prompt in explainLawStream. 
-//    We now only send raw text so the Backend System Prompt takes full control.
+// PHOENIX PROTOCOL - API SERVICE V23.2 (ADDED updateChatHistory)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -11,7 +9,7 @@ import type {
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
     ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
     SpreadsheetAnalysisResult, Organization, AcceptInviteRequest, SubscriptionUpdate, PromoteRequest,
-    BriefingResponse
+    BriefingResponse, ChatMessage
 } from '../data/types';
 
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
@@ -274,6 +272,11 @@ class ApiService {
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`); return response.data; }
     public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> { const response = await this.axiosInstance.post<ReprocessConfirmation>(`/cases/${caseId}/documents/${documentId}/reprocess`); return response.data; }
     public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> { const response = await this.axiosInstance.post<BulkReprocessResponse>(`/cases/${caseId}/documents/reprocess-all`); return response.data; }
+
+    // ========== NEW METHOD FOR CHAT PERSISTENCE ==========
+    public async updateChatHistory(caseId: string, chatHistory: ChatMessage[]): Promise<void> {
+        await this.axiosInstance.put(`/cases/${caseId}/chat`, { chat_history: chatHistory });
+    }
 }
 
 export const apiService = new ApiService();
