@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V8.1 (Removed fallback message)
+// PHOENIX PROTOCOL - DASHBOARD V9.0 (Executive UI: Quick Stats + Upgraded Calendar Button)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -36,7 +36,7 @@ const DashboardPage: React.FC = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side holiday detection (runs on every render)
+  // Client-side holiday detection
   const holidayBriefing = useMemo(() => {
     const today = new Date();
     return getCurrentBriefingHoliday(today, (key: string) => t(key));
@@ -57,7 +57,6 @@ const DashboardPage: React.FC = () => {
     return `${h}h ${m}m ${s}s`;
   };
 
-  // Final briefing: if holiday, create synthetic; else use backend
   const effectiveBriefing = useMemo((): BriefingResponse | null => {
     if (holidayBriefing.isHoliday) {
       return {
@@ -170,7 +169,6 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Filter cases based on search term
   const filteredCases = useMemo(() => {
     if (!searchTerm.trim()) return cases;
     const term = searchTerm.toLowerCase();
@@ -181,10 +179,14 @@ const DashboardPage: React.FC = () => {
     );
   }, [cases, searchTerm]);
 
+  // Quick stats
+  const totalCases = cases.length;
+  // TODO: Replace with real urgent flag logic when available (e.g., case.priority === 'urgent')
+  const urgentCases = 0;
+
   const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50 border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40";
   const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
 
-  // Helper to get the correct greeting (prioritizing holiday, else backend)
   const getGreeting = (): string => {
     if (holidayBriefing.isHoliday) {
       return holidayBriefing.greeting;
@@ -213,9 +215,7 @@ const DashboardPage: React.FC = () => {
     return '';
   };
 
-  // Strict priority content for the right panel (no motivational quote, no fallback message)
   const getMainContent = () => {
-    // Priority 1: Holiday
     if (holidayBriefing.isHoliday) {
       return (
         <div className="h-full flex items-center justify-center text-center">
@@ -227,7 +227,6 @@ const DashboardPage: React.FC = () => {
       );
     }
 
-    // Priority 2: Risk Alerts
     const hasRiskRadar = effectiveBriefing?.risk_radar && effectiveBriefing.risk_radar.length > 0;
     if (hasRiskRadar) {
       return (
@@ -251,7 +250,6 @@ const DashboardPage: React.FC = () => {
       );
     }
 
-    // Priority 3: Today's Events
     if (todaysEvents.length > 0) {
       const previewEvents = todaysEvents.slice(0, 3);
       return (
@@ -277,7 +275,6 @@ const DashboardPage: React.FC = () => {
       );
     }
 
-    // No content – return empty div (removed fallback message)
     return <div className="h-full"></div>;
   };
 
@@ -296,6 +293,7 @@ const DashboardPage: React.FC = () => {
           >
             <div className="p-6 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
+                {/* Left: Greeting */}
                 <div className="flex items-start gap-5">
                   <div className="glass-panel p-4 rounded-2xl shrink-0 border border-border-main shadow-sm">
                     {theme.icon}
@@ -313,26 +311,42 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Middle: Risk/Events content */}
                 <div className="flex-1 w-full max-w-2xl">
                   {getMainContent()}
                 </div>
-                
-                <button 
-                  onClick={() => window.location.href = '/calendar'} 
-                  className="btn-secondary w-full lg:w-auto px-8 py-4 rounded-2xl font-black text-[10px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 hover-lift shadow-sm"
-                >
-                  <Calendar size={18} className="opacity-50" />
-                  {t('briefing.view_calendar', 'Kalendari')}
-                </button>
+
+                {/* Right: Quick Stats + Calendar Button */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 shrink-0">
+                  {/* Quick Stats */}
+                  <div className="flex gap-3">
+                    <div className="bg-surface/40 backdrop-blur-sm rounded-xl px-4 py-2 border border-border-main text-center min-w-[80px]">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">TOTALI</div>
+                      <div className="text-2xl font-black text-text-primary">{totalCases}</div>
+                    </div>
+                    <div className="bg-surface/40 backdrop-blur-sm rounded-xl px-4 py-2 border border-border-main text-center min-w-[80px]">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">URGJENTE</div>
+                      <div className="text-2xl font-black text-danger-start">{urgentCases}</div>
+                    </div>
+                  </div>
+                  
+                  {/* Upgraded Calendar Button */}
+                  <button 
+                    onClick={() => window.location.href = '/calendar'} 
+                    className="btn-primary px-6 py-3 rounded-xl font-black text-sm uppercase tracking-wide flex items-center gap-3 shadow-md hover:shadow-lg transition-all hover:scale-[1.02] active:scale-95 border border-primary-start/30"
+                  >
+                    <Calendar size={18} />
+                    {t('briefing.view_calendar', 'Kalendari')}
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header with Search and Create Button - Removed old heading */}
+      {/* Search + Create Case Row (already consolidated) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 px-2">
-        {/* Search input */}
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
           <input
@@ -343,7 +357,6 @@ const DashboardPage: React.FC = () => {
             className="glass-input w-full pl-11 pr-4 py-3 rounded-xl text-sm border-border-main bg-surface focus:border-primary-start"
           />
         </div>
-        
         <button 
             onClick={() => setShowCreateModal(true)} 
             className="btn-primary flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-[0.1em] active:scale-[0.98] shrink-0 hover-lift shadow-sm"

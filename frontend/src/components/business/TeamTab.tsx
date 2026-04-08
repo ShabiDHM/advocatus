@@ -1,5 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - ALWAYS SHOW THREE DOTS, CONTEXT-AWARE MENU (FIXED DUPLICATE IDENTIFIER)
+// PHOENIX PROTOCOL - RESTORED INVITE BUTTON + FALLBACK PERMISSION LOGIC
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,9 +8,9 @@ import {
     AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2,
     Send
 } from 'lucide-react';
-import { User as UserIcon } from 'lucide-react'; // Renamed to avoid conflict with type User
+import { User as UserIcon } from 'lucide-react';
 import { apiService } from '../../services/api';
-import { User, Organization } from '../../data/types'; // Type import
+import { User, Organization } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { createPortal } from 'react-dom';
@@ -53,14 +53,13 @@ export const TeamTab: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [openMenuId]);
 
-    // Position the dropdown when openMenuId changes
     useEffect(() => {
         if (!openMenuId || !activeButtonRef.current) return;
 
         const updatePosition = () => {
             if (!activeButtonRef.current) return;
             const rect = activeButtonRef.current.getBoundingClientRect();
-            const menuWidth = 192; // w-48 = 192px
+            const menuWidth = 192;
             const viewportWidth = window.innerWidth;
             let left = rect.right - menuWidth;
             if (left < 0) left = rect.left;
@@ -126,7 +125,6 @@ export const TeamTab: React.FC = () => {
 
     const handleResendInvite = async (member: User) => {
         console.log(`Resend invite to ${member.email} (API to be implemented)`);
-        // TODO: implement API call to resend invitation
         alert(`Ridërgo ftesë për ${member.email} (coming soon)`);
         setOpenMenuId(null);
     };
@@ -134,9 +132,7 @@ export const TeamTab: React.FC = () => {
     const handleCancelInvite = async (member: User) => {
         if (!window.confirm(`Anulo ftesën për ${member.email}?`)) return;
         console.log(`Cancel invite for ${member.email} (API to be implemented)`);
-        // TODO: implement API call to cancel pending invitation
         alert(`Ftesa u anulua për ${member.email} (coming soon)`);
-        // Optionally remove from list or refetch
         fetchData();
         setOpenMenuId(null);
     };
@@ -160,14 +156,19 @@ export const TeamTab: React.FC = () => {
     const usedSeats = organization?.current_active_users || members.length;
     const availableSeats = seatLimit - usedSeats;
     const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
-    const isCurrentUserOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
+    
+    // UPDATED PERMISSION LOGIC: Allow invite if user is ADMIN/OWNER OR if no other admin/owner exists (primary account holder fallback)
+    const isUserAdminOrOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
+    const hasAnyAdminOrOwner = members.some(m => m.role === 'ADMIN' || m.organization_role === 'OWNER');
+    const isCurrentUserOwner = isUserAdminOrOwner || (!hasAnyAdminOrOwner && currentUser?.id === members[0]?.id);
+    
     const planName = organization?.plan_tier || 'DEFAULT';
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* First glass-panel: Title & Invite button */}
+                {/* First glass-panel: Title & Invite button - RESTORED BUTTON */}
                 <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border-x border-b border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -211,7 +212,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Members table */}
+            {/* Members table (unchanged) */}
             <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-border-main">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
@@ -280,7 +281,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Dropdown Portal - Context-Aware Menu */}
+            {/* Dropdown Portal - Context-Aware Menu (unchanged) */}
             {openMenuId && createPortal(
                 <motion.div
                     key="team-dropdown-portal"
@@ -333,7 +334,6 @@ export const TeamTab: React.FC = () => {
                                 );
                             }
 
-                            // Active member (not self, not pending)
                             return (
                                 <button 
                                     onClick={() => handleRemoveMember(member.id)}
