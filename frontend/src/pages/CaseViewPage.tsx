@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.13 (LOCALSTORAGE FALLBACK FOR CHAT PERSISTENCE)
+// DEBUG VERSION – TRACE LOCALSTORAGE SAVE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -165,26 +165,43 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // Helper: save chat to localStorage
+  // --- DEBUGGING SAVE TO LOCALSTORAGE ---
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
-    if (!caseId) return;
-    localStorage.setItem(`chat_${caseId}`, JSON.stringify(messages));
+    console.log("🔵 saveToLocalStorage called with caseId:", caseId);
+    if (!caseId) {
+      console.log("🔴 saveToLocalStorage: no caseId, aborting");
+      return;
+    }
+    const key = `chat_${caseId}`;
+    const dataToStore = JSON.stringify(messages);
+    console.log("🔵 Storing to localStorage key:", key, "data length:", dataToStore.length);
+    localStorage.setItem(key, dataToStore);
+    // Verify it was stored
+    const stored = localStorage.getItem(key);
+    console.log("🔵 Verification - stored length:", stored ? stored.length : 0);
   }, [caseId]);
 
-  // Helper: load from localStorage
   const loadFromLocalStorage = useCallback((): ChatMessage[] | null => {
     if (!caseId) return null;
-    const stored = localStorage.getItem(`chat_${caseId}`);
+    const key = `chat_${caseId}`;
+    const stored = localStorage.getItem(key);
+    console.log("🔵 loadFromLocalStorage key:", key, "exists:", !!stored);
     if (stored) {
       try {
-        return JSON.parse(stored);
-      } catch { return null; }
+        const parsed = JSON.parse(stored);
+        console.log("🔵 Loaded from localStorage, messages count:", parsed.length);
+        return parsed;
+      } catch (e) {
+        console.error("Failed to parse localStorage chat", e);
+        return null;
+      }
     }
     return null;
   }, [caseId]);
 
   // --- CHAT PERSISTENCE HELPER (backup to backend + localStorage) ---
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
+    console.log("🟢 persistChatHistory called with messages count:", messages.length);
     // 1. Always save to localStorage first (instant)
     saveToLocalStorage(messages);
     
@@ -192,9 +209,9 @@ const CaseViewPage: React.FC = () => {
     if (!caseId) return;
     try {
       await apiService.updateChatHistory(caseId, messages);
-      console.log("Chat history saved to backend");
+      console.log("✅ Chat history saved to backend");
     } catch (err) {
-      console.error('Failed to persist chat history to backend:', err);
+      console.error('❌ Failed to persist chat history to backend:', err);
     }
   }, [caseId, saveToLocalStorage]);
 
@@ -212,21 +229,23 @@ const CaseViewPage: React.FC = () => {
       
       // Load chat: try backend first, fallback to localStorage
       const backendMessages = extractAndNormalizeHistory(details);
+      console.log("🔵 Backend messages count:", backendMessages.length);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
-        // Sync localStorage with backend data
         saveToLocalStorage(backendMessages);
       } else {
         const localMessages = loadFromLocalStorage();
         if (localMessages && localMessages.length > 0) {
+          console.log("🔵 Using localStorage messages count:", localMessages.length);
           setChatMessages(localMessages);
-          // Optionally push local to backend
           persistChatHistory(localMessages);
         } else {
+          console.log("🔵 No messages found anywhere, starting empty");
           setChatMessages([]);
         }
       }
-    } catch {
+    } catch (err) {
+      console.error("Error fetching case data:", err);
       setError(t('error.failedToLoadCase'));
     } finally {
       if(isInitialLoad) setIsLoading(false);
@@ -244,8 +263,8 @@ const CaseViewPage: React.FC = () => {
       await apiService.clearChatHistory(caseId); 
       setChatMessages([]);
       await persistChatHistory([]);
-      // Also clear localStorage
       localStorage.removeItem(`chat_${caseId}`);
+      console.log("Chat cleared from both backend and localStorage");
     } catch { alert(t('error.generic')); }
   };
 
@@ -279,10 +298,12 @@ const CaseViewPage: React.FC = () => {
       }
       setChatMessages(prev => {
         const finalMessages = [...prev];
+        console.log("🔵 About to persist final messages, count:", finalMessages.length);
         persistChatHistory(finalMessages);
         return finalMessages;
       });
-    } catch {
+    } catch (err) {
+      console.error("Stream error:", err);
       const errorMsg = '[Gabim Teknik]';
       setChatMessages(prev => {
         const withError = [...prev];
