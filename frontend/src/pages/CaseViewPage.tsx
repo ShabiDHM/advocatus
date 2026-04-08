@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.8 (MOBILE‑FRIENDLY)
+// PHOENIX PROTOCOL - CASE VIEW V16.10 (CHAT PERSISTENCE W/ COOKIE AUTH)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -89,16 +89,12 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            {/* Responsive grid: 1 column on phones, 2 columns on tablets, 4 columns on desktop */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-8 items-center">
-                
-                {/* Date */}
                 <div className={cardBase}>
                     <Calendar size={16} className="text-primary opacity-70 shrink-0" />
                     <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                 </div>
 
-                {/* Document selector - E gjithë dosja */}
                 <div className="h-12 w-full relative z-[60]">
                     <DocumentSelector
                         documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
@@ -108,7 +104,6 @@ const CaseHeader: React.FC<{
                     />
                 </div>
                 
-                {/* Financial analyst toggle */}
                 <button
                     onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                     disabled={!isPro}
@@ -122,7 +117,6 @@ const CaseHeader: React.FC<{
                     <span className="truncate">{t('caseView.financialAnalyst')}</span>
                 </button>
 
-                {/* Analyze button */}
                 <button
                     onClick={onAnalyze}
                     disabled={!isPro || isAnalyzing}
@@ -172,6 +166,21 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
+  // --- CHAT PERSISTENCE HELPER (uses cookie auth, no token needed) ---
+  const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
+    if (!caseId) return;
+    try {
+      await fetch(`${API_V1_URL}/cases/${caseId}/chat`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',  // sends session cookie
+        body: JSON.stringify({ chat_history: messages })
+      });
+    } catch (err) {
+      console.error('Failed to persist chat history:', err);
+    }
+  }, [caseId]);
+
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
     if(isInitialLoad) setIsLoading(true);
@@ -198,7 +207,11 @@ const CaseViewPage: React.FC = () => {
   
   const handleClearChat = async () => {
     if (!caseId) return;
-    try { await apiService.clearChatHistory(caseId); setChatMessages([]); } catch { alert(t('error.generic')); }
+    try { 
+      await apiService.clearChatHistory(caseId); 
+      setChatMessages([]);
+      await persistChatHistory([]);
+    } catch { alert(t('error.generic')); }
   };
 
   const handleAnalyze = async () => {
@@ -214,21 +227,39 @@ const CaseViewPage: React.FC = () => {
 
   const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => {
     if (!caseId) return;
-    setChatMessages(p => [...p, { role: 'user', content: text, timestamp: new Date().toISOString() }, { role: 'ai', content: '', timestamp: new Date().toISOString() }]);
+    // Optimistically add user message and empty assistant message
+    const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
+    const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
+    setChatMessages(prev => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
     try {
       let acc = '';
       const stream = apiService.sendChatMessageStream(caseId, text, documentIds, jurisdiction, reasoning, mode === 'document' ? domain : undefined);
       for await (const chunk of stream) {
         acc += chunk;
-        setChatMessages(p => {
-          const next = [...p];
-          next[next.length - 1] = { ...next[next.length - 1], content: acc };
-          return next;
+        setChatMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: acc };
+          return updated;
         });
       }
-    } catch { setChatMessages(p => [...p, { role: 'ai', content: '[Gabim Teknik]', timestamp: new Date().toISOString() }]);
-    } finally { setIsSendingMessage(false); }
+      // After streaming completes, persist the final conversation
+      setChatMessages(prev => {
+        const finalMessages = [...prev];
+        persistChatHistory(finalMessages);
+        return finalMessages;
+      });
+    } catch {
+      const errorMsg = '[Gabim Teknik]';
+      setChatMessages(prev => {
+        const withError = [...prev];
+        withError[withError.length - 1] = { ...withError[withError.length - 1], content: errorMsg };
+        persistChatHistory(withError);
+        return withError;
+      });
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const handleViewOriginal = (doc: Document) => { setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`); setViewingDocument(doc); setMinimizedDocument(null); };
@@ -239,7 +270,6 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* Responsive container padding: smaller on mobile */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8">
         <CaseHeader 
             caseDetails={caseData.details} documents={liveDocuments} t={t} 
@@ -254,7 +284,6 @@ const CaseViewPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }} 
                     exit={{ opacity: 0, y: -10 }} 
                     transition={{ duration: 0.2 }} 
-                    // Responsive grid: stack on mobile, side‑by‑side on desktop
                     className="flex flex-col lg:flex-row gap-6 lg:gap-8 h-auto lg:h-[700px] z-0"
                 >
                     <div className="w-full lg:w-1/2">

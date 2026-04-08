@@ -1,9 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.1 (EXECUTIVE DESIGN SYSTEM)
-// 1. Unified all colors to semantic tokens: text-primary-start, bg-primary-start, border-border-main.
-// 2. Added hover-lift and shadow-sm to interactive elements.
-// 3. Removed all hardcoded sizes, using Tailwind standard text classes.
-// 4. Preserved all existing functionality, streaming, and feedback logic.
+// PHOENIX PROTOCOL - CHAT PANEL V12.2 (FIXED NODEJS NAMESPACE ERROR)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -119,7 +115,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [show, setShow] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<ReturnType<typeof setTimeout>>(); // FIXED: replaced NodeJS.Timeout
 
     useEffect(() => {
         if (show && !preview && !loading) {
