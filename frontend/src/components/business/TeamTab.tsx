@@ -1,5 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - FRIENDLY ERROR HANDLING FOR DUPLICATE INVITES
+// PHOENIX PROTOCOL - IMPROVED INVITATION FLOW (DEBUG LOG, SPAM NOTE, STATUS HANDLING)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,6 +28,7 @@ export const TeamTab: React.FC = () => {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [inviteResult, setInviteResult] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [infoMsg, setInfoMsg] = useState<string | null>(null); // New state for informational messages
     
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -98,14 +99,22 @@ export const TeamTab: React.FC = () => {
         e.preventDefault();
         setInviting(true);
         setErrorMsg(null);
+        setInfoMsg(null);
         setInviteResult(null);
         try {
             const res = await apiService.inviteMember(inviteEmail);
-            setInviteResult(res.message || t('team.invite_success_detail'));
+            console.log("Invite API response:", res); // Debug log to see server response
+            
+            // Check if the response indicates that the user was added directly (existing account)
+            if (res.user && res.user.status === 'active') {
+                setInfoMsg("Përdoruesi u shtua direkt në ekip pasi ka një llogari ekzistuese.");
+            }
+            
+            // Updated success message with Spam folder note
+            setInviteResult("Ftesa u dërgua me sukses! Ju lutem njoftoni kolegun të kontrollojë edhe dosjen 'Spam' nëse nuk e sheh email-in në Inbox.");
             setInviteEmail(""); 
             fetchData();
         } catch (err: any) {
-            // Friendly error handling for duplicate key (MongoDB E11000)
             const errorDetail = err?.response?.data?.detail || err?.message || '';
             const isDuplicateKey = errorDetail.includes('duplicate key') || errorDetail.includes('E11000');
             
@@ -164,7 +173,6 @@ export const TeamTab: React.FC = () => {
     const availableSeats = seatLimit - usedSeats;
     const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
     
-    // UPDATED PERMISSION LOGIC: Allow invite if user is ADMIN/OWNER OR if no other admin/owner exists (primary account holder fallback)
     const isUserAdminOrOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
     const hasAnyAdminOrOwner = members.some(m => m.role === 'ADMIN' || m.organization_role === 'OWNER');
     const isCurrentUserOwner = isUserAdminOrOwner || (!hasAnyAdminOrOwner && currentUser?.id === members[0]?.id);
@@ -175,7 +183,6 @@ export const TeamTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* First glass-panel: Title & Invite button - RESTORED BUTTON */}
                 <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border-x border-b border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -195,7 +202,6 @@ export const TeamTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Plan usage card */}
                 <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
@@ -355,12 +361,12 @@ export const TeamTab: React.FC = () => {
                 document.body
             )}
 
-            {/* Invite Modal */}
+            {/* Invite Modal with improved messaging */}
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-panel border border-border-main w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
-                            <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="absolute top-6 right-6 text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
+                            <button onClick={() => { setShowInviteModal(false); setInviteResult(null); setInfoMsg(null); }} className="absolute top-6 right-6 text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
                             
                             <div className="mb-6">
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
@@ -376,6 +382,12 @@ export const TeamTab: React.FC = () => {
                                         <div className="p-4 rounded-xl bg-danger-start/20 border border-danger-start/30 text-danger-start flex items-start gap-3">
                                             <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
                                             <span className="text-sm font-bold">{errorMsg}</span>
+                                        </div>
+                                    )}
+                                    {infoMsg && (
+                                        <div className="p-4 rounded-xl bg-primary-start/20 border border-primary-start/30 text-primary-start flex items-start gap-3">
+                                            <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
+                                            <span className="text-sm font-bold">{infoMsg}</span>
                                         </div>
                                     )}
                                     <div className="space-y-2">
@@ -396,7 +408,7 @@ export const TeamTab: React.FC = () => {
                                         <CheckCircle className="flex-shrink-0" size={20} />
                                         <span className="font-medium">{inviteResult}</span>
                                     </div>
-                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="btn-secondary w-full py-3.5 rounded-xl font-bold transition-colors">
+                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); setInfoMsg(null); }} className="btn-secondary w-full py-3.5 rounded-xl font-bold transition-colors">
                                         {t('general.button_close')}
                                     </button>
                                 </div>
