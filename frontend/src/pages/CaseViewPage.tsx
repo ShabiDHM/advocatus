@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// DEBUG VERSION – ADDED CONSOLE LOGS TO VERIFY EXECUTION
+// PHOENIX PROTOCOL - CASE VIEW V16.11 (FIXED AUTH FOR CHAT PERSISTENCE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -165,20 +165,31 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- CHAT PERSISTENCE HELPER with console log ---
+  // --- CHAT PERSISTENCE HELPER (FIXED: added Authorization header) ---
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
     console.log("🟢 persistChatHistory CALLED for caseId:", caseId, "messages count:", messages.length);
     if (!caseId) {
       console.log("🟢 persistChatHistory: no caseId, aborting");
       return;
     }
+    
+    // Get authentication token from localStorage (adjust key if needed)
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      console.error("🔴 No auth token found in localStorage. Cannot persist chat.");
+      return;
+    }
+
     try {
       const url = `${API_V1_URL}/cases/${caseId}/chat`;
       console.log("🟢 FETCHING PUT to:", url);
       const response = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include', // optional, but kept for consistency
         body: JSON.stringify({ chat_history: messages })
       });
       console.log("🟢 RESPONSE status:", response.status);
