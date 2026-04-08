@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.12 (USES API SERVICE FOR CHAT PERSISTENCE)
+// PHOENIX PROTOCOL - CASE VIEW V16.13 (LOCALSTORAGE FALLBACK FOR CHAT PERSISTENCE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -165,16 +165,38 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- CHAT PERSISTENCE HELPER (uses apiService) ---
+  // Helper: save chat to localStorage
+  const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
+    if (!caseId) return;
+    localStorage.setItem(`chat_${caseId}`, JSON.stringify(messages));
+  }, [caseId]);
+
+  // Helper: load from localStorage
+  const loadFromLocalStorage = useCallback((): ChatMessage[] | null => {
+    if (!caseId) return null;
+    const stored = localStorage.getItem(`chat_${caseId}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch { return null; }
+    }
+    return null;
+  }, [caseId]);
+
+  // --- CHAT PERSISTENCE HELPER (backup to backend + localStorage) ---
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
+    // 1. Always save to localStorage first (instant)
+    saveToLocalStorage(messages);
+    
+    // 2. Also save to backend (best effort)
     if (!caseId) return;
     try {
       await apiService.updateChatHistory(caseId, messages);
-      console.log("Chat history saved");
+      console.log("Chat history saved to backend");
     } catch (err) {
-      console.error('Failed to persist chat history:', err);
+      console.error('Failed to persist chat history to backend:', err);
     }
-  }, [caseId]);
+  }, [caseId, saveToLocalStorage]);
 
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
@@ -187,13 +209,29 @@ const CaseViewPage: React.FC = () => {
       ]);
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-      setChatMessages(extractAndNormalizeHistory(details));
+      
+      // Load chat: try backend first, fallback to localStorage
+      const backendMessages = extractAndNormalizeHistory(details);
+      if (backendMessages.length > 0) {
+        setChatMessages(backendMessages);
+        // Sync localStorage with backend data
+        saveToLocalStorage(backendMessages);
+      } else {
+        const localMessages = loadFromLocalStorage();
+        if (localMessages && localMessages.length > 0) {
+          setChatMessages(localMessages);
+          // Optionally push local to backend
+          persistChatHistory(localMessages);
+        } else {
+          setChatMessages([]);
+        }
+      }
     } catch {
       setError(t('error.failedToLoadCase'));
     } finally {
       if(isInitialLoad) setIsLoading(false);
     }
-  }, [caseId, t, setLiveDocuments]);
+  }, [caseId, t, setLiveDocuments, loadFromLocalStorage, saveToLocalStorage, persistChatHistory]);
 
   useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
 
@@ -206,6 +244,8 @@ const CaseViewPage: React.FC = () => {
       await apiService.clearChatHistory(caseId); 
       setChatMessages([]);
       await persistChatHistory([]);
+      // Also clear localStorage
+      localStorage.removeItem(`chat_${caseId}`);
     } catch { alert(t('error.generic')); }
   };
 
