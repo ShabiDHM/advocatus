@@ -1,5 +1,5 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.10 (Theme-aware report panel)
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V7.11 (Command Center Header)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -140,16 +140,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
 
     return (
         <div className="w-full flex flex-col gap-8 pb-10">
-            {/* EXECUTIVE TOOLBAR */}
+            {/* EXECUTIVE TOOLBAR – Command Center Header */}
             <div className="glass-panel p-6 sm:p-8 rounded-[1.5rem] border border-border-main bg-canvas/40 shadow-lawyer-light transition-all">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                    {/* Left side: Title now matches button text scale & weight */}
                     <div className="flex flex-col gap-1">
-                        <h2 className="text-2xl font-black text-text-primary tracking-tighter uppercase leading-none flex items-center gap-3">
-                            <Activity className="text-primary-start" size={24} />
-                            {t('analyst.title', 'Analizë Financiare Forenzike')}
-                            {result && <CheckCircle className="w-6 h-6 text-success-start shadow-accent-glow rounded-full" />}
-                        </h2>
-                        {fileName && <p className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 ml-9">{fileName}</p>}
+                        <div className="flex items-center gap-3">
+                            <Activity className="text-primary-start" size={20} />
+                            <h2 className="text-xs font-black uppercase tracking-widest text-text-primary leading-none">
+                                {t('analyst.title', 'Analizë Financiare Forenzike')}
+                            </h2>
+                            {result && <CheckCircle className="w-4 h-4 text-success-start shadow-accent-glow rounded-full" />}
+                        </div>
+                        {fileName && <p className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em] mt-1 ml-8">{fileName}</p>}
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
