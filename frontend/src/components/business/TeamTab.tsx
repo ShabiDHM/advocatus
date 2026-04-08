@@ -1,5 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V6.5 (FIXED DOUBLE TOP BORDER)
+// PHOENIX PROTOCOL - CLEAN SINGLE-ACTION MENU + CURRENT USER BADGE (NO SELF MENU)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,7 +38,6 @@ export const TeamTab: React.FC = () => {
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (openMenuId) {
-                // Check if click is outside the button AND outside the portal menu
                 const portalMenu = document.getElementById('team-dropdown-portal');
                 const isClickInsideButton = activeButtonRef.current?.contains(event.target as Node);
                 const isClickInsidePortal = portalMenu?.contains(event.target as Node);
@@ -59,9 +58,8 @@ export const TeamTab: React.FC = () => {
         const updatePosition = () => {
             if (!activeButtonRef.current) return;
             const rect = activeButtonRef.current.getBoundingClientRect();
-            const menuWidth = 192; // w-48 = 12rem = 192px
+            const menuWidth = 192; // w-48 = 192px
             const viewportWidth = window.innerWidth;
-            // Calculate left position: try to align with right edge, but flip if off-screen
             let left = rect.right - menuWidth;
             if (left < 0) left = rect.left;
             if (left + menuWidth > viewportWidth) left = viewportWidth - menuWidth - 8;
@@ -144,7 +142,7 @@ export const TeamTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* First glass-panel: Title & Invite button – now without top border */}
+                {/* First glass-panel: Title & Invite button */}
                 <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border-x border-b border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
@@ -164,7 +162,7 @@ export const TeamTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Plan usage card – keep full border */}
+                {/* Plan usage card */}
                 <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
@@ -188,7 +186,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Members table – keep full border */}
+            {/* Members table */}
             <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-border-main">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
@@ -204,6 +202,9 @@ export const TeamTab: React.FC = () => {
                             {members.map((member) => {
                                 const memberRole = member.organization_role || member.role;
                                 const isOwner = memberRole === 'OWNER';
+                                const isSelf = currentUser?.id === member.id;
+                                // Only show actions if user is owner and not self
+                                const showActions = isCurrentUserOwner && !isSelf;
                                 return (
                                     <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -212,7 +213,14 @@ export const TeamTab: React.FC = () => {
                                                     {member.username.substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-text-primary">{member.username}</div>
+                                                    <div className="flex items-center gap-1 flex-wrap">
+                                                        <span className="font-bold text-text-primary">{member.username}</span>
+                                                        {isSelf && (
+                                                            <span className="text-[10px] font-black uppercase tracking-widest bg-primary-start/10 text-primary-start px-2 py-1 rounded-md ml-2">
+                                                                {t('team.label_current_user_short', 'TI')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="text-xs text-text-muted">{member.email}</div>
                                                 </div>
                                             </div>
@@ -230,14 +238,17 @@ export const TeamTab: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                                            <div className="relative">
-                                                <button
-                                                    onClick={(e) => handleOpenMenu(e, member.id)}
-                                                    className="p-2 text-text-muted hover:text-text-primary transition-colors"
-                                                >
-                                                    <MoreHorizontal size={20} />
-                                                </button>
-                                            </div>
+                                            {showActions && (
+                                                <div className="flex justify-end">
+                                                    <button
+                                                        onClick={(e) => handleOpenMenu(e, member.id)}
+                                                        className="p-2 text-text-muted hover:text-text-primary transition-colors flex items-center justify-center"
+                                                        aria-label="Veprimet"
+                                                    >
+                                                        <MoreHorizontal size={20} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 );
@@ -247,7 +258,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Dropdown Portal */}
+            {/* Dropdown Portal - Single Action (Remove) - Solid Block Style */}
             {openMenuId && createPortal(
                 <motion.div
                     key="team-dropdown-portal"
@@ -255,29 +266,25 @@ export const TeamTab: React.FC = () => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed z-[9999] w-48 glass-panel border border-border-main rounded-xl shadow-2xl overflow-hidden"
-                    style={{ top: menuPosition.top, left: menuPosition.left }}
+                    className="fixed z-[9999] w-48 rounded-xl shadow-2xl overflow-hidden"
+                    style={{ 
+                        top: menuPosition.top, 
+                        left: menuPosition.left,
+                        backgroundColor: '#0B0F1A',
+                        border: '1px solid rgba(255,255,255,0.1)'
+                    }}
                 >
                     <div className="py-1">
                         {(() => {
                             const member = members.find(m => m.id === openMenuId);
                             if (!member) return null;
-                            const isSelf = currentUser?.id === member.id;
                             return (
-                                <>
-                                    {isCurrentUserOwner && !isSelf ? (
-                                        <button 
-                                            onClick={() => { handleRemoveMember(member.id); }} 
-                                            className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors"
-                                        >
-                                            <Trash2 size={16} /> {t('team.action_remove')}
-                                        </button>
-                                    ) : (
-                                        <div className="px-4 py-3 text-sm text-text-muted italic text-center">
-                                            {isSelf ? t('team.label_current_user') : t('team.label_no_actions')}
-                                        </div>
-                                    )}
-                                </>
+                                <button 
+                                    onClick={() => handleRemoveMember(member.id)} 
+                                    className="w-full text-left px-4 py-3 text-sm font-bold text-danger-start flex items-center gap-3 transition-colors hover:bg-danger-start/10"
+                                >
+                                    <Trash2 size={16} /> Largo nga Ekipi
+                                </button>
                             );
                         })()}
                     </div>
@@ -285,7 +292,7 @@ export const TeamTab: React.FC = () => {
                 document.body
             )}
 
-            {/* Invite Modal */}
+            {/* Invite Modal (unchanged) */}
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
