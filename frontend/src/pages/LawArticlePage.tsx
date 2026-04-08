@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V2 (Fixed Text Rendering)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V3 (ADVANCED TEXT SANITIZATION)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -15,16 +15,33 @@ interface ArticleData {
   text: string;
 }
 
-// ========== PHOENIX: NORMALIZE TEXT FOR PROFESSIONAL READING ==========
-// Replaces single newlines with spaces while preserving paragraphs (double newlines)
+// ========== PHOENIX: ADVANCED TEXT SANITIZATION FOR PROFESSIONAL READING ==========
+/**
+ * Normalizes raw law article text by removing page markers, repetitive law headers,
+ * and cleaning up whitespace for a smooth reading experience.
+ */
 const normalizeText = (raw: string): string => {
-  // Split by double newlines (paragraph breaks)
-  const paragraphs = raw.split(/\n\n+/);
-  // Within each paragraph, replace single newlines with a space
+  if (!raw) return '';
+
+  // Step 1: Remove page markers like "--- [FAQJA 3] ---" or "--- FAQJA 3 ---" (case-insensitive)
+  let cleaned = raw.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
+
+  // Step 2: Remove repetitive law headers that appear mid-text
+  // Pattern: "LIGJI NR. 04/L-123 PËR PRONËSINË ..." at line start or after newline
+  const lawHeaderRegex = /(?:^|\n)\s*LIGJI\s+NR\.\s+\d+[\/\-]?[A-Z]?\d*\s+[A-ZËÇSHQËWXYZ].*?(?=\n|$)/gi;
+  cleaned = cleaned.replace(lawHeaderRegex, '');
+
+  // Step 3: Collapse 3 or more consecutive newlines into exactly 2 newlines (paragraph break)
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  // Step 4: Trim leading/trailing whitespace
+  cleaned = cleaned.trim();
+
+  // Step 5: Apply existing paragraph splitting and single-newline-to-space conversion
+  const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs.map(para =>
     para.replace(/\n/g, ' ').trim()
   );
-  // Join paragraphs with double newline for proper spacing
   return normalizedParagraphs.filter(p => p.length > 0).join('\n\n');
 };
 
@@ -64,7 +81,7 @@ export default function LawArticlePage() {
     }
     apiService.getLawArticle(lawTitle, articleNumber)
       .then((data: ArticleData) => {
-        // Normalize the article text to remove unwanted line breaks
+        // Normalize the article text to remove unwanted line breaks and artifacts
         const normalizedText = normalizeText(data.text);
         setArticle({
           ...data,
@@ -183,7 +200,7 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* Reading Surface - Fixed: single div with normalized text */}
+            {/* Reading Surface - Normalized text with advanced sanitization */}
             <div className="bg-surface/50 px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
               <div className="max-w-[75ch] mx-auto">
                 <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">

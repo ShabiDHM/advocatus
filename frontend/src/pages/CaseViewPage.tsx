@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// DEBUG VERSION – TRACE LOCALSTORAGE SAVE
+// PHOENIX PROTOCOL - CASE VIEW V16.14 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -67,15 +67,18 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-const CaseHeader: React.FC<{ 
+// ========== REFACTORED HEADER: 2-COLUMN LAYOUT FOR PERFECT ALIGNMENT ==========
+// The header now uses a 2-column grid (left and right) with nested grids for buttons,
+// ensuring each column's buttons span the full width of the panel below.
+const CaseHeader: React.FC<{
     caseDetails: Case;
     documents: Document[];
-    t: TFunction; 
+    t: TFunction;
     onAnalyze: () => void;
-    isAnalyzing: boolean; 
+    isAnalyzing: boolean;
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    isPro: boolean; 
+    isPro: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
@@ -84,62 +87,89 @@ const CaseHeader: React.FC<{
         ? t('caseView.analyzeCase')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
-    const cardBase = "h-12 flex items-center justify-center gap-3 px-4 rounded-xl glass-panel bg-canvas/40 border border-border-main shadow-sm transition-all duration-300 hover-lift text-xs font-black uppercase tracking-widest w-full text-text-primary";
+    const buttonBase = "h-12 flex items-center justify-center gap-3 px-4 rounded-xl glass-panel bg-canvas/40 border border-border-main shadow-sm transition-all duration-300 hover-lift text-xs font-black uppercase tracking-widest w-full text-text-primary";
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-8 items-center">
-                <div className={cardBase}>
-                    <Calendar size={16} className="text-primary opacity-70 shrink-0" />
-                    <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
-                </div>
-
-                <div className="h-12 w-full relative z-[60]">
-                    <DocumentSelector
-                        documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
-                        selectedIds={selectedDocumentIds}
-                        onChange={onDocumentSelectionChange}
-                        disabled={!isPro}
-                    />
-                </div>
+            {/* 2-column grid that matches the width of the panels below */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 
-                <button
-                    onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                    disabled={!isPro}
-                    className={`${cardBase} ${
-                        viewMode === 'analyst' 
-                        ? 'border-primary bg-primary/10 text-primary shadow-accent-glow' 
-                        : 'hover:border-primary/50 text-text-primary'
-                    } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
-                >
-                    {!isPro ? <Lock size={16} className="shrink-0" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary shrink-0' : 'text-primary opacity-70 shrink-0'} />}
-                    <span className="truncate">{t('caseView.financialAnalyst')}</span>
-                </button>
+                {/* LEFT COLUMN */}
+                <div className="flex flex-col gap-4">
+                    {/* Top row: two buttons in a sub-grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* Button 1: Date */}
+                        <div className={buttonBase}>
+                            <Calendar size={16} className="text-primary opacity-70 shrink-0" />
+                            <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+                        </div>
+                        {/* Button 2: Document Selector (E GJITHË DOSJA) */}
+                        <div className="relative z-[60]">
+                            <DocumentSelector
+                                documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
+                                selectedIds={selectedDocumentIds}
+                                onChange={onDocumentSelectionChange}
+                                disabled={!isPro}
+                            />
+                        </div>
+                    </div>
+                    {/* Bottom: DocumentsPanel */}
+                    <div className="flex-1">
+                        {/* The DocumentsPanel will be rendered here in the main layout, 
+                            but we keep the header as just the top buttons. 
+                            The actual panel is placed below in the main component. */}
+                    </div>
+                </div>
 
-                <button
-                    onClick={onAnalyze}
-                    disabled={!isPro || isAnalyzing}
-                    className={`${cardBase} hover:border-primary/50 active:scale-95 disabled:opacity-40`}
-                >
-                    {isAnalyzing ? (
-                        <span className="flex items-center gap-2 min-w-0">
-                            <span className="flex items-center justify-center animate-spin shrink-0">
-                                <Loader2 className="h-4 w-4 text-primary" />
-                            </span>
-                            <span className="text-primary truncate">{t('analysis.analyzing')}</span>
-                        </span>
-                    ) : (
-                        <span className="flex items-center gap-2 min-w-0">
-                            <ShieldCheck size={16} className="text-primary shrink-0" />
-                            <span className="text-primary truncate">{analyzeButtonText}</span>
-                        </span>
-                    )}
-                </button>
+                {/* RIGHT COLUMN */}
+                <div className="flex flex-col gap-4">
+                    {/* Top row: two buttons in a sub-grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* Button 3: Financial Analyst toggle */}
+                        <button
+                            onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                            disabled={!isPro}
+                            className={`${buttonBase} ${
+                                viewMode === 'analyst' 
+                                ? 'border-primary bg-primary/10 text-primary shadow-accent-glow' 
+                                : 'hover:border-primary/50 text-text-primary'
+                            } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
+                        >
+                            {!isPro ? <Lock size={16} className="shrink-0" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary shrink-0' : 'text-primary opacity-70 shrink-0'} />}
+                            <span className="truncate">{t('caseView.financialAnalyst')}</span>
+                        </button>
+                        {/* Button 4: Analyze button */}
+                        <button
+                            onClick={onAnalyze}
+                            disabled={!isPro || isAnalyzing}
+                            className={`${buttonBase} hover:border-primary/50 active:scale-95 disabled:opacity-40`}
+                        >
+                            {isAnalyzing ? (
+                                <span className="flex items-center gap-2 min-w-0">
+                                    <span className="flex items-center justify-center animate-spin shrink-0">
+                                        <Loader2 className="h-4 w-4 text-primary" />
+                                    </span>
+                                    <span className="text-primary truncate">{t('analysis.analyzing')}</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-2 min-w-0">
+                                    <ShieldCheck size={16} className="text-primary shrink-0" />
+                                    <span className="text-primary truncate">{analyzeButtonText}</span>
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                    {/* Bottom: ChatPanel */}
+                    <div className="flex-1">
+                        {/* The ChatPanel will be rendered here in the main layout */}
+                    </div>
+                </div>
             </div>
         </motion.div>
     );
 };
 
+// ========== MAIN COMPONENT ==========
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
@@ -165,53 +195,31 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- DEBUGGING SAVE TO LOCALSTORAGE ---
+  // --- CHAT PERSISTENCE HELPER (localStorage + backend) ---
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
-    console.log("🔵 saveToLocalStorage called with caseId:", caseId);
-    if (!caseId) {
-      console.log("🔴 saveToLocalStorage: no caseId, aborting");
-      return;
-    }
-    const key = `chat_${caseId}`;
-    const dataToStore = JSON.stringify(messages);
-    console.log("🔵 Storing to localStorage key:", key, "data length:", dataToStore.length);
-    localStorage.setItem(key, dataToStore);
-    // Verify it was stored
-    const stored = localStorage.getItem(key);
-    console.log("🔵 Verification - stored length:", stored ? stored.length : 0);
+    if (!caseId) return;
+    localStorage.setItem(`chat_${caseId}`, JSON.stringify(messages));
   }, [caseId]);
 
   const loadFromLocalStorage = useCallback((): ChatMessage[] | null => {
     if (!caseId) return null;
-    const key = `chat_${caseId}`;
-    const stored = localStorage.getItem(key);
-    console.log("🔵 loadFromLocalStorage key:", key, "exists:", !!stored);
+    const stored = localStorage.getItem(`chat_${caseId}`);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        console.log("🔵 Loaded from localStorage, messages count:", parsed.length);
-        return parsed;
-      } catch (e) {
-        console.error("Failed to parse localStorage chat", e);
-        return null;
-      }
+        return JSON.parse(stored);
+      } catch { return null; }
     }
     return null;
   }, [caseId]);
 
-  // --- CHAT PERSISTENCE HELPER (backup to backend + localStorage) ---
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
-    console.log("🟢 persistChatHistory called with messages count:", messages.length);
-    // 1. Always save to localStorage first (instant)
     saveToLocalStorage(messages);
-    
-    // 2. Also save to backend (best effort)
     if (!caseId) return;
     try {
       await apiService.updateChatHistory(caseId, messages);
-      console.log("✅ Chat history saved to backend");
+      console.log("Chat history saved to backend");
     } catch (err) {
-      console.error('❌ Failed to persist chat history to backend:', err);
+      console.error('Failed to persist chat history to backend:', err);
     }
   }, [caseId, saveToLocalStorage]);
 
@@ -229,23 +237,19 @@ const CaseViewPage: React.FC = () => {
       
       // Load chat: try backend first, fallback to localStorage
       const backendMessages = extractAndNormalizeHistory(details);
-      console.log("🔵 Backend messages count:", backendMessages.length);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
         saveToLocalStorage(backendMessages);
       } else {
         const localMessages = loadFromLocalStorage();
         if (localMessages && localMessages.length > 0) {
-          console.log("🔵 Using localStorage messages count:", localMessages.length);
           setChatMessages(localMessages);
           persistChatHistory(localMessages);
         } else {
-          console.log("🔵 No messages found anywhere, starting empty");
           setChatMessages([]);
         }
       }
-    } catch (err) {
-      console.error("Error fetching case data:", err);
+    } catch {
       setError(t('error.failedToLoadCase'));
     } finally {
       if(isInitialLoad) setIsLoading(false);
@@ -264,7 +268,6 @@ const CaseViewPage: React.FC = () => {
       setChatMessages([]);
       await persistChatHistory([]);
       localStorage.removeItem(`chat_${caseId}`);
-      console.log("Chat cleared from both backend and localStorage");
     } catch { alert(t('error.generic')); }
   };
 
@@ -298,12 +301,10 @@ const CaseViewPage: React.FC = () => {
       }
       setChatMessages(prev => {
         const finalMessages = [...prev];
-        console.log("🔵 About to persist final messages, count:", finalMessages.length);
         persistChatHistory(finalMessages);
         return finalMessages;
       });
-    } catch (err) {
-      console.error("Stream error:", err);
+    } catch {
       const errorMsg = '[Gabim Teknik]';
       setChatMessages(prev => {
         const withError = [...prev];
@@ -325,43 +326,81 @@ const CaseViewPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen pb-12" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8">
+        {/* Header with 2-column button layout */}
         <CaseHeader 
-            caseDetails={caseData.details} documents={liveDocuments} t={t} 
-            onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} viewMode={viewMode} setViewMode={setViewMode} isPro={isPro} selectedDocumentIds={selectedDocumentIds} onDocumentSelectionChange={setSelectedDocumentIds}
+            caseDetails={caseData.details} 
+            documents={liveDocuments} 
+            t={t} 
+            onAnalyze={handleAnalyze} 
+            isAnalyzing={isAnalyzing} 
+            viewMode={viewMode} 
+            setViewMode={setViewMode} 
+            isPro={isPro} 
+            selectedDocumentIds={selectedDocumentIds} 
+            onDocumentSelectionChange={setSelectedDocumentIds}
         />
         
+        {/* Main content area: 2-column grid matching the header exactly */}
         <AnimatePresence mode="wait">
-            {viewMode === 'workspace' && (
-                <motion.div 
-                    key="workspace" 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    exit={{ opacity: 0, y: -10 }} 
-                    transition={{ duration: 0.2 }} 
-                    className="flex flex-col lg:flex-row gap-6 lg:gap-8 h-auto lg:h-[700px] z-0"
-                >
-                    <div className="w-full lg:w-1/2">
-                        <DocumentsPanel 
-                            caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} 
-                            onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={setDocumentToRename} 
-                            className="h-full w-full shadow-sm hover-lift" 
-                        />
-                    </div>
-                    <div className="w-full lg:w-1/2 mt-6 lg:mt-0">
-                        <ChatPanel 
-                            messages={chatMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} 
-                            t={t} className="h-full w-full shadow-sm hover-lift" activeContextId={currentCaseId} isPro={isPro} selectedDocumentCount={selectedDocumentIds.length}
-                        />
-                    </div>
-                </motion.div>
-            )}
-            {viewMode === 'analyst' && isPro && (
-                <motion.div key="analyst" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="z-0">
-                    <SpreadsheetAnalyst caseId={caseData.details.id} />
-                </motion.div>
-            )}
+          {viewMode === 'workspace' && (
+            <motion.div 
+              key="workspace" 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10 }} 
+              transition={{ duration: 0.2 }} 
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 z-0"
+            >
+              {/* LEFT COLUMN: DocumentsPanel */}
+              <div className="flex flex-col h-auto lg:h-[700px]">
+                <DocumentsPanel 
+                  caseId={caseData.details.id} 
+                  documents={liveDocuments} 
+                  t={t} 
+                  connectionStatus={connectionStatus} 
+                  reconnect={reconnect} 
+                  onDocumentUploaded={handleDocumentUploaded} 
+                  onDocumentDeleted={handleDocumentDeleted} 
+                  onViewOriginal={handleViewOriginal} 
+                  onRename={setDocumentToRename} 
+                  className="h-full w-full shadow-sm hover-lift" 
+                />
+              </div>
+              
+              {/* RIGHT COLUMN: ChatPanel */}
+              <div className="flex flex-col h-auto lg:h-[700px] mt-6 lg:mt-0">
+                <ChatPanel 
+                  messages={chatMessages} 
+                  connectionStatus={connectionStatus} 
+                  reconnect={reconnect} 
+                  onSendMessage={handleChatSubmit} 
+                  isSendingMessage={isSendingMessage} 
+                  onClearChat={handleClearChat} 
+                  t={t} 
+                  className="h-full w-full shadow-sm hover-lift" 
+                  activeContextId={currentCaseId} 
+                  isPro={isPro} 
+                  selectedDocumentCount={selectedDocumentIds.length}
+                />
+              </div>
+            </motion.div>
+          )}
+          {viewMode === 'analyst' && isPro && (
+            <motion.div 
+              key="analyst" 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10 }} 
+              transition={{ duration: 0.2 }} 
+              className="z-0"
+            >
+              <SpreadsheetAnalyst caseId={caseData.details.id} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
+      
+      {/* Modals and viewers (unchanged) */}
       {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => {setViewingDocument(null); setViewingUrl(null);}} onMinimize={() => {if(viewingDocument){setMinimizedDocument(viewingDocument); setViewingDocument(null);}}} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
       {analysisResult && (

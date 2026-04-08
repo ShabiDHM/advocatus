@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.4 (CLEANED UNUSED IMPORTS)
+// PHOENIX PROTOCOL - CHAT PANEL V12.5 (HEADER REALIGNMENT: DROPDOWN MOVED TO RIGHT)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,7 +41,7 @@ interface ChatPanelProps {
   t: TFunction;
   className?: string;
   activeContextId: string;
-  isPro?: boolean;  // kept in interface but not used; can be ignored
+  isPro?: boolean;
   selectedDocumentCount?: number;
 }
 
@@ -183,7 +183,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0
 }) => {
   const [input, setInput] = useState('');
-  // HARDCODED to 'DEEP' – mode toggle removed
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
@@ -205,7 +204,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
-    // reasoningMode is now always 'DEEP'
     onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks');
     setInput('');
   };
@@ -226,9 +224,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-sm ${className}`}>
       
-      {/* HEADER – simplified */}
+      {/* HEADER – Realigned: Title + status on left; Dropdown + Export + Clear on right */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-surface/40 z-50 shrink-0 gap-3 sm:gap-0">
-        {/* Left group */}
+        
+        {/* Left group: only title and status dot */}
         <div className="flex items-center flex-wrap gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
@@ -242,8 +241,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               <span className="text-xs font-semibold text-primary-start uppercase tracking-wide">{selectedDocumentCount} Lëndë</span>
             </div>
           )}
-          
-          {/* Domain dropdown – always visible */}
+        </div>
+
+        {/* Right group: Domain dropdown + Export + Clear */}
+        <div className="flex items-center justify-end gap-3">
+          {/* Domain dropdown – moved here from left side */}
           <div className="relative group">
             <select
               value={selectedDomain}
@@ -254,10 +256,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </select>
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           </div>
-        </div>
 
-        {/* Right group: only export and clear buttons */}
-        <div className="flex items-center justify-end gap-3">
           {onExportChat && (
             <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface rounded-lg transition-all hover-lift" title="Download">
               <Download size={18} />
@@ -269,7 +268,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM */}
+      {/* MESSAGE STREAM (unchanged) */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] no-scrollbar">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
@@ -306,7 +305,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA */}
+      {/* INPUT AREA (unchanged) */}
       <div className="p-5 border-t border-border-main bg-surface shrink-0">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-3 max-w-5xl mx-auto">
           <textarea 
