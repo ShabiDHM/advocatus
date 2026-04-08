@@ -1,8 +1,5 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, btn-primary, etc.
-// 2. Preserved all role management, feature tiers, capacity logic, and i18n.
-// 3. Consistent with other pages.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.1 (TEAM PLAN SEAT LIMIT UPDATED TO 5)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -52,7 +49,8 @@ const AdminDashboardPage: React.FC = () => {
                 firmName: user.organization_name,
                 expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null,
                 plan_tier: user.plan_tier || (user.product_plan === ProductPlan.TEAM_PLAN ? 'GROWTH' : 'DEFAULT'),
-                user_limit: user.user_limit || (user.product_plan === ProductPlan.TEAM_PLAN ? 10 : 1) 
+                // UPDATED: TEAM_PLAN default seat limit changed from 10 to 5
+                user_limit: user.user_limit || (user.product_plan === ProductPlan.TEAM_PLAN ? 5 : 1) 
             })).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
             mappedUsers.sort((a, b) => getStatusScore(a) - getStatusScore(b));
@@ -307,7 +305,8 @@ const AdminDashboardPage: React.FC = () => {
                                             className="glass-input w-full rounded-lg px-3 py-2 outline-none"
                                         >
                                             <option value={ProductPlan.SOLO_PLAN}>{t('admin.option_plan_solo', 'SOLO (1 Vend)')}</option>
-                                            <option value={ProductPlan.TEAM_PLAN}>{t('admin.option_plan_team', 'TEAM (10 Vende)')}</option>
+                                            {/* UPDATED: TEAM plan label changed from 10 to 5 Vende */}
+                                            <option value={ProductPlan.TEAM_PLAN}>{t('admin.option_plan_team', 'TEAM (5 Vende)')}</option>
                                         </select>
                                     </div>
                                     <div>

@@ -1,14 +1,16 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - CLEAN SINGLE-ACTION MENU + CURRENT USER BADGE (NO SELF MENU)
+// PHOENIX PROTOCOL - ALWAYS SHOW THREE DOTS, CONTEXT-AWARE MENU (FIXED DUPLICATE IDENTIFIER)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     UserPlus, Mail, CheckCircle, X, Loader2, 
-    AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2
+    AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2,
+    Send
 } from 'lucide-react';
+import { User as UserIcon } from 'lucide-react'; // Renamed to avoid conflict with type User
 import { apiService } from '../../services/api';
-import { User, Organization } from '../../data/types';
+import { User, Organization } from '../../data/types'; // Type import
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { createPortal } from 'react-dom';
@@ -122,6 +124,29 @@ export const TeamTab: React.FC = () => {
         }
     };
 
+    const handleResendInvite = async (member: User) => {
+        console.log(`Resend invite to ${member.email} (API to be implemented)`);
+        // TODO: implement API call to resend invitation
+        alert(`Ridërgo ftesë për ${member.email} (coming soon)`);
+        setOpenMenuId(null);
+    };
+
+    const handleCancelInvite = async (member: User) => {
+        if (!window.confirm(`Anulo ftesën për ${member.email}?`)) return;
+        console.log(`Cancel invite for ${member.email} (API to be implemented)`);
+        // TODO: implement API call to cancel pending invitation
+        alert(`Ftesa u anulua për ${member.email} (coming soon)`);
+        // Optionally remove from list or refetch
+        fetchData();
+        setOpenMenuId(null);
+    };
+
+    const handleMyProfile = () => {
+        console.log("Navigate to profile (to be implemented)");
+        alert("Profili Im - redirect to profile page (coming soon)");
+        setOpenMenuId(null);
+    };
+
     const handleOpenMenu = (e: React.MouseEvent<HTMLButtonElement>, memberId: string) => {
         e.stopPropagation();
         const button = e.currentTarget;
@@ -203,8 +228,7 @@ export const TeamTab: React.FC = () => {
                                 const memberRole = member.organization_role || member.role;
                                 const isOwner = memberRole === 'OWNER';
                                 const isSelf = currentUser?.id === member.id;
-                                // Only show actions if user is owner and not self
-                                const showActions = isCurrentUserOwner && !isSelf;
+                                const isPending = member.status === 'pending_invite';
                                 return (
                                     <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -232,23 +256,21 @@ export const TeamTab: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.status === 'pending_invite' ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-success-start/10 text-success-start border-success-start/20'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.status === 'pending_invite' ? 'bg-warning-start' : 'bg-success-start'}`} /> 
-                                                {member.status === 'pending_invite' ? t('team.status_pending') : t('team.status_active')}
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${isPending ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-success-start/10 text-success-start border-success-start/20'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isPending ? 'bg-warning-start' : 'bg-success-start'}`} /> 
+                                                {isPending ? t('team.status_pending') : t('team.status_active')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                                            {showActions && (
-                                                <div className="flex justify-end">
-                                                    <button
-                                                        onClick={(e) => handleOpenMenu(e, member.id)}
-                                                        className="p-2 text-text-muted hover:text-text-primary transition-colors flex items-center justify-center"
-                                                        aria-label="Veprimet"
-                                                    >
-                                                        <MoreHorizontal size={20} />
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={(e) => handleOpenMenu(e, member.id)}
+                                                    className="p-2 text-text-muted hover:text-text-primary transition-colors flex items-center justify-center"
+                                                    aria-label="Veprimet"
+                                                >
+                                                    <MoreHorizontal size={20} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -258,7 +280,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Dropdown Portal - Single Action (Remove) - Solid Block Style */}
+            {/* Dropdown Portal - Context-Aware Menu */}
             {openMenuId && createPortal(
                 <motion.div
                     key="team-dropdown-portal"
@@ -278,9 +300,43 @@ export const TeamTab: React.FC = () => {
                         {(() => {
                             const member = members.find(m => m.id === openMenuId);
                             if (!member) return null;
+                            const isSelf = currentUser?.id === member.id;
+                            const isPending = member.status === 'pending_invite';
+
+                            if (isSelf) {
+                                return (
+                                    <button 
+                                        onClick={handleMyProfile}
+                                        className="w-full text-left px-4 py-3 text-sm font-bold text-text-primary flex items-center gap-3 transition-colors hover:bg-white/5"
+                                    >
+                                        <UserIcon size={16} /> Profili Im
+                                    </button>
+                                );
+                            }
+
+                            if (isPending) {
+                                return (
+                                    <>
+                                        <button 
+                                            onClick={() => handleResendInvite(member)}
+                                            className="w-full text-left px-4 py-3 text-sm font-bold text-text-primary flex items-center gap-3 transition-colors hover:bg-white/5"
+                                        >
+                                            <Send size={16} /> Ridërgo Ftesën
+                                        </button>
+                                        <button 
+                                            onClick={() => handleCancelInvite(member)}
+                                            className="w-full text-left px-4 py-3 text-sm font-bold text-danger-start flex items-center gap-3 transition-colors hover:bg-danger-start/10"
+                                        >
+                                            <X size={16} /> Anulo Ftesën
+                                        </button>
+                                    </>
+                                );
+                            }
+
+                            // Active member (not self, not pending)
                             return (
                                 <button 
-                                    onClick={() => handleRemoveMember(member.id)} 
+                                    onClick={() => handleRemoveMember(member.id)}
                                     className="w-full text-left px-4 py-3 text-sm font-bold text-danger-start flex items-center gap-3 transition-colors hover:bg-danger-start/10"
                                 >
                                     <Trash2 size={16} /> Largo nga Ekipi
