@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.0 (Executive UI: Quick Stats + Upgraded Calendar Button)
+// PHOENIX PROTOCOL - DASHBOARD V9.1 (REMOVED QUICK STATS FROM BANNER)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -179,11 +179,6 @@ const DashboardPage: React.FC = () => {
     );
   }, [cases, searchTerm]);
 
-  // Quick stats
-  const totalCases = cases.length;
-  // TODO: Replace with real urgent flag logic when available (e.g., case.priority === 'urgent')
-  const urgentCases = 0;
-
   const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50 border border-border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40";
   const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
 
@@ -316,21 +311,8 @@ const DashboardPage: React.FC = () => {
                   {getMainContent()}
                 </div>
 
-                {/* Right: Quick Stats + Calendar Button */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 shrink-0">
-                  {/* Quick Stats */}
-                  <div className="flex gap-3">
-                    <div className="bg-surface/40 backdrop-blur-sm rounded-xl px-4 py-2 border border-border-main text-center min-w-[80px]">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">TOTALI</div>
-                      <div className="text-2xl font-black text-text-primary">{totalCases}</div>
-                    </div>
-                    <div className="bg-surface/40 backdrop-blur-sm rounded-xl px-4 py-2 border border-border-main text-center min-w-[80px]">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">URGJENTE</div>
-                      <div className="text-2xl font-black text-danger-start">{urgentCases}</div>
-                    </div>
-                  </div>
-                  
-                  {/* Upgraded Calendar Button */}
+                {/* Right: Calendar Button (stats removed) */}
+                <div className="shrink-0">
                   <button 
                     onClick={() => window.location.href = '/calendar'} 
                     className="btn-primary px-6 py-3 rounded-xl font-black text-sm uppercase tracking-wide flex items-center gap-3 shadow-md hover:shadow-lg transition-all hover:scale-[1.02] active:scale-95 border border-primary-start/30"
@@ -345,7 +327,7 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Search + Create Case Row (already consolidated) */}
+      {/* Search + Create Case Row */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 px-2">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
