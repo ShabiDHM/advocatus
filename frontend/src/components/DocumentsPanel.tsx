@@ -1,9 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.0 (CONSISTENT TYPOGRAPHY)
-// 1. FIXED: "+" button now uses bg-primary and proper hover.
-// 2. UNIFIED: Document items use semantic colors and hover-lift.
-// 3. TYPOGRAPHY: Standardized text sizes across all elements
-// 4. RETAINED: All features (upload, delete, archive, import, bulk selection).
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.1 (PROFESSIONAL LIVE LIGHT STATUS)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -166,11 +162,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
+  // PROFESSIONAL LIVE LIGHT: solid green dot, glow, pulse
   const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
-      case 'CONNECTED': return 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]';
-      case 'CONNECTING': return 'bg-warning-start animate-pulse';
-      default: return 'bg-danger';
+      case 'CONNECTED': 
+        return 'bg-success-start shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse';
+      case 'CONNECTING': 
+        return 'bg-warning-start animate-pulse';
+      default: 
+        return 'bg-danger-start animate-pulse';
     }
   };
 
@@ -219,8 +219,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary" /> : <Square size={20} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
-                    <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
-                        <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
+                    {/* PROFESSIONAL LIVE LIGHT – perfectly centered with title */}
+                    <div className="flex items-center justify-center">
+                        <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
                     </div>
                 </div>
 

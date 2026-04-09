@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.5 (HEADER REALIGNMENT: DROPDOWN MOVED TO RIGHT)
+// PHOENIX PROTOCOL - CHAT PANEL V12.6 (PROFESSIONAL LIVE LIGHT STATUS)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -227,13 +227,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* HEADER – Realigned: Title + status on left; Dropdown + Export + Clear on right */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-surface/40 z-50 shrink-0 gap-3 sm:gap-0">
         
-        {/* Left group: only title and status dot */}
-        <div className="flex items-center flex-wrap gap-3 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
-              {t('chatPanel.title')}
-            </h2>
-            <span className={`w-2 h-2 rounded-full mt-0.5 ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger-start animate-pulse'}`} />
+        {/* Left group: title and status dot (now perfectly centered) */}
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
+            {t('chatPanel.title')}
+          </h2>
+          {/* PROFESSIONAL LIVE LIGHT */}
+          <div className="flex items-center justify-center">
+            <span className={`
+              w-2.5 h-2.5 rounded-full 
+              ${connectionStatus === 'CONNECTED' 
+                ? 'bg-success-start shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' 
+                : 'bg-danger-start animate-pulse'
+              }
+            `} />
           </div>
 
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
@@ -245,7 +252,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Right group: Domain dropdown + Export + Clear */}
         <div className="flex items-center justify-end gap-3">
-          {/* Domain dropdown – moved here from left side */}
           <div className="relative group">
             <select
               value={selectedDomain}

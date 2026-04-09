@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V16.0 (WIDER, SPACIOUS LAYOUT)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V16.1 (FIXED NODEJS.TIMEOUT ERROR)
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -117,7 +117,8 @@ const renderCitationItem = (item: any) => {
 
 const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
     const [show, setShow] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    // FIXED: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout>
+    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
     const handleMouseEnter = () => { timeoutRef.current = setTimeout(() => setShow(true), 400); };
     const handleMouseLeave = () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setShow(false); };
@@ -288,13 +289,11 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
-          // MODIFIED: Wider modal on large screens
           className="w-full h-full sm:h-[85vh] sm:max-w-7xl bg-white dark:bg-gray-900 border border-border-main rounded-2xl shadow-xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
           <SpinnerStyles />
           
-          {/* Header (unchanged) */}
           <div className="px-6 py-5 border-b border-border-main flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
             <h2 className="flex items-center gap-4 min-w-0">
               <div className="w-12 h-12 bg-primary-start text-white rounded-2xl flex items-center justify-center shadow-accent-glow shrink-0">
@@ -330,7 +329,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </div>
           ) : (
              <>
-                {/* Tabs */}
                 <div className="flex border-b border-border-main px-8 bg-white dark:bg-gray-900 shrink-0 overflow-x-auto no-scrollbar gap-8">
                     <button onClick={() => setActiveTab('legal')} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap ${activeTab === 'legal' ? 'border-primary-start text-primary-start' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
                         <Scale size={16}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
@@ -340,7 +338,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     </button>
                 </div>
 
-                {/* Content Body – wider, with better spacing and responsive grid */}
                 <div 
                   className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar text-gray-900 dark:text-gray-100"
                   style={{ fontSize: getFontSize() }}
@@ -348,7 +345,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     <div className="max-w-6xl mx-auto space-y-8">
                         {activeTab === 'legal' && (
                             <>
-                                {/* Two‑column layout for summary and burden of proof */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -367,7 +363,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     )}
                                 </div>
 
-                                {/* Missing evidence (full width) */}
                                 {missing_evidence && missing_evidence.length > 0 && (
                                     <div className="bg-danger-start/5 p-8 rounded-[1.5rem] border border-danger-start/20 shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-danger-start uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -384,7 +379,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </div>
                                 )}
 
-                                {/* Key issues (full width, but can be multi‑column) */}
                                 {key_issues && key_issues.length > 0 && (
                                     <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -401,7 +395,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </div>
                                 )}
 
-                                {/* Legal basis (full width) */}
                                 {legal_basis && legal_basis.length > 0 && (
                                     <div className="bg-primary-start/5 p-8 rounded-[1.5rem] border border-primary-start/20 shadow-sm hover-lift">
                                         <h3 className="text-[12px] font-black text-primary-start uppercase tracking-widest mb-5 flex items-center gap-3">
@@ -424,10 +417,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             </>
                         )}
                         
-                        {/* War Room content (already mostly full width, but we can adjust later) */}
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
-                                {/* War Room Sub-Tabs */}
                                 <div className="flex flex-wrap gap-3 mb-8 shrink-0 pb-2">
                                     <button onClick={() => setWarRoomSubTab('strategy')} className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${warRoomSubTab === 'strategy' ? 'bg-primary-start text-white shadow-accent-glow' : 'bg-white dark:bg-gray-800 border border-border-main text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
                                         <Target size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
@@ -558,7 +549,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </>
           )}
           
-          {/* Footer Actions (unchanged) */}
           <div className="px-8 py-5 border-t border-border-main bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row gap-4 justify-between items-center shrink-0">
               <button 
                   onClick={handleArchiveStrategy} 
