@@ -1,5 +1,5 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.0 (INVITATION EMAIL + ACCEPT METHOD)
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.2 (ADDED LOGGER IMPORT)
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from pymongo.database import Database
 from fastapi import HTTPException
 import uuid
+import logging
 
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -14,7 +15,8 @@ from app.models.organization import OrganizationInDB
 from app.models.user import UserInDB, UserOut, ProductPlan, PLAN_LIMITS
 from app.services import email_service
 
-# TIER_LIMITS maps organization plan tiers to user seat limits.
+logger = logging.getLogger(__name__)
+
 TIER_LIMITS = {
     "DEFAULT": 1,
     "GROWTH": 5
@@ -109,11 +111,9 @@ class OrganizationService:
         })
         self.increment_active_users(db, ObjectId(org_id))
         
-        # Send invitation email – if fails, rollback user insertion
         try:
             email_service.send_invitation_email(invitee_email, invitation_token)
         except Exception as e:
-            # Rollback: delete the inserted user and decrement active users
             db.users.delete_one({"email": invitee_email, "org_id": ObjectId(org_id)})
             self.decrement_active_users(db, ObjectId(org_id))
             raise HTTPException(status_code=500, detail="Failed to send invitation email. Please try again.")
@@ -121,12 +121,11 @@ class OrganizationService:
         return {"message": "Invitation sent successfully"}
 
     def accept_invitation(self, db: Database, token: str, password: str, username: str) -> Dict:
-        """Activate a pending user account."""
+        """Activate a pending user and send welcome emails."""
         user = db.users.find_one({"invitation_token": token, "status": "pending_invite"})
         if not user:
             raise HTTPException(status_code=400, detail="Token i pavlefshëm ose ftesa ka skaduar.")
         
-        # Hash password and update user
         hashed_password = get_password_hash(password)
         db.users.update_one(
             {"_id": user["_id"]},
@@ -139,6 +138,27 @@ class OrganizationService:
                 "$unset": {"invitation_token": ""}
             }
         )
+        
+        # Send welcome email to the new user
+        try:
+            email_service.send_welcome_email(user["email"], username)
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {e}")
+        
+        # Send notification to the organization owner
+        org_id = user.get("org_id")
+        if org_id:
+            owner = db.users.find_one({"_id": org_id})
+            if owner and owner.get("email"):
+                try:
+                    email_service.send_team_invite_accepted_email(
+                        owner_email=owner["email"],
+                        new_member_email=user["email"],
+                        new_member_name=username
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send owner notification: {e}")
+        
         return {"message": "Llogaria u aktivizua me sukses. Tani mund të hyni në sistem."}
 
     def remove_member(self, db: Database, owner: UserInDB, member_id: str):

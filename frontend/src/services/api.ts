@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.2 (ADDED updateChatHistory)
+// PHOENIX PROTOCOL - API SERVICE V23.3 (ADDED FORGOT & RESET PASSWORD)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -123,6 +123,17 @@ class ApiService {
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed:", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
+
+    // ========== PASSWORD RESET METHODS (NEW) ==========
+    public async forgotPassword(email: string): Promise<{ message: string }> {
+        const response = await this.axiosInstance.post('/auth/forgot-password', { email });
+        return response.data;
+    }
+
+    public async resetPassword(token: string, password: string): Promise<{ message: string }> {
+        const response = await this.axiosInstance.post('/auth/reset-password', { token, password });
+        return response.data;
+    }
 
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }

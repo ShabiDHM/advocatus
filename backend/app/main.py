@@ -1,5 +1,5 @@
-# FILE: backend/app/main.py (LEGAL APP) - REMOVED legal_public_router
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.7 (CLEANED UNUSED ROUTERS)
+# FILE: backend/app/main.py (LEGAL APP) - ADDED auth_reset + support_reply routers
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.9 (FULL EMAIL FLOW)
 
 import os
 import logging
@@ -14,6 +14,7 @@ from .core.config import settings
 
 # Router Imports
 from .api.endpoints.auth import router as auth_router
+from .api.endpoints.auth_reset import router as auth_reset_router
 from .api.endpoints.users import router as users_router
 from .api.endpoints.cases import router as cases_router
 from .api.endpoints.organizations import router as organizations_router
@@ -22,6 +23,7 @@ from .api.endpoints.calendar import router as calendar_router
 from .api.endpoints.chat import router as chat_router
 from .api.endpoints.stream import router as stream_router
 from .api.endpoints.support import router as support_router
+from .api.endpoints.support_reply import router as support_reply_router  # NEW
 from .api.endpoints.business import router as business_router
 from .api.endpoints.finance import router as finance_router
 from .api.endpoints.finance_wizard import router as finance_wizard_router
@@ -29,8 +31,6 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
-# REMOVED: legal_public_router (no longer needed)
-# REMOVED: public_laws_router (already removed)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ app.add_middleware(
 # --- ROUTER ASSEMBLY ---
 api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
 api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"])
@@ -82,13 +83,13 @@ api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calenda
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
+api_v1_router.include_router(support_reply_router, prefix="/support", tags=["Support"])  # NEW
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
 api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", tags=["Finance Wizard"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
-# REMOVED: legal_public_router and public_laws_router
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
@@ -98,7 +99,7 @@ app.include_router(api_v2_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.3.3"}
+    return {"status": "ok", "version": "1.3.5"}
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")

@@ -1,16 +1,18 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.7 (ADDED THEME PROVIDER)
+// PHOENIX PROTOCOL - ROUTING V4.8 (ADDED FORGOT & RESET PASSWORD ROUTES)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext'; // <-- Import ThemeProvider
+import { ThemeProvider } from './context/ThemeContext';
 import MainLayout from './pages/MainLayout';
 
 // Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';     // NEW
+import ResetPasswordPage from './pages/ResetPasswordPage';       // NEW
 import DashboardPage from './pages/DashboardPage';
 import CaseViewPage from './pages/CaseViewPage';
 import CalendarPage from './pages/CalendarPage';
@@ -63,6 +65,10 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       
+      {/* Public password reset routes */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
@@ -97,7 +103,7 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider> {/* <-- Wrap everything with ThemeProvider */}
+    <ThemeProvider>
       <Router>
         <AuthProvider>
           <AppRoutes />

@@ -1,8 +1,5 @@
 // FILE: src/pages/LoginPage.tsx
-// PHOENIX PROTOCOL - LOGIN PAGE V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Semantic classes: bg-surface, border-main, text-text-primary, btn-primary, glass-panel.
-// 2. Prestige layout: structured spacing, clean typography, subtle shadow.
-// 3. All auth logic preserved.
+// PHOENIX PROTOCOL - LOGIN PAGE V6.1 (ADDED FORGOT PASSWORD LINK)
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -46,7 +43,6 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas px-4 font-sans selection:bg-primary-start/30">
-      {/* Prestige: structured container with subtle border and shadow */}
       <div className="glass-panel max-w-md w-full p-8 rounded-2xl border border-main shadow-2xl transition-all duration-300">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold tracking-tight text-text-primary">
@@ -96,6 +92,15 @@ const LoginPage: React.FC = () => {
                   className="glass-input block w-full pl-10 pr-4 py-3 rounded-xl border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40 transition-all"
                   placeholder="••••••••"
                 />
+              </div>
+              {/* Forgot Password link added here */}
+              <div className="text-right mt-2">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-primary-start hover:underline transition-colors"
+                >
+                  {t('login.forgotPassword', 'Harruat fjalëkalimin?')}
+                </Link>
               </div>
             </div>
           </div>
