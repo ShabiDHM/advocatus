@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/auth_reset.py
-# PHOENIX PROTOCOL - PASSWORD RESET ENDPOINTS
+# PHOENIX PROTOCOL - PASSWORD RESET ENDPOINTS (FIXED: Removed Double Prefix)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
@@ -10,7 +10,8 @@ from app.api.endpoints.dependencies import get_db
 from app.core.security import get_password_hash
 from app.services import email_service
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+# Removed prefix="/auth" to prevent double-prefixing when included in main.py
+router = APIRouter(tags=["auth"])
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
