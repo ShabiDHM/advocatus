@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.6 (PROFESSIONAL LIVE LIGHT STATUS)
+// PHOENIX PROTOCOL - CHAT PANEL V12.7 (NEON LED STATUS LIGHT)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,7 +45,7 @@ interface ChatPanelProps {
   selectedDocumentCount?: number;
 }
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENTS (unchanged) ---
 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-2">
@@ -227,17 +227,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* HEADER – Realigned: Title + status on left; Dropdown + Export + Clear on right */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-surface/40 z-50 shrink-0 gap-3 sm:gap-0">
         
-        {/* Left group: title and status dot (now perfectly centered) */}
+        {/* Left group: title and status dot (NEON LED) */}
         <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-text-primary uppercase tracking-wide leading-none">
             {t('chatPanel.title')}
           </h2>
-          {/* PROFESSIONAL LIVE LIGHT */}
-          <div className="flex items-center justify-center">
+          {/* NEON LED STATUS LIGHT */}
+          <div className="flex items-center justify-center ml-1">
             <span className={`
               w-2.5 h-2.5 rounded-full 
               ${connectionStatus === 'CONNECTED' 
-                ? 'bg-success-start shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' 
+                ? 'bg-[#22c55e] shadow-[0_0_10px_rgba(34,197,94,0.8),0_0_4px_rgba(34,197,94,1)] animate-pulse' 
                 : 'bg-danger-start animate-pulse'
               }
             `} />

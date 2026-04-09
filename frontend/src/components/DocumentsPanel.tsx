@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.1 (PROFESSIONAL LIVE LIGHT STATUS)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.2 (NEON LED STATUS LIGHT)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -162,11 +162,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  // PROFESSIONAL LIVE LIGHT: solid green dot, glow, pulse
+  // NEON LED STATUS LIGHT: solid green, double glow, pulse
   const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': 
-        return 'bg-success-start shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse';
+        return 'bg-[#22c55e] shadow-[0_0_10px_rgba(34,197,94,0.8),0_0_4px_rgba(34,197,94,1)] animate-pulse';
       case 'CONNECTING': 
         return 'bg-warning-start animate-pulse';
       default: 
@@ -219,8 +219,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary" /> : <Square size={20} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
-                    {/* PROFESSIONAL LIVE LIGHT – perfectly centered with title */}
-                    <div className="flex items-center justify-center">
+                    {/* NEON LED STATUS LIGHT – perfectly centered */}
+                    <div className="flex items-center justify-center ml-1">
                         <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
                     </div>
                 </div>
