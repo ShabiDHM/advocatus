@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V7.7 (MULTI-DOCUMENT SUPPORT)
-# 1. ADDED: document_ids field to ChatMessageRequest (list of strings).
-# 2. PASSED list to chat_service.stream_chat_response.
-# 3. RETAINED: All previous functionality.
+# PHOENIX PROTOCOL - CHAT ROUTER V8.0 (UNIFIED - NO MODE PARAMETER)
+# 1. REMOVED: mode field from ChatMessageRequest.
+# 2. REMOVED: mode argument from stream_chat_response call.
+# 3. RETAINED: Multi-document support, jurisdiction, domain.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -23,7 +23,6 @@ class ChatMessageRequest(BaseModel):
     message: str
     document_ids: Optional[List[str]] = None
     jurisdiction: Optional[str] = 'ks'
-    mode: Optional[str] = "FAST"
     domain: Optional[str] = 'automatic'
 
 class ChatFeedbackRequest(BaseModel):
@@ -52,7 +51,6 @@ async def handle_chat_message(
             user_id=str(current_user.id),
             document_ids=chat_request.document_ids,
             jurisdiction=chat_request.jurisdiction,
-            mode=chat_request.mode,
             domain=chat_request.domain
         )
         
