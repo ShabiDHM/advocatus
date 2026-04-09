@@ -1,5 +1,5 @@
-# FILE: backend/app/main.py (LEGAL APP) - ADDED auth_reset + support_reply routers
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.9 (FULL EMAIL FLOW)
+# FILE: backend/app/main.py (LEGAL APP) - FIXED: removed support_reply_router import
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.10 (CLEAN IMPORTS)
 
 import os
 import logging
@@ -23,7 +23,7 @@ from .api.endpoints.calendar import router as calendar_router
 from .api.endpoints.chat import router as chat_router
 from .api.endpoints.stream import router as stream_router
 from .api.endpoints.support import router as support_router
-from .api.endpoints.support_reply import router as support_reply_router  # NEW
+# support_reply_router is not needed because reply is inside support_router
 from .api.endpoints.business import router as business_router
 from .api.endpoints.finance import router as finance_router
 from .api.endpoints.finance_wizard import router as finance_wizard_router
@@ -83,7 +83,6 @@ api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calenda
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
-api_v1_router.include_router(support_reply_router, prefix="/support", tags=["Support"])  # NEW
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
 api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", tags=["Finance Wizard"])

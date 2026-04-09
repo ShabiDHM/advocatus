@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.8 (ADDED FORGOT & RESET PASSWORD ROUTES)
+// PHOENIX PROTOCOL - ROUTING V4.9 (ADDED ADMIN SUPPORT PAGE)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -11,8 +11,8 @@ import MainLayout from './pages/MainLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';     // NEW
-import ResetPasswordPage from './pages/ResetPasswordPage';       // NEW
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CaseViewPage from './pages/CaseViewPage';
 import CalendarPage from './pages/CalendarPage';
@@ -22,6 +22,7 @@ import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminSupportPage from './pages/AdminSupportPage';   // NEW
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
@@ -65,10 +66,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       
-      {/* Public password reset routes */}
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
@@ -85,7 +84,6 @@ const AppRoutes: React.FC = () => {
         <Route path="/support" element={<SupportPage />} />
         <Route path="/business" element={<BusinessPage />} />
         <Route path="/account" element={<AccountPage />} />
-        {/* Law routes */}
         <Route path="/laws/search" element={<LawSearchPage />} />
         <Route path="/laws/overview" element={<LawOverviewPage />} />
         <Route path="/laws/article" element={<LawArticlePage />} />
@@ -94,6 +92,7 @@ const AppRoutes: React.FC = () => {
 
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/support" element={<AdminSupportPage />} />   {/* NEW */}
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

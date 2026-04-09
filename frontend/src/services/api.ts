@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.3 (ADDED FORGOT & RESET PASSWORD)
+// PHOENIX PROTOCOL - API SERVICE V23.4 (ADDED SUPPORT MESSAGES & REPLY)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -124,7 +124,7 @@ class ApiService {
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
-    // ========== PASSWORD RESET METHODS (NEW) ==========
+    // ========== PASSWORD RESET METHODS ==========
     public async forgotPassword(email: string): Promise<{ message: string }> {
         const response = await this.axiosInstance.post('/auth/forgot-password', { email });
         return response.data;
@@ -135,6 +135,22 @@ class ApiService {
         return response.data;
     }
 
+    // ========== SUPPORT METHODS ==========
+    public async getSupportMessages(): Promise<any[]> {
+        const response = await this.axiosInstance.get('/support/messages');
+        return response.data;
+    }
+
+    public async sendSupportReply(toEmail: string, replyMessage: string, ticketId?: string): Promise<any> {
+        const response = await this.axiosInstance.post('/support/reply', {
+            to_email: toEmail,
+            reply_message: replyMessage,
+            ticket_id: ticketId
+        });
+        return response.data;
+    }
+
+    // ========== ORGANIZATION METHODS ==========
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
     public async getOrganization(): Promise<Organization> { const response = await this.axiosInstance.get<Organization>('/organizations/me'); return response.data; }
@@ -148,6 +164,7 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
+    // ========== MOBILE & FINANCE METHODS (condensed for brevity, but full) ==========
     public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> { const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`; const response = await this.axiosInstance.post<MobileSessionResponse>(url); return response.data; }
     public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData); return response.data; }
     public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData); return response.data; }
@@ -225,42 +242,17 @@ class ApiService {
     public async getLawArticlesByTitle(lawTitle: string): Promise<any> { const response = await this.axiosInstance.get('/laws/by-title', { params: { law_title: lawTitle } }); return response.data; }
     public async getLawTitles(): Promise<string[]> { const response = await this.axiosInstance.get('/laws/titles'); return response.data; }
 
-    /**
-     * PHOENIX FIX: We ONLY send the raw text. 
-     * The Backend `system_prompt` completely controls the Dual Perspective output structure.
-     */
     public async *explainLawStream(lawTitle: string, articleNumber: string, articleText: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) { await this.refreshToken(); token = tokenManager.get(); }
-        
-        // Removed the hardcoded instructions. Send pure data.
         const prompt = `Ligji: "${lawTitle}"\nNeni: ${articleNumber}\n\nPërmbajtja e Nenit:\n${articleText}`;
-
         const url = `${API_V1_URL}/laws/explain`; 
-        
-        const response = await fetch(url, { 
-            method: 'POST', 
-            headers: { 
-                'Content-Type': 'application/json', 
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}) 
-            }, 
-            body: JSON.stringify({ prompt, law_title: lawTitle, article_number: articleNumber }) 
-        });
-
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ prompt, law_title: lawTitle, article_number: articleNumber }) });
         if (!response.ok) throw new Error("AI Explanation request failed.");
         if (!response.body) return;
-
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        try { 
-            while (true) { 
-                const { done, value } = await reader.read(); 
-                if (done) break; 
-                yield decoder.decode(value, { stream: true }); 
-            } 
-        } finally { 
-            reader.releaseLock(); 
-        }
+        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
     public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> { await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, { message_index: messageIndex, feedback: feedback }); }
@@ -283,11 +275,7 @@ class ApiService {
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`); return response.data; }
     public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> { const response = await this.axiosInstance.post<ReprocessConfirmation>(`/cases/${caseId}/documents/${documentId}/reprocess`); return response.data; }
     public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> { const response = await this.axiosInstance.post<BulkReprocessResponse>(`/cases/${caseId}/documents/reprocess-all`); return response.data; }
-
-    // ========== NEW METHOD FOR CHAT PERSISTENCE ==========
-    public async updateChatHistory(caseId: string, chatHistory: ChatMessage[]): Promise<void> {
-        await this.axiosInstance.put(`/cases/${caseId}/chat`, { chat_history: chatHistory });
-    }
+    public async updateChatHistory(caseId: string, chatHistory: ChatMessage[]): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/chat`, { chat_history: chatHistory }); }
 }
 
 export const apiService = new ApiService();
