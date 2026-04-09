@@ -1,8 +1,5 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.4 (FORCE LIMIT SYNC)
-# 1. UPDATED: TIER_LIMITS["GROWTH"] = 5 (team plan limit).
-# 2. FIXED: Sync now updates user_limit even if tier matches but limit differs.
-# 3. STATUS: Ensures all organizations reflect the correct seat limit.
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.0 (INVITATION EMAIL + ACCEPT METHOD)
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -18,7 +15,6 @@ from app.models.user import UserInDB, UserOut, ProductPlan, PLAN_LIMITS
 from app.services import email_service
 
 # TIER_LIMITS maps organization plan tiers to user seat limits.
-# GROWTH now allows 5 users (reduced from 10).
 TIER_LIMITS = {
     "DEFAULT": 1,
     "GROWTH": 5
@@ -30,7 +26,6 @@ class OrganizationService:
         org_doc = db.organizations.find_one({"_id": owner_id})
         owner = db.users.find_one({"_id": owner_id}) or {}
         
-        # Determine intended tier based on User.product_plan
         is_team = owner.get("product_plan") == ProductPlan.TEAM_PLAN
         intended_tier = "GROWTH" if is_team else "DEFAULT"
         intended_limit = TIER_LIMITS.get(intended_tier, 1)
@@ -53,7 +48,6 @@ class OrganizationService:
             db.organizations.update_one({"_id": owner_id}, {"$set": org_data}, upsert=True)
             return org_data
         
-        # PHOENIX FIX V2.4: Update if tier OR limit is outdated (ensures constant changes propagate)
         if org_doc.get("plan_tier") != intended_tier or org_doc.get("user_limit") != intended_limit:
             db.organizations.update_one(
                 {"_id": owner_id},
@@ -67,7 +61,6 @@ class OrganizationService:
     def get_organization_for_user(self, db: Database, user: UserInDB) -> Optional[Dict]:
         org_id_str = getattr(user, 'org_id', None)
         target_oid = user.id if not org_id_str else ObjectId(org_id_str)
-        
         org_doc = self._ensure_organization_sync(db, target_oid)
         
         return {
@@ -106,12 +99,47 @@ class OrganizationService:
         
         invitation_token = str(uuid.uuid4())
         db.users.insert_one({
-            "email": invitee_email, "username": invitee_email.split('@')[0], "role": "STANDARD",
-            "org_id": ObjectId(org_id), "status": "pending_invite", "invitation_token": invitation_token,
+            "email": invitee_email,
+            "username": invitee_email.split('@')[0],
+            "role": "STANDARD",
+            "org_id": ObjectId(org_id),
+            "status": "pending_invite",
+            "invitation_token": invitation_token,
             "created_at": datetime.now(timezone.utc)
         })
         self.increment_active_users(db, ObjectId(org_id))
-        return {"message": "Success"}
+        
+        # Send invitation email – if fails, rollback user insertion
+        try:
+            email_service.send_invitation_email(invitee_email, invitation_token)
+        except Exception as e:
+            # Rollback: delete the inserted user and decrement active users
+            db.users.delete_one({"email": invitee_email, "org_id": ObjectId(org_id)})
+            self.decrement_active_users(db, ObjectId(org_id))
+            raise HTTPException(status_code=500, detail="Failed to send invitation email. Please try again.")
+        
+        return {"message": "Invitation sent successfully"}
+
+    def accept_invitation(self, db: Database, token: str, password: str, username: str) -> Dict:
+        """Activate a pending user account."""
+        user = db.users.find_one({"invitation_token": token, "status": "pending_invite"})
+        if not user:
+            raise HTTPException(status_code=400, detail="Token i pavlefshëm ose ftesa ka skaduar.")
+        
+        # Hash password and update user
+        hashed_password = get_password_hash(password)
+        db.users.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {
+                    "hashed_password": hashed_password,
+                    "username": username,
+                    "status": "active"
+                },
+                "$unset": {"invitation_token": ""}
+            }
+        )
+        return {"message": "Llogaria u aktivizua me sukses. Tani mund të hyni në sistem."}
 
     def remove_member(self, db: Database, owner: UserInDB, member_id: str):
         m_oid = ObjectId(member_id)

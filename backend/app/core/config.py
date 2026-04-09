@@ -1,8 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIGURATION V7.3 (EXPLICIT CORS FIX)
-# 1. FIXED: Removed wildcards. Added literal Vercel deployment URL.
-# 2. FIXED: Included production and dev domains as exact matches.
-# 3. STATUS: Resolves credentialed CORS blocking on Vercel.
+# PHOENIX PROTOCOL - CONFIGURATION V7.5 (ADDED ADMIN_EMAIL)
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
@@ -31,8 +28,7 @@ class Settings(BaseSettings):
     ENCRYPTION_SALT: str = Field(default="")
     ENCRYPTION_PASSWORD: str = Field(default="")
 
-    # --- CORS Configuration (LITERAL STRINGS ONLY) ---
-    # Browsers block credentials if wildcards (*) are used.
+    # --- CORS Configuration ---
     BACKEND_CORS_ORIGINS: List[str] = Field(
         default=[
             "https://juristi.tech",
@@ -71,5 +67,14 @@ class Settings(BaseSettings):
     # --- Uploads ---
     MAX_UPLOAD_SIZE: int = 15 * 1024 * 1024
     UPLOAD_TIMEOUT: int = 45
+
+    # --- Email / SMTP ---
+    SMTP_TLS: bool = True
+    SMTP_PORT: int = 587
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_USER: str = ""          # Set in .env
+    SMTP_PASSWORD: str = ""      # Set in .env
+    EMAILS_FROM_EMAIL: str = "noreply@juristi.tech"
+    ADMIN_EMAIL: str = ""        # Set in .env (e.g., admin@juristi.tech)
 
 settings = Settings()
