@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V57.5 (ADDED DOMAIN PARAMETER)
-# 1. ADDED: domain parameter to chat() and incorporated into prompt.
-# 2. RETAINED: All previous features (conversation memory, source attribution, follow‑up suggestions).
+# PHOENIX PROTOCOL - RAG SERVICE V58.0 (UNIFIED & HARDENED)
+# 1. REMOVED: fast_rag method (redundant).
+# 2. HARDENED: System prompt with explicit refusal rule and case-file priority.
+# 3. RETAINED: All previous features (conversation memory, source attribution, follow‑up suggestions, domain parameter).
 
 import os
 import sys
@@ -176,9 +177,17 @@ class AlbanianRAGService:
             domain_label = domain_names.get(domain, domain)
             domain_instruction = f"\n**FOKUS I VEÇANTË:** Përqendrohu në aspektet e ligjit **{domain_label}**. Kur je i pasigurt, jep përgjigje të përgjithshme por prioritizo këtë fushë.\n"
 
-        # === STRENGTHENED SYSTEM PROMPT WITH HISTORY, DOMAIN, SOURCES, AND FOLLOW‑UP SUGGESTIONS ===
+        # === HARDENED SYSTEM PROMPT WITH REFUSAL RULE AND CASE-FILE PRIORITY ===
         prompt = f"""
-        Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
+        Ti je "AI Legal Auditor". Burimi yt i vetëm i së vërtetës është [KONTEKSTI] i dhënë më poshtë.
+
+        **RREGULLI I REFUZIMIT (I DETYRUESHËM):**
+        Nëse përgjigjja nuk mund të nxirret nga [KONTEKSTI], je i ndaluar rreptësisht të përgjigjesh.
+        Përgjigju VETËM me: "Më vjen keq, por ky informacion nuk gjendet në dokumentet e ngarkuara."
+
+        **PRIORITETI I BURIMEVE:**
+        Në rast konflikti midis <<< MATERIALET E DOSJES >>> dhe <<< BAZA LIGJORE STATUTORE >>>, **materialet e dosjes kanë përparësi absolute**.
+
         {PROTOKOLLI_MANDATOR}
 
         **KRITERE TË RREPTA:**
@@ -186,10 +195,11 @@ class AlbanianRAGService:
         - Përdor PARA SË GJITHASH materialet e dosjes (<<< MATERIALET E DOSJES >>>).
         - Vetëm pas kësaj, shto referenca nga baza ligjore për të mbështetur analizën.
         - Nëse materialet e dosjes përmbajnë informacion për rastin, përfshiji ato në përgjigje.
-        - Nëse nuk ke informacion të mjaftueshëm për të dhënë një përgjigje, thuaj këtë hapur.
+        - Nëse nuk ke informacion të mjaftueshëm për të dhënë një përgjigje, përdor rregullin e refuzimit më sipër.
         - **Në fund të përgjigjes, pas seksionit 'Burimet:', shto një seksion '**Pyetje të sugjeruara:**' me 2-3 pyetje që përdoruesi mund të bëjë më tej, të lidhura me temën. Secila pyetje të jetë në një rresht të ri, duke filluar me një vizë.**
         {domain_instruction}
         {history_str}
+
         **KONTEKSTI:**
         {context_str}
 
@@ -224,18 +234,3 @@ class AlbanianRAGService:
             logger.error(f"Deep Chat Stream Failure: {e}")
             yield f"\n[Gabim Gjatë Gjenerimit: {str(e)}]"
             yield AI_DISCLAIMER
-
-    async def fast_rag(self, query: str, user_id: str, case_id: Optional[str] = None) -> str:
-        if not self.llm:
-            return ""
-        from . import vector_store_service
-        l_docs = vector_store_service.query_global_knowledge_base(query_text=query, n_results=5)
-        self._build_citation_map(l_docs)
-        laws = "\n".join([d.get('text', '') for d in l_docs])
-        prompt = f"Përgjigju shkurt duke përdorur citimet me badge [Ligji](doc://ligji): {laws}\n\nPyetja: {query}"
-        try:
-            res = await self.llm.ainvoke(prompt)
-            raw = str(res.content)
-            return self._format_citations(raw)
-        except Exception:
-            return "Gabim teknik."
