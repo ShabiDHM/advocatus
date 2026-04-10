@@ -1,14 +1,13 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V6 (FIXED SUGGESTED QUESTIONS)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V7 (FIXED MISSING CHUNK_ID)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService, LawArticle } from '../services/api';
+import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User, Send, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Updated to match LawArticle from api.ts - article_number is optional
 interface ArticleData {
   law_title: string;
   article_number?: string;
@@ -141,30 +140,64 @@ export default function LawArticlePage() {
     };
   }, [summaryContent]);
 
-  // Load article
+  // Load article - FIX: Search for chunks to get a valid chunk_id
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
       setLoading(false);
       return;
     }
-    apiService.getLawArticle(lawTitle, articleNumber)
-      .then((data: LawArticle) => {
+    
+    const loadArticle = async () => {
+      try {
+        // First, get the article content
+        const data = await apiService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text);
+        
+        // Now search for chunks of this article to get a valid chunk_id
+        let chunkId = data.chunk_id;
+        
+        if (!chunkId) {
+          console.log('[DEBUG] No chunk_id in article data, searching for chunks...');
+          // Search for the first chunk of this article
+          const searchResults = await apiService.searchLaws(`"${lawTitle}" "${articleNumber}"`, undefined, 5);
+          if (searchResults && searchResults.length > 0) {
+            // Find a chunk that matches this article
+            const matchingChunk = searchResults.find(
+              (chunk: any) => chunk.law_title === lawTitle && chunk.article_number === articleNumber
+            );
+            if (matchingChunk && matchingChunk.chunk_id) {
+              chunkId = matchingChunk.chunk_id;
+              console.log('[DEBUG] Found chunk_id from search:', chunkId);
+            }
+          }
+        }
+        
+        // If still no chunk_id, create a composite ID from law title and article number
+        if (!chunkId) {
+          // Create a deterministic ID from law title + article number
+          const compositeId = `${lawTitle}_${articleNumber}`.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100);
+          chunkId = compositeId;
+          console.log('[DEBUG] Generated fallback chunk_id:', chunkId);
+        }
+        
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || '',
           source: data.source,
           text: normalizedText,
-          chunk_id: data.chunk_id,
+          chunk_id: chunkId,
         });
-        console.log('[DEBUG] Article loaded. chunk_id:', data.chunk_id);
-      })
-      .catch((err) => {
+        console.log('[DEBUG] Article loaded. Final chunk_id:', chunkId);
+      } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadArticle();
   }, [lawTitle, articleNumber, t]);
 
   // Auto-scroll chat to bottom
@@ -231,7 +264,7 @@ export default function LawArticlePage() {
     
     if (!article?.chunk_id) {
       console.log('[ERROR] No chunk_id available');
-      setChatError('Artikulli nuk ka ID të vlefshme për chat.');
+      setChatError('Artikulli nuk ka ID të vlefshme për chat. Ju lutemi rifreskoni faqen.');
       return;
     }
 
@@ -269,7 +302,7 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      console.log('[DEBUG] Calling apiService.askLawAuditor...');
+      console.log('[DEBUG] Calling apiService.askLawAuditor with chunk_id:', article.chunk_id);
       const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
       let accumulatedContent = '';
 
@@ -487,7 +520,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* CHAT PANEL - No welcome message */}
+            {/* CHAT PANEL */}
             <AnimatePresence>
               {chatVisible && (
                 <motion.div
@@ -544,7 +577,6 @@ export default function LawArticlePage() {
                         </div>
                       ))}
                       
-                      {/* Suggested Questions - shown when no messages exist */}
                       {showSuggestions && messages.length === 0 && (
                         <div className="flex flex-col gap-2 mt-2">
                           <p className="text-xs text-text-muted font-medium uppercase tracking-widest">Pyetje të sugjeruara:</p>
