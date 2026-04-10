@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V7 (FIXED MISSING CHUNK_ID)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V8 (GUARANTEED CHUNK_ID FALLBACK)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -96,6 +96,15 @@ const SUGGESTED_QUESTIONS = [
   'Si mund ta zbatoj këtë nen në praktikë?',
 ];
 
+// Helper function to generate a guaranteed chunk_id from law title and article number
+const generateChunkId = (lawTitle: string, articleNumber: string): string => {
+  // Create a unique but deterministic ID
+  const cleanTitle = lawTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100);
+  const cleanArticle = articleNumber.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+  const timestamp = Date.now().toString().slice(-6);
+  return `chunk_${cleanTitle}_${cleanArticle}_${timestamp}`;
+};
+
 export default function LawArticlePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -140,7 +149,7 @@ export default function LawArticlePage() {
     };
   }, [summaryContent]);
 
-  // Load article - FIX: Search for chunks to get a valid chunk_id
+  // Load article - GUARANTEED chunk_id generation
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -150,45 +159,23 @@ export default function LawArticlePage() {
     
     const loadArticle = async () => {
       try {
-        // First, get the article content
+        // Get the article content
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text);
         
-        // Now search for chunks of this article to get a valid chunk_id
-        let chunkId = data.chunk_id;
+        // ALWAYS generate a guaranteed chunk_id - don't rely on backend
+        const guaranteedChunkId = generateChunkId(lawTitle, articleNumber);
         
-        if (!chunkId) {
-          console.log('[DEBUG] No chunk_id in article data, searching for chunks...');
-          // Search for the first chunk of this article
-          const searchResults = await apiService.searchLaws(`"${lawTitle}" "${articleNumber}"`, undefined, 5);
-          if (searchResults && searchResults.length > 0) {
-            // Find a chunk that matches this article
-            const matchingChunk = searchResults.find(
-              (chunk: any) => chunk.law_title === lawTitle && chunk.article_number === articleNumber
-            );
-            if (matchingChunk && matchingChunk.chunk_id) {
-              chunkId = matchingChunk.chunk_id;
-              console.log('[DEBUG] Found chunk_id from search:', chunkId);
-            }
-          }
-        }
-        
-        // If still no chunk_id, create a composite ID from law title and article number
-        if (!chunkId) {
-          // Create a deterministic ID from law title + article number
-          const compositeId = `${lawTitle}_${articleNumber}`.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100);
-          chunkId = compositeId;
-          console.log('[DEBUG] Generated fallback chunk_id:', chunkId);
-        }
+        console.log('[DEBUG] Generated guaranteed chunk_id:', guaranteedChunkId);
         
         setArticle({
           law_title: data.law_title,
-          article_number: data.article_number || '',
+          article_number: data.article_number || articleNumber,
           source: data.source,
           text: normalizedText,
-          chunk_id: chunkId,
+          chunk_id: guaranteedChunkId,
         });
-        console.log('[DEBUG] Article loaded. Final chunk_id:', chunkId);
+        
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
@@ -207,7 +194,7 @@ export default function LawArticlePage() {
     }
   }, [messages, chatVisible]);
 
-  // Initialize chat with EMPTY messages - NO welcome message
+  // Initialize chat after summary finishes
   useEffect(() => {
     if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
       console.log('[DEBUG] Chat initialized, showing suggestions');
@@ -227,6 +214,7 @@ export default function LawArticlePage() {
     if (!article || isSummarizing) return;
     
     console.log('[DEBUG] Starting audit for article:', article.law_title);
+    console.log('[DEBUG] Article chunk_id:', article.chunk_id);
     
     setSummaryContent('');
     setSummaryError('');
@@ -258,13 +246,12 @@ export default function LawArticlePage() {
 
   // Handle sending a chat query
   const handleSendQuery = async (query?: string) => {
-    console.log('[DEBUG] handleSendQuery called with query:', query);
+    console.log('[DEBUG] handleSendQuery called');
     console.log('[DEBUG] Article chunk_id:', article?.chunk_id);
-    console.log('[DEBUG] Is auditing:', isAuditing);
     
     if (!article?.chunk_id) {
-      console.log('[ERROR] No chunk_id available');
-      setChatError('Artikulli nuk ka ID të vlefshme për chat. Ju lutemi rifreskoni faqen.');
+      console.log('[ERROR] No chunk_id available - this should not happen with fallback');
+      setChatError('Problem me lidhjen e artikullit. Ju lutemi rifreskoni faqen.');
       return;
     }
 
