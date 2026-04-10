@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V8 (GUARANTEED CHUNK_ID FALLBACK)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V9 (FIXED AUDIT CHAT)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -13,7 +13,6 @@ interface ArticleData {
   article_number?: string;
   source: string;
   text: string;
-  chunk_id?: string;
 }
 
 interface ChatMessage {
@@ -96,15 +95,6 @@ const SUGGESTED_QUESTIONS = [
   'Si mund ta zbatoj këtë nen në praktikë?',
 ];
 
-// Helper function to generate a guaranteed chunk_id from law title and article number
-const generateChunkId = (lawTitle: string, articleNumber: string): string => {
-  // Create a unique but deterministic ID
-  const cleanTitle = lawTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100);
-  const cleanArticle = articleNumber.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
-  const timestamp = Date.now().toString().slice(-6);
-  return `chunk_${cleanTitle}_${cleanArticle}_${timestamp}`;
-};
-
 export default function LawArticlePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -149,7 +139,7 @@ export default function LawArticlePage() {
     };
   }, [summaryContent]);
 
-  // Load article - GUARANTEED chunk_id generation
+  // Load article
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -159,23 +149,17 @@ export default function LawArticlePage() {
     
     const loadArticle = async () => {
       try {
-        // Get the article content
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text);
-        
-        // ALWAYS generate a guaranteed chunk_id - don't rely on backend
-        const guaranteedChunkId = generateChunkId(lawTitle, articleNumber);
-        
-        console.log('[DEBUG] Generated guaranteed chunk_id:', guaranteedChunkId);
         
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
           source: data.source,
           text: normalizedText,
-          chunk_id: guaranteedChunkId,
         });
         
+        console.log('[DEBUG] Article loaded:', data.law_title);
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
@@ -214,7 +198,6 @@ export default function LawArticlePage() {
     if (!article || isSummarizing) return;
     
     console.log('[DEBUG] Starting audit for article:', article.law_title);
-    console.log('[DEBUG] Article chunk_id:', article.chunk_id);
     
     setSummaryContent('');
     setSummaryError('');
@@ -247,11 +230,10 @@ export default function LawArticlePage() {
   // Handle sending a chat query
   const handleSendQuery = async (query?: string) => {
     console.log('[DEBUG] handleSendQuery called');
-    console.log('[DEBUG] Article chunk_id:', article?.chunk_id);
     
-    if (!article?.chunk_id) {
-      console.log('[ERROR] No chunk_id available - this should not happen with fallback');
-      setChatError('Problem me lidhjen e artikullit. Ju lutemi rifreskoni faqen.');
+    if (!article) {
+      console.log('[ERROR] No article loaded');
+      setChatError('Artikulli nuk është ngarkuar. Ju lutemi rifreskoni faqen.');
       return;
     }
 
@@ -267,6 +249,8 @@ export default function LawArticlePage() {
     }
 
     console.log('[DEBUG] Sending query to auditor:', finalQuery);
+    console.log('[DEBUG] Law title:', article.law_title);
+    console.log('[DEBUG] Article number:', article.article_number);
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -289,8 +273,8 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      console.log('[DEBUG] Calling apiService.askLawAuditor with chunk_id:', article.chunk_id);
-      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
+      console.log('[DEBUG] Calling apiService.askLawAuditor...');
+      const stream = apiService.askLawAuditor(article.law_title, article.article_number || '', finalQuery);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
@@ -616,7 +600,7 @@ export default function LawArticlePage() {
                       />
                       <button
                         onClick={() => handleSendQuery()}
-                        disabled={!inputQuery.trim() || isAuditing || !article?.chunk_id}
+                        disabled={!inputQuery.trim() || isAuditing || !article}
                         className="h-12 w-12 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-end transition-all shadow-sm hover-lift"
                       >
                         {isAuditing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

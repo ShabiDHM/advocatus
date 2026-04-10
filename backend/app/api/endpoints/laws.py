@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V12.0 (ADDED AUDIT CHAT + CHUNK_ID)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V13.0 (AUDIT CHAT USING LAW TITLE + ARTICLE NUMBER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -16,7 +16,8 @@ class LawExplainRequest(BaseModel):
     prompt: str
 
 class AuditChatRequest(BaseModel):
-    article_id: str
+    law_title: str
+    article_number: str
     query: str
 
 def _safe_int(value: Any) -> int:
@@ -74,7 +75,6 @@ async def explain_law_article(
 ):
     """
     PHOENIX: Streams a high-prestige dual-layered AI explanation.
-    Uses strict command constraints to prevent prompt echoing and force deep legal reasoning.
     """
     
     system_prompt = (
@@ -115,7 +115,7 @@ async def explain_law_article(
         raise HTTPException(status_code=500, detail=f"AI Synthesis failed: {str(e)}")
 
 
-# ========== AUDIT CHAT ENDPOINT ==========
+# ========== AUDIT CHAT ENDPOINT (UPDATED - uses law_title + article_number) ==========
 
 @router.post("/audit-chat")
 async def audit_chat(
@@ -124,33 +124,42 @@ async def audit_chat(
 ):
     """
     Interactive chat with the Rigid Auditor anchored to a specific law article.
-    Accepts article_id (chunk_id) and query, retrieves the article content, and streams AI response.
+    Uses law_title and article_number to retrieve the article content.
     """
     try:
         collection = vector_store_service.get_global_collection()
-        result = collection.get(
-            ids=[request.article_id],
+        
+        # Retrieve all chunks for this law title and article number
+        results = collection.get(
+            where={"$and": [
+                {"law_title": {"$eq": request.law_title}},
+                {"article_number": {"$eq": request.article_number}}
+            ]},
             include=["documents", "metadatas"]
         )
         
-        documents = result.get("documents") or []
-        metadatas = result.get("metadatas") or []
+        documents = results.get("documents") or []
+        metadatas = results.get("metadatas") or []
         
         if not documents:
-            raise HTTPException(status_code=404, detail="Article not found")
+            raise HTTPException(status_code=404, detail=f"Article not found: {request.law_title}, Neni {request.article_number}")
         
-        first_meta = metadatas[0] if metadatas else {}
-        law_title = first_meta.get("law_title", "Ligj i panjohur")
-        article_number = first_meta.get("article_number", "")
-        article_text = documents[0]
+        # Sort by chunk_index if available
+        if metadatas and all("chunk_index" in m for m in metadatas):
+            pairs = list(zip(documents, metadatas))
+            pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
+            documents = [d for d, _ in pairs]
+        
+        # Combine all chunks into full article text
+        full_article_text = "\n\n".join(documents)
         
         # Build context for the auditor
         context = f"""
 === KONTEKSTI I DOKUMENTEVE ===
-Titulli i Ligjit: {law_title}
-Numri i Nenit: {article_number}
+Titulli i Ligjit: {request.law_title}
+Numri i Nenit: {request.article_number}
 Përmbajtja e Nenit:
-{article_text}
+{full_article_text}
 """
         
         # Build user prompt with the query
@@ -220,21 +229,16 @@ async def get_law_article(
     if not documents: 
         raise HTTPException(status_code=404, detail="Article not found")
 
-    # Sort by chunk_index if available
     if metadatas and all("chunk_index" in m for m in metadatas):
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
         documents = [d for d, _ in pairs]
 
-    # Get chunk_id from the first metadata (required for chat functionality)
-    chunk_id = metadatas[0].get("chunk_id", "") if metadatas else ""
-
     return {
         "law_title": str(metadatas[0].get("law_title", law_title)) if metadatas else law_title,
         "article_number": str(metadatas[0].get("article_number", article_number)) if metadatas else article_number,
         "source": str(metadatas[0].get("source", "")) if metadatas else "",
-        "text": "\n\n".join(documents),
-        "chunk_id": chunk_id
+        "text": "\n\n".join(documents)
     }
 
 

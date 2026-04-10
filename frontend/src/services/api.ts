@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.5 (ADDED LAW AUDITOR CHAT)
+// PHOENIX PROTOCOL - API SERVICE V24.0 (UPDATED AUDIT CHAT WITH LAW TITLE + ARTICLE NUMBER)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,13 +17,12 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// ========== LAW ARTICLE INTERFACE FOR AUDITOR CHAT ==========
+// ========== LAW ARTICLE INTERFACE ==========
 export interface LawArticle {
   law_title: string;
   article_number?: string;
   source: string;
   text: string;
-  chunk_id?: string;
 }
 
 interface LoginResponse { access_token: string; }
@@ -285,17 +284,18 @@ class ApiService {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    // ========== LAW AUDITOR CHAT (INTERACTIVE, ANCHORED TO ARTICLE) ==========
+    // ========== LAW AUDITOR CHAT (UPDATED - uses law_title + article_number) ==========
     /**
      * Interactive chat with the Rigid Auditor anchored to a specific law article.
-     * Accepts article_id (chunk_id from the article) and a query string.
+     * Accepts law_title and article_number to identify the article.
      * Returns an AsyncGenerator that yields streaming text chunks.
      * 
-     * @param articleId - The chunk_id of the law article (from getLawArticle response)
+     * @param lawTitle - The title of the law
+     * @param articleNumber - The article number
      * @param query - The user's question about the article
      * @returns AsyncGenerator yielding string chunks
      */
-    public async *askLawAuditor(articleId: string, query: string): AsyncGenerator<string, void, unknown> {
+    public async *askLawAuditor(lawTitle: string, articleNumber: string, query: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) {
             await this.refreshToken();
@@ -309,7 +309,11 @@ class ApiService {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ article_id: articleId, query })
+            body: JSON.stringify({ 
+                law_title: lawTitle, 
+                article_number: articleNumber, 
+                query 
+            })
         });
 
         if (!response.ok) {
