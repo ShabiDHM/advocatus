@@ -1,9 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V11.0 (PREMIUM AI DOCTRINE)
-# 1. FIXED: Eliminated "Prompt Leakage" (AI echoing instructions).
-# 2. ENHANCED: Professional prompt now demands deep doctrinal, constitutional, and procedural analysis.
-# 3. ENHANCED: Citizen prompt remains structured and empowering but highly natural.
-# 4. RETAINED: [NDARJA] logic and all retrieval endpoints.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V12.0 (ADDED AUDIT CHAT + CHUNK_ID)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -19,6 +15,10 @@ class LawExplainRequest(BaseModel):
     article_number: str
     prompt: str
 
+class AuditChatRequest(BaseModel):
+    article_id: str
+    query: str
+
 def _safe_int(value: Any) -> int:
     if value is None: return 0
     try: return int(value)
@@ -29,7 +29,43 @@ def _natural_sort_key(article_any: Any) -> List[int]:
     parts = article.split('.')
     return [int(p) for p in parts if p.isdigit()]
 
-# --- AI ANALYSIS ENDPOINT ---
+# ========== RIGID AUDITOR SYSTEM PROMPT ==========
+RIGID_AUDITOR_PROMPT = """
+ROLI: Ti je 'Krye-Auditori Forenzik' i certifikuar për juridiksionin e Kosovës.
+DETYRA: Përgjigju pyetjeve të përdoruesit BAZUAR VETËM NË KONTEKSTIN E DHËNË.
+
+═══════════════════════════════════════════════════════════════
+RREGULLAT E DETYRUESHME (SHKELJA ËSHTË E NDALUAR):
+═══════════════════════════════════════════════════════════════
+
+1. **MOS SHPIK ASNJË LIGJ, NEN, APO DATË.**
+   - Nëse konteksti nuk përmban ligjin për të cilin pyet përdoruesi, përgjigju:
+     "Nuk kam informacion për këtë ligj në bazën time të të dhënave."
+
+2. **PËR ÇDO DEKLARATË LIGJORE, CITO BURIMIN E SAKTË.**
+   - Përdor fjalë për fjalë tekstin e ligjit nga konteksti.
+   - Formati: "[Burimi: {emri_i_ligjit}, Neni X, Paragrafi Y]"
+
+3. **NUMRAT DHE DATAT DUHET TË EKZISTOJNË NË KONTEKST.**
+   - Nëse pyet për afat deklarimi TVSH dhe konteksti thotë "deri më 20", ti duhet të thuash "20".
+   - Nëse konteksti nuk e përmend, thuaj se nuk e di.
+
+4. **NËSE NUK JE I SIGURTË, THUAJ "NUK DI".**
+   - Asnjëherë mos jep përgjigje të paverifikuara.
+
+5. **DELEGIMI I MATEMATIKËS (I DETYRUESHËM)**
+   - Nëse pyetja kërkon llogaritje matematikore (TVSH, tatim në fitim, zbritje), MOS e bëj llogaritjen ti.
+   - Nëse të dhënat nuk janë të gatshme në kontekst si rezultat i llogaritur, thuaj:
+     "Llogaritja kërkon përpunim nga motori tatimor, ju lutem përdorni funksionin Analisti Financiar."
+
+6. **HIERARKIA E PRIORITETIT TË TË DHËNAVE**
+   - Nëse ka konflikt mes dokumenteve të përdoruesit (fatura/ekstrakt) dhe ligjeve tatimore, raporto konfliktin.
+   - Mos merr vendim financiar ti.
+
+STILI: Shqip standard, i qartë, me pika dhe lista për lehtësi.
+"""
+
+# ========== AI ANALYSIS ENDPOINT ==========
 
 @router.post("/explain")
 async def explain_law_article(
@@ -69,17 +105,72 @@ async def explain_law_article(
     )
     
     try:
-        # Temperature at 0.3 allows for rich vocabulary while staying strictly on track
         generator = llm_service.stream_text_async(
             sys_p=system_prompt,
             user_p=request.prompt,
-            temp=0.3 
+            temp=0.3
         )
         return StreamingResponse(generator, media_type="text/plain")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Synthesis failed: {str(e)}")
 
-# --- DATA RETRIEVAL ENDPOINTS ---
+
+# ========== AUDIT CHAT ENDPOINT ==========
+
+@router.post("/audit-chat")
+async def audit_chat(
+    request: AuditChatRequest,
+    current_user = Depends(get_current_user)
+):
+    """
+    Interactive chat with the Rigid Auditor anchored to a specific law article.
+    Accepts article_id (chunk_id) and query, retrieves the article content, and streams AI response.
+    """
+    try:
+        collection = vector_store_service.get_global_collection()
+        result = collection.get(
+            ids=[request.article_id],
+            include=["documents", "metadatas"]
+        )
+        
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+        
+        if not documents:
+            raise HTTPException(status_code=404, detail="Article not found")
+        
+        first_meta = metadatas[0] if metadatas else {}
+        law_title = first_meta.get("law_title", "Ligj i panjohur")
+        article_number = first_meta.get("article_number", "")
+        article_text = documents[0]
+        
+        # Build context for the auditor
+        context = f"""
+=== KONTEKSTI I DOKUMENTEVE ===
+Titulli i Ligjit: {law_title}
+Numri i Nenit: {article_number}
+Përmbajtja e Nenit:
+{article_text}
+"""
+        
+        # Build user prompt with the query
+        user_prompt = f"Pyetja e përdoruesit në lidhje me këtë nen: {request.query}"
+        full_user_prompt = f"{context}\n\n{user_prompt}"
+        
+        generator = llm_service.stream_text_async(
+            sys_p=RIGID_AUDITOR_PROMPT,
+            user_p=full_user_prompt,
+            temp=0.0
+        )
+        return StreamingResponse(generator, media_type="text/plain")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Audit chat failed: {str(e)}")
+
+
+# ========== DATA RETRIEVAL ENDPOINTS ==========
 
 @router.get("/search")
 async def search_laws(
@@ -92,6 +183,7 @@ async def search_laws(
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
 
 @router.get("/titles")
 async def get_law_titles(current_user = Depends(get_current_user)):
@@ -106,6 +198,7 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         return sorted(list(titles))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
+
 
 @router.get("/article")
 async def get_law_article(
@@ -124,19 +217,26 @@ async def get_law_article(
 
     documents = results.get("documents") or []
     metadatas = results.get("metadatas") or []
-    if not documents: raise HTTPException(status_code=404, detail="Article not found")
+    if not documents: 
+        raise HTTPException(status_code=404, detail="Article not found")
 
+    # Sort by chunk_index if available
     if metadatas and all("chunk_index" in m for m in metadatas):
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
         documents = [d for d, _ in pairs]
 
+    # Get chunk_id from the first metadata (required for chat functionality)
+    chunk_id = metadatas[0].get("chunk_id", "") if metadatas else ""
+
     return {
         "law_title": str(metadatas[0].get("law_title", law_title)) if metadatas else law_title,
         "article_number": str(metadatas[0].get("article_number", article_number)) if metadatas else article_number,
         "source": str(metadatas[0].get("source", "")) if metadatas else "",
-        "text": "\n\n".join(documents)
+        "text": "\n\n".join(documents),
+        "chunk_id": chunk_id
     }
+
 
 @router.get("/by-title")
 async def get_law_articles(
@@ -151,10 +251,13 @@ async def get_law_articles(
             limit=1000
         )
         metadatas = results.get("metadatas") or []
-        if not metadatas: raise HTTPException(status_code=404, detail="Law not found")
+        if not metadatas: 
+            raise HTTPException(status_code=404, detail="Law not found")
+        
         articles: Set[str] = {str(m.get("article_number")) for m in metadatas if m.get("article_number") is not None}
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
         first_m = metadatas[0] if metadatas else {}
+        
         return {
             "law_title": str(first_m.get("law_title", law_title)),
             "source": str(first_m.get("source", "")),
@@ -164,8 +267,12 @@ async def get_law_articles(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+
 @router.get("/{chunk_id}")
-async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user)):
+async def get_law_chunk(
+    chunk_id: str, 
+    current_user = Depends(get_current_user)
+):
     try:
         collection = vector_store_service.get_global_collection()
         result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
@@ -174,7 +281,8 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
 
     docs = result.get("documents") or []
     metas = result.get("metadatas") or []
-    if not docs: raise HTTPException(status_code=404, detail="Law chunk not found")
+    if not docs: 
+        raise HTTPException(status_code=404, detail="Law chunk not found")
 
     m = metas[0] if metas else {}
     return {
