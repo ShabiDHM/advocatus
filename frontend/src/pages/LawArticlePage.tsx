@@ -1,49 +1,112 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V3 (ADVANCED TEXT SANITIZATION)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V4 (WITH INTERACTIVE AUDITOR CHAT + TYPE FIX)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { apiService, LawArticle } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User, Send, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Updated to match LawArticle from api.ts - article_number is optional
 interface ArticleData {
   law_title: string;
-  article_number: string;
+  article_number?: string;  // Made optional to match LawArticle type
   source: string;
   text: string;
+  chunk_id?: string;
 }
 
-// ========== PHOENIX: ADVANCED TEXT SANITIZATION FOR PROFESSIONAL READING ==========
-/**
- * Normalizes raw law article text by removing page markers, repetitive law headers,
- * and cleaning up whitespace for a smooth reading experience.
- */
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'auditor';
+  content: string;
+  timestamp: Date;
+}
+
+// ========== PHOENIX: ENHANCED TEXT SANITIZATION FOR PROFESSIONAL READING ==========
 const normalizeText = (raw: string): string => {
   if (!raw) return '';
 
-  // Step 1: Remove page markers like "--- [FAQJA 3] ---" or "--- FAQJA 3 ---" (case-insensitive)
+  // Step 1: Remove page markers
   let cleaned = raw.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
 
-  // Step 2: Remove repetitive law headers that appear mid-text
-  // Pattern: "LIGJI NR. 04/L-123 PËR PRONËSINË ..." at line start or after newline
+  // Step 2: Remove repetitive law headers
   const lawHeaderRegex = /(?:^|\n)\s*LIGJI\s+NR\.\s+\d+[\/\-]?[A-Z]?\d*\s+[A-ZËÇSHQËWXYZ].*?(?=\n|$)/gi;
   cleaned = cleaned.replace(lawHeaderRegex, '');
 
-  // Step 3: Collapse 3 or more consecutive newlines into exactly 2 newlines (paragraph break)
+  // Step 3: Fix broken paragraphs - merge lines that end with a lowercase letter or comma
+  const lines = cleaned.split('\n');
+  const mergedLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const currentLine = lines[i].trim();
+    if (!currentLine) {
+      mergedLines.push(currentLine);
+      continue;
+    }
+    
+    const endsMidSentence = !/[.!?:;]$/.test(currentLine);
+    const nextLine = lines[i + 1]?.trim() || '';
+    const nextStartsLowercase = /^[a-zëç]/i.test(nextLine) && !/^\d+\./.test(nextLine);
+    
+    if (endsMidSentence && nextStartsLowercase && nextLine) {
+      lines[i + 1] = currentLine + ' ' + nextLine;
+    } else {
+      mergedLines.push(currentLine);
+    }
+  }
+  
+  cleaned = mergedLines.join('\n');
+
+  // Step 4: Fix duplicate paragraph numbers
+  cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\1/g, '$1');
+  cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\d+\.\s*/g, '$1 ');
+
+  // Step 5: Collapse multiple newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
 
-  // Step 4: Trim leading/trailing whitespace
+  // Step 6: Trim
   cleaned = cleaned.trim();
 
-  // Step 5: Apply existing paragraph splitting and single-newline-to-space conversion
+  // Step 7: Normalize paragraphs
   const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs.map(para =>
-    para.replace(/\n/g, ' ').trim()
+    para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
   );
+  
   return normalizedParagraphs.filter(p => p.length > 0).join('\n\n');
 };
+
+// ========== LIGHTWEIGHT MARKDOWN RENDERER ==========
+const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-4" />;
+        if (trimmed.toUpperCase().includes('### NIVELI')) return null;
+        if (trimmed === '---') return null;
+        const parts = trimmed.split(/(\*\*.*?\*\*)/g);
+        return (
+            <p key={i} className="mb-4 text-base sm:text-lg text-text-primary leading-relaxed font-medium">
+                {parts.map((part, j) => {
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={j} className="font-black text-text-primary">{part.slice(2, -2)}</strong>;
+                    }
+                    return <span key={j}>{part}</span>;
+                })}
+            </p>
+        );
+    });
+};
+
+// Suggested questions for the auditor
+const SUGGESTED_QUESTIONS = [
+  'Cilat janë detyrimet kryesore sipas këtij neni?',
+  'Çfarë ndodh nëse shkelet ky nen?',
+  'A ka ndonjë afat kohor që duhet respektuar?',
+  'Si mund ta zbatoj këtë nen në praktikë?',
+];
 
 export default function LawArticlePage() {
   const [searchParams] = useSearchParams();
@@ -53,26 +116,43 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- AI STATE ---
-  const [isExplaining, setIsExplaining] = useState(false);
-  const [rawExplanation, setRawExplanation] = useState('');
+  // --- AI SUMMARY STATE ---
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
   const [activePerspective, setActivePerspective] = useState<'senior' | 'citizen'>('senior');
-  const [aiError, setAiError] = useState('');
-  const aiSectionRef = useRef<HTMLDivElement>(null);
+  const [summaryError, setSummaryError] = useState('');
+  
+  // --- CHAT STATE ---
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputQuery, setInputQuery] = useState('');
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // --- Refs ---
+  const summarySectionRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
 
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
-  // --- PHOENIX: ROBUST DUAL PERSPECTIVE PARSING ---
+  // Parse dual perspective from summary
   const perspectives = useMemo(() => {
-    const cleanText = rawExplanation.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '');
-    const parts = cleanText.split('[NDARJA]');
+    let cleanText = summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '');
+    let parts = cleanText.split('[NDARJA]');
+    if (parts.length < 2) {
+        parts = cleanText.split(/(?:\n---\n|\n### NIVELI 2.*?\n)/i);
+    }
     return {
         senior: parts[0] ? parts[0].trim() : '',
         citizen: parts[1] ? parts[1].trim() : ''
     };
-  }, [rawExplanation]);
+  }, [summaryContent]);
 
+  // Load article
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -80,12 +160,14 @@ export default function LawArticlePage() {
       return;
     }
     apiService.getLawArticle(lawTitle, articleNumber)
-      .then((data: ArticleData) => {
-        // Normalize the article text to remove unwanted line breaks and artifacts
+      .then((data: LawArticle) => {
         const normalizedText = normalizeText(data.text);
         setArticle({
-          ...data,
+          law_title: data.law_title,
+          article_number: data.article_number || '',
+          source: data.source,
           text: normalizedText,
+          chunk_id: data.chunk_id,
         });
       })
       .catch((err) => {
@@ -94,26 +176,138 @@ export default function LawArticlePage() {
       .finally(() => setLoading(false));
   }, [lawTitle, articleNumber, t]);
 
-  const handleAiExplain = async () => {
-    if (!article || isExplaining) return;
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatContainerRef.current && chatVisible) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages, chatVisible]);
+
+  // Initialize chat with welcome message after summary finishes
+  useEffect(() => {
+    if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
+      const lawTitleText = article?.law_title || '';
+      const articleNumberText = article?.article_number || '';
+      
+      const welcomeMessage = `🔍 **Auditori Ligjor** — ${lawTitleText}, Neni ${articleNumberText}\n\nUnë jam këtu për t'iu përgjigjur pyetjeve specifike rreth këtij neni. Çfarë dëshironi të sqaroni më tej?`;
+      
+      setMessages([
+        {
+          id: 'welcome',
+          role: 'auditor',
+          content: welcomeMessage,
+          timestamp: new Date(),
+        },
+      ]);
+      
+      setTimeout(() => {
+        setShowSuggestions(true);
+      }, 500);
+      
+      setTimeout(() => {
+        chatPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        inputRef.current?.focus();
+      }, 300);
+    }
+  }, [summaryContent, chatVisible, messages.length, isSummarizing, article]);
+
+  // Single button triggers summary + chat
+  const handleStartAudit = async () => {
+    if (!article || isSummarizing) return;
     
-    setIsExplaining(true);
-    setRawExplanation('');
-    setAiError('');
+    setSummaryContent('');
+    setSummaryError('');
+    setMessages([]);
+    setShowSuggestions(false);
+    setChatVisible(false);
+    setIsSummarizing(true);
     setActivePerspective('senior');
     
     try {
-        const stream = apiService.explainLawStream(article.law_title, article.article_number, article.text);
-        setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
-
-        for await (const chunk of stream) {
-            setRawExplanation(prev => prev + chunk);
-        }
+      const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
+      
+      let accumulated = '';
+      for await (const chunk of stream) {
+        accumulated += chunk;
+        setSummaryContent(accumulated);
+      }
+      
+      setChatVisible(true);
+      
     } catch (err: any) {
-        setAiError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
+      setSummaryError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
     } finally {
-        setIsExplaining(false);
+      setIsSummarizing(false);
     }
+  };
+
+  // Handle sending a chat query
+  const handleSendQuery = async (query?: string) => {
+    if (!article?.chunk_id) {
+      setChatError('Artikulli nuk ka ID të vlefshme për chat.');
+      return;
+    }
+
+    const finalQuery = query ?? inputQuery.trim();
+    if (!finalQuery || isAuditing) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: finalQuery,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInputQuery('');
+    setIsAuditing(true);
+    setChatError(null);
+    setShowSuggestions(false);
+
+    const auditorMessageId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, {
+      id: auditorMessageId,
+      role: 'auditor',
+      content: '',
+      timestamp: new Date(),
+    }]);
+
+    try {
+      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
+      let accumulatedContent = '';
+
+      for await (const chunk of stream) {
+        accumulatedContent += chunk;
+        setMessages(prev => prev.map(msg =>
+          msg.id === auditorMessageId
+            ? { ...msg, content: accumulatedContent }
+            : msg
+        ));
+      }
+    } catch (err: any) {
+      setChatError(err.message || 'Dështoi komunikimi me Auditorin.');
+      setMessages(prev => prev.filter(msg => msg.id !== auditorMessageId));
+    } finally {
+      setIsAuditing(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  };
+
+  const handleSuggestedClick = (question: string) => {
+    handleSendQuery(question);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendQuery();
+    }
+  };
+
+  const handleCloseAuditor = () => {
+    setChatVisible(false);
+    setMessages([]);
+    setSummaryContent('');
+    setShowSuggestions(false);
   };
 
   const handleBack = () => {
@@ -152,15 +346,36 @@ export default function LawArticlePage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-lawyer-dark border border-border-main">
           
-          <button
-            onClick={handleBack}
-            className="group mb-8 flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest hover-lift w-max"
-          >
-            <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
-              <ArrowLeft size={16} className="text-primary-start" />
-            </div>
-            {t('general.back', 'Kthehu Mbrapa')}
-          </button>
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={handleBack}
+              className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest hover-lift"
+            >
+              <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
+                <ArrowLeft size={16} className="text-primary-start" />
+              </div>
+              {t('general.back', 'Kthehu Mbrapa')}
+            </button>
+
+            {!chatVisible ? (
+              <button
+                onClick={handleStartAudit}
+                disabled={isSummarizing}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm hover-lift btn-primary"
+              >
+                {isSummarizing ? <Loader2 size={14} className="animate-spin" /> : <BrainCircuit size={14} />}
+                {isSummarizing ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.auditBtn', 'Auditimi Ligjor')}
+              </button>
+            ) : (
+              <button
+                onClick={handleCloseAuditor}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm bg-surface border border-border-main text-text-primary hover:border-danger-start hover:text-danger-start"
+              >
+                <X size={14} />
+                {t('lawArticle.closeAuditor', 'Mbyll Auditorin')}
+              </button>
+            )}
+          </div>
 
           <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-border-main rounded-2xl">
             
@@ -168,34 +383,20 @@ export default function LawArticlePage() {
             <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1.5 rounded-lg">
-                      <BookOpen size={14} />
-                      <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-canvas text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
-                      <Calendar size={14} />
-                      <span className="text-xs font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[200px]">{article.source}</span>
-                    </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1.5 rounded-lg">
+                    <BookOpen size={14} />
+                    <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
-                  <button
-                    onClick={handleAiExplain}
-                    disabled={isExplaining}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm hover-lift ${
-                      isExplaining
-                        ? 'bg-canvas text-text-muted cursor-not-allowed border border-border-main'
-                        : 'btn-primary'
-                    }`}
-                  >
-                    {isExplaining ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                    {isExplaining ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.aiExplain', 'Analizo me AI')}
-                  </button>
+                  <div className="flex items-center gap-2 bg-canvas text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
+                    <Calendar size={14} />
+                    <span className="text-xs font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[200px]">{article.source}</span>
+                  </div>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tighter">{article.law_title}</h1>
                 <div className="flex items-center gap-4 border-t border-border-main/50 pt-6 mt-2">
                   <Scale size={24} className="text-primary-start" />
-                  <p className="text-lg font-black text-primary-start uppercase tracking-widest">{t('lawArticle.article', 'Neni')} {article.article_number}</p>
+                  <p className="text-lg font-black text-primary-start uppercase tracking-widest">{t('lawArticle.article', 'Neni')} {article.article_number || ''}</p>
                 </div>
               </div>
             </div>
@@ -209,19 +410,18 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* AI PERSPECTIVE AREA */}
+            {/* AI SUMMARY SECTION */}
             <AnimatePresence>
-              {(rawExplanation || isExplaining || aiError) && (
+              {(summaryContent || isSummarizing || summaryError) && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  ref={aiSectionRef}
+                  ref={summarySectionRef}
                   className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
                 >
                   <div className="p-8 sm:p-12 relative">
                     
-                    {/* Switcher */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
                       <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-full sm:w-auto">
                         <button
@@ -246,22 +446,20 @@ export default function LawArticlePage() {
                         </button>
                       </div>
                       <button
-                        onClick={() => { setRawExplanation(''); setAiError(''); }}
+                        onClick={() => { setSummaryContent(''); setSummaryError(''); setChatVisible(false); }}
                         className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors hover-lift self-end sm:self-auto"
                       >
                         <X size={20} />
                       </button>
                     </div>
 
-                    {/* Error State */}
-                    {aiError && (
+                    {summaryError && (
                       <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-6 text-danger-start text-sm font-medium flex items-center gap-3">
-                        <AlertCircle size={18} /> {aiError}
+                        <AlertCircle size={18} /> {summaryError}
                       </div>
                     )}
 
-                    {/* Shimmer */}
-                    {isExplaining && !rawExplanation && (
+                    {isSummarizing && !summaryContent && (
                       <div className="space-y-4">
                         <div className="h-4 bg-primary-start/10 rounded w-full animate-pulse" />
                         <div className="h-4 bg-primary-start/10 rounded w-5/6 animate-pulse" />
@@ -269,23 +467,138 @@ export default function LawArticlePage() {
                       </div>
                     )}
 
-                    {/* Result */}
-                    {rawExplanation && (
-                      <div className="prose prose-sm max-w-none prose-slate min-h-[150px]">
-                        <div className="whitespace-pre-wrap text-text-secondary leading-loose font-medium text-base space-y-4">
-                          {activePerspective === 'senior'
-                            ? perspectives.senior
-                            : perspectives.citizen || (isExplaining ? "Duke përgatitur shpjegimin e thjeshtësuar..." : "")
-                          }
-                          {isExplaining && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
-                        </div>
+                    {summaryContent && (
+                      <div className="min-h-[150px]">
+                        {activePerspective === 'senior' && renderMarkdown(perspectives.senior)}
+                        {activePerspective === 'citizen' && renderMarkdown(perspectives.citizen)}
+                        {isSummarizing && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
                       </div>
                     )}
                     
-                    {/* Footer Disclaimer */}
                     <div className="mt-8 pt-6 border-t border-border-main/30 flex items-center gap-2 text-[10px] text-text-muted font-black uppercase tracking-widest">
-                      <Sparkles size={12} className="text-primary-start" /> {t('lawArticle.aiDisclaimer', 'Rezultati i gjeneruar nga modeli juridik i AI')}
+                      <Sparkles size={12} className="text-primary-start" /> 
+                      {t('lawArticle.aiDisclaimer', 'Rezultati i gjeneruar nga modeli juridik i AI')}
                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* CHAT PANEL */}
+            <AnimatePresence>
+              {chatVisible && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  ref={chatPanelRef}
+                  className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
+                >
+                  <div className="p-6 sm:p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="h-10 w-10 flex items-center justify-center bg-primary-start/10 rounded-xl border border-primary-start/20">
+                        <MessageCircle className="text-primary-start" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">
+                          {t('lawArticle.auditorTitle', 'Bisedë me Auditorin')}
+                        </h3>
+                        <p className="text-xs text-text-muted">
+                          {t('lawArticle.auditorSubtitle', 'Bazuar në tekstin e ligjit')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      ref={chatContainerRef}
+                      className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar mb-4 pr-2"
+                    >
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] p-4 rounded-2xl ${
+                              msg.role === 'user'
+                                ? 'bg-primary-start text-white rounded-br-sm'
+                                : 'bg-surface border border-border-main text-text-primary rounded-bl-sm'
+                            }`}
+                          >
+                            {msg.role === 'auditor' ? (
+                              <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                                {renderMarkdown(msg.content) || (
+                                  <span className="inline-block w-2 h-4 bg-primary-start animate-pulse" />
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm font-medium whitespace-pre-wrap">{msg.content}</p>
+                            )}
+                            <p className={`text-[10px] mt-2 ${msg.role === 'user' ? 'text-white/60' : 'text-text-muted'}`}>
+                              {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {showSuggestions && messages.length === 1 && (
+                        <div className="flex flex-col gap-2 mt-2">
+                          <p className="text-xs text-text-muted font-medium uppercase tracking-widest">Pyetje të sugjeruara:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {SUGGESTED_QUESTIONS.map((question, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleSuggestedClick(question)}
+                                className="text-xs bg-surface border border-border-main hover:border-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
+                              >
+                                {question}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {isAuditing && (
+                        <div className="flex justify-start">
+                          <div className="bg-surface border border-border-main p-4 rounded-2xl rounded-bl-sm">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {chatError && (
+                        <div className="bg-danger-start/10 border border-danger-start/30 rounded-xl p-3">
+                          <p className="text-danger-start text-xs font-medium flex items-center gap-2">
+                            <AlertCircle size={14} /> {chatError}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="flex gap-3 items-end mt-4">
+                      <textarea
+                        ref={inputRef}
+                        value={inputQuery}
+                        onChange={(e) => setInputQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={t('lawArticle.chatPlaceholder', 'Bëj një pyetje për këtë nen...')}
+                        rows={2}
+                        className="flex-1 p-3 bg-surface border border-border-main rounded-xl text-sm resize-none text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
+                        disabled={isAuditing}
+                      />
+                      <button
+                        onClick={() => handleSendQuery()}
+                        disabled={!inputQuery.trim() || isAuditing || !article?.chunk_id}
+                        className="h-12 w-12 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-end transition-all shadow-sm hover-lift"
+                      >
+                        {isAuditing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                      </button>
+                    </div>
+
                   </div>
                 </motion.div>
               )}

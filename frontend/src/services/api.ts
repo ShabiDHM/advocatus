@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V23.4 (ADDED SUPPORT MESSAGES & REPLY)
+// PHOENIX PROTOCOL - API SERVICE V23.5 (ADDED LAW AUDITOR CHAT)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -16,6 +16,15 @@ export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; mess
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; taxation_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
+
+// ========== LAW ARTICLE INTERFACE FOR AUDITOR CHAT ==========
+export interface LawArticle {
+  law_title: string;
+  article_number?: string;
+  source: string;
+  text: string;
+  chunk_id?: string;
+}
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
@@ -164,7 +173,7 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    // ========== MOBILE & FINANCE METHODS (condensed for brevity, but full) ==========
+    // ========== MOBILE & FINANCE METHODS ==========
     public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> { const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`; const response = await this.axiosInstance.post<MobileSessionResponse>(url); return response.data; }
     public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData); return response.data; }
     public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData); return response.data; }
@@ -235,12 +244,33 @@ class ApiService {
     public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content }); return response.data; }
     public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
-    // --- LAWS METHODS ---
-    public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> { const response = await this.axiosInstance.get('/laws/search', { params: { q: query, jurisdiction, limit } }); return response.data; }
-    public async getLawByChunkId(chunkId: string): Promise<any> { const response = await this.axiosInstance.get(`/laws/${chunkId}`); return response.data; }
-    public async getLawArticle(lawTitle: string, articleNumber: string): Promise<any> { const response = await this.axiosInstance.get('/laws/article', { params: { law_title: lawTitle, article_number: articleNumber } }); return response.data; }
-    public async getLawArticlesByTitle(lawTitle: string): Promise<any> { const response = await this.axiosInstance.get('/laws/by-title', { params: { law_title: lawTitle } }); return response.data; }
-    public async getLawTitles(): Promise<string[]> { const response = await this.axiosInstance.get('/laws/titles'); return response.data; }
+    // ========== LAWS METHODS ==========
+    public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> { 
+        const response = await this.axiosInstance.get('/laws/search', { params: { q: query, jurisdiction, limit } }); 
+        return response.data; 
+    }
+    
+    public async getLawByChunkId(chunkId: string): Promise<LawArticle> { 
+        const response = await this.axiosInstance.get<LawArticle>(`/laws/${chunkId}`); 
+        return response.data; 
+    }
+    
+    public async getLawArticle(lawTitle: string, articleNumber: string): Promise<LawArticle> { 
+        const response = await this.axiosInstance.get<LawArticle>('/laws/article', { 
+            params: { law_title: lawTitle, article_number: articleNumber } 
+        }); 
+        return response.data; 
+    }
+    
+    public async getLawArticlesByTitle(lawTitle: string): Promise<any> { 
+        const response = await this.axiosInstance.get('/laws/by-title', { params: { law_title: lawTitle } }); 
+        return response.data; 
+    }
+    
+    public async getLawTitles(): Promise<string[]> { 
+        const response = await this.axiosInstance.get('/laws/titles'); 
+        return response.data; 
+    }
 
     public async *explainLawStream(lawTitle: string, articleNumber: string, articleText: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
@@ -253,6 +283,56 @@ class ApiService {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
+    }
+
+    // ========== LAW AUDITOR CHAT (INTERACTIVE, ANCHORED TO ARTICLE) ==========
+    /**
+     * Interactive chat with the Rigid Auditor anchored to a specific law article.
+     * Accepts article_id (chunk_id from the article) and a query string.
+     * Returns an AsyncGenerator that yields streaming text chunks.
+     * 
+     * @param articleId - The chunk_id of the law article (from getLawArticle response)
+     * @param query - The user's question about the article
+     * @returns AsyncGenerator yielding string chunks
+     */
+    public async *askLawAuditor(articleId: string, query: string): AsyncGenerator<string, void, unknown> {
+        let token = tokenManager.get();
+        if (!token) {
+            await this.refreshToken();
+            token = tokenManager.get();
+        }
+
+        const url = `${API_V1_URL}/laws/audit-chat`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ article_id: articleId, query })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Audit chat failed: ${response.status} - ${errorText}`);
+        }
+
+        if (!response.body) {
+            throw new Error("No response body from audit chat endpoint");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                yield decoder.decode(value, { stream: true });
+            }
+        } finally {
+            reader.releaseLock();
+        }
     }
 
     public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> { await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, { message_index: messageIndex, feedback: feedback }); }
