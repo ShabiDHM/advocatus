@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V9 (FIXED AUDIT CHAT)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V10.1 (ALIGNED WITH API SIGNATURE)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,11 +8,13 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User, Send, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// TASK 3: ArticleData interface with chunk_id
 interface ArticleData {
   law_title: string;
   article_number?: string;
   source: string;
   text: string;
+  chunk_id: string;
 }
 
 interface ChatMessage {
@@ -87,6 +89,13 @@ const renderMarkdown = (text: string) => {
     });
 };
 
+// Helper function to generate a fallback chunk_id when backend doesn't provide one
+const generateFallbackChunkId = (lawTitle: string, articleNumber: string): string => {
+  const cleanTitle = lawTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 80);
+  const cleanArticle = articleNumber.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+  return `chunk_${cleanTitle}_${cleanArticle}`;
+};
+
 // Suggested questions for the auditor
 const SUGGESTED_QUESTIONS = [
   'Cilat janë detyrimet kryesore sipas këtij neni?',
@@ -139,7 +148,7 @@ export default function LawArticlePage() {
     };
   }, [summaryContent]);
 
-  // Load article
+  // TASK 3: Load article and set state with chunk_id
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -152,14 +161,26 @@ export default function LawArticlePage() {
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text);
         
+        // Get chunk_id from response or generate fallback
+        let chunkId = data.chunk_id || '';
+        
+        if (!chunkId) {
+          chunkId = generateFallbackChunkId(lawTitle, articleNumber);
+          console.log('[DEBUG] Backend did not provide chunk_id, using fallback:', chunkId);
+        } else {
+          console.log('[DEBUG] Using chunk_id from backend:', chunkId);
+        }
+        
+        // TASK 3: Set article with chunk_id
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
           source: data.source,
           text: normalizedText,
+          chunk_id: chunkId,
         });
         
-        console.log('[DEBUG] Article loaded:', data.law_title);
+        console.log('[DEBUG] Article loaded successfully with chunk_id:', chunkId);
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
@@ -198,6 +219,7 @@ export default function LawArticlePage() {
     if (!article || isSummarizing) return;
     
     console.log('[DEBUG] Starting audit for article:', article.law_title);
+    console.log('[DEBUG] Article chunk_id:', article.chunk_id);
     
     setSummaryContent('');
     setSummaryError('');
@@ -227,13 +249,22 @@ export default function LawArticlePage() {
     }
   };
 
-  // Handle sending a chat query
+  // TASK 2: Handle sending a chat query - passes chunk_id to API
   const handleSendQuery = async (query?: string) => {
     console.log('[DEBUG] handleSendQuery called');
     
     if (!article) {
       console.log('[ERROR] No article loaded');
       setChatError('Artikulli nuk është ngarkuar. Ju lutemi rifreskoni faqen.');
+      return;
+    }
+
+    // Validate chunk_id exists
+    console.log('[DEBUG] Sending chunk_id to Auditor:', article.chunk_id);
+    
+    if (!article.chunk_id) {
+      console.log('[ERROR] No chunk_id available - this should not happen');
+      setChatError('Artikulli nuk ka identifikues të vlefshëm. Ju lutemi rifreskoni faqen.');
       return;
     }
 
@@ -249,8 +280,7 @@ export default function LawArticlePage() {
     }
 
     console.log('[DEBUG] Sending query to auditor:', finalQuery);
-    console.log('[DEBUG] Law title:', article.law_title);
-    console.log('[DEBUG] Article number:', article.article_number);
+    console.log('[DEBUG] Using chunk_id:', article.chunk_id);
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -273,8 +303,9 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      console.log('[DEBUG] Calling apiService.askLawAuditor...');
-      const stream = apiService.askLawAuditor(article.law_title, article.article_number || '', finalQuery);
+      console.log('[DEBUG] Calling apiService.askLawAuditor with chunk_id:', article.chunk_id);
+      // TASK 2: Pass chunk_id as first argument, query as second
+      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
@@ -600,7 +631,7 @@ export default function LawArticlePage() {
                       />
                       <button
                         onClick={() => handleSendQuery()}
-                        disabled={!inputQuery.trim() || isAuditing || !article}
+                        disabled={!inputQuery.trim() || isAuditing || !article?.chunk_id}
                         className="h-12 w-12 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-end transition-all shadow-sm hover-lift"
                       >
                         {isAuditing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
