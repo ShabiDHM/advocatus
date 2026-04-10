@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V4 (WITH INTERACTIVE AUDITOR CHAT + TYPE FIX)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V5 (NO WELCOME MESSAGE)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Updated to match LawArticle from api.ts - article_number is optional
 interface ArticleData {
   law_title: string;
-  article_number?: string;  // Made optional to match LawArticle type
+  article_number?: string;
   source: string;
   text: string;
   chunk_id?: string;
@@ -24,18 +24,14 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// ========== PHOENIX: ENHANCED TEXT SANITIZATION FOR PROFESSIONAL READING ==========
+// ========== PHOENIX: ENHANCED TEXT SANITIZATION ==========
 const normalizeText = (raw: string): string => {
   if (!raw) return '';
 
-  // Step 1: Remove page markers
   let cleaned = raw.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
-
-  // Step 2: Remove repetitive law headers
   const lawHeaderRegex = /(?:^|\n)\s*LIGJI\s+NR\.\s+\d+[\/\-]?[A-Z]?\d*\s+[A-ZËÇSHQËWXYZ].*?(?=\n|$)/gi;
   cleaned = cleaned.replace(lawHeaderRegex, '');
-
-  // Step 3: Fix broken paragraphs - merge lines that end with a lowercase letter or comma
+  
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
   
@@ -58,18 +54,11 @@ const normalizeText = (raw: string): string => {
   }
   
   cleaned = mergedLines.join('\n');
-
-  // Step 4: Fix duplicate paragraph numbers
   cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\1/g, '$1');
   cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\d+\.\s*/g, '$1 ');
-
-  // Step 5: Collapse multiple newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-
-  // Step 6: Trim
   cleaned = cleaned.trim();
-
-  // Step 7: Normalize paragraphs
+  
   const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs.map(para =>
     para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
@@ -183,23 +172,12 @@ export default function LawArticlePage() {
     }
   }, [messages, chatVisible]);
 
-  // Initialize chat with welcome message after summary finishes
+  // Initialize chat with EMPTY messages - NO welcome message
+  // Only show suggestions after chat becomes visible
   useEffect(() => {
     if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
-      const lawTitleText = article?.law_title || '';
-      const articleNumberText = article?.article_number || '';
-      
-      const welcomeMessage = `🔍 **Auditori Ligjor** — ${lawTitleText}, Neni ${articleNumberText}\n\nUnë jam këtu për t'iu përgjigjur pyetjeve specifike rreth këtij neni. Çfarë dëshironi të sqaroni më tej?`;
-      
-      setMessages([
-        {
-          id: 'welcome',
-          role: 'auditor',
-          content: welcomeMessage,
-          timestamp: new Date(),
-        },
-      ]);
-      
+      // NO welcome message - start with empty messages
+      // Just show suggestions after a short delay
       setTimeout(() => {
         setShowSuggestions(true);
       }, 500);
@@ -209,7 +187,7 @@ export default function LawArticlePage() {
         inputRef.current?.focus();
       }, 300);
     }
-  }, [summaryContent, chatVisible, messages.length, isSummarizing, article]);
+  }, [summaryContent, chatVisible, messages.length, isSummarizing]);
 
   // Single button triggers summary + chat
   const handleStartAudit = async () => {
@@ -401,7 +379,7 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* Reading Surface - Normalized text with advanced sanitization */}
+            {/* Reading Surface */}
             <div className="bg-surface/50 px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
               <div className="max-w-[75ch] mx-auto">
                 <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
@@ -484,7 +462,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* CHAT PANEL */}
+            {/* CHAT PANEL - No welcome message */}
             <AnimatePresence>
               {chatVisible && (
                 <motion.div
@@ -541,7 +519,8 @@ export default function LawArticlePage() {
                         </div>
                       ))}
                       
-                      {showSuggestions && messages.length === 1 && (
+                      {/* Suggested Questions - shown when no messages exist */}
+                      {showSuggestions && messages.length === 0 && (
                         <div className="flex flex-col gap-2 mt-2">
                           <p className="text-xs text-text-muted font-medium uppercase tracking-widest">Pyetje të sugjeruara:</p>
                           <div className="flex flex-wrap gap-2">
