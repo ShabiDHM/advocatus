@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V5 (NO WELCOME MESSAGE)
+// PHOENIX PROTOCOL - UNIFIED LAYOUT & MODERN TYPOGRAPHY V6 (FIXED SUGGESTED QUESTIONS)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -158,8 +158,10 @@ export default function LawArticlePage() {
           text: normalizedText,
           chunk_id: data.chunk_id,
         });
+        console.log('[DEBUG] Article loaded. chunk_id:', data.chunk_id);
       })
       .catch((err) => {
+        console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
       })
       .finally(() => setLoading(false));
@@ -173,11 +175,9 @@ export default function LawArticlePage() {
   }, [messages, chatVisible]);
 
   // Initialize chat with EMPTY messages - NO welcome message
-  // Only show suggestions after chat becomes visible
   useEffect(() => {
     if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
-      // NO welcome message - start with empty messages
-      // Just show suggestions after a short delay
+      console.log('[DEBUG] Chat initialized, showing suggestions');
       setTimeout(() => {
         setShowSuggestions(true);
       }, 500);
@@ -192,6 +192,8 @@ export default function LawArticlePage() {
   // Single button triggers summary + chat
   const handleStartAudit = async () => {
     if (!article || isSummarizing) return;
+    
+    console.log('[DEBUG] Starting audit for article:', article.law_title);
     
     setSummaryContent('');
     setSummaryError('');
@@ -210,9 +212,11 @@ export default function LawArticlePage() {
         setSummaryContent(accumulated);
       }
       
+      console.log('[DEBUG] Summary completed, showing chat');
       setChatVisible(true);
       
     } catch (err: any) {
+      console.error('[ERROR] Summary failed:', err);
       setSummaryError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
     } finally {
       setIsSummarizing(false);
@@ -221,13 +225,28 @@ export default function LawArticlePage() {
 
   // Handle sending a chat query
   const handleSendQuery = async (query?: string) => {
+    console.log('[DEBUG] handleSendQuery called with query:', query);
+    console.log('[DEBUG] Article chunk_id:', article?.chunk_id);
+    console.log('[DEBUG] Is auditing:', isAuditing);
+    
     if (!article?.chunk_id) {
+      console.log('[ERROR] No chunk_id available');
       setChatError('Artikulli nuk ka ID të vlefshme për chat.');
       return;
     }
 
     const finalQuery = query ?? inputQuery.trim();
-    if (!finalQuery || isAuditing) return;
+    if (!finalQuery) {
+      console.log('[DEBUG] Empty query, ignoring');
+      return;
+    }
+    
+    if (isAuditing) {
+      console.log('[DEBUG] Already auditing, ignoring');
+      return;
+    }
+
+    console.log('[DEBUG] Sending query to auditor:', finalQuery);
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -250,18 +269,22 @@ export default function LawArticlePage() {
     }]);
 
     try {
+      console.log('[DEBUG] Calling apiService.askLawAuditor...');
       const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
         accumulatedContent += chunk;
+        console.log('[DEBUG] Received chunk, length:', chunk.length);
         setMessages(prev => prev.map(msg =>
           msg.id === auditorMessageId
             ? { ...msg, content: accumulatedContent }
             : msg
         ));
       }
+      console.log('[DEBUG] Query completed successfully');
     } catch (err: any) {
+      console.error('[ERROR] Audit query failed:', err);
       setChatError(err.message || 'Dështoi komunikimi me Auditorin.');
       setMessages(prev => prev.filter(msg => msg.id !== auditorMessageId));
     } finally {
@@ -271,6 +294,7 @@ export default function LawArticlePage() {
   };
 
   const handleSuggestedClick = (question: string) => {
+    console.log('[DEBUG] Suggested question clicked:', question);
     handleSendQuery(question);
   };
 
@@ -282,6 +306,7 @@ export default function LawArticlePage() {
   };
 
   const handleCloseAuditor = () => {
+    console.log('[DEBUG] Closing auditor');
     setChatVisible(false);
     setMessages([]);
     setSummaryContent('');
@@ -529,6 +554,7 @@ export default function LawArticlePage() {
                                 key={idx}
                                 onClick={() => handleSuggestedClick(question)}
                                 className="text-xs bg-surface border border-border-main hover:border-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
+                                type="button"
                               >
                                 {question}
                               </button>
