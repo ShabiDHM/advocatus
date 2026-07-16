@@ -1,9 +1,10 @@
 # FILE: backend/app/core/security.py
-# PHOENIX PROTOCOL - SECURITY V5.1 (INVITATION TOKENS)
-# 1. ADDED: create_invitation_token() with 7-day expiry and strict 'invite' type.
-# 2. STATUS: Enhanced for Multi-Tenancy.
+# PHOENIX PROTOCOL - SECURITY V6.0 (PYTHON 3.13 DIRECT BCRYPT)
+# 1. REMOVED: Passlib dependency (obsolete/broken on Python 3.13).
+# 2. ADDED: Direct bcrypt implementation for verify and hash functions.
+# 3. RETAINED: All JWT functionality and invitation logic.
 
-from passlib.context import CryptContext
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from jose import jwt, JWTError
@@ -11,16 +12,27 @@ from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from ..core.config import settings
 
-# --- Password Hashing Context ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# --- Password Hashing (Direct implementation for System Integrity) ---
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Checks if the plain password matches the hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Checks if the plain password matches the hashed password using direct bcrypt."""
+    try:
+        # Convert strings to bytes for bcrypt processing
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception:
+        return False
 
 def get_password_hash(password: str) -> str:
-    """Hashes the plain password."""
-    return pwd_context.hash(password)
+    """Hashes the plain password using direct bcrypt."""
+    # Convert string to bytes
+    password_bytes = password.encode('utf-8')
+    # Generate salt and hash
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    # Return as string for database storage
+    return hashed.decode('utf-8')
 
 # --- JWT Token Functions ---
 
@@ -45,12 +57,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode, 
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Creates a JWT refresh token."""
@@ -73,42 +84,32 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode, 
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
 
-# PHOENIX NEW: Specialized Invitation Token
 def create_invitation_token(org_id: str, email: str) -> str:
-    """
-    Creates a long-lived JWT specifically for joining an organization.
-    Valid for 7 days.
-    """
+    """Creates a long-lived JWT specifically for joining an organization."""
     expire = datetime.now(timezone.utc) + timedelta(days=7)
-    
     to_encode = {
         "exp": expire,
-        "sub": email,       # Subject is the invitee's email
-        "org_id": org_id,   # The target organization
-        "type": "invite"    # Critical for security differentiation
+        "sub": email,
+        "org_id": org_id,
+        "type": "invite"
     }
-    
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode, 
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
 
 def decode_token(token: str) -> dict[str, Any]:
-    """
-    Decodes and verifies a JWT token.
-    """
+    """Decodes and verifies a JWT token."""
     if not token or not isinstance(token, str):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
