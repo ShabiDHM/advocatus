@@ -1,8 +1,7 @@
 # FILE: backend/app/core/db.py
-# PHOENIX PROTOCOL - DATABASE CORE V5.0 (RECOVERY)
-# 1. RESTORED: Core connection functions (connect_to_mongo, connect_to_redis).
-# 2. RESTORED: Dependency injection helper (get_db).
-# 3. ADDED: SaaS direct access helper (get_db_instance).
+# PHOENIX PROTOCOL - DATABASE CORE V5.1 (RESTORED REDIS GETTER)
+# 1. ADDED: get_redis_client() to fix FastAPI Dependency Injection.
+# 2. STATUS: All missing imports resolved.
 
 import os
 import logging
@@ -19,24 +18,13 @@ _redis_client = None
 # --- MONGODB CONNECTION ---
 def connect_to_mongo() -> tuple[MongoClient, Database]:
     global _mongo_client
-    
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
-    
-    if not uri:
-        raise ValueError("DATABASE_URI environment variable is missing.")
-        
+    if not uri: raise ValueError("DATABASE_URI missing.")
     try:
         if _mongo_client is None:
-            # We use a connection pool to handle multiple requests efficiently
-            _mongo_client = MongoClient(
-                uri, 
-                maxPoolSize=50, 
-                serverSelectionTimeoutMS=5000
-            )
-            # Verify connection
+            _mongo_client = MongoClient(uri, maxPoolSize=50, serverSelectionTimeoutMS=5000)
             _mongo_client.admin.command('ping')
-            
         return _mongo_client, _mongo_client[db_name]
     except Exception as e:
         logger.error(f"❌ Failed to connect to MongoDB: {e}")
@@ -47,48 +35,16 @@ def close_mongo_connections():
     if _mongo_client:
         _mongo_client.close()
         _mongo_client = None
-        logger.info("MongoDB connection closed.")
-
-# --- FASTAPI DEPENDENCY INJECTION ---
-def get_db() -> Database:
-    """Dependency for FastAPI route handlers."""
-    try:
-        _, db = connect_to_mongo()
-        return db
-    except Exception as e:
-        logger.error(f"Database dependency error: {e}")
-        raise
-
-# --- SAAS DIRECT ACCESS HELPER ---
-def get_db_instance() -> Database:
-    """Helper for direct access during SaaS operations without FastAPI requests."""
-    from ..main import app
-    if hasattr(app.state, "mongo_db") and app.state.mongo_db is not None:
-        return app.state.mongo_db
-    
-    # Fallback if state is empty
-    _, db = connect_to_mongo()
-    return db
 
 # --- REDIS CONNECTION ---
 def connect_to_redis() -> redis.Redis:
     global _redis_client
-    
     redis_url = os.getenv("REDIS_URL")
-    if not redis_url:
-        logger.warning("⚠️ REDIS_URL missing. Cache features disabled.")
-        raise ValueError("REDIS_URL missing.")
-        
+    if not redis_url: raise ValueError("REDIS_URL missing.")
     try:
         if _redis_client is None:
-            # Use SSL/TLS parameters safely based on the URL scheme
-            _redis_client = redis.from_url(
-                redis_url, 
-                socket_timeout=5, 
-                decode_responses=True
-            )
+            _redis_client = redis.from_url(redis_url, socket_timeout=5, decode_responses=True)
             _redis_client.ping()
-            
         return _redis_client
     except Exception as e:
         logger.error(f"❌ Failed to connect to Redis: {e}")
@@ -99,4 +55,31 @@ def close_redis_connection():
     if _redis_client:
         _redis_client.close()
         _redis_client = None
-        logger.info("Redis connection closed.")
+
+# --- FASTAPI DEPENDENCY INJECTION ---
+def get_db() -> Database:
+    """Dependency for FastAPI route handlers (MongoDB)."""
+    try:
+        _, db = connect_to_mongo()
+        return db
+    except Exception as e:
+        logger.error(f"Database dependency error: {e}")
+        raise
+
+# PHOENIX FIX: Restored Redis Getter
+def get_redis_client() -> redis.Redis:
+    """Dependency for FastAPI route handlers (Redis)."""
+    try:
+        return connect_to_redis()
+    except Exception as e:
+        logger.error(f"Redis dependency error: {e}")
+        raise
+
+# --- SAAS DIRECT ACCESS HELPER ---
+def get_db_instance() -> Database:
+    """Helper for direct access during SaaS operations without FastAPI requests."""
+    from ..main import app
+    if hasattr(app.state, "mongo_db") and app.state.mongo_db is not None:
+        return app.state.mongo_db
+    _, db = connect_to_mongo()
+    return db
