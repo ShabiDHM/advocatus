@@ -1,39 +1,30 @@
-# FILE: backend/Dockerfile
-# PHOENIX PROTOCOL - INFRASTRUCTURE V4.2 (KOSOVO MARKET OPTIMIZED)
-# FIXED: Correct Dockerfile line continuation syntax
+# PHOENIX PROTOCOL - PRODUCTION CLOUD INFRASTRUCTURE V5.0
+# Optimized for: Render Free Tier (512MB RAM)
+# Target: Python 3.13 / FastAPI
 
-FROM python:3.11
+FROM python:3.13-slim
 
-# 1. Install system dependencies OPTIMIZED FOR KOSOVO MARKET
+# 1. Install critical system dependencies (Lightweight)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-sqi \
-    tesseract-ocr-eng \
-    tesseract-ocr-deu \
-    libreoffice \
-    dnsutils \
-    iputils-ping \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Verify Albanian OCR specifically
-RUN echo "Testing Albanian OCR support..." && \
-    tesseract --list-langs | grep -q sqi && echo "✅ Albanian (sqi) support confirmed" || echo "⚠️  Albanian support missing"
-
-# 3. Set the working directory and PYTHONPATH.
+# 2. Set working environment
 WORKDIR /app
-ENV PYTHONPATH /app
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-# 4. Copy ONLY the requirements file first to leverage Docker cache.
+# 3. Install Python Dependencies
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 5. Install Python dependencies.
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 6. Copy the application source code AND utility scripts.
+# 4. Copy Application Code
 COPY ./app ./app
-COPY ./scripts ./scripts
 
-# 7. Expose the port.
-EXPOSE 8000
+# 5. Start Command
+# Using 1 worker and no-reload for maximum RAM efficiency on Free Tier
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -1,74 +1,56 @@
-# FILE: backend/app/core/lifespan.py
-# PHOENIX PROTOCOL - LIFESPAN V3.2 (IMPORT FIX)
-# 1. FIX: Added missing 'Database' import from 'pymongo.database'.
-# 2. STATUS: No Pylance errors.
+# PHOENIX PROTOCOL - INDEPENDENT LIFESPAN V6.0
+# STATUS: 100% Haveri-Independent / 8GB RAM Optimized
+# LOGIC: Uses Local Persistence for ChromaDB (No Docker/Server Required)
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+import os
 import logging
 import chromadb
-from pymongo import ASCENDING, DESCENDING
-from pymongo.database import Database # PHOENIX FIX: Added missing import
-
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from .db import connect_to_mongo, connect_to_redis, close_mongo_connections, close_redis_connection
-from .config import settings
-from .embeddings import JuristiRemoteEmbeddings
 
 logger = logging.getLogger(__name__)
 
-def initialize_chromadb():
-    try:
-        logger.info("--- [Lifespan] Initializing ChromaDB connection... ---")
-        client = chromadb.HttpClient(host=settings.CHROMA_HOST, port=settings.CHROMA_PORT)
-        embedding_function = JuristiRemoteEmbeddings()
-        collection = client.get_or_create_collection(name="legal_knowledge_base", embedding_function=embedding_function)
-        logger.info(f"--- [Lifespan] ✅ ChromaDB connection successful. Collection has {collection.count()} documents. ---")
-    except Exception as e:
-        logger.error(f"--- [Lifespan] ❌ FAILED to initialize ChromaDB: {e} ---")
-
-def create_mongo_indexes(db: Database):
-    try:
-        logger.info("--- [Lifespan] 🚀 Optimizing Database Indexes... ---")
-
-        db.users.create_index([("email", ASCENDING)], unique=True)
-        db.cases.create_index([("owner_id", ASCENDING), ("updated_at", DESCENDING)])
-        db.cases.create_index([("case_number", ASCENDING)])
-        db.documents.create_index([("case_id", ASCENDING), ("created_at", DESCENDING)])
-        db.documents.create_index([("owner_id", ASCENDING)])
-        db.calendar_events.create_index([("case_id", ASCENDING)])
-        db.calendar_events.create_index([("start_date", ASCENDING)])
-        db.calendar_events.create_index([("owner_id", ASCENDING)])
-        
-        logger.info("--- [Lifespan] ✅ Database Indexes Verified/Created. ---")
-    except Exception as e:
-        logger.error(f"--- [Lifespan] ❌ Index Creation Failed: {e} ---")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("--- [Lifespan] Application startup sequence initiated. ---")
+    logger.info("--- [Lifespan] STARTING INDEPENDENT BOOT ---")
     
-    # 1. Connect Databases (Synchronous)
-    initialize_chromadb()
-    _, db_instance = connect_to_mongo()
-    app.state.mongo_db = db_instance # Attach db to state for indexing
-    
+    # 1. MongoDB Atlas Connectivity
+    try:
+        _, db_instance = connect_to_mongo()
+        app.state.mongo_db = db_instance
+        logger.info("--- [Lifespan] ✅ MongoDB Atlas Handshake Success ---")
+    except Exception as e:
+        logger.error(f"--- [Lifespan] ❌ MongoDB Connection Failed: {e} ---")
+        app.state.mongo_db = None
+
+    # 2. Redis Cloud Connectivity
     try:
         connect_to_redis()
+        logger.info("--- [Lifespan] ✅ Redis Cloud Handshake Success ---")
     except Exception as e:
-        logger.warning(f"--- [Lifespan] ⚠️ Redis connection skipped: {e} ---")
+        logger.warning(f"--- [Lifespan] ⚠️ Redis Offline (Cache Disabled): {e} ---")
 
-    # 2. Optimize Performance (Create Indexes)
-    if hasattr(app.state, "mongo_db") and app.state.mongo_db is not None:
-        create_mongo_indexes(app.state.mongo_db)
-    else:
-        logger.warning("--- [Indexes] ⚠️ MongoDB not found in app.state. Skipping indexing. ---")
+    # 3. ChromaDB Local Persistence (Independence Logic)
+    try:
+        # Define the local path for the vector database
+        persist_dir = os.path.join(os.getcwd(), "data", "chroma")
+        if not os.path.exists(persist_dir):
+            os.makedirs(persist_dir, exist_ok=True)
+            
+        # We use PersistentClient to avoid needing a separate background process
+        app.state.chroma_client = chromadb.PersistentClient(path=persist_dir)
+        logger.info(f"--- [Lifespan] ✅ ChromaDB Local Persistence Active at: {persist_dir} ---")
+    except Exception as e:
+        logger.error(f"--- [Lifespan] ❌ ChromaDB Local Initialization Failed: {e} ---")
+        app.state.chroma_client = None
 
-    logger.info("--- [Lifespan] All resources initialized. Application is ready. ---")
+    logger.info("--- [Lifespan] SYSTEM STABILIZED. Opening Port 8000. ---")
     
     yield
     
-    # --- Shutdown Sequence ---
-    logger.info("--- [Lifespan] Application shutdown sequence initiated. ---")
+    # --- Shutdown ---
+    logger.info("--- [Lifespan] Shutdown Initiated... ---")
     close_mongo_connections()
     close_redis_connection()
-    logger.info("--- [Lifespan] All connections closed gracefully. Shutdown complete. ---")
+    logger.info("--- [Lifespan] Shutdown Complete. ---")

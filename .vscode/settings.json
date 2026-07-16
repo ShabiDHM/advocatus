@@ -1,0 +1,15 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend"
+    ],
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "files.exclude": {
+        "**/.venv": true,
+        "**/node_modules": true,
+        "**/__pycache__": true,
+        "**/.git": true,
+        "*.ps1": false
+    }
+}
