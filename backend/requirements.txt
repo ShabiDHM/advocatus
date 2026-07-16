@@ -1,5 +1,5 @@
-# PHOENIX PROTOCOL - PRODUCTION SLIM V2 (STABLE & AUTH-READY)
-# STATUS: 512MB RAM Optimized. Restored Authentication layers.
+# PHOENIX PROTOCOL - PRODUCTION SLIM V3 (STABLE & TASK-READY)
+# STATUS: 512MB RAM Optimized. Restored Task Queue (Celery).
 
 fastapi>=0.115.0
 uvicorn[standard]>=0.31.0
@@ -11,7 +11,7 @@ pydantic-core>=2.23.0
 pydantic-settings>=2.5.0
 python-dotenv>=1.0.1
 
-# Authentication & Security (Restored)
+# Authentication & Security
 passlib[bcrypt]>=1.7.4
 bcrypt>=4.2.0
 python-jose[cryptography]>=3.3.0
@@ -22,6 +22,13 @@ pymongo>=4.9.1
 redis>=5.1.0
 motor>=3.6.0
 neo4j>=5.25.0
+
+# Task Queue (Restored)
+celery>=5.4.0
+kombu>=5.5.4
+billiard>=4.2.1
+vine>=5.1.0
+amqp>=5.3.1
 
 # Critical Utilities
 structlog>=24.4.0
