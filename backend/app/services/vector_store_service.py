@@ -1,85 +1,94 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V22.0 (TOTAL RECOVERY)
-# STATUS: Multi-member API Restored / Cloud-AI Integrated
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V23.0 (MONGO ATLAS PIVOT)
+# 1. REMOVED: All ChromaDB dependencies.
+# 2. ADDED: MongoDB Atlas Vector Search logic for permanent persistence.
 
 import os, time, logging, json
-from typing import List, Dict, Optional, Any, Sequence
-import chromadb
-from chromadb.api.models.Collection import Collection
+from typing import List, Dict, Any, Sequence
+from pymongo import MongoClient
 
 logger = logging.getLogger(__name__)
 
-def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: (v if isinstance(v, (str, int, float, bool)) else json.dumps(v, ensure_ascii=False)) for k, v in metadata.items()}
+def _get_db():
+    uri = os.getenv("DATABASE_URI")
+    db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
+    return MongoClient(uri)[db_name]
 
-def get_client():
-    from ..main import app
-    if not hasattr(app.state, "chroma_client") or app.state.chroma_client is None:
-        persist_dir = os.path.join(os.getcwd(), "data", "chroma")
-        os.makedirs(persist_dir, exist_ok=True)
-        app.state.chroma_client = chromadb.PersistentClient(path=persist_dir)
-    return app.state.chroma_client
-
-def get_global_collection() -> Collection: return get_client().get_or_create_collection(name="legal_knowledge_base")
-def get_case_kb_collection(uid: str) -> Collection: return get_client().get_or_create_collection(name=f"user_{uid}")
-
-def query_global_knowledge_base(text: str, n_results: int = 10, jurisdiction: str = 'ks') -> List[Dict[str, Any]]:
+def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) -> List[Dict[str, Any]]:
     from . import embedding_service
-    emb = embedding_service.generate_embedding(text)
-    if not emb: return []
+    vector = embedding_service.generate_embedding(query_text)
+    if not vector: return []
     try:
-        res = get_global_collection().query(query_embeddings=[emb], n_results=n_results, where={"jurisdiction": jurisdiction})
-        return [{"text": d, "source": m.get("source", "Ligji"), " law_title": m.get("law_title"), "article_number": m.get("article_number"), "type": "GLOBAL_LAW", "chunk_id": i} 
-                for d, m, i in zip(res['documents'][0], res['metadatas'][0], res['ids'][0])] if res.get('documents') else []
-    except Exception: return []
+        coll = _get_db()["legal_knowledge_base"]
+        # Standard Atlas Vector Search Pipeline
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": "vector_index", 
+                    "path": "embedding",
+                    "queryVector": vector,
+                    "numCandidates": 100,
+                    "limit": n_results
+                }
+            }
+        ]
+        results = list(coll.aggregate(pipeline))
+        return [{"text": r.get("text", ""), "source": r.get("law_title", "Ligji"), "chunk_id": str(r.get("_id"))} for r in results]
+    except Exception as e:
+        logger.error(f"SaaS Global Query Failed: {e}")
+        return []
 
-def query_case_knowledge_base(uid: str, text: str, n_results: int = 15, **kwargs) -> List[Dict[str, Any]]:
+def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15, **kwargs) -> List[Dict[str, Any]]:
     from . import embedding_service
-    emb = embedding_service.generate_embedding(text)
-    if not emb: return []
+    vector = embedding_service.generate_embedding(query_text)
+    if not vector: return []
     try:
-        res = get_case_kb_collection(uid).query(query_embeddings=[emb], n_results=n_results)
-        return [{"text": d, "source": m.get("file_name", "Doc"), "page": m.get("page", "N/A"), "type": "CASE_FACT"} 
-                for d, m in zip(res['documents'][0], res['metadatas'][0])] if res.get('documents') else []
-    except Exception: return []
+        coll = _get_db()["user_vectors"]
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": vector,
+                    "numCandidates": 100,
+                    "limit": n_results,
+                    "filter": {"owner_id": user_id} # SaaS Multitenancy
+                }
+            }
+        ]
+        results = list(coll.aggregate(pipeline))
+        return [{"text": r["text"], "source": r.get("file_name", "Doc"), "page": r.get("page", "N/A")} for r in results]
+    except Exception as e:
+        logger.error(f"SaaS Case Query Failed: {e}")
+        return []
 
 def create_and_store_embeddings_from_chunks(uid: str, did: str, cid: str, fname: str, chunks: List[str], metas: Sequence[Dict[str, Any]]) -> bool:
     from . import embedding_service
     try:
-        coll = get_case_kb_collection(uid)
-        embeddings, valid_chunks, valid_metas = [], [], []
+        coll = _get_db()["user_vectors"]
+        docs = []
         for i, chunk in enumerate(chunks):
-            emb = embedding_service.generate_embedding(chunk)
-            if emb:
-                embeddings.append(emb); valid_chunks.append(chunk)
-                valid_metas.append(_sanitize_metadata({**metas[i], "source_document_id": str(did), "case_id": str(cid), "file_name": fname, "owner_id": str(uid)}))
-        if embeddings:
-            coll.add(embeddings=embeddings, documents=valid_chunks, metadatas=valid_metas, ids=[f"{did}_{int(time.time())}_{i}" for i in range(len(valid_chunks))])
-            return True
-    except Exception as e: logger.error(f"Ingestion failed: {e}")
-    return False
+            vector = embedding_service.generate_embedding(chunk)
+            if vector:
+                docs.append({
+                    "owner_id": uid, "document_id": did, "case_id": cid, "file_name": fname,
+                    "text": chunk, "embedding": vector, **metas[i]
+                })
+        if docs: coll.insert_many(docs)
+        return True
+    except Exception as e:
+        logger.error(f"SaaS Ingestion Failed: {e}")
+        return False
 
 def delete_document_embeddings(uid: str, did: str):
-    try: get_case_kb_collection(uid).delete(where={"source_document_id": str(did)})
-    except Exception: pass
-
-def delete_user_collection(uid: str):
-    try: get_client().delete_collection(name=f"user_{uid}")
-    except Exception: pass
-
-def update_document_metadata(uid: str, did: str, meta: Dict[str, Any]):
-    try:
-        coll = get_case_kb_collection(uid)
-        res = coll.get(where={"source_document_id": str(did)})
-        if res.get('ids'): coll.update(ids=res['ids'], metadatas=[_sanitize_metadata({**m, **meta}) for m in res['metadatas']])
-    except Exception: pass
+    _get_db()["user_vectors"].delete_many({"document_id": did, "owner_id": uid})
 
 def copy_document_embeddings(sid: str, tid: str, tuid: str, tcid: str):
-    try:
-        coll = get_case_kb_collection(tuid)
-        res = coll.get(where={"source_document_id": str(sid)}, include=["embeddings", "documents", "metadatas"])
-        if res.get('ids'):
-            n_ids = [f"{tid}_copy_{i}_{int(time.time())}" for i in range(len(res['ids']))]
-            n_metas = [_sanitize_metadata({**m, "source_document_id": str(tid), "case_id": str(tcid)}) for m in res['metadatas']]
-            coll.add(ids=n_ids, embeddings=res['embeddings'], documents=res['documents'], metadatas=n_metas)
-    except Exception: pass
+    db = _get_db()
+    existing = list(db["user_vectors"].find({"document_id": sid}))
+    for doc in existing:
+        doc.pop("_id", None)
+        doc.update({"document_id": tid, "owner_id": tuid, "case_id": tcid})
+    if existing: db["user_vectors"].insert_many(existing)
+
+def get_global_collection(): return None # Stub to prevent import crashes
