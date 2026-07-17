@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V16.0 (RESILIENT SAAS)
-# 1. FIX: Made Neo4j (Graph) and Redis (Cache) tasks non-blocking/fail-safe.
-# 2. FIX: If Neo4j credentials are missing, the document still succeeds (100%).
-# 3. STATUS: Production SaaS Hardened.
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V16.1 (HIGH VISIBILITY DIAGNOSTIC)
+# 1. ADDED: High-visibility logger.info before and after every single sub-task.
+# 2. STATUS: Designed to locate the exact "freeze" point at 75%.
 
 import os, tempfile, logging, shutil, json, asyncio, hashlib
 from typing import List, Dict, Any, Tuple
@@ -20,7 +19,6 @@ from . import (
     deadline_service
 )
 from .graph_service import graph_service 
-from .categorization_service import CATEGORIZATION_SERVICE
 from .albanian_language_detector import AlbanianLanguageDetector
 from .albanian_document_processor import EnhancedDocumentProcessor
 from ..models.document import DocumentStatus
@@ -33,6 +31,7 @@ from app.services.vector_store_service import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO) # Force Info level for diagnostics
 OCR_FALLBACK_THRESHOLD = 100
 
 class DocumentNotFoundInDBError(Exception): pass
@@ -59,6 +58,7 @@ async def _emit_progress_async(redis_client: redis.Redis, user_id: str, doc_id: 
     except Exception: pass
 
 async def orchestrate_document_processing_mongo(db: Database, redis_client: redis.Redis, document_id_str: str):
+    logger.info(f"⚡ [Orchestrator] Starting processing pipeline for document: {document_id_str}")
     try: doc_id = ObjectId(document_id_str)
     except Exception: return
 
@@ -79,6 +79,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
         os.close(temp_file_descriptor) 
         
+        logger.info("⚡ [Orchestrator] Downloading file from Backblaze B2...")
         file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, document["storage_key"])
         with open(temp_original_file_path, 'wb') as temp_file:
             await asyncio.to_thread(shutil.copyfileobj, file_stream, temp_file)
@@ -87,6 +88,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         file_hash = _compute_file_hash(temp_original_file_path)
 
         # --- TEXT EXTRACTION ---
+        logger.info("⚡ [Orchestrator] Step 1/3: Extracting text from document...")
         await _emit_progress_async(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit...", 20)
         raw_text = await asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", ""))
         
@@ -94,11 +96,11 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
             raise ValueError("Teksti i ekstraktuar është bosh.")
 
         # --- METADATA & CATEGORIZATION ---
+        logger.info("⚡ [Orchestrator] Step 2/3: Running language detection and metadata parsing...")
         await _emit_progress_async(redis_client, user_id, document_id_str, "Analiza e strukturës...", 35)
         sterilized_text = llm_service.sterilize_legal_text(raw_text)
         is_albanian = AlbanianLanguageDetector.detect_language(sterilized_text)
         
-        # PHOENIX: Extraction is now cloud-based (fast & stable)
         extracted_metadata = _stringify_metadata({"document_type": "Legal Document"})
         detected_category = "Unknown"
         
@@ -109,13 +111,18 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         )
 
         # --- ASYNC SUMMARY ---
+        logger.info("⚡ [Orchestrator] Step 3/3: Initiating parallel processing tasks...")
         await _emit_progress_async(redis_client, user_id, document_id_str, "Gjenerimi i analizës...", 50)
-        summary_task = llm_service.process_large_document_async(sterilized_text)
-
-        # --- PARALLEL TASKS (FAIL-SAFE DESIGN) ---
         
+        # Parallel tasks definitions with individual logs
+        async def task_summary():
+            logger.info("   [TASK START] -> Summary Generation")
+            res = await llm_service.process_large_document_async(sterilized_text)
+            logger.info("   [TASK COMPLETE] -> Summary Generation")
+            return res
+
         async def task_embeddings():
-            """Generates embeddings and saves to MongoDB Atlas Vector Search."""
+            logger.info("   [TASK START] -> Vector Embeddings Generation")
             try:
                 enriched_chunks = await asyncio.to_thread(
                     EnhancedDocumentProcessor.process_document, 
@@ -129,49 +136,58 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
                     file_name=doc_name, chunks=[c.content for c in enriched_chunks], 
                     metadatas=[c.metadata for c in enriched_chunks]
                 )
+                logger.info(f"   [TASK COMPLETE] -> Vector Embeddings (Success: {success})")
                 return success
             except Exception as e:
-                logger.error(f"❌ Embeddings Task Failed: {e}")
+                logger.error(f"   [TASK FAILED] -> Vector Embeddings: {e}")
                 return False
 
         async def task_storage():
-            return await asyncio.to_thread(storage_service.upload_processed_text, raw_text, user_id, case_id_str, document_id_str)
+            logger.info("   [TASK START] -> Storage Upload (Processed Text)")
+            res = await asyncio.to_thread(storage_service.upload_processed_text, raw_text, user_id, case_id_str, document_id_str)
+            logger.info("   [TASK COMPLETE] -> Storage Upload")
+            return res
 
         async def task_deadlines():
+            logger.info("   [TASK START] -> Deadline Extraction")
             try:
                 await asyncio.to_thread(deadline_service.extract_and_save_deadlines, db, document_id_str, sterilized_text, detected_category)
+                logger.info("   [TASK COMPLETE] -> Deadline Extraction")
             except Exception as e:
-                logger.warning(f"⚠️ Deadlines task skipped: {e}")
+                logger.warning(f"   [TASK SKIPPED] -> Deadline Extraction: {e}")
 
         async def task_graph():
-            """PHOENIX FAIL-SAFE: Wrapped in try/except. Does not crash the upload if Neo4j is missing."""
+            logger.info("   [TASK START] -> Neo4j Graph Ingestion")
             try:
-                # We skip graph generation if Neo4j credentials are empty
                 if not os.getenv("NEO4J_PASSWORD") or "REPLACE_WITH" in os.getenv("NEO4J_PASSWORD"):
-                    logger.info("ℹ️ Neo4j credentials missing. Skipping Graph Ingestion.")
+                    logger.info("   [TASK SKIPPED] -> Neo4j (Credentials missing)")
                     return
                 graph_data = await asyncio.to_thread(llm_service.extract_graph_data, sterilized_text)
                 entities = graph_data.get("nodes") or []
                 relations = graph_data.get("edges") or []
                 await asyncio.to_thread(graph_service.ingest_entities_and_relations, case_id=case_id_str, document_id=document_id_str, doc_name=doc_name, entities=entities, relations=relations, doc_metadata=extracted_metadata)
+                logger.info("   [TASK COMPLETE] -> Neo4j Graph Ingestion")
             except Exception as e:
-                logger.warning(f"⚠️ Graph (Neo4j) task skipped: {e}")
+                logger.warning(f"   [TASK FAILED] -> Neo4j: {e}")
 
         async def task_preview():
+            logger.info("   [TASK START] -> PDF Preview Generation")
             try:
                 pdf_path = await asyncio.to_thread(conversion_service.convert_to_pdf, temp_original_file_path)
                 key = await asyncio.to_thread(storage_service.upload_document_preview, pdf_path, user_id, case_id_str, document_id_str)
                 if pdf_path and os.path.exists(pdf_path): os.remove(pdf_path)
+                logger.info("   [TASK COMPLETE] -> PDF Preview Generation")
                 return key
             except Exception as e:
-                logger.warning(f"⚠️ Preview task skipped: {e}")
+                logger.warning(f"   [TASK FAILED] -> PDF Preview: {e}")
                 return ""
 
         await _emit_progress_async(redis_client, user_id, document_id_str, "Përpunimi i inteligjencës...", 75)
         
-        # Gather all tasks. We do not crash if secondary tasks (graph, preview, deadlines) fail.
+        # Execute all tasks in parallel
+        logger.info("⚡ [Orchestrator] Launching asyncio.gather for parallel tasks...")
         results = await asyncio.gather(
-            summary_task,
+            task_summary(),
             task_embeddings(),
             task_storage(),
             task_deadlines(),
@@ -184,6 +200,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         text_key = results[2] if not isinstance(results[2], Exception) else ""
         preview_storage_key = results[5] if not isinstance(results[5], Exception) else ""
         
+        logger.info("⚡ [Orchestrator] Finalizing document processing records...")
         await _emit_progress_async(redis_client, user_id, document_id_str, "Përfunduar", 100)
         
         await asyncio.to_thread(
@@ -191,9 +208,10 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
             db, redis_client, document_id_str, 
             final_summary, text_key, preview_storage_key
         )
+        logger.info("⚡ [Orchestrator] SUCCESS: Pipeline finished.")
 
     except Exception as e:
-        logger.error(f"Dështim gjatë procesimit të dokumentit {document_id_str}: {e}")
+        logger.error(f"❌ [Orchestrator] CRITICAL PIPELINE FAILURE: {e}")
         await asyncio.to_thread(db.documents.update_one, {"_id": doc_id}, {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e), "file_hash": file_hash}})
         raise e
     finally:
