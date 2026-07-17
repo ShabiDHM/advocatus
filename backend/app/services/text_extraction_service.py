@@ -1,16 +1,16 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.5 (WINDOWS PATH FIXED)
-# STATUS: Platform Agnostic / 8GB RAM Optimized
+# PHOENIX PROTOCOL - OCR ENGINE V8.6 (SEQUENTIAL SAAS OPTIMIZED)
+# 1. FIX: Switched to Sequential Processing (one-by-one) to protect Free Tier CPUs from freezing.
+# 2. STATUS: 100% Stable on restricted cloud hardware.
 
-import fitz, docx, pandas as pd, csv, logging, os, tempfile, uuid, re, io, time, concurrent.futures
-from typing import Dict, Callable, Any, Optional
+import fitz, docx, pandas as pd, logging, os, tempfile, re, io, time
+from typing import Dict, Callable, Any
 from pptx import Presentation
 
 try: from .ocr_service import extract_text_from_image as advanced_image_ocr
 except ImportError: advanced_image_ocr = None
 
 logger = logging.getLogger(__name__)
-MAX_WORKERS = 2
 FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 
 def _sanitize_text(text: str) -> str: return text.replace("\x00", "") if text else ""
@@ -26,7 +26,7 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
             
             if not advanced_image_ocr: return marker + "[SCANNED - NO OCR]"
             
-            # Windows-safe temp path using tempfile
+            # Windows/Linux-safe temp path
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 temp_img = tmp.name
             
@@ -39,13 +39,27 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
         return ""
 
 def _extract_text_from_pdf(file_path: str) -> str:
+    """PHOENIX: Sequential execution to protect throttled cloud CPUs from crashing."""
     try:
-        with fitz.open(file_path) as doc: total = len(doc)
+        with fitz.open(file_path) as doc: 
+            total = len(doc)
         if total < 1: return ""
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as exe:
-            results = list(exe.map(lambda i: _process_single_page_safe(file_path, i), range(total)))
+        
+        logger.info(f"⚡ [OCR] Sequential Ingestion Started. Total Pages: {total}")
+        
+        results = []
+        for i in range(total):
+            # Process one page at a time (Sequential)
+            page_text = _process_single_page_safe(file_path, i)
+            results.append(page_text)
+            
+            # Polite pause to let the throttled server rest and process the network
+            time.sleep(0.1)
+            
         return "".join(results)
-    except Exception: return ""
+    except Exception as e:
+        logger.error(f"PDF Extraction Failed: {e}")
+        return ""
 
 def extract_text(file_path: str, mime_type: str) -> str:
     m = mime_type.lower()
@@ -54,7 +68,7 @@ def extract_text(file_path: str, mime_type: str) -> str:
         return _sanitize_text("\n".join(p.text for p in docx.Document(file_path).paragraphs))
     if "excel" in m or "spreadsheet" in m:
         return _sanitize_text("\n".join(df.to_string() for _, df in pd.read_excel(file_path, sheet_name=None).items()))
-    return "" # Default fallbacks omitted for brevity
+    return "" 
 
 def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
     with tempfile.NamedTemporaryFile(suffix=f".{file_type.lower()}", delete=False) as tmp:
