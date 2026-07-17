@@ -1,7 +1,7 @@
 # FILE: backend/app/core/db.py
-# PHOENIX PROTOCOL - DATABASE CORE V5.1 (RESTORED REDIS GETTER)
-# 1. ADDED: get_redis_client() to fix FastAPI Dependency Injection.
-# 2. STATUS: All missing imports resolved.
+# PHOENIX PROTOCOL - DATABASE CORE V5.2 (GENERATOR ALIGNED)
+# 1. FIX: Changed get_redis_client from 'return' to 'yield' to support FastAPI generator expectations.
+# 2. STATUS: Clean, robust, and aligned with dependencies.py.
 
 import os
 import logging
@@ -56,7 +56,7 @@ def close_redis_connection():
         _redis_client.close()
         _redis_client = None
 
-# --- FASTAPI DEPENDENCY INJECTION ---
+# --- FASTAPI DEPENDENCY INJECTIONS ---
 def get_db() -> Database:
     """Dependency for FastAPI route handlers (MongoDB)."""
     try:
@@ -66,11 +66,12 @@ def get_db() -> Database:
         logger.error(f"Database dependency error: {e}")
         raise
 
-# PHOENIX FIX: Restored Redis Getter
-def get_redis_client() -> redis.Redis:
-    """Dependency for FastAPI route handlers (Redis)."""
+# PHOENIX FIX: Converted to Generator to satisfy next() calls in dependencies.py
+def get_redis_client():
+    """Generator dependency for FastAPI route handlers (Redis)."""
     try:
-        return connect_to_redis()
+        client = connect_to_redis()
+        yield client
     except Exception as e:
         logger.error(f"Redis dependency error: {e}")
         raise
