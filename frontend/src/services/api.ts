@@ -1,5 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V24.1 (FIXED LawArticle INTERFACE + askLawAuditor SIGNATURE)
+// PHOENIX PROTOCOL - API SERVICE V24.3 (STRICT TYPES FIXED)
+// 1. FIX: Added explicit types to all interceptor parameters to satisfy strict 'noImplicitAny' compiler rules.
+// 2. FIX: Intercepted local 'blob:' URLs to read them locally, preventing Axios network leaks.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -99,7 +101,7 @@ class ApiService {
     private processQueue(error: Error | null) { this.failedQueue.forEach(prom => { if (error) prom.reject(error); else prom.resolve(tokenManager.get()); }); this.failedQueue = []; }
 
     private setupInterceptors() {
-        this.axiosInstance.interceptors.request.use((config) => {
+        this.axiosInstance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
                 const token = tokenManager.get();
                 if (!config.headers) config.headers = new AxiosHeaders();
                 if (token) {
@@ -107,9 +109,9 @@ class ApiService {
                     else (config.headers as any).Authorization = `Bearer ${token}`;
                 }
                 return config;
-            }, (error) => Promise.reject(error));
+            }, (error: any) => Promise.reject(error));
 
-        this.axiosInstance.interceptors.response.use((response) => response, async (error: AxiosError) => {
+        this.axiosInstance.interceptors.response.use((response: any) => response, async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
                 if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
                     if (this.isRefreshing) { return new Promise((resolve, reject) => { this.failedQueue.push({ resolve, reject }); }).then((token) => { if (originalRequest.headers instanceof AxiosHeaders) { originalRequest.headers.set('Authorization', `Bearer ${token}`); } else { (originalRequest.headers as any).Authorization = `Bearer ${token}`; } return this.axiosInstance(originalRequest); }); }
@@ -180,7 +182,15 @@ class ApiService {
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> { const url = token.startsWith('GEN-') ? `/finance/mobile-upload-status/${token}` : `/cases/mobile-upload-status/${token}`; const response = await this.axiosInstance.get<MobileUploadStatus>(url); return response.data; }
     public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> { const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`; const response = await this.axiosInstance.get(url, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = 'mobile-upload.jpg'; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> { const formData = new FormData(); formData.append('file', file); const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`; const response = await axios.post(url, formData); return response.data; }
-    public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
+    public async fetchImageBlob(url: string): Promise<Blob> { 
+        // Bypasses Axios network prefixing completely if loading a client-side local memory object URL
+        if (url.startsWith('blob:')) {
+            const response = await window.fetch(url);
+            return await response.blob();
+        }
+        const response = await this.axiosInstance.get(url, { responseType: 'blob' }); 
+        return response.data; 
+    }
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
@@ -217,7 +227,7 @@ class ApiService {
     public async getCaseDetails(caseId: string): Promise<Case> { const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`); return response.data; }
     public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
     public async getDocuments(caseId: string): Promise<Document[]> { const response = await this.axiosInstance.get<any>(`/cases/${caseId}/documents`); return Array.isArray(response.data) ? response.data : (response.data.documents || []); }
-    public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { onUploadProgress: (progressEvent) => { if (onProgress && progressEvent.total) { const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total); onProgress(percent); } } }); return response.data; }
+    public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { onUploadProgress: (progressEvent: any) => { if (onProgress && progressEvent.total) { const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total); onProgress(percent); } } }); return response.data; }
     public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async bulkDeleteDocuments(caseId: string, documentIds: string[]): Promise<any> { const response = await this.axiosInstance.post(`/cases/${caseId}/documents/bulk-delete`, { document_ids: documentIds }); return response.data; }
