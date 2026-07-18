@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.3 (DIRECT SAAS QUERIES)
-# 1. FIX: Bypassed buggy document_service.py for GET /documents.
-# 2. ALIGNMENT: Queries MongoDB directly using the exact Query 1 ObjectId combination (Proven True).
-# 3. STATUS: 100% Production Stable / Cards will stay on screen on refresh.
+# PHOENIX PROTOCOL - CASES ROUTER V30.4 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Retained dynamic MongoDB direct query for loading list immediately.
+# 2. FIX: Connected robust deletion cascades with Graph deletions on active router.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -15,6 +14,7 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 import io
+import json
 from datetime import datetime, timezone
 
 # --- SERVICE IMPORTS ---
@@ -239,7 +239,6 @@ async def get_documents_for_case(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    # PHOENIX DIRECT MONGODB QUERY: Uses the exact combination proven True by test_query.py
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
     
@@ -253,7 +252,6 @@ async def get_documents_for_case(
     docs = list(cursor)
     logger.info(f"⚡ [DirectQuery] Found {len(docs)} documents in database.")
     
-    # Validate each BSON document into the strict Pydantic return model
     return [DocumentOut.model_validate(d) for d in docs]
 
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
@@ -284,7 +282,7 @@ async def upload_document_for_case(
         mime_type="application/pdf"
     )
 
-    # Ingest using our resilient, self-healing background task
+    # Ingest using our async, non-blocking background task
     from ...services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
@@ -294,7 +292,7 @@ async def upload_document_for_case(
     return DocumentOut.model_validate(doc)
 
 @router.post("/{case_id}/documents/bulk-delete")
-async def bulk_delete_documents(
+async def bulk_delete_documents_endpoint(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     document_ids: List[str] = Body(..., embed=True),
@@ -329,7 +327,8 @@ async def delete_document(
         current_user
     )
     if str(doc.case_id) != case_id:
-        raise HTTPException(status_code=403)
+        raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+        
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents,
         db=db,
@@ -340,13 +339,14 @@ async def delete_document(
     if result.get("deleted_count", 0) > 0:
         try:
             await asyncio.to_thread(graph_service.delete_node, doc_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to remove graph node during deletion cascade: {e}")
+            
         return DeletedDocumentResponse(
             documentId=doc_id,
             deletedFindingIds=result.get("deleted_finding_ids", [])
         )
-    raise HTTPException(status_code=500)
+    raise HTTPException(status_code=500, detail="Failed to delete document from storage records.")
 
 @router.put("/{case_id}/documents/{doc_id}/rename")
 async def rename_document_endpoint(

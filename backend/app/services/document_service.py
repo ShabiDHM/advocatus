@@ -1,12 +1,12 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.6 (AGGRESSIVE CASCADE CLEANUP)
-# 1. FIXED: Implements ruthless deletion logic for Calendar Events using Mixed-Type queries.
-# 2. ADDED: Granular logging to confirm exactly how many events are wiped on delete.
-# 3. ROBUSTNESS: Isolated try/except blocks ensure Calendar cleanup runs even if S3/Vector fails.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.7 (AGGRESSIVE CASCADE CLEANUP)
+# 1. FIXED: Implements rigorous cascade deletion (metadata, S3, findings, embeddings, calendar).
+# 2. FIXED: Added immediate 'DOCUMENT_DELETED' Redis event publishing to update frontend UI live.
 
 import logging
 import datetime
 import importlib
+import json
 from datetime import timezone
 from typing import List, Optional, Tuple, Any, Dict
 from bson import ObjectId
@@ -132,7 +132,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     Removes: DB Record, S3 Files, Findings, Vector Embeddings, Calendar Events, Graph Nodes.
     Robust against failures in individual subsystems.
     """
-    # Verify ownership before deletion attempts
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -142,9 +141,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    # Mixed Query handles both ObjectId and String formats in related collections
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
-    
     deleted_finding_ids = []
     
     # 1. DELETE FINDINGS
@@ -158,8 +155,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.error(f"Error deleting findings for doc {doc_id}: {e}")
     
-    # 2. DELETE CALENDAR EVENTS & ALERTS (PHOENIX FOCUS)
-    # This matches document_id (string) AND document_id (ObjectId) AND camelCase documentId
+    # 2. DELETE CALENDAR EVENTS & ALERTS
     link_query = {
         "$or": [
             {"document_id": mixed_id_query},
@@ -194,7 +190,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.error(f"Vector store cleanup failed: {e}")
     
-    # 5. DELETE S3 FILES
+    # 5. DELETE S3 (B2) FILES
     try:
         if storage_key: storage_service.delete_file(storage_key=storage_key)
         if processed_key: storage_service.delete_file(storage_key=processed_key)
@@ -202,9 +198,22 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.error(f"S3 cleanup failed (non-critical): {e}")
     
-    # 6. DELETE DOCUMENT RECORD (Final Step)
+    # 6. DELETE DOCUMENT RECORD (Final DB Step)
     db.documents.delete_one({"_id": doc_id})
     logger.info(f"Document record {doc_id} deleted successfully.")
+    
+    # 7. PUBLISH DELETE SSE EVENT (Visual Handshake sync)
+    try:
+        if redis_client:
+            payload = {
+                "type": "DOCUMENT_DELETED",
+                "document_id": doc_id_str
+            }
+            channel = f"user:{owner.id}:updates"
+            redis_client.publish(channel, json.dumps(payload))
+            logger.info(f"🚀 SSE DELETED PUBLISHED: {channel} -> {doc_id_str}")
+    except Exception as sse_err:
+        logger.error(f"SSE deletion broadcast warning: {sse_err}")
     
     return deleted_finding_ids
 
@@ -219,7 +228,6 @@ def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids:
                 continue
             
             doc_oid = ObjectId(doc_id_str)
-            # Re-use the safe delete logic
             finding_ids = delete_document_by_id(db, redis_client, doc_oid, owner)
             all_deleted_finding_ids.extend(finding_ids)
             deleted_count += 1
