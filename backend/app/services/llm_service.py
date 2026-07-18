@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V80.0 (SAAS PIVOT)
-# 1. FIX: Added synchronous '_call_llm' helper to prevent AttributeError crashes in spreadsheet_service.py.
-# 2. MODEL: Uses OpenRouter deepseek-chat and text-embedding-3-small.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V81.0 (SAAS PIVOT)
+# 1. FIX: Implemented missing 'forensic_interrogation' function to power financial chat queries.
+# 2. MODEL: Routes DeepSeek-Chat securely via OpenRouter for high-availability.
 
 import os
 import json
@@ -78,7 +78,41 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> Async
     except Exception as e: 
         yield f"[Gabim: {str(e)}]"
 
-# --- LIVE RECONSTRUCTION OF SPECIALIZED WAR ROOM METHODS ---
+# --- LIVE RECONSTRUCTION OF SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
+
+def forensic_interrogation(question: str, context_lines: List[str]) -> str:
+    """
+    Synchronously answers a specific financial forensic question based on context lines.
+    Called via to_thread.
+    """
+    if not OPENROUTER_KEY:
+        return "Gabim: Mungon OPENROUTER_API_KEY"
+    try:
+        context_text = "\n".join(context_lines)
+        system_prompt = """
+        Ti je një Auditor dhe Hetues Financiar Forenzik me eksperiencë në tregun e Kosovës.
+        DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare.
+        TONI: Analitik, skeptik, i bazuar rigorozisht në shifra konkrete.
+        GJUHA: SHQIP.
+        
+        Nëse transaksionet nuk përmbajnë të dhëna të mjaftueshme për t'u përgjigjur, thuaj qartë: "Nuk u gjetën prova mbështetëse për këtë pyetje në ditarin e transaksioneve."
+        MOS i shpik shifrat. Përdor simbolin € për shumat.
+        """
+        user_content = f"TRANSAKSIONET E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
+        
+        client = _get_sync_client()
+        res = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.1
+        )
+        return res.choices[0].message.content or "Nuk u mor asnjë përgjigje."
+    except Exception as e:
+        logger.error(f"Error in forensic_interrogation: {e}")
+        return f"Gabim gjatë procesimit të pyetjes forenzike: {str(e)}"
 
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """
@@ -162,7 +196,7 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
         return {}
     client = _get_async_client()
     system_prompt = """
-    Detyra: Analizo të gjitha dëshmitë, deklaratat dhe faktet në kontekst për të gjetur kontradikta, mospërputhme ose deklarata të rreme të palës tjetër ose dëshmitarëve.
+    Detyra: Analizo të gjitha dëshmitë, deklaratat dhe faktet në kontekst për të gjetur kontradikta, mospërputhje ose deklarata të rreme të palës tjetër ose dëshmitarëve.
     
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {
