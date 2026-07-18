@@ -1,8 +1,7 @@
 # FILE: backend/app/core/security.py
-# PHOENIX PROTOCOL - SECURITY V6.0 (PYTHON 3.13 DIRECT BCRYPT)
-# 1. REMOVED: Passlib dependency (obsolete/broken on Python 3.13).
-# 2. ADDED: Direct bcrypt implementation for verify and hash functions.
-# 3. RETAINED: All JWT functionality and invitation logic.
+# PHOENIX PROTOCOL - SECURITY V6.1 (CLOCK-DRIFT TOLERANT)
+# 1. FIX: Added 120-second leeway to token decoding to prevent cross-cloud clock drift failures.
+# 2. STATUS: Aligned with Render/Vercel distributed environments.
 
 import bcrypt
 from datetime import datetime, timedelta, timezone
@@ -12,12 +11,10 @@ from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from ..core.config import settings
 
-# --- Password Hashing (Direct implementation for System Integrity) ---
+# --- Password Hashing ---
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Checks if the plain password matches the hashed password using direct bcrypt."""
     try:
-        # Convert strings to bytes for bcrypt processing
         password_bytes = plain_password.encode('utf-8')
         hashed_bytes = hashed_password.encode('utf-8')
         return bcrypt.checkpw(password_bytes, hashed_bytes)
@@ -25,19 +22,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 def get_password_hash(password: str) -> str:
-    """Hashes the plain password using direct bcrypt."""
-    # Convert string to bytes
     password_bytes = password.encode('utf-8')
-    # Generate salt and hash
     salt = bcrypt.gensalt(rounds=12)
     hashed = bcrypt.hashpw(password_bytes, salt)
-    # Return as string for database storage
     return hashed.decode('utf-8')
 
 # --- JWT Token Functions ---
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Creates a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -57,14 +49,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    return jwt.encode(
-        to_encode, 
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Creates a JWT refresh token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -84,14 +71,9 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    return jwt.encode(
-        to_encode, 
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def create_invitation_token(org_id: str, email: str) -> str:
-    """Creates a long-lived JWT specifically for joining an organization."""
     expire = datetime.now(timezone.utc) + timedelta(days=7)
     to_encode = {
         "exp": expire,
@@ -102,14 +84,10 @@ def create_invitation_token(org_id: str, email: str) -> str:
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
-    return jwt.encode(
-        to_encode, 
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def decode_token(token: str) -> dict[str, Any]:
-    """Decodes and verifies a JWT token."""
+    """Decodes and verifies a JWT token with clock-drift tolerance."""
     if not token or not isinstance(token, str):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -124,10 +102,13 @@ def decode_token(token: str) -> dict[str, Any]:
         )
     
     try:
+        # PHOENIX FIX: Added 'leeway' of 120 seconds to options.
+        # This prevents token validation crashes caused by minor clock-drift between Vercel and Render.
         return jwt.decode(
             token, 
             settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
+            algorithms=[settings.ALGORITHM],
+            options={"leeway": 120} # 2 minutes tolerance
         )
     except JWTError as e:
         raise HTTPException(
