@@ -1,7 +1,6 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V81.0 (SAAS PIVOT)
-# 1. FIX: Implemented missing 'forensic_interrogation' function to power financial chat queries.
-# 2. MODEL: Routes DeepSeek-Chat securely via OpenRouter for high-availability.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V82.0 (SAAS PIVOT)
+# 1. FIX: Replaced stub extract_expense_details_from_text with deep RAG parser connecting to DeepSeek via OpenRouter.
 
 import os
 import json
@@ -78,7 +77,42 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> Async
     except Exception as e: 
         yield f"[Gabim: {str(e)}]"
 
-# --- LIVE RECONSTRUCTION OF SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
+# --- LIVE RECONSTRUCTION OF SPECIALIZED WAR ROOM, FORENSIC CHAT & OCR PARSING ---
+
+def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
+    """
+    Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
+    """
+    if not OPENROUTER_KEY:
+        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
+    try:
+        system_prompt = """
+        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e nxjerrë nga një faturë ose kupon fiskal dhe nxirr të dhënat në formatin JSON.
+        
+        Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
+        {
+          "category": "Kategoria e shpenzimit (p.sh. Ushqim, Karburant, Qira, Internet, Pajisje, etj. - përkthe në shqip saktësisht)",
+          "amount": 12.50, (vlerën numerike të totalit ose sumës së faturës si float, pa valutë),
+          "date": "YYYY-MM-DD" (data e faturës në këtë format, nëse nuk gjendet vendos null),
+          "description": "Emri i tregtarit dhe një përmbledhje e shkurtër e faturës"
+        }
+        MOS shto asnjë tekst tjetër jashtë objektit JSON.
+        """
+        client = _get_sync_client()
+        res = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"TEKSTI I FATURËS:\n{text}"}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        content = res.choices[0].message.content or "{}"
+        return json.loads(content)
+    except Exception as e:
+        logger.error(f"Error in extract_expense_details_from_text: {e}")
+        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "Gabim gjatë procesimit"}
 
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     """
@@ -267,5 +301,5 @@ def translate_for_client(t):
 def extract_deadlines(text): 
     return {"deadlines": []}
 
-def extract_expense_details_from_text(t): 
+def extract_expense_details_from_text_stub(t): 
     return {"category": "Shpenzime", "amount": 0.0}
