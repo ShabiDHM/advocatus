@@ -1,17 +1,16 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - SYNCHRONOUS SSE IMPLEMENTATION V3.1
-# FIX: Corrected Request parameter injection (FastAPI dependency)
-# FIX: Type-safe synchronous implementation for PyMongo architecture
+# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.0
+# FIX: Migrated to non-blocking redis.asyncio to prevent threadpool exhaustion on single-worker hosts
+# FIX: Added 120-second JWT validation leeway to mitigate cross-cloud clock drift
 
-import json
+import asyncio
 import logging
-import time
-from typing import Generator, Optional
-from fastapi import APIRouter, Depends, Query, Path, Request, HTTPException
+from typing import AsyncGenerator, Optional
+from fastapi import APIRouter, Path, Request
 from fastapi.responses import StreamingResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel, ValidationError
-import redis
+import redis.asyncio as aioredis
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -22,12 +21,11 @@ class TokenPayload(BaseModel):
 
 def get_current_user_sse(request: Request) -> Optional[str]:
     """
-    Synchronous token validation supporting both query param and Authorization header
+    Synchronous token validation supporting both query parameter and Authorization header.
+    Includes a 120-second leeway to resolve cross-cloud clock drift issues.
     """
-    # Try query parameter first (for SSE/EventSource compatibility)
     token = request.query_params.get("token")
     
-    # If no query param, try Authorization header
     if not token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -37,25 +35,31 @@ def get_current_user_sse(request: Request) -> Optional[str]:
         return None
     
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # Resolve clock drift issues with standard 120s leeway
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"leeway": 120}
+        )
         token_data = TokenPayload(**payload)
         if token_data.sub is None:
             return None
         return token_data.sub
     except (JWTError, ValidationError) as e:
-        logger.warning(f"Token validation failed: {e}")
+        logger.warning(f"SSE token validation failed: {e}")
         return None
 
-def event_generator(
+async def event_generator(
     channel: str,
     user_id: Optional[str] = None,
     send_connected_event: bool = True
-) -> Generator[str, None, None]:
+) -> AsyncGenerator[str, None]:
     """
-    Synchronous SSE generator using Redis pubsub.
-    Compatible with PyMongo synchronous architecture.
+    Asynchronous SSE generator using redis.asyncio Pub/Sub.
+    Keeps connections lightweight and prevents blocking the single-worker event loop.
     """
-    redis_client = redis.Redis.from_url(
+    redis_client = aioredis.from_url(
         settings.REDIS_URL,
         decode_responses=True,
         socket_timeout=10,
@@ -63,50 +67,53 @@ def event_generator(
     )
     
     pubsub = redis_client.pubsub()
-    pubsub.subscribe(channel)
-    logger.info(f"SSE: Subscribed to {channel} (user={user_id})")
+    await pubsub.subscribe(channel)
+    logger.info(f"SSE: Subscribed asynchronously to channel: {channel} (user_id: {user_id})")
     
     try:
         if send_connected_event:
             yield "event: connected\ndata: {\"status\": \"connected\"}\n\n"
         
-        # Initial message to confirm subscription
-        pubsub.get_message(timeout=1.0)
+        # Clear the subscription acknowledgment message
+        await pubsub.get_message(timeout=1.0)
         
         while True:
-            message = pubsub.get_message(timeout=1.0, ignore_subscribe_messages=True)
+            # Fetch message asynchronously without blocking the loop
+            message = await pubsub.get_message(timeout=1.0, ignore_subscribe_messages=True)
             if message and message.get('type') == 'message':
                 yield f"event: update\ndata: {message['data']}\n\n"
             else:
-                # Send keep-alive comment
+                # Keep-alive comment to sustain connection and check health
                 yield ": keep-alive\n\n"
             
-            # Small sleep to prevent CPU spinning
-            time.sleep(0.1)
+            # Non-blocking sleep prevents execution-loop starvation
+            await asyncio.sleep(0.5)
             
+    except asyncio.CancelledError:
+        logger.info(f"SSE: Connection closed by client for channel: {channel}")
     except Exception as e:
         logger.error(f"SSE generator error for channel {channel}: {e}")
         yield f"event: error\ndata: {{\"error\": \"Connection lost: {str(e)}\"}}\n\n"
     finally:
         try:
-            pubsub.unsubscribe(channel)
-            redis_client.close()
-        except:
-            pass
+            await pubsub.unsubscribe(channel)
+            await redis_client.close()
+            logger.info(f"SSE: Cleaned up subscription and Redis connection for channel: {channel}")
+        except Exception as cleanup_err:
+            logger.warning(f"SSE cleanup error on channel {channel}: {cleanup_err}")
 
 @router.get("/updates")
-def stream_updates(request: Request):
+async def stream_updates(request: Request):
     """
     User-level SSE: all updates for the authenticated user.
     """
     user_id = get_current_user_sse(request)
     
     if user_id is None:
-        def unauthorized() -> Generator[str, None, None]:
+        async def unauthorized() -> AsyncGenerator[str, None]:
             yield "event: error\ndata: Unauthorized\n\n"
         return StreamingResponse(unauthorized(), media_type="text/event-stream")
     
-    # User-specific channel
     user_channel = f"user:{user_id}:updates"
     return StreamingResponse(
         event_generator(user_channel, user_id=user_id, send_connected_event=True),
@@ -119,22 +126,20 @@ def stream_updates(request: Request):
     )
 
 @router.get("/{stream_id}")
-def stream_entity(
+async def stream_entity(
     request: Request,
     stream_id: str = Path(..., description="Entity ID (case, document, etc.)")
 ):
     """
     Entity-level SSE: updates for a specific entity.
-    The stream_id can be a case ID, document ID, etc.
     """
     user_id = get_current_user_sse(request)
     
     if user_id is None:
-        def unauthorized() -> Generator[str, None, None]:
+        async def unauthorized() -> AsyncGenerator[str, None]:
             yield "event: error\ndata: Unauthorized\n\n"
         return StreamingResponse(unauthorized(), media_type="text/event-stream")
     
-    # Entity-specific channel
     entity_channel = f"entity:{stream_id}:updates"
     return StreamingResponse(
         event_generator(entity_channel, user_id=user_id, send_connected_event=False),
@@ -147,18 +152,17 @@ def stream_entity(
     )
 
 @router.get("/test/{stream_id}")
-def test_stream_entity(
+async def test_stream_entity(
     stream_id: str = Path(...)
 ):
     """
-    Test endpoint for SSE connectivity without authentication.
-    Returns a simple test stream.
+    Test endpoint for SSE connectivity without authentication validation.
     """
-    def test_generator() -> Generator[str, None, None]:
+    async def test_generator() -> AsyncGenerator[str, None]:
         yield "event: connected\ndata: {\"status\": \"test connected\"}\n\n"
         for i in range(5):
             yield f"event: test\ndata: {{\"message\": \"Test message {i}\", \"stream_id\": \"{stream_id}\"}}\n\n"
-            time.sleep(1)
+            await asyncio.sleep(1)
         yield "event: complete\ndata: {\"status\": \"test completed\"}\n\n"
     
     return StreamingResponse(
