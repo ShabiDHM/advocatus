@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.6 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Switched from non-existent '_fetch_rag_context_sync' to asynchronous '_fetch_rag_context_async'.
-# 2. ALIGNMENT: Directly awaits '_fetch_rag_context_async' to resolve deep analysis 500 errors.
+# PHOENIX PROTOCOL - CASES ROUTER V30.7 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Switched 'run_deep_strategy' to a direct async await to resolve War Room loading error.
+# 2. FIX: Switched 'archive_full_strategy_report' to a direct async await to prevent archiving thread crashes.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -457,7 +457,8 @@ async def run_deep_case_analysis(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    result = await asyncio.to_thread(analysis_service.run_deep_strategy, db, case_id, str(current_user.id))
+    # Directly await the async coroutine run_deep_strategy instead of calling asyncio.to_thread
+    result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id))
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return JSONResponse(result)
@@ -512,8 +513,8 @@ async def archive_case_strategy_endpoint(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    result = await asyncio.to_thread(
-        analysis_service.archive_full_strategy_report,
+    # Directly await the async coroutine archive_full_strategy_report instead of calling asyncio.to_thread
+    result = await analysis_service.archive_full_strategy_report(
         db, case_id, str(current_user.id), body.legal_data, body.deep_data
     )
     if result.get("error"):
