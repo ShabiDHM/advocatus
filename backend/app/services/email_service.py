@@ -1,11 +1,11 @@
 # FILE: backend/app/services/email_service.py
-# PHOENIX PROTOCOL - EMAIL SYSTEM V6.2 (OS-DIRECT INTEGRATION)
-# 1. FIX: Switched from Pydantic config attributes to direct 'os.getenv' lookups to bypass schema boundaries.
-# 2. STATUS: Reads Render.com environment variables directly from the OS container.
+# PHOENIX PROTOCOL - EMAIL SYSTEM V6.4 (HYBRID SMTP & HTTP BYPASS)
+# 1. FIX: Moved 'import os' to the global imports block to resolve all undefined 'os' Pylance warnings.
 
 import os
 import smtplib
 import logging
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -50,8 +50,41 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
     """
 
 def send_email_sync(to_email: str, subject: str, html_content: str):
-    """Core function to send an email via SMTP (Synchronous) reading directly from the Operating System."""
-    # Bypasses Pydantic settings limits completely to read direct from Render container's OS env
+    """Core function to send an email via SMTP or Resend HTTP API (Self-healing)."""
+    # Check if HTTP-based email bypass is configured
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    
+    # --- PATH 1: RESEND HTTP API (BYPASSES HOSTING FIREWALLS ON PORT 443) ---
+    if resend_api_key:
+        try:
+            url = "https://api.resend.com/emails"
+            headers = {
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            mail_from = os.getenv("MAIL_FROM") or "info@juristi.tech"
+            # Resend sandbox requires onboarding@resend.dev sender unless custom domain is verified
+            if "re_" not in resend_api_key or "onboarding" in mail_from:
+                from_sender = "Juristi AI <onboarding@resend.dev>"
+            else:
+                from_sender = f"Juristi AI <{mail_from}>"
+                
+            payload = {
+                "from": from_sender,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content
+            }
+            
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            response.raise_for_status()
+            logger.info(f"✅ Email sent via Resend HTTP API to {to_email}: {subject}")
+            return
+        except Exception as e:
+            logger.error(f"❌ Resend HTTP API dispatch failed, attempting SMTP fallback: {e}")
+            
+    # --- PATH 2: STANDARD SMTP (FALLBACK FOR LOCAL DEV OR UNBLOCKED SERVERS) ---
     smtp_user = os.getenv("MAIL_USERNAME") or os.getenv("SMTP_USER")
     smtp_password = os.getenv("MAIL_PASSWORD") or os.getenv("SMTP_PASSWORD")
     smtp_host = os.getenv("MAIL_SERVER") or os.getenv("SMTP_HOST") or "smtp.gmail.com"
@@ -60,8 +93,8 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
     mail_from = os.getenv("MAIL_FROM") or smtp_user
 
     if not smtp_user or not smtp_password:
-        logger.warning(f"⚠️ SMTP Credentials Missing from OS Environment (User: {smtp_user}, Pass: {bool(smtp_password)})")
-        raise ValueError("SMTP Credentials Missing from OS environment.")
+        logger.warning("⚠️ SMTP Credentials Missing from OS Environment. Email not sent.")
+        raise ValueError("SMTP Credentials Missing from environment configuration.")
 
     try:
         smtp_port = int(smtp_port_raw)
@@ -85,9 +118,9 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
         server.send_message(msg)
         server.quit()
         
-        logger.info(f"✅ Email sent to {to_email}: {subject}")
+        logger.info(f"✅ Email sent via SMTP to {to_email}: {subject}")
     except Exception as e:
-        logger.error(f"❌ Failed to send email: {e}")
+        logger.error(f"❌ Failed to send email via SMTP (Note: Render Free Tier blocks SMTP ports. Please add RESEND_API_KEY to bypass): {e}")
         raise
 
 def send_support_notification_sync(data: dict):
