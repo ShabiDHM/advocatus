@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.1
-# FIX: Adjusted keep-alive sleep to 0.1s for faster status transition response times
+# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.2
+# FIX: Changed comment keep-alive to structured 'ping' events to force proxies (Render/Cloudflare) to flush buffers instantly
 
 import asyncio
 import logging
@@ -56,7 +56,7 @@ async def event_generator(
 ) -> AsyncGenerator[str, None]:
     """
     Asynchronous SSE generator using redis.asyncio Pub/Sub.
-    Keeps connections lightweight and prevents blocking the single-worker event loop.
+    Bypasses proxy buffering by yielding structured ping events.
     """
     redis_client = aioredis.from_url(
         settings.REDIS_URL,
@@ -82,12 +82,11 @@ async def event_generator(
             if message and message.get('type') == 'message':
                 yield f"event: update\ndata: {message['data']}\n\n"
             else:
-                # Keep-alive comment to sustain connection and check health
-                yield ": keep-alive\n\n"
+                # Force reverse proxy to flush response buffer immediately using a structured event
+                yield "event: ping\ndata: {}\n\n"
             
-            # Non-blocking sleep prevents execution-loop starvation.
-            # Decreased from 0.5s to 0.1s to reduce real-time message latency.
-            await asyncio.sleep(0.1)
+            # Non-blocking sleep prevents execution-loop starvation
+            await asyncio.sleep(0.5)
             
     except asyncio.CancelledError:
         logger.info(f"SSE: Connection closed by client for channel: {channel}")
@@ -119,7 +118,7 @@ async def stream_updates(request: Request):
         event_generator(user_channel, user_id=user_id, send_connected_event=True),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no"
         }
@@ -145,7 +144,7 @@ async def stream_entity(
         event_generator(entity_channel, user_id=user_id, send_connected_event=False),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no"
         }
@@ -169,7 +168,7 @@ async def test_stream_entity(
         test_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive"
         }
     )

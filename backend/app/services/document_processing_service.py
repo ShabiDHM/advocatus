@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V19.0
-# FIX: Added asynchronous SSE status publication to Redis on start, completion, and failure
-# FIX: Made method signature defensively compatible with both positional and keyword invocations
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V19.1
+# FIX: Optimized publish_sse_update_async to accept user_id directly, bypassing slow DB queries
+# FIX: Reduced Redis connection timeout configuration for immediate publishes
 
 import os
 import tempfile
@@ -28,21 +28,13 @@ logger = logging.getLogger(__name__)
 class DocumentNotFoundInDBError(Exception):
     pass
 
-async def publish_sse_update_async(document_id_str: str, status: str, error: Optional[str] = None):
+async def publish_sse_update_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
     """
-    Publishes status updates asynchronously to Redis to prevent event loop starvation.
+    Publishes status updates asynchronously to Redis.
+    Bypasses MongoDB entirely to eliminate network round-trip overhead.
     """
     redis_client = None
     try:
-        from app.core.db import get_db_instance
-        db = get_db_instance()
-        
-        doc = await asyncio.to_thread(db.documents.find_one, {"_id": ObjectId(document_id_str)})
-        if not doc:
-            logger.warning(f"SSE Async: Document {document_id_str} not found in database.")
-            return
-        
-        user_id = str(doc.get("owner_id") or doc.get("user_id"))
         payload = {
             "type": "DOCUMENT_STATUS",
             "document_id": document_id_str,
@@ -54,7 +46,7 @@ async def publish_sse_update_async(document_id_str: str, status: str, error: Opt
         redis_client = aioredis.from_url(
             settings.REDIS_URL,
             decode_responses=True,
-            socket_timeout=10,
+            socket_timeout=5,
             socket_keepalive=True
         )
         await redis_client.publish(channel, json.dumps(payload))
@@ -105,8 +97,8 @@ async def orchestrate_document_processing_mongo(
     doc_name = document.get("file_name", "Unknown Document")
     case_id_str = str(document.get("case_id"))
 
-    # Immediately publish that processing has begun
-    await publish_sse_update_async(document_id_str, "PROCESSING")
+    # Immediately publish that processing has begun (no database query required)
+    await publish_sse_update_async(user_id, document_id_str, "PROCESSING")
 
     temp_original_file_path = ""
     try:
@@ -206,14 +198,14 @@ async def orchestrate_document_processing_mongo(
         )
         logger.info(f"⚡ [Orchestrator] SUCCESS: Document {document_id_str} is 100% Finalized!")
         
-        # Publish final completed state to the user's stream
-        await publish_sse_update_async(document_id_str, DocumentStatus.READY)
+        # Publish final completed state to the user's stream instantly
+        await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
 
     except Exception as e:
         logger.error(f"❌ [Orchestrator] FAILURE: {e}")
         await asyncio.to_thread(db.documents.update_one, {"_id": doc_id}, {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}})
         # Publish failed state to user stream
-        await publish_sse_update_async(document_id_str, DocumentStatus.FAILED, error=str(e))
+        await publish_sse_update_async(user_id, document_id_str, DocumentStatus.FAILED, error=str(e))
     finally:
         if temp_original_file_path and os.path.exists(temp_original_file_path): 
             os.remove(temp_original_file_path)
