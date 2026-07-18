@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.7 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Switched 'run_deep_strategy' to a direct async await to resolve War Room loading error.
-# 2. FIX: Switched 'archive_full_strategy_report' to a direct async await to prevent archiving thread crashes.
+# PHOENIX PROTOCOL - CASES ROUTER V30.8 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Switched generate_adversarial_simulation to direct await to resolve coroutine attribute get error.
+# 2. FIX: Switched build_case_chronology to direct await to resolve coroutine attribute get error.
+# 3. FIX: Switched detect_contradictions to direct await to resolve coroutine attribute get error.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -474,7 +475,8 @@ async def run_deep_simulation_only(
     
     # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    res = await asyncio.to_thread(llm_service.generate_adversarial_simulation, context)
+    # Directly await the async coroutine generate_adversarial_simulation
+    res = await llm_service.generate_adversarial_simulation(context)
     return JSONResponse(res)
 
 @router.post("/{case_id}/deep-analysis/chronology", dependencies=[Depends(require_pro_tier)])
@@ -488,7 +490,8 @@ async def run_deep_chronology_only(
         
     # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
-    res = await asyncio.to_thread(llm_service.build_case_chronology, context)
+    # Directly await the async coroutine build_case_chronology
+    res = await llm_service.build_case_chronology(context)
     return JSONResponse(res.get("timeline", []))
 
 @router.post("/{case_id}/deep-analysis/contradictions", dependencies=[Depends(require_pro_tier)])
@@ -502,7 +505,8 @@ async def run_deep_contradictions_only(
         
     # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    res = await asyncio.to_thread(llm_service.detect_contradictions, context)
+    # Directly await the async coroutine detect_contradictions
+    res = await llm_service.detect_contradictions(context)
     return JSONResponse(res.get("contradictions", []))
 
 @router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
@@ -513,7 +517,6 @@ async def archive_case_strategy_endpoint(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    # Directly await the async coroutine archive_full_strategy_report instead of calling asyncio.to_thread
     result = await analysis_service.archive_full_strategy_report(
         db, case_id, str(current_user.id), body.legal_data, body.deep_data
     )
