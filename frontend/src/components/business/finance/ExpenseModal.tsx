@@ -1,8 +1,6 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Buttons use semantic variants (danger-start for expense actions, btn-secondary for others).
-// 3. Preserved all functionality and gatekeeper logic for PRO users.
+// PHOENIX PROTOCOL - EXPENSE MODAL V6.1 (EXECUTIVE DESIGN SYSTEM)
+// 1. FIX: Updated scanInputRef to accept="image/*,.pdf" to allow PDF invoices to be selectable during AI OCR scans.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine, AlertCircle, Lock } from 'lucide-react';
@@ -245,7 +243,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
                 </div>
 
-                <input type="file" ref={scanInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileSelection} />
+                {/* Scan input now accepts both images and PDFs for full legal OCR coverage */}
+                <input type="file" ref={scanInputRef} className="hidden" accept="image/*,.pdf" capture="environment" onChange={handleFileSelection} />
                 <input type="file" ref={attachInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileSelection} />
 
                 <div className="mb-6">
@@ -255,7 +254,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
                                 
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* Option 1: AI Scan (LOCKED IF NOT PRO) */}
+                                    {/* Option 1: AI Scan */}
                                     <button 
                                         type="button" 
                                         onClick={() => triggerUpload('scan')} 
@@ -280,7 +279,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         </div>
                                     </button>
 
-                                    {/* Option 2: Simple Attach (ALWAYS AVAILABLE) */}
+                                    {/* Option 2: Simple Attach */}
                                     <button 
                                         type="button" 
                                         onClick={() => triggerUpload('attach')} 
