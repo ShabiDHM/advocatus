@@ -1,7 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V24.3 (STRICT TYPES FIXED)
-// 1. FIX: Added explicit types to all interceptor parameters to satisfy strict 'noImplicitAny' compiler rules.
-// 2. FIX: Intercepted local 'blob:' URLs to read them locally, preventing Axios network leaks.
+// PHOENIX PROTOCOL - API SERVICE V24.4 (SELF-HEALING AXIOS INTERCEPTOR)
+// 1. FIX: Intercepts all 'blob:' requests in the Axios request interceptor and clears the baseURL to prevent remote routing.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -108,6 +107,11 @@ class ApiService {
                     if (config.headers instanceof AxiosHeaders) config.headers.set('Authorization', `Bearer ${token}`);
                     else (config.headers as any).Authorization = `Bearer ${token}`;
                 }
+                
+                // PHOENIX CRITICAL RESOLUTION: Prevent Axios from prepending remote API_V1_URL to local browser memory blob URLs
+                if (config.url && config.url.startsWith('blob:')) {
+                    config.baseURL = "";
+                }
                 return config;
             }, (error: any) => Promise.reject(error));
 
@@ -183,7 +187,6 @@ class ApiService {
     public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> { const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`; const response = await this.axiosInstance.get(url, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = 'mobile-upload.jpg'; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> { const formData = new FormData(); formData.append('file', file); const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`; const response = await axios.post(url, formData); return response.data; }
     public async fetchImageBlob(url: string): Promise<Blob> { 
-        // Bypasses Axios network prefixing completely if loading a client-side local memory object URL
         if (url.startsWith('blob:')) {
             const response = await window.fetch(url);
             return await response.blob();
