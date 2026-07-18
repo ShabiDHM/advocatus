@@ -1,7 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.10 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Switched 'forensic_analyze_spreadsheet' to direct async await to prevent unawaited coroutine crashes.
-# 2. FIX: Switched 'forensic_interrogate_evidence' to direct async await to prevent unawaited coroutine crashes.
+# PHOENIX PROTOCOL - CASES ROUTER V30.11 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Added explicit 'Content-Disposition: inline' header to the get_document_preview stream to enable browser rendering.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -378,7 +377,16 @@ async def get_document_preview(
         doc_id,
         current_user
     )
-    return StreamingResponse(stream, media_type="application/pdf")
+    filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
+    # Ensure browsers stream the PDF inline with explicit disposition configuration
+    return StreamingResponse(
+        stream, 
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=\"{filename}\"",
+            "Cache-Control": "no-cache"
+        }
+    )
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, status_code=status.HTTP_201_CREATED)
 async def archive_document_endpoint(
@@ -527,7 +535,6 @@ async def analyze_forensic_spreadsheet_endpoint(
 ):
     try:
         content = await file.read()
-        # Await async forensic spreadsheet analysis directly
         result = await spreadsheet_service.forensic_analyze_spreadsheet(
             content, 
             file.filename or "upload", 
@@ -537,7 +544,6 @@ async def analyze_forensic_spreadsheet_endpoint(
         )
         return JSONResponse(result)
     except ValueError as val_err:
-        # Gracefully handle validation failures
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as e:
         logger.error(f"Spreadsheet forensic analysis error: {e}")
@@ -551,7 +557,6 @@ async def interrogate_forensic_finances_endpoint(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    # Await async financial RAG questions directly
     result = await spreadsheet_service.forensic_interrogate_evidence(
         case_id, body.question, db
     )
