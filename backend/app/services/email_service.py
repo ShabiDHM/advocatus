@@ -1,8 +1,9 @@
 # FILE: backend/app/services/email_service.py
-# PHOENIX PROTOCOL - EMAIL SYSTEM V6.1 (HYBRID ENV RESOLUTION)
-# 1. FIX: Integrated dynamic self-healing attribute mapping supporting both MAIL_ and SMTP_ environment variables.
-# 2. FIX: Raises ValueError on missing configurations to trigger proper transaction rollbacks in calling services.
+# PHOENIX PROTOCOL - EMAIL SYSTEM V6.2 (OS-DIRECT INTEGRATION)
+# 1. FIX: Switched from Pydantic config attributes to direct 'os.getenv' lookups to bypass schema boundaries.
+# 2. STATUS: Reads Render.com environment variables directly from the OS container.
 
+import os
 import smtplib
 import logging
 from email.mime.text import MIMEText
@@ -49,25 +50,25 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
     """
 
 def send_email_sync(to_email: str, subject: str, html_content: str):
-    """Core function to send an email via SMTP (Synchronous) with self-healing variable maps."""
-    # Dynamic attribute resolution handles both MAIL_ and SMTP_ naming schemes seamlessly
-    smtp_user = getattr(settings, "MAIL_USERNAME", None) or getattr(settings, "SMTP_USER", None)
-    smtp_password = getattr(settings, "MAIL_PASSWORD", None) or getattr(settings, "SMTP_PASSWORD", None)
-    smtp_host = getattr(settings, "MAIL_SERVER", None) or getattr(settings, "SMTP_HOST", None)
-    smtp_port_raw = getattr(settings, "MAIL_PORT", None) or getattr(settings, "SMTP_PORT", None)
-    smtp_tls_raw = getattr(settings, "MAIL_STARTTLS", None) or getattr(settings, "SMTP_TLS", None)
-    mail_from = getattr(settings, "MAIL_FROM", None) or smtp_user
+    """Core function to send an email via SMTP (Synchronous) reading directly from the Operating System."""
+    # Bypasses Pydantic settings limits completely to read direct from Render container's OS env
+    smtp_user = os.getenv("MAIL_USERNAME") or os.getenv("SMTP_USER")
+    smtp_password = os.getenv("MAIL_PASSWORD") or os.getenv("SMTP_PASSWORD")
+    smtp_host = os.getenv("MAIL_SERVER") or os.getenv("SMTP_HOST") or "smtp.gmail.com"
+    smtp_port_raw = os.getenv("MAIL_PORT") or os.getenv("SMTP_PORT") or "587"
+    smtp_tls_raw = os.getenv("MAIL_STARTTLS") or os.getenv("SMTP_TLS") or "True"
+    mail_from = os.getenv("MAIL_FROM") or smtp_user
 
     if not smtp_user or not smtp_password:
-        logger.warning("⚠️ Email configuration missing (SMTP_USER/PASSWORD). Email not sent.")
-        raise ValueError("SMTP Credentials Missing from environment configuration.")
+        logger.warning(f"⚠️ SMTP Credentials Missing from OS Environment (User: {smtp_user}, Pass: {bool(smtp_password)})")
+        raise ValueError("SMTP Credentials Missing from OS environment.")
 
     try:
-        smtp_port = int(smtp_port_raw) if smtp_port_raw else 587
+        smtp_port = int(smtp_port_raw)
     except Exception:
         smtp_port = 587
 
-    smtp_tls = str(smtp_tls_raw).lower() in ("true", "1", "yes") if smtp_tls_raw is not None else True
+    smtp_tls = str(smtp_tls_raw).lower() in ("true", "1", "yes")
 
     try:
         msg = MIMEMultipart("alternative")
@@ -77,7 +78,7 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
 
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
 
-        server = smtplib.SMTP(smtp_host or "smtp.gmail.com", smtp_port)
+        server = smtplib.SMTP(smtp_host, smtp_port)
         if smtp_tls:
             server.starttls()
         server.login(smtp_user, smtp_password)
@@ -91,7 +92,7 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
 
 def send_support_notification_sync(data: dict):
     """Formats and sends the Support Request email to Admin."""
-    admin_email = getattr(settings, "ADMIN_EMAIL", None)
+    admin_email = os.getenv("ADMIN_EMAIL") or getattr(settings, "ADMIN_EMAIL", None)
     if not admin_email:
         logger.warning("Admin email not configured.")
         return
@@ -118,7 +119,7 @@ def send_support_notification_sync(data: dict):
 # ========== INVITATION EMAIL ==========
 def send_invitation_email(to_email: str, token: str) -> bool:
     """Send invitation email with password setup link."""
-    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     invite_link = f"{frontend_url}/accept-invite?token={token}&email={to_email}"
     
     subject = "Ftesë për t'u bashkuar në Juristi.tech"
@@ -146,7 +147,7 @@ def send_invitation_email(to_email: str, token: str) -> bool:
 # ========== PASSWORD RESET EMAIL ==========
 def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     """Send password reset email."""
-    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     reset_link = f"{frontend_url}/reset-password?token={reset_token}&email={to_email}"
     
     subject = "Rivendosja e Fjalëkalimit - Juristi.tech"
@@ -172,7 +173,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> bool:
 # ========== WELCOME EMAIL ==========
 def send_welcome_email(to_email: str, username: str) -> bool:
     """Send welcome email after account activation or registration."""
-    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     subject = "Mirëseardhje në Juristi.tech!"
     
     body_content = f"""
@@ -218,7 +219,7 @@ def send_support_reply(to_email: str, reply_message: str, ticket_id: Optional[st
 # ========== TEAM INVITE ACCEPTED NOTIFICATION ==========
 def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new_member_name: str) -> bool:
     """Notify the organization owner that someone accepted an invitation."""
-    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     subject = f"Përdoruesi {new_member_name} iu bashkua ekipit tuaj"
     
     body_content = f"""
