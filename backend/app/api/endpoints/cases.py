@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.4 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Retained dynamic MongoDB direct query for loading list immediately.
-# 2. FIX: Connected robust deletion cascades with Graph deletions on active router.
+# PHOENIX PROTOCOL - CASES ROUTER V30.5 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Removed asyncio.to_thread wrapping on async coroutine cross_examine_case to prevent JSON serialization crashes.
+# 2. ALIGNMENT: Directly awaits cross_examine_case to resolve the coroutine-never-awaited runtime warning.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -443,9 +443,13 @@ async def run_textual_case_analysis(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    return JSONResponse(
-        await asyncio.to_thread(analysis_service.cross_examine_case, db, case_id, str(current_user.id))
+    # Directly await the async coroutine cross_examine_case instead of calling asyncio.to_thread
+    analysis_result = await analysis_service.cross_examine_case(
+        db, 
+        case_id, 
+        str(current_user.id)
     )
+    return JSONResponse(content=analysis_result)
 
 @router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])
 async def run_deep_case_analysis(
