@@ -1,7 +1,6 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.0
-# FIX: Migrated to non-blocking redis.asyncio to prevent threadpool exhaustion on single-worker hosts
-# FIX: Added 120-second JWT validation leeway to mitigate cross-cloud clock drift
+# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.1
+# FIX: Adjusted keep-alive sleep to 0.1s for faster status transition response times
 
 import asyncio
 import logging
@@ -86,8 +85,9 @@ async def event_generator(
                 # Keep-alive comment to sustain connection and check health
                 yield ": keep-alive\n\n"
             
-            # Non-blocking sleep prevents execution-loop starvation
-            await asyncio.sleep(0.5)
+            # Non-blocking sleep prevents execution-loop starvation.
+            # Decreased from 0.5s to 0.1s to reduce real-time message latency.
+            await asyncio.sleep(0.1)
             
     except asyncio.CancelledError:
         logger.info(f"SSE: Connection closed by client for channel: {channel}")
