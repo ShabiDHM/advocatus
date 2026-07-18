@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.8 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Switched generate_adversarial_simulation to direct await to resolve coroutine attribute get error.
-# 2. FIX: Switched build_case_chronology to direct await to resolve coroutine attribute get error.
-# 3. FIX: Switched detect_contradictions to direct await to resolve coroutine attribute get error.
+# PHOENIX PROTOCOL - CASES ROUTER V30.9 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Added robust try/except validation block around analyze_forensic_spreadsheet_endpoint.
+# 2. ENHANCED: Captures and returns clean ValueError responses with 400 status codes.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -458,7 +457,6 @@ async def run_deep_case_analysis(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    # Directly await the async coroutine run_deep_strategy instead of calling asyncio.to_thread
     result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id))
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
@@ -473,9 +471,7 @@ async def run_deep_simulation_only(
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
     
-    # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    # Directly await the async coroutine generate_adversarial_simulation
     res = await llm_service.generate_adversarial_simulation(context)
     return JSONResponse(res)
 
@@ -488,9 +484,7 @@ async def run_deep_chronology_only(
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
         
-    # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
-    # Directly await the async coroutine build_case_chronology
     res = await llm_service.build_case_chronology(context)
     return JSONResponse(res.get("timeline", []))
 
@@ -503,9 +497,7 @@ async def run_deep_contradictions_only(
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
         
-    # Await direct execution of async RAG context retrieval
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    # Directly await the async coroutine detect_contradictions
     res = await llm_service.detect_contradictions(context)
     return JSONResponse(res.get("contradictions", []))
 
@@ -533,12 +525,24 @@ async def analyze_forensic_spreadsheet_endpoint(
     file: UploadFile = File(...),
     db: Database = Depends(get_db)
 ):
-    content = await file.read()
-    result = await asyncio.to_thread(
-        spreadsheet_service.forensic_analyze_spreadsheet,
-        content, file.filename or "upload", case_id, db, str(current_user.id)
-    )
-    return JSONResponse(result)
+    try:
+        content = await file.read()
+        # Threadpool execution is protected against exceptions
+        result = await asyncio.to_thread(
+            spreadsheet_service.forensic_analyze_spreadsheet,
+            content, 
+            file.filename or "upload", 
+            case_id, 
+            db, 
+            str(current_user.id)
+        )
+        return JSONResponse(result)
+    except ValueError as val_err:
+        # Gracefully handle file-parsing validation errors with 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logger.error(f"Spreadsheet forensic analysis error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during spreadsheet forensic analysis.")
 
 @router.post("/{case_id}/interrogate-finances/forensic", dependencies=[Depends(require_pro_tier)])
 async def interrogate_forensic_finances_endpoint(

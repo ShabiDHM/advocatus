@@ -1,8 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V79.0 (SAAS PIVOT)
-# 1. FIX: Added missing asynchronous methods for RAG War Room analysis (simulation, chronology, contradictions).
-# 2. FIX: Replaced stub analyze_case_integrity with a live structured JSON generator.
-# 3. MODEL: Uses OpenRouter deepseek-chat and text-embedding-3-small.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V80.0 (SAAS PIVOT)
+# 1. FIX: Added synchronous '_call_llm' helper to prevent AttributeError crashes in spreadsheet_service.py.
+# 2. MODEL: Uses OpenRouter deepseek-chat and text-embedding-3-small.
 
 import os
 import json
@@ -26,6 +25,31 @@ def _get_sync_client():
 
 def _get_async_client(): 
     return AsyncOpenAI(api_key=OPENROUTER_KEY, base_url=OPENROUTER_URL)
+
+def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2) -> str:
+    """
+    Synchronous helper for backend services to perform standard non-streaming generation.
+    """
+    if not OPENROUTER_KEY:
+        return "Gabim: Mungon OPENROUTER_API_KEY"
+    try:
+        client = _get_sync_client()
+        kwargs = {
+            "model": CHAT_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            "temperature": temperature
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        res = client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"Error in _call_llm: {e}")
+        return ""
 
 def get_embedding(text: str) -> List[float]:
     """Generates 1536-dim vectors via OpenRouter."""
@@ -138,7 +162,7 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
         return {}
     client = _get_async_client()
     system_prompt = """
-    Detyra: Analizo të gjitha dëshmitë, deklaratat dhe faktet në kontekst për të gjetur kontradikta, mospërputhje ose deklarata të rreme të palës tjetër ose dëshmitarëve.
+    Detyra: Analizo të gjitha dëshmitë, deklaratat dhe faktet në kontekst për të gjetur kontradikta, mospërputhme ose deklarata të rreme të palës tjetër ose dëshmitarëve.
     
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {

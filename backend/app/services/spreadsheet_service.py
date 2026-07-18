@@ -1,8 +1,7 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V7.5 (CLEAN OUTPUT)
-# 1. FIXED: Removed all "To/From/Signature" hallucinations via Strict Prompt Engineering.
-# 2. ENHANCED: Persona now focuses purely on "Evidence Analysis" rather than "Memo Writing".
-# 3. RETAINED: All algorithmic forensic checks (Benford, Structuring, etc.).
+# PHOENIX PROTOCOL - FORENSIC ENGINE V7.6 (CLEAN OUTPUT)
+# 1. FIX: Added dynamic multi-column parser supporting both Hyrje (Inflow) and Dalje (Outflow) if Shuma is missing.
+# 2. ENHANCED: Gracefully parses and standardizes custom currency strings.
 
 import pandas as pd
 import io
@@ -28,7 +27,6 @@ from . import llm_service
 
 logger = logging.getLogger(__name__)
 
-# --- CONSTANTS & DATA STRUCTURES ---
 class RiskLevel(str, Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -45,7 +43,6 @@ class AnomalyType(str, Enum):
 THRESHOLD_STRUCTURING_MIN = Decimal('1800.00')
 THRESHOLD_STRUCTURING_MAX = Decimal('1999.99')
 
-# --- INTERNATIONALIZATION ENGINE (KOSOVO FOCUSED) ---
 I18N_STRINGS = {
     'sq': {
         'prompt_persona': """
@@ -54,7 +51,7 @@ DETYRA: Analizo të dhënat dhe gjenero RAPORTIN E GJETJEVE (Jo Memorandum admin
 TONI: Profesional, skeptik, i bazuar në prova.
 GJUHA: SHQIP.
 
-RREGULLA KRITIKE (TË PANEGOCIUESHME):
+RREGULLA KRITIKE (T T'PANEGOCIUESHME):
 1. MOS përfshi: "Për:", "Nga:", "Data:", "Lënda:", ose Nënshkrime në fund.
 2. MOS përdor kllapa katrore [] ose placeholders.
 3. Fillo direkt me seksionin 1.
@@ -93,7 +90,7 @@ STRUKTURA E DETYRUESHME:
         'desc_weekend': "Aktivitet i Dyshimtë në Vikend",
         
         'err_format': "Formati i skedarit nuk është valid.",
-        'err_column': "Mungon kolona 'Shuma' ose 'Amount'.",
+        'err_column': "Mungon kolona 'Shuma'/'Amount' apo çifti i kolonave 'Hyrje' dhe 'Dalje'.",
         'err_fail': "Analiza dështoi.",
         'txt_no_desc': "Pa Përshkrim",
         'msg_no_data': "Nuk u gjetën të dhëna."
@@ -155,11 +152,7 @@ def generate_evidence_hash(content: bytes) -> str:
 # --- FORENSIC ALGORITHMS ---
 
 def _check_benfords_law(amounts: List[Decimal]) -> Optional[float]:
-    """
-    Calculates deviation from Benford's Law for first digits (1-9).
-    Returns Mean Absolute Deviation (MAD) percentage if significant.
-    """
-    if len(amounts) < 30: return None # Need sample size
+    if len(amounts) < 10: return None # Sample size constraint lowered to support smaller ledger diagnostics
     
     first_digits = [int(str(abs(a)).lstrip('0.')[:1]) for a in amounts if abs(a) >= 1]
     if not first_digits: return None
@@ -173,15 +166,14 @@ def _check_benfords_law(amounts: List[Decimal]) -> Optional[float]:
     expected = {d: math.log10(1 + 1/d) for d in range(1, 10)}
     
     mad = sum(abs(observed[d] - expected[d]) for d in range(1, 10)) / 9
-    return mad * 100 # Return as percentage
+    return mad * 100
 
 def _is_weekend(date_str: str) -> bool:
     try:
-        # Try generic formats
         for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S'):
             try:
                 dt = datetime.strptime(date_str, fmt)
-                return dt.weekday() >= 5 # 5=Saturday, 6=Sunday
+                return dt.weekday() >= 5
             except: continue
     except: pass
     return False
@@ -194,7 +186,7 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     
     # 1. Benford's Law (The "Fraud Fingerprint")
     benford_score = _check_benfords_law(amounts)
-    if benford_score and benford_score > 5.0: # >5% deviation is suspicious
+    if benford_score and benford_score > 5.0:
         anomalies.append(AnomalyEvidence(
             anomaly_id=str(uuid.uuid4()),
             type=AnomalyType.BENFORDS_LAW_VIOLATION,
@@ -207,9 +199,9 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
 
     # 2. Round Number Analysis
     round_counts = sum(1 for a in amounts if a % 1 == 0 or a % 10 == 0)
-    if len(amounts) > 10:
+    if len(amounts) > 5:
         pct_round = (round_counts / len(amounts)) * 100
-        if pct_round > 25.0: # If >25% of transactions are round numbers
+        if pct_round > 25.0:
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()),
                 type=AnomalyType.ROUND_NUMBER_ANOMALY,
@@ -223,14 +215,14 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     # 3. Duplicate Detection
     seen = {}
     for r in records:
-        key = f"{r['amount']}_{r['date']}" # Same amount, same date
+        key = f"{r['amount']}_{r['date']}"
         if key in seen:
             seen[key].append(r)
         else:
             seen[key] = [r]
             
     for key, group in seen.items():
-        if len(group) > 1 and abs(group[0]['amount']) > 50: # Only significant amounts
+        if len(group) > 1 and abs(group[0]['amount']) > 50:
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()),
                 type=AnomalyType.POTENTIAL_DUPLICATE,
@@ -245,7 +237,7 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     for record in records:
         amt = abs(record['amount'])
         
-        # Structuring
+        # Structuring check (Anti-Money Laundering detection)
         if THRESHOLD_STRUCTURING_MIN <= amt <= THRESHOLD_STRUCTURING_MAX:
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()), type=AnomalyType.STRUCTURING, risk_level=RiskLevel.HIGH,
@@ -261,7 +253,7 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
                 risk_level=RiskLevel.MEDIUM,
                 transaction_date=record['date'],
                 amount=record['amount'],
-                description=get_text('desc_weekend', lang),
+                description=record['description'],
                 legal_hook=get_text('hook_weekend', lang, amount=f"{amt:,.2f}")
             ))
 
@@ -294,19 +286,46 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
         raise ValueError(f"{get_text('err_format', lang)}: {e}")
     
     df.columns = [str(c).lower().strip() for c in df.columns]
+    
+    # Smart column parsing: Supports single amount column or dual inflow/outflow columns
     col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c), None)
-    if not col_amount: raise ValueError(get_text('err_column', lang))
+    col_hyrje = next((c for c in df.columns if 'hyrje' in c or 'credit' in c or 'inflow' in c), None)
+    col_dalje = next((c for c in df.columns if 'dalje' in c or 'debit' in c or 'outflow' in c), None)
+    
+    if not col_amount and not (col_hyrje and col_dalje): 
+        raise ValueError(get_text('err_column', lang))
     
     records = []
     no_desc_txt = get_text('txt_no_desc', lang)
     
     for idx, row in df.fillna('').iterrows():
-        try: amount = Decimal(str(row[col_amount]).replace('€', '').replace(',', '').strip())
-        except: amount = Decimal('0.00')
+        # Retrieve or compute transactional amount
+        if col_amount:
+            try: 
+                amount = Decimal(str(row[col_amount]).replace('€', '').replace(',', '').strip())
+            except: 
+                amount = Decimal('0.00')
+        else:
+            try: 
+                hyrje_val = Decimal(str(row[col_hyrje]).replace('€', '').replace(',', '').strip() or '0.00')
+            except: 
+                hyrje_val = Decimal('0.00')
+            try: 
+                dalje_val = Decimal(str(row[col_dalje]).replace('€', '').replace(',', '').strip() or '0.00')
+            except: 
+                dalje_val = Decimal('0.00')
+                
+            if hyrje_val > 0:
+                amount = hyrje_val
+            elif dalje_val > 0:
+                amount = -dalje_val
+            else:
+                amount = Decimal('0.00')
+                
         records.append({ 
             "row_id": idx, 
-            "date": str(row.get('date', 'N/A')), 
-            "description": str(row.get('description', no_desc_txt)), 
+            "date": str(row.get('date', row.get('data', 'N/A'))), 
+            "description": str(row.get('description', row.get('pershkrimi', no_desc_txt))), 
             "amount": amount 
         })
     
