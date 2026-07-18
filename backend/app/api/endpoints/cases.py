@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.1 (UNABRIDGED PRODUCTION)
-# 1. FIX: Only passes document_id string to BackgroundTasks to prevent request-lifecycle db disconnects.
-# 2. RESTORED: 100% of original endpoints (documents, search, analysis, graphs, finance, drafts).
-# 3. STATUS: Production SaaS Hardened / Pylance clean.
+# PHOENIX PROTOCOL - CASES ROUTER V30.2 (TYPE-SAFE OBJECTIDS)
+# 1. FIX: Wrapped case_id in validate_object_id() for the GET /documents endpoint to resolve 404/Empty list on refresh.
+# 2. STATUS: No Pylance errors / Production SaaS Hardened.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -239,10 +238,12 @@ async def get_documents_for_case(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
+    # PHOENIX FIX: We MUST wrap case_id in validate_object_id() to convert the string
+    # to a real MongoDB ObjectId, matching the database schema exactly.
     return await asyncio.to_thread(
         document_service.get_documents_by_case_id,
         db,
-        case_id,
+        validate_object_id(case_id),  # <--- THE FIX!
         current_user
     )
 
@@ -274,7 +275,7 @@ async def upload_document_for_case(
         mime_type="application/pdf"
     )
 
-    # PHOENIX FIX: Clean Background Process
+    # PHOENIX: Clean Background Process
     from ...services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
