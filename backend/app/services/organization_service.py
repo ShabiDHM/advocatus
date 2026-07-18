@@ -1,11 +1,13 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.2 (ADDED LOGGER IMPORT)
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.3 (DUPLICATE EMAIL GUARD)
+# 1. FIX: Added an validation check to prevent MongoDB E11000 duplicate key errors when inviting existing users.
+# 2. STATUS: Gracefully raises a clean HTTP 400 validation error in Albanian instead of crashing with a 500.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
 from datetime import datetime, timezone, timedelta
 from pymongo.database import Database
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 import uuid
 import logging
 
@@ -99,6 +101,14 @@ class OrganizationService:
         if org_doc.get("current_active_users", 0) >= org_doc.get("user_limit", 1):
             raise HTTPException(status_code=403, detail="Limit Reached")
         
+        # PHOENIX PREVENTION: Verify that the email doesn't already exist to avoid MongoDB E11000 duplication crashes
+        existing_user = db.users.find_one({"email": invitee_email})
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="Ky email është i regjistruar tashmë në sistem si anëtar apo ftesë aktive."
+            )
+            
         invitation_token = str(uuid.uuid4())
         db.users.insert_one({
             "email": invitee_email,
