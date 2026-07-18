@@ -1,5 +1,7 @@
 # FILE: backend/app/services/email_service.py
-# PHOENIX PROTOCOL - EMAIL SYSTEM V6.0 (MULTIPLE EMAIL TYPES)
+# PHOENIX PROTOCOL - EMAIL SYSTEM V6.1 (HYBRID ENV RESOLUTION)
+# 1. FIX: Integrated dynamic self-healing attribute mapping supporting both MAIL_ and SMTP_ environment variables.
+# 2. FIX: Raises ValueError on missing configurations to trigger proper transaction rollbacks in calling services.
 
 import smtplib
 import logging
@@ -47,23 +49,38 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
     """
 
 def send_email_sync(to_email: str, subject: str, html_content: str):
-    """Core function to send an email via SMTP (Synchronous)."""
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        logger.warning("⚠️ Email configuration missing. Email not sent.")
-        return
+    """Core function to send an email via SMTP (Synchronous) with self-healing variable maps."""
+    # Dynamic attribute resolution handles both MAIL_ and SMTP_ naming schemes seamlessly
+    smtp_user = getattr(settings, "MAIL_USERNAME", None) or getattr(settings, "SMTP_USER", None)
+    smtp_password = getattr(settings, "MAIL_PASSWORD", None) or getattr(settings, "SMTP_PASSWORD", None)
+    smtp_host = getattr(settings, "MAIL_SERVER", None) or getattr(settings, "SMTP_HOST", None)
+    smtp_port_raw = getattr(settings, "MAIL_PORT", None) or getattr(settings, "SMTP_PORT", None)
+    smtp_tls_raw = getattr(settings, "MAIL_STARTTLS", None) or getattr(settings, "SMTP_TLS", None)
+    mail_from = getattr(settings, "MAIL_FROM", None) or smtp_user
+
+    if not smtp_user or not smtp_password:
+        logger.warning("⚠️ Email configuration missing (SMTP_USER/PASSWORD). Email not sent.")
+        raise ValueError("SMTP Credentials Missing from environment configuration.")
+
+    try:
+        smtp_port = int(smtp_port_raw) if smtp_port_raw else 587
+    except Exception:
+        smtp_port = 587
+
+    smtp_tls = str(smtp_tls_raw).lower() in ("true", "1", "yes") if smtp_tls_raw is not None else True
 
     try:
         msg = MIMEMultipart("alternative")
-        msg['From'] = f"{BRAND_NAME} <{settings.SMTP_USER}>"
+        msg['From'] = f"{BRAND_NAME} <{mail_from}>"
         msg['To'] = to_email
         msg['Subject'] = subject
 
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
 
-        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
-        if settings.SMTP_TLS:
+        server = smtplib.SMTP(smtp_host or "smtp.gmail.com", smtp_port)
+        if smtp_tls:
             server.starttls()
-        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        server.login(smtp_user, smtp_password)
         server.send_message(msg)
         server.quit()
         
@@ -74,7 +91,8 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
 
 def send_support_notification_sync(data: dict):
     """Formats and sends the Support Request email to Admin."""
-    if not settings.ADMIN_EMAIL:
+    admin_email = getattr(settings, "ADMIN_EMAIL", None)
+    if not admin_email:
         logger.warning("Admin email not configured.")
         return
 
@@ -95,12 +113,13 @@ def send_support_notification_sync(data: dict):
     """
     
     final_html = _create_html_wrapper("Qendra e Ndihmës", content)
-    send_email_sync(settings.ADMIN_EMAIL, subject, final_html)
+    send_email_sync(admin_email, subject, final_html)
 
 # ========== INVITATION EMAIL ==========
 def send_invitation_email(to_email: str, token: str) -> bool:
     """Send invitation email with password setup link."""
-    invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={token}&email={to_email}"
+    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    invite_link = f"{frontend_url}/accept-invite?token={token}&email={to_email}"
     
     subject = "Ftesë për t'u bashkuar në Juristi.tech"
     
@@ -127,7 +146,8 @@ def send_invitation_email(to_email: str, token: str) -> bool:
 # ========== PASSWORD RESET EMAIL ==========
 def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     """Send password reset email."""
-    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}&email={to_email}"
+    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}&email={to_email}"
     
     subject = "Rivendosja e Fjalëkalimit - Juristi.tech"
     
@@ -152,6 +172,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> bool:
 # ========== WELCOME EMAIL ==========
 def send_welcome_email(to_email: str, username: str) -> bool:
     """Send welcome email after account activation or registration."""
+    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     subject = "Mirëseardhje në Juristi.tech!"
     
     body_content = f"""
@@ -164,7 +185,7 @@ def send_welcome_email(to_email: str, username: str) -> bool:
         <li>Bashkëpunoni me ekipin tuaj</li>
     </ul>
     <p style="text-align: center;">
-        <a href="{settings.FRONTEND_URL}/login" 
+        <a href="{frontend_url}/login" 
            style="background-color: {BRAND_COLOR}; color: #ffffff !important; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
             Hyni në Llogari
         </a>
@@ -197,6 +218,7 @@ def send_support_reply(to_email: str, reply_message: str, ticket_id: Optional[st
 # ========== TEAM INVITE ACCEPTED NOTIFICATION ==========
 def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new_member_name: str) -> bool:
     """Notify the organization owner that someone accepted an invitation."""
+    frontend_url = getattr(settings, "FRONTEND_URL", "https://juristi.tech")
     subject = f"Përdoruesi {new_member_name} iu bashkua ekipit tuaj"
     
     body_content = f"""
@@ -204,7 +226,7 @@ def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new
     <p>Përdoruesi <strong>{new_member_name}</strong> ({new_member_email}) ka pranuar ftesën tuaj dhe tani është pjesë e ekipit tuaj në <strong>{BRAND_NAME}</strong>.</p>
     <p>Ju mund të shihni dhe menaxhoni anëtarët e ekipit tuaj nga paneli i menaxhimit.</p>
     <p style="text-align: center;">
-        <a href="{settings.FRONTEND_URL}/team" 
+        <a href="{frontend_url}/team" 
            style="background-color: {BRAND_COLOR}; color: #ffffff !important; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
             Shko te Menaxhimi i Ekipit
         </a>
