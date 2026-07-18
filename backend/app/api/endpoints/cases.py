@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.9 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Added robust try/except validation block around analyze_forensic_spreadsheet_endpoint.
-# 2. ENHANCED: Captures and returns clean ValueError responses with 400 status codes.
+# PHOENIX PROTOCOL - CASES ROUTER V30.10 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Switched 'forensic_analyze_spreadsheet' to direct async await to prevent unawaited coroutine crashes.
+# 2. FIX: Switched 'forensic_interrogate_evidence' to direct async await to prevent unawaited coroutine crashes.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -527,9 +527,8 @@ async def analyze_forensic_spreadsheet_endpoint(
 ):
     try:
         content = await file.read()
-        # Threadpool execution is protected against exceptions
-        result = await asyncio.to_thread(
-            spreadsheet_service.forensic_analyze_spreadsheet,
+        # Await async forensic spreadsheet analysis directly
+        result = await spreadsheet_service.forensic_analyze_spreadsheet(
             content, 
             file.filename or "upload", 
             case_id, 
@@ -538,7 +537,7 @@ async def analyze_forensic_spreadsheet_endpoint(
         )
         return JSONResponse(result)
     except ValueError as val_err:
-        # Gracefully handle file-parsing validation errors with 400 Bad Request
+        # Gracefully handle validation failures
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as e:
         logger.error(f"Spreadsheet forensic analysis error: {e}")
@@ -552,8 +551,8 @@ async def interrogate_forensic_finances_endpoint(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    result = await asyncio.to_thread(
-        spreadsheet_service.forensic_interrogate_evidence,
+    # Await async financial RAG questions directly
+    result = await spreadsheet_service.forensic_interrogate_evidence(
         case_id, body.question, db
     )
     return JSONResponse(result)
