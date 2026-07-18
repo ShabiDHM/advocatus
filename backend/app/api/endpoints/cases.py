@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.5 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Removed asyncio.to_thread wrapping on async coroutine cross_examine_case to prevent JSON serialization crashes.
-# 2. ALIGNMENT: Directly awaits cross_examine_case to resolve the coroutine-never-awaited runtime warning.
+# PHOENIX PROTOCOL - CASES ROUTER V30.6 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
+# 1. FIX: Switched from non-existent '_fetch_rag_context_sync' to asynchronous '_fetch_rag_context_async'.
+# 2. ALIGNMENT: Directly awaits '_fetch_rag_context_async' to resolve deep analysis 500 errors.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -443,7 +443,6 @@ async def run_textual_case_analysis(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    # Directly await the async coroutine cross_examine_case instead of calling asyncio.to_thread
     analysis_result = await analysis_service.cross_examine_case(
         db, 
         case_id, 
@@ -471,7 +470,9 @@ async def run_deep_simulation_only(
 ):
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
-    context = await asyncio.to_thread(analysis_service._fetch_rag_context_sync, db, case_id, str(current_user.id), True)
+    
+    # Await direct execution of async RAG context retrieval
+    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
     res = await asyncio.to_thread(llm_service.generate_adversarial_simulation, context)
     return JSONResponse(res)
 
@@ -483,7 +484,9 @@ async def run_deep_chronology_only(
 ):
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
-    context = await asyncio.to_thread(analysis_service._fetch_rag_context_sync, db, case_id, str(current_user.id), False)
+        
+    # Await direct execution of async RAG context retrieval
+    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
     res = await asyncio.to_thread(llm_service.build_case_chronology, context)
     return JSONResponse(res.get("timeline", []))
 
@@ -495,7 +498,9 @@ async def run_deep_contradictions_only(
 ):
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
-    context = await asyncio.to_thread(analysis_service._fetch_rag_context_sync, db, case_id, str(current_user.id), True)
+        
+    # Await direct execution of async RAG context retrieval
+    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
     res = await asyncio.to_thread(llm_service.detect_contradictions, context)
     return JSONResponse(res.get("contradictions", []))
 
