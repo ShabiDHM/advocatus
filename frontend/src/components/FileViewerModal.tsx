@@ -1,8 +1,6 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FORMATTED LEGAL EXPORT V6.4
-// 1. DYNAMIC EXPORT: Intercepts .txt downloads for legal drafts.
-// 2. HTML EMBED: Generates a standalone HTML file with embedded Legal CSS.
-// 3. EDITABLE: The exported file is text-based and remains fully editable.
+// PHOENIX PROTOCOL - FORMATTED LEGAL EXPORT V6.5
+// 1. FIX: Intercepts client-side 'blob:' URLs in loadContent and handleDownloadOriginal to prevent Axios prefixing network leaks.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -99,16 +97,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       setIsLoading(false);
   };
 
-  // --- NEW FORMATTED DOWNLOAD LOGIC ---
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
       let blob: Blob;
       let filename = documentData.file_name || documentData.title || 'dokument.txt';
 
-      // 1. Fetch the data
+      // 1. Fetch the data - Intercept local browser memory URLs to prevent prefixing
       if (directUrl) {
-          if (isAuth) {
+          if (directUrl.startsWith('blob:')) {
+              const res = await fetch(directUrl);
+              blob = await res.blob();
+          } else if (isAuth) {
               const res = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
               blob = res.data;
           } else {
@@ -175,6 +175,20 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadContent = async () => {
         try {
+            // Bypass remote network requests completely if url is already in local browser memory
+            if (directUrl && directUrl.startsWith('blob:')) {
+                if (targetMode === 'PDF') {
+                    setFileSource(directUrl);
+                    setIsLoading(false);
+                    return;
+                }
+                const response = await fetch(directUrl);
+                if (!response.ok) throw new Error("Local blob fetch failed");
+                const blob = await response.blob();
+                await handleBlobContent(blob, targetMode);
+                return;
+            }
+
             if (targetMode === 'PDF' && directUrl && !isAuth) {
                 setFileSource(directUrl);
                 return; 
