@@ -1,5 +1,6 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V12.7 (NEON LED STATUS LIGHT)
+// PHOENIX PROTOCOL - CHAT PANEL V12.8 (NEON LED STATUS LIGHT)
+// POLISH: Standardized controls to 44px (h-11), replaced border tokens, and updated custom scroll container utilities.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,8 +46,6 @@ interface ChatPanelProps {
   selectedDocumentCount?: number;
 }
 
-// --- SUB-COMPONENTS (unchanged) ---
-
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-2">
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
@@ -58,12 +57,26 @@ const ThinkingDots = () => (
 const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, isUser }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = async () => {
-        try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error(err); }
+        try { 
+            await navigator.clipboard.writeText(text); 
+            setCopied(true); 
+            setTimeout(() => setCopied(false), 2000); 
+        } catch (err) { 
+            console.error(err); 
+        }
     };
     return (
-        <button onClick={handleCopy} className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm hover-lift ${
-            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-surface border border-border-main text-text-muted hover:text-primary-start'
-        }`}>
+        <button 
+            type="button"
+            onClick={handleCopy} 
+            className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm hover-lift focus:outline-none ${
+                copied 
+                  ? 'bg-status-success/20 text-status-success' 
+                  : isUser 
+                    ? 'bg-white/20 text-white hover:bg-white/30' 
+                    : 'bg-surface border border-main text-text-muted hover:text-primary-start'
+            }`}
+        >
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
     );
@@ -90,19 +103,21 @@ const FeedbackButtons: React.FC<{
     };
 
     return (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border-main/50">
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-main">
             <button
+                type="button"
                 onClick={() => handleFeedback('up')}
                 disabled={!!submitting || disabled || success}
-                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-success-start hover:border-success-start/50'}`}
+                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm focus:outline-none ${success ? 'bg-status-success/20 text-status-success border-status-success/30' : 'bg-surface text-text-muted border-main hover:text-status-success hover:border-status-success/50'}`}
                 title="Përgjigje e dobishme"
             >
                 {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsUp size={14} />}
             </button>
             <button
+                type="button"
                 onClick={() => handleFeedback('down')}
                 disabled={!!submitting || disabled || success}
-                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-danger-start hover:border-danger-start/50'}`}
+                className={`p-2 rounded-xl transition-all border hover-lift shadow-sm focus:outline-none ${success ? 'bg-status-success/20 text-status-success border-status-success/30' : 'bg-surface text-text-muted border-main hover:text-danger-start hover:border-danger-start/50'}`}
                 title="Përgjigje e padobishme"
             >
                 {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsDown size={14} />}
@@ -136,9 +151,9 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-sm text-text-secondary rounded-2xl border border-border-main shadow-lg z-50 leading-relaxed"
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-sm text-text-secondary rounded-2xl border border-main shadow-2xl z-50 leading-relaxed"
                     >
-                        <p className="text-xs font-bold text-primary-start uppercase tracking-wide mb-2 border-b border-border-main pb-2 flex items-center gap-2">
+                        <p className="text-xs font-bold text-primary-start uppercase tracking-wide mb-2 border-b border-main pb-2 flex items-center gap-2">
                             <Scale size={12}/> {t('chat.lawReference', 'Referencë Ligjore')}
                         </p>
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
@@ -150,7 +165,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
 };
 
 const MarkdownComponents = (t: TFunction) => ({
-    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-border-main pb-2 uppercase tracking-tight" {...props} />,
+    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-main pb-2 uppercase tracking-tight" {...props} />,
     h2: ({node, ...props}: any) => <h2 className="text-lg font-semibold text-primary-start mb-3 mt-5" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-base font-semibold text-text-primary mb-2 mt-4 flex items-center gap-2" {...props} />,
     p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 leading-relaxed text-text-secondary" {...props} />, 
@@ -222,10 +237,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
   return (
-    <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-sm ${className}`}>
+    <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
       
       {/* HEADER – Realigned: Title + status on left; Dropdown + Export + Clear on right */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-border-main bg-surface/40 z-50 shrink-0 gap-3 sm:gap-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-main bg-surface z-50 shrink-0 gap-3 sm:gap-0">
         
         {/* Left group: title and status dot (NEON LED) */}
         <div className="flex items-center gap-3">
@@ -251,38 +266,48 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Right group: Domain dropdown + Export + Clear */}
-        <div className="flex items-center justify-end gap-3">
-          <div className="relative group">
+        <div className="flex items-center justify-end gap-3 h-11">
+          <div className="relative group h-11 flex items-center">
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-sm font-medium pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
+              className="appearance-none h-11 rounded-xl border border-main bg-surface text-text-primary text-sm font-semibold pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
             >
-              {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value} className="bg-canvas text-text-primary">{label}</option>)}
             </select>
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           </div>
 
           {onExportChat && (
-            <button onClick={onExportChat} className="p-2 text-text-muted hover:text-primary-start hover:bg-surface rounded-lg transition-all hover-lift" title="Download">
+            <button 
+                type="button"
+                onClick={onExportChat} 
+                className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none" 
+                title="Download"
+            >
               <Download size={18} />
             </button>
           )}
-          <button onClick={onClearChat} className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-lg transition-all hover-lift" title="Clear">
+          <button 
+              type="button"
+              onClick={onClearChat} 
+              className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none" 
+              title="Clear"
+          >
             <Trash2 size={18} />
           </button>
         </div>
       </div>
 
-      {/* MESSAGE STREAM (unchanged) */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] no-scrollbar">
+      {/* MESSAGE STREAM */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas/10 custom-finance-scroll shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] border-b border-main">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-border-main text-text-secondary'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
                 {msg.role === 'ai' ? <BrainCircuit size={20} /> : <User size={20} />}
               </div>
-              <div className={`relative max-w-[85%] rounded-2xl p-5 text-sm shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-border-main text-text-primary rounded-tl-sm'}`}>
+              <div className={`relative max-w-[85%] rounded-2xl p-5 text-sm shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-main text-text-primary rounded-tl-sm'}`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text prose prose-slate max-w-none prose-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -291,7 +316,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <FeedbackButtons messageIndex={idx} caseId={activeContextId} onFeedback={(i, f) => handleFeedback(i, f)} disabled={feedbackGiven.has(idx)} />
                 )}
                 {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
-                  <button onClick={handleRetry} className="mt-4 px-4 py-2 bg-danger-start/10 text-danger-start rounded-xl text-xs font-semibold uppercase flex items-center gap-2 hover:bg-danger-start/20 transition-all hover-lift">
+                  <button 
+                      type="button"
+                      onClick={handleRetry} 
+                      className="mt-4 px-4 py-2.5 bg-danger-start/10 text-danger-start rounded-xl text-xs font-semibold uppercase flex items-center gap-2 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none"
+                  >
                     <RefreshCw size={14} /> {t('chat.retry', 'Riprovo')}
                   </button>
                 )}
@@ -299,9 +328,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </motion.div>
           ))}
           {showThinking && (
-            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4">
+            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4 animate-pulse">
               <div className="w-10 h-10 rounded-xl bg-primary-start text-white flex items-center justify-center shadow-sm"><BrainCircuit size={20} /></div>
-              <div className="bg-surface border border-border-main rounded-2xl rounded-tl-sm px-6 py-4 shadow-sm flex items-center gap-3">
+              <div className="bg-surface border border-main rounded-2xl rounded-tl-sm px-6 py-4 shadow-sm flex items-center gap-3">
                 <span className="text-sm font-semibold text-primary-start uppercase tracking-wide">{t('chat.thinking', 'Analizimi')}</span>
                 <ThinkingDots />
               </div>
@@ -311,18 +340,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA (unchanged) */}
-      <div className="p-5 border-t border-border-main bg-surface shrink-0">
+      {/* INPUT AREA */}
+      <div className="p-5 bg-surface shrink-0">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-3 max-w-5xl mx-auto">
           <textarea 
             ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} 
             placeholder={t('chatPanel.inputPlaceholder')} 
-            className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed resize-none shadow-inner-trough focus:bg-canvas/10 transition-all no-scrollbar min-h-[60px]" 
+            className="w-full p-4 pr-16 bg-canvas border border-main rounded-2xl text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all resize-none custom-finance-scroll min-h-[60px]" 
             rows={1} 
           />
           <button 
-            type="submit" disabled={!input.trim() || isSendingMessage} 
-            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10 hover-lift"
+            type="submit" 
+            disabled={!input.trim() || isSendingMessage} 
+            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-lg shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10 hover-lift focus:outline-none"
           >
             <Send size={18} className="ml-0.5" />
           </button>

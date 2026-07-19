@@ -1,5 +1,6 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.2 (NEON LED STATUS LIGHT)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.3 (NEON LED STATUS LIGHT)
+// POLISH: Standardized design tokens, upgraded custom scrollbars, and optimized mobile touch target ergonomics.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -94,7 +95,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) { setUploadError(null); await performUpload(file); if (fileInputRef.current) fileInputRef.current.value = ''; }
+    if (file) { 
+      setUploadError(null); 
+      await performUpload(file); 
+      if (fileInputRef.current) fileInputRef.current.value = ''; 
+    }
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
@@ -190,54 +195,62 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   return (
     <>
-    <div className={`glass-panel p-4 rounded-panel flex flex-col h-full overflow-hidden ${className}`}>
+    <div className={`glass-panel p-4 rounded-2xl flex flex-col h-full overflow-hidden bg-canvas ${className}`}>
       
       {/* Header Bar */}
-      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-danger/30 bg-danger/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-panel' : 'border-border-main'}`}>
+      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-danger-start/30 bg-danger-start/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'}`}>
         
         {isSelectionMode ? (
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center justify-between w-full h-11">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedIds(new Set())} className="text-text-muted hover:text-text-primary transition-colors">
+                    <button 
+                        onClick={() => setSelectedIds(new Set())} 
+                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none"
+                        aria-label="Clear selection"
+                    >
                         <XCircle size={20} />
                     </button>
-                    <span className="text-text-primary font-semibold text-sm">{selectedIds.size} të zgjedhura</span>
+                    <span className="text-danger-start font-bold text-sm">{selectedIds.size} të zgjedhura</span>
                 </div>
                 <button 
                     onClick={handleBulkDelete} 
                     disabled={isBulkDeleting}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-danger/80 hover:bg-danger text-inverse rounded-lg font-semibold text-sm transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-4 h-11 bg-danger-start hover:bg-opacity-95 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-danger-start/15 focus:outline-none"
                 >
-                    {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={16} />}
+                    {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={15} />}
                     Fshi Të Gjitha
                 </button>
             </div>
         ) : (
             <>
-                <div className="flex items-center gap-3 min-w-0">
-                    <button onClick={toggleSelectAll} className="text-text-muted hover:text-text-primary transition-colors" title="Select All">
-                        {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary" /> : <Square size={20} />}
+                <div className="flex items-center gap-2 min-w-0 h-11">
+                    <button 
+                        onClick={toggleSelectAll} 
+                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        title="Select All"
+                    >
+                        {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
-                    <h2 className="text-base font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
+                    <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title')}</h2>
                     {/* NEON LED STATUS LIGHT – perfectly centered */}
                     <div className="flex items-center justify-center ml-1">
-                        <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
+                        <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
                     </div>
                 </div>
 
-                <div className="relative" ref={dropdownRef}>
+                <div className="relative h-11 flex items-center" ref={dropdownRef}>
                     <motion.button 
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
                         disabled={isSystemBusy}
                         whileTap={{ scale: 0.95 }}
-                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-sm transition-all hover-lift ${
+                        className={`h-11 w-11 flex items-center justify-center rounded-xl shadow-sm transition-all focus:outline-none ${
                             isSystemBusy 
-                                ? 'bg-surface text-text-muted cursor-not-allowed border border-border-main' 
+                                ? 'bg-surface text-text-disabled cursor-not-allowed border border-main' 
                                 : 'btn-primary p-0'
                         }`}
                         title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
-                        {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                        {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
                     <AnimatePresence>
@@ -246,13 +259,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-12 w-56 glass-panel border border-border-main rounded-xl shadow-lg z-50 overflow-hidden"
+                                className="absolute right-0 top-12 w-56 glass-panel border border-main bg-canvas rounded-xl shadow-2xl z-50 overflow-hidden"
                             >
-                                <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary transition-colors">
-                                    <FilePlus size={16} className="text-primary" /> Ngarko Dokument
+                                <button 
+                                    onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
+                                    className="w-full text-left px-4 h-11 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary transition-colors focus:outline-none"
+                                >
+                                    <FilePlus size={16} className="text-primary-start" /> Ngarko Dokument
                                 </button>
-                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary border-t border-border-main transition-colors">
-                                    <HardDrive size={16} className="text-success-start" /> Importo nga Arkiva
+                                <button 
+                                    onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} 
+                                    className="w-full text-left px-4 h-11 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary border-t border-main transition-colors focus:outline-none"
+                                >
+                                    <HardDrive size={16} className="text-status-success" /> Importo nga Arkiva
                                 </button>
                             </motion.div>
                         )}
@@ -264,12 +283,17 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
       </div>
 
-      {uploadError && (<div className="p-3 text-xs text-danger bg-danger/10 border border-danger/20 rounded-xl mb-4 font-medium">{uploadError}</div>)}
+      {uploadError && (
+        <div className="p-3 text-xs text-danger-start bg-danger-start/10 border border-danger-start/20 rounded-xl mb-4 font-medium">
+          {uploadError}
+        </div>
+      )}
       
-      <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0 bg-canvas/20 rounded-xl p-2">
+      {/* Scrollable Container */}
+      <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-1.5 custom-finance-scroll min-h-0 bg-canvas/20 rounded-xl p-2 border border-main">
         {displayDocuments.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
-            <FolderOpen className="w-12 h-12 mb-3 text-text-muted/20" />
+            <FolderOpen className="w-12 h-12 mb-3 text-text-disabled/20" />
             <p className="text-sm font-medium">{t('documentsPanel.noDocuments')}</p>
           </div>
         )}
@@ -278,9 +302,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isUploadingState = doc.status === 'UPLOADING';
           const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
           const progressPercent = doc.progress_percent || 0;
-          const barColor = isUploadingState ? "bg-primary" : "bg-primary";
+          const barColor = isUploadingState ? "bg-primary-start" : "bg-primary-start";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
-          const statusTextColor = isUploadingState ? "text-primary" : "text-primary";
+          const statusTextColor = isUploadingState ? "text-primary-start" : "text-primary-start";
           const canInteract = !isUploadingState && !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
@@ -289,10 +313,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 key={doc.id} 
                 layout="position" 
                 onClick={() => !isUploadingState && toggleSelect(doc.id)} 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer hover-lift ${
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${
                     isSelected 
-                        ? 'bg-primary/10 border-primary/50' 
-                        : 'bg-surface/10 hover:bg-surface/20 border-border-main hover:border-border-main'
+                        ? 'bg-primary-start/10 border-primary-start/50 shadow-sm' 
+                        : 'bg-surface/30 hover:bg-hover border-main'
                 }`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
@@ -300,37 +324,66 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               
               <div className="min-w-0 flex-1 pr-3">
                 <div className="flex items-center gap-2">
-                  <p className={`text-sm font-medium truncate ${isSelected ? 'text-text-primary' : 'text-text-primary'}`}>{doc.file_name}</p>
+                  <p className="text-sm font-semibold truncate text-text-primary">{doc.file_name}</p>
                 </div>
                 {(isUploadingState || isProcessingState) ? (
                     <div className="flex items-center gap-3 mt-1.5">
-                        <span className={`text-xs ${statusTextColor} font-semibold w-24 uppercase tracking-wide`}>{statusText}</span>
-                        <div className="w-24 h-1.5 bg-border-main rounded-full overflow-hidden">
+                        <span className={`text-[10px] ${statusTextColor} font-bold uppercase tracking-wider w-24`}>{statusText}</span>
+                        <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden border border-main">
                           <motion.div className={`h-full ${barColor}`} initial={isUploadingState ? { width: 0 } : false} animate={{ width: `${progressPercent}%` }} transition={{ ease: "linear", duration: 0.3 }} />
                         </div>
                         <span className="text-xs text-text-muted font-mono">{progressPercent}%</span>
                     </div>
                 ) : (
-                  <p className="text-xs text-text-muted truncate mt-0.5 font-medium">{moment(doc.created_at).format('DD MMM YYYY, HH:mm')}</p>
+                  <p className="text-xs text-text-muted truncate mt-0.5 font-medium font-mono">{moment(doc.created_at).format('DD MMM YYYY, HH:mm')}</p>
                 )}
               </div>
               
-              <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
+              {/* Row action tools mapped with safe hitboxes */}
+              <div className={`flex items-center gap-1.5 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        title={t('documentsPanel.rename')}
+                    >
+                        <Pencil size={13} />
+                    </button>
                 )}
                 
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-hover rounded-lg text-primary transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-primary-start transition-colors focus:outline-none" 
+                        title={t('documentsPanel.viewOriginal')}
+                    >
+                        <Eye size={13} />
+                    </button>
                 )}
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} className="p-1.5 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        title={t('documentsPanel.archive', 'Arkivo')}
+                    >
+                        {archivingId === doc.id ? <Loader2 size={13} className="animate-spin text-primary-start" /> : <Archive size={13} />}
+                    </button>
                 )}
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-danger/20 rounded-lg text-danger hover:text-danger/80 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-danger-start/15 rounded-lg text-danger-start hover:text-danger-start/85 transition-colors focus:outline-none" 
+                        title={t('documentsPanel.delete')}
+                    >
+                        <Trash size={13} />
+                    </button>
                 )}
                 {!canInteract && (
-                    <Lock size={14} className="text-text-muted/30" />
+                    <Lock size={13} className="text-text-disabled/40 mr-2" />
                 )}
               </div>
             </motion.div>

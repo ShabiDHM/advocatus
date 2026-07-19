@@ -1,5 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.14 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
+// PHOENIX PROTOCOL - CASE VIEW V16.15 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
+// POLISH: Standardized controls to 44px (h-11), integrated scroll lock hooks, and synchronized layout border tokens.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,6 +20,7 @@ import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } 
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 type CaseData = { details: Case | null; };
 type ActiveModal = 'none' | 'analysis';
@@ -37,27 +39,63 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     }).filter(msg => msg.content.trim() !== '');
 };
 
+// Polished Rename Modal with 44px inputs and Scroll Locks
 const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRename: (newName: string) => Promise<void>; currentName: string; t: TFunction; }> = ({ isOpen, onClose, onRename, currentName, t }) => {
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Lock body scroll when rename modal is open
+    useLockBodyScroll(isOpen);
+
     useEffect(() => { setName(currentName); }, [currentName]);
+    
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); if (!name.trim()) return; setIsSaving(true);
-        try { await onRename(name); onClose(); } finally { setIsSaving(false); }
+        e.preventDefault(); 
+        if (!name.trim()) return; 
+        setIsSaving(true);
+        try { 
+            await onRename(name); 
+            onClose(); 
+        } finally { 
+            setIsSaving(false); 
+        }
     };
+    
     if (!isOpen) return null;
+    
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-            <div className="bg-card w-full max-w-md p-8 rounded-2xl shadow-xl border border-border-main animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+            <div className="bg-canvas w-full max-w-md p-6 sm:p-8 rounded-2xl shadow-2xl border border-main animate-in zoom-in-95">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-text-primary uppercase tracking-wider">{t('documentsPanel.renameTitle')}</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-surface rounded-xl transition-colors"><X size={20} /></button>
+                    <button 
+                        onClick={onClose} 
+                        className="flex items-center justify-center w-11 h-11 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none"
+                        aria-label="Close"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
-                <form onSubmit={handleSubmit}>
-                    <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full mb-6 py-3 text-base" />
-                    <div className="flex justify-end gap-3">
-                        <button type="button" onClick={onClose} className="px-5 py-2 text-sm font-medium text-text-muted hover:text-text-primary transition-colors">{t('general.cancel')}</button>
-                        <button type="submit" disabled={isSaving} className="btn-primary flex items-center gap-2">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <input 
+                        autoFocus 
+                        value={name} 
+                        onChange={(e) => setName(e.target.value)} 
+                        className="w-full h-11 px-4 bg-surface border border-main rounded-xl text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start transition-all" 
+                    />
+                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
+                        <button 
+                            type="button" 
+                            onClick={onClose} 
+                            className="w-full sm:w-auto px-5 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-colors focus:outline-none"
+                        >
+                            {t('general.cancel')}
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={isSaving} 
+                            className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-opacity-90 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/15"
+                        >
                             {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />} {t('general.save')}
                         </button>
                     </div>
@@ -87,7 +125,7 @@ const CaseHeader: React.FC<{
         ? t('caseView.analyzeCase')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
-    const buttonBase = "h-12 flex items-center justify-center gap-3 px-4 rounded-xl glass-panel bg-canvas/40 border border-border-main shadow-sm transition-all duration-300 hover-lift text-xs font-black uppercase tracking-widest w-full text-text-primary";
+    const buttonBase = "h-11 flex items-center justify-center gap-2.5 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-250 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider w-full text-text-primary focus:outline-none";
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
@@ -96,12 +134,12 @@ const CaseHeader: React.FC<{
                 
                 {/* LEFT COLUMN */}
                 <div className="flex flex-col gap-4">
-                    {/* Top row: two buttons in a sub-grid */}
+                    {/* Top row: two buttons in a sub-grid with standardized h-11 targets */}
                     <div className="grid grid-cols-2 gap-3">
                         {/* Button 1: Date */}
                         <div className={buttonBase}>
-                            <Calendar size={16} className="text-primary opacity-70 shrink-0" />
-                            <span className="truncate">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+                            <Calendar size={15} className="text-primary-start opacity-70 shrink-0" />
+                            <span className="truncate select-none">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                         </div>
                         {/* Button 2: Document Selector (E GJITHË DOSJA) */}
                         <div className="relative z-[60]">
@@ -113,55 +151,47 @@ const CaseHeader: React.FC<{
                             />
                         </div>
                     </div>
-                    {/* Bottom: DocumentsPanel */}
-                    <div className="flex-1">
-                        {/* The DocumentsPanel will be rendered here in the main layout, 
-                            but we keep the header as just the top buttons. 
-                            The actual panel is placed below in the main component. */}
-                    </div>
                 </div>
 
                 {/* RIGHT COLUMN */}
                 <div className="flex flex-col gap-4">
-                    {/* Top row: two buttons in a sub-grid */}
+                    {/* Top row: two buttons in a sub-grid with standardized h-11 targets */}
                     <div className="grid grid-cols-2 gap-3">
                         {/* Button 3: Financial Analyst toggle */}
                         <button
+                            type="button"
                             onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                             disabled={!isPro}
                             className={`${buttonBase} ${
                                 viewMode === 'analyst' 
-                                ? 'border-primary bg-primary/10 text-primary shadow-accent-glow' 
-                                : 'hover:border-primary/50 text-text-primary'
+                                ? 'border-primary-start bg-primary-start/10 text-primary-start shadow-accent-glow' 
+                                : 'text-text-primary'
                             } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
                         >
-                            {!isPro ? <Lock size={16} className="shrink-0" /> : <Activity size={16} className={viewMode === 'analyst' ? 'text-primary shrink-0' : 'text-primary opacity-70 shrink-0'} />}
+                            {!isPro ? <Lock size={15} className="shrink-0 text-text-muted" /> : <Activity size={15} className={viewMode === 'analyst' ? 'text-primary-start shrink-0' : 'text-primary-start opacity-70 shrink-0'} />}
                             <span className="truncate">{t('caseView.financialAnalyst')}</span>
                         </button>
                         {/* Button 4: Analyze button */}
                         <button
+                            type="button"
                             onClick={onAnalyze}
                             disabled={!isPro || isAnalyzing}
-                            className={`${buttonBase} hover:border-primary/50 active:scale-95 disabled:opacity-40`}
+                            className={`${buttonBase} disabled:opacity-40`}
                         >
                             {isAnalyzing ? (
                                 <span className="flex items-center gap-2 min-w-0">
                                     <span className="flex items-center justify-center animate-spin shrink-0">
-                                        <Loader2 className="h-4 w-4 text-primary" />
+                                        <Loader2 className="h-4 w-4 text-primary-start" />
                                     </span>
-                                    <span className="text-primary truncate">{t('analysis.analyzing')}</span>
+                                    <span className="text-primary-start truncate">{t('analysis.analyzing')}</span>
                                 </span>
                             ) : (
                                 <span className="flex items-center gap-2 min-w-0">
-                                    <ShieldCheck size={16} className="text-primary shrink-0" />
-                                    <span className="text-primary truncate">{analyzeButtonText}</span>
+                                    <ShieldCheck size={15} className="text-primary-start shrink-0" />
+                                    <span className="text-primary-start truncate">{analyzeButtonText}</span>
                                 </span>
                             )}
                         </button>
-                    </div>
-                    {/* Bottom: ChatPanel */}
-                    <div className="flex-1">
-                        {/* The ChatPanel will be rendered here in the main layout */}
                     </div>
                 </div>
             </div>
@@ -320,11 +350,11 @@ const CaseViewPage: React.FC = () => {
   const handleViewOriginal = (doc: Document) => { setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleRenameAction = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(p => p.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch { alert(t('error.generic')); } };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-  if (error || !caseData.details) return <div className="p-8 text-center text-danger border border-danger/30 rounded-2xl bg-danger/5 mt-20 max-w-lg mx-auto"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-bold uppercase tracking-wide">{error}</p></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div></div>;
+  if (error || !caseData.details) return <div className="p-8 text-center text-danger border border-danger/30 rounded-2xl bg-danger/5 mt-20 max-w-lg mx-auto animate-pulse"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-bold uppercase tracking-wide">{error}</p></div>;
 
   return (
-    <motion.div className="w-full min-h-screen pb-12" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8">
         {/* Header with 2-column button layout */}
         <CaseHeader 
@@ -363,7 +393,7 @@ const CaseViewPage: React.FC = () => {
                   onDocumentDeleted={handleDocumentDeleted} 
                   onViewOriginal={handleViewOriginal} 
                   onRename={setDocumentToRename} 
-                  className="h-full w-full shadow-sm hover-lift" 
+                  className="h-full w-full shadow-sm hover-lift border border-main rounded-2xl overflow-hidden bg-canvas" 
                 />
               </div>
               
@@ -377,7 +407,7 @@ const CaseViewPage: React.FC = () => {
                   isSendingMessage={isSendingMessage} 
                   onClearChat={handleClearChat} 
                   t={t} 
-                  className="h-full w-full shadow-sm hover-lift" 
+                  className="h-full w-full shadow-sm hover-lift border border-main rounded-2xl overflow-hidden bg-canvas" 
                   activeContextId={currentCaseId} 
                   isPro={isPro} 
                   selectedDocumentCount={selectedDocumentIds.length}
@@ -392,7 +422,7 @@ const CaseViewPage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }} 
               exit={{ opacity: 0, y: -10 }} 
               transition={{ duration: 0.2 }} 
-              className="z-0"
+              className="z-0 border border-main rounded-2xl overflow-hidden bg-canvas"
             >
               <SpreadsheetAnalyst caseId={caseData.details.id} />
             </motion.div>
@@ -400,8 +430,18 @@ const CaseViewPage: React.FC = () => {
         </AnimatePresence>
       </div>
       
-      {/* Modals and viewers (unchanged) */}
-      {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => {setViewingDocument(null); setViewingUrl(null);}} onMinimize={() => {if(viewingDocument){setMinimizedDocument(viewingDocument); setViewingDocument(null);}}} t={t} directUrl={viewingUrl} isAuth={true} />)}
+      {/* Modals and viewers (standardized) */}
+      {viewingDocument && (
+        <PDFViewerModal 
+          documentData={viewingDocument} 
+          caseId={caseData.details.id} 
+          onClose={() => {setViewingDocument(null); setViewingUrl(null);}} 
+          onMinimize={() => {if(viewingDocument){setMinimizedDocument(viewingDocument); setViewingDocument(null);}}} 
+          t={t} 
+          directUrl={viewingUrl} 
+          isAuth={true} 
+        />
+      )}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
       {analysisResult && (
         <AnalysisModal 
