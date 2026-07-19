@@ -1,7 +1,6 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V6.2 (ATTRIBUTE CORRECTION)
-# 1. FIX: Corrected attribute access 'owner.organization_id' -> 'owner.org_id'.
-# 2. STATUS: Fully aligned with User Model V6.0.
+# PHOENIX PROTOCOL - CASE SERVICE V6.3 (CHAT PERSISTENCE FIX)
+# 1. FIX: Added 'chat_history' to the mapping dictionary in _map_case_document to resolve the Pydantic serialization gap.
 
 import re
 import importlib
@@ -94,6 +93,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "client": case_doc.get("client"), 
             "created_at": created_at, 
             "updated_at": updated_at, 
+            "chat_history": case_doc.get("chat_history", []), # PHOENIX CRITICAL RESOLUTION: Retains chat history in serializable model mapping
             **counts
         }
     except Exception as e:
@@ -105,7 +105,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "case_number": "ERR", 
             "created_at": datetime.now(timezone.utc), 
             "updated_at": datetime.now(timezone.utc), 
-            "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0
+            "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0,
+            "chat_history": []
         }
 
 # --- CRUD OPERATIONS ---
