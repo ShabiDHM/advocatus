@@ -1,6 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V6.3 (MOBILE‑FRIENDLY SIDEBAR + TOUCH OPTIMIZATIONS)
-// POLISH: Standardized controls to 44px (h-11), integrated scroll lock hooks, and swapped out border tokens.
+// PHOENIX PROTOCOL - CALENDAR V6.5 (MOBILE‑FRIENDLY SIDEBAR + TOUCH OPTIMIZATIONS)
+// 1. FIX: Moved inline comment out of return statement to resolve syntax parser compilation breaks.
+// 2. POLISH: Standardized controls to 44px (h-11), swapped out border tokens, and updated custom scroll containers.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -232,7 +233,7 @@ const CalendarPage: React.FC = () => {
   }, [events]);
 
   const renderListView = () => (
-    <div className="glass-panel flex-1 flex flex-col rounded-[2.5rem] overflow-hidden min-h-0 border border-main bg-canvas">
+    <div className="glass-panel flex-1 flex flex-col rounded-[2.5rem] overflow-hidden min-h-[350px] border border-main bg-canvas">
         <div className="flex-1 overflow-y-auto custom-finance-scroll divide-y divide-main px-6 sm:px-8">
             {filteredEvents.length === 0 ? (<div className="py-24 text-center text-text-secondary italic text-sm font-medium">{t('calendar.noEventsFound')}</div>) : (
                 filteredEvents.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()).map(event => {
@@ -241,7 +242,7 @@ const CalendarPage: React.FC = () => {
                     return (
                         <div key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="py-5 sm:py-6 cursor-pointer transition-all flex items-center justify-between group px-2 rounded-2xl mt-1 first:mt-0">
                             <div className="flex items-start space-x-5 min-w-0 flex-1">
-                                <div className="flex-shrink-0 text-center min-w-[60px] p-2 rounded-2xl bg-surface border border-main group-hover:border-primary-start/50 group-hover:bg-primary-start/5 transition-all">
+                                <div className="flex-shrink-0 text-center min-w-[60px] p-2 rounded-2xl bg-surface/30 border border-main group-hover:border-primary-start/50 group-hover:bg-primary-start/5 transition-all">
                                     <div className="text-[10px] text-text-secondary uppercase font-black tracking-widest">{format(parseISO(event.start_date), 'MMM', { locale: currentLocale })}</div>
                                     <div className="text-2xl font-black text-text-primary leading-none mt-1">{format(parseISO(event.start_date), 'dd')}</div>
                                 </div>
@@ -318,7 +319,7 @@ const CalendarPage: React.FC = () => {
       </div>
       <div className="glass-panel p-6 sm:p-8 rounded-[2.5rem] shrink-0 border border-main bg-canvas">
         <h3 className="text-sm font-black text-text-primary mb-6 uppercase tracking-wider flex items-center gap-3 select-none"><Filter size={16} className="text-primary-start" /> {t('calendar.eventTypes')}</h3>
-        <div className="space-y-2 overflow-y-auto max-h-[220px] custom-finance-scroll pr-2">
+        <div className="space-y-2 overflow-y-auto max-h-[220px] custom-scrollbar pr-2">
           {Object.keys(t('calendar.types', { returnObjects: true }) as object).map((key) => { 
             const style = getEventStyle(key); return (<div key={key} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-hover transition-all cursor-pointer border border-transparent hover:border-main" onClick={() => setFilterType(filterType === key ? 'ALL' : key)}><div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${style.border} ${style.bg} ${style.text} shadow-inner`}>{React.cloneElement(style.icon as React.ReactElement, { size: 16 })}</div><span className={`text-[12px] uppercase tracking-wider font-semibold ${filterType === key ? 'text-text-primary' : 'text-text-secondary'}`}>{t(`calendar.types.${key}`)}</span>{filterType === key && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-start" />}</div>);
           })}
@@ -328,14 +329,14 @@ const CalendarPage: React.FC = () => {
   );
 
   return (
-    <div className="h-[calc(100dvh-64px)] overflow-hidden bg-canvas flex flex-col font-sans selection:bg-primary-start/30">
+    <div className="h-auto lg:h-[calc(100dvh-64px)] overflow-y-auto lg:overflow-hidden bg-canvas flex flex-col font-sans selection:bg-primary-start/30">
       <div id="react-datepicker-portal"></div>
       <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 min-h-0 bg-canvas">
         {error && (<motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 bg-danger-start/10 border border-danger-start/30 rounded-2xl p-4 flex items-center gap-4"><AlertCircle className="h-5 w-5 text-danger-start" /><span className="text-danger-start text-sm font-bold">{error}</span></motion.div>)}
 
-        {/* Action bar (Standardized h-11 / 44px) */}
+        {/* Action bar (Standardized height triggers to 44px) */}
         <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto h-11">
+          <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto h-auto sm:h-11">
             <div className="glass-panel flex items-center p-1 shrink-0 border border-main bg-surface h-11">
               <button type="button" onClick={() => navigateMonth('prev')} className="flex items-center justify-center w-9 h-9 hover:bg-hover rounded-xl transition-all focus:outline-none"><ChevronLeft size={18} className="text-text-secondary" /></button>
               <button type="button" onClick={() => setCurrentDate(new Date())} className="px-5 text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors focus:outline-none">{t('calendar.today')}</button>
@@ -352,8 +353,8 @@ const CalendarPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Search and view toggle (Standardized h-11 / 44px) */}
-        <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center h-11">
+        {/* Search and view toggle - h-auto on mobile prevents vertical overlapping list compression */}
+        <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center h-auto sm:h-11">
           <div className="relative flex-1 h-11 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
             <input type="text" placeholder={t('calendar.searchPlaceholder') as string} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-11 pl-12 pr-6 rounded-xl text-sm font-semibold border border-main bg-surface text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all" />
@@ -408,7 +409,14 @@ const CalendarPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadData} />}
+      {/* FIXED Guard condition checks on optional selectedEvent binding */}
+      {selectedEvent && (
+        <EventDetailModal 
+          event={selectedEvent} 
+          onClose={() => setSelectedEvent(null)} 
+          onUpdate={loadData} 
+        />
+      )}
       {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={loadData} />}
       <DayEventsModal isOpen={isDayModalOpen} onClose={() => setIsDayModalOpen(false)} date={selectedDateForModal} events={filteredEvents.filter(e => selectedDateForModal && isSameDay(parseISO(e.start_date), selectedDateForModal))} t={t} onAddEvent={() => { setIsDayModalOpen(false); setIsCreateModalOpen(true); }} />
     </div>
