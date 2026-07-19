@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.15 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
-// POLISH: Standardized controls to 44px (h-11), integrated scroll lock hooks, and synchronized layout border tokens.
+// PHOENIX PROTOCOL - CASE VIEW V16.16 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
+// POLISH: Implemented responsive button labels to prevent mobile truncation, adjusted vertical header padding offsets.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -121,9 +121,20 @@ const CaseHeader: React.FC<{
     onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
     
+    // Dynamic responsive labels prevent ugly mobile ellipsis clipping of long strings
     const analyzeButtonText = selectedDocumentIds.length === 0
-        ? t('caseView.analyzeCase')
-        : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
+        ? (
+            <>
+                <span className="hidden sm:inline">{t('caseView.analyzeCase')}</span>
+                <span className="sm:hidden">Analizo</span>
+            </>
+          )
+        : (
+            <>
+                <span className="hidden sm:inline">{t('analysis.crossExamineButton', 'Kryqëzo Dokumentin')}</span>
+                <span className="sm:hidden">Kryqëzo</span>
+            </>
+          );
 
     const buttonBase = "h-11 flex items-center justify-center gap-2.5 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-250 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider w-full text-text-primary focus:outline-none";
 
@@ -169,7 +180,8 @@ const CaseHeader: React.FC<{
                             } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
                         >
                             {!isPro ? <Lock size={15} className="shrink-0 text-text-muted" /> : <Activity size={15} className={viewMode === 'analyst' ? 'text-primary-start shrink-0' : 'text-primary-start opacity-70 shrink-0'} />}
-                            <span className="truncate">{t('caseView.financialAnalyst')}</span>
+                            <span className="truncate hidden sm:inline">{t('caseView.financialAnalyst')}</span>
+                            <span className="truncate sm:hidden">Financat</span>
                         </button>
                         {/* Button 4: Analyze button */}
                         <button
@@ -355,7 +367,8 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8">
+      {/* Reduced vertical padding offset on mobile viewports for compact screen utilization */}
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
         {/* Header with 2-column button layout */}
         <CaseHeader 
             caseDetails={caseData.details} 
