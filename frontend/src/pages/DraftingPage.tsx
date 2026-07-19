@@ -1,5 +1,6 @@
-// FILE: src/pages/ DraftingPage.tsx
-// PHOENIX PROTOCOL – TYPESCRIPT COMPLIANCE & PERSISTENCE v12.5
+// FILE: src/pages/DraftingPage.tsx
+// PHOENIX PROTOCOL – TYPESCRIPT COMPLIANCE & PERSISTENCE v12.6
+// POLISH: Standardized design tokens, integrated custom scroll container utilities, and refined spatial spacing.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,13 +12,6 @@ import { TemplateType, DraftingJobState, NotificationState } from '../drafting/t
 import { ConfigPanel } from '../drafting/components/ConfigPanel';
 import { ResultPanel } from '../drafting/components/ResultPanel';
 import { constructSmartPrompt } from '../drafting/utils/promptConstructor';
-
-const lawyerGradeStyles = `
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-main); border-radius: 10px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--primary-start); }
-`;
 
 const buildKosovoSystemPrompt = (template: string, basePrompt: string): string => {
   let statute = "";
@@ -147,11 +141,13 @@ const DraftingPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 flex flex-col h-full">
-        <style>{lawyerGradeStyles}</style>
-
-        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 mt-4 flex-1 lg:h-[750px] min-h-0">
-          <div className="h-full overflow-y-auto custom-scrollbar">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 flex flex-col h-full bg-canvas">
+        
+        {/* Responsive Dual Column workspace layout with standardized scroll parameters */}
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 sm:gap-8 mt-4 flex-1 lg:h-[730px] min-h-0">
+          
+          {/* Left Column: Template configurations */}
+          <div className="h-full overflow-y-auto custom-finance-scroll border border-main rounded-2xl bg-surface/30 p-4">
             <ConfigPanel
               t={t}
               isPro={isPro}
@@ -167,7 +163,8 @@ const DraftingPage: React.FC = () => {
             />
           </div>
 
-          <div className="h-full overflow-y-auto custom-scrollbar">
+          {/* Right Column: Dynamic drafting stream results */}
+          <div className="h-full overflow-y-auto custom-finance-scroll border border-main rounded-2xl bg-surface/30 p-4">
             <ResultPanel
               t={t}
               currentJob={currentJob}

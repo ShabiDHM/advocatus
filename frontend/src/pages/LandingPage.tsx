@@ -1,8 +1,6 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, text-text-primary, text-text-secondary, border-main.
-// 2. Preserved all content and functionality.
-// 3. Removed version badge and unused imports.
+// PHOENIX PROTOCOL - LANDING V6.1 (EXECUTIVE DESIGN SYSTEM)
+// POLISH: Standardized design tokens, upgraded navigation controls, and aligned touch target heights to 44px (h-11).
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -28,13 +26,13 @@ const LandingPage: React.FC = () => {
       </div>
 
       {/* Navbar */}
-      <nav className="relative z-50 px-6 py-6 max-w-7xl mx-auto flex justify-between items-center">
+      <nav className="relative z-50 px-6 py-6 max-w-7xl mx-auto flex justify-between items-center h-16 shrink-0">
         <BrandLogo />
-        <div className="flex gap-4">
-            <Link to="/login" className="px-6 py-2.5 text-sm font-bold text-text-secondary hover:text-text-primary transition-colors">
+        <div className="flex gap-4 h-11 items-center">
+            <Link to="/login" className="flex items-center justify-center px-6 h-11 text-sm font-bold text-text-secondary hover:text-text-primary transition-colors focus:outline-none">
                 {t('landing.login')}
             </Link>
-            <Link to="/register" className="hidden sm:flex px-6 py-2.5 btn-primary text-sm font-bold rounded-xl items-center gap-2">
+            <Link to="/register" className="hidden sm:flex px-6 h-11 btn-primary text-sm font-bold rounded-xl items-center gap-2 focus:outline-none">
                 {t('landing.getStarted')} <ArrowRight size={16} />
             </Link>
         </div>
@@ -48,9 +46,7 @@ const LandingPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
             >
-                {/* Version Badge Removed */}
-                
-                <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-tight text-text-primary">
+                <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-tight text-text-primary select-none">
                     {t('landing.heroTitle')} <br />
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-start to-primary-end">
                         {t('landing.heroHighlight')}
@@ -62,7 +58,7 @@ const LandingPage: React.FC = () => {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Link to="/register" className="btn-primary px-8 py-4 rounded-2xl text-lg font-bold shadow-xl shadow-primary-start/20 hover:scale-105 transition-transform flex items-center justify-center gap-3">
+                    <Link to="/register" className="btn-primary px-8 py-4 rounded-2xl text-lg font-bold shadow-xl shadow-primary-start/25 hover:scale-105 transition-transform flex items-center justify-center gap-3 focus:outline-none">
                         {t('landing.getStarted')} <ChevronRight />
                     </Link>
                 </div>
@@ -76,50 +72,50 @@ const LandingPage: React.FC = () => {
         {/* Feature Grid (Secondary Highlights) */}
         <section className="py-24 max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/30 transition-colors border border-main">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500">
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/30 transition-colors border border-main bg-surface/30">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
                     <MessageSquare className="w-48 h-48 text-primary-start" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-primary-start/20 rounded-xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20">
+                    <div className="w-12 h-12 bg-primary-start/20 rounded-xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-inner">
                         <Zap className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-text-primary">{t('landing.socraticAssistantTitle')}</h3>
+                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.socraticAssistantTitle')}</h3>
                     <p className="text-text-secondary leading-relaxed">
                         {t('landing.socraticAssistantDescription')}
                     </p>
                 </div>
             </div>
 
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-success-start/30 transition-colors border border-main">
-                 <div className="w-12 h-12 bg-success-start/20 rounded-xl flex items-center justify-center mb-4 text-success-start border border-success-start/20">
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-status-success/30 transition-colors border border-main bg-surface/30">
+                 <div className="w-12 h-12 bg-status-success/15 rounded-xl flex items-center justify-center mb-4 text-status-success border border-status-success/20 shadow-inner">
                     <Lock className="w-6 h-6" />
                 </div>
-                <h3 className="xl font-bold mb-2 text-text-primary">{t('landing.fullSecurityTitle')}</h3>
-                <p className="text-text-secondary text-sm">
+                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.fullSecurityTitle')}</h3>
+                <p className="text-text-secondary text-sm leading-relaxed">
                     {t('landing.fullSecurityDescription')}
                 </p>
             </div>
 
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/30 transition-colors border border-main">
-                <div className="w-12 h-12 bg-accent-start/20 rounded-xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20">
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/30 transition-colors border border-main bg-surface/30">
+                <div className="w-12 h-12 bg-accent-start/20 rounded-xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-inner">
                     <TrendingUp className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-text-primary">{t('landing.businessCenterTitle')}</h3>
-                <p className="text-text-secondary text-sm">
+                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.businessCenterTitle')}</h3>
+                <p className="text-text-secondary text-sm leading-relaxed">
                     {t('landing.businessCenterDescription')}
                 </p>
             </div>
 
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden hover:border-secondary-start/30 transition-colors border border-main">
-                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden hover:border-secondary-start/30 transition-colors border border-main bg-surface/30">
+                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
                     <Database className="w-48 h-48 text-secondary-start" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-secondary-start/20 rounded-xl flex items-center justify-center mb-4 text-secondary-start border border-secondary-start/20">
+                    <div className="w-12 h-12 bg-secondary-start/20 rounded-xl flex items-center justify-center mb-4 text-secondary-start border border-secondary-start/20 shadow-inner">
                         <FileText className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-text-primary">{t('landing.intelligentArchiveTitle')}</h3>
+                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.intelligentArchiveTitle')}</h3>
                     <p className="text-text-secondary leading-relaxed">
                         {t('landing.intelligentArchiveDescription')}
                     </p>
@@ -131,11 +127,11 @@ const LandingPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-main py-12 text-center text-text-muted text-sm relative z-10 bg-canvas/20">
-        <p>{t('footer.copyright', { year: new Date().getFullYear() })}</p>
-        <div className="flex justify-center gap-6 mt-4">
-            <span className="flex items-center gap-1"><Lock size={12}/> {t('footer.encryption')}</span>
-            <span className="flex items-center gap-1"><Globe size={12}/> {t('footer.jurisdiction')}</span>
+      <footer className="border-t border-main py-12 text-center text-text-muted text-sm relative z-10 bg-canvas/30 backdrop-blur-md">
+        <p className="select-none">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
+        <div className="flex justify-center gap-6 mt-4 select-none">
+            <span className="flex items-center gap-1.5"><Lock size={12} className="text-text-muted"/> {t('footer.encryption')}</span>
+            <span className="flex items-center gap-1.5"><Globe size={12} className="text-text-muted"/> {t('footer.jurisdiction')}</span>
         </div>
       </footer>
     </div>

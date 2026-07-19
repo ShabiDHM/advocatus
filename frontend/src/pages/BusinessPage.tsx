@@ -1,5 +1,6 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.2 (MOBILE‑FRIENDLY LAYOUT)
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.3 (MOBILE‑FRIENDLY LAYOUT)
+// POLISH: Standardized controls to 44px (h-11), swapped out border tokens, and updated layout grid spacing.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -34,14 +35,14 @@ const BusinessPage: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'profile', label: t('business.profile'), icon: <Building2 size={16} /> },
-    { id: 'team', label: t('business.team'), icon: <Users size={16} /> },
-    { id: 'finance', label: t('business.finance'), icon: <FileText size={16} /> },
-    { id: 'archive', label: t('business.archive'), icon: <FolderOpen size={16} /> }
+    { id: 'profile', label: t('business.profile'), icon: <Building2 size={15} /> },
+    { id: 'team', label: t('business.team'), icon: <Users size={15} /> },
+    { id: 'finance', label: t('business.finance'), icon: <FileText size={15} /> },
+    { id: 'archive', label: t('business.archive'), icon: <FolderOpen size={15} /> }
   ] as const;
 
   return (
-    <div className="w-full min-h-screen pt-12 pb-12">
+    <div className="w-full min-h-screen pt-12 pb-12 bg-canvas">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
@@ -49,26 +50,27 @@ const BusinessPage: React.FC = () => {
             
             {/* The Greeting */}
             <div className="text-center lg:text-left">
-                <h1 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-widest mb-1">
+                <h1 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-widest mb-1 select-none">
                     {t('general.welcome', 'Mirësevini')}
                 </h1>
-                <p className="text-base sm:text-lg font-medium text-text-muted tracking-wide">
+                <p className="text-base sm:text-lg font-bold text-text-secondary tracking-wide">
                     {formatName(user?.full_name || user?.username)}
                 </p>
             </div>
 
-            {/* Navigation Tabs - Responsive: wraps and centers on small screens, scrolls if too many */}
-            <div className="glass-panel p-1.5 rounded-2xl bg-canvas/40 border border-border-main shadow-sm w-full lg:w-auto flex flex-wrap justify-center gap-1">
+            {/* Navigation Tabs - Standardized h-11 / 44px capsule layout */}
+            <div className="glass-panel p-1 rounded-full bg-surface border border-main shadow-sm w-full lg:w-auto flex flex-wrap justify-center gap-1 h-11 items-center shrink-0">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
+                        type="button"
                         onClick={() => setActiveTab(tab.id as ActiveTab)}
                         className={`
-                            flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-[10px] sm:text-xs 
-                            font-black uppercase tracking-widest transition-all whitespace-nowrap
+                            flex items-center gap-2 px-4 sm:px-6 h-9 rounded-full text-[10px] sm:text-xs 
+                            font-black uppercase tracking-wider transition-all whitespace-nowrap focus:outline-none
                             ${activeTab === tab.id 
-                                ? 'bg-primary-start text-white shadow-accent-glow' 
-                                : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
+                                ? 'bg-primary-start text-white shadow-lg shadow-primary-start/15' 
+                                : 'text-text-muted hover:text-text-primary hover:bg-hover'
                             }
                         `}
                     >
