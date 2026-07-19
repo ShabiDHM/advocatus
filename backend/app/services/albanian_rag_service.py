@@ -1,9 +1,9 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V31.1 (PARENT-CHILD MATCHING & LATENCY OPTIMIZATION)
-# 1. OPTIMIZATION: Implements dual-level Parent-Child context extraction (looks for parent_text inside metadata).
+# PHOENIX PROTOCOL - RAG SERVICE V31.2 (DIRECT SDK STREAMING)
+# 1. OPTIMIZATION: Replaces LangChain ChatOpenAI with the official AsyncOpenAI SDK client to resolve proxy/wrapper buffering.
 # 2. INTEL: Pre-search Query Optimizer normalizes legal abbreviations and sanitizes conversational preambles.
-# 3. LATENCY CORRECTION: Optimized context limits (n_results=4/3) to reduce pre-fill processing delay and restore the typing stream.
-# 4. TEMPERATURE: Calibrated to task-based temperature of 0.2 to balance precision and audit comprehension.
+# 3. LATENCY CORRECTION: Uses direct stream=True to push tokens instantly to FastAPI's StreamingResponse.
+# 4. CONFIG: Keeps optimized context limits (n_results=4/3) and task-based temperature of 0.2.
 # 5. STATUS: 100% Independent / 8GB RAM Optimized / Production Ready.
 
 import os
@@ -12,7 +12,7 @@ import asyncio
 import logging
 import re
 from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
-from langchain_openai import ChatOpenAI
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,18 +40,15 @@ class AlbanianRAGService:
         self.law_number_map: Dict[Tuple[str, str], str] = {}
         
         if API_KEY:
-            # PHOENIX V31.1: Calibrated to task-based temperature 0.2 for precise audits
-            self.llm = ChatOpenAI(
-                model=OPENROUTER_MODEL, 
-                base_url=OPENROUTER_BASE_URL, 
-                api_key=API_KEY, 
-                temperature=0.2, 
-                streaming=True,
+            # PHOENIX V31.2: Connect using the direct native AsyncOpenAI client
+            self.client = AsyncOpenAI(
+                api_key=API_KEY,
+                base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] AI Engine initialized via OpenRouter (Temperature: 0.2).")
+            logger.info("✅ [RAG] AI Engine initialized with direct AsyncOpenAI client.")
         else:
-            self.llm = None
+            self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
 
     def _normalize_law_title(self, title: str) -> str:
@@ -131,7 +128,7 @@ class AlbanianRAGService:
                    history: Optional[List[Dict[str, Any]]] = None,
                    domain: Optional[str] = 'automatic') -> AsyncGenerator[str, None]:
         
-        if not self.llm:
+        if not self.client:
             yield "Sistemi AI nuk është aktiv. Kontrolloni çelësat në Render."
             yield AI_DISCLAIMER
             return
@@ -141,16 +138,16 @@ class AlbanianRAGService:
 
         logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
 
-        # PHOENIX V31.1: Run query pre-search optimizer before MongoDB Atlas lookup
+        # PHOENIX V31.2: Run query pre-search optimizer before MongoDB Atlas lookup
         optimized_query = self._optimize_query(query)
         logger.info(f"🔍 Optimized Query: '{optimized_query[:100]}...'")
 
-        # 1. Search Case Knowledge Base (Direct Mongo Vector Search) - Optimized Context Size to reduce pre-fill latency
+        # 1. Search Case Knowledge Base (Direct Mongo Vector Search) - Optimized Context Size
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=optimized_query, n_results=4
         )
 
-        # 2. Search Global Laws (Direct Mongo Vector Search) - Optimized Context Size to reduce pre-fill latency
+        # 2. Search Global Laws (Direct Mongo Vector Search) - Optimized Context Size
         global_docs = vector_store_service.query_global_knowledge_base(
             query_text=optimized_query, n_results=3
         )
@@ -186,9 +183,19 @@ class AlbanianRAGService:
         """
 
         try:
-            async for chunk in self.llm.astream(prompt):
-                if chunk.content:
-                    yield chunk.content
+            # PHOENIX V31.2: Direct API streaming to completely bypass LangChain buffering bugs
+            response = await self.client.chat.completions.create(
+                model=OPENROUTER_MODEL,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.2,
+                stream=True
+            )
+            async for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
             yield AI_DISCLAIMER
         except Exception as e:
             logger.error(f"RAG Stream Failure: {e}")
