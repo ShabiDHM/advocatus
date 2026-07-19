@@ -1,6 +1,6 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.2 (REMOVED QUICK STATS FROM BANNER)
-// POLISH: Standardized search/button heights to 44px, aligned layout grids, and updated border tokens.
+// PHOENIX PROTOCOL - DASHBOARD V9.3 (MOBILE RE-DESIGNED EDITION)
+// POLISH: Implemented side-by-side mobile action rows, fluid parent scroll parameters, and refined banner paddings.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -279,47 +279,50 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-full flex flex-col relative bg-canvas">
+    /* Changed height metrics to dynamic h-auto scroll on mobile screens, preserving fixed heights only on lg desktop screens */
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-auto lg:h-[calc(100dvh-64px)] lg:overflow-hidden flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
         {effectiveBriefing && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className={`glass-panel shrink-0 mb-8 rounded-[2rem] border border-main backdrop-blur-md overflow-hidden shadow-sm`}
+            className="glass-panel shrink-0 mb-6 rounded-[2rem] border border-main backdrop-blur-md overflow-hidden shadow-sm"
           >
-            <div className="p-6 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            {/* Optimized banner padding metrics for clean mobile representation */}
+            <div className="p-5 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Left: Greeting */}
-                <div className="flex items-start gap-5">
-                  <div className="glass-panel p-4 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
+                <div className="flex items-start gap-4">
+                  <div className="glass-panel p-3 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
                     {theme.icon}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/40">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
                         {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                       </h2>
-                      <div className="w-2 h-2 rounded-full bg-status-success shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse shrink-0" />
                     </div>
-                    <p className="font-black text-xl sm:text-2xl text-text-primary tracking-tight leading-tight">
+                    <p className="font-bold text-lg sm:text-2xl text-text-primary tracking-tight leading-snug">
                       {getGreeting()}
                     </p>
-                    <p className="text-text-secondary font-semibold mt-2 text-sm sm:text-base italic">
+                    <p className="text-text-secondary font-semibold mt-1 text-xs sm:text-sm italic">
                       {getSubtitle()}
                     </p>
                   </div>
                 </div>
 
                 {/* Middle: Risk/Events content */}
-                <div className="flex-1 w-full max-w-2xl">
+                <div className="w-full md:max-w-xs">
                   {getMainContent()}
                 </div>
 
-                {/* Right: Calendar Button (centered vertically, standardized h-11 / 44px) */}
-                <div className="shrink-0 self-center">
+                {/* Right: Calendar Button (Centered, standardized h-11 / 44px) */}
+                <div className="shrink-0 w-full md:w-auto">
                   <button 
+                    type="button"
                     onClick={() => window.location.href = '/calendar'} 
-                    className="h-11 px-6 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-3 bg-primary-start hover:bg-opacity-90 text-white shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none"
+                    className="h-11 w-full md:w-auto px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 bg-primary-start hover:bg-opacity-95 text-white shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none"
                   >
                     <Calendar size={16} />
                     {t('briefing.view_calendar', 'Kalendari')}
@@ -331,24 +334,26 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Standardized Search + Create Case Row (Standardized h-11 / 44px) */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 px-2 shrink-0">
-        <div className="relative w-full sm:w-80">
+      {/* Side-by-side search input and action button for tight mobile presentation */}
+      <div className="flex items-center gap-3 w-full h-11 shrink-0 mb-6 px-1">
+        <div className="relative flex-1 h-11">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
           <input
             type="text"
             placeholder={t('dashboard.searchPlaceholder', 'Kërko rast...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 h-11 bg-surface border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start transition-all"
+            className="w-full h-11 pl-11 pr-4 bg-surface border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
           />
         </div>
         <button 
+            type="button"
             onClick={() => setShowCreateModal(true)} 
-            className="w-full sm:w-auto px-6 h-11 rounded-xl bg-primary-start hover:bg-opacity-90 text-white flex items-center justify-center gap-3 font-black text-xs uppercase tracking-[0.1em] active:scale-[0.98] shrink-0 hover-lift shadow-lg shadow-primary-start/15 focus:outline-none"
+            className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none"
+            title={t('dashboard.newCase', 'Rast i Ri')}
         >
-          <Plus size={16} strokeWidth={4} /> 
-          <span>{t('dashboard.newCase', 'Rast i Ri')}</span>
+          <Plus size={16} strokeWidth={3} /> 
+          <span className="hidden sm:inline">{t('dashboard.newCase', 'Rast i Ri')}</span>
         </button>
       </div>
 
@@ -357,11 +362,11 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto custom-finance-scroll pb-8">
           {filteredCases.length === 0 ? (
-             <div className="glass-panel flex flex-col items-center justify-center py-24 border border-main bg-surface">
-                <div className="w-20 h-20 bg-hover rounded-3xl flex items-center justify-center mb-6 border border-main">
-                    <ShieldAlert size={40} className="opacity-20 text-text-secondary" />
+             <div className="glass-panel flex flex-col items-center justify-center py-20 border border-main bg-surface">
+                <div className="w-16 h-16 bg-hover rounded-2xl flex items-center justify-center mb-4 border border-main">
+                    <ShieldAlert size={36} className="opacity-25 text-text-secondary" />
                 </div>
-                <p className="font-black uppercase tracking-widest text-xs italic text-text-secondary">
+                <p className="font-bold uppercase tracking-wider text-xs italic text-text-secondary">
                   {searchTerm ? t('dashboard.noSearchResults', 'Nuk u gjet asnjë rast për këtë kërkim.') : t('dashboard.noCases', 'Nuk u gjetën raste aktive.')}
                 </p>
              </div>
@@ -408,7 +413,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t border-main">
                   <button type="button" onClick={() => setShowCreateModal(false)} className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none">{t('general.cancel', 'Anulo')}</button>
-                  <button type="submit" disabled={isCreating} className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-opacity-90 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/15">
+                  <button type="submit" disabled={isCreating} className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/15">
                       {isCreating ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.create', 'Krijo')}
                   </button>
                 </div>
@@ -427,7 +432,7 @@ const DashboardPage: React.FC = () => {
               <p className="text-text-secondary text-sm mb-6 leading-relaxed italic font-medium">{t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}</p>
               <div className="flex gap-3 justify-center">
                 <button type="button" onClick={() => setCaseToDeleteId(null)} className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none">{t('general.cancel', 'Anulo')}</button>
-                <button type="button" onClick={confirmDeleteCase} disabled={isDeletingCase} className="w-full h-11 rounded-xl bg-danger-start hover:bg-opacity-90 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-danger-start/15">
+                <button type="button" onClick={confirmDeleteCase} disabled={isDeletingCase} className="w-full h-11 rounded-xl bg-danger-start hover:bg-opacity-90 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-primary-start/15">
                   {isDeletingCase ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.delete', 'Fshij')}
                 </button>
               </div>
