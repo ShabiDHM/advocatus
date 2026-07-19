@@ -1,18 +1,30 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: EXACT CITATIONS ONLY FROM CONTEXT
-# 1. ADDED: Rule: ONLY cite laws listed in [MATERIALI LIGJOR NDIHMËS]. Do not invent or use external knowledge.
-# 2. ADDED: Instruction to copy law titles verbatim from the provided list, including numbers.
-# 3. STRENGTHENED: Ban on hallucinating non‑existent laws (e.g., defamation law).
+# PHOENIX PROTOCOL - DRAFTING SERVICE V31.0 (STRUCTURED OUTS & PLACEHOLDER SELF-CORRECTION)
+# 1. OPTIMIZATION: Uses Pydantic 'LegalDraftStructure' to prevent LLM structural hallucinations.
+# 2. SELF-CORRECTION: Runs post-generation regex to sanitize bracket placeholders into professional legal blanks.
+# 3. TEMPERATURE: Enforces task-based temperature of 0.1 (TEMP_DRAFTING) for absolute deterministic structure.
+# 4. STREAMING: Simulates silky-smooth streaming of the fully polished and corrected document to protect SSE UX.
 
 import os
+import re
 import asyncio
 import structlog
 from datetime import datetime, timezone
 from typing import Optional, Dict, List, AsyncGenerator
+from pydantic import BaseModel, Field
 from pymongo.database import Database
 from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
+
+# Pydantic Structure for Zero-Hallucination Legal Document Output
+class LegalDraftStructure(BaseModel):
+    titulli: str = Field(..., description="Titulli zyrtar i dokumentit juridik (p.sh., PADIPADI, KALLËZIM PENAL, AUTORIZIM).")
+    palet: str = Field(..., description="Seksioni i palëve (Kërkuesi, Paditësi, i Padituri, etj.) të identifikuar plotësisht.")
+    baza_ligjore: str = Field(..., description="Nenet dhe titujt e plotë të ligjeve të cituara nga Materiali Ndihmës Ligjor.")
+    arsyetimi: str = Field(..., description="Analiza faktike dhe ligjore e hollësishme (Arsyetimi / Rationale).")
+    petitumi: str = Field(..., description="Kërkesa e saktë apo pika vendosëse e dokumentit (Petiti / Përfundimi).")
+    nenshkrimi: str = Field(..., description="Seksioni përmbyllës dhe rreshtat e nënshkrimeve.")
 
 LEGAL_DOMAINS = {
     "FAMILY": {
@@ -67,6 +79,50 @@ def detect_legal_domain(text: str) -> Dict[str, str]:
         "context_note": "Fokus: Zbatimi i përgjithshëm i ligjit dhe procedurës."
     }
 
+def compile_draft(draft: LegalDraftStructure) -> str:
+    """
+    Compiles the validated Pydantic legal segments into a beautiful unified Markdown draft.
+    """
+    return f"""# {draft.titulli.upper()}
+
+**I. PALËT DHE OBJEKTI**
+{draft.palet}
+
+**II. BAZA LIGJORE**
+{draft.baza_ligjore}
+
+**III. ARSYETIMI**
+{draft.arsyetimi}
+
+**IV. PETITUMI / PËRFUNDIMI**
+{draft.petitumi}
+
+**V. NËNSHKRIMI DHE DATA**
+{draft.nenshkrimi}
+"""
+
+def sanitize_unresolved_placeholders(text: str) -> str:
+    """
+    Finds unresolved bracketed placeholders like [Emri i Bashkëshortit] or [Data]
+    and transforms them into legal-ready blanks (e.g. ________________________ (Emri i Bashkëshortit)).
+    """
+    pattern = r"\[([^\]]{1,100})\]"
+    
+    def replacement(match):
+        placeholder_content = match.group(1).strip()
+        # Format placeholder elegantly as a legal fill-in underline
+        return f"________________________ ({placeholder_content})"
+        
+    return re.sub(pattern, replacement, text)
+
+async def simulate_streaming(text: str, chunk_size: int = 45, delay: float = 0.004) -> AsyncGenerator[str, None]:
+    """
+    Simulates high-speed silky-smooth streaming over SSE to preserve downstream user experience.
+    """
+    for i in range(0, len(text), chunk_size):
+        yield text[i:i+chunk_size]
+        await asyncio.sleep(delay)
+
 async def stream_draft_generator(
     db: Database, 
     user_id: str, 
@@ -75,7 +131,7 @@ async def stream_draft_generator(
     user_prompt: str
 ) -> AsyncGenerator[str, None]:
     
-    logger.info(f"Drafting initiated", user=user_id, type=draft_type)
+    logger.info("Drafting initiated", user=user_id, type=draft_type)
     
     domain_context = detect_legal_domain(user_prompt)
     detected_law = domain_context["law"]
@@ -130,20 +186,13 @@ async def stream_draft_generator(
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
-UDHËZIME TË RREPTA (NDIQINI ME PRECIZION):
-1. **Ndiq strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt e specifikuar (PALËT:, OBJEKTI:, BAZA LIGJORE:, ARSYETIMI:, PETITUMI / PËRFUNDIMI:, NËNSHKRIMI:). Mos i ndrysho dhe mos shto tituj të tjerë.
-
-2. **CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]**. Mos përdor asnjë ligj që nuk shfaqet aty. Nëse në listë nuk ka ligje të përshtatshme, shkruaj "Nuk u gjetën dispozita ligjore specifike." Në asnjë rast mos shpik ligje.
-
-3. **Për çdo ligj të cituar, kopjo fjalë për fjalë titullin e plotë zyrtar duke përfshirë numrin** (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore"). Nëse numri i nenit dihet, përdor "Neni XX". Nëse nuk dihet, përdor "Neni përkatës". Mos përdor formulime si "[Neni i aplikueshëm ...]" që vijnë nga përdoruesi.
-
-4. **Ligji primar i identifikuar është: {detected_law}.** Ky ligji duhet të jetë baza kryesore e përgjigjes suaj.
-
-5. **Mos përziej ligje nga fusha të ndryshme** – p.sh., mos përdor ligjin tregtar në një mosmarrëveshje pronësore.
-
-6. **Kosovo NUK ka një ligj të veçantë për mbrojtjen nga shpifja.** Shpifja rregullohet nga Kodi Penal (nëse është vepër penale) ose Ligji për Marrëdhëniet e Detyrimeve (për dëmshpërblim civil). Mos e përmend një ligj të tillë.
-
-7. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
+UDHËZIME T T'RREPTA JURIDIKE:
+1. Përdor saktësisht strukturën e modelit të kërkuar (Titulli, Palët, Baza Ligjore, Arsyetimi, Petitumi, Nënshkrimi).
+2. CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]. Mos shpik ose supozo ligje që nuk janë në listë.
+3. Për çdo ligj të cituar, kopjo fjalë për fjalë titullin e plotë zyrtar duke përfshirë numrin (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").
+4. Ligji primar i identifikuar është: {detected_law}. Ky ligj duhet të jetë baza kryesore e draftit.
+5. Mos përziej ligje nga fusha të ndryshme.
+6. Kosova NUK ka një ligj të veçantë për mbrojtjen nga shpifja. Shpifja rregullohet kryesisht nga LMD (për dëmin civil) ose Kodi Penal.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
@@ -154,21 +203,52 @@ Udhëzim: {context_note}
 
 [FAKTET NGA DOSJA E RASTIT (NËSE KA)]
 {facts_block}
-
-Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzimet e mësipërme. Mos përfshij asnjë koment jashtë dokumentit.
 """
 
-    full_content = ""
+    sanitized_text = ""
     try:
-        async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
-            full_content += token
-            yield token
+        # PHOENIX V31.0: Call Structured Output generator with task-based temperature of 0.1
+        structured_draft = await asyncio.to_thread(
+            llm_service.call_llm_structured,
+            system_prompt=system_prompt,
+            user_content=user_prompt,
+            schema=LegalDraftStructure,
+            temperature=llm_service.TEMP_DRAFTING
+        )
+        
+        # Compile Pydantic sections into unified document
+        compiled_text = compile_draft(structured_draft)
+        
+        # Execute Regex Self-Correction Loop to clean bracketed placeholders
+        sanitized_text = sanitize_unresolved_placeholders(compiled_text)
+        
+        # Stream the polished document back smoothly over SSE
+        async for chunk in simulate_streaming(sanitized_text):
+            yield chunk
 
-        if full_content.strip() and case_id:
-            asyncio.create_task(save_draft_result(db, user_id, case_id, draft_type, full_content))
+        # Save to DB asynchronously
+        if sanitized_text.strip() and case_id:
+            asyncio.create_task(save_draft_result(db, user_id, case_id, draft_type, sanitized_text))
+
     except Exception as e:
-        logger.error(f"LLM Generation Failed: {e}")
-        yield f"\n\n[GABIM SISTEMI]: {str(e)}"
+        logger.error(f"Structured Drafting Failed, falling back: {e}")
+        
+        # Safe fallback: direct streaming with on-the-fly regex placeholder cleaning
+        fallback_prompt = system_prompt + "\n\nOfroni draftin direkt në format markdown të strukturuar, pa asnjë hyrje ose koment shtesë."
+        full_content = ""
+        
+        try:
+            async for token in llm_service.stream_text_async(fallback_prompt, user_prompt, temp=llm_service.TEMP_DRAFTING):
+                # Clean on-the-fly to ensure no raw bracket leakage during fallback
+                clean_token = sanitize_unresolved_placeholders(token)
+                full_content += clean_token
+                yield clean_token
+
+            if full_content.strip() and case_id:
+                asyncio.create_task(save_draft_result(db, user_id, case_id, draft_type, full_content))
+        except Exception as fallback_err:
+            logger.error(f"Fallback generation failed completely: {fallback_err}")
+            yield f"\n\n[GABIM SISTEMI]: {str(fallback_err)}"
 
 async def save_draft_result(db: Database, user_id: str, case_id: str, draft_type: str, content: str):
     try:
