@@ -1,6 +1,6 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.2 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// POLISH: Standardized design tokens, upgraded navigation controls, and aligned touch target heights to 44px (h-11).
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.3 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
+// POLISH: Adjusted header text-truncation properties to prevent clipping of long organization names like "Data And Human Management".
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -118,19 +118,20 @@ const ClientPortalPage: React.FC = () => {
 
             <header className="sticky top-0 z-50 bg-surface/85 backdrop-blur-xl border-b border-main h-16 flex items-center px-4 sm:px-6">
                 <div className="max-w-4xl mx-auto w-full flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         {logoSrc && !imgError ? (
                             <img src={logoSrc} className="w-7 h-7 rounded bg-surface object-contain" onError={() => setImgError(true)} />
                         ) : (
-                            <div className="w-7 h-7 bg-primary-start rounded flex items-center justify-center text-white">
+                            <div className="w-7 h-7 bg-primary-start rounded flex items-center justify-center text-white shrink-0">
                                 <Building2 size={16} />
                             </div>
                         )}
-                        <span className="font-bold text-xs sm:text-sm truncate max-w-[150px] text-text-primary">
+                        {/* Dynamic scaling width boundary that prevents clipping of longer names */}
+                        <span className="font-bold text-xs sm:text-sm truncate max-w-[180px] sm:max-w-xs md:max-w-none text-text-primary">
                             {data.organization_name || t('branding.fallback', 'Zyra Ligjore')}
                         </span>
                     </div>
-                    <div className="text-[10px] font-bold text-status-success bg-status-success/15 px-2.5 py-1 rounded-full border border-status-success/20 flex items-center gap-1.5 shadow-sm">
+                    <div className="text-[10px] font-bold text-status-success bg-status-success/15 px-2.5 py-1 rounded-full border border-status-success/20 flex items-center gap-1.5 shadow-sm shrink-0">
                         <ShieldCheck size={12} /> {t('portal.secure_connection', 'Sigurt')}
                     </div>
                 </div>
