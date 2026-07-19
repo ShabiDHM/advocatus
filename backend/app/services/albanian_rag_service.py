@@ -1,9 +1,10 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V31.0 (PARENT-CHILD MATCHING & QUERY OPTIMIZATION)
+# PHOENIX PROTOCOL - RAG SERVICE V31.1 (PARENT-CHILD MATCHING & LATENCY OPTIMIZATION)
 # 1. OPTIMIZATION: Implements dual-level Parent-Child context extraction (looks for parent_text inside metadata).
 # 2. INTEL: Pre-search Query Optimizer normalizes legal abbreviations and sanitizes conversational preambles.
-# 3. TEMPERATURE: Calibrated to task-based temperature of 0.2 to balance precision and audit comprehension.
-# 4. STATUS: 100% Independent / 8GB RAM Optimized / Production Ready.
+# 3. LATENCY CORRECTION: Optimized context limits (n_results=4/3) to reduce pre-fill processing delay and restore the typing stream.
+# 4. TEMPERATURE: Calibrated to task-based temperature of 0.2 to balance precision and audit comprehension.
+# 5. STATUS: 100% Independent / 8GB RAM Optimized / Production Ready.
 
 import os
 import sys
@@ -39,7 +40,7 @@ class AlbanianRAGService:
         self.law_number_map: Dict[Tuple[str, str], str] = {}
         
         if API_KEY:
-            # PHOENIX V31.0: Calibrated to task-based temperature 0.2 for precise audits
+            # PHOENIX V31.1: Calibrated to task-based temperature 0.2 for precise audits
             self.llm = ChatOpenAI(
                 model=OPENROUTER_MODEL, 
                 base_url=OPENROUTER_BASE_URL, 
@@ -140,18 +141,18 @@ class AlbanianRAGService:
 
         logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
 
-        # PHOENIX V31.0: Run query pre-search optimizer before MongoDB Atlas lookup
+        # PHOENIX V31.1: Run query pre-search optimizer before MongoDB Atlas lookup
         optimized_query = self._optimize_query(query)
         logger.info(f"🔍 Optimized Query: '{optimized_query[:100]}...'")
 
-        # 1. Search Case Knowledge Base (Direct Mongo Vector Search)
+        # 1. Search Case Knowledge Base (Direct Mongo Vector Search) - Optimized Context Size to reduce pre-fill latency
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=optimized_query, n_results=10
+            user_id=user_id, query_text=optimized_query, n_results=4
         )
 
-        # 2. Search Global Laws (Direct Mongo Vector Search)
+        # 2. Search Global Laws (Direct Mongo Vector Search) - Optimized Context Size to reduce pre-fill latency
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=optimized_query, n_results=5
+            query_text=optimized_query, n_results=3
         )
 
         context_str = self._build_context(case_docs, global_docs)
