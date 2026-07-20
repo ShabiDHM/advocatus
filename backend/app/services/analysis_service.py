@@ -1,6 +1,6 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.10 (PARTY-AWARE ADAPTIVE ANALYSIS)
-# 1. FIX: Added User Identity retrieval and implemented the 'Adaptive-Party Mandate' to tailor strategy plans specifically to the active user's side (Plaintiff vs Defendant).
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.11 (F-STRING BRACE ESCAPE FIXED)
+# 1. FIX: Removed f-string wrapping on system_prompt and used string replace helper to prevent JSON-bracket syntax crashes.
 
 import asyncio
 import structlog
@@ -121,11 +121,11 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     # Log the context (first 1000 chars) to debug
     debug_logger.debug(f"=== CONTEXT PASSED TO LLM (first 1000 chars) ===\n{context[:1000]}\n... (truncated)")
 
-    system_prompt = f"""
-    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin, por njëkohësisht jep shpjegime dhe udhëzime jashtëzakonisht të thjeshta, të kuptueshme dhe praktike për një qytetar të thjeshtë që nuk është jurist.
+    system_prompt = """
+    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin, bur njëkohësisht jep shpjegime dhe udhëzime jashtëzakonisht të thjeshta, të kuptueshme dhe praktike për një qytetar të thjeshtë që nuk është jurist.
     
     PËRDORUESI AKTIV QË PO KËRKON ANALIZËN (IDENTITETI):
-    {active_user_identity}
+    __ACTIVE_USER_IDENTITY__
     
     MANDATI MBROJTËS/OFENSIV (ADAPTIVE-PARTY MANDATE):
     - Identifikoni automatikisht rolin e këtij Përdoruesi Aktiv në këtë konflikt ligjor duke krahasuar identitetin e tij të mësipërm me palët në shkresat e lëndës.
@@ -181,6 +181,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     }
     """
     
+    # Safe regex string replacement bypasses f-string curly-bracket conflicts completely
+    system_prompt = system_prompt.replace("__ACTIVE_USER_IDENTITY__", active_user_identity)
+    
     try:
         raw_res = await asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt)
         
@@ -193,14 +196,14 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
             "summary": raw_res.get("executive_summary"),
             "burden_of_proof": audit.get("burden_of_proof"),
             "legal_basis": audit.get("legal_basis", []), 
-            "strategic_analysis": rec.get("recommendation_text"),
-            "strengths": rec.get("strengths", []),
-            "weaknesses": rec.get("weaknesses", []),
-            "key_arguments": rec.get("key_arguments", []),
-            "action_plan": rec.get("action_plan", []),
+            "strategic_analysis": rec.get("strategic_recommendation", {}).get("recommendation_text") if isinstance(rec, dict) else "",
+            "strengths": rec.get("strengths", []) if isinstance(rec, dict) else [],
+            "weaknesses": rec.get("weaknesses", []) if isinstance(rec, dict) else [],
+            "key_arguments": rec.get("key_arguments", []) if isinstance(rec, dict) else [],
+            "action_plan": rec.get("action_plan", []) if isinstance(rec, dict) else [],
             "missing_evidence": raw_res.get("missing_evidence", []),
-            "success_probability": rec.get("success_probability"),
-            "risk_level": rec.get("risk_level", "MEDIUM")
+            "success_probability": rec.get("success_probability") if isinstance(rec, dict) else None,
+            "risk_level": rec.get("risk_level", "MEDIUM") if isinstance(rec, dict) else "MEDIUM"
         }
     except Exception as e:
         logger.error(f"Analysis Processing Failed: {e}")
@@ -294,7 +297,7 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     md += "\n---\n## 4. SIMULIMI I KUNDËRSHTARIT (WAR ROOM)\n"
     md += f"### STRATEGJIA E PALËS TJETËR\n{sim.get('opponent_strategy', 'Nuk u gjenerua.')}\n\n"
     if sim.get('weakness_attacks'):
-        md += "### PIKAT E SULMIT TË IDENTIKUARA\n"
+        md += "### PIKAT E SULMIT TË IDENTIFIKUARA\n"
         for w in sim.get('weakness_attacks', []):
             md += f"* {w}\n"
 
