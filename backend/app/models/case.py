@@ -1,8 +1,6 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V10.0 (ORGANIZATIONAL OWNERSHIP)
-# 1. ADDED: 'org_id' field.
-# 2. LOGIC: Cases now belong to an Organization (Tenant), not just a user.
-# 3. COMPATIBILITY: 'user_id' remains as the "Lead Attorney" or "Creator".
+# PHOENIX PROTOCOL - CASE MODEL V11.0 (ANALYSIS PERSISTENCE)
+# 1. ADDED: 'latest_analysis' field to CaseInDB and CaseOut to store the persistent analytical reports.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -28,8 +26,6 @@ class CaseBase(BaseModel):
     description: Optional[str] = None
     status: str = "OPEN"
     client_id: Optional[PyObjectId] = None 
-    
-    # PHOENIX NEW: Tenant Ownership
     org_id: Optional[PyObjectId] = None 
     
     # Optional metadata
@@ -52,18 +48,17 @@ class CaseUpdate(BaseModel):
     judge_name: Optional[str] = None
     opponent_name: Optional[str] = None
     client: Optional[ClientData] = None
-    
-    # Allow re-assigning ownership
     org_id: Optional[PyObjectId] = None
 
 # DB Model
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    user_id: PyObjectId # The Creator/Lead
+    user_id: PyObjectId 
     client: Optional[ClientData] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
+    latest_analysis: Optional[Dict[str, Any]] = None  # Persistent AI Analysis
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -79,6 +74,7 @@ class CaseOut(CaseBase):
     
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
+    latest_analysis: Optional[Dict[str, Any]] = None  # Persistent AI Analysis
 
     # Explicitly exposed counters
     document_count: int = 0

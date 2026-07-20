@@ -1,6 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.16 (PERFECT 2-COLUMN LAYOUT ALIGNMENT)
-// POLISH: Implemented responsive button labels to prevent mobile truncation, adjusted vertical header padding offsets.
+// PHOENIX PROTOCOL - CASE VIEW V16.19 (ANALYSIS RETENTION & LIVE CACHING)
+// 1. FIX: Loads pre-existing latest_analysis directly from database into local state on boot for instant viewing (0 seconds delay).
+// 2. FIX: Replaced standard analyze button with "Shiko Analizën" (View) when analysis exists, adding a small "Rianalizo" (Re-analyze) button next to it.
+// 3. FIX: Bound the onClick handlers of both buttons to correct 'onAnalyze' props inside CaseHeader child component.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -39,12 +41,10 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     }).filter(msg => msg.content.trim() !== '');
 };
 
-// Polished Rename Modal with 44px inputs and Scroll Locks
 const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRename: (newName: string) => Promise<void>; currentName: string; t: TFunction; }> = ({ isOpen, onClose, onRename, currentName, t }) => {
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
     
-    // Lock body scroll when rename modal is open
     useLockBodyScroll(isOpen);
 
     useEffect(() => { setName(currentName); }, [currentName]);
@@ -105,14 +105,11 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// ========== REFACTORED HEADER: 2-COLUMN LAYOUT FOR PERFECT ALIGNMENT ==========
-// The header now uses a 2-column grid (left and right) with nested grids for buttons,
-// ensuring each column's buttons span the full width of the panel below.
 const CaseHeader: React.FC<{
     caseDetails: Case;
     documents: Document[];
     t: TFunction;
-    onAnalyze: () => void;
+    onAnalyze: (force?: boolean) => void;
     isAnalyzing: boolean;
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
@@ -121,38 +118,52 @@ const CaseHeader: React.FC<{
     onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
     
-    // Dynamic responsive labels prevent ugly mobile ellipsis clipping of long strings
-    const analyzeButtonText = selectedDocumentIds.length === 0
+    // Check if an analysis already exists in database
+    const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
+
+    const analyzeButtonText = isAnalyzing
         ? (
-            <>
-                <span className="hidden sm:inline">{t('caseView.analyzeCase')}</span>
-                <span className="sm:hidden">Analizo</span>
-            </>
+            <span className="flex items-center gap-2 min-w-0">
+                <span className="flex items-center justify-center animate-spin shrink-0">
+                    <Loader2 className="h-4 w-4 text-primary-start" />
+                </span>
+                <span className="text-primary-start truncate">{t('analysis.analyzing')}</span>
+            </span>
+          )
+        : hasExistingAnalysis
+        ? (
+            <span className="flex items-center gap-2 min-w-0">
+                <Eye size={15} className="text-primary-start shrink-0" />
+                <span className="text-primary-start truncate">Shiko Analizën</span>
+            </span>
+          )
+        : selectedDocumentIds.length === 0
+        ? (
+            <span className="flex items-center gap-2 min-w-0">
+                <ShieldCheck size={15} className="text-primary-start shrink-0" />
+                <span className="text-primary-start truncate">{t('caseView.analyzeCase')}</span>
+            </span>
           )
         : (
-            <>
-                <span className="hidden sm:inline">{t('analysis.crossExamineButton', 'Kryqëzo Dokumentin')}</span>
-                <span className="sm:hidden">Kryqëzo</span>
-            </>
+            <span className="flex items-center gap-2 min-w-0">
+                <ShieldCheck size={15} className="text-primary-start shrink-0" />
+                <span className="text-primary-start truncate">{t('analysis.crossExamineButton', 'Kryqëzo Dokumentin')}</span>
+            </span>
           );
 
     const buttonBase = "h-11 flex items-center justify-center gap-2.5 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-250 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider w-full text-text-primary focus:outline-none";
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            {/* 2-column grid that matches the width of the panels below */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 
                 {/* LEFT COLUMN */}
                 <div className="flex flex-col gap-4">
-                    {/* Top row: two buttons in a sub-grid with standardized h-11 targets */}
                     <div className="grid grid-cols-2 gap-3">
-                        {/* Button 1: Date */}
                         <div className={buttonBase}>
                             <Calendar size={15} className="text-primary-start opacity-70 shrink-0" />
                             <span className="truncate select-none">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                         </div>
-                        {/* Button 2: Document Selector (E GJITHË DOSJA) */}
                         <div className="relative z-[60]">
                             <DocumentSelector
                                 documents={documents.map(d => ({ id: d.id, file_name: d.file_name }))}
@@ -166,9 +177,7 @@ const CaseHeader: React.FC<{
 
                 {/* RIGHT COLUMN */}
                 <div className="flex flex-col gap-4">
-                    {/* Top row: two buttons in a sub-grid with standardized h-11 targets */}
                     <div className="grid grid-cols-2 gap-3">
-                        {/* Button 3: Financial Analyst toggle */}
                         <button
                             type="button"
                             onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
@@ -183,27 +192,31 @@ const CaseHeader: React.FC<{
                             <span className="truncate hidden sm:inline">{t('caseView.financialAnalyst')}</span>
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
-                        {/* Button 4: Analyze button */}
-                        <button
-                            type="button"
-                            onClick={onAnalyze}
-                            disabled={!isPro || isAnalyzing}
-                            className={`${buttonBase} disabled:opacity-40`}
-                        >
-                            {isAnalyzing ? (
-                                <span className="flex items-center gap-2 min-w-0">
-                                    <span className="flex items-center justify-center animate-spin shrink-0">
-                                        <Loader2 className="h-4 w-4 text-primary-start" />
-                                    </span>
-                                    <span className="text-primary-start truncate">{t('analysis.analyzing')}</span>
-                                </span>
-                            ) : (
-                                <span className="flex items-center gap-2 min-w-0">
-                                    <ShieldCheck size={15} className="text-primary-start shrink-0" />
-                                    <span className="text-primary-start truncate">{analyzeButtonText}</span>
-                                </span>
+                        
+                        {/* Persistent Analysis Button Wrapper */}
+                        <div className="flex items-center gap-2 w-full">
+                            <button
+                                type="button"
+                                onClick={() => onAnalyze()} // FIX: Correctly invokes bound prop 'onAnalyze' instead of undefined handleAnalyze
+                                disabled={!isPro || isAnalyzing}
+                                className={`${buttonBase} disabled:opacity-40`}
+                            >
+                                {analyzeButtonText}
+                            </button>
+                            
+                            {/* Rianalizo (Re-analyze) explicit trigger button shown only if analysis already exists */}
+                            {hasExistingAnalysis && (
+                                <button
+                                    type="button"
+                                    onClick={() => onAnalyze(true)}
+                                    disabled={!isPro || isAnalyzing}
+                                    className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl glass-panel bg-surface border border-main hover:bg-hover hover:border-main/80 text-text-muted hover:text-primary-start transition-all duration-250 focus:outline-none"
+                                    title="Rianalizo sërish me AI"
+                                >
+                                    <RefreshCw size={15} className={isAnalyzing ? "animate-spin" : ""} />
+                                </button>
                             )}
-                        </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,7 +224,6 @@ const CaseHeader: React.FC<{
     );
 };
 
-// ========== MAIN COMPONENT ==========
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
@@ -237,7 +249,6 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- CHAT PERSISTENCE HELPER (localStorage + backend) ---
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
     localStorage.setItem(`chat_${caseId}`, JSON.stringify(messages));
@@ -277,7 +288,11 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
       
-      // Load chat: try backend first, fallback to localStorage
+      // Load pre-existing persistent AI analysis results if present
+      if (details && (details as any).latest_analysis) {
+        setAnalysisResult((details as any).latest_analysis);
+      }
+      
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
@@ -313,14 +328,27 @@ const CaseViewPage: React.FC = () => {
     } catch { alert(t('error.generic')); }
   };
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (force = false) => {
     if (!caseId) return;
+    
+    // Open immediately with 0 seconds delay if saved analysis exists (and not force re-analyzing or cross-examining)
+    if (caseData.details && (caseData.details as any).latest_analysis && !force && selectedDocumentIds.length === 0) {
+        setAnalysisResult((caseData.details as any).latest_analysis);
+        setActiveModal('analysis');
+        return;
+    }
+    
     setIsAnalyzing(true);
     setActiveModal('none');
     try {
       let result = selectedDocumentIds.length === 0 ? await apiService.analyzeCase(caseId) : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
       if (result.error) alert(result.error);
-      else { setAnalysisResult(result); setActiveModal('analysis'); }
+      else { 
+        setAnalysisResult(result); 
+        setActiveModal('analysis'); 
+        // Instantly cache in the local UI state so it stays loaded
+        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: result } } : prev);
+      }
     } catch { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
   };
 
@@ -367,9 +395,7 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* Reduced vertical padding offset on mobile viewports for compact screen utilization */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
-        {/* Header with 2-column button layout */}
         <CaseHeader 
             caseDetails={caseData.details} 
             documents={liveDocuments} 
@@ -383,7 +409,6 @@ const CaseViewPage: React.FC = () => {
             onDocumentSelectionChange={setSelectedDocumentIds}
         />
         
-        {/* Main content area: 2-column grid matching the header exactly */}
         <AnimatePresence mode="wait">
           {viewMode === 'workspace' && (
             <motion.div 
@@ -394,7 +419,6 @@ const CaseViewPage: React.FC = () => {
               transition={{ duration: 0.2 }} 
               className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 z-0"
             >
-              {/* LEFT COLUMN: DocumentsPanel */}
               <div className="flex flex-col h-auto lg:h-[700px]">
                 <DocumentsPanel 
                   caseId={caseData.details.id} 
@@ -410,7 +434,6 @@ const CaseViewPage: React.FC = () => {
                 />
               </div>
               
-              {/* RIGHT COLUMN: ChatPanel */}
               <div className="flex flex-col h-auto lg:h-[700px] mt-6 lg:mt-0">
                 <ChatPanel 
                   messages={chatMessages} 
@@ -443,7 +466,6 @@ const CaseViewPage: React.FC = () => {
         </AnimatePresence>
       </div>
       
-      {/* Modals and viewers (standardized) */}
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument} 

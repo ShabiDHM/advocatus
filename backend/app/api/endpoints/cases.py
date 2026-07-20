@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.11 (DIRECT SAAS QUERIES & CASCADE DELETE Integration)
-# 1. FIX: Added explicit 'Content-Disposition: inline' header to the get_document_preview stream to enable browser rendering.
+# PHOENIX PROTOCOL - CASES ROUTER V30.12 (ANALYSIS RETENTION & STORAGE)
+# 1. FIX: Saves generated AI analysis results directly into MongoDB cases collection under 'latest_analysis'.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -378,7 +378,6 @@ async def get_document_preview(
         current_user
     )
     filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
-    # Ensure browsers stream the PDF inline with explicit disposition configuration
     return StreamingResponse(
         stream, 
         media_type="application/pdf",
@@ -450,12 +449,19 @@ async def run_textual_case_analysis(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    validate_object_id(case_id)
+    case_oid = validate_object_id(case_id)
     analysis_result = await analysis_service.cross_examine_case(
         db, 
         case_id, 
         str(current_user.id)
     )
+    # PHOENIX PERSISTENCE: Save the generated AI analysis directly to MongoDB cases collection
+    if analysis_result and "error" not in analysis_result:
+        await asyncio.to_thread(
+            db.cases.update_one,
+            {"_id": case_oid},
+            {"$set": {"latest_analysis": analysis_result, "updated_at": datetime.now(timezone.utc)}}
+        )
     return JSONResponse(content=analysis_result)
 
 @router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])

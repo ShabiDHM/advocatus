@@ -1,6 +1,6 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V6.3 (CHAT PERSISTENCE FIX)
-# 1. FIX: Added 'chat_history' to the mapping dictionary in _map_case_document to resolve the Pydantic serialization gap.
+# PHOENIX PROTOCOL - CASE SERVICE V6.5 (CHAT & ANALYSIS PERSISTENCE)
+# 1. FIX: Added 'latest_analysis' and 'chat_history' mapping inside _map_case_document to prevent Pydantic stripping.
 
 import re
 import importlib
@@ -93,7 +93,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "client": case_doc.get("client"), 
             "created_at": created_at, 
             "updated_at": updated_at, 
-            "chat_history": case_doc.get("chat_history", []), # PHOENIX CRITICAL RESOLUTION: Retains chat history in serializable model mapping
+            "chat_history": case_doc.get("chat_history", []), 
+            "latest_analysis": case_doc.get("latest_analysis"), # PHOENIX CRITICAL RESOLUTION: Maps latest analysis into output dictionary
             **counts
         }
     except Exception as e:
@@ -106,7 +107,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "created_at": datetime.now(timezone.utc), 
             "updated_at": datetime.now(timezone.utc), 
             "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0,
-            "chat_history": []
+            "chat_history": [],
+            "latest_analysis": None
         }
 
 # --- CRUD OPERATIONS ---
@@ -148,9 +150,6 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     
     # 2. Organization Query: User belongs to Org -> see Org cases (Optional/Tier 2 Logic)
     if getattr(owner, "org_id", None):
-        # We can expand the query here if we want users to see ALL org cases.
-        # For now, let's keep it scoped to personal + explicitly shared, 
-        # or append `{"org_id": owner.org_id}` if you want full visibility.
         pass
 
     cursor = db.cases.find(query_filter).sort("updated_at", -1)
