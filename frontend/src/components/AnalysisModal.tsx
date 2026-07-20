@@ -1,5 +1,6 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V16.1 (FIXED NODEJS.TIMEOUT ERROR)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V16.2 (UNIFIED SUB-TAB STYLING)
+// FIX: Unified all active sub-tab buttons to use the corporate blue theme (bg-primary-start text-white shadow-accent-glow) to prevent visual shape-shifting.
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -117,7 +118,6 @@ const renderCitationItem = (item: any) => {
 
 const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
     const [show, setShow] = useState(false);
-    // FIXED: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout>
     const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
     const handleMouseEnter = () => { timeoutRef.current = setTimeout(() => setShow(true), 400); };
@@ -218,7 +218,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       const l = level?.toUpperCase();
       if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
       if (l === 'MEDIUM') return t('analysis.risk_medium', 'I MESËM');
-      if (l === 'LOW') return t('analysis.risk_low', 'I ULËT');
+      if (l === 'LOW') return t('analysis.risk_low', 'I ULët');
       return level;
   };
 
@@ -276,6 +276,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   if (!isOpen) return null;
 
+  const subTabBaseClass = "px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border border-border-main flex items-center gap-2 cursor-pointer focus:outline-none hover-lift shadow-sm";
+  const activeSubTabClass = "bg-primary-start border-primary-start text-white shadow-accent-glow";
+  const inactiveSubTabClass = "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100";
+
   const modalContent = (
     <AnimatePresence>
       <motion.div 
@@ -321,19 +325,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                {renderSuccessBadge(success_probability)}
           </div>
 
-          {isLoading ? (
-             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-gray-900/50">
-                 <Spinner size="w-20 h-20" />
-                 <h3 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest mb-3 mt-6">{t('analysis.loading_title', 'Duke Analizuar...')}</h3>
-                 <p className="text-gray-500 dark:text-gray-400 text-[12px] font-bold uppercase tracking-widest">Kjo mund të marrë disa sekonda</p>
-             </div>
-          ) : (
+          {!isLoading && (
              <>
                 <div className="flex border-b border-border-main px-8 bg-white dark:bg-gray-900 shrink-0 overflow-x-auto no-scrollbar gap-8">
                     <button onClick={() => setActiveTab('legal')} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap ${activeTab === 'legal' ? 'border-primary-start text-primary-start' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
                         <Scale size={16}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
                     </button>
-                    <button onClick={handleWarRoomEntry} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap ${activeTab === 'war_room' ? 'border-danger-start text-danger-start' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-danger-start'}`}>
+                    <button onClick={handleWarRoomEntry} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap ${activeTab === 'war_room' ? 'border-primary-start text-primary-start' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-primary-start'}`}>
                         <Swords size={16}/> {t('analysis.tab_war_room', 'Dhoma e Luftës')}
                     </button>
                 </div>
@@ -419,18 +417,19 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
+                                {/* SUB-TAB BUTTONS: Unified to professional corporate blue theme for all active states */}
                                 <div className="flex flex-wrap gap-3 mb-8 shrink-0 pb-2">
-                                    <button onClick={() => setWarRoomSubTab('strategy')} className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${warRoomSubTab === 'strategy' ? 'bg-primary-start text-white shadow-accent-glow' : 'bg-white dark:bg-gray-800 border border-border-main text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'}`}>
-                                        <Target size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
+                                    <button onClick={() => setWarRoomSubTab('strategy')} className={`${subTabBaseClass} ${warRoomSubTab === 'strategy' ? activeSubTabClass : inactiveSubTabClass}`}>
+                                        <Target size={14} className="inline shrink-0" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
                                     </button>
-                                    <button onClick={() => setWarRoomSubTab('adversarial')} className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${warRoomSubTab === 'adversarial' ? 'bg-danger-start text-white shadow-lg shadow-danger-start/30' : 'bg-white dark:bg-gray-800 border border-border-main text-gray-600 dark:text-gray-400 hover:text-danger-start'}`}>
-                                        <Skull size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_adversarial', 'Simulimi i Palës')}
+                                    <button onClick={() => setWarRoomSubTab('adversarial')} className={`${subTabBaseClass} ${warRoomSubTab === 'adversarial' ? activeSubTabClass : inactiveSubTabClass}`}>
+                                        <Skull size={14} className="inline shrink-0" /> {t('analysis.subtab_adversarial', 'Simulimi i Palës')}
                                     </button>
-                                    <button onClick={() => setWarRoomSubTab('timeline')} className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${warRoomSubTab === 'timeline' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-gray-800 border border-border-main text-gray-600 dark:text-gray-400 hover:text-indigo-500'}`}>
-                                        <Clock size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_timeline', 'Kronologjia')}
+                                    <button onClick={() => setWarRoomSubTab('timeline')} className={`${subTabBaseClass} ${warRoomSubTab === 'timeline' ? activeSubTabClass : inactiveSubTabClass}`}>
+                                        <Clock size={14} className="inline shrink-0" /> {t('analysis.subtab_timeline', 'Kronologjia')}
                                     </button>
-                                    <button onClick={() => setWarRoomSubTab('contradictions')} className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${warRoomSubTab === 'contradictions' ? 'bg-warning-start text-white shadow-lg shadow-warning-start/30' : 'bg-white dark:bg-gray-800 border border-border-main text-gray-600 dark:text-gray-400 hover:text-warning-start'}`}>
-                                        <AlertOctagon size={14} className="inline mr-2 -mt-0.5" /> {t('analysis.subtab_contradictions', 'Kontradiktat')}
+                                    <button onClick={() => setWarRoomSubTab('contradictions')} className={`${subTabBaseClass} ${warRoomSubTab === 'contradictions' ? activeSubTabClass : inactiveSubTabClass}`}>
+                                        <AlertOctagon size={14} className="inline shrink-0" /> {t('analysis.subtab_contradictions', 'Kontradiktat')}
                                     </button>
                                 </div>
 

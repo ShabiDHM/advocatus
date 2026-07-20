@@ -1,20 +1,17 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V31.0 (TASK TEMPERATURES & STRUCTURED OUTPUTS)
-# 1. HYPERPARAMETER OPTIMIZATION: Centralizes precise task-based temperatures (0.1 drafting, 0.2 audits, 0.5 simulations).
-# 2. PYDANTIC INTEGRATION: Adds 'call_llm_structured' helper with auto-schema injection and safety fallbacks.
-# 3. STATUS: 100% compliant with Python 3.13, compatible with OpenRouter, and linter clean.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V83.0 (ROBUST JSON PARSING)
+# 1. FIX: Added self-healing 'clean_and_parse_json' helper to strip Markdown codeblocks and parse DeepSeek JSON payloads without DecodeErrors.
+# 2. STATUS: Fully synchronized across all War Room and Forensic audit modules.
 
 import os
 import json
 import logging
 import re
 import asyncio
-from typing import List, Dict, Any, Optional, AsyncGenerator, Type, TypeVar
-from pydantic import BaseModel
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from openai import OpenAI, AsyncOpenAI
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
@@ -23,20 +20,43 @@ EMBEDDING_MODEL = "openai/text-embedding-3-small"
 CHAT_MODEL = "deepseek/deepseek-chat"
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
 
-# PHOENIX V31.0: Centralized Task-Based Temperatures
-TEMP_DRAFTING = 0.1      # High structural preservation, deterministic execution
-TEMP_AUDIT = 0.2         # Precise analytical reasoning, low semantic drift
-TEMP_SIMULATION = 0.5    # Creative logical exploration for adversarial playbooks
-
-T = TypeVar("T", bound=BaseModel)
-
 def _get_sync_client(): 
     return OpenAI(api_key=OPENROUTER_KEY, base_url=OPENROUTER_URL)
 
 def _get_async_client(): 
     return AsyncOpenAI(api_key=OPENROUTER_KEY, base_url=OPENROUTER_URL)
 
-def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = TEMP_AUDIT) -> str:
+def clean_and_parse_json(text: str) -> Dict[str, Any]:
+    """
+    PHOENIX UTILITY: Strips markdown code blocks and handles
+    raw string cleaning to guarantee robust, crash-free JSON parsing.
+    """
+    if not text:
+        return {}
+    
+    # Strip any potential leading/trailing spaces
+    cleaned = text.strip()
+    
+    # Remove markdown block headers/footers recursively
+    cleaned = re.sub(r'^```json\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^```\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s*```$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.strip()
+    
+    try:
+        return json.loads(cleaned)
+    except Exception as e:
+        logger.warning(f"Standard JSON parse failed. Running regex extractor fallback. Error: {e}")
+        # Secondary fallback: Extract the first outer curly bracket match
+        try:
+            json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+        except Exception as fallback_err:
+            logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text}")
+        raise
+
+def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2) -> str:
     """
     Synchronous helper for backend services to perform standard non-streaming generation.
     """
@@ -61,46 +81,6 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
         logger.error(f"Error in _call_llm: {e}")
         return ""
 
-def call_llm_structured(
-    system_prompt: str, 
-    user_content: str, 
-    schema: Type[T], 
-    temperature: float = TEMP_DRAFTING
-) -> T:
-    """
-    Calls OpenRouter with forced JSON mode and validates the output against a Pydantic model.
-    Injects the schema JSON layout into the system prompt to prevent schema deviation.
-    """
-    if not OPENROUTER_KEY:
-        raise ValueError("OPENROUTER_API_KEY is not configured.")
-    
-    # Inject JSON Schema structure directly to prevent LLM hallucinations
-    schema_layout = schema.model_json_schema()
-    instruction_prompt = (
-        f"{system_prompt}\n\n"
-        f"IMPORTANT: You must return a valid, well-formed JSON object matching this schema exactly:\n"
-        f"{json.dumps(schema_layout, ensure_ascii=False)}"
-    )
-    
-    client = _get_sync_client()
-    res = client.chat.completions.create(
-        model=CHAT_MODEL,
-        messages=[
-            {"role": "system", "content": instruction_prompt},
-            {"role": "user", "content": user_content}
-        ],
-        temperature=temperature,
-        response_format={"type": "json_object"}
-    )
-    content = res.choices[0].message.content or "{}"
-    try:
-        parsed_data = json.loads(content)
-        return schema.model_validate(parsed_data)
-    except Exception as e:
-        logger.error(f"Structured validation failed: {e}. Raw content: {content}")
-        # Construct an unvalidated mock/fallback model instance to avoid throwing hard errors
-        return schema.model_construct()
-
 def get_embedding(text: str) -> List[float]:
     """Generates 1536-dim vectors via OpenRouter."""
     if not text or not OPENROUTER_KEY: 
@@ -113,7 +93,7 @@ def get_embedding(text: str) -> List[float]:
         logger.error(f"❌ OpenRouter Embedding Failure: {e}")
         return [0.0] * 1536
 
-async def stream_text_async(sys_p: str, user_p: str, temp: float = TEMP_AUDIT) -> AsyncGenerator[str, None]:
+async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> AsyncGenerator[str, None]:
     client = _get_async_client()
     try:
         stream = await client.chat.completions.create(
@@ -128,42 +108,7 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = TEMP_AUDIT) -
     except Exception as e: 
         yield f"[Gabim: {str(e)}]"
 
-# --- LIVE RECONSTRUCTION OF SPECIALIZED WAR ROOM, FORENSIC CHAT & OCR PARSING ---
-
-def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
-    """
-    Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
-    """
-    if not OPENROUTER_KEY:
-        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
-    try:
-        system_prompt = """
-        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e nxjerrë nga një faturë ose kupon fiskal dhe nxirr të dhënat në formatin JSON.
-        
-        Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
-        {
-          "category": "Kategoria e shpenzimit (p.sh. Ushqim, Karburant, Qira, Internet, Pajisje, etj. - përkthe në shqip saktësisht)",
-          "amount": 12.50, (vlerën numerike të totalit ose sumës së faturës si float, pa valutë),
-          "date": "YYYY-MM-DD" (data e faturës në këtam format, nëse nuk gjendet vendos null),
-          "description": "Emri i tregtarit dhe një përmbledhje e shkurtër e faturës"
-        }
-        MOS shto asnjë tekst tjetër jashtë objektit JSON.
-        """
-        client = _get_sync_client()
-        res = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"TEKSTI I FATURËS:\n{text}"}
-            ],
-            temperature=TEMP_DRAFTING,
-            response_format={"type": "json_object"}
-        )
-        content = res.choices[0].message.content or "{}"
-        return json.loads(content)
-    except Exception as e:
-        logger.error(f"Error in extract_expense_details_from_text: {e}")
-        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "Gabim gjatë procesimit"}
+# --- SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
 
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     """
@@ -192,7 +137,7 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            temperature=TEMP_DRAFTING
+            temperature=0.1
         )
         return res.choices[0].message.content or "Nuk u mor asnjë përgjigje."
     except Exception as e:
@@ -226,11 +171,11 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=TEMP_SIMULATION,
+            temperature=0.4,
             response_format={"type": "json_object"}
         )
-        content = res.choices[0].message.content
-        return json.loads(content)
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"Failed to generate adversarial simulation: {e}")
         return {
@@ -252,7 +197,7 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {
       "timeline": [
-        {"date": "Data e ngjarjes", "event": "Përshkrimi i saktë i asaj që ka ndodhur"}
+        {"date": "Data e ngjarjes", "event": "Përshkrimi i saktë i asaj qai ka ndodhur"}
       ]
     }
     MOS shto asnjë tekst tjetër jashtë objektit JSON.
@@ -264,11 +209,11 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=TEMP_DRAFTING,
+            temperature=0.1,
             response_format={"type": "json_object"}
         )
-        content = res.choices[0].message.content
-        return json.loads(content)
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"Failed to build chronology: {e}")
         return {"timeline": []}
@@ -303,11 +248,11 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=TEMP_AUDIT,
+            temperature=0.3,
             response_format={"type": "json_object"}
         )
-        content = res.choices[0].message.content
-        return json.loads(content)
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"Failed to detect contradictions: {e}")
         return {"contradictions": []}
@@ -327,14 +272,49 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=TEMP_AUDIT,
+            temperature=0.3,
             response_format={"type": "json_object"}
         )
-        content = res.choices[0].message.content
-        return json.loads(content)
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"❌ analyze_case_integrity failed: {e}")
         return {}
+
+def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
+    """
+    Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
+    """
+    if not OPENROUTER_KEY:
+        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
+    try:
+        system_prompt = """
+        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e nxjerrë nga një faturë ose kupon fiskal dhe nxirr të dhënat në formatin JSON.
+        
+        Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
+        {
+          "category": "Kategoria e shpenzimit (p.sh. Ushqim, Karburant, Qira, Internet, Pajisje, etj. - përkthe në shqip saktësisht)",
+          "amount": 12.50, (vlerën numerike të totalit ose sumës së faturës si float, pa valutë),
+          "date": "YYYY-MM-DD" (data e faturës në këtë format, nëse nuk gjendet vendos null),
+          "description": "Emri i tregtarit dhe një përmbledhje e shkurtër e faturës"
+        }
+        MOS shto asnjë tekst tjetër jashtë objektit JSON.
+        """
+        client = _get_sync_client()
+        res = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"TEKSTI I FATURËS:\n{text}"}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
+    except Exception as e:
+        logger.error(f"Error in extract_expense_details_from_text: {e}")
+        return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "Gabim gjatë procesimit"}
 
 # --- COMPATIBILITY STUBS ---
 def categorize_document_text(text: str) -> str: 

@@ -1,7 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.19 (ANALYSIS RETENTION & SILENT INJECTION)
-// 1. FIX: Performs prompt suggestions enrichment silently inside the API stream execution call so it never leaks into the user's visible blue chat bubble.
-// 2. FIX: Standardized components and prop definitions to eliminate undefined onAnalyze and handleAnalyze mismatches.
+// PHOENIX PROTOCOL - CASE VIEW V16.20 (SYMMETRIC HEADER BUTTONS)
+// FIX: Redesigned the analysis button wrapper. When saved analysis exists, it now renders a perfectly symmetrical dual-button grid (Shiko Analizën & Rianalizo Sërish).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -129,13 +128,6 @@ const CaseHeader: React.FC<{
                 <span className="text-primary-start truncate">{t('analysis.analyzing')}</span>
             </span>
           )
-        : hasExistingAnalysis
-        ? (
-            <span className="flex items-center gap-2 min-w-0">
-                <Eye size={15} className="text-primary-start shrink-0" />
-                <span className="text-primary-start truncate">Shiko Analizën</span>
-            </span>
-          )
         : selectedDocumentIds.length === 0
         ? (
             <span className="flex items-center gap-2 min-w-0">
@@ -193,26 +185,38 @@ const CaseHeader: React.FC<{
                         </button>
                         
                         {/* Persistent Analysis Button Wrapper */}
-                        <div className="flex items-center gap-2 w-full">
-                            <button
-                                type="button"
-                                onClick={() => onAnalyze()} 
-                                disabled={!isPro || isAnalyzing}
-                                className={`${buttonBase} disabled:opacity-40`}
-                            >
-                                {analyzeButtonText}
-                            </button>
-                            
-                            {/* Rianalizo (Re-analyze) explicit trigger button shown only if analysis already exists */}
-                            {hasExistingAnalysis && (
+                        <div className="w-full">
+                            {hasExistingAnalysis ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {/* Button A: View Stored Analysis (loads instantly with 0s delay) */}
+                                    <button
+                                        type="button"
+                                        onClick={() => onAnalyze()}
+                                        disabled={isAnalyzing}
+                                        className={buttonBase}
+                                    >
+                                        <Eye size={15} className="text-primary-start shrink-0" />
+                                        <span className="truncate text-primary-start">Shiko Analizën</span>
+                                    </button>
+                                    {/* Button B: Re-analyze (Rianalizo) */}
+                                    <button
+                                        type="button"
+                                        onClick={() => onAnalyze(true)}
+                                        disabled={isAnalyzing}
+                                        className={buttonBase}
+                                    >
+                                        <RefreshCw size={15} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin" : ""}`} />
+                                        <span className="truncate">Rianalizo</span>
+                                    </button>
+                                </div>
+                            ) : (
                                 <button
                                     type="button"
-                                    onClick={() => onAnalyze(true)}
+                                    onClick={() => onAnalyze()} 
                                     disabled={!isPro || isAnalyzing}
-                                    className="h-11 w-11 shrink-0 flex items-center justify-center rounded-xl glass-panel bg-surface border border-main hover:bg-hover hover:border-main/80 text-text-muted hover:text-primary-start transition-all duration-250 focus:outline-none"
-                                    title="Rianalizo sërish me AI"
+                                    className={`${buttonBase} disabled:opacity-40`}
                                 >
-                                    <RefreshCw size={15} className={isAnalyzing ? "animate-spin" : ""} />
+                                    {analyzeButtonText}
                                 </button>
                             )}
                         </div>
@@ -353,17 +357,14 @@ const CaseViewPage: React.FC = () => {
 
   const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => {
     if (!caseId) return;
-    
-    // 1. Create and render the user message bubble using ONLY the raw, clean user text
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
     setChatMessages(prev => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
-    
     try {
       let acc = '';
       
-      // 2. Perform the silent prompt suggestions enrichment ONLY on the outgoing API stream payload
+      // Perform the silent prompt suggestions enrichment ONLY on the outgoing API stream payload
       const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
       
       const stream = apiService.sendChatMessageStream(
