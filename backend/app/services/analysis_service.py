@@ -1,6 +1,6 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.9 (TACTICAL CITIZEN PROMPTS)
-# 1. FIX: Calibrated prompt rules to always include a copy-pasteable drafting prompt (wrapped in markdown code blocks) inside the citizen's action plan.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.10 (PARTY-AWARE ADAPTIVE ANALYSIS)
+# 1. FIX: Added User Identity retrieval and implemented the 'Adaptive-Party Mandate' to tailor strategy plans specifically to the active user's side (Plaintiff vs Defendant).
 
 import asyncio
 import structlog
@@ -8,7 +8,7 @@ import io
 from typing import List, Dict, Any, Tuple
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
 from xml.sax.saxutils import escape 
 
 import app.services.llm_service as llm_service
@@ -108,13 +108,29 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
 async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
     """PHOENIX: High-IQ analysis mapping law to case relevance."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
+    
+    # Retrieve active user profile data to enable the 'Adaptive-Party Mandate'
+    u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
+    user = await asyncio.to_thread(db.users.find_one, {"_id": u_oid}) or {}
+    profile = await asyncio.to_thread(db.business_profiles.find_one, {"$or": [{"user_id": u_oid}, {"user_id": str(user_id)}]}) or {}
+    
+    active_user_identity = f"Emri: {user.get('username', '')}, Email: {user.get('email', '')}, Biznesi: {profile.get('firm_name', '')}"
+    
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     
     # Log the context (first 1000 chars) to debug
     debug_logger.debug(f"=== CONTEXT PASSED TO LLM (first 1000 chars) ===\n{context[:1000]}\n... (truncated)")
 
-    system_prompt = """
+    system_prompt = f"""
     DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin, por njëkohësisht jep shpjegime dhe udhëzime jashtëzakonisht të thjeshta, të kuptueshme dhe praktike për një qytetar të thjeshtë që nuk është jurist.
+    
+    PËRDORUESI AKTIV QË PO KËRKON ANALIZËN (IDENTITETI):
+    {active_user_identity}
+    
+    MANDATI MBROJTËS/OFENSIV (ADAPTIVE-PARTY MANDATE):
+    - Identifikoni automatikisht rolin e këtij Përdoruesi Aktiv në këtë konflikt ligjor duke krahasuar identitetin e tij të mësipërm me palët në shkresat e lëndës.
+    - NËSE Përdoruesi Aktiv është i PADITURI / AKUZUARI (p.sh. Shaban Bala): Plani i Veprimit dhe të gjitha këshillat duhet të jenë 100% MBROJTËSE dhe KUNDËRSHTUESE. Fokusohuni te rrëzimi i pretendimeve të paditësit, shfrytëzimi i gabimeve të tyre procedurale (si mungesa e prokurës origjinale të avokatit të tyre), dhe hartimi i një Kundërpadie mbrojtëse. Mos i jepni këshilla që ndihmojnë paditësin (p.sh. mos i thuani të paditurit të dorëzojë prokurën e paditësit).
+    - NËSE Përdoruesi Aktiv është PADITËSI / AKUZUESI: Plani i Veprimit duhet të jetë i tëri OFENSIV dhe sulmues. Fokusohuni te vërtetimi i dëmit, plotësimi i mungesave procedurale zyrtare, dhe forcimi i kërkesëpadisë.
     
     UDHËZIME PËR THJESHTËSINË (CITIZEN-FRIENDLY MANDATE):
     1. Seksioni 'executive_summary' (Përmbledhja) DUHET të ndahet në dy pjesë të qarta dhe të lexueshme duke përdorur saktësisht këto kryetituj:
@@ -123,7 +139,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
        - '### ⚖️ ANALIZA PROFESIONALE E AVOKATIT'
          (Përmbledhja teknike, strategjike dhe procedurale për avokatët dhe profesionistët.)
          
-    2. Seksioni 'action_plan' (Plani i Veprimit) DUHET të ketë udhëzime konkrete dhe të thjeshta për qytetarin e thjeshtë që mund t'i bëjë vetë (p.sh., 'Shkoni në gjykatë me këtë dokument...', 'Mos pranoni asnjë marrëveshje verbale...', 'Mblidhni këto fatura origjinale nga llogaritari juaj...'), të rreshtuara si pika praktike para hapave teknikë të avokatit.
+    2. Seksioni 'action_plan' (Plani i Veprimit) DUHET të ketë udhëzime konkrete dhe të thjeshta për qytetarin e thjeshtë që mund t'i bëjë vetë, të ndara nga udhëzimet për avokatin.
     
     3. INJEKTIMI I PROMPT-IT TË HARTIMIT (DRAFTING PROMPT):
        Në pikën ku qytetari udhëzohet të përgatisë një shkresë mbrojtëse ose Kundërpadi, shkruani një PROMPT konkret dhe të gatshëm që ai mund ta kopjojë dhe ta ngjisë direkt në faqen e 'Hartimit' të këtij aplikacioni. 
@@ -154,8 +170,8 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
           "weaknesses": ["Lista e dobësive kryesore ose rreziqeve procedurale"],
           "key_arguments": ["Argumentet kryesore specifike që do të rreshtohen në parashtresë kundërshtuese"],
           "action_plan": [
-             "HAPAT PËR JU (Si Qytetar): [Udhëzimi i thjeshtë praktik i veprimit]",
-             "HAPAT PËR JU (Si Qytetar) - HARTIMI: Përdorni këtë prompt të gatshëm në faqen e Hartimit për të gjeneruar Kundërpadinë tuaj: `[Teksti i saktë i prompt-it për hartim]`",
+             "HAPAT PËR JU (Si Qytetar): [Udhëzimi i thjeshtë praktik i veprimit i përshtatur për rolin tuaj si paditës apo i paditur]",
+             "HAPAT PËR JU (Si Qytetar) - HARTIMI: Përdorni këtë prompt të gatshëm në faqen e Hartimit për të gjeneruar shkresën tuaj mbrojtëse: `[Teksti i saktë i prompt-it për hartim i përshtatur për anën tuaj]`",
              "HAPAT PËR AVOKATIN TUAJ: [Udhëzimi teknik ligjor procedural]"
           ],
           "success_probability": "XX% (vlerësim real)",
@@ -278,7 +294,7 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     md += "\n---\n## 4. SIMULIMI I KUNDËRSHTARIT (WAR ROOM)\n"
     md += f"### STRATEGJIA E PALËS TJETËR\n{sim.get('opponent_strategy', 'Nuk u gjenerua.')}\n\n"
     if sim.get('weakness_attacks'):
-        md += "### PIKAT E SULMIT TË IDENTIFIKUARA\n"
+        md += "### PIKAT E SULMIT TË IDENTIKUARA\n"
         for w in sim.get('weakness_attacks', []):
             md += f"* {w}\n"
 
