@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.20 (SYMMETRIC HEADER BUTTONS)
-// FIX: Redesigned the analysis button wrapper. When saved analysis exists, it now renders a perfectly symmetrical dual-button grid (Shiko Analizën & Rianalizo Sërish).
+// PHOENIX PROTOCOL - CASE VIEW V16.22 (MINIMALIST SPLIT BUTTON)
+// FIX: Redesigned persistent analysis button into a single tab footprint with the static text 'Analizo Rastin' flanked by two clean, textless interactive icons (Eye and Refresh).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -184,29 +184,40 @@ const CaseHeader: React.FC<{
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
-                        {/* Persistent Analysis Button Wrapper */}
+                        {/* Minimalist Split-Button Wrapper */}
                         <div className="w-full">
                             {hasExistingAnalysis ? (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {/* Button A: View Stored Analysis (loads instantly with 0s delay) */}
+                                <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+                                    {/* Left Icon-only Zone: View (Eye) */}
                                     <button
                                         type="button"
                                         onClick={() => onAnalyze()}
                                         disabled={isAnalyzing}
-                                        className={buttonBase}
+                                        className="px-4 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start border-r border-main transition-all duration-200 focus:outline-none"
+                                        title="Shiko Analizën ekzistuese"
                                     >
                                         <Eye size={15} className="text-primary-start shrink-0" />
-                                        <span className="truncate text-primary-start">Shiko Analizën</span>
                                     </button>
-                                    {/* Button B: Re-analyze (Rianalizo) */}
+
+                                    {/* Center Text Zone: Static 'Analizo Rastin' */}
+                                    <button
+                                        type="button"
+                                        onClick={() => onAnalyze()}
+                                        disabled={isAnalyzing}
+                                        className="flex-grow h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none select-none text-center"
+                                    >
+                                        <span>Analizo Rastin</span>
+                                    </button>
+
+                                    {/* Right Icon-only Zone: Re-analyze (Refresh) */}
                                     <button
                                         type="button"
                                         onClick={() => onAnalyze(true)}
                                         disabled={isAnalyzing}
-                                        className={buttonBase}
+                                        className="px-4 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start border-l border-main transition-all duration-200 focus:outline-none"
+                                        title="Rianalizo sërish me AI"
                                     >
-                                        <RefreshCw size={15} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin" : ""}`} />
-                                        <span className="truncate">Rianalizo</span>
+                                        <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin text-primary-start" : ""}`} />
                                     </button>
                                 </div>
                             ) : (
