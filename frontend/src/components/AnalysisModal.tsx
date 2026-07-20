@@ -1,6 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V16.2 (UNIFIED SUB-TAB STYLING)
-// FIX: Unified all active sub-tab buttons to use the corporate blue theme (bg-primary-start text-white shadow-accent-glow) to prevent visual shape-shifting.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V16.3 (EXECUTIVE DOUBLE SUB-TAB SYSTEM)
+// 1. FIX: Added splitExecutiveSummary client-side parser to dynamically divide the long summary into two clickable sub-tabs: Qytetari (Gjuhë e Thjeshtë) & Avokati (Ligjor).
+// 2. ENHANCED: Keeps all sub-tab buttons perfectly aligned, responsive, and utilizing corporate blue active states.
 
 /* eslint-disable tailwindcss/no-contradicting-classname */
 
@@ -12,7 +13,7 @@ import {
     Gavel, CheckCircle2, BookOpen, Globe, 
     Link as LinkIcon, Clock, Skull, AlertOctagon,
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle,
-    ZoomIn, ZoomOut
+    ZoomIn, ZoomOut, User, Landmark
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
@@ -58,6 +59,19 @@ const cleanLegalText = (text: any): string => {
     let clean = safeString(text);
     clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
     return clean;
+};
+
+// Client-side parser splits the executive summary into two distinct tabs cleanly
+const splitExecutiveSummary = (text: string): { citizenText: string; lawyerText: string } => {
+    if (!text) return { citizenText: "", lawyerText: "" };
+    const marker = "### ⚖️ ANALIZA PROFESIONALE";
+    const markerIndex = text.indexOf(marker);
+    if (markerIndex !== -1) {
+        let citizenText = text.substring(0, markerIndex).replace(/### 👨‍💼 UDHËZUESI PËR QYTETARIN\s*\(Gjuhë e Thjeshtë\)\s*/i, '').trim();
+        let lawyerText = text.substring(markerIndex + marker.length).replace(/^\s*E AVOKATIT\s*/i, '').trim();
+        return { citizenText, lawyerText };
+    }
+    return { citizenText: text, lawyerText: "" };
 };
 
 const renderCitationItem = (item: any) => {
@@ -145,6 +159,7 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'legal' | 'war_room'>('legal');
+  const [summaryTab, setSummaryTab] = useState<'citizen' | 'lawyer'>('citizen');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('normal');
   
@@ -155,7 +170,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [isArchiving, setIsArchiving] = useState(false);
 
   useEffect(() => {
-    if (isOpen) { document.body.style.overflow = 'hidden'; setActiveTab('legal'); setWarRoomSubTab('strategy'); } 
+    if (isOpen) { document.body.style.overflow = 'hidden'; setActiveTab('legal'); setWarRoomSubTab('strategy'); setSummaryTab('citizen'); } 
     else { document.body.style.overflow = 'unset'; }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
@@ -213,6 +228,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       weaknesses = [], action_plan = [], risk_level = "MEDIUM",
       success_probability = null, burden_of_proof = "", missing_evidence = []
   } = result || {};
+
+  const { citizenText, lawyerText } = splitExecutiveSummary(summary);
 
   const getRiskLabel = (level: string) => {
       const l = level?.toUpperCase();
@@ -344,11 +361,38 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         {activeTab === 'legal' && (
                             <>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-white dark:bg-gray-800 p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift">
-                                        <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-5 flex items-center gap-3">
-                                            <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
-                                        </h3>
-                                        <div className="text-gray-700 dark:text-gray-300 leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1">{renderCitationItem(summary)}</div>
+                                    {/* DOUBLE SUB-TAB SYSTEM FOR EXECUTIVE SUMMARY */}
+                                    <div className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-[1.5rem] border border-border-main shadow-sm hover-lift flex flex-col h-auto">
+                                        <div className="flex items-center justify-between mb-5 border-b border-border-main pb-3 flex-wrap gap-3">
+                                            <h3 className="text-[12px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
+                                            </h3>
+                                            
+                                            {/* Symmetrical Sub-tabs to click between Citizen and Lawyer views */}
+                                            {lawyerText && (
+                                                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl">
+                                                    <button
+                                                        onClick={() => setSummaryTab('citizen')}
+                                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
+                                                            summaryTab === 'citizen' ? 'bg-primary-start text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400'
+                                                        }`}
+                                                    >
+                                                        <User size={10} className="inline mr-1 -mt-0.5" /> Qytetari
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSummaryTab('lawyer')}
+                                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
+                                                            summaryTab === 'lawyer' ? 'bg-primary-start text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400'
+                                                        }`}
+                                                    >
+                                                        <Landmark size={10} className="inline mr-1 -mt-0.5" /> Avokati
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-gray-700 dark:text-gray-300 leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1 animate-in fade-in duration-300">
+                                            {renderCitationItem(summaryTab === 'citizen' ? citizenText : lawyerText)}
+                                        </div>
                                     </div>
 
                                     {burden_of_proof && (
@@ -417,7 +461,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
-                                {/* SUB-TAB BUTTONS: Unified to professional corporate blue theme for all active states */}
                                 <div className="flex flex-wrap gap-3 mb-8 shrink-0 pb-2">
                                     <button onClick={() => setWarRoomSubTab('strategy')} className={`${subTabBaseClass} ${warRoomSubTab === 'strategy' ? activeSubTabClass : inactiveSubTabClass}`}>
                                         <Target size={14} className="inline shrink-0" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
