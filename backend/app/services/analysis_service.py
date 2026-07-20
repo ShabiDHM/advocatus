@@ -1,9 +1,6 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.6 (FIXED LAW RETRIEVAL & PROMPT)
-# 1. ADDED: Logging of number of global law documents retrieved.
-# 2. IMPROVED: Search query now includes general legal terms.
-# 3. STRENGTHENED: Prompt instructs to use only laws from context; if none, state "Nuk u gjetën dispozita ligjore specifike."
-# 4. RETAINED: All previous features.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.8 (CITIZEN PLAIN LANGUAGE PIVOT)
+# 1. FIX: Upgraded system prompts to enforce a dual-track response: a plain-language Citizen's Guide for non-lawyers, alongside professional technical briefs.
 
 import asyncio
 import structlog
@@ -117,20 +114,27 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     debug_logger.debug(f"=== CONTEXT PASSED TO LLM (first 1000 chars) ===\n{context[:1000]}\n... (truncated)")
 
     system_prompt = """
-    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin.
+    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin, por njëkohësisht jep shpjegime dhe udhëzime jashtëzakonisht të thjeshta, të kuptueshme dhe praktike për një qytetar të thjeshtë që nuk është jurist.
     
-    MANDATI:
+    UDHËZIME PËR THJESHTËSINË (CITIZEN-FRIENDLY MANDATE):
+    1. Seksioni 'executive_summary' (Përmbledhja) DUHET të ndahet në dy pjesë të qarta dhe të lexueshme:
+       - '### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)'
+         (Shpjegoni me fjalë të thjeshta të përditshme, pa fjalor të rëndë ligjor dhe pa terma latinë, se çfarë po ndodh në këtë lëndë, cilat janë rreziqet kryesore për të, dhe çfarë do të thotë ky procesverbal ose dokument për jetën apo biznesin e tij. Flisni sikur po i shpjegoni një shoku që nuk ka kryer fakultet juridik.)
+       - '### ⚖️ ANALIZA PROFESIONALE E AVOKATIT'
+         (Përmbledhja teknike, strategjike dhe procedurale për avokatët dhe profesionistët.)
+         
+    2. Seksioni 'action_plan' (Plani i Veprimit) DUHET të ketë udhëzime konkrete dhe të thjeshta për qytetarin e thjeshtë që mund t'i bëjë vetë (p.sh., 'Shko në gjykatë me këtë dokument...', 'Mos prano të nënshkruash asnjë deklaratë pa u konsultuar...', 'Mblidh këto fatura origjinale nga llogaritari juaj...'), të rreshtuara si pika praktike para hapave teknikë të avokatit.
+    
+    MANDATI SHTESË LIGJOR:
     - MOS përdor asnjë ligj që nuk shfaqet në kontekstin e dhënë në seksionin "BAZA LIGJORE STATUTORE".
     - Nëse seksioni "BAZA LIGJORE STATUTORE" thotë se nuk u gjetën dispozita, shkruaj "Nuk u gjetën dispozita ligjore specifike." në vend të citimeve të trilluara.
     - Për çdo nen të cituar, shpjego 'RELEVANCËN' për këtë rast specifik, duke lidhur ligjin me faktet nga dosja.
-    - Përdor faktet nga dosja për të ndërtuar argumente konkrete.
-    - Nëse nuk ke informacion të mjaftueshëm, thuaj qartë se cilat prova mungojnë.
     
     STRUKTURA E PËRGJIGJES (JSON):
     {
-      "executive_summary": "Përmbledhje e shkurtër e rastit dhe strategjisë së rekomanduar (2-3 paragrafe).",
+      "executive_summary": "### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)\\n[Shpjegimi i thjeshtë pa terma ligjor]\\n\\n### ⚖️ ANALIZA PROFESIONALE E AVOKATIT\\n[Analiza teknike ligjore]",
       "legal_audit": {
-          "burden_of_proof": "Kush e mban barrën e provës dhe pse?",
+          "burden_of_proof": "Kush e mban barrën e provës dhe pse? Cilat janë pikat ku paditësi ka dështuar të provojë pretendimet e tij?",
           "legal_basis": [
             {
               "title": "[Emri i Ligjit, Neni XX](doc://ligji)",
@@ -140,21 +144,19 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
           ]
       },
       "strategic_recommendation": {
-          "recommendation_text": "Analiza strategjike – çfarë duhet të bëjë avokati?",
-          "strengths": ["Lista e pikave të forta të rastit tonë"],
-          "weaknesses": ["Lista e dobësive që duhen adresuar"],
-          "key_arguments": ["Argumentet kryesore që do të përdoren në gjykatë"],
-          "action_plan": ["Hapat konkretë për të ecur përpara"],
+          "recommendation_text": "Analiza strategjike – çfarë rrugësh procedurale duhen ndjekur menjëherë?",
+          "strengths": ["Lista e pikave të forta të rastit tonë procedurale ose materiale"],
+          "weaknesses": ["Lista e dobësive kryesore ose rreziqeve procedurale"],
+          "key_arguments": ["Argumentet kryesore specifike që do të rreshtohen në parashtresë kundërshtuese"],
+          "action_plan": [
+             "HAPAT PËR JU (Si Qytetar): [Udhëzimi i thjeshtë praktik i veprimit]",
+             "HAPAT PËR AVOKATIN TUAJ: [Udhëzimi teknik ligjor procedural]"
+          ],
           "success_probability": "XX% (vlerësim real)",
           "risk_level": "LOW/MEDIUM/HIGH"
       },
-      "missing_evidence": ["Çfarë provash duhen siguruar?"]
+      "missing_evidence": ["Çfarë provash ose dokumentesh specifike origjinale duhen siguruar?"]
     }
-    
-    UDHËZIME SHTESË:
-    - Titulli i ligjit duhet të jetë i plotë me numër, saktësisht siç shfaqet në kontekst (p.sh., "Ligji Nr. 2004/32 për Familjen e Kosovës").
-    - Për nenet pa numër të saktë, përdor "Neni përkatës".
-    - Vlerëso realisht probabilitetin e suksesit.
     """
     
     try:
@@ -217,13 +219,11 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     
     case = await asyncio.to_thread(db.cases.find_one, {"_id": ObjectId(case_id)})
     
-    # Pylance Fix: Null check for case object
     if not case:
         return {"error": "Rasti nuk u gjet."}
         
     case_name = case.get("case_name", "Pa Titull")
     
-    # Markdown content generation starts here.
     md = "---\n\n"
 
     # Section: Legal Analysis
