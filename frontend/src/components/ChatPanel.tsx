@@ -1,7 +1,6 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V13.0 (INTERACTIVE FOLLOW-UP PILLS)
-// FIX: Added dynamic client-side parsing to extract and render 3 interactive, clickable follow-up question pills.
-// FIX: Spacing hierarchy fully optimized for high-density reading.
+// PHOENIX PROTOCOL - CHAT PANEL V13.2 (UNIFIED TRANSCRIPT STYLING)
+// FIX: Removed the bright blue user bubble, unifying both user questions and AI answers with identical neutral styling (bg-surface border-main text-text-primary).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -72,7 +71,7 @@ const extractFollowUpQuestions = (text: string): { cleanText: string; questions:
     return { cleanText: text, questions: [] };
 };
 
-const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, isUser }) => {
+const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = async () => {
         try { 
@@ -91,9 +90,7 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
             className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm hover-lift focus:outline-none ${
                 copied 
                   ? 'bg-status-success/20 text-status-success' 
-                  : isUser 
-                    ? 'bg-white/20 text-white hover:bg-white/30' 
-                    : 'bg-surface border border-main text-text-muted hover:text-primary-start'
+                  : 'bg-surface border border-main text-text-muted hover:text-primary-start'
             }`}
         >
             {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -238,11 +235,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     
-    // PHOENIX SYSTEM CONTEXT ANCHOR: Directs DeepSeek to always append exactly 3 short follow-up questions
-    const enrichedQuery = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
-    
     setLastUserMessage(text);
-    onSendMessage(enrichedQuery, mode, reasoningMode, selectedDomain, [], 'ks');
+    onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks');
     setInput('');
   };
 
@@ -325,7 +319,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 custom-finance-scroll shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => {
-            // Extract the clean Markdown content and the 3 follow-up questions
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
             
             return (
@@ -333,10 +326,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
                   {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
                 </div>
-                <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' : 'bg-surface border-main text-text-primary rounded-tl-sm'}`}>
-                  <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
+                {/* UNIFIED BUBBLE STYLING: Both AI and User now share standard neutral border, bg, and text colors */}
+                <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                  <MessageCopyButton text={msg.content} />
                   
-                  {/* Clean AI response (without raw suggestions text) */}
+                  {/* Clean response */}
                   <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{cleanText}</ReactMarkdown>
                   </div>
@@ -355,7 +349,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                       onClick={() => sendMessage(q)}
                                       className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5"
                                   >
-                                      <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0 group-hover:bg-primary-start" />
+                                      <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
                                       {q}
                                   </button>
                               ))}
