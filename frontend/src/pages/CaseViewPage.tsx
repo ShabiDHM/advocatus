@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.19 (ANALYSIS RETENTION & LIVE CACHING)
-// 1. FIX: Loads pre-existing latest_analysis directly from database into local state on boot for instant viewing (0 seconds delay).
-// 2. FIX: Replaced standard analyze button with "Shiko Analizën" (View) when analysis exists, adding a small "Rianalizo" (Re-analyze) button next to it.
-// 3. FIX: Bound the onClick handlers of both buttons to correct 'onAnalyze' props inside CaseHeader child component.
+// PHOENIX PROTOCOL - CASE VIEW V16.19 (ANALYSIS RETENTION & SILENT INJECTION)
+// 1. FIX: Performs prompt suggestions enrichment silently inside the API stream execution call so it never leaks into the user's visible blue chat bubble.
+// 2. FIX: Standardized components and prop definitions to eliminate undefined onAnalyze and handleAnalyze mismatches.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -197,7 +196,7 @@ const CaseHeader: React.FC<{
                         <div className="flex items-center gap-2 w-full">
                             <button
                                 type="button"
-                                onClick={() => onAnalyze()} // FIX: Correctly invokes bound prop 'onAnalyze' instead of undefined handleAnalyze
+                                onClick={() => onAnalyze()} 
                                 disabled={!isPro || isAnalyzing}
                                 className={`${buttonBase} disabled:opacity-40`}
                             >
@@ -354,13 +353,28 @@ const CaseViewPage: React.FC = () => {
 
   const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => {
     if (!caseId) return;
+    
+    // 1. Create and render the user message bubble using ONLY the raw, clean user text
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
     setChatMessages(prev => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
+    
     try {
       let acc = '';
-      const stream = apiService.sendChatMessageStream(caseId, text, documentIds, jurisdiction, reasoning, mode === 'document' ? domain : undefined);
+      
+      // 2. Perform the silent prompt suggestions enrichment ONLY on the outgoing API stream payload
+      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
+      
+      const stream = apiService.sendChatMessageStream(
+          caseId, 
+          enrichedText, // Transmit the enriched instructions safely to DeepSeek
+          documentIds, 
+          jurisdiction, 
+          reasoning, 
+          mode === 'document' ? domain : undefined
+      );
+      
       for await (const chunk of stream) {
         acc += chunk;
         setChatMessages(prev => {
