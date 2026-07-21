@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V23.0 (BACKBLAZE B2 CLOUD INTEGRATION & AUTO-SYNC)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V24.0 (INCREMENTAL B2 CLOUD SYNC & DUP-CHECK)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -153,7 +153,6 @@ async def get_law_pdf(filename: str):
         bucket = storage_service.B2_BUCKET_NAME
         digits = re.findall(r'\b\d+\b', clean_name)
 
-        # Check files stored under B2 prefix 'laws/'
         b2_response = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
         b2_items = b2_response.get('Contents', [])
 
@@ -161,7 +160,6 @@ async def get_law_pdf(filename: str):
             key = obj.get('Key', '')
             b2_filename = os.path.basename(key)
 
-            # Match exact filename or number-pair in B2
             is_exact = b2_filename.lower() == clean_name.lower()
             primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
             is_number_match = len(primary_nums) >= 2 and all(num in b2_filename for num in primary_nums)
@@ -186,10 +184,23 @@ async def get_law_pdf(filename: str):
 
 @router.post("/sync-to-b2")
 async def sync_laws_to_b2(current_user = Depends(get_current_user)):
-    """Uploads all local PDF files from data/laws/ks/ directly to Backblaze B2 cloud storage."""
+    """Uploads ONLY new PDF files from data/laws/ to Backblaze B2 (skips existing files)."""
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
+
+        # Fetch existing B2 files to prevent duplicates
+        existing_b2_files = set()
+        try:
+            b2_res = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
+            for obj in b2_res.get('Contents', []):
+                k = obj.get('Key', '')
+                f_name = os.path.basename(k)
+                if f_name:
+                    existing_b2_files.add(f_name)
+                    existing_b2_files.add(k)
+        except Exception as err:
+            logger.warning(f"Could not list existing B2 files: {err}")
 
         current_file = os.path.abspath(__file__)
         endpoints_dir = os.path.dirname(current_file)
@@ -205,14 +216,25 @@ async def sync_laws_to_b2(current_user = Depends(get_current_user)):
         ]
 
         uploaded = []
+        skipped = []
+
         for s_dir in search_dirs:
             if not os.path.exists(s_dir):
                 continue
             for root, _, files in os.walk(s_dir):
+                rel_path = os.path.relpath(root, s_dir)
+                subfolder = '' if rel_path == '.' else rel_path.replace('\\', '/')
+
                 for f in files:
                     if f.lower().endswith('.pdf'):
+                        b2_key = f"laws/{subfolder}/{f}".replace('//', '/') if subfolder else f"laws/{f}"
+
+                        # Skip duplicates
+                        if f in existing_b2_files or b2_key in existing_b2_files:
+                            skipped.append(f)
+                            continue
+
                         local_path = os.path.join(root, f)
-                        b2_key = f"laws/ks/{f}"
                         try:
                             s3.upload_file(
                                 local_path, 
@@ -221,14 +243,17 @@ async def sync_laws_to_b2(current_user = Depends(get_current_user)):
                                 ExtraArgs={'ContentType': 'application/pdf'}
                             )
                             uploaded.append(f)
-                            logger.info(f"[B2 Cloud Sync] Uploaded: {b2_key}")
+                            existing_b2_files.add(f)
+                            existing_b2_files.add(b2_key)
+                            logger.info(f"[B2 Cloud Sync] Uploaded new PDF: {b2_key}")
                         except Exception as e:
                             logger.error(f"[B2 Cloud Sync Error] {f}: {e}")
 
         return {
             "status": "SUCCESS", 
-            "message": f"U ngarkuan me sukses {len(uploaded)} dokumente PDF në Backblaze B2.",
-            "uploaded_files": uploaded
+            "message": f"Sinkronizimi u krye. U ngarkuan {len(uploaded)} skedarë të rinj, u anashkaluan {len(skipped)} ekzistues.",
+            "uploaded_files": uploaded,
+            "skipped_files": skipped
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dështoi sinkronizimi në B2: {str(e)}")
