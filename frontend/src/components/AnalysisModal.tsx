@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V19.0 (STRICT OBJECT-AWARE SUMMARY PARSER - FIXES BLANK SCREEN)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V20.0 (CLICKABLE STRUCTURED STATUTORY LAW HEADERS)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -65,11 +65,9 @@ const cleanLegalText = (text: any): string => {
     return clean;
 };
 
-// ========== PHOENIX: CRASH-PROOF OBJECT & STRING SUMMARY PARSER ==========
 const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: string } => {
     if (!text) return { citizenText: "", lawyerText: "" };
 
-    // If summary is stored as a JSON object in MongoDB, parse properties safely
     if (typeof text === 'object') {
         const citizen = safeString(text.citizenText || text.citizen_summary || text.summary || text.text || '');
         const lawyer = safeString(text.lawyerText || text.lawyer_summary || text.professional || '');
@@ -88,6 +86,40 @@ const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: st
         return { citizenText, lawyerText };
     }
     return { citizenText: strText, lawyerText: "" };
+};
+
+// ========== PHOENIX: LAW TITLE & ARTICLE NUMBER EXTRACTOR ==========
+const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
+    let lawTitle = titleStr || "Ligj i Paidentifikuar";
+    let articleNum: string | null = null;
+
+    // 1. Check articleStr for explicit article numbers (e.g. "Neni 413" or "413")
+    const artMatchInArticle = articleStr ? articleStr.match(/(?:Neni|neni|NENI)?\s*(\d+)/) : null;
+    if (artMatchInArticle) {
+        articleNum = artMatchInArticle[1];
+    }
+
+    // 2. If articleStr is a badge message, check titleStr for article number (e.g. "NENI 413 LPK...")
+    if (!articleNum && titleStr) {
+        const artMatchInTitle = titleStr.match(/(?:Neni|neni|NENI)\s*(\d+)/i) || titleStr.match(/\b(\d+)\b/);
+        if (artMatchInTitle) {
+            articleNum = artMatchInTitle[1];
+        }
+    }
+
+    // Clean law title for query
+    let cleanLawTitle = lawTitle
+        .replace(/(?:Neni|neni|NENI)\s*\d+/gi, '')
+        .replace(/^[,\s\-\–]+|[,\s\-\–]+$/g, '')
+        .trim();
+
+    if (!cleanLawTitle) cleanLawTitle = lawTitle;
+
+    const targetUrl = articleNum 
+        ? `/laws/article?lawTitle=${encodeURIComponent(cleanLawTitle)}&articleNumber=${encodeURIComponent(articleNum)}`
+        : `/laws/overview?lawTitle=${encodeURIComponent(cleanLawTitle)}`;
+
+    return { cleanLawTitle, articleNum, targetUrl };
 };
 
 // ========== PHOENIX: THREAD-SAFE NATIVE CITATION PARSER ==========
@@ -150,46 +182,32 @@ const renderTextWithCitations = (text: string) => {
     return elements;
 };
 
-const strArticleNumber = (val: string): string | null => {
-    if (!val) return null;
-    const match = val.match(/\b\d+\b/);
-    return match ? match[0] : null;
-};
-
 const renderCitationItem = (item: any) => {
     if (typeof item === 'object' && item !== null && (item.law || item.title)) {
-        const lawTitle = item.law || item.title || "Ligj i Paidentifikuar";
-        const article = item.article || item.legal_basis || "";
+        const rawLawTitle = item.law || item.title || "Ligj i Paidentifikuar";
+        const rawArticle = item.article || item.legal_basis || "";
         const body = item.relevance || item.argument || item.description || "";
 
-        const cleanArtNum = strArticleNumber(article);
-        const targetUrl = cleanArtNum ? `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(cleanArtNum)}` : null;
+        const { targetUrl } = parseLawTitleAndArticle(rawLawTitle, rawArticle);
 
         return (
             <div className="flex flex-col gap-3 w-full">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2 font-bold text-primary-start text-xs uppercase tracking-wide group">
                         <LinkIcon size={12} className="text-primary-start opacity-70" />
-                        {targetUrl ? (
-                            <Link to={targetUrl} className="border-b border-dashed border-primary-start/50 hover:border-primary-start pb-0.5 text-primary-start transition-colors flex items-center gap-1">
-                                {lawTitle}
-                                <Eye size={12} className="opacity-70" />
-                            </Link>
-                        ) : (
-                            <span className="border-b border-dashed border-primary-start/30 pb-0.5">{lawTitle}</span>
-                        )}
+                        <Link 
+                            to={targetUrl} 
+                            className="border-b border-dashed border-primary-start/60 hover:border-primary-start pb-0.5 text-primary-start hover:text-primary-hover transition-all flex items-center gap-1.5 hover:scale-[1.01]"
+                            title={`Hap ${rawLawTitle}`}
+                        >
+                            <span>{rawLawTitle}</span>
+                            <Eye size={12} className="opacity-80 shrink-0" />
+                        </Link>
                     </div>
-                    {article && (
-                        targetUrl ? (
-                            <Link to={targetUrl} className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 hover:bg-success-start/20 transition-all flex items-center gap-1">
-                                {article}
-                                <Eye size={10} />
-                            </Link>
-                        ) : (
-                            <div className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 leading-relaxed">
-                                {article}
-                            </div>
-                        )
+                    {rawArticle && (
+                        <span className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 leading-relaxed">
+                            {rawArticle}
+                        </span>
                     )}
                 </div>
                 {body && (
