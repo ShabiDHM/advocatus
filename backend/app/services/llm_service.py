@@ -1,6 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V85.0 (TEMPERATURE CONSTANTS FIXED)
-# 1. FIX: Added the missing 'TEMP_DRAFTING' constant (and adjacent standard temperature thresholds) to prevent AttributeError crashes in drafting_service.py.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V86.0 (DUAL-MODEL ROUTING)
+# 1. FIX: Declared FAST_MODEL (DeepSeek-V3) and DEEP_MODEL (DeepSeek-R1) and routed tasks based on complexity.
+# 2. FIX: Disabled 'response_format' JSON mode when using DEEP_MODEL to prevent OpenRouter R1 reasoning API crashes.
 
 import os
 import json
@@ -16,8 +17,11 @@ OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
-CHAT_MODEL = "deepseek/deepseek-chat"
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
+
+# --- DUAL-MODEL DEPLOYMENT DEFINITIONS ---
+FAST_MODEL = "deepseek/deepseek-chat"       # DeepSeek-V3 (Super fast, cheap, standard)
+DEEP_MODEL = "deepseek/deepseek-reasoning"  # DeepSeek-R1 (Reasoning, logic, deep audit)
 
 # --- TEMPERATURE CONSTANTS FOR SAAS PRECISION ---
 TEMP_DRAFTING = 0.1   # Extreme structural compliance for legal document drafting
@@ -56,23 +60,26 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
             logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text}")
         raise
 
-def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2) -> str:
+def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2, model: str = FAST_MODEL) -> str:
     """
-    Synchronous helper for backend services to perform standard non-streaming generation.
+    Synchronous helper for backend services. 
+    Clears JSON response formatting options when executing R1 reasoning model to prevent API crashes.
     """
     if not OPENROUTER_KEY:
         return "Gabim: Mungon OPENROUTER_API_KEY"
     try:
         client = _get_sync_client()
         kwargs = {
-            "model": CHAT_MODEL,
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
             "temperature": temperature
         }
-        if json_mode:
+        
+        # Enforce json_object mode ONLY if using the standard V3 model (R1 reasoning conflicts with JSON mode formatting)
+        if json_mode and model == FAST_MODEL:
             kwargs["response_format"] = {"type": "json_object"}
             
         res = client.chat.completions.create(**kwargs)
@@ -93,11 +100,12 @@ def get_embedding(text: str) -> List[float]:
         logger.error(f"❌ OpenRouter Embedding Failure: {e}")
         return [0.0] * 1536
 
-async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> AsyncGenerator[str, None]:
+async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
+    """Streams text asynchronously, accepting dynamic model routing."""
     client = _get_async_client()
     try:
         stream = await client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=model,
             messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": user_p}],
             temperature=temp, stream=True
         )
@@ -113,7 +121,7 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> Async
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     """
     Synchronously answers a specific financial forensic question based on context lines.
-    Called via to_thread.
+    Routes through high-IQ DEEP_MODEL (R1) for mathematical verification.
     """
     if not OPENROUTER_KEY:
         return "Gabim: Mungon OPENROUTER_API_KEY"
@@ -130,16 +138,8 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         """
         user_content = f"TRANSAKSIONET E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
         
-        client = _get_sync_client()
-        res = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            temperature=0.1
-        )
-        return res.choices[0].message.content or "Nuk u mor asnjë përgjigje."
+        # Executes over DEEP_MODEL (R1)
+        return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
     except Exception as e:
         logger.error(f"Error in forensic_interrogation: {e}")
         return f"Gabim gjatë procesimit të pyetjes forenzike: {str(e)}"
@@ -147,6 +147,7 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """
     Generates an adversarial simulation predicting the opponent's strategy and attack angles.
+    Routes through high-IQ DEEP_MODEL (R1).
     """
     if not OPENROUTER_KEY:
         return {}
@@ -166,13 +167,12 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=DEEP_MODEL, # Executed on R1
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.4,
-            response_format={"type": "json_object"}
+            temperature=0.4
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -186,6 +186,7 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
 async def build_case_chronology(context: str) -> Dict[str, Any]:
     """
     Builds a structured chronological timeline of events based on case facts.
+    Routes through high-IQ DEEP_MODEL (R1).
     """
     if not OPENROUTER_KEY:
         return {}
@@ -204,13 +205,12 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=DEEP_MODEL, # Executed on R1
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.1,
-            response_format={"type": "json_object"}
+            temperature=0.1
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -221,7 +221,7 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
 async def detect_contradictions(context: str) -> Dict[str, Any]:
     """
     Detects factual or legal contradictions in the context.
-    Executes a high-IQ, three-tier legal-procedural audit.
+    Executes a high-IQ, three-tier legal-procedural audit on DEEP_MODEL (R1).
     """
     if not OPENROUTER_KEY:
         return {}
@@ -249,13 +249,12 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=DEEP_MODEL, # Executed on R1
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.2,
-            response_format={"type": "json_object"}
+            temperature=0.2
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -266,22 +265,13 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
 def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) -> Dict[str, Any]:
     """
     Executes the main case cross-examination. Called synchronously via to_thread.
+    Routes through DEEP_MODEL (R1) for high-IQ legal summaries.
     """
     if not OPENROUTER_KEY:
         return {}
     try:
-        client = _get_sync_client()
-        system_prompt = custom_prompt or "Analizo këtë rast ligjor."
-        res = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
-            ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
-        )
-        content = res.choices[0].message.content or "{}"
+        # Executes over DEEP_MODEL (R1)
+        content = _call_llm(custom_prompt or "Analizo këtë rast ligjor.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"❌ analyze_case_integrity failed: {e}")
@@ -290,6 +280,7 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
 def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
     """
     Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
+    Routes through FAST_MODEL (V3) for instant invoice auto-filling.
     """
     if not OPENROUTER_KEY:
         return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
@@ -306,17 +297,8 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
         }
         MOS shto asnjë tekst tjetër jashtë objektit JSON.
         """
-        client = _get_sync_client()
-        res = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"TEKSTI I FATURËS:\n{text}"}
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        content = res.choices[0].message.content or "{}"
+        # Executes over FAST_MODEL (V3)
+        content = _call_llm(system_prompt, f"TEKSTI I FATURËS:\n{text}", json_mode=True, temperature=0.1, model=FAST_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"Error in extract_expense_details_from_text: {e}")
