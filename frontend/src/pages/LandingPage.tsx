@@ -1,13 +1,15 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.1 (EXECUTIVE DESIGN SYSTEM)
-// POLISH: Standardized design tokens, upgraded navigation controls, and aligned touch target heights to 44px (h-11).
+// PHOENIX PROTOCOL - LANDING V6.2 (EXECUTIVE CAPABILITIES & GDPR SHOWCASE)
+// 1. RECONSTRUCTED: Fully redesigned landing page to showcase actual-run capabilities (War Room, Forensic Analyst, Context-Aware Drafting).
+// 2. ADDED: A highly professional, high-trust section dedicated to strict GDPR Compliance and Data Lifecycle Integrity.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
-    MessageSquare, Zap, TrendingUp, Database, FileText 
+    Database, FileText,
+    Swords, Receipt, ShieldCheck, BarChart2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -39,8 +41,8 @@ const LandingPage: React.FC = () => {
       </nav>
 
       {/* Hero Section */}
-      <main className="relative z-10 pt-20 pb-16 px-6">
-        <div className="max-w-5xl mx-auto text-center mb-24">
+      <main className="relative z-10 pt-16 pb-16 px-6">
+        <div className="max-w-5xl mx-auto text-center mb-20">
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -69,58 +71,140 @@ const LandingPage: React.FC = () => {
         <ProductShowcase />
         {/* ------------------------------- */}
 
-        {/* Feature Grid (Secondary Highlights) */}
-        <section className="py-24 max-w-7xl mx-auto">
+        {/* --- ACTUAL PLATFORM CAPABILITIES SECTION --- */}
+        <section className="py-24 max-w-7xl mx-auto space-y-16">
+          <div className="text-center space-y-4 max-w-3xl mx-auto">
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-text-primary">
+                  Sistemi i Inteligjencës Ligjore me Performancë të Lartë
+              </h2>
+              <p className="text-text-secondary text-sm md:text-base leading-relaxed">
+                  Zbuloni mjetet dhe algoritmet e thella që kemi integruar për të shndërruar dokumentet e lëndës në strategji të pakontestueshme procedurale.
+              </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/30 transition-colors border border-main bg-surface/30">
+            
+            {/* Box 1: Socratic RAG Chat & War Room */}
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
-                    <MessageSquare className="w-48 h-48 text-primary-start" />
+                    <Swords className="w-48 h-48 text-primary-start" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
                     <div className="w-12 h-12 bg-primary-start/20 rounded-xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-inner">
-                        <Zap className="w-6 h-6" />
+                        <Swords className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.socraticAssistantTitle')}</h3>
-                    <p className="text-text-secondary leading-relaxed">
-                        {t('landing.socraticAssistantDescription')}
+                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">Asistenti Sokratik & Dhoma e Luftës</h3>
+                    <p className="text-text-secondary leading-relaxed text-sm">
+                        Bëni pyetje të rregulluara me RAG mbi dokumentet tuaja dhe hyni në "Dhomën e Luftës" për të simuluar strategjinë e palës kundërshtare, nxjerrë kronologjinë e saktë dhe detektuar kontradiktat factual në seancë.
                     </p>
                 </div>
             </div>
 
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-status-success/30 transition-colors border border-main bg-surface/30">
+            {/* Box 2: Forensic Accounting Analyst */}
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-status-success/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
                  <div className="w-12 h-12 bg-status-success/15 rounded-xl flex items-center justify-center mb-4 text-status-success border border-status-success/20 shadow-inner">
-                    <Lock className="w-6 h-6" />
+                    <BarChart2 className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.fullSecurityTitle')}</h3>
+                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">Analizë Financiare Forenzike</h3>
                 <p className="text-text-secondary text-sm leading-relaxed">
-                    {t('landing.fullSecurityDescription')}
+                    Skanoni deklarata bankare, vlerësoni mospërputhjet financiare përmes Ligjit të Benfordit, zbuloni transaksione të dyshimta në vikend apo dublifikime faturash, dhe bisedoni direkt me ditarin tuaj të shpenzimeve.
                 </p>
             </div>
 
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/30 transition-colors border border-main bg-surface/30">
+            {/* Box 3: Context-Aware Drafting */}
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
                 <div className="w-12 h-12 bg-accent-start/20 rounded-xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-inner">
-                    <TrendingUp className="w-6 h-6" />
+                    <FileText className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.businessCenterTitle')}</h3>
+                <h3 className="text-xl font-bold mb-2 text-text-primary tracking-tight">Hartimi i Dokumenteve</h3>
                 <p className="text-text-secondary text-sm leading-relaxed">
-                    {t('landing.businessCenterDescription')}
+                    Gjeneroni shkresa ligjore, Kundërpadi, padi apo kontrata të ndryshme direkt nga faqja e Hartimit. AI është plotësisht i vetëdijshëm për të dhënat, emrat dhe numrat zyrtar të nxjerrë nga dosja e rastit tuaj.
                 </p>
             </div>
 
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden hover:border-secondary-start/30 transition-colors border border-main bg-surface/30">
+            {/* Box 4: AI Receipt Scanner & Archive */}
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden hover:border-secondary-start/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
                  <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
                     <Database className="w-48 h-48 text-secondary-start" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
                     <div className="w-12 h-12 bg-secondary-start/20 rounded-xl flex items-center justify-center mb-4 text-secondary-start border border-secondary-start/20 shadow-inner">
-                        <FileText className="w-6 h-6" />
+                        <Receipt className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">{t('landing.intelligentArchiveTitle')}</h3>
-                    <p className="text-text-secondary leading-relaxed">
-                        {t('landing.intelligentArchiveDescription')}
+                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">Skanimi me AI & Arkivi Digjital</h3>
+                    <p className="text-text-secondary leading-relaxed text-sm">
+                        Ngarkoni fatura si PDF apo imazhe. Skaneri ynë i integruar AI do të përdorë OCR për të lexuar dhe plotësuar automatikisht të gjitha fushat e shpenzimeve. Të dhënat ruhen të sigurta në arkivin tuaj digjital.
                     </p>
                 </div>
             </div>
+          </div>
+        </section>
+
+        {/* --- HIGH-TRUST SECURITY & GDPR COMPLIANCE SECTION --- */}
+        <section className="py-20 border-t border-b border-main/60 bg-surface/10 backdrop-blur-md relative z-20">
+          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              
+              {/* Left Column: Title & Text */}
+              <div className="space-y-6">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-success-start/10 text-success-start border border-success-start/20 rounded-full text-xs font-black tracking-widest uppercase">
+                      <ShieldCheck size={14} /> GDPR & SIGURIA E TË DHËNAVE
+                  </div>
+                  <h2 className="text-3xl md:text-5xl font-black text-text-primary tracking-tight">
+                      Privatësia dhe Sovraniteti i të Dhënave tuaja
+                  </h2>
+                  <p className="text-text-secondary leading-relaxed text-sm md:text-base">
+                      Ne i trajtojmë shkresat gjyqësore dhe të dhënat tuaja financiare me diskrecionin më të lartë bankar. Çdo linjë kodi në platformën tonë është zhvilluar në përputhje të plotë me rregulloret e GDPR dhe Ligjin për Mbrojtjen e të Dhënave Personale të Republikës së Kosovës.
+                  </p>
+              </div>
+
+              {/* Right Column: Security Feature Points */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  
+                  {/* Point 1: Zero Retention */}
+                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
+                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                          <Lock size={18} />
+                      </div>
+                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Zero Retention AI</h4>
+                      <p className="text-text-secondary text-xs leading-relaxed">
+                          Dokumentet tuaja analizohen në kujtesën e përkohshme (RAM) dhe nuk përdoren asnjëherë nga modelet e jashtme AI për trajnim.
+                      </p>
+                  </div>
+
+                  {/* Point 2: AES-256 Encryption */}
+                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
+                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                          <ShieldCheck size={18} />
+                      </div>
+                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Enkriptimi AES-256</h4>
+                      <p className="text-text-secondary text-xs leading-relaxed">
+                          Të gjitha dosjet e lëndëve tuaja ligjore dhe dëshmitë e ngarkuara enkriptohen me çelësa bankar para se të ruhen në Cloud.
+                      </p>
+                  </div>
+
+                  {/* Point 3: Cascade Deletion */}
+                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
+                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                          <Database size={18} />
+                      </div>
+                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Fshirja Kaskadë</h4>
+                      <p className="text-text-secondary text-xs leading-relaxed">
+                          Kur fshini një dokument apo lëndë, sistemi ynë spastron menjëherë të gjithë ditarët, vektorët, arkivat dhe skedarët fizik në sekonda.
+                      </p>
+                  </div>
+
+                  {/* Point 4: European Sovereignty */}
+                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
+                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                          <Globe size={18} />
+                      </div>
+                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Ligji i Kosovës</h4>
+                      <p className="text-text-secondary text-xs leading-relaxed">
+                          Të dhënat tuaja ruhen në përputhje të plotë me ligjet e Kosovës dhe rregulloret strikte evropiane të privatësisë.
+                      </p>
+                  </div>
+
+              </div>
           </div>
         </section>
 
