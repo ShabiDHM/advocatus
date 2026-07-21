@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.12 (ANALYSIS RETENTION & STORAGE)
-# 1. FIX: Saves generated AI analysis results directly into MongoDB cases collection under 'latest_analysis'.
+# PHOENIX PROTOCOL - CASES ROUTER V30.14 (CORS-COMPLIANT CLEAR ENDPOINT)
+# 1. FIX: Changed clear analysis endpoint from 'DELETE /analyze' to 'POST /analyze/clear' to bypass browser CORS method restrictions.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -184,7 +184,7 @@ async def get_public_case_timeline(
     try:
         data = await asyncio.to_thread(case_service.get_public_case_events, db, case_id)
         if not data:
-            raise HTTPException(status_code=404, detail="Case not found")
+            raise HTTPException(status_code=404)
         return JSONResponse(content=json_serializable(data))
     except Exception as e:
         logger.error(f"Portal Mirror Failure: {e}")
@@ -378,6 +378,7 @@ async def get_document_preview(
         current_user
     )
     filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
+    # Ensure browsers stream the PDF inline with explicit disposition configuration
     return StreamingResponse(
         stream, 
         media_type="application/pdf",
@@ -463,6 +464,24 @@ async def run_textual_case_analysis(
             {"$set": {"latest_analysis": analysis_result, "updated_at": datetime.now(timezone.utc)}}
         )
     return JSONResponse(content=analysis_result)
+
+@router.post("/{case_id}/analyze/clear", status_code=status.HTTP_200_OK)
+async def clear_case_analysis_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    PHOENIX CRITICAL RESOLUTION: Unsets and deletes the stored 'latest_analysis'
+    using a CORS-compliant POST endpoint to completely bypass any preflight method restrictions.
+    """
+    case_oid = validate_object_id(case_id)
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$unset": {"latest_analysis": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+    )
+    return {"status": "success", "message": "Persistent analysis cleared successfully."}
 
 @router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])
 async def run_deep_case_analysis(

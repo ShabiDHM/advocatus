@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V24.5 (CLEAR ANALYSIS METHOD)
-// 1. FIX: Added 'clearCaseAnalysis(caseId)' API endpoint mapping to the client service instance.
+// PHOENIX PROTOCOL - API SERVICE V24.6 (CORS-SAFE CLEAR ROUTE)
+// 1. FIX: Changed clearCaseAnalysis to use a POST request to '/analyze/clear' to bypass all browser-side CORS method restrictions.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -259,11 +259,11 @@ class ApiService {
 
     // ========== NEW EXPLICIT METHOD: CLEAR SAVED AI CASE ANALYSIS ==========
     /**
-     * Sends a DELETE request to completely wipe the stored 'latest_analysis'
-     * inside the MongoDB cases collection.
+     * Sends a POST request to completely wipe the stored 'latest_analysis'
+     * inside the MongoDB cases collection. This uses a POST to bypass browser-side CORS method restrictions.
      */
     public async clearCaseAnalysis(caseId: string): Promise<void> {
-        await this.axiosInstance.delete(`/cases/${caseId}/analyze`);
+        await this.axiosInstance.post(`/cases/${caseId}/analyze/clear`);
     }
 
     // ========== LAWS METHODS ==========
