@@ -1,7 +1,5 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - DEPENDENCIES V2.0 (SYNC ONLY)
-# 1. FIX: Removed 'get_async_db' import which no longer exists.
-# 2. STATUS: Resolves ImportError crashing the backend.
+# PHOENIX PROTOCOL - DEPENDENCIES V3.0 (GATEKEEPER & EXPIRATION ENFORCED)
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -11,6 +9,8 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, ValidationError
 from bson import ObjectId
 from bson.errors import InvalidId
+from datetime import datetime, timezone
+import logging
 import redis
 
 # PHOENIX FIX: Removed get_async_db
@@ -18,6 +18,8 @@ from ...core.db import get_db, get_redis_client
 from ...core.config import settings
 from ...services import user_service
 from ...models.user import UserInDB
+
+logger = logging.getLogger(__name__)
 
 class TokenData(BaseModel):
     id: Optional[str] = None
@@ -29,6 +31,30 @@ def get_sync_redis() -> Generator[redis.Redis, None, None]:
     if client is None:
          raise HTTPException(status_code=500, detail="Redis client not initialized.")
     yield client
+
+def is_subscription_expired(expiry_val) -> bool:
+    """Helper function to check if subscription date has passed (UTC aware)."""
+    if not expiry_val:
+        return False  # "Pa Skadim" / Null means unlimited access
+    
+    try:
+        if isinstance(expiry_val, datetime):
+            expiry_date = expiry_val
+        elif isinstance(expiry_val, str):
+            clean_str = expiry_val.replace("Z", "+00:00")
+            expiry_date = datetime.fromisoformat(clean_str)
+        else:
+            return False
+
+        # Ensure timezone awareness
+        if expiry_date.tzinfo is None:
+            expiry_date = expiry_date.replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        return now > expiry_date
+    except Exception as e:
+        logger.error(f"Error checking subscription expiry date: {e}")
+        return False
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -66,22 +92,41 @@ def get_current_user(
 def get_current_active_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
-    user_role = str(current_user.role).upper()
+    user_role = str(getattr(current_user, 'role', '')).upper()
     
+    # 1. System administrators are immune to expiration locks
     if user_role == 'ADMIN':
         return current_user
 
-    sub_status = str(current_user.subscription_status).upper() if current_user.subscription_status else ""
-    
+    # 2. Check manual account status flags
+    account_status = str(getattr(current_user, 'status', 'active')).lower()
+    if account_status == 'inactive':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Aksesi i llogarisë suaj është çaktivizuar nga administratori."
+        )
+
+    sub_status = str(getattr(current_user, 'subscription_status', '')).upper()
     if sub_status != 'ACTIVE':
-        raise HTTPException(status_code=403, detail="User subscription is not active.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Abonimi juaj nuk është aktiv. Ju lutem kontaktoni administratorin ose renovoni planin."
+        )
+
+    # 3. Check automatic date expiration (UTC-aware)
+    expiry_val = getattr(current_user, 'subscription_expiry', None)
+    if is_subscription_expired(expiry_val):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj në Juristi.tech për të vazhduar."
+        )
         
     return current_user
 
 def get_current_admin_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
-    user_role = str(current_user.role).upper()
+    user_role = str(getattr(current_user, 'role', '')).upper()
     
     if user_role != 'ADMIN':
         raise HTTPException(

@@ -1,6 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V24.6 (CORS-SAFE CLEAR ROUTE)
-// 1. FIX: Changed clearCaseAnalysis to use a POST request to '/analyze/clear' to bypass all browser-side CORS method restrictions.
+// PHOENIX PROTOCOL - API SERVICE V25.0 (GATEKEEPER 402 EXPIRATION INTERCEPTOR)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -18,13 +17,13 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// ========== LAW ARTICLE INTERFACE - TASK 1: Added chunk_id ==========
+// ========== LAW ARTICLE INTERFACE ==========
 export interface LawArticle {
   law_title: string;
   article_number?: string;
   source: string;
   text: string;
-  chunk_id?: string;  // Added for auditor chat
+  chunk_id?: string;
 }
 
 interface LoginResponse { access_token: string; }
@@ -108,29 +107,62 @@ class ApiService {
                     else (config.headers as any).Authorization = `Bearer ${token}`;
                 }
                 
-                // PHOENIX CRITICAL RESOLUTION: Prevent Axios from prepending remote API_V1_URL to local browser memory blob URLs
+                // Prevent Axios from prepending remote API_V1_URL to local browser memory blob URLs
                 if (config.url && config.url.startsWith('blob:')) {
                     config.baseURL = "";
                 }
                 return config;
             }, (error: any) => Promise.reject(error));
 
-        this.axiosInstance.interceptors.response.use((response: any) => response, async (error: AxiosError) => {
+        this.axiosInstance.interceptors.response.use(
+            (response: any) => response, 
+            async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+                
+                // Gatekeeper 402 Expiration Notification Handling
+                if (error.response?.status === 402) {
+                    const detail = (error.response.data as any)?.detail || "Abonimi juaj ka skaduar. Ju lutem renovoni planin për të vazhduar.";
+                    console.warn("[Gatekeeper Exception 402]:", detail);
+                    return Promise.reject(error);
+                }
+
                 if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
-                    if (this.isRefreshing) { return new Promise((resolve, reject) => { this.failedQueue.push({ resolve, reject }); }).then((token) => { if (originalRequest.headers instanceof AxiosHeaders) { originalRequest.headers.set('Authorization', `Bearer ${token}`); } else { (originalRequest.headers as any).Authorization = `Bearer ${token}`; } return this.axiosInstance(originalRequest); }); }
+                    if (this.isRefreshing) { 
+                        return new Promise((resolve, reject) => { 
+                            this.failedQueue.push({ resolve, reject }); 
+                        }).then((token) => { 
+                            if (originalRequest.headers instanceof AxiosHeaders) { 
+                                originalRequest.headers.set('Authorization', `Bearer ${token}`); 
+                            } else { 
+                                (originalRequest.headers as any).Authorization = `Bearer ${token}`; 
+                            } 
+                            return this.axiosInstance(originalRequest); 
+                        }); 
+                    }
                     originalRequest._retry = true;
                     this.isRefreshing = true;
                     try {
                         const { data } = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
                         tokenManager.set(data.access_token);
-                        if (originalRequest.headers instanceof AxiosHeaders) { originalRequest.headers.set('Authorization', `Bearer ${data.access_token}`); } else { (originalRequest.headers as any).Authorization = `Bearer ${data.access_token}`; }
+                        if (originalRequest.headers instanceof AxiosHeaders) { 
+                            originalRequest.headers.set('Authorization', `Bearer ${data.access_token}`); 
+                        } else { 
+                            (originalRequest.headers as any).Authorization = `Bearer ${data.access_token}`; 
+                        }
                         this.processQueue(null);
                         return this.axiosInstance(originalRequest);
-                    } catch (refreshError) { tokenManager.set(null); this.processQueue(refreshError as Error); if (this.onUnauthorized) this.onUnauthorized(); return Promise.reject(refreshError); } finally { this.isRefreshing = false; }
+                    } catch (refreshError) { 
+                        tokenManager.set(null); 
+                        this.processQueue(refreshError as Error); 
+                        if (this.onUnauthorized) this.onUnauthorized(); 
+                        return Promise.reject(refreshError); 
+                    } finally { 
+                        this.isRefreshing = false; 
+                    }
                 }
                 return Promise.reject(error);
-            });
+            }
+        );
     }
     
     public setToken(token: string | null): void { tokenManager.set(token); }
@@ -257,11 +289,7 @@ class ApiService {
     public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content }); return response.data; }
     public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
-    // ========== NEW EXPLICIT METHOD: CLEAR SAVED AI CASE ANALYSIS ==========
-    /**
-     * Sends a POST request to completely wipe the stored 'latest_analysis'
-     * inside the MongoDB cases collection. This uses a POST to bypass browser-side CORS method restrictions.
-     */
+    // ========== CLEAR SAVED AI CASE ANALYSIS ==========
     public async clearCaseAnalysis(caseId: string): Promise<void> {
         await this.axiosInstance.post(`/cases/${caseId}/analyze/clear`);
     }
@@ -300,22 +328,25 @@ class ApiService {
         const prompt = `Ligji: "${lawTitle}"\nNeni: ${articleNumber}\n\nPërmbajtja e Nenit:\n${articleText}`;
         const url = `${API_V1_URL}/laws/explain`; 
         const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ prompt, law_title: lawTitle, article_number: articleNumber }) });
-        if (!response.ok) throw new Error("AI Explanation request failed.");
+        
+        if (!response.ok) {
+            let errorMsg = "Sqarimi i ligjit dështoi.";
+            try {
+                const errJson = await response.json();
+                if (errJson?.detail) errorMsg = errJson.detail;
+            } catch {
+                if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj për të vazhduar.";
+            }
+            throw new Error(errorMsg);
+        }
+
         if (!response.body) return;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    // ========== LAW AUDITOR CHAT (UPDATED SIGNATURE) ==========
-    /**
-     * Interactive chat with the Rigid Auditor anchored to a specific law article.
-     * Accepts chunk_id (article identifier) and the user's query.
-     * 
-     * @param articleId - The chunk_id of the law article
-     * @param query - The user's question about the article
-     * @returns AsyncGenerator yielding string chunks
-     */
+    // ========== LAW AUDITOR CHAT ==========
     public async *askLawAuditor(articleId: string, query: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) {
@@ -337,12 +368,18 @@ class ApiService {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Audit chat failed: ${response.status} - ${errorText}`);
+            let errorMsg = `Biseda e auditimit dështoi: ${response.status}`;
+            try {
+                const errJson = await response.json();
+                if (errJson?.detail) errorMsg = errJson.detail;
+            } catch {
+                if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj për të vazhduar.";
+            }
+            throw new Error(errorMsg);
         }
 
         if (!response.body) {
-            throw new Error("No response body from audit chat endpoint");
+            throw new Error("Përgjigjja nuk ka trup përmbajtës.");
         }
 
         const reader = response.body.getReader();
@@ -360,8 +397,53 @@ class ApiService {
     }
 
     public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> { await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, { message_index: messageIndex, feedback: feedback }); }
-    public async *sendChatMessageStream(caseId: string, message: string, documentIds?: string[], jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST', domain: string = 'automatic'): AsyncGenerator<string, void, unknown> { let token = tokenManager.get(); if (!token) { await this.refreshToken(); token = tokenManager.get(); } const url = `${API_V1_URL}/chat/case/${caseId}`; const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_ids: documentIds || null, jurisdiction: jurisdiction || 'ks', mode, domain }) }); if (!response.ok) throw new Error("Chat request failed."); if (!response.body) return; const reader = response.body.getReader(); const decoder = new TextDecoder(); try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } }
-    public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> { let token = tokenManager.get(); if (!token) { await this.refreshToken(); token = tokenManager.get(); } const url = `${API_V2_URL}/drafting/stream`; const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify(data) }); if (!response.ok) throw new Error("Drafting failed."); if (!response.body) return; const reader = response.body.getReader(); const decoder = new TextDecoder(); try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } }
+    
+    public async *sendChatMessageStream(caseId: string, message: string, documentIds?: string[], jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST', domain: string = 'automatic'): AsyncGenerator<string, void, unknown> { 
+        let token = tokenManager.get(); 
+        if (!token) { await this.refreshToken(); token = tokenManager.get(); } 
+        const url = `${API_V1_URL}/chat/case/${caseId}`; 
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_ids: documentIds || null, jurisdiction: jurisdiction || 'ks', mode, domain }) }); 
+        
+        if (!response.ok) {
+            let errorMsg = "Biseda dështoi.";
+            try {
+                const errJson = await response.json();
+                if (errJson?.detail) errorMsg = errJson.detail;
+            } catch {
+                if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj në Juristi.tech për të vazhduar.";
+            }
+            throw new Error(errorMsg);
+        }
+
+        if (!response.body) return; 
+        const reader = response.body.getReader(); 
+        const decoder = new TextDecoder(); 
+        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } 
+    }
+
+    public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> { 
+        let token = tokenManager.get(); 
+        if (!token) { await this.refreshToken(); token = tokenManager.get(); } 
+        const url = `${API_V2_URL}/drafting/stream`; 
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify(data) }); 
+        
+        if (!response.ok) {
+            let errorMsg = "Hartimi i dokumentit dështoi.";
+            try {
+                const errJson = await response.json();
+                if (errJson?.detail) errorMsg = errJson.detail;
+            } catch {
+                if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj në Juristi.tech për të vazhduar.";
+            }
+            throw new Error(errorMsg);
+        }
+
+        if (!response.body) return; 
+        const reader = response.body.getReader(); 
+        const decoder = new TextDecoder(); 
+        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } 
+    }
+
     public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); return response.data; }
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
     public async getBriefing(): Promise<BriefingResponse> { const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); return response.data; }
