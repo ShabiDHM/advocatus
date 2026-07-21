@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.2
-# FIX: Changed comment keep-alive to structured 'ping' events to force proxies (Render/Cloudflare) to flush buffers instantly
+# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.3
+# FIX: Moved leeway directly as a keyword argument (leeway=86400) to python-jose's decode to prevent SSE expired signature reconnect loops.
 
 import asyncio
 import logging
@@ -21,7 +21,7 @@ class TokenPayload(BaseModel):
 def get_current_user_sse(request: Request) -> Optional[str]:
     """
     Synchronous token validation supporting both query parameter and Authorization header.
-    Includes a 120-second leeway to resolve cross-cloud clock drift issues.
+    Passes leeway=86400 directly as a keyword argument to handle long-lived browser tab reconnections.
     """
     token = request.query_params.get("token")
     
@@ -34,12 +34,13 @@ def get_current_user_sse(request: Request) -> Optional[str]:
         return None
     
     try:
-        # Resolve clock drift issues with standard 120s leeway
+        # PHOENIX CRITICAL: Passes leeway as a direct keyword argument (standard python-jose signature)
+        # We allow a generous 24h leeway specifically for the read-only SSE route to sustain long-lived browser reconnections.
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"leeway": 120}
+            leeway=86400
         )
         token_data = TokenPayload(**payload)
         if token_data.sub is None:
