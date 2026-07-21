@@ -1,7 +1,6 @@
 # FILE: backend/app/models/admin.py
-# PHOENIX PROTOCOL - ADMIN MODELS V2.2 (IMPORT FIX)
-# 1. FIXED: Changed relative import to Absolute Import to resolve Pylance resolution errors.
-# 2. VERIFIED: 'UserAdminView' and 'UserUpdateRequest' are correctly exported.
+# PHOENIX PROTOCOL - ADMIN MODELS V2.3 (STATUS SYNCHRONIZATION)
+# 1. FIX: Added 'status' field to UserAdminView and UserUpdateRequest to synchronize and persist account activation states across Admin and Team tabs.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional
@@ -19,10 +18,11 @@ class UserAdminView(BaseModel):
     role: str
     
     # Status
+    status: Optional[str] = "active" # PHOENIX FIX: Exposes database account activation status ('active'/'pending_invite')
     subscription_status: Optional[str] = "TRIAL"
     is_active: bool = True 
     
-    # PHOENIX FIX: Expose correct SaaS Matrix directly from DB
+    # Expose correct SaaS Matrix directly from DB
     account_type: Optional[AccountType] = AccountType.SOLO
     subscription_tier: Optional[SubscriptionTier] = SubscriptionTier.BASIC
     product_plan: Optional[ProductPlan] = ProductPlan.SOLO_PLAN
@@ -49,6 +49,7 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
     
     # SaaS Updates
+    status: Optional[str] = None # PHOENIX FIX: Allows admin to explicitly update account activation status
     subscription_status: Optional[str] = None
     account_type: Optional[AccountType] = None
     subscription_tier: Optional[SubscriptionTier] = None
