@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V18.0 (RECURSIVE ROOT DATA/LAWS/KS PATH RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V19.0 (UNICODE-SAFE LAW CODE PDF DISK SCANNER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Set, Any
 import re
 import os
+import unicodedata
 import logging
 
 from app.services import vector_store_service, llm_service
@@ -77,6 +78,39 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
 
     return []
 
+def find_pdf_file_on_disk(data_laws_root: str, requested_name: str) -> Optional[str]:
+    """Scans directories with Unicode normalization and law code matching."""
+    if not os.path.exists(data_laws_root):
+        return None
+
+    clean_requested = os.path.basename(requested_name).strip()
+    req_nfc = unicodedata.normalize('NFC', clean_requested).lower()
+    req_nfd = unicodedata.normalize('NFD', clean_requested).lower()
+
+    # Extract law code pattern like 03_L-006 or 03-L-006 or 06-L-006
+    code_match = re.search(r'(\d{2,4}[_\/\-][L\d\-_]+)', clean_requested, re.I)
+    law_code = code_match.group(1).replace('/', '_').replace('-', '_').lower() if code_match else None
+
+    for root, _, files in os.walk(data_laws_root):
+        for f in files:
+            if not f.lower().endswith('.pdf'):
+                continue
+
+            f_nfc = unicodedata.normalize('NFC', f).lower()
+            f_nfd = unicodedata.normalize('NFD', f).lower()
+
+            # 1. Exact or normalized Unicode match
+            if f_nfc == req_nfc or f_nfd == req_nfd or f.lower() == clean_requested.lower():
+                return os.path.join(root, f)
+
+            # 2. Match by official law code (e.g., 03_l_006)
+            if law_code:
+                f_clean_code = f.replace('/', '_').replace('-', '_').lower()
+                if law_code in f_clean_code:
+                    return os.path.join(root, f)
+
+    return None
+
 RIGID_AUDITOR_PROMPT = """
 ROLI: Ti je 'Krye-Auditori Forenzik' i certifikuar për juridiksionin e Kosovës.
 DETYRA: Përgjigju pyetjeve të përdoruesit BAZUAR VETËM NË KONTEKSTIN E DHËNË.
@@ -121,36 +155,20 @@ async def get_law_pdf(filename: str):
     backend_dir = os.path.dirname(app_dir)                # backend
     project_root = os.path.dirname(backend_dir)           # ADVOCATUS (Root)
 
-    possible_paths = [
-        # Root level data/laws/ks/ (matching VS Code directory tree)
-        os.path.join(project_root, "data", "laws", "ks", clean_name),
-        os.path.join(project_root, "data", "laws", "al", clean_name),
-        os.path.join(project_root, "data", "laws", clean_name),
-        
-        # Backend relative paths
-        os.path.join(backend_dir, "data", "laws", "ks", clean_name),
-        os.path.join(backend_dir, "data", "laws", clean_name),
-        os.path.join(app_dir, "data", "laws", "ks", clean_name),
-        os.path.join("data", "laws", "ks", clean_name),
-        os.path.join("data", "laws", "al", clean_name),
-        os.path.join("data", "laws", clean_name),
-        os.path.join("..", "data", "laws", "ks", clean_name),
-        os.path.join("..", "data", "laws", clean_name),
+    candidate_roots = [
+        os.path.join(project_root, "data", "laws"),
+        os.path.join(backend_dir, "data", "laws"),
+        os.path.join(app_dir, "data", "laws"),
+        "data/laws",
+        "data"
     ]
 
-    for path in possible_paths:
-        if os.path.exists(path):
-            logger.info(f"Serving local law PDF from: {path}")
-            return FileResponse(path, media_type="application/pdf", filename=clean_name)
-
-    # 3. Recursive fallback scan across all 'data/laws' subdirectories
-    for root_dir in [os.path.join(project_root, "data", "laws"), os.path.join(backend_dir, "data", "laws"), "data"]:
-        if os.path.exists(root_dir):
-            for root, _, files in os.walk(root_dir):
-                if clean_name in files:
-                    found_path = os.path.join(root, clean_name)
-                    logger.info(f"Found law PDF via recursive scan: {found_path}")
-                    return FileResponse(found_path, media_type="application/pdf", filename=clean_name)
+    # 3. Fuzzy search for law PDF on disk
+    for root_path in candidate_roots:
+        found_file = find_pdf_file_on_disk(root_path, clean_name)
+        if found_file:
+            logger.info(f"Serving local law PDF from: {found_file}")
+            return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
 
     raise HTTPException(
         status_code=404, 
