@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V18.0 (THREAD-SAFE CRASH-PROOF CITATION LINKER)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V19.0 (STRICT OBJECT-AWARE SUMMARY PARSER - FIXES BLANK SCREEN)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -49,7 +49,13 @@ const Spinner = ({ size = 'w-20 h-20' }: { size?: string }) => (
 const safeString = (val: any): string => {
     if (!val) return "";
     if (typeof val === 'string') return val;
-    if (typeof val === 'object') return Object.values(val).join(': ');
+    if (typeof val === 'object') {
+        try {
+            return val.citizenText || val.lawyerText || val.summary || val.text || JSON.stringify(val);
+        } catch {
+            return String(val);
+        }
+    }
     return String(val);
 };
 
@@ -59,16 +65,29 @@ const cleanLegalText = (text: any): string => {
     return clean;
 };
 
-const splitExecutiveSummary = (text: string): { citizenText: string; lawyerText: string } => {
+// ========== PHOENIX: CRASH-PROOF OBJECT & STRING SUMMARY PARSER ==========
+const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: string } => {
     if (!text) return { citizenText: "", lawyerText: "" };
+
+    // If summary is stored as a JSON object in MongoDB, parse properties safely
+    if (typeof text === 'object') {
+        const citizen = safeString(text.citizenText || text.citizen_summary || text.summary || text.text || '');
+        const lawyer = safeString(text.lawyerText || text.lawyer_summary || text.professional || '');
+        if (citizen || lawyer) {
+            return { citizenText: citizen, lawyerText: lawyer };
+        }
+        return { citizenText: safeString(text), lawyerText: "" };
+    }
+
+    const strText = String(text);
     const marker = "### ⚖️ ANALIZA PROFESIONALE";
-    const markerIndex = text.indexOf(marker);
+    const markerIndex = strText.indexOf(marker);
     if (markerIndex !== -1) {
-        let citizenText = text.substring(0, markerIndex).replace(/### 👨‍💼 UDHËZUESI PËR QYTETARIN\s*\(Gjuhë e Thjeshtë\)\s*/i, '').trim();
-        let lawyerText = text.substring(markerIndex + marker.length).replace(/^\s*E AVOKATIT\s*/i, '').trim();
+        let citizenText = strText.substring(0, markerIndex).replace(/### 👨‍💼 UDHËZUESI PËR QYTETARIN\s*\(Gjuhë e Thjeshtë\)\s*/i, '').trim();
+        let lawyerText = strText.substring(markerIndex + marker.length).replace(/^\s*E AVOKATIT\s*/i, '').trim();
         return { citizenText, lawyerText };
     }
-    return { citizenText: text, lawyerText: "" };
+    return { citizenText: strText, lawyerText: "" };
 };
 
 // ========== PHOENIX: THREAD-SAFE NATIVE CITATION PARSER ==========
@@ -81,7 +100,6 @@ const renderTextWithCitations = (text: string) => {
     const matches: Array<{ fullMatch: string; targetUrl: string; index: number }> = [];
     let match: RegExpExecArray | null;
 
-    // Safety guard against infinite regex loops
     while ((match = citationRegex.exec(clean)) !== null) {
         const fullMatch = match[0];
         const lawPrefix = match[1];
