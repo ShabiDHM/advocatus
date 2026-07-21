@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V19.0 (UNICODE-SAFE LAW CODE PDF DISK SCANNER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V20.0 (UNSTOPPABLE PDF MATCHING ALGORITHM)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -79,7 +79,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
     return []
 
 def find_pdf_file_on_disk(data_laws_root: str, requested_name: str) -> Optional[str]:
-    """Scans directories with Unicode normalization and law code matching."""
+    """Scans directories with Unicode normalization, isolated law code matching, and digit fallback."""
     if not os.path.exists(data_laws_root):
         return None
 
@@ -87,9 +87,12 @@ def find_pdf_file_on_disk(data_laws_root: str, requested_name: str) -> Optional[
     req_nfc = unicodedata.normalize('NFC', clean_requested).lower()
     req_nfd = unicodedata.normalize('NFD', clean_requested).lower()
 
-    # Extract law code pattern like 03_L-006 or 03-L-006 or 06-L-006
-    code_match = re.search(r'(\d{2,4}[_\/\-][L\d\-_]+)', clean_requested, re.I)
+    # Isolate law code strictly (e.g. 03_L-006 or 04_L-077 or 06_L-006)
+    code_match = re.search(r'(\d{2,4}[_\/\-]L[_\/\-]?\d{3,4})', clean_requested, re.I)
     law_code = code_match.group(1).replace('/', '_').replace('-', '_').lower() if code_match else None
+
+    # Extract law digits (e.g. ["03", "006"])
+    digits = re.findall(r'\b\d+\b', clean_requested)
 
     for root, _, files in os.walk(data_laws_root):
         for f in files:
@@ -101,13 +104,19 @@ def find_pdf_file_on_disk(data_laws_root: str, requested_name: str) -> Optional[
 
             # 1. Exact or normalized Unicode match
             if f_nfc == req_nfc or f_nfd == req_nfd or f.lower() == clean_requested.lower():
+                logger.info(f"[PDF-Search] Exact match found: {f}")
                 return os.path.join(root, f)
 
-            # 2. Match by official law code (e.g., 03_l_006)
-            if law_code:
-                f_clean_code = f.replace('/', '_').replace('-', '_').lower()
-                if law_code in f_clean_code:
-                    return os.path.join(root, f)
+            # 2. Strict law code match (e.g. "03_l_006")
+            f_clean_code = f.replace('/', '_').replace('-', '_').lower()
+            if law_code and law_code in f_clean_code:
+                logger.info(f"[PDF-Search] Law code '{law_code}' matched file: {f}")
+                return os.path.join(root, f)
+
+            # 3. Digit token sequence match
+            if len(digits) >= 2 and all(d in f for d in digits if len(d) >= 2):
+                logger.info(f"[PDF-Search] Digit tokens {digits} matched file: {f}")
+                return os.path.join(root, f)
 
     return None
 
@@ -157,13 +166,15 @@ async def get_law_pdf(filename: str):
 
     candidate_roots = [
         os.path.join(project_root, "data", "laws"),
+        os.path.join(project_root, "data"),
         os.path.join(backend_dir, "data", "laws"),
+        os.path.join(backend_dir, "data"),
         os.path.join(app_dir, "data", "laws"),
         "data/laws",
         "data"
     ]
 
-    # 3. Fuzzy search for law PDF on disk
+    # 3. Multi-stage search for law PDF on disk
     for root_path in candidate_roots:
         found_file = find_pdf_file_on_disk(root_path, clean_name)
         if found_file:
