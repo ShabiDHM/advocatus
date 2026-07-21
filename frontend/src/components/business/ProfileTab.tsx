@@ -1,5 +1,5 @@
 // FILE: src/components/business/ProfileTab.tsx
-// PHOENIX PROTOCOL - PROFILE TAB V7.1 (FIXED DOUBLE TOP BORDER)
+// PHOENIX PROTOCOL - PROFILE TAB V7.2 (CIRCULAR LOGO FRAME FIX)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -138,13 +138,18 @@ export const ProfileTab: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Premium Logo Upload Circle */}
+                    {/* Premium Circular Logo Upload Frame */}
                     <div className="relative group cursor-pointer shrink-0" onClick={() => fileInputRef.current?.click()}>
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-surface flex items-center justify-center overflow-hidden border border-border-main shadow-sm transition-all duration-300 group-hover:border-primary-start/50 group-hover:shadow-md hover-lift">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-border-main shadow-md transition-all duration-300 group-hover:border-primary-start/70 group-hover:shadow-lg hover-lift aspect-square">
                             {logoLoading ? (
                                 <Loader2 className="w-8 h-8 animate-spin text-primary-start" />
                             ) : logoSrc ? (
-                                <img src={logoSrc} alt="Logo" className="w-full h-full object-contain p-2" onError={() => setLogoSrc(null)} />
+                                <img 
+                                    src={logoSrc} 
+                                    alt="Logo" 
+                                    className="w-full h-full object-cover rounded-full p-0.5" 
+                                    onError={() => setLogoSrc(null)} 
+                                />
                             ) : (
                                 <div className="flex flex-col items-center gap-1 text-text-muted group-hover:text-primary-start transition-colors">
                                     <Upload className="w-6 h-6" />
@@ -152,9 +157,9 @@ export const ProfileTab: React.FC = () => {
                                 </div>
                             )}
                             
-                            {/* Hover Camera Overlay */}
-                            <div className="absolute inset-0 bg-canvas/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                                <Camera className="w-6 h-6 text-primary-start drop-shadow-md" />
+                            {/* Circular Hover Camera Overlay */}
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px] rounded-full">
+                                <Camera className="w-6 h-6 text-white drop-shadow-md" />
                             </div>
                         </div>
                         <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />

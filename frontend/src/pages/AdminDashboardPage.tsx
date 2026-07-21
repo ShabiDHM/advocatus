@@ -1,12 +1,11 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.6 (LINTER COMPILE FIXED)
-// 1. FIX: Removed unused icon imports (CalendarIcon, Shield, Zap) to resolve all Pylance/TypeScript compiler warnings.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V7.0 (ENHANCED UI & BADGES & FILTER PILLS)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
-    Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Mail, Key
+    Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Mail, Key, ShieldAlert, Filter
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -24,12 +23,14 @@ type UnifiedAdminUser = User & {
 };
 
 type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
+type StatusFilter = 'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE_EXPIRED' | 'TEAM';
 
 const AdminDashboardPage: React.FC = () => {
     const { t } = useTranslation();
     const [users, setUsers] = useState<UnifiedAdminUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
     const [editingUser, setEditingUser] = useState<UnifiedAdminUser | null>(null);
 
     const [editForm, setEditForm] = useState<Partial<UnifiedAdminUser> & { expiry_date?: Date | null }>({});
@@ -66,7 +67,7 @@ const AdminDashboardPage: React.FC = () => {
 
     const getStatusScore = (user: UnifiedAdminUser) => {
         if (user.status === 'pending_invite') return 1;
-        if (user.subscription_status !== 'ACTIVE') return 0; 
+        if (user.subscription_status !== 'ACTIVE' || user.status === 'inactive') return 0; 
         return 2; 
     };
 
@@ -127,21 +128,67 @@ const AdminDashboardPage: React.FC = () => {
         const isExpired = user.expiry_date && user.expiry_date < new Date();
 
         if (user.status === 'pending_invite') {
-            return <span className="flex items-center text-warning-start bg-warning-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-warning-start/20"><Mail className="w-3.5 h-3.5 mr-1" /> {t('admin.status.invite_pending', 'FTESË')}</span>;
+            return (
+                <span className="flex items-center text-warning-start bg-warning-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-warning-start/20 shadow-sm">
+                    <Mail className="w-3.5 h-3.5 mr-1" /> {t('admin.status.invite_pending', 'FTESË')}
+                </span>
+            );
         }
+
+        if (user.subscription_status === 'INACTIVE' || user.status === 'inactive') {
+            return (
+                <span className="flex items-center text-danger-start bg-danger-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-danger-start/20 shadow-sm">
+                    <ShieldAlert className="w-3.5 h-3.5 mr-1" /> {t('admin.status.inactive', 'INAKTIV')}
+                </span>
+            );
+        }
+
         if (user.subscription_status === 'ACTIVE') {
             if (isExpired) {
-                return <span className="flex items-center text-danger-start bg-danger-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-danger-start/20"><AlertTriangle className="w-3.5 h-3.5 mr-1" /> {t('admin.status.expired', 'SKADUAR')}</span>;
+                return (
+                    <span className="flex items-center text-danger-start bg-danger-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-danger-start/20 shadow-sm">
+                        <AlertTriangle className="w-3.5 h-3.5 mr-1" /> {t('admin.status.expired', 'SKADUAR')}
+                    </span>
+                );
             }
-            return <span className="flex items-center text-success-start bg-success-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-success-start/20"><CheckCircle className="w-3.5 h-3.5 mr-1" /> {t('admin.status.active', 'AKTIV')}</span>;
+            return (
+                <span className="flex items-center text-success-start bg-success-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-success-start/20 shadow-sm">
+                    <CheckCircle className="w-3.5 h-3.5 mr-1" /> {t('admin.status.active', 'AKTIV')}
+                </span>
+            );
         }
-        return <span className="flex items-center text-warning-start bg-warning-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-warning-start/20"><Clock className="w-3.5 h-3.5 mr-1" /> {t('admin.status.pending', 'PRITJE')}</span>;
+
+        return (
+            <span className="flex items-center text-warning-start bg-warning-start/10 px-2.5 py-1 rounded-lg text-xs font-bold w-fit border border-warning-start/20 shadow-sm">
+                <Clock className="w-3.5 h-3.5 mr-1" /> {t('admin.status.pending', 'PRITJE')}
+            </span>
+        );
     };
 
-    const filteredUsers = users.filter(u =>
-        u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => {
+        const matchesSearch = 
+            u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+
+        if (!matchesSearch) return false;
+
+        const isExpired = u.expiry_date && u.expiry_date < new Date();
+
+        if (statusFilter === 'ACTIVE') {
+            return u.status === 'active' && u.subscription_status === 'ACTIVE' && !isExpired;
+        }
+        if (statusFilter === 'PENDING') {
+            return u.status === 'pending_invite';
+        }
+        if (statusFilter === 'INACTIVE_EXPIRED') {
+            return u.subscription_status === 'INACTIVE' || u.status === 'inactive' || isExpired;
+        }
+        if (statusFilter === 'TEAM') {
+            return u.product_plan === ProductPlan.TEAM_PLAN;
+        }
+
+        return true;
+    });
 
     if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
 
@@ -155,7 +202,7 @@ const AdminDashboardPage: React.FC = () => {
             </div>
 
             <div className="glass-panel rounded-2xl border border-main overflow-hidden bg-canvas">
-                {/* Search Header Row */}
+                {/* Search & Header Row */}
                 <div className="p-4 border-b border-main flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-surface">
                     <div className="flex items-center gap-2 select-none h-11 sm:h-auto">
                         <Briefcase className="w-5 h-5 text-primary-start" />
@@ -171,6 +218,54 @@ const AdminDashboardPage: React.FC = () => {
                             className="w-full h-11 sm:h-9 pl-9 pr-4 bg-canvas border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
                         />
                     </div>
+                </div>
+
+                {/* Interactive Status Filter Pills */}
+                <div className="p-3 border-b border-main bg-canvas/40 flex flex-wrap items-center gap-2 select-none">
+                    <div className="flex items-center gap-1 text-xs font-bold text-text-muted mr-1">
+                        <Filter className="w-3.5 h-3.5 text-primary-start" /> Filterat:
+                    </div>
+                    {[
+                        { key: 'ALL', label: 'Të Gjithë', count: users.length },
+                        { 
+                            key: 'ACTIVE', 
+                            label: 'Aktivë', 
+                            count: users.filter(u => u.status === 'active' && u.subscription_status === 'ACTIVE' && (!u.expiry_date || u.expiry_date >= new Date())).length 
+                        },
+                        { 
+                            key: 'PENDING', 
+                            label: 'Ftesa', 
+                            count: users.filter(u => u.status === 'pending_invite').length 
+                        },
+                        { 
+                            key: 'INACTIVE_EXPIRED', 
+                            label: 'Inaktivë / Skaduar', 
+                            count: users.filter(u => u.subscription_status === 'INACTIVE' || u.status === 'inactive' || (u.expiry_date && u.expiry_date < new Date())).length 
+                        },
+                        { 
+                            key: 'TEAM', 
+                            label: 'TEAM (5 Vende)', 
+                            count: users.filter(u => u.product_plan === ProductPlan.TEAM_PLAN).length 
+                        },
+                    ].map(f => (
+                        <button
+                            key={f.key}
+                            type="button"
+                            onClick={() => setStatusFilter(f.key as StatusFilter)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 focus:outline-none ${
+                                statusFilter === f.key 
+                                    ? 'bg-primary-start text-white shadow-md shadow-primary-start/20' 
+                                    : 'bg-surface hover:bg-hover text-text-secondary border border-main'
+                            }`}
+                        >
+                            <span>{f.label}</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                                statusFilter === f.key ? 'bg-white/20 text-white' : 'bg-canvas text-text-muted'
+                            }`}>
+                                {f.count}
+                            </span>
+                        </button>
+                    ))}
                 </div>
 
                 {/* Mobile view stacked cards layout */}
@@ -192,7 +287,7 @@ const AdminDashboardPage: React.FC = () => {
                                     <div className="flex items-center justify-between">
                                         <span className="text-text-muted">Lloji:</span>
                                         <span className="font-bold flex items-center gap-1">
-                                            {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
+                                            {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-3.5 h-3.5 text-secondary-start" /> : <UserIcon className="w-3.5 h-3.5 text-text-muted" />}
                                             {user.account_type}
                                         </span>
                                     </div>
@@ -248,50 +343,58 @@ const AdminDashboardPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-main">
-                            {filteredUsers.map((user) => (
-                                <tr key={user.id} className="hover:bg-hover transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="font-bold text-text-primary">{user.username}</div>
-                                        <div className="text-xs text-text-muted">{user.email}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-4 h-4 text-secondary-start mx-auto" /> : <UserIcon className="w-4 h-4 text-text-muted mx-auto" />}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2">
-                                            {user.product_plan === ProductPlan.TEAM_PLAN ? <Star className="w-3 h-3 text-warning-start animate-pulse" /> : <UserIcon className="w-3 h-3 text-text-muted" />}
-                                            <span className={`text-xs font-bold ${user.product_plan === ProductPlan.TEAM_PLAN ? 'text-warning-start' : 'text-text-muted'}`}>
-                                                {user.product_plan} ({user.user_limit} {t('admin.seats', 'Vende')})
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-xs select-none">
-                                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-xs select-none">
-                                        {user.expiry_date ? user.expiry_date.toLocaleDateString() : (
-                                            <span className="text-text-muted italic">Pa Skadim</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">{renderStatusBadge(user)}</td>
-                                    <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleEditClick(user)} 
-                                            className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 hover:bg-primary-start/20 transition-colors focus:outline-none"
-                                        >
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleDeleteUser(user.id)} 
-                                            className="p-2 bg-danger-start/10 text-danger-start rounded-lg border border-danger-start/20 hover:bg-danger-start/20 transition-colors focus:outline-none"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                            {filteredUsers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="py-12 text-center text-text-secondary italic text-sm font-medium">
+                                        Asnjë përdorues nuk u gjet sipas kritereve të filtrit.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                filteredUsers.map((user) => (
+                                    <tr key={user.id} className="hover:bg-hover transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-text-primary">{user.username}</div>
+                                            <div className="text-xs text-text-muted">{user.email}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-4 h-4 text-secondary-start mx-auto" /> : <UserIcon className="w-4 h-4 text-text-muted mx-auto" />}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                {user.product_plan === ProductPlan.TEAM_PLAN ? <Star className="w-3 h-3 text-warning-start animate-pulse" /> : <UserIcon className="w-3 h-3 text-text-muted" />}
+                                                <span className={`text-xs font-bold ${user.product_plan === ProductPlan.TEAM_PLAN ? 'text-warning-start' : 'text-text-muted'}`}>
+                                                    {user.product_plan} ({user.user_limit} {t('admin.seats', 'Vende')})
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-xs select-none">
+                                            {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-xs select-none">
+                                            {user.expiry_date ? user.expiry_date.toLocaleDateString() : (
+                                                <span className="text-text-muted italic">Pa Skadim</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">{renderStatusBadge(user)}</td>
+                                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleEditClick(user)} 
+                                                className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 hover:bg-primary-start/20 transition-colors focus:outline-none"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleDeleteUser(user.id)} 
+                                                className="p-2 bg-danger-start/10 text-danger-start rounded-lg border border-danger-start/20 hover:bg-danger-start/20 transition-colors focus:outline-none"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -399,6 +502,7 @@ const AdminDashboardPage: React.FC = () => {
                                         >
                                             <option value="active" className="bg-canvas text-text-primary">AKTIV (Llogari e Aktivizuar)</option>
                                             <option value="pending_invite" className="bg-canvas text-text-primary">FTESË (Në pritje të pranimit)</option>
+                                            <option value="inactive" className="bg-canvas text-text-primary">INAKTIV (Llogari e Deaktivizuar)</option>
                                         </select>
                                     </div>
                                 </div>
