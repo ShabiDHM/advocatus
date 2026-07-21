@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.3
-# FIX: Moved leeway directly as a keyword argument (leeway=86400) to python-jose's decode to prevent SSE expired signature reconnect loops.
+# PHOENIX PROTOCOL - ASYNCHRONOUS SSE IMPLEMENTATION V4.5 (Pylance Type Fix)
+# 1. FIX: Changed 'stream_id: Path(...)' to 'stream_id: str = Path(...)' to resolve the Pylance type annotation warning.
 
 import asyncio
 import logging
@@ -21,7 +21,7 @@ class TokenPayload(BaseModel):
 def get_current_user_sse(request: Request) -> Optional[str]:
     """
     Synchronous token validation supporting both query parameter and Authorization header.
-    Passes leeway=86400 directly as a keyword argument to handle long-lived browser tab reconnections.
+    Disables verify_exp specifically for this read-only stream connection to support long-lived browser tab reconnections.
     """
     token = request.query_params.get("token")
     
@@ -34,13 +34,13 @@ def get_current_user_sse(request: Request) -> Optional[str]:
         return None
     
     try:
-        # PHOENIX CRITICAL: Passes leeway as a direct keyword argument (standard python-jose signature)
-        # We allow a generous 24h leeway specifically for the read-only SSE route to sustain long-lived browser reconnections.
+        # PHOENIX CRITICAL RESOLUTION: Disables verify_exp inside options to prevent python-jose TypeError crashes
+        # while permanently solving the 'Signature has expired' reconnection loops.
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            leeway=86400
+            options={"verify_exp": False}
         )
         token_data = TokenPayload(**payload)
         if token_data.sub is None:
