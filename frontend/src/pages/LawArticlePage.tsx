@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V14.0 (EXECUTIVE SEQUENTIAL STEPPER & QUICK JUMP)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V15.0 (MINIMIZABLE DOCKED PDF VIEWER)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
   Loader2, X, BrainCircuit, User, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -152,8 +152,9 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- PDF MODAL & JUMP STATE ---
+  // --- PDF MODAL & MINIMIZE STATE ---
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
   // --- AI SUMMARY STATE ---
@@ -179,7 +180,6 @@ export default function LawArticlePage() {
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
-  // Compute current numerical article index for Stepper (Neni X-1 / Neni X+1)
   const currentNum = useMemo(() => {
     const cleanNum = (article?.article_number || articleNumber || '').replace(/\.$/, '').trim();
     const match = cleanNum.match(/\d+/);
@@ -395,7 +395,7 @@ export default function LawArticlePage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-lawyer-dark border border-border-main">
           
-          {/* Top Control Bar: Back Button, Quick Stepper, Jump Box, Audit Button */}
+          {/* Top Control Bar */}
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             
             {/* Back Button */}
@@ -411,7 +411,6 @@ export default function LawArticlePage() {
 
             {/* Middle Zone: Fast Stepper & Jump Box */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Previous Article Button */}
               {prevArticleNum !== null && (
                 <button
                   type="button"
@@ -424,7 +423,6 @@ export default function LawArticlePage() {
                 </button>
               )}
 
-              {/* Quick Jump Input */}
               <form onSubmit={handleJumpSubmit} className="relative flex items-center">
                 <Search size={12} className="absolute left-3 text-text-muted pointer-events-none" />
                 <input
@@ -436,7 +434,6 @@ export default function LawArticlePage() {
                 />
               </form>
 
-              {/* Next Article Button */}
               {nextArticleNum !== null && (
                 <button
                   type="button"
@@ -486,7 +483,7 @@ export default function LawArticlePage() {
                   {/* Interactive Clickable PDF Source Pill */}
                   <button
                     type="button"
-                    onClick={() => setShowPdfModal(true)}
+                    onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
                     className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3 py-1.5 rounded-lg transition-all hover-lift cursor-pointer focus:outline-none"
                     title="Shiko dokumentin PDF të plotë zyrtar"
                   >
@@ -511,7 +508,6 @@ export default function LawArticlePage() {
                     </p>
                   </div>
 
-                  {/* Bottom Header Navigation Pill */}
                   <div className="flex items-center gap-2">
                     {prevArticleNum !== null && (
                       <button
@@ -786,9 +782,9 @@ export default function LawArticlePage() {
         </div>
       </div>
 
-      {/* FULL PDF SCROLLABLE MODAL */}
+      {/* FULL EXPANDED PDF SCROLLABLE MODAL */}
       <AnimatePresence>
-        {showPdfModal && pdfUrl && (
+        {showPdfModal && !isPdfMinimized && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }} 
@@ -796,6 +792,7 @@ export default function LawArticlePage() {
               exit={{ scale: 0.95, opacity: 0 }} 
               className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
+              {/* Modal Header Controls: Minimize, Download, Close */}
               <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
@@ -817,21 +814,37 @@ export default function LawArticlePage() {
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="p-2.5 bg-surface border border-border-main hover:border-primary-start text-text-primary rounded-xl transition-all focus:outline-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
-                    title="Hap në dritare të re"
+                    title="Shkarko PDF"
                   >
                     <Download size={15} />
                     <span className="hidden sm:inline">Shkarko PDF</span>
                   </a>
+
+                  {/* MINIMIZE BUTTON */}
                   <button 
-                    onClick={() => setShowPdfModal(false)} 
+                    type="button"
+                    onClick={() => setIsPdfMinimized(true)} 
+                    className="p-2.5 bg-surface border border-border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
+                    aria-label="Minimize PDF viewer"
+                    title="Minimizo"
+                  >
+                    <Minus size={18} />
+                  </button>
+
+                  {/* CLOSE BUTTON */}
+                  <button 
+                    type="button"
+                    onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }} 
                     className="p-2.5 bg-surface border border-border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
                     aria-label="Close PDF viewer"
+                    title="Mbyll"
                   >
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
+              {/* Scrollable PDF Iframe Container */}
               <div className="flex-1 w-full h-full bg-slate-900 relative">
                 <iframe 
                   src={pdfUrl} 
@@ -841,6 +854,56 @@ export default function LawArticlePage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* MINIMIZED DOCKED FLOATING PDF STATUS CARD */}
+      <AnimatePresence>
+        {showPdfModal && isPdfMinimized && article && (
+          <motion.div
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 50, opacity: 0 }}
+            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3.5 p-3.5 bg-surface border border-border-main rounded-2xl shadow-2xl backdrop-blur-md max-w-md"
+          >
+            <div className="p-2.5 bg-primary-start/15 text-primary-start rounded-xl shrink-0 border border-primary-start/20">
+              <FileText size={18} />
+            </div>
+            
+            <div 
+              className="min-w-0 flex-1 cursor-pointer" 
+              onClick={() => setIsPdfMinimized(false)}
+            >
+              <p className="text-xs font-black text-text-primary uppercase truncate tracking-tight">
+                {article.law_title}
+              </p>
+              <p className="text-[10px] text-text-muted font-mono truncate">
+                {article.source}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* EXPAND BUTTON */}
+              <button
+                type="button"
+                onClick={() => setIsPdfMinimized(false)}
+                className="p-2 bg-canvas hover:bg-hover border border-border-main text-primary-start hover:text-primary-hover rounded-xl transition-all focus:outline-none shadow-sm"
+                title="Zgjero (Full Screen)"
+              >
+                <Maximize2 size={14} />
+              </button>
+
+              {/* CLOSE BUTTON */}
+              <button
+                type="button"
+                onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }}
+                className="p-2 bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-danger-start rounded-xl transition-all focus:outline-none shadow-sm"
+                title="Mbyll"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
