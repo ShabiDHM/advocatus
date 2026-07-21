@@ -1,10 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V4.0 (EXECUTIVE ALIGNMENT)
-// 1. FIXED: Removed all hardcoded 'white' colors. Replaced with semantic 'text-text-primary'.
-// 2. FIXED: Header and Article grid now use 'bg-surface' and 'bg-canvas' for flawless theme switching.
-// 3. ENHANCED: Article buttons now feature 'hover-lift' and authoritative typography.
-// 4. UPDATED: Replaced custom shadows with 'shadow-sm' and 'hover-lift'.
-// 5. RETAINED: 100% of fetching, parsing, and routing logic.
+// PHOENIX PROTOCOL - LAW OVERVIEW V5.0 (PREAMBLE & ARTICLE NUMBERING SYNCHRONIZED)
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -142,15 +137,21 @@ export default function LawOverviewPage() {
             </h2>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {data.articles.map((article) => (
-                <button
-                  key={article}
-                  onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
-                  className="flex items-center justify-center px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift"
-                >
-                  Neni {article.replace(/\.$/, '')}
-                </button>
-              ))}
+              {data.articles.map((article) => {
+                const cleanArt = article.replace(/\.$/, '').trim();
+                const isPreamble = cleanArt === '0' || cleanArt.toLowerCase() === 'preambula' || cleanArt.toLowerCase() === 'hyrja';
+                const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+
+                return (
+                  <button
+                    key={article}
+                    onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
+                    className="flex items-center justify-center px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

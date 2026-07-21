@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.1 (LINE DEDUPLICATION & PRISTINE LEGAL TEXT)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.2 (PREAMBLE BANNER SYNCHRONIZED)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -416,7 +416,13 @@ export default function LawArticlePage() {
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tighter">{article.law_title}</h1>
                 <div className="flex items-center gap-4 border-t border-border-main/50 pt-6 mt-2">
                   <Scale size={24} className="text-primary-start" />
-                  <p className="text-lg font-black text-primary-start uppercase tracking-widest">{t('lawArticle.article', 'Neni')} {article.article_number || ''}</p>
+                  <p className="text-lg font-black text-primary-start uppercase tracking-widest">
+                    {(() => {
+                      const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
+                      const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
+                      return isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${cleanNum}`;
+                    })()}
+                  </p>
                 </div>
               </div>
             </div>
