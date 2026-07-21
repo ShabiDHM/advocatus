@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.22 (TYPO FIXED: FINALLY BLOCK)
+// PHOENIX PROTOCOL - CASE VIEW V19.0 (ZERO WARNINGS & INTEGRATED STANCE TOGGLE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +15,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2, AlertTriangle, FileText, Shield, Swords } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -143,9 +143,10 @@ const CaseHeader: React.FC<{
     isPro: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-}> = ({ caseDetails, documents, t, onAnalyze, onClearAnalysis, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
+    clientPosition: 'DEFENDANT' | 'PLAINTIFF';
+    onPositionToggle: (pos: 'DEFENDANT' | 'PLAINTIFF') => void;
+}> = ({ caseDetails, documents, t, onAnalyze, onClearAnalysis, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange, clientPosition, onPositionToggle }) => {
     
-    // Check if an analysis already exists in database
     const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
 
     const analyzeButtonText = isAnalyzing
@@ -177,7 +178,7 @@ const CaseHeader: React.FC<{
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 
-                {/* LEFT COLUMN */}
+                {/* LEFT COLUMN: Date, Selector & Client Stance Switcher */}
                 <div className="flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div className={buttonBase}>
@@ -195,9 +196,39 @@ const CaseHeader: React.FC<{
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN */}
+                {/* RIGHT COLUMN: Client Stance, Analyst & Re-analysis Controls */}
                 <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Client Position Stance Switcher Pill */}
+                        <div className="flex items-center p-1 bg-surface border border-main rounded-xl h-11 w-full select-none">
+                            <button
+                                type="button"
+                                onClick={() => onPositionToggle('DEFENDANT')}
+                                className={`flex-1 h-9 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all focus:outline-none ${
+                                    clientPosition === 'DEFENDANT'
+                                        ? 'bg-primary-start text-white shadow-sm'
+                                        : 'text-text-muted hover:text-text-primary'
+                                }`}
+                                title="Mbrojtja e të Paditurit"
+                            >
+                                <Shield size={12} />
+                                <span className="truncate">I Paditur</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onPositionToggle('PLAINTIFF')}
+                                className={`flex-1 h-9 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all focus:outline-none ${
+                                    clientPosition === 'PLAINTIFF'
+                                        ? 'bg-primary-start text-white shadow-sm'
+                                        : 'text-text-muted hover:text-text-primary'
+                                }`}
+                                title="Përfaqësimi i Paditësit"
+                            >
+                                <Swords size={12} />
+                                <span className="truncate">Paditës</span>
+                            </button>
+                        </div>
+
                         <button
                             type="button"
                             onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
@@ -217,10 +248,9 @@ const CaseHeader: React.FC<{
                         <div className="w-full">
                             {hasExistingAnalysis ? (
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
-                                    {/* Left Zone: View (Eye) */}
                                     <button
                                         type="button"
-                                        onClick={() => onAnalyze()}
+                                        onClick={() => onAnalyze(false)}
                                         disabled={isAnalyzing}
                                         className="flex-1 h-full flex items-center justify-center gap-2 px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
                                         title="Shiko Analizën ekzistuese"
@@ -229,10 +259,8 @@ const CaseHeader: React.FC<{
                                         <span className="truncate text-primary-start">Shiko Analizën</span>
                                     </button>
 
-                                    {/* Vertical Divider 1 */}
                                     <div className="border-r border-main h-6 shrink-0" />
 
-                                    {/* Middle Zone: Re-analyze (Refresh) */}
                                     <button
                                         type="button"
                                         onClick={() => onAnalyze(true)}
@@ -243,10 +271,8 @@ const CaseHeader: React.FC<{
                                         <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin text-primary-start" : ""}`} />
                                     </button>
 
-                                    {/* Vertical Divider 2 */}
                                     <div className="border-r border-main h-6 shrink-0" />
 
-                                    {/* Right Zone: Clear/Delete Analysis (Trash) */}
                                     <button
                                         type="button"
                                         onClick={onClearAnalysis}
@@ -260,7 +286,7 @@ const CaseHeader: React.FC<{
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={() => onAnalyze()} 
+                                    onClick={() => onAnalyze(false)} 
                                     disabled={!isPro || isAnalyzing}
                                     className={`${buttonBase} disabled:opacity-40`}
                                 >
@@ -294,6 +320,9 @@ const CaseViewPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF'>('DEFENDANT');
+  const [gatekeeperNotice, setGatekeeperNotice] = useState<string | null>(null);
 
   const isPro = true; 
   
@@ -342,6 +371,10 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
       
+      if (details && (details as any).client_position) {
+          setClientPosition((details as any).client_position.toUpperCase() === 'PLAINTIFF' ? 'PLAINTIFF' : 'DEFENDANT');
+      }
+
       if (details && (details as any).latest_analysis) {
         setAnalysisResult((details as any).latest_analysis);
       }
@@ -392,26 +425,63 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
+  const handlePositionToggle = async (newPos: 'DEFENDANT' | 'PLAINTIFF') => {
+      if (!caseId) return;
+      setClientPosition(newPos);
+      try {
+          await apiService.updateCasePosition(caseId, newPos);
+      } catch (err) {
+          console.error("Failed to set position:", err);
+      }
+  };
+
   const handleAnalyze = async (force = false) => {
     if (!caseId) return;
+
+    const existingAnalysis = caseData.details && (caseData.details as any).latest_analysis ? (caseData.details as any).latest_analysis : analysisResult;
     
-    if (caseData.details && (caseData.details as any).latest_analysis && !force && selectedDocumentIds.length === 0) {
-        setAnalysisResult((caseData.details as any).latest_analysis);
+    if (existingAnalysis && !force && selectedDocumentIds.length === 0) {
+        setAnalysisResult(existingAnalysis);
         setActiveModal('analysis');
         return;
+    }
+
+    if (force && existingAnalysis) {
+        const lastDocIds: string[] = (existingAnalysis as any).analyzed_doc_ids || [];
+        const currentDocIds: string[] = liveDocuments.map(d => String(d.id)).sort();
+
+        const isIdentical = 
+            lastDocIds.length > 0 &&
+            lastDocIds.length === currentDocIds.length &&
+            lastDocIds.slice().sort().every((id, idx) => id === currentDocIds[idx]);
+
+        if (isIdentical) {
+            setGatekeeperNotice("Nuk ka ndryshime në dokumentet e rastit. Për të ekzekutuar një ri-analizë të re, kërkohet të shtohet një dokument i ri ose të fshihet një dokument ekzistues.");
+            return;
+        }
     }
     
     setIsAnalyzing(true);
     setActiveModal('none');
     try {
-      let result = selectedDocumentIds.length === 0 ? await apiService.analyzeCase(caseId) : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
+      let result = selectedDocumentIds.length === 0 ? await apiService.analyzeCase(caseId, clientPosition) : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
       if (result.error) alert(result.error);
       else { 
-        setAnalysisResult(result); 
+        const resultWithDocIds = {
+            ...result,
+            analyzed_doc_ids: liveDocuments.map(d => String(d.id)).sort(),
+            client_position: clientPosition
+        };
+
+        setAnalysisResult(resultWithDocIds); 
         setActiveModal('analysis'); 
-        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: result } } : prev);
+        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: resultWithDocIds } } : prev);
       }
-    } catch { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
+    } catch { 
+        alert(t('error.generic')); 
+    } finally { 
+        setIsAnalyzing(false); 
+    }
   };
 
   const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => {
@@ -481,6 +551,8 @@ const CaseViewPage: React.FC = () => {
             isPro={isPro} 
             selectedDocumentIds={selectedDocumentIds} 
             onDocumentSelectionChange={setSelectedDocumentIds}
+            clientPosition={clientPosition}
+            onPositionToggle={handlePositionToggle}
         />
         
         <AnimatePresence mode="wait">
@@ -559,9 +631,49 @@ const CaseViewPage: React.FC = () => {
           result={analysisResult} 
           caseId={currentCaseId} 
           isLoading={isAnalyzing}
+          onPositionChange={handlePositionToggle}
         />
       )}
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
+
+      <AnimatePresence>
+        {gatekeeperNotice && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl border border-warning-start/30 bg-canvas text-center"
+            >
+              <div className="w-14 h-14 bg-warning-start/15 border border-warning-start/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-warning-start">
+                <AlertTriangle size={28} />
+              </div>
+
+              <h3 className="text-lg sm:text-xl font-bold text-text-primary uppercase tracking-tight mb-3">
+                S'ka Ndryshime në Lëndë
+              </h3>
+
+              <p className="text-xs sm:text-sm text-text-secondary leading-relaxed font-medium mb-6">
+                {gatekeeperNotice}
+              </p>
+
+              <div className="p-3.5 bg-surface border border-border-main rounded-xl text-[11px] text-text-muted flex items-center gap-2 font-mono mb-6 justify-center">
+                <FileText size={14} className="text-primary-start shrink-0" />
+                <span>Dokumente Aktive: {liveDocuments.length}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setGatekeeperNotice(null)}
+                className="btn-primary w-full h-11 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary-start/15 focus:outline-none"
+              >
+                E Kuptova
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 };

@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V25.0 (GATEKEEPER 402 EXPIRATION INTERCEPTOR)
+// PHOENIX PROTOCOL - API SERVICE V26.0 (UPDATE CASE CLIENT POSITION ADDED)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,7 +17,6 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// ========== LAW ARTICLE INTERFACE ==========
 export interface LawArticle {
   law_title: string;
   article_number?: string;
@@ -107,7 +106,6 @@ class ApiService {
                     else (config.headers as any).Authorization = `Bearer ${token}`;
                 }
                 
-                // Prevent Axios from prepending remote API_V1_URL to local browser memory blob URLs
                 if (config.url && config.url.startsWith('blob:')) {
                     config.baseURL = "";
                 }
@@ -119,7 +117,6 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
                 
-                // Gatekeeper 402 Expiration Notification Handling
                 if (error.response?.status === 402) {
                     const detail = (error.response.data as any)?.detail || "Abonimi juaj ka skaduar. Ju lutem renovoni planin për të vazhduar.";
                     console.warn("[Gatekeeper Exception 402]:", detail);
@@ -170,6 +167,11 @@ class ApiService {
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed:", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
+
+    // ========== CASE STANCE & POSITION METHOD ==========
+    public async updateCasePosition(caseId: string, position: 'DEFENDANT' | 'PLAINTIFF'): Promise<void> {
+        await this.axiosInstance.put(`/cases/${caseId}/position`, { client_position: position });
+    }
 
     // ========== PASSWORD RESET METHODS ==========
     public async forgotPassword(email: string): Promise<{ message: string }> {
@@ -274,9 +276,26 @@ class ApiService {
     public async downloadObjection(caseId: string, docId: string): Promise<void> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${docId}/generate-objection`, { responseType: 'blob' }); let filename = 'Kundërshtim.docx'; const disposition = response.headers['content-disposition']; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="?([^"]+)"?/.exec(disposition); if (matches && matches[1]) filename = matches[1]; } const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
-    public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
-    public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
-    public async analyzeDeepSimulation(caseId: string): Promise<any> { const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`); return response.data; }
+    
+    // ========== ROLE-AWARE CASE ANALYSIS METHOD ==========
+    public async analyzeCase(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<CaseAnalysisResult> { 
+        const params = clientPosition ? { client_position: clientPosition } : {};
+        const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`, null, { params }); 
+        return response.data; 
+    }
+    
+    public async analyzeDeepStrategy(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<DeepAnalysisResult> { 
+        const params = clientPosition ? { client_position: clientPosition } : {};
+        const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`, null, { params }); 
+        return response.data; 
+    }
+
+    public async analyzeDeepSimulation(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<any> { 
+        const params = clientPosition ? { client_position: clientPosition } : {};
+        const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`, null, { params }); 
+        return response.data; 
+    }
+
     public async analyzeDeepChronology(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/chronology`); return response.data; }
     public async analyzeDeepContradictions(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/contradictions`); return response.data; }
     public async archiveStrategyReport(caseId: string, legalData: any, deepData: any): Promise<{ status: string; item_id: string }> { const response = await this.axiosInstance.post<{ status: string; item_id: string }>(`/cases/${caseId}/archive-strategy`, { legal_data: legalData, deep_data: deepData }); return response.data; }
@@ -346,7 +365,6 @@ class ApiService {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    // ========== LAW AUDITOR CHAT ==========
     public async *askLawAuditor(articleId: string, query: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) {

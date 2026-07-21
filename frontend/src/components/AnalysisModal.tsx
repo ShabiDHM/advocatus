@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V20.0 (CLICKABLE STRUCTURED STATUTORY LAW HEADERS)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V22.0 (STRICT TYPED ONPOSITIONCHANGE PROP)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -18,12 +18,13 @@ import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction 
 import { apiService } from '../services/api';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
-interface AnalysisModalProps {
+export interface AnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
   result: CaseAnalysisResult; 
   caseId: string;
   isLoading?: boolean;
+  onPositionChange?: (newPosition: 'DEFENDANT' | 'PLAINTIFF') => void;
 }
 
 type ZoomLevel = 'normal' | 'large' | 'xlarge';
@@ -88,18 +89,15 @@ const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: st
     return { citizenText: strText, lawyerText: "" };
 };
 
-// ========== PHOENIX: LAW TITLE & ARTICLE NUMBER EXTRACTOR ==========
 const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
     let lawTitle = titleStr || "Ligj i Paidentifikuar";
     let articleNum: string | null = null;
 
-    // 1. Check articleStr for explicit article numbers (e.g. "Neni 413" or "413")
     const artMatchInArticle = articleStr ? articleStr.match(/(?:Neni|neni|NENI)?\s*(\d+)/) : null;
     if (artMatchInArticle) {
         articleNum = artMatchInArticle[1];
     }
 
-    // 2. If articleStr is a badge message, check titleStr for article number (e.g. "NENI 413 LPK...")
     if (!articleNum && titleStr) {
         const artMatchInTitle = titleStr.match(/(?:Neni|neni|NENI)\s*(\d+)/i) || titleStr.match(/\b(\d+)\b/);
         if (artMatchInTitle) {
@@ -107,7 +105,6 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
         }
     }
 
-    // Clean law title for query
     let cleanLawTitle = lawTitle
         .replace(/(?:Neni|neni|NENI)\s*\d+/gi, '')
         .replace(/^[,\s\-\–]+|[,\s\-\–]+$/g, '')
@@ -122,7 +119,6 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
     return { cleanLawTitle, articleNum, targetUrl };
 };
 
-// ========== PHOENIX: THREAD-SAFE NATIVE CITATION PARSER ==========
 const renderTextWithCitations = (text: string) => {
     if (!text) return null;
     const clean = cleanLegalText(text);
@@ -250,13 +246,16 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
     );
 };
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false }) => {
+const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false, onPositionChange }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'legal' | 'war_room'>('legal');
   const [summaryTab, setSummaryTab] = useState<'citizen' | 'lawyer'>('citizen');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('normal');
   
+  const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF'>('DEFENDANT');
+  const [isUpdatingPosition, setIsUpdatingPosition] = useState(false);
+
   const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null);
   const [isSimLoading, setIsSimLoading] = useState(false);
   const [isChronLoading, setIsChronLoading] = useState(false);
@@ -270,8 +269,28 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
         setActiveTab('legal'); 
         setWarRoomSubTab('strategy'); 
         setSummaryTab('citizen'); 
+        if ((result as any)?.client_position) {
+            setClientPosition((result as any).client_position.toUpperCase() === 'PLAINTIFF' ? 'PLAINTIFF' : 'DEFENDANT');
+        }
     }
-  }, [isOpen]);
+  }, [isOpen, result]);
+
+  const handlePositionToggle = async (newPos: 'DEFENDANT' | 'PLAINTIFF') => {
+      if (newPos === clientPosition || isUpdatingPosition) return;
+      setIsUpdatingPosition(true);
+      setClientPosition(newPos);
+      try {
+          await apiService.updateCasePosition(caseId, newPos);
+          if (onPositionChange) {
+              onPositionChange(newPos);
+          }
+          setDeepResult(null);
+      } catch (err) {
+          console.error("Failed to update case client position:", err);
+      } finally {
+          setIsUpdatingPosition(false);
+      }
+  };
 
   const handleWarRoomEntry = async () => {
       setActiveTab('war_room');
@@ -283,7 +302,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               setIsChronLoading(false);
           }).catch(() => setIsChronLoading(false));
 
-          apiService.analyzeDeepSimulation(caseId).then(data => {
+          apiService.analyzeDeepSimulation(caseId, clientPosition).then(data => {
               setDeepResult(prev => ({ ...(prev || { adversarial_simulation: { opponent_strategy: '', weakness_attacks: [], counter_claims: [] }, chronology: [], contradictions: [] }), adversarial_simulation: data }));
               setIsSimLoading(false);
           }).catch(() => setIsSimLoading(false));
@@ -413,16 +432,53 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
         >
           <SpinnerStyles />
           
-          <div className="px-6 py-5 border-b border-main flex justify-between items-center bg-surface shrink-0">
+          <div className="px-6 py-5 border-b border-main flex flex-wrap justify-between items-center bg-surface shrink-0 gap-4">
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-12 h-12 bg-primary-start text-white rounded-2xl flex items-center justify-center shadow-accent-glow shrink-0">
                   <Gavel size={24} />
               </div>
               <div className="flex flex-col gap-1 min-w-0">
-                  <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
+                    
+                    {/* Interactive 1-Click Client Stance Switcher */}
+                    <div className="flex items-center p-1 bg-canvas rounded-xl border border-border-main ml-2 select-none">
+                      <button
+                        type="button"
+                        onClick={() => handlePositionToggle('DEFENDANT')}
+                        disabled={isUpdatingPosition}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all focus:outline-none ${
+                          clientPosition === 'DEFENDANT'
+                            ? 'bg-primary-start text-white shadow-sm'
+                            : 'text-text-muted hover:text-text-primary'
+                        }`}
+                        title="Mbrojtja e të Paditurit / të Akuzuarit"
+                      >
+                        <Shield size={11} />
+                        <span>I Paditur</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePositionToggle('PLAINTIFF')}
+                        disabled={isUpdatingPosition}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all focus:outline-none ${
+                          clientPosition === 'PLAINTIFF'
+                            ? 'bg-primary-start text-white shadow-sm'
+                            : 'text-text-muted hover:text-text-primary'
+                        }`}
+                        title="Paditësi / Përfaqësimi i Dëmtuar"
+                      >
+                        <Swords size={11} />
+                        <span>Paditës</span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="hidden sm:flex items-center mt-1 gap-2">{renderRiskBadge(risk_level)} {renderSuccessBadge(success_probability)}</div>
               </div>
             </div>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"

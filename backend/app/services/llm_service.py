@@ -1,6 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V87.0 (OPENROUTER MODEL ID FIXED)
-# 1. FIX: Changed DEEP_MODEL identifier from 'deepseek/deepseek-reasoning' to 'deepseek/deepseek-r1' to match OpenRouter's active API routing ID.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V88.0 (ROLE-ADAPTED ADVERSARIAL SIMULATION)
 
 import os
 import json
@@ -77,7 +76,6 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
             "temperature": temperature
         }
         
-        # Enforce json_object mode ONLY if using the standard V3 model (R1 reasoning conflicts with JSON mode formatting)
         if json_mode and model == FAST_MODEL:
             kwargs["response_format"] = {"type": "json_object"}
             
@@ -145,17 +143,29 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """
     Generates an adversarial simulation predicting the opponent's strategy and attack angles.
+    Adapts simulation dynamically based on POZICIONI I KLIENTIT TONË (DEFENDANT vs PLAINTIFF).
     Routes through high-IQ DEEP_MODEL (R1).
     """
     if not OPENROUTER_KEY:
         return {}
     client = _get_async_client()
     system_prompt = """
-    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit dhe identifiko strategjinë më të mirë të sulmit për palën kundërshtare.
-    
+    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
+
+    UDHËZIME TË DETYRUESHME PËR ROLIN (MANDATI I PALËS):
+    - Kontrollo fushën 'POZICIONI I KLIENTIT TONË' në fillim të kontekstit:
+      1. Nëse 'POZICIONI I KLIENTIT TONË' është 'PLAINTIFF' (Paditës):
+         - Kundërshtari yt është I PADITURI / I AKUZUARI.
+         - 'opponent_strategy' duhet të përshkruajë strategjinë mbrojtëse, prapësimet, vonesat apo justifikimet që i Padituri do të përdorë për të kundërshtuar padinë tonë.
+         - 'weakness_attacks' duhet të rreshtojë pikat ku i Padituri do të provojë të godasë kërkesëpadinë tonë.
+      2. Nëse 'POZICIONI I KLIENTIT TONË' është 'DEFENDANT' (I Paditur):
+         - Kundërshtari yt është PADITËSI / PROKURORIA.
+         - 'opponent_strategy' duhet të përshkruajë strategjinë e sulmit dhe pretendimet agresive të Paditësit kundër nesh.
+         - 'weakness_attacks' duhet të rreshtojë pikat ku Paditësi do të provojë të godasë mbrojtjen tonë.
+
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {
-      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive të kundërshtarit...",
+      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive apo mbrojtëse të kundërshtarit i përshtatur saktësisht për rolin e tij...",
       "weakness_attacks": [
          "Sulm specifik i bazuar në dobësitë tona ose provat që na mungojnë...",
          "Sulm tjetër specifik..."
@@ -165,7 +175,7 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=DEEP_MODEL, # Executed on R1
+            model=DEEP_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
@@ -196,14 +206,14 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {
       "timeline": [
-        {"date": "Data e ngjarjes", "event": "Përshkrimi i saktë i asaj qai ka ndodhur"}
+        {"date": "Data e ngjarjes", "event": "Përshkrimi i saktë i asaj që ka ndodhur"}
       ]
     }
     MOS shto asnjë tekst tjetër jashtë objektit JSON.
     """
     try:
         res = await client.chat.completions.create(
-            model=DEEP_MODEL, # Executed on R1
+            model=DEEP_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
@@ -228,18 +238,18 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo tekstin e këtij procesverbali ose shkresave të lëndës për të identifikuar mospërputhje procedurale, gabime emrash, apo deklarata kontradiktore të palëve ose të gjykatës.
     
     DUHET të identifikosh saktësisht një minimum prej 3 kontradiktash/mospërputhjash ligjore:
-    1. Kontrollo për Mospërputhje Emrash të Avokatëve ose Palëve (p.sh. nëse një person pranohet si prezent në fillim, pot një emër tjetër urdhërohet me vendim në fund).
-    2. Kontrollo për Kontradikta të Autorizimeve (Prokurave) (p.sh. nëse gjykata thotë 'ka kushte për mbajtjen e seancës' por në fund kërcënon me anulim të të gjitha veprimeve sebepse avokati nuk ka prokurë origjinale).
-    3. Kontrollo për Paradokse të Palëve (p.sh. ftesa për të shtuar paditësin aktual si të paditur, ndryshime të parregullta të padisë, apo kërkesa logjikisht të pamundura).
+    1. Kontrollo për Mospërputhje Emrash të Avokatëve ose Palëve.
+    2. Kontrollo për Kontradikta të Autorizimeve (Prokurave).
+    3. Kontrollo për Paradokse të Palëve apo Ndryshime të Parregullta të Padisë.
     
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
     {
       "contradictions": [
         {
           "severity": "HIGH ose CRITICAL",
-          "claim": "Deklarata ose konstatimi kontradiktor i shkruar saktësisht (p.sh. 'Gjykata konstaton se ka kushte për mbajtjen e seancës')",
-          "evidence": "Fakti ose vendimi që mospërputhet saktësisht (p.sh. 'Gjykata në fund urdhëron avokatin të dorëzojë prokurën origjinale ose përndryshe të gjitha veprimet anulohen')",
-          "impact": "Shpjegimi i thellë ligjor i mospërputhjes dhe si mund ta përdorë këtë avokati i të paditurit për të kontestuar vlefshmërinë procedurale."
+          "claim": "Deklarata ose konstatimi kontradiktor i shkruar saktësisht",
+          "evidence": "Fakti ose vendimi që mospërputhet saktësisht",
+          "impact": "Shpjegimi i thellë ligjor i mospërputhjes dhe si mund ta përdorë avokati këtë për të kontestuar vlefshmërinë procedurale."
         }
       ]
     }
@@ -247,7 +257,7 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=DEEP_MODEL, # Executed on R1
+            model=DEEP_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
@@ -268,7 +278,6 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
     if not OPENROUTER_KEY:
         return {}
     try:
-        # Executes over DEEP_MODEL (R1)
         content = _call_llm(custom_prompt or "Analizo këtë rast ligjor.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
@@ -289,13 +298,12 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
         Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
         {
           "category": "Kategoria e shpenzimit (p.sh. Ushqim, Karburant, Qira, Internet, Pajisje, etj. - përkthe në shqip saktësisht)",
-          "amount": 12.50, (vlerën numerike të totalit ose sumës së faturës si float, pa valutë),
-          "date": "YYYY-MM-DD" (data e faturës në këtë format, nëse nuk gjendet vendos null),
+          "amount": 12.50,
+          "date": "YYYY-MM-DD",
           "description": "Emri i tregtarit dhe një përmbledhje e shkurtër e faturës"
         }
         MOS shto asnjë tekst tjetër jashtë objektit JSON.
         """
-        # Executes over FAST_MODEL (V3)
         content = _call_llm(system_prompt, f"TEKSTI I FATURËS:\n{text}", json_mode=True, temperature=0.1, model=FAST_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:

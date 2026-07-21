@@ -1,9 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.15 (UNIFIED GENERAL PLAN BYPASS)
-# 1. FIX: Updated 'require_pro_tier' dependency to bypass all PRO-level checks, opening all advanced AI endpoints to all users.
+# PHOENIX PROTOCOL - CASES ROUTER V31.0 (CLIENT POSITION STANCE ENDPOINT INTEGRATED)
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
-from typing import List, Annotated, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
+from typing import List, Annotated, Dict, Any, Optional
 from fastapi.responses import Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -16,7 +15,6 @@ import io
 import json
 from datetime import datetime, timezone
 
-# --- SERVICE IMPORTS ---
 from ...services import (
     case_service,
     document_service,
@@ -30,21 +28,18 @@ from ...services import (
 )
 from ...services.graph_service import graph_service
 
-# --- MODEL IMPORTS ---
 from ...models.case import CaseCreate, CaseOut
-from ...models.user import UserInDB, SubscriptionTier
+from ...models.user import UserInDB
 from ...models.drafting import DraftRequest
 from ...models.archive import ArchiveItemOut
 from ...models.document import DocumentOut
 from ...models.chat import ChatMessage
-from ...celery_app import celery_app
 
 from .dependencies import get_current_user, get_db, get_sync_redis
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# --- HELPERS ---
 def validate_object_id(id_str: str) -> ObjectId:
     try:
         return ObjectId(id_str)
@@ -63,10 +58,6 @@ def json_serializable(data):
     return data
 
 def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
-    """
-    PHOENIX BYPASS: Standardized to a simple return statement to allow 
-    all users to access all features on the unified general plan.
-    """
     return
 
 # --- PYDANTIC MODELS ---
@@ -86,6 +77,9 @@ class ArchiveStrategyRequest(BaseModel):
 
 class ChatHistoryUpdate(BaseModel):
     chat_history: List[ChatMessage]
+
+class UpdateCasePositionRequest(BaseModel):
+    client_position: str  # 'DEFENDANT' or 'PLAINTIFF'
 
 # --- CORE CASE ENDPOINTS ---
 
@@ -128,6 +122,26 @@ async def get_single_case(
     if not case:
         raise HTTPException(status_code=404)
     return case
+
+@router.put("/{case_id}/position", status_code=status.HTTP_200_OK)
+async def update_case_client_position(
+    case_id: str,
+    body: UpdateCasePositionRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Updates the party position mandate (DEFENDANT vs PLAINTIFF) for a case."""
+    case_oid = validate_object_id(case_id)
+    pos = body.client_position.upper()
+    if pos not in ["DEFENDANT", "PLAINTIFF"]:
+        raise HTTPException(status_code=400, detail="Position must be DEFENDANT or PLAINTIFF")
+
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$set": {"client_position": pos, "updated_at": datetime.now(timezone.utc)}}
+    )
+    return {"status": "success", "client_position": pos}
 
 @router.put("/{case_id}/chat", status_code=status.HTTP_200_OK)
 async def update_case_chat_history(
@@ -174,63 +188,7 @@ async def delete_case(
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# --- PUBLIC PORTAL ENDPOINTS ---
-
-@router.get("/public/{case_id}/timeline")
-async def get_public_case_timeline(
-    case_id: str,
-    db: Database = Depends(get_db)
-):
-    try:
-        data = await asyncio.to_thread(case_service.get_public_case_events, db, case_id)
-        if not data:
-            raise HTTPException(status_code=404)
-        return JSONResponse(content=json_serializable(data))
-    except Exception as e:
-        logger.error(f"Portal Mirror Failure: {e}")
-        return JSONResponse({"error": "Failed to fetch portal data"}, status_code=500)
-
-@router.get("/public/{case_id}/documents/{doc_id}/download")
-async def public_document_download(
-    case_id: str,
-    doc_id: str,
-    source: str = "ACTIVE",
-    db: Database = Depends(get_db)
-):
-    doc_oid = validate_object_id(doc_id)
-    collection = "documents" if source == "ACTIVE" else "archives"
-    doc = db[collection].find_one({"_id": doc_oid})
-    if not doc:
-        raise HTTPException(status_code=404)
-    if not doc.get("is_shared", False):
-        raise HTTPException(status_code=403, detail="Document not shared")
-    try:
-        stream = storage_service.get_file_stream(doc["storage_key"])
-        return StreamingResponse(
-            stream,
-            media_type=doc.get("mime_type", "application/pdf"),
-            headers={"Content-Disposition": f"inline; filename={doc.get('file_name', 'file.pdf')}"}
-        )
-    except Exception:
-        raise HTTPException(status_code=500)
-
-@router.get("/public/{case_id}/logo")
-async def get_public_portal_logo(
-    case_id: str,
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    case = db.cases.find_one({"_id": case_oid})
-    if not case:
-        raise HTTPException(status_code=404)
-    owner_id = case.get("owner_id") or case.get("user_id")
-    profile = db.business_profiles.find_one({"$or": [{"user_id": owner_id}, {"user_id": str(owner_id)}]})
-    if profile and profile.get("logo_storage_key"):
-        stream = storage_service.get_file_stream(profile["logo_storage_key"])
-        return StreamingResponse(stream, media_type="image/png")
-    raise HTTPException(status_code=404)
-
-# --- PROTECTED DOCUMENT MANAGEMENT (DIRECT QUERY RESTORATION) ---
+# --- PROTECTED DOCUMENT MANAGEMENT ---
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
@@ -240,17 +198,8 @@ async def get_documents_for_case(
 ):
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
-    
-    logger.info(f"⚡ [DirectQuery] Fetching docs for case: {case_id} | Owner: {current_user.id}")
-    
-    cursor = db.documents.find({
-        "case_id": case_oid,
-        "owner_id": user_oid
-    })
-    
+    cursor = db.documents.find({"case_id": case_oid, "owner_id": user_oid})
     docs = list(cursor)
-    logger.info(f"⚡ [DirectQuery] Found {len(docs)} documents in database.")
-    
     return [DocumentOut.model_validate(d) for d in docs]
 
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
@@ -281,7 +230,6 @@ async def upload_document_for_case(
         mime_type="application/pdf"
     )
 
-    # Ingest using our async, non-blocking background task
     from ...services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
@@ -289,27 +237,6 @@ async def upload_document_for_case(
     )
 
     return DocumentOut.model_validate(doc)
-
-@router.post("/{case_id}/documents/bulk-delete")
-async def bulk_delete_documents_endpoint(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    document_ids: List[str] = Body(..., embed=True),
-    db: Database = Depends(get_db),
-    redis_client: redis.Redis = Depends(get_sync_redis)
-):
-    validate_object_id(case_id)
-    result = await asyncio.to_thread(
-        document_service.bulk_delete_documents,
-        db=db,
-        redis_client=redis_client,
-        document_ids=document_ids,
-        owner=current_user
-    )
-    return {
-        "deleted_count": result.get("deleted_count", 0),
-        "deleted_finding_ids": result.get("deleted_finding_ids", [])
-    }
 
 @router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse)
 async def delete_document(
@@ -339,30 +266,13 @@ async def delete_document(
         try:
             await asyncio.to_thread(graph_service.delete_node, doc_id)
         except Exception as e:
-            logger.warning(f"Failed to remove graph node during deletion cascade: {e}")
+            logger.warning(f"Failed to remove graph node: {e}")
             
         return DeletedDocumentResponse(
             documentId=doc_id,
             deletedFindingIds=result.get("deleted_finding_ids", [])
         )
-    raise HTTPException(status_code=500, detail="Failed to delete document from storage records.")
-
-@router.put("/{case_id}/documents/{doc_id}/rename")
-async def rename_document_endpoint(
-    case_id: str,
-    doc_id: str,
-    body: RenameDocumentRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    return await asyncio.to_thread(
-        case_service.rename_document,
-        db,
-        validate_object_id(case_id),
-        validate_object_id(doc_id),
-        body.new_name,
-        current_user
-    )
+    raise HTTPException(status_code=500, detail="Failed to delete document.")
 
 @router.get("/{case_id}/documents/{doc_id}/preview", response_class=StreamingResponse)
 async def get_document_preview(
@@ -378,7 +288,6 @@ async def get_document_preview(
         current_user
     )
     filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
-    # Ensure browsers stream the PDF inline with explicit disposition configuration
     return StreamingResponse(
         stream, 
         media_type="application/pdf",
@@ -388,75 +297,22 @@ async def get_document_preview(
         }
     )
 
-@router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, status_code=status.HTTP_201_CREATED)
-async def archive_document_endpoint(
-    case_id: str,
-    doc_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    doc = await asyncio.to_thread(
-        document_service.get_and_verify_document,
-        db,
-        doc_id,
-        current_user
-    )
-    if str(doc.case_id) != case_id:
-        raise HTTPException(status_code=403)
-    archiver = archive_service.ArchiveService(db)
-    archived_item = await archiver.archive_existing_document(
-        str(current_user.id),
-        case_id,
-        doc.storage_key,
-        doc.file_name,
-        original_doc_id=doc_id
-    )
-    return ArchiveItemOut.model_validate(archived_item)
+# --- CASE ANALYSIS & WAR ROOM ---
 
-# --- EVIDENCE MAP ---
-@router.get("/{case_id}/evidence-map")
-async def get_evidence_map(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
-    validate_object_id(case_id)
-    raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
-    return {
-        "nodes": raw_graph.get("nodes", []),
-        "links": raw_graph.get("links", [])
-    }
-
-@router.post("/{case_id}/extract-map", status_code=status.HTTP_202_ACCEPTED)
-async def trigger_map_extraction(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    validate_object_id(case_id)
-    success = await asyncio.to_thread(
-        analysis_service.build_and_populate_graph,
-        db,
-        case_id,
-        str(current_user.id)
-    )
-    if not success:
-        raise HTTPException(status_code=500, detail="AI Extraction failed.")
-    return {"status": "success"}
-
-# --- PREMIUM ANALYSIS (PRO) ---
 @router.post("/{case_id}/analyze")
 async def run_textual_case_analysis(
     case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    client_position: Optional[str] = Query(None),
+    current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
     analysis_result = await analysis_service.cross_examine_case(
         db, 
         case_id, 
-        str(current_user.id)
+        str(current_user.id),
+        client_position=client_position
     )
-    # PHOENIX PERSISTENCE: Save the generated AI analysis directly to MongoDB cases collection
     if analysis_result and "error" not in analysis_result:
         await asyncio.to_thread(
             db.cases.update_one,
@@ -471,10 +327,6 @@ async def clear_case_analysis_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    PHOENIX CRITICAL RESOLUTION: Unsets and deletes the stored 'latest_analysis'
-    using a CORS-compliant POST endpoint to completely bypass any preflight method restrictions.
-    """
     case_oid = validate_object_id(case_id)
     await asyncio.to_thread(
         db.cases.update_one,
@@ -486,11 +338,12 @@ async def clear_case_analysis_endpoint(
 @router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])
 async def run_deep_case_analysis(
     case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    client_position: Optional[str] = Query(None),
+    current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-    result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id))
+    result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id), client_position=client_position)
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return JSONResponse(result)
@@ -498,14 +351,20 @@ async def run_deep_case_analysis(
 @router.post("/{case_id}/deep-analysis/simulation", dependencies=[Depends(require_pro_tier)])
 async def run_deep_simulation_only(
     case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    client_position: Optional[str] = Query(None),
+    current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
     
+    c_oid = validate_object_id(case_id)
+    case = db.cases.find_one({"_id": c_oid}) or {}
+    effective_pos = (client_position or case.get("client_position") or "DEFENDANT").upper()
+
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    res = await llm_service.generate_adversarial_simulation(context)
+    context_with_role = f"POZICIONI I KLIENTIT TONË: {effective_pos}\n\n{context}"
+    res = await llm_service.generate_adversarial_simulation(context_with_role)
     return JSONResponse(res)
 
 @router.post("/{case_id}/deep-analysis/chronology", dependencies=[Depends(require_pro_tier)])
