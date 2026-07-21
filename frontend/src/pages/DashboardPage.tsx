@@ -1,6 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.3 (MOBILE RE-DESIGNED EDITION)
-// POLISH: Implemented side-by-side mobile action rows, fluid parent scroll parameters, and refined banner paddings.
+// PHOENIX PROTOCOL - DASHBOARD V9.4 (STRICT TYPE-GUARDED BRIEFING GREETINGS)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -115,10 +114,10 @@ const DashboardPage: React.FC = () => {
         apiService.getBriefing(),
         apiService.getCalendarEvents()
       ]);
-      setCases(cData);
+      setCases(Array.isArray(cData) ? cData : []);
       setBriefing(bData);
       setFetchTimestamp(Date.now());
-      if (!hasCheckedBriefing.current && eData.length > 0) {
+      if (!hasCheckedBriefing.current && Array.isArray(eData) && eData.length > 0) {
         const today = new Date();
         const matches = eData.filter(e => isSameDay(parseISO(e.start_date), today));
         if (matches.length > 0) {
@@ -173,22 +172,26 @@ const DashboardPage: React.FC = () => {
   const filteredCases = useMemo(() => {
     if (!searchTerm.trim()) return cases;
     const term = searchTerm.toLowerCase();
-    return cases.filter(c => 
-      c.title?.toLowerCase().includes(term) ||
-      c.client?.name?.toLowerCase().includes(term) ||
-      c.client?.email?.toLowerCase().includes(term)
-    );
+    return cases.filter(c => {
+      const titleStr = typeof c.title === 'string' ? c.title.toLowerCase() : '';
+      const nameStr = typeof c.client?.name === 'string' ? c.client.name.toLowerCase() : '';
+      const emailStr = typeof c.client?.email === 'string' ? c.client.email.toLowerCase() : '';
+      return titleStr.includes(term) || nameStr.includes(term) || emailStr.includes(term);
+    });
   }, [cases, searchTerm]);
 
   const inputClasses = "w-full px-5 h-11 bg-surface border border-main rounded-xl text-text-primary placeholder:text-text-disabled text-sm focus:outline-none focus:ring-2 focus:ring-primary-start transition-all";
   const labelClasses = "block text-[10px] font-black text-primary-start uppercase tracking-widest mb-1.5 ml-1";
 
+  // STRICT SAFE STRING GUARD - PREVENTS 't.indexOf is not a function' CRASHES
   const getGreeting = (): string => {
     if (holidayBriefing.isHoliday) {
-      return holidayBriefing.greeting;
+      return holidayBriefing.greeting || '';
     }
     if (effectiveBriefing) {
-      const fullGreeting = t(`briefing.greetings.${effectiveBriefing.greeting_key}`, effectiveBriefing.data || {}) as string;
+      const raw = t(`briefing.greetings.${effectiveBriefing.greeting_key}`, effectiveBriefing.data || {});
+      const fullGreeting = typeof raw === 'string' ? raw : (raw ? String(raw) : '');
+      if (!fullGreeting) return '';
       const commaIndex = fullGreeting.indexOf(',');
       if (commaIndex === -1) return fullGreeting;
       const before = fullGreeting.substring(0, commaIndex + 1);
@@ -200,13 +203,14 @@ const DashboardPage: React.FC = () => {
 
   const getSubtitle = (): string => {
     if (holidayBriefing.isHoliday) {
-      return holidayBriefing.greeting;
+      return holidayBriefing.greeting || '';
     }
     if (effectiveBriefing) {
-      return t(`briefing.messages.${effectiveBriefing.message_key}`, { 
+      const raw = t(`briefing.messages.${effectiveBriefing.message_key}`, { 
         ...(effectiveBriefing.data || {}), 
         holiday_name: effectiveBriefing.data?.holiday ? t(`holidays.${effectiveBriefing.data.holiday}`) : '' 
-      }) as string;
+      });
+      return typeof raw === 'string' ? raw : (raw ? String(raw) : '');
     }
     return '';
   };
@@ -279,7 +283,6 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    /* Changed height metrics to dynamic h-auto scroll on mobile screens, preserving fixed heights only on lg desktop screens */
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-auto lg:h-[calc(100dvh-64px)] lg:overflow-hidden flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
         {effectiveBriefing && (
@@ -288,7 +291,6 @@ const DashboardPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }} 
             className="glass-panel shrink-0 mb-6 rounded-[2rem] border border-main backdrop-blur-md overflow-hidden shadow-sm"
           >
-            {/* Optimized banner padding metrics for clean mobile representation */}
             <div className="p-5 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Left: Greeting */}
@@ -317,7 +319,7 @@ const DashboardPage: React.FC = () => {
                   {getMainContent()}
                 </div>
 
-                {/* Right: Calendar Button (Centered, standardized h-11 / 44px) */}
+                {/* Right: Calendar Button */}
                 <div className="shrink-0 w-full md:w-auto">
                   <button 
                     type="button"
@@ -334,7 +336,6 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Side-by-side search input and action button for tight mobile presentation */}
       <div className="flex items-center gap-3 w-full h-11 shrink-0 mb-6 px-1">
         <div className="relative flex-1 h-11">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />

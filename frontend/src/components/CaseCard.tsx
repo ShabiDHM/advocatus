@@ -1,5 +1,5 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL – COMPACT CARD REFIT (Polished layout, standardized tokens, custom chips)
+// PHOENIX PROTOCOL – COMPACT CARD REFIT (CRASH-PROOF TYPE-GUARDED VERSION)
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -13,17 +13,46 @@ interface CaseCardProps {
   onDelete: (caseId: string) => void;
 }
 
+const safeDate = (dateVal: any): string => {
+  if (!dateVal) return 'N/A';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).replace(/\//g, '.');
+  } catch {
+    return 'N/A';
+  }
+};
+
+const safeString = (val: any): string => {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  try {
+    return JSON.stringify(val);
+  } catch {
+    return String(val);
+  }
+};
+
 const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleCardClick = () => {
-    navigate(`/cases/${caseData.id}`);
+    if (caseData?.id) {
+      navigate(`/cases/${caseData.id}`);
+    }
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDelete(caseData.id);
+    if (caseData?.id) {
+      onDelete(caseData.id);
+    }
   };
 
   const handleCalendarNav = (e: React.MouseEvent) => {
@@ -31,14 +60,15 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
-  const formattedDate = new Date(caseData.created_at).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).replace(/\//g, '.');
+  const formattedDate = safeDate(caseData?.created_at);
 
-  const hasTitle = caseData.title && caseData.title.trim() !== '';
-  const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
+  const rawTitle = safeString(caseData?.title);
+  const hasTitle = rawTitle.trim() !== '';
+  const displayTitle = hasTitle ? rawTitle : (t('caseView.unnamedCase') || 'Rast pa Emër');
+
+  const clientName = safeString(caseData?.client?.name);
+  const clientEmail = safeString(caseData?.client?.email);
+  const clientPhone = safeString(caseData?.client?.phone);
 
   return (
     <motion.div 
@@ -49,7 +79,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       transition={{ duration: 0.35, ease: "easeOut" }}
       whileTap={{ scale: 0.985 }}
     >
-      {/* Subtle background dynamic glow hover effect */}
+      {/* Background dynamic hover effect */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
       <div className="relative z-10 flex-grow flex flex-col justify-between">
@@ -65,7 +95,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           </div>
         </div>
         
-        {/* Client Details Section - Nested inside a beautiful inset container */}
+        {/* Client Details Section */}
         <div className="flex flex-col mb-5 bg-surface/40 border border-main/60 p-3.5 rounded-xl transition-colors duration-200 group-hover:bg-surface/60">
           <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-main">
             <User className="w-3.5 h-3.5 text-primary-start" />
@@ -76,47 +106,46 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           
           <div className="space-y-1.5 pl-0.5">
             <p className="text-base font-semibold text-text-primary truncate">
-              {caseData.client?.name || t('general.notAvailable', 'N/A')}
+              {clientName || t('general.notAvailable', 'N/A')}
             </p>
             
-            {caseData.client?.email && (
+            {clientEmail && (
               <div className="flex items-center gap-2 text-xs text-text-secondary">
                 <Mail className="w-3.5 h-3.5 text-text-muted" />
-                <span className="truncate">{caseData.client.email}</span>
+                <span className="truncate">{clientEmail}</span>
               </div>
             )}
-            {caseData.client?.phone && (
+            {clientPhone && (
               <div className="flex items-center gap-2 text-xs text-text-secondary">
                 <Phone className="w-3.5 h-3.5 text-text-muted" />
-                <span className="truncate">{caseData.client.phone}</span>
+                <span className="truncate">{clientPhone}</span>
               </div>
             )}
           </div>
         </div>
       </div>
       
-      {/* Interactive Controls & Metadata statistics */}
+      {/* Controls & Metadata statistics */}
       <div className="relative z-10 shrink-0">
-        {/* Statistics Section - Standardized on semantic chips */}
         <div className="pt-4 border-t border-main flex flex-wrap items-center gap-2">
           {/* Chip: Document Counter */}
           <div 
             className="flex items-center gap-1.5 bg-surface/60 border border-main px-2.5 py-1 rounded-xl" 
-            title={`${caseData.document_count || 0} Dokumente`}
+            title={`${caseData?.document_count || 0} Dokumente`}
           >
             <FileText className="h-3.5 w-3.5 text-primary-start" />
-            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData.document_count || 0}</span>
+            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData?.document_count || 0}</span>
           </div>
 
-          {/* Chip: Alert / Deadline Counter */}
+          {/* Chip: Alert Counter */}
           <button 
             type="button"
             onClick={handleCalendarNav}
             className="flex items-center gap-1.5 bg-surface/60 hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none" 
-            title={`${caseData.alert_count || 0} Afate`}
+            title={`${caseData?.alert_count || 0} Afate`}
           >
             <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />
-            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData.alert_count || 0}</span>
+            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData?.alert_count || 0}</span>
           </button>
 
           {/* Chip: Event Counter */}
@@ -124,14 +153,14 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
             type="button"
             onClick={handleCalendarNav}
             className="flex items-center gap-1.5 bg-surface/60 hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none" 
-            title={`${caseData.event_count || 0} Ngjarje`}
+            title={`${caseData?.event_count || 0} Ngjarje`}
           >
             <CalendarDays className="h-3.5 w-3.5 text-secondary-start" />
-            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData.event_count || 0}</span>
+            <span className="text-xs font-semibold text-text-secondary font-mono">{caseData?.event_count || 0}</span>
           </button>
         </div>
 
-        {/* Footer actions with optimized tap zones */}
+        {/* Footer Actions */}
         <div className="mt-4 pt-4 border-t border-main flex items-center justify-between">
           <span className="text-xs font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-0.5 select-none">
             {t('general.view', 'Shiko')} {t('archive.details', 'Detajet')}
