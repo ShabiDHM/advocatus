@@ -1,13 +1,13 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.2 (TEAM PLAN SEAT LIMIT UPDATED TO 5)
-// POLISH: Implemented mobile-friendly layout cards, integrated useLockBodyScroll hooks, and updated border tokens.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.4 (TYPES & IMPORTS FIXED)
+// 1. FIX: Cast target event value to union type ('active' | 'inactive' | 'pending_invite') on line 432 to satisfy type safety.
+// 2. FIX: Removed unused 'CalendarIcon' import from 'lucide-react' to resolve Pylance warnings.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
-    Briefcase, Calendar as CalendarIcon, 
-    AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap, Key
+    Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap, Key
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -207,6 +207,10 @@ const AdminDashboardPage: React.FC = () => {
                                         <span className="text-text-muted">Kapaciteti:</span>
                                         <span className="font-bold">{user.product_plan} ({user.user_limit} Vende)</span>
                                     </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-text-muted">Data e Regjistrimit:</span>
+                                        <span className="font-mono">{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</span>
+                                    </div>
                                     {user.expiry_date && (
                                         <div className="flex items-center justify-between">
                                             <span className="text-text-muted">Skadimi:</span>
@@ -242,9 +246,11 @@ const AdminDashboardPage: React.FC = () => {
                         <thead className="bg-surface text-text-primary uppercase text-xs font-bold border-b border-main select-none">
                             <tr>
                                 <th className="px-6 py-4">{t('admin.table.user', 'Përdoruesi')}</th>
-                                <th className="px-6 py-4 text-center">{t('admin.table.plan_type', 'Tipi i Planit')}</th>
-                                <th className="px-6 py-4">{t('admin.table.feature_tier', 'Niveli i Funksioneve')}</th>
-                                <th className="px-6 py-4">{t('admin.table.capacity', 'Kapaciteti')}</th>
+                                <th className="px-6 py-4 text-center">{t('admin.table.plan_type', 'Tipi')}</th>
+                                <th className="px-6 py-4">{t('admin.table.feature_tier', 'Abonimi')}</th>
+                                <th className="px-6 py-4">{t('admin.table.capacity', 'Plani & Kapaciteti')}</th>
+                                <th className="px-6 py-4">{t('admin.table.start_date', 'Koha e Regjistrimit')}</th>
+                                <th className="px-6 py-4">{t('admin.table.expiry_date', 'Skadimi i Planit')}</th>
                                 <th className="px-6 py-4">{t('admin.table.status', 'Statusi')}</th>
                                 <th className="px-6 py-4 text-right">{t('admin.table.actions', 'Veprime')}</th>
                             </tr>
@@ -268,19 +274,20 @@ const AdminDashboardPage: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2">
-                                                {user.product_plan === ProductPlan.TEAM_PLAN ? <Star className="w-3 h-3 text-warning-start animate-pulse" /> : <UserIcon className="w-3 h-3 text-text-muted" />}
-                                                <span className={`text-xs font-bold ${user.product_plan === ProductPlan.TEAM_PLAN ? 'text-warning-start' : 'text-text-muted'}`}>
-                                                    {user.product_plan} ({user.user_limit} {t('admin.seats', 'Vende')})
-                                                </span>
-                                            </div>
-                                            {user.expiry_date && (
-                                                <div className="flex items-center text-[10px] text-text-muted font-mono">
-                                                    <CalendarIcon className="w-3 h-3 mr-1" /> {user.expiry_date.toLocaleDateString()}
-                                                </div>
-                                            )}
+                                        <div className="flex items-center gap-2">
+                                            {user.product_plan === ProductPlan.TEAM_PLAN ? <Star className="w-3 h-3 text-warning-start animate-pulse" /> : <UserIcon className="w-3 h-3 text-text-muted" />}
+                                            <span className={`text-xs font-bold ${user.product_plan === ProductPlan.TEAM_PLAN ? 'text-warning-start' : 'text-text-muted'}`}>
+                                                {user.product_plan} ({user.user_limit} {t('admin.seats', 'Vende')})
+                                            </span>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 font-mono text-xs select-none">
+                                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                                    </td>
+                                    <td className="px-6 py-4 font-mono text-xs select-none">
+                                        {user.expiry_date ? user.expiry_date.toLocaleDateString() : (
+                                            <span className="text-text-muted italic">Pa Skadim</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4">{renderStatusBadge(user)}</td>
                                     <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
@@ -306,7 +313,7 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Editing SaaS Profile Modal with lock prevented viewport scrolls */}
+            {/* Editing SaaS Profile Modal */}
             {editingUser && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto custom-finance-scroll">
                     <motion.div 
@@ -413,6 +420,24 @@ const AdminDashboardPage: React.FC = () => {
                                             <option value="INACTIVE" className="bg-canvas text-text-primary">{t('admin.option_status_inactive', 'INACTIVE (Akses i Refuzuar)')}</option>
                                         </select>
                                     </div>
+                                    
+                                    {/* PHOENIX CRITICAL UPGRADE: Added Statusi i Llogarisë dropdown with strict union typecasting to satisfy TypeScript compiler */}
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
+                                            Statusi i Llogarisë
+                                        </label>
+                                        <select 
+                                            value={editForm.status || 'active'} 
+                                            onChange={e => setEditForm({ ...editForm, status: e.target.value as 'active' | 'inactive' | 'pending_invite' })} 
+                                            className="w-full rounded-xl px-3 h-11 bg-canvas border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
+                                        >
+                                            <option value="active" className="bg-canvas text-text-primary">AKTIV (Llogari e Aktivizuar)</option>
+                                            <option value="pending_invite" className="bg-canvas text-text-primary">FTESË (Në pritje të pranimit)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             {t('admin.label_expiry_date', 'Data e Skadimit')}
