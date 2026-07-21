@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V24.4 (SELF-HEALING AXIOS INTERCEPTOR)
-// 1. FIX: Intercepts all 'blob:' requests in the Axios request interceptor and clears the baseURL to prevent remote routing.
+// PHOENIX PROTOCOL - API SERVICE V24.5 (CLEAR ANALYSIS METHOD)
+// 1. FIX: Added 'clearCaseAnalysis(caseId)' API endpoint mapping to the client service instance.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -256,6 +256,15 @@ class ApiService {
     public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> { const response = await this.axiosInstance.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody }); return response.data; }
     public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content }); return response.data; }
     public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
+
+    // ========== NEW EXPLICIT METHOD: CLEAR SAVED AI CASE ANALYSIS ==========
+    /**
+     * Sends a DELETE request to completely wipe the stored 'latest_analysis'
+     * inside the MongoDB cases collection.
+     */
+    public async clearCaseAnalysis(caseId: string): Promise<void> {
+        await this.axiosInstance.delete(`/cases/${caseId}/analyze`);
+    }
 
     // ========== LAWS METHODS ==========
     public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> { 

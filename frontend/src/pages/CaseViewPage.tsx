@@ -1,6 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.22 (MINIMALIST SPLIT BUTTON)
-// FIX: Redesigned persistent analysis button into a single tab footprint with the static text 'Analizo Rastin' flanked by two clean, textless interactive icons (Eye and Refresh).
+// PHOENIX PROTOCOL - CASE VIEW V16.22 (UNIFIED THREE-WAY SPLIT-BUTTON)
+// 1. FIX: Added onClearAnalysis handler to cases.py and api.ts.
+// 2. FIX: Redesigned persistent analysis button into a single tab footprint with the static text 'Analizo Rastin' flanked by two clean, textless interactive icons (Eye on left, Trash on right).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,7 +17,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -108,13 +109,14 @@ const CaseHeader: React.FC<{
     documents: Document[];
     t: TFunction;
     onAnalyze: (force?: boolean) => void;
+    onClearAnalysis: () => void;
     isAnalyzing: boolean;
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
     isPro: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-}> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
+}> = ({ caseDetails, documents, t, onAnalyze, onClearAnalysis, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
     
     // Check if an analysis already exists in database
     const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
@@ -184,40 +186,48 @@ const CaseHeader: React.FC<{
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
-                        {/* Minimalist Split-Button Wrapper */}
+                        {/* Minimalist Split-Button Wrapper with 3 Interactive Zones */}
                         <div className="w-full">
                             {hasExistingAnalysis ? (
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
-                                    {/* Left Icon-only Zone: View (Eye) */}
+                                    {/* Left Zone: View (Eye) */}
                                     <button
                                         type="button"
                                         onClick={() => onAnalyze()}
                                         disabled={isAnalyzing}
-                                        className="px-4 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start border-r border-main transition-all duration-200 focus:outline-none"
+                                        className="flex-1 h-full flex items-center justify-center gap-2 px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
                                         title="Shiko Analizën ekzistuese"
                                     >
                                         <Eye size={15} className="text-primary-start shrink-0" />
+                                        <span className="truncate text-primary-start">Shiko Analizën</span>
                                     </button>
 
-                                    {/* Center Text Zone: Static 'Analizo Rastin' */}
-                                    <button
-                                        type="button"
-                                        onClick={() => onAnalyze()}
-                                        disabled={isAnalyzing}
-                                        className="flex-grow h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none select-none text-center"
-                                    >
-                                        <span>Analizo Rastin</span>
-                                    </button>
+                                    {/* Vertical Divider 1 */}
+                                    <div className="border-r border-main h-6 shrink-0" />
 
-                                    {/* Right Icon-only Zone: Re-analyze (Refresh) */}
+                                    {/* Middle Zone: Re-analyze (Refresh) */}
                                     <button
                                         type="button"
                                         onClick={() => onAnalyze(true)}
                                         disabled={isAnalyzing}
-                                        className="px-4 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start border-l border-main transition-all duration-200 focus:outline-none"
+                                        className="flex-initial px-3 h-full flex items-center justify-center gap-2 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
                                         title="Rianalizo sërish me AI"
                                     >
                                         <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin text-primary-start" : ""}`} />
+                                    </button>
+
+                                    {/* Vertical Divider 2 */}
+                                    <div className="border-r border-main h-6 shrink-0" />
+
+                                    {/* Right Zone: Clear/Delete Analysis (Trash) */}
+                                    <button
+                                        type="button"
+                                        onClick={onClearAnalysis}
+                                        disabled={isAnalyzing}
+                                        className="flex-initial px-4 h-full flex items-center justify-center gap-2 hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none"
+                                        title="Fshi analizën e ruajtur"
+                                    >
+                                        <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
                                     </button>
                                 </div>
                             ) : (
@@ -342,6 +352,18 @@ const CaseViewPage: React.FC = () => {
     } catch { alert(t('error.generic')); }
   };
 
+  const handleClearAnalysis = async () => {
+    if (!caseId) return;
+    try {
+        await apiService.clearCaseAnalysis(caseId);
+        setAnalysisResult(null);
+        // Clear local state so the button instantly changes back to "Analizo Rastin"
+        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: null } } : prev);
+    } catch {
+        alert(t('error.generic'));
+    }
+  };
+
   const handleAnalyze = async (force = false) => {
     if (!caseId) return;
     
@@ -376,7 +398,7 @@ const CaseViewPage: React.FC = () => {
       let acc = '';
       
       // Perform the silent prompt suggestions enrichment ONLY on the outgoing API stream payload
-      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
+      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas in lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
       
       const stream = apiService.sendChatMessageStream(
           caseId, 
@@ -427,6 +449,7 @@ const CaseViewPage: React.FC = () => {
             documents={liveDocuments} 
             t={t} 
             onAnalyze={handleAnalyze} 
+            onClearAnalysis={handleClearAnalysis} // Bound the clear action cleanly
             isAnalyzing={isAnalyzing} 
             viewMode={viewMode} 
             setViewMode={setViewMode} 
