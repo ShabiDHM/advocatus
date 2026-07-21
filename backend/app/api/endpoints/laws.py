@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V21.0 (NUMBER-PAIR IMMUNE PDF RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V22.0 (STRICT PYLANCE & PACKAGE IMPORT RESOLVED)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -9,6 +9,14 @@ import re
 import os
 import unicodedata
 import logging
+
+# Robust dual-import fallback to satisfy all IDE path configurations
+try:
+    from app.services import vector_store_service, llm_service
+    from app.api.endpoints.dependencies import get_current_user
+except ImportError:
+    from ...services import vector_store_service, llm_service
+    from .dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Laws"])
@@ -79,7 +87,6 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
     """Locates the law PDF in data/laws/ks by matching official law numbers."""
     clean_requested = os.path.basename(requested_name).strip()
 
-    # Calculate absolute path to project root and data/laws
     current_file = os.path.abspath(__file__)
     endpoints_dir = os.path.dirname(current_file)
     api_dir = os.path.dirname(endpoints_dir)
@@ -96,7 +103,6 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
         "data/laws"
     ]
 
-    # Extract law digits (e.g. ['04', '077'] from 'LIGJI_NR._04_L-077...')
     digits = re.findall(r'\b\d+\b', clean_requested)
 
     for search_dir in search_dirs:
@@ -108,19 +114,16 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
                 if not f.lower().endswith('.pdf'):
                     continue
 
-                # Direct exact match
                 if f.lower() == clean_requested.lower():
                     logger.info(f"[PDF-Match] Exact filename match: {f}")
                     return os.path.join(root, f)
 
-                # Match by unique number sequence (e.g. '04' AND '077')
                 if len(digits) >= 2:
                     primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
                     if primary_nums and all(num in f for num in primary_nums):
                         logger.info(f"[PDF-Match] Number-pair match {primary_nums} -> {f}")
                         return os.path.join(root, f)
 
-                # Match Constitution
                 if 'kushtetuta' in clean_requested.lower() and 'kushtetuta' in f.lower():
                     logger.info(f"[PDF-Match] Constitution match -> {f}")
                     return os.path.join(root, f)
@@ -163,7 +166,7 @@ async def get_law_pdf(filename: str):
     except Exception as e:
         logger.warning(f"MongoDB lookup for law PDF failed: {e}")
 
-    # 2. Resilient number-pair scan on local disk (data/laws/ks)
+    # 2. Resilient number-pair scan on local disk
     found_file = find_pdf_by_number_pair(clean_name)
     if found_file:
         return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
