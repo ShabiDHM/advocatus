@@ -1,6 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V13.2 (UNIFIED TRANSCRIPT STYLING)
-// FIX: Removed the bright blue user bubble, unifying both user questions and AI answers with identical neutral styling (bg-surface border-main text-text-primary).
+// PHOENIX PROTOCOL - CHAT PANEL V14.0 (FIXED SEND BUTTON & SCROLLBAR OVERLAP)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -386,22 +385,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA */}
-      <div className="p-4 bg-surface shrink-0">
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2 max-w-5xl mx-auto">
-          <textarea 
-            ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} 
-            placeholder={t('chatPanel.inputPlaceholder')} 
-            className="w-full p-3.5 pr-14 bg-canvas border border-main rounded-xl text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all resize-none custom-finance-scroll min-h-[50px]" 
-            rows={1} 
-          />
-          <button 
-            type="submit" 
-            disabled={!input.trim() || isSendingMessage} 
-            className="absolute right-2 bottom-2 h-8 w-8 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-lg shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10 hover-lift focus:outline-none"
-          >
-            <Send size={15} className="ml-0.5" />
-          </button>
+      {/* INPUT AREA: Clean Inline Flex Layout (Prevents Scrollbar & Send Button Collisions) */}
+      <div className="p-4 bg-surface shrink-0 z-20">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="max-w-5xl mx-auto">
+          <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
+            <textarea 
+              ref={textareaRef} 
+              value={input} 
+              onChange={(e) => setInput(e.target.value)} 
+              onKeyDown={handleKeyDown} 
+              placeholder={t('chatPanel.inputPlaceholder')} 
+              className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" 
+              rows={1} 
+            />
+            <button 
+              type="submit" 
+              disabled={!input.trim() || isSendingMessage} 
+              className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift"
+            >
+              <Send size={15} className="ml-0.5" />
+            </button>
+          </div>
         </form>
       </div>
     </div>
