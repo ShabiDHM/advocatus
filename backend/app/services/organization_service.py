@@ -1,7 +1,5 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.3 (DUPLICATE EMAIL GUARD)
-# 1. FIX: Added an validation check to prevent MongoDB E11000 duplicate key errors when inviting existing users.
-# 2. STATUS: Gracefully raises a clean HTTP 400 validation error in Albanian instead of crashing with a 500.
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.4 (AUTOMATIC ACTIVE STATUS & FULL NAME UPDATE)
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -101,7 +99,7 @@ class OrganizationService:
         if org_doc.get("current_active_users", 0) >= org_doc.get("user_limit", 1):
             raise HTTPException(status_code=403, detail="Limit Reached")
         
-        # PHOENIX PREVENTION: Verify that the email doesn't already exist to avoid MongoDB E11000 duplication crashes
+        # Verify that the email doesn't already exist to avoid MongoDB duplicate crashes
         existing_user = db.users.find_one({"email": invitee_email})
         if existing_user:
             raise HTTPException(
@@ -116,6 +114,7 @@ class OrganizationService:
             "role": "STANDARD",
             "org_id": ObjectId(org_id),
             "status": "pending_invite",
+            "subscription_status": "ACTIVE",
             "invitation_token": invitation_token,
             "created_at": datetime.now(timezone.utc)
         })
@@ -131,7 +130,7 @@ class OrganizationService:
         return {"message": "Invitation sent successfully"}
 
     def accept_invitation(self, db: Database, token: str, password: str, username: str) -> Dict:
-        """Activate a pending user and send welcome emails."""
+        """Activate a pending user, update full name/username, set ACTIVE subscription status, and send welcome emails."""
         user = db.users.find_one({"invitation_token": token, "status": "pending_invite"})
         if not user:
             raise HTTPException(status_code=400, detail="Token i pavlefshëm ose ftesa ka skaduar.")
@@ -143,7 +142,8 @@ class OrganizationService:
                 "$set": {
                     "hashed_password": hashed_password,
                     "username": username,
-                    "status": "active"
+                    "status": "active",
+                    "subscription_status": "ACTIVE"
                 },
                 "$unset": {"invitation_token": ""}
             }
