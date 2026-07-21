@@ -1,15 +1,18 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V16.0 (STREAMING PDF SUPPORT & FUZZY RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V18.0 (RECURSIVE ROOT DATA/LAWS/KS PATH RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List, Set, Any
 import re
 import os
+import logging
+
 from app.services import vector_store_service, llm_service
 from app.api.endpoints.dependencies import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Laws"])
 
 class LawExplainRequest(BaseModel):
@@ -33,14 +36,10 @@ def _natural_sort_key(article_any: Any) -> List[int]:
     return [int(p) for p in parts if p.isdigit()]
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dict]:
-    """
-    Multi-stage resilient resolver to match legal articles in MongoDB.
-    Resolves official law numbers (e.g. 04/L-077), case differences, and article formats (258 vs 258.).
-    """
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     art_variants = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}"]
 
-    # Stage 1: Match by Law Number (e.g. 04/L-077 or 06/L-006)
+    # Stage 1: Match by Law Number (e.g. 04/L-077 or 06/L-006 or 03/L-006)
     law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', raw_law_title, re.I)
     if law_num_match:
         law_code = law_num_match.group(1)
@@ -53,7 +52,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
         if docs:
             return docs
 
-    # Stage 2: Case-insensitive exact match on whole law_title string
+    # Stage 2: Case-insensitive exact match
     query = {
         "law_title": {"$regex": f"^{re.escape(raw_law_title.strip())}$", "$options": "i"},
         "article_number": {"$in": art_variants}
@@ -63,7 +62,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
     if docs:
         return docs
 
-    # Stage 3: Keyword substring match on primary title words
+    # Stage 3: Substring keyword match
     words = [w for w in raw_law_title.split() if len(w) > 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe']]
     if words:
         key_pattern = "|".join([re.escape(w) for w in words[:3]])
@@ -93,20 +92,70 @@ STILI: Shqip standard, i qartë, me pika dhe lista për lehtësi.
 
 @router.get("/pdf/{filename}")
 async def get_law_pdf(filename: str):
-    """Streams the original law PDF document directly for inline browser viewing."""
+    """Streams the original law PDF document from local workspace or online B2 storage."""
     clean_name = os.path.basename(filename)
-    
+
+    # 1. Search MongoDB for document metadata with cloud/B2 URL
+    try:
+        from app.core.db import get_db_instance
+        db = get_db_instance()
+        doc = db.legal_knowledge_base.find_one({
+            "$or": [
+                {"source": filename},
+                {"source": clean_name},
+                {"file_name": clean_name}
+            ]
+        })
+        if doc:
+            pdf_url = doc.get("pdf_url") or doc.get("b2_url") or doc.get("url")
+            if pdf_url and str(pdf_url).startswith("http"):
+                return RedirectResponse(url=pdf_url)
+    except Exception as e:
+        logger.warning(f"MongoDB lookup for law PDF failed: {e}")
+
+    # 2. Derive project directory tree paths
+    current_file = os.path.abspath(__file__)
+    endpoints_dir = os.path.dirname(current_file)          # backend/app/api/endpoints
+    api_dir = os.path.dirname(endpoints_dir)              # backend/app/api
+    app_dir = os.path.dirname(api_dir)                    # backend/app
+    backend_dir = os.path.dirname(app_dir)                # backend
+    project_root = os.path.dirname(backend_dir)           # ADVOCATUS (Root)
+
     possible_paths = [
-        os.path.join("app", "data", "laws", clean_name),
+        # Root level data/laws/ks/ (matching VS Code directory tree)
+        os.path.join(project_root, "data", "laws", "ks", clean_name),
+        os.path.join(project_root, "data", "laws", "al", clean_name),
+        os.path.join(project_root, "data", "laws", clean_name),
+        
+        # Backend relative paths
+        os.path.join(backend_dir, "data", "laws", "ks", clean_name),
+        os.path.join(backend_dir, "data", "laws", clean_name),
+        os.path.join(app_dir, "data", "laws", "ks", clean_name),
+        os.path.join("data", "laws", "ks", clean_name),
+        os.path.join("data", "laws", "al", clean_name),
         os.path.join("data", "laws", clean_name),
-        os.path.join("static", "laws", clean_name),
+        os.path.join("..", "data", "laws", "ks", clean_name),
+        os.path.join("..", "data", "laws", clean_name),
     ]
-    
+
     for path in possible_paths:
         if os.path.exists(path):
+            logger.info(f"Serving local law PDF from: {path}")
             return FileResponse(path, media_type="application/pdf", filename=clean_name)
 
-    raise HTTPException(status_code=404, detail="Dokumenti PDF i ligjit nuk u gjet në server.")
+    # 3. Recursive fallback scan across all 'data/laws' subdirectories
+    for root_dir in [os.path.join(project_root, "data", "laws"), os.path.join(backend_dir, "data", "laws"), "data"]:
+        if os.path.exists(root_dir):
+            for root, _, files in os.walk(root_dir):
+                if clean_name in files:
+                    found_path = os.path.join(root, clean_name)
+                    logger.info(f"Found law PDF via recursive scan: {found_path}")
+                    return FileResponse(found_path, media_type="application/pdf", filename=clean_name)
+
+    raise HTTPException(
+        status_code=404, 
+        detail=f"Dokumenti PDF '{clean_name}' nuk u gjet në server."
+    )
 
 @router.post("/explain")
 async def explain_law_article(request: LawExplainRequest, current_user = Depends(get_current_user)):
