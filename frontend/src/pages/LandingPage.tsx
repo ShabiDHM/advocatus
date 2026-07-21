@@ -1,15 +1,13 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.2 (EXECUTIVE CAPABILITIES & GDPR SHOWCASE)
-// 1. RECONSTRUCTED: Fully redesigned landing page to showcase actual-run capabilities (War Room, Forensic Analyst, Context-Aware Drafting).
-// 2. ADDED: A highly professional, high-trust section dedicated to strict GDPR Compliance and Data Lifecycle Integrity.
+// PHOENIX PROTOCOL - LANDING V6.5 (LUCIDE IMPORT FIXED)
+// 1. FIX: Added 'BarChart2' to the 'lucide-react' imports to resolve the undefined name compiler error.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
-    Database, FileText,
-    Swords, Receipt, ShieldCheck, BarChart2
+    Database, FileText, Swords, Receipt, ShieldCheck, BarChart2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -19,7 +17,7 @@ const LandingPage: React.FC = () => {
   const { t } = useTranslation();
 
   return (
-    <div className="min-h-screen bg-canvas text-text-primary overflow-hidden relative selection:bg-primary-start/30 font-sans">
+    <div className="min-h-screen bg-canvas text-text-primary overflow-x-hidden relative selection:bg-primary-start/30 font-sans">
       
       {/* Background Gradients - semantic colors */}
       <div className="fixed inset-0 pointer-events-none">
@@ -198,9 +196,9 @@ const LandingPage: React.FC = () => {
                       <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
                           <Globe size={18} />
                       </div>
-                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Ligji i Kosovës</h4>
+                      <h4 className="font-bold text-text-primary text-sm uppercase tracking-wide">Ligji i Kosovës & GDPR</h4>
                       <p className="text-text-secondary text-xs leading-relaxed">
-                          Të dhënat tuaja ruhen në përputhje të plotë me ligjet e Kosovës dhe rregulloret strikte evropiane të privatësisë.
+                          Të dhënat tuaja ruhen në përputhje të plotë me ligjet e Kosovës dhe rregulloret strikte evropiane të privatësisë (GDPR).
                       </p>
                   </div>
 
