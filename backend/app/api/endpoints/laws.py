@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V20.0 (UNSTOPPABLE PDF MATCHING ALGORITHM)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V21.0 (NUMBER-PAIR IMMUNE PDF RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -9,9 +9,6 @@ import re
 import os
 import unicodedata
 import logging
-
-from app.services import vector_store_service, llm_service
-from app.api.endpoints.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Laws"])
@@ -78,45 +75,55 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
 
     return []
 
-def find_pdf_file_on_disk(data_laws_root: str, requested_name: str) -> Optional[str]:
-    """Scans directories with Unicode normalization, isolated law code matching, and digit fallback."""
-    if not os.path.exists(data_laws_root):
-        return None
-
+def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
+    """Locates the law PDF in data/laws/ks by matching official law numbers."""
     clean_requested = os.path.basename(requested_name).strip()
-    req_nfc = unicodedata.normalize('NFC', clean_requested).lower()
-    req_nfd = unicodedata.normalize('NFD', clean_requested).lower()
 
-    # Isolate law code strictly (e.g. 03_L-006 or 04_L-077 or 06_L-006)
-    code_match = re.search(r'(\d{2,4}[_\/\-]L[_\/\-]?\d{3,4})', clean_requested, re.I)
-    law_code = code_match.group(1).replace('/', '_').replace('-', '_').lower() if code_match else None
+    # Calculate absolute path to project root and data/laws
+    current_file = os.path.abspath(__file__)
+    endpoints_dir = os.path.dirname(current_file)
+    api_dir = os.path.dirname(endpoints_dir)
+    app_dir = os.path.dirname(api_dir)
+    backend_dir = os.path.dirname(app_dir)
+    project_root = os.path.dirname(backend_dir)
 
-    # Extract law digits (e.g. ["03", "006"])
+    search_dirs = [
+        os.path.join(project_root, "data", "laws", "ks"),
+        os.path.join(project_root, "data", "laws"),
+        os.path.join(backend_dir, "data", "laws", "ks"),
+        os.path.join(backend_dir, "data", "laws"),
+        "data/laws/ks",
+        "data/laws"
+    ]
+
+    # Extract law digits (e.g. ['04', '077'] from 'LIGJI_NR._04_L-077...')
     digits = re.findall(r'\b\d+\b', clean_requested)
 
-    for root, _, files in os.walk(data_laws_root):
-        for f in files:
-            if not f.lower().endswith('.pdf'):
-                continue
+    for search_dir in search_dirs:
+        if not os.path.exists(search_dir):
+            continue
 
-            f_nfc = unicodedata.normalize('NFC', f).lower()
-            f_nfd = unicodedata.normalize('NFD', f).lower()
+        for root, _, files in os.walk(search_dir):
+            for f in files:
+                if not f.lower().endswith('.pdf'):
+                    continue
 
-            # 1. Exact or normalized Unicode match
-            if f_nfc == req_nfc or f_nfd == req_nfd or f.lower() == clean_requested.lower():
-                logger.info(f"[PDF-Search] Exact match found: {f}")
-                return os.path.join(root, f)
+                # Direct exact match
+                if f.lower() == clean_requested.lower():
+                    logger.info(f"[PDF-Match] Exact filename match: {f}")
+                    return os.path.join(root, f)
 
-            # 2. Strict law code match (e.g. "03_l_006")
-            f_clean_code = f.replace('/', '_').replace('-', '_').lower()
-            if law_code and law_code in f_clean_code:
-                logger.info(f"[PDF-Search] Law code '{law_code}' matched file: {f}")
-                return os.path.join(root, f)
+                # Match by unique number sequence (e.g. '04' AND '077')
+                if len(digits) >= 2:
+                    primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
+                    if primary_nums and all(num in f for num in primary_nums):
+                        logger.info(f"[PDF-Match] Number-pair match {primary_nums} -> {f}")
+                        return os.path.join(root, f)
 
-            # 3. Digit token sequence match
-            if len(digits) >= 2 and all(d in f for d in digits if len(d) >= 2):
-                logger.info(f"[PDF-Search] Digit tokens {digits} matched file: {f}")
-                return os.path.join(root, f)
+                # Match Constitution
+                if 'kushtetuta' in clean_requested.lower() and 'kushtetuta' in f.lower():
+                    logger.info(f"[PDF-Match] Constitution match -> {f}")
+                    return os.path.join(root, f)
 
     return None
 
@@ -156,34 +163,14 @@ async def get_law_pdf(filename: str):
     except Exception as e:
         logger.warning(f"MongoDB lookup for law PDF failed: {e}")
 
-    # 2. Derive project directory tree paths
-    current_file = os.path.abspath(__file__)
-    endpoints_dir = os.path.dirname(current_file)          # backend/app/api/endpoints
-    api_dir = os.path.dirname(endpoints_dir)              # backend/app/api
-    app_dir = os.path.dirname(api_dir)                    # backend/app
-    backend_dir = os.path.dirname(app_dir)                # backend
-    project_root = os.path.dirname(backend_dir)           # ADVOCATUS (Root)
-
-    candidate_roots = [
-        os.path.join(project_root, "data", "laws"),
-        os.path.join(project_root, "data"),
-        os.path.join(backend_dir, "data", "laws"),
-        os.path.join(backend_dir, "data"),
-        os.path.join(app_dir, "data", "laws"),
-        "data/laws",
-        "data"
-    ]
-
-    # 3. Multi-stage search for law PDF on disk
-    for root_path in candidate_roots:
-        found_file = find_pdf_file_on_disk(root_path, clean_name)
-        if found_file:
-            logger.info(f"Serving local law PDF from: {found_file}")
-            return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
+    # 2. Resilient number-pair scan on local disk (data/laws/ks)
+    found_file = find_pdf_by_number_pair(clean_name)
+    if found_file:
+        return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
 
     raise HTTPException(
         status_code=404, 
-        detail=f"Dokumenti PDF '{clean_name}' nuk u gjet në server."
+        detail=f"Dokumenti PDF '{clean_name}' nuk u gjet në server. Verifikoni dosjen data/laws/ks."
     )
 
 @router.post("/explain")
