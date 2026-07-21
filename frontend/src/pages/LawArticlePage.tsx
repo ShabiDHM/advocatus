@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.2 (PREAMBLE BANNER SYNCHRONIZED)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.3 (DYNAMIC HISTORY BACK NAVIGATION)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -330,8 +330,15 @@ export default function LawArticlePage() {
     setShowSuggestions(false);
   };
 
+  // PHOENIX FIX: Dynamic History Back Navigation instead of hardcoded briefing dashboard
   const handleBack = () => {
-    navigate('/business/briefing', { state: { activeMode: 'library' } });
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (article?.law_title) {
+      navigate(`/laws/overview?lawTitle=${encodeURIComponent(article.law_title)}`);
+    } else {
+      navigate('/laws/search');
+    }
   };
 
   if (loading) {
@@ -350,7 +357,7 @@ export default function LawArticlePage() {
           <AlertCircle className="text-danger-start w-20 h-20 mb-6" />
           <h2 className="text-2xl font-black text-text-primary uppercase tracking-tighter mb-3">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-lg mb-8">{error}</p>
-          <button onClick={handleBack} className="btn-primary flex items-center gap-2 hover-lift shadow-sm"><ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}</button>
+          <button onClick={handleBack} className="btn-primary flex items-center gap-2 hover-lift shadow-sm"><ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu Mbrapa')}</button>
         </div>
       </div>
     );
@@ -637,7 +644,7 @@ export default function LawArticlePage() {
                 onClick={handleBack}
                 className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
               >
-                <ArrowLeft size={14} /> {t('lawArticle.backToSearch', 'Kthehu te kërkimi')}
+                <ArrowLeft size={14} /> {t('lawArticle.backToSearch', 'Kthehu Mbrapa')}
               </button>
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
