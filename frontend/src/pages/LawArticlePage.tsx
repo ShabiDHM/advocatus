@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V10.1 (ALIGNED WITH API SIGNATURE)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.0 (GAZETA STRIPPING & ARTICLE TRUNCATION)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User, Send, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// TASK 3: ArticleData interface with chunk_id
 interface ArticleData {
   law_title: string;
   article_number?: string;
@@ -24,14 +23,40 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// ========== PHOENIX: ENHANCED TEXT SANITIZATION ==========
-const normalizeText = (raw: string): string => {
+// ========== PHOENIX: ENHANCED GAZETA & BOUNDARY SANITIZATION ==========
+const normalizeText = (raw: string, articleNum?: string): string => {
   if (!raw) return '';
 
-  let cleaned = raw.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
-  const lawHeaderRegex = /(?:^|\n)\s*LIGJI\s+NR\.\s+\d+[\/\-]?[A-Z]?\d*\s+[A-ZËÇSHQËWXYZ].*?(?=\n|$)/gi;
-  cleaned = cleaned.replace(lawHeaderRegex, '');
-  
+  let cleaned = raw;
+
+  // 1. Strip page separator tags
+  cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
+
+  // 2. Strip official gazette headers/footers (Kosovo & Albania)
+  cleaned = cleaned.replace(/GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*?(?=\n|$)/gi, '');
+  cleaned = cleaned.replace(/FLETORJA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+SHQIPËRISË.*?(?=\n|$)/gi, '');
+  cleaned = cleaned.replace(/(?:KODI|LIGJI|UDHËZIMI|UDHËZIM)\s+Nr\.\s*[\d\/L\-]+\s+[A-ZËÇSHQËWXYZ\s\-]+(?=\n|$)/gi, '');
+
+  // 3. Strip standalone page numbers on individual lines
+  cleaned = cleaned.replace(/^\s*\d{1,3}\s*$/gm, '');
+
+  // 4. Truncate strictly at the start of the NEXT article (e.g. Neni 4 when viewing Neni 3)
+  if (articleNum) {
+    const numMatch = articleNum.match(/\d+/);
+    if (numMatch) {
+      const currentNum = parseInt(numMatch[0], 10);
+      const nextNum = currentNum + 1;
+      
+      // Matches boundaries like: Neni 4, NENI 4, Neni 4., Neni 4 -
+      const nextArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${nextNum}\\b`, 'i');
+      const match = cleaned.match(nextArticleRegex);
+      if (match && match.index !== undefined) {
+        cleaned = cleaned.substring(0, match.index).trim();
+      }
+    }
+  }
+
+  // 5. Merge lines split across sentences or page breaks
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
   
@@ -89,14 +114,12 @@ const renderMarkdown = (text: string) => {
     });
 };
 
-// Helper function to generate a fallback chunk_id when backend doesn't provide one
 const generateFallbackChunkId = (lawTitle: string, articleNumber: string): string => {
   const cleanTitle = lawTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 80);
   const cleanArticle = articleNumber.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
   return `chunk_${cleanTitle}_${cleanArticle}`;
 };
 
-// Suggested questions for the auditor
 const SUGGESTED_QUESTIONS = [
   'Cilat janë detyrimet kryesore sipas këtij neni?',
   'Çfarë ndodh nëse shkelet ky nen?',
@@ -135,7 +158,6 @@ export default function LawArticlePage() {
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
-  // Parse dual perspective from summary
   const perspectives = useMemo(() => {
     let cleanText = summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '');
     let parts = cleanText.split('[NDARJA]');
@@ -148,7 +170,6 @@ export default function LawArticlePage() {
     };
   }, [summaryContent]);
 
-  // TASK 3: Load article and set state with chunk_id
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -159,19 +180,16 @@ export default function LawArticlePage() {
     const loadArticle = async () => {
       try {
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
-        const normalizedText = normalizeText(data.text);
         
-        // Get chunk_id from response or generate fallback
+        // Apply deep gazette cleaning & strict article truncation
+        const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
+        
         let chunkId = data.chunk_id || '';
         
         if (!chunkId) {
           chunkId = generateFallbackChunkId(lawTitle, articleNumber);
-          console.log('[DEBUG] Backend did not provide chunk_id, using fallback:', chunkId);
-        } else {
-          console.log('[DEBUG] Using chunk_id from backend:', chunkId);
         }
         
-        // TASK 3: Set article with chunk_id
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
@@ -179,8 +197,6 @@ export default function LawArticlePage() {
           text: normalizedText,
           chunk_id: chunkId,
         });
-        
-        console.log('[DEBUG] Article loaded successfully with chunk_id:', chunkId);
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
@@ -192,17 +208,14 @@ export default function LawArticlePage() {
     loadArticle();
   }, [lawTitle, articleNumber, t]);
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
     if (chatContainerRef.current && chatVisible) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages, chatVisible]);
 
-  // Initialize chat after summary finishes
   useEffect(() => {
     if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
-      console.log('[DEBUG] Chat initialized, showing suggestions');
       setTimeout(() => {
         setShowSuggestions(true);
       }, 500);
@@ -214,12 +227,8 @@ export default function LawArticlePage() {
     }
   }, [summaryContent, chatVisible, messages.length, isSummarizing]);
 
-  // Single button triggers summary + chat
   const handleStartAudit = async () => {
     if (!article || isSummarizing) return;
-    
-    console.log('[DEBUG] Starting audit for article:', article.law_title);
-    console.log('[DEBUG] Article chunk_id:', article.chunk_id);
     
     setSummaryContent('');
     setSummaryError('');
@@ -238,7 +247,6 @@ export default function LawArticlePage() {
         setSummaryContent(accumulated);
       }
       
-      console.log('[DEBUG] Summary completed, showing chat');
       setChatVisible(true);
       
     } catch (err: any) {
@@ -249,38 +257,14 @@ export default function LawArticlePage() {
     }
   };
 
-  // TASK 2: Handle sending a chat query - passes chunk_id to API
   const handleSendQuery = async (query?: string) => {
-    console.log('[DEBUG] handleSendQuery called');
-    
-    if (!article) {
-      console.log('[ERROR] No article loaded');
-      setChatError('Artikulli nuk është ngarkuar. Ju lutemi rifreskoni faqen.');
-      return;
-    }
-
-    // Validate chunk_id exists
-    console.log('[DEBUG] Sending chunk_id to Auditor:', article.chunk_id);
-    
-    if (!article.chunk_id) {
-      console.log('[ERROR] No chunk_id available - this should not happen');
+    if (!article || !article.chunk_id) {
       setChatError('Artikulli nuk ka identifikues të vlefshëm. Ju lutemi rifreskoni faqen.');
       return;
     }
 
     const finalQuery = query ?? inputQuery.trim();
-    if (!finalQuery) {
-      console.log('[DEBUG] Empty query, ignoring');
-      return;
-    }
-    
-    if (isAuditing) {
-      console.log('[DEBUG] Already auditing, ignoring');
-      return;
-    }
-
-    console.log('[DEBUG] Sending query to auditor:', finalQuery);
-    console.log('[DEBUG] Using chunk_id:', article.chunk_id);
+    if (!finalQuery || isAuditing) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -303,21 +287,17 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      console.log('[DEBUG] Calling apiService.askLawAuditor with chunk_id:', article.chunk_id);
-      // TASK 2: Pass chunk_id as first argument, query as second
       const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
         accumulatedContent += chunk;
-        console.log('[DEBUG] Received chunk, length:', chunk.length);
         setMessages(prev => prev.map(msg =>
           msg.id === auditorMessageId
             ? { ...msg, content: accumulatedContent }
             : msg
         ));
       }
-      console.log('[DEBUG] Query completed successfully');
     } catch (err: any) {
       console.error('[ERROR] Audit query failed:', err);
       setChatError(err.message || 'Dështoi komunikimi me Auditorin.');
@@ -329,7 +309,6 @@ export default function LawArticlePage() {
   };
 
   const handleSuggestedClick = (question: string) => {
-    console.log('[DEBUG] Suggested question clicked:', question);
     handleSendQuery(question);
   };
 
@@ -341,7 +320,6 @@ export default function LawArticlePage() {
   };
 
   const handleCloseAuditor = () => {
-    console.log('[DEBUG] Closing auditor');
     setChatVisible(false);
     setMessages([]);
     setSummaryContent('');
