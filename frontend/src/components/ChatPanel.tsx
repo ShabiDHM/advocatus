@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V14.1 (HIDDEN INVISIBLE CHAT SCROLLBAR)
+// PHOENIX PROTOCOL - CHAT PANEL V15.0 (AUTOMATIC DYNAMIC LEGAL CITATION LINKING)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,6 +52,24 @@ const ThinkingDots = () => (
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
     </span>
 );
+
+// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER ==========
+const autoLinkLegalCitations = (text: string): string => {
+  if (!text) return '';
+
+  // Regex pattern matching Kosovo/Albania legal citations (e.g., "Ligjit Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 258")
+  const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
+
+  return text.replace(citationRegex, (match, lawPrefix, lawTitle, articleNum) => {
+    // Reconstruct law full name cleanly
+    const fullLawName = `${lawPrefix} ${lawTitle.trim()}`;
+    const cleanArtNum = articleNum.trim();
+
+    const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${cleanArtNum}`;
+    
+    return `[${match.trim()}](${targetUrl})`;
+  });
+};
 
 // Helper to split AI response into clean Markdown content and structured follow-up questions
 const extractFollowUpQuestions = (text: string): { cleanText: string; questions: string[] } => {
@@ -141,14 +159,14 @@ const FeedbackButtons: React.FC<{
     );
 };
 
-const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
+const LawPreviewTooltip: React.FC<{ chunkId?: string; href?: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [show, setShow] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
     useEffect(() => {
-        if (show && !preview && !loading) {
+        if (show && !preview && !loading && chunkId) {
             setLoading(true);
             apiService.getLawByChunkId(chunkId)
                 .then(data => setPreview(data.text.substring(0, 200) + '...'))
@@ -161,7 +179,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
         <div className="relative inline-block" onMouseEnter={() => { timeoutRef.current = setTimeout(() => setShow(true), 400); }} onMouseLeave={() => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setShow(false); }}>
             {children}
             <AnimatePresence>
-                {show && (
+                {show && chunkId && (
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -187,16 +205,16 @@ const MarkdownComponents = (t: TFunction) => ({
     li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed text-text-secondary" {...props} />, 
     a: ({href, children}: any) => {
         if (href?.startsWith('/laws/')) {
-            const chunkId = href.split('/').pop();
+            const chunkId = href.startsWith('/laws/chunk/') ? href.split('/').pop() : undefined;
             return (
-                <LawPreviewTooltip chunkId={chunkId || ''} t={t}>
+                <LawPreviewTooltip chunkId={chunkId} href={href} t={t}>
                     <Link
                         to={href}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border transition-all hover:shadow-sm hover:scale-[1.02] bg-primary-start/5 text-primary-start border-primary-start/20 hover:bg-primary-start/10"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 my-0.5"
                     >
-                        <Scale size={10} />
-                        {children}
-                        <Eye size={10} className="opacity-50" />
+                        <Scale size={12} className="text-primary-start" />
+                        <span>{children}</span>
+                        <Eye size={12} className="opacity-70 ml-0.5" />
                     </Link>
                 </LawPreviewTooltip>
             );
@@ -314,24 +332,25 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR (Full scrolling functionality preserved without visible scrollbar track) */}
+      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR & AUTO-LINKED LEGAL CITATIONS */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => {
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
+            const autoLinkedText = autoLinkLegalCitations(cleanText);
             
             return (
               <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
                   {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
                 </div>
-                {/* UNIFIED BUBBLE STYLING: Both AI and User share standard neutral border, bg, and text colors */}
+                {/* UNIFIED BUBBLE STYLING */}
                 <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                   <MessageCopyButton text={msg.content} />
                   
-                  {/* Clean response */}
+                  {/* Clean response with Interactive Law Citations */}
                   <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{cleanText}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
                   
                   {/* DYNAMIC INTERACTIVE FOLLOW-UP QUESTIONS */}
@@ -385,7 +404,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA: Clean Inline Flex Layout */}
+      {/* INPUT AREA */}
       <div className="p-4 bg-surface shrink-0 z-20">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="max-w-5xl mx-auto">
           <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
