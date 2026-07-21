@@ -1,7 +1,6 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V86.0 (DUAL-MODEL ROUTING)
-# 1. FIX: Declared FAST_MODEL (DeepSeek-V3) and DEEP_MODEL (DeepSeek-R1) and routed tasks based on complexity.
-# 2. FIX: Disabled 'response_format' JSON mode when using DEEP_MODEL to prevent OpenRouter R1 reasoning API crashes.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V87.0 (OPENROUTER MODEL ID FIXED)
+# 1. FIX: Changed DEEP_MODEL identifier from 'deepseek/deepseek-reasoning' to 'deepseek/deepseek-r1' to match OpenRouter's active API routing ID.
 
 import os
 import json
@@ -21,7 +20,7 @@ AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për 
 
 # --- DUAL-MODEL DEPLOYMENT DEFINITIONS ---
 FAST_MODEL = "deepseek/deepseek-chat"       # DeepSeek-V3 (Super fast, cheap, standard)
-DEEP_MODEL = "deepseek/deepseek-reasoning"  # DeepSeek-R1 (Reasoning, logic, deep audit)
+DEEP_MODEL = "deepseek/deepseek-r1"         # DeepSeek-R1 (Reasoning, logic, deep audit - OpenRouter ID)
 
 # --- TEMPERATURE CONSTANTS FOR SAAS PRECISION ---
 TEMP_DRAFTING = 0.1   # Extreme structural compliance for legal document drafting
@@ -138,7 +137,6 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         """
         user_content = f"TRANSAKSIONET E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
         
-        # Executes over DEEP_MODEL (R1)
         return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
     except Exception as e:
         logger.error(f"Error in forensic_interrogation: {e}")
@@ -231,7 +229,7 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     
     DUHET të identifikosh saktësisht një minimum prej 3 kontradiktash/mospërputhjash ligjore:
     1. Kontrollo për Mospërputhje Emrash të Avokatëve ose Palëve (p.sh. nëse një person pranohet si prezent në fillim, pot një emër tjetër urdhërohet me vendim në fund).
-    2. Kontrollo për Kontradikta të Autorizimeve (Prokurave) (p.sh. nëse gjykata thotë 'ka kushte për mbajtjen e seancës' por në fund kërcënon me anulim të të gjitha veprimeve sepse avokati nuk ka prokurë origjinale).
+    2. Kontrollo për Kontradikta të Autorizimeve (Prokurave) (p.sh. nëse gjykata thotë 'ka kushte për mbajtjen e seancës' por në fund kërcënon me anulim të të gjitha veprimeve sebepse avokati nuk ka prokurë origjinale).
     3. Kontrollo për Paradokse të Palëve (p.sh. ftesa për të shtuar paditësin aktual si të paditur, ndryshime të parregullta të padisë, apo kërkesa logjikisht të pamundura).
     
     Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
