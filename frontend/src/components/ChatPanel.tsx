@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V14.0 (FIXED SEND BUTTON & SCROLLBAR OVERLAP)
+// PHOENIX PROTOCOL - CHAT PANEL V14.1 (HIDDEN INVISIBLE CHAT SCROLLBAR)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -314,8 +314,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 custom-finance-scroll shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
+      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR (Full scrolling functionality preserved without visible scrollbar track) */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => {
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
@@ -325,7 +325,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
                   {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
                 </div>
-                {/* UNIFIED BUBBLE STYLING: Both AI and User now share standard neutral border, bg, and text colors */}
+                {/* UNIFIED BUBBLE STYLING: Both AI and User share standard neutral border, bg, and text colors */}
                 <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                   <MessageCopyButton text={msg.content} />
                   
@@ -385,7 +385,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA: Clean Inline Flex Layout (Prevents Scrollbar & Send Button Collisions) */}
+      {/* INPUT AREA: Clean Inline Flex Layout */}
       <div className="p-4 bg-surface shrink-0 z-20">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="max-w-5xl mx-auto">
           <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
