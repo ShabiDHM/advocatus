@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.0 (GAZETA STRIPPING & ARTICLE TRUNCATION)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.1 (LINE DEDUPLICATION & PRISTINE LEGAL TEXT)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -47,7 +47,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
       const currentNum = parseInt(numMatch[0], 10);
       const nextNum = currentNum + 1;
       
-      // Matches boundaries like: Neni 4, NENI 4, Neni 4., Neni 4 -
       const nextArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${nextNum}\\b`, 'i');
       const match = cleaned.match(nextArticleRegex);
       if (match && match.index !== undefined) {
@@ -64,6 +63,11 @@ const normalizeText = (raw: string, articleNum?: string): string => {
     const currentLine = lines[i].trim();
     if (!currentLine) {
       mergedLines.push(currentLine);
+      continue;
+    }
+
+    // Deduplicate identical consecutive lines
+    if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] === currentLine) {
       continue;
     }
     
@@ -83,13 +87,14 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\d+\.\s*/g, '$1 ');
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
   cleaned = cleaned.trim();
-  
+
+  // Filter out any remaining adjacent duplicate paragraphs
   const paragraphs = cleaned.split(/\n\n+/);
-  const normalizedParagraphs = paragraphs.map(para =>
-    para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
-  );
+  const normalizedParagraphs = paragraphs
+    .map(para => para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((para, index, arr) => para.length > 0 && (index === 0 || para !== arr[index - 1]));
   
-  return normalizedParagraphs.filter(p => p.length > 0).join('\n\n');
+  return normalizedParagraphs.join('\n\n');
 };
 
 // ========== LIGHTWEIGHT MARKDOWN RENDERER ==========
@@ -181,11 +186,10 @@ export default function LawArticlePage() {
       try {
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
         
-        // Apply deep gazette cleaning & strict article truncation
+        // Apply deep gazette cleaning, line deduplication, & strict article truncation
         const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
         
         let chunkId = data.chunk_id || '';
-        
         if (!chunkId) {
           chunkId = generateFallbackChunkId(lawTitle, articleNumber);
         }
