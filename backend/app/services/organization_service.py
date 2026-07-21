@@ -1,5 +1,5 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.4 (AUTOMATIC ACTIVE STATUS & FULL NAME UPDATE)
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.5 (DYNAMIC REAL-TIME USER COUNT SYNC)
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -25,6 +25,7 @@ TIER_LIMITS = {
 class OrganizationService:
 
     def _ensure_organization_sync(self, db: Database, owner_id: ObjectId) -> Dict:
+        """Dynamically syncs organization metrics and calculates real-time user counts."""
         org_doc = db.organizations.find_one({"_id": owner_id})
         owner = db.users.find_one({"_id": owner_id}) or {}
         
@@ -32,9 +33,16 @@ class OrganizationService:
         intended_tier = "GROWTH" if is_team else "DEFAULT"
         intended_limit = TIER_LIMITS.get(intended_tier, 1)
 
+        # Calculate actual live user count (Owner + Members)
+        actual_count = db.users.count_documents({
+            "$or": [
+                {"_id": owner_id},
+                {"org_id": owner_id}
+            ]
+        })
+
         if not org_doc:
             profile = db.business_profiles.find_one({"user_id": owner_id}) or {}
-            actual_count = db.users.count_documents({"org_id": owner_id})
             
             new_org = OrganizationInDB(
                 name=profile.get("firm_name") or owner.get("username", "Organization"),
@@ -50,13 +58,19 @@ class OrganizationService:
             db.organizations.update_one({"_id": owner_id}, {"$set": org_data}, upsert=True)
             return org_data
         
-        if org_doc.get("plan_tier") != intended_tier or org_doc.get("user_limit") != intended_limit:
-            db.organizations.update_one(
-                {"_id": owner_id},
-                {"$set": {"plan_tier": intended_tier, "user_limit": intended_limit}}
-            )
-            org_doc["plan_tier"] = intended_tier
-            org_doc["user_limit"] = intended_limit
+        # Always update and return the accurate live user count
+        db.organizations.update_one(
+            {"_id": owner_id},
+            {"$set": {
+                "plan_tier": intended_tier, 
+                "user_limit": intended_limit,
+                "current_active_users": actual_count,
+                "updated_at": datetime.now(timezone.utc)
+            }}
+        )
+        org_doc["plan_tier"] = intended_tier
+        org_doc["user_limit"] = intended_limit
+        org_doc["current_active_users"] = actual_count
             
         return org_doc
 
@@ -99,7 +113,6 @@ class OrganizationService:
         if org_doc.get("current_active_users", 0) >= org_doc.get("user_limit", 1):
             raise HTTPException(status_code=403, detail="Limit Reached")
         
-        # Verify that the email doesn't already exist to avoid MongoDB duplicate crashes
         existing_user = db.users.find_one({"email": invitee_email})
         if existing_user:
             raise HTTPException(

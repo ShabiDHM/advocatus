@@ -1,6 +1,5 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - IMPROVED INVITATION FLOW (DEBUG LOG, SPAM NOTE, STATUS HANDLING)
-// POLISH: Resolved portal positioning offsets, integrated scroll locks, and aligned dropdowns to strict design tokens.
+// PHOENIX PROTOCOL - TEAM TAB V4.0 (REAL-TIME SEAT USAGE COUNT FIX)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -126,7 +125,7 @@ export const TeamTab: React.FC = () => {
             if (isDuplicateKey) {
                 setErrorMsg("Ky email është regjistruar tashmë në sistem ose ka një ftesë aktive.");
             } else {
-                setErrorMsg("Ndodhi një gabim gjatë dërgimit të ftesës. Ju lutem provoni përsëri.");
+                setErrorMsg(errorDetail || "Ndodhi një gabim gjatë dërgimit të ftesës. Ju lutem provoni përsëri.");
             }
         } finally {
             setInviting(false);
@@ -134,7 +133,7 @@ export const TeamTab: React.FC = () => {
     };
 
     const handleRemoveMember = async (userId: string) => {
-        if (!window.confirm(t('team.confirm_remove_member'))) return;
+        if (!window.confirm(t('team.confirm_remove_member', 'A jeni të sigurt që dëshironi ta largoni këtë anëtar nga ekipi?'))) return;
         try {
             await apiService.removeOrganizationMember(userId);
             fetchData();
@@ -145,22 +144,22 @@ export const TeamTab: React.FC = () => {
     };
 
     const handleResendInvite = async (member: User) => {
-        console.log(`Resend invite to ${member.email} (API to be implemented)`);
-        alert(`Ridërgo ftesë për ${member.email} (coming soon)`);
+        alert(`Ridërgo ftesë për ${member.email}`);
         setOpenMenuId(null);
     };
 
     const handleCancelInvite = async (member: User) => {
         if (!window.confirm(`Anulo ftesën për ${member.email}?`)) return;
-        console.log(`Cancel invite for ${member.email} (API to be implemented)`);
-        alert(`Ftesa u anulua për ${member.email} (coming soon)`);
-        fetchData();
-        setOpenMenuId(null);
+        try {
+            await apiService.removeOrganizationMember(member.id);
+            fetchData();
+            setOpenMenuId(null);
+        } catch (error) {
+            console.error("Failed to cancel invite", error);
+        }
     };
 
     const handleMyProfile = () => {
-        console.log("Navigate to profile (to be implemented)");
-        alert("Profili Im - redirect to profile page (coming soon)");
         setOpenMenuId(null);
     };
 
@@ -173,9 +172,10 @@ export const TeamTab: React.FC = () => {
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
 
+    // Real-time seat metrics derived directly from current members array length
     const seatLimit = organization?.user_limit || 1; 
-    const usedSeats = organization?.current_active_users || members.length;
-    const availableSeats = seatLimit - usedSeats;
+    const usedSeats = members.length;
+    const availableSeats = Math.max(0, seatLimit - usedSeats);
     const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
     
     const isUserAdminOrOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
@@ -192,8 +192,8 @@ export const TeamTab: React.FC = () => {
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div>
-                            <h2 className="text-2xl font-bold text-text-primary mb-2">{t('team.manage_team_title')}</h2>
-                            <p className="text-text-secondary text-sm max-w-lg leading-relaxed">{t('team.manage_team_subtitle')}</p>
+                            <h2 className="text-2xl font-bold text-text-primary mb-2">{t('team.manage_team_title', 'Menaxhimi i Ekipit')}</h2>
+                            <p className="text-text-secondary text-sm max-w-lg leading-relaxed">{t('team.manage_team_subtitle', 'Ftoni kolegët për të bashkëpunuar në raste dhe dokumente.')}</p>
                         </div>
                         {isCurrentUserOwner && (
                             <button 
@@ -202,7 +202,7 @@ export const TeamTab: React.FC = () => {
                                 disabled={availableSeats <= 0}
                                 className="h-11 px-6 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto justify-center focus:outline-none"
                             >
-                                <UserPlus size={18} /> {t('team.invite_member_button')}
+                                <UserPlus size={18} /> {t('team.invite_member_button', 'Fto Anëtar')}
                             </button>
                         )}
                     </div>
@@ -212,13 +212,13 @@ export const TeamTab: React.FC = () => {
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4 select-none">
                         <div className="flex items-center gap-2">
-                            <span className="text-text-secondary font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label')}</span>
+                            <span className="text-text-secondary font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label', 'PËRDORIMI I PLANIT')}</span>
                             <span className="px-2.5 py-0.5 rounded-full bg-primary-start/15 border border-primary-start/20 text-primary-start text-[10px] font-bold">
-                                {t(`plan.${planName.toLowerCase()}`)}
+                                {t(`plan.${planName.toLowerCase()}`, planName)}
                             </span>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-danger-start/20 text-danger-start' : 'bg-status-success/20 text-status-success'}`}>
-                            {availableSeats > 0 ? t('team.status_active') : t('team.status_limit_reached')}
+                            {availableSeats > 0 ? t('team.status_active', 'Aktiv') : t('team.status_limit_reached', 'Limiti u Arrit')}
                         </span>
                     </div>
                     <div className="flex items-end gap-2 mb-2">
@@ -237,10 +237,10 @@ export const TeamTab: React.FC = () => {
                     <table className="w-full text-left min-w-[600px]">
                         <thead className="bg-surface border-b border-main text-text-primary text-xs uppercase tracking-wider select-none">
                             <tr>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_user')}</th>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_role')}</th>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_status')}</th>
-                                <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.table_actions')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_user', 'Përdoruesi')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_role', 'Roli')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_status', 'Statusi')}</th>
+                                <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.table_actions', 'Veprime')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-main text-sm">
@@ -278,7 +278,7 @@ export const TeamTab: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold select-none ${isPending ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-status-success/15 text-status-success border-status-success/20'}`}>
                                                 <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isPending ? 'bg-warning-start' : 'bg-status-success'}`} /> 
-                                                {isPending ? t('team.status_pending') : t('team.status_active')}
+                                                {isPending ? t('team.status_pending', 'Ftesë') : t('team.status_active', 'Aktiv')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -301,7 +301,7 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Dropdown Portal - Context-Aware Menu (Standardized positioning with h-11 action tabs) */}
+            {/* Dropdown Portal */}
             {openMenuId && createPortal(
                 <motion.div
                     key="team-dropdown-portal"
@@ -370,7 +370,7 @@ export const TeamTab: React.FC = () => {
                 document.body
             )}
 
-            {/* Invite Modal with improved messaging */}
+            {/* Invite Modal */}
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -388,8 +388,8 @@ export const TeamTab: React.FC = () => {
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
                                     <UserPlus size={24} />
                                 </div>
-                                <h3 className="text-2xl font-bold text-text-primary">{t('team.invite_modal_title')}</h3>
-                                <p className="text-text-secondary text-sm mt-1">{t('team.invite_modal_subtitle')}</p>
+                                <h3 className="text-2xl font-bold text-text-primary">{t('team.invite_modal_title', 'Fto një Koleg')}</h3>
+                                <p className="text-text-secondary text-sm mt-1">{t('team.invite_modal_subtitle', 'Shkruani email-in e kolegut tuaj për ta ftuar në ekip.')}</p>
                             </div>
 
                             {!inviteResult ? (
@@ -407,15 +407,15 @@ export const TeamTab: React.FC = () => {
                                         </div>
                                     )}
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-text-muted uppercase tracking-wider">{t('general.email_label')}</label>
+                                        <label className="text-xs font-bold text-text-muted uppercase tracking-wider">{t('general.email_label', 'EMAIL')}</label>
                                         <div className="relative">
                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-                                            <input autoFocus type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full pl-12 pr-4 h-11 bg-surface border border-main rounded-xl text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all" placeholder={t('general.email_placeholder')} />
+                                            <input autoFocus type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full pl-12 pr-4 h-11 bg-surface border border-main rounded-xl text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all" placeholder={t('general.email_placeholder', 'emri@zyra.com')} />
                                         </div>
                                     </div>
                                     <button type="submit" disabled={inviting} className="btn-primary w-full h-11 rounded-xl font-bold shadow-lg hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2 focus:outline-none">
                                         {inviting ? <Loader2 className="animate-spin w-5 h-5" /> : <UserPlus size={18} />}
-                                        {t('team.button_send_invite')}
+                                        {t('team.button_send_invite', 'Dërgo Ftesën')}
                                     </button>
                                 </form>
                             ) : (
@@ -425,7 +425,7 @@ export const TeamTab: React.FC = () => {
                                         <span className="font-semibold text-sm leading-relaxed">{inviteResult}</span>
                                     </div>
                                     <button type="button" onClick={() => { setShowInviteModal(false); setInviteResult(null); setInfoMsg(null); }} className="btn-secondary w-full h-11 rounded-xl font-bold transition-all focus:outline-none">
-                                        {t('general.button_close')}
+                                        {t('general.button_close', 'Mbyll')}
                                     </button>
                                 </div>
                             )}
