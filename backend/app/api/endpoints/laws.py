@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V22.0 (STRICT PYLANCE & PACKAGE IMPORT RESOLVED)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V23.0 (BACKBLAZE B2 CLOUD INTEGRATION & AUTO-SYNC)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -10,12 +10,11 @@ import os
 import unicodedata
 import logging
 
-# Robust dual-import fallback to satisfy all IDE path configurations
 try:
-    from app.services import vector_store_service, llm_service
+    from app.services import vector_store_service, llm_service, storage_service
     from app.api.endpoints.dependencies import get_current_user
 except ImportError:
-    from ...services import vector_store_service, llm_service
+    from ...services import vector_store_service, llm_service, storage_service
     from .dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -145,36 +144,94 @@ STILI: Shqip standard, i qartë, me pika dhe lista për lehtësi.
 
 @router.get("/pdf/{filename}")
 async def get_law_pdf(filename: str):
-    """Streams the original law PDF document from local workspace or online B2 storage."""
+    """Streams the original law PDF from Backblaze B2 cloud storage or local disk."""
     clean_name = os.path.basename(filename)
 
-    # 1. Search MongoDB for document metadata with cloud/B2 URL
+    # 1. Search Backblaze B2 Storage
     try:
-        from app.core.db import get_db_instance
-        db = get_db_instance()
-        doc = db.legal_knowledge_base.find_one({
-            "$or": [
-                {"source": filename},
-                {"source": clean_name},
-                {"file_name": clean_name}
-            ]
-        })
-        if doc:
-            pdf_url = doc.get("pdf_url") or doc.get("b2_url") or doc.get("url")
-            if pdf_url and str(pdf_url).startswith("http"):
-                return RedirectResponse(url=pdf_url)
-    except Exception as e:
-        logger.warning(f"MongoDB lookup for law PDF failed: {e}")
+        s3 = storage_service.get_s3_client()
+        bucket = storage_service.B2_BUCKET_NAME
+        digits = re.findall(r'\b\d+\b', clean_name)
 
-    # 2. Resilient number-pair scan on local disk
+        # Check files stored under B2 prefix 'laws/'
+        b2_response = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
+        b2_items = b2_response.get('Contents', [])
+
+        for obj in b2_items:
+            key = obj.get('Key', '')
+            b2_filename = os.path.basename(key)
+
+            # Match exact filename or number-pair in B2
+            is_exact = b2_filename.lower() == clean_name.lower()
+            primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
+            is_number_match = len(primary_nums) >= 2 and all(num in b2_filename for num in primary_nums)
+
+            if is_exact or is_number_match:
+                logger.info(f"[B2 Cloud PDF Match] Found in B2: {key}")
+                presigned_url = storage_service.generate_presigned_url(key)
+                if presigned_url:
+                    return RedirectResponse(url=presigned_url)
+    except Exception as e:
+        logger.warning(f"B2 cloud PDF search skipped: {e}")
+
+    # 2. Local disk fallback
     found_file = find_pdf_by_number_pair(clean_name)
     if found_file:
         return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
 
     raise HTTPException(
         status_code=404, 
-        detail=f"Dokumenti PDF '{clean_name}' nuk u gjet në server. Verifikoni dosjen data/laws/ks."
+        detail=f"Dokumenti PDF '{clean_name}' nuk u gjet në server."
     )
+
+@router.post("/sync-to-b2")
+async def sync_laws_to_b2(current_user = Depends(get_current_user)):
+    """Uploads all local PDF files from data/laws/ks/ directly to Backblaze B2 cloud storage."""
+    try:
+        s3 = storage_service.get_s3_client()
+        bucket = storage_service.B2_BUCKET_NAME
+
+        current_file = os.path.abspath(__file__)
+        endpoints_dir = os.path.dirname(current_file)
+        api_dir = os.path.dirname(endpoints_dir)
+        app_dir = os.path.dirname(api_dir)
+        backend_dir = os.path.dirname(app_dir)
+        project_root = os.path.dirname(backend_dir)
+
+        search_dirs = [
+            os.path.join(project_root, "data", "laws"),
+            os.path.join(backend_dir, "data", "laws"),
+            "data/laws"
+        ]
+
+        uploaded = []
+        for s_dir in search_dirs:
+            if not os.path.exists(s_dir):
+                continue
+            for root, _, files in os.walk(s_dir):
+                for f in files:
+                    if f.lower().endswith('.pdf'):
+                        local_path = os.path.join(root, f)
+                        b2_key = f"laws/ks/{f}"
+                        try:
+                            s3.upload_file(
+                                local_path, 
+                                bucket, 
+                                b2_key, 
+                                ExtraArgs={'ContentType': 'application/pdf'}
+                            )
+                            uploaded.append(f)
+                            logger.info(f"[B2 Cloud Sync] Uploaded: {b2_key}")
+                        except Exception as e:
+                            logger.error(f"[B2 Cloud Sync Error] {f}: {e}")
+
+        return {
+            "status": "SUCCESS", 
+            "message": f"U ngarkuan me sukses {len(uploaded)} dokumente PDF në Backblaze B2.",
+            "uploaded_files": uploaded
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dështoi sinkronizimi në B2: {str(e)}")
 
 @router.post("/explain")
 async def explain_law_article(request: LawExplainRequest, current_user = Depends(get_current_user)):
