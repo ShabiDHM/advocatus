@@ -1,13 +1,11 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V14.0 (SAAS ALIGNED)
-# 1. FIX: Removed ChromaDB '.get()' commands.
-# 2. ALIGNMENT: Uses direct MongoDB queries for extreme speed.
-# 3. STATUS: 100% Production Ready.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V15.0 (FUZZY LAW NUMBER & ARTICLE RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Set, Any
+import re
 from app.services import vector_store_service, llm_service
 from app.api.endpoints.dependencies import get_current_user
 
@@ -32,6 +30,52 @@ def _natural_sort_key(article_any: Any) -> List[int]:
     article = str(article_any) if article_any is not None else "0"
     parts = article.split('.')
     return [int(p) for p in parts if p.isdigit()]
+
+def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dict]:
+    """
+    Multi-stage resilient resolver to match legal articles in MongoDB.
+    Resolves official law numbers (e.g. 04/L-077), case differences, and article formats (258 vs 258.).
+    """
+    clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
+    art_variants = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}"]
+
+    # Stage 1: Match by Law Number (e.g. 04/L-077 or 06/L-006)
+    law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', raw_law_title, re.I)
+    if law_num_match:
+        law_code = law_num_match.group(1)
+        query = {
+            "law_title": {"$regex": re.escape(law_code), "$options": "i"},
+            "article_number": {"$in": art_variants}
+        }
+        cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
+        docs = list(cursor)
+        if docs:
+            return docs
+
+    # Stage 2: Case-insensitive exact match on whole law_title string
+    query = {
+        "law_title": {"$regex": f"^{re.escape(raw_law_title.strip())}$", "$options": "i"},
+        "article_number": {"$in": art_variants}
+    }
+    cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
+    docs = list(cursor)
+    if docs:
+        return docs
+
+    # Stage 3: Keyword substring match on primary title words
+    words = [w for w in raw_law_title.split() if len(w) > 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe']]
+    if words:
+        key_pattern = "|".join([re.escape(w) for w in words[:3]])
+        query = {
+            "law_title": {"$regex": key_pattern, "$options": "i"},
+            "article_number": {"$in": art_variants}
+        }
+        cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
+        docs = list(cursor)
+        if docs:
+            return docs
+
+    return []
 
 RIGID_AUDITOR_PROMPT = """
 ROLI: Ti je 'Krye-Auditori Forenzik' i certifikuar për juridiksionin e Kosovës.
@@ -66,16 +110,10 @@ async def explain_law_article(request: LawExplainRequest, current_user = Depends
 @router.post("/audit-chat")
 async def audit_chat(request: AuditChatRequest, current_user = Depends(get_current_user)):
     try:
-        # PHOENIX FIX: Direct MongoDB Query
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        cursor = db.legal_knowledge_base.find({
-            "law_title": request.law_title,
-            "article_number": request.article_number
-        }).sort("chunk_index", 1)
-        
-        documents = list(cursor)
+        documents = find_law_documents(db, request.law_title, request.article_number)
         
         if not documents:
             raise HTTPException(status_code=404, detail=f"Article not found: {request.law_title}, Neni {request.article_number}")
@@ -101,7 +139,6 @@ async def search_laws(q: str = Query(...), limit: int = Query(50, ge=1, le=200),
 @router.get("/titles")
 async def get_law_titles(current_user = Depends(get_current_user)):
     try:
-        # PHOENIX FIX: Use MongoDB distinct() for blazingly fast unique titles
         from app.core.db import get_db_instance
         db = get_db_instance()
         titles = db.legal_knowledge_base.distinct("law_title")
@@ -114,18 +151,15 @@ async def get_law_article(law_title: str = Query(...), article_number: str = Que
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
-        cursor = db.legal_knowledge_base.find({
-            "law_title": law_title,
-            "article_number": article_number
-        }).sort("chunk_index", 1)
         
-        documents = list(cursor)
+        documents = find_law_documents(db, law_title, article_number)
+        
         if not documents: 
-            raise HTTPException(status_code=404, detail="Article not found")
+            raise HTTPException(status_code=404, detail=f"Neni nuk u gjet për ligjin '{law_title}', Neni {article_number}")
 
         return {
-            "law_title": law_title,
-            "article_number": article_number,
+            "law_title": documents[0].get("law_title", law_title),
+            "article_number": documents[0].get("article_number", article_number),
             "source": documents[0].get("source", ""),
             "text": "\n\n".join([doc.get("text", "") for doc in documents])
         }
@@ -138,22 +172,34 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        # Get unique article numbers for the specific law
-        cursor = db.legal_knowledge_base.find({"law_title": law_title}, {"article_number": 1, "source": 1})
+        # Try exact title or regex match by law number
+        query = {"law_title": law_title}
+        law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', law_title, re.I)
+        if law_num_match:
+            query = {"law_title": {"$regex": re.escape(law_num_match.group(1)), "$options": "i"}}
+        
+        cursor = db.legal_knowledge_base.find(query, {"law_title": 1, "article_number": 1, "source": 1})
         docs = list(cursor)
         
         if not docs: 
-            raise HTTPException(status_code=404, detail="Law not found")
+            # Fallback to exact regex string match
+            cursor = db.legal_knowledge_base.find({"law_title": {"$regex": f"^{re.escape(law_title)}$", "$options": "i"}}, {"law_title": 1, "article_number": 1, "source": 1})
+            docs = list(cursor)
+
+        if not docs:
+            raise HTTPException(status_code=404, detail="Ligji nuk u gjet")
         
+        canonical_title = docs[0].get("law_title", law_title)
         articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") is not None}
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
         
         return {
-            "law_title": law_title,
+            "law_title": canonical_title,
             "source": str(docs[0].get("source", "")),
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
