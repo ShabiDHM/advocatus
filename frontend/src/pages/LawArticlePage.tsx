@@ -1,13 +1,14 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V12.1 (LINTER & UNUSED IMPORT CLEANED)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V14.0 (EXECUTIVE SEQUENTIAL STEPPER & QUICK JUMP)
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
-  Loader2, X, BrainCircuit, User, Send, MessageCircle, FileText, ExternalLink, Download 
+  Loader2, X, BrainCircuit, User, Send, MessageCircle, FileText, ExternalLink, Download,
+  ChevronLeft, ChevronRight, Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,32 +27,52 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// ========== PHOENIX: ENHANCED GAZETA & BOUNDARY SANITIZATION ==========
+// ========== PHOENIX: PRECISION LEGAL TEXT SANITIZER ==========
 const normalizeText = (raw: string, articleNum?: string): string => {
   if (!raw) return '';
 
   let cleaned = raw;
 
+  // 1. Remove page dividers and gazette headers/footers
   cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
   cleaned = cleaned.replace(/GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/FLETORJA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+SHQIPËRISË.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/(?:KODI|LIGJI|UDHËZIMI|UDHËZIM)\s+Nr\.\s*[\d\/L\-]+\s+[A-ZËÇSHQËWXYZ\s\-]+(?=\n|$)/gi, '');
+
+  // 2. Remove standalone page numbers on individual lines
   cleaned = cleaned.replace(/^\s*\d{1,3}\s*$/gm, '');
 
-  if (articleNum) {
-    const numMatch = articleNum.match(/\d+/);
-    if (numMatch) {
-      const currentNum = parseInt(numMatch[0], 10);
-      const nextNum = currentNum + 1;
-      
-      const nextArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${nextNum}\\b`, 'i');
-      const match = cleaned.match(nextArticleRegex);
-      if (match && match.index !== undefined) {
-        cleaned = cleaned.substring(0, match.index).trim();
-      }
+  const cleanNumStr = (articleNum || '').replace(/\.$/, '').trim();
+  const numMatch = cleanNumStr.match(/\d+/);
+  const currentNum = numMatch ? parseInt(numMatch[0], 10) : 0;
+  const isPreamble = currentNum === 0 || cleanNumStr.toLowerCase() === 'preambula' || cleanNumStr.toLowerCase() === 'hyrja';
+
+  // 3. Truncate preamble before Neni 1
+  if (isPreamble) {
+    const neni1Match = cleaned.match(/(?:^|\n)\s*(?:Neni|NENI)\s+1\b/i);
+    if (neni1Match && neni1Match.index !== undefined) {
+      cleaned = cleaned.substring(0, neni1Match.index).trim();
     }
+  } else if (currentNum > 0) {
+    // 4. Isolate text between Neni X and Neni X+1
+    const currentArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${currentNum}\\b`, 'i');
+    const startMatch = cleaned.match(currentArticleRegex);
+    if (startMatch && startMatch.index !== undefined) {
+      cleaned = cleaned.substring(startMatch.index).trim();
+    }
+
+    const nextNum = currentNum + 1;
+    const nextArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${nextNum}\\b`, 'i');
+    const endMatch = cleaned.match(nextArticleRegex);
+    if (endMatch && endMatch.index !== undefined) {
+      cleaned = cleaned.substring(0, endMatch.index).trim();
+    }
+
+    // Strip redundant leading "Neni X" heading line from the body
+    cleaned = cleaned.replace(new RegExp(`^(?:Neni|NENI)\\s+${currentNum}\\b[:\\.\\-]*\\s*`, 'i'), '').trim();
   }
 
+  // 5. Merge split lines & deduplicate identical consecutive lines
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
   
@@ -78,11 +99,9 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   }
   
   cleaned = mergedLines.join('\n');
-  cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\1/g, '$1');
-  cleaned = cleaned.replace(/(\d+\.)\s*\n\s*\d+\.\s*/g, '$1 ');
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
+  // 6. Split into paragraphs and remove adjacent duplicate blocks
   const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs
     .map(para => para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
@@ -133,8 +152,9 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- PDF MODAL STATE ---
+  // --- PDF MODAL & JUMP STATE ---
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [jumpInput, setJumpInput] = useState('');
 
   // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -159,6 +179,18 @@ export default function LawArticlePage() {
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
+  // Compute current numerical article index for Stepper (Neni X-1 / Neni X+1)
+  const currentNum = useMemo(() => {
+    const cleanNum = (article?.article_number || articleNumber || '').replace(/\.$/, '').trim();
+    const match = cleanNum.match(/\d+/);
+    if (match) return parseInt(match[0], 10);
+    if (cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja' || cleanNum === '0') return 0;
+    return null;
+  }, [article?.article_number, articleNumber]);
+
+  const prevArticleNum = currentNum !== null && currentNum > 0 ? (currentNum === 1 ? '0' : String(currentNum - 1)) : null;
+  const nextArticleNum = currentNum !== null ? String(currentNum + 1) : null;
+
   const perspectives = useMemo(() => {
     let cleanText = summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '');
     let parts = cleanText.split('[NDARJA]');
@@ -179,6 +211,8 @@ export default function LawArticlePage() {
     }
     
     const loadArticle = async () => {
+      setLoading(true);
+      setError('');
       try {
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
@@ -303,11 +337,25 @@ export default function LawArticlePage() {
     }
   };
 
+  const navigateToArticleNum = (targetArt: string) => {
+    if (!lawTitle) return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigate(`/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(targetArt)}`);
+  };
+
+  const handleJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jumpInput.trim() || !lawTitle) return;
+    const clean = jumpInput.trim().replace(/^neni\s*/i, '');
+    navigateToArticleNum(clean);
+    setJumpInput('');
+  };
+
   const handleBack = () => {
-    if (window.history.length > 1) {
+    if (lawTitle) {
+      navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
+    } else if (window.history.length > 1) {
       navigate(-1);
-    } else if (article?.law_title) {
-      navigate(`/laws/overview?lawTitle=${encodeURIComponent(article.law_title)}`);
     } else {
       navigate('/laws/search');
     }
@@ -347,17 +395,62 @@ export default function LawArticlePage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-lawyer-dark border border-border-main">
           
-          <div className="flex items-center justify-between mb-8">
+          {/* Top Control Bar: Back Button, Quick Stepper, Jump Box, Audit Button */}
+          <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
+            
+            {/* Back Button */}
             <button
               onClick={handleBack}
-              className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-sm uppercase tracking-widest hover-lift"
+              className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-xs sm:text-sm uppercase tracking-widest hover-lift"
             >
               <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
                 <ArrowLeft size={16} className="text-primary-start" />
               </div>
-              {t('general.back', 'Kthehu Mbrapa')}
+              <span className="hidden sm:inline">{t('lawOverview.tableOfContents', 'Përmbajtja')}</span>
             </button>
 
+            {/* Middle Zone: Fast Stepper & Jump Box */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Previous Article Button */}
+              {prevArticleNum !== null && (
+                <button
+                  type="button"
+                  onClick={() => navigateToArticleNum(prevArticleNum)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-surface border border-border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
+                  title="Neni i Mëparshëm"
+                >
+                  <ChevronLeft size={14} className="text-primary-start" />
+                  <span className="hidden sm:inline">{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
+                </button>
+              )}
+
+              {/* Quick Jump Input */}
+              <form onSubmit={handleJumpSubmit} className="relative flex items-center">
+                <Search size={12} className="absolute left-3 text-text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Kërko nenin..."
+                  value={jumpInput}
+                  onChange={(e) => setJumpInput(e.target.value)}
+                  className="w-28 sm:w-32 h-9 pl-8 pr-2 bg-canvas border border-border-main rounded-xl text-xs font-bold text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 focus:outline-none"
+                />
+              </form>
+
+              {/* Next Article Button */}
+              {nextArticleNum !== null && (
+                <button
+                  type="button"
+                  onClick={() => navigateToArticleNum(nextArticleNum)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-surface border border-border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
+                  title="Neni i Ardhshëm"
+                >
+                  <span className="hidden sm:inline">{`Neni ${nextArticleNum}`}</span>
+                  <ChevronRight size={14} className="text-primary-start" />
+                </button>
+              )}
+            </div>
+
+            {/* AI Audit Action Button */}
             {!chatVisible ? (
               <button
                 onClick={handleStartAudit}
@@ -380,7 +473,7 @@ export default function LawArticlePage() {
 
           <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-border-main rounded-2xl">
             
-            {/* Header */}
+            {/* Executive Header */}
             <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-6">
@@ -406,15 +499,41 @@ export default function LawArticlePage() {
                 </div>
 
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tighter">{article.law_title}</h1>
-                <div className="flex items-center gap-4 border-t border-border-main/50 pt-6 mt-2">
-                  <Scale size={24} className="text-primary-start" />
-                  <p className="text-lg font-black text-primary-start uppercase tracking-widest">
-                    {(() => {
-                      const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
-                      const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
-                      return isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${cleanNum}`;
-                    })()}
-                  </p>
+                <div className="flex items-center justify-between border-t border-border-main/50 pt-6 mt-2">
+                  <div className="flex items-center gap-3">
+                    <Scale size={24} className="text-primary-start" />
+                    <p className="text-lg font-black text-primary-start uppercase tracking-widest">
+                      {(() => {
+                        const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
+                        const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
+                        return isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${cleanNum}`;
+                      })()}
+                    </p>
+                  </div>
+
+                  {/* Bottom Header Navigation Pill */}
+                  <div className="flex items-center gap-2">
+                    {prevArticleNum !== null && (
+                      <button
+                        type="button"
+                        onClick={() => navigateToArticleNum(prevArticleNum)}
+                        className="p-2 rounded-lg bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-primary-start transition-colors"
+                        title="Neni i Mëparshëm"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                    )}
+                    {nextArticleNum !== null && (
+                      <button
+                        type="button"
+                        onClick={() => navigateToArticleNum(nextArticleNum)}
+                        className="p-2 rounded-lg bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-primary-start transition-colors"
+                        title="Neni i Ardhshëm"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -622,14 +741,39 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* Footer Actions */}
-            <div className="bg-surface px-8 py-6 flex justify-between items-center border-t border-border-main">
+            {/* Footer Stepper & Action Controls */}
+            <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
               <button
                 onClick={handleBack}
                 className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
               >
-                <ArrowLeft size={14} /> {t('lawArticle.backToSearch', 'Kthehu Mbrapa')}
+                <ArrowLeft size={14} /> {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit')}
               </button>
+
+              <div className="flex items-center gap-3">
+                {prevArticleNum !== null && (
+                  <button
+                    type="button"
+                    onClick={() => navigateToArticleNum(prevArticleNum)}
+                    className="flex items-center gap-2 px-4 py-2 bg-canvas hover:bg-hover border border-border-main rounded-xl text-xs font-bold text-text-primary hover:border-primary-start transition-all hover-lift shadow-sm"
+                  >
+                    <ChevronLeft size={16} />
+                    <span>{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
+                  </button>
+                )}
+
+                {nextArticleNum !== null && (
+                  <button
+                    type="button"
+                    onClick={() => navigateToArticleNum(nextArticleNum)}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 rounded-xl text-xs font-black text-primary-start transition-all hover-lift shadow-sm uppercase tracking-wider"
+                  >
+                    <span>{`Neni ${nextArticleNum}`}</span>
+                    <ChevronRight size={16} />
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                 className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors bg-canvas px-4 py-2 rounded-lg border border-border-main hover:border-primary-start hover-lift shadow-sm"
@@ -652,7 +796,6 @@ export default function LawArticlePage() {
               exit={{ scale: 0.95, opacity: 0 }} 
               className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
-              {/* Modal Header */}
               <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
@@ -689,7 +832,6 @@ export default function LawArticlePage() {
                 </div>
               </div>
 
-              {/* Scrollable PDF Iframe Container */}
               <div className="flex-1 w-full h-full bg-slate-900 relative">
                 <iframe 
                   src={pdfUrl} 

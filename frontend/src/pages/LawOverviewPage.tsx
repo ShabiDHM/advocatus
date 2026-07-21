@@ -1,11 +1,11 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V5.0 (PREAMBLE & ARTICLE NUMBERING SYNCHRONIZED)
+// PHOENIX PROTOCOL - LAW OVERVIEW V6.1 (LINTER WARNING CLEANED)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, Search, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface LawOverviewData {
@@ -22,6 +22,7 @@ export default function LawOverviewPage() {
   const [data, setData] = useState<LawOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filterTerm, setFilterTerm] = useState('');
 
   const lawTitle = searchParams.get('lawTitle');
 
@@ -39,6 +40,19 @@ export default function LawOverviewPage() {
       })
       .finally(() => setLoading(false));
   }, [lawTitle, t]);
+
+  const filteredArticles = useMemo(() => {
+    if (!data?.articles) return [];
+    if (!filterTerm.trim()) return data.articles;
+
+    const term = filterTerm.toLowerCase().trim();
+    return data.articles.filter(article => {
+      const cleanArt = article.replace(/\.$/, '').trim();
+      const isPreamble = cleanArt === '0' || cleanArt.toLowerCase().includes('preambula') || cleanArt.toLowerCase().includes('hyrja');
+      const label = isPreamble ? 'preambula hyrja' : `neni ${cleanArt}`;
+      return label.includes(term) || cleanArt.includes(term);
+    });
+  }, [data?.articles, filterTerm]);
 
   if (loading) {
     return (
@@ -95,7 +109,6 @@ export default function LawOverviewPage() {
           
           {/* Executive Header */}
           <div className="bg-surface px-8 py-10 sm:px-12 sm:py-12 border-b border-border-main relative overflow-hidden">
-            {/* Decorative background accent */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
             
             <div className="relative z-10 flex flex-col gap-6">
@@ -129,30 +142,51 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
-          {/* Table of Contents Grid */}
+          {/* Table of Contents Grid & Filter Bar */}
           <div className="bg-canvas/30 px-8 sm:px-12 py-10 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
-            <h2 className="text-[11px] font-black text-text-muted uppercase tracking-widest mb-6 flex items-center gap-2">
-                <BookOpen size={16} className="text-primary-start" />
-                {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
-            </h2>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {data.articles.map((article) => {
-                const cleanArt = article.replace(/\.$/, '').trim();
-                const isPreamble = cleanArt === '0' || cleanArt.toLowerCase() === 'preambula' || cleanArt.toLowerCase() === 'hyrja';
-                const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <h2 className="text-[11px] font-black text-text-muted uppercase tracking-widest flex items-center gap-2">
+                  <BookOpen size={16} className="text-primary-start" />
+                  {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
+              </h2>
 
-                return (
-                  <button
-                    key={article}
-                    onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
-                    className="flex items-center justify-center px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift"
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+              {/* Real-time Filter Input */}
+              <div className="relative w-full sm:w-64 h-10">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  placeholder="Filtro nenin..."
+                  value={filterTerm}
+                  onChange={(e) => setFilterTerm(e.target.value)}
+                  className="w-full h-10 pl-9 pr-3 bg-surface border border-border-main rounded-xl text-xs font-semibold text-text-primary placeholder:text-text-disabled focus:border-primary-start focus:ring-1 focus:ring-primary-start focus:outline-none transition-all"
+                />
+              </div>
             </div>
+            
+            {filteredArticles.length === 0 ? (
+              <div className="text-center py-12 text-text-muted italic text-xs font-semibold">
+                Nuk u gjet asnjë nen për këtë kërkim.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {filteredArticles.map((article) => {
+                  const cleanArt = article.replace(/\.$/, '').trim();
+                  const isPreamble = cleanArt === '0' || cleanArt.toLowerCase() === 'preambula' || cleanArt.toLowerCase() === 'hyrja';
+                  const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+
+                  return (
+                    <button
+                      key={article}
+                      onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
+                      className="flex items-center justify-center gap-2 px-4 py-4 bg-surface border border-border-main rounded-xl transition-all text-sm font-black text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift"
+                    >
+                      <Hash size={12} className="text-primary-start/50 shrink-0" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}
