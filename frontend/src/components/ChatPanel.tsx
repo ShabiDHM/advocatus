@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V15.0 (AUTOMATIC DYNAMIC LEGAL CITATION LINKING)
+// PHOENIX PROTOCOL - CHAT PANEL V16.0 (STRICT NULL-GUARDED RENDERER)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,26 +53,29 @@ const ThinkingDots = () => (
     </span>
 );
 
-// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER ==========
-const autoLinkLegalCitations = (text: string): string => {
-  if (!text) return '';
+// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER (SAFEGUARDED) ==========
+const autoLinkLegalCitations = (text: any): string => {
+  if (!text || typeof text !== 'string') return '';
 
-  // Regex pattern matching Kosovo/Albania legal citations (e.g., "Ligjit Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 258")
   const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
 
-  return text.replace(citationRegex, (match, lawPrefix, lawTitle, articleNum) => {
-    // Reconstruct law full name cleanly
-    const fullLawName = `${lawPrefix} ${lawTitle.trim()}`;
-    const cleanArtNum = articleNum.trim();
-
-    const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${cleanArtNum}`;
-    
-    return `[${match.trim()}](${targetUrl})`;
-  });
+  try {
+    return text.replace(citationRegex, (match, lawPrefix, lawTitle, articleNum) => {
+      const fullLawName = `${lawPrefix} ${lawTitle.trim()}`;
+      const cleanArtNum = articleNum.trim();
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${cleanArtNum}`;
+      return `[${match.trim()}](${targetUrl})`;
+    });
+  } catch (err) {
+    console.error("Citation replacement failed:", err);
+    return String(text);
+  }
 };
 
 // Helper to split AI response into clean Markdown content and structured follow-up questions
-const extractFollowUpQuestions = (text: string): { cleanText: string; questions: string[] } => {
+const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
+    if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
+
     const marker = "Sugjerime:";
     const markerIndex = text.lastIndexOf(marker);
     if (markerIndex !== -1) {
@@ -92,7 +95,7 @@ const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = async () => {
         try { 
-            const { cleanText } = extractFollowUpQuestions(text);
+            const { cleanText } = extractFollowUpQuestions(text || '');
             await navigator.clipboard.writeText(cleanText); 
             setCopied(true); 
             setTimeout(() => setCopied(false), 2000); 
@@ -159,7 +162,7 @@ const FeedbackButtons: React.FC<{
     );
 };
 
-const LawPreviewTooltip: React.FC<{ chunkId?: string; href?: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
+const LawPreviewTooltip: React.FC<{ chunkId?: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [show, setShow] = useState(false);
@@ -207,7 +210,7 @@ const MarkdownComponents = (t: TFunction) => ({
         if (href?.startsWith('/laws/')) {
             const chunkId = href.startsWith('/laws/chunk/') ? href.split('/').pop() : undefined;
             return (
-                <LawPreviewTooltip chunkId={chunkId} href={href} t={t}>
+                <LawPreviewTooltip chunkId={chunkId} t={t}>
                     <Link
                         to={href}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 my-0.5"
@@ -228,7 +231,7 @@ const MarkdownComponents = (t: TFunction) => ({
 });
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0
+    messages = [], connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
@@ -267,8 +270,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleRetry = () => { if (lastUserMessage) sendMessage(lastUserMessage); };
 
-  const lastMessage = messages[messages.length - 1];
-  const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  const lastMessage = safeMessages[safeMessages.length - 1];
+  const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content?.trim());
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
@@ -279,7 +283,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         {/* Left group */}
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold text-text-primary uppercase tracking-wide leading-none">
-            {t('chatPanel.title')}
+            {t('chatPanel.title', 'Asistenti Sokratik')}
           </h2>
           <div className="flex items-center justify-center ml-0.5">
             <span className={`
@@ -332,10 +336,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR & AUTO-LINKED LEGAL CITATIONS */}
+      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR & STRICT TYPE-GUARDED RENDERER */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
         <AnimatePresence initial={false}>
-          {messages.filter(m => m.content.trim() !== "").map((msg, idx) => {
+          {safeMessages.filter(m => m && typeof m.content === 'string' && m.content.trim() !== "").map((msg, idx) => {
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
             const autoLinkedText = autoLinkLegalCitations(cleanText);
             
@@ -344,17 +348,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
                   {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
                 </div>
-                {/* UNIFIED BUBBLE STYLING */}
+                
                 <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                   <MessageCopyButton text={msg.content} />
                   
-                  {/* Clean response with Interactive Law Citations */}
+                  {/* Clean response */}
                   <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
                   
                   {/* DYNAMIC INTERACTIVE FOLLOW-UP QUESTIONS */}
-                  {msg.role === 'ai' && idx === messages.length - 1 && !isSendingMessage && suggestedQuestions.length > 0 && (
+                  {msg.role === 'ai' && idx === safeMessages.length - 1 && !isSendingMessage && suggestedQuestions.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
                               <Sparkles size={11} className="text-primary-start animate-pulse" /> {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
@@ -375,10 +379,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       </div>
                   )}
 
-                  {msg.role === 'ai' && activeContextId !== 'general' && !msg.content.startsWith('[Gabim Teknik') && (
+                  {msg.role === 'ai' && activeContextId !== 'general' && typeof msg.content === 'string' && !msg.content.startsWith('[Gabim Teknik') && (
                     <FeedbackButtons messageIndex={idx} caseId={activeContextId} onFeedback={(i, f) => handleFeedback(i, f)} disabled={feedbackGiven.has(idx)} />
                   )}
-                  {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
+                  {msg.role === 'ai' && typeof msg.content === 'string' && msg.content.startsWith('[Gabim Teknik') && (
                     <button 
                         type="button"
                         onClick={handleRetry} 
@@ -413,7 +417,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               value={input} 
               onChange={(e) => setInput(e.target.value)} 
               onKeyDown={handleKeyDown} 
-              placeholder={t('chatPanel.inputPlaceholder')} 
+              placeholder={t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu...')} 
               className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" 
               rows={1} 
             />

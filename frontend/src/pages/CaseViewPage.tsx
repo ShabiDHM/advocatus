@@ -1,6 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.20 (UNIFIED UNLIMITED TIER)
-// 1. FIX: Set isPro statically to 'true' to completely unlock all AI, War Room, and Forensic features on the front-end interface.
+// PHOENIX PROTOCOL - CASE VIEW V16.22 (TYPO FIXED: FINALLY BLOCK)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -26,17 +25,46 @@ type CaseData = { details: Case | null; };
 type ActiveModal = 'none' | 'analysis';
 type ViewMode = 'workspace' | 'analyst';
 
+// ========== PHOENIX: BULLETPROOF CHAT HISTORY NORMALIZER ==========
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
     const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
     if (!Array.isArray(rawArray)) return [];
-    return rawArray.map((item: any) => {
-        const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
-        const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) ? 'ai' : 'user';
-        const content = item.content || item.message || item.text || '';
-        const timestamp = item.timestamp || item.created_at || new Date().toISOString();
-        return { role, content, timestamp };
-    }).filter(msg => msg.content.trim() !== '');
+
+    return rawArray
+        .map((item: any) => {
+            if (!item) return null;
+
+            const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
+            const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) ? 'ai' : 'user';
+            
+            let contentStr = '';
+            if (typeof item.content === 'string') {
+                contentStr = item.content;
+            } else if (typeof item.message === 'string') {
+                contentStr = item.message;
+            } else if (typeof item.text === 'string') {
+                contentStr = item.text;
+            } else if (item.content && typeof item.content === 'object') {
+                contentStr = item.content.text || item.content.message || JSON.stringify(item.content);
+            } else {
+                contentStr = safeString(item.content || item.message || item.text);
+            }
+
+            const timestamp = item.timestamp || item.created_at || new Date().toISOString();
+            return { role, content: contentStr, timestamp };
+        })
+        .filter((msg): msg is ChatMessage => Boolean(msg && typeof msg.content === 'string' && msg.content.trim() !== ''));
+};
+
+const safeString = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    try {
+        return JSON.stringify(val);
+    } catch {
+        return String(val);
+    }
 };
 
 const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRename: (newName: string) => Promise<void>; currentName: string; t: TFunction; }> = ({ isOpen, onClose, onRename, currentName, t }) => {
@@ -185,7 +213,7 @@ const CaseHeader: React.FC<{
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
-                        {/* Minimalist Split-Button Wrapper with 3 Interactive Zones */}
+                        {/* Minimalist Split-Button Wrapper */}
                         <div className="w-full">
                             {hasExistingAnalysis ? (
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
@@ -267,7 +295,6 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // PHOENIX BYPASS: Set to 'true' globally to unlock all advanced litigation features under a single unified plan
   const isPro = true; 
   
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -284,7 +311,10 @@ const CaseViewPage: React.FC = () => {
     const stored = localStorage.getItem(`chat_${caseId}`);
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+            return parsed.filter(m => m && typeof m.content === 'string' && m.content.trim() !== '');
+        }
       } catch { return null; }
     }
     return null;
@@ -295,7 +325,6 @@ const CaseViewPage: React.FC = () => {
     if (!caseId) return;
     try {
       await apiService.updateChatHistory(caseId, messages);
-      console.log("Chat history saved to backend");
     } catch (err) {
       console.error('Failed to persist chat history to backend:', err);
     }
@@ -313,7 +342,6 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
       
-      // Load pre-existing persistent AI analysis results if present
       if (details && (details as any).latest_analysis) {
         setAnalysisResult((details as any).latest_analysis);
       }
@@ -358,7 +386,6 @@ const CaseViewPage: React.FC = () => {
     try {
         await apiService.clearCaseAnalysis(caseId);
         setAnalysisResult(null);
-        // Clear local state so the button instantly changes back to "Analizo Rastin"
         setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: null } } : prev);
     } catch {
         alert(t('error.generic'));
@@ -368,7 +395,6 @@ const CaseViewPage: React.FC = () => {
   const handleAnalyze = async (force = false) => {
     if (!caseId) return;
     
-    // Open immediately with 0 seconds delay if saved analysis exists (and not force re-analyzing or cross-examining)
     if (caseData.details && (caseData.details as any).latest_analysis && !force && selectedDocumentIds.length === 0) {
         setAnalysisResult((caseData.details as any).latest_analysis);
         setActiveModal('analysis');
@@ -383,7 +409,6 @@ const CaseViewPage: React.FC = () => {
       else { 
         setAnalysisResult(result); 
         setActiveModal('analysis'); 
-        // Instantly cache in the local UI state so it stays loaded
         setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: result } } : prev);
       }
     } catch { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
@@ -398,12 +423,11 @@ const CaseViewPage: React.FC = () => {
     try {
       let acc = '';
       
-      // Perform the silent prompt suggestions enrichment ONLY on the outgoing API stream payload
       const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas in lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
       
       const stream = apiService.sendChatMessageStream(
           caseId, 
-          enrichedText, // Transmit the enriched instructions safely to DeepSeek
+          enrichedText, 
           documentIds, 
           jurisdiction, 
           reasoning, 
@@ -450,7 +474,7 @@ const CaseViewPage: React.FC = () => {
             documents={liveDocuments} 
             t={t} 
             onAnalyze={handleAnalyze} 
-            onClearAnalysis={handleClearAnalysis} // Bound the clear action cleanly
+            onClearAnalysis={handleClearAnalysis} 
             isAnalyzing={isAnalyzing} 
             viewMode={viewMode} 
             setViewMode={setViewMode} 
