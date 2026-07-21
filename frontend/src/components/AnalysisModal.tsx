@@ -1,18 +1,16 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V16.4 (EXECUTIVE DOUBLE SUB-TAB SYSTEM)
-// POLISH: Resolved mobile capsule layout overlap, standardized scroll locks, and replaced border tokens.
-
-/* eslint-disable tailwindcss/no-contradicting-classname */
+// PHOENIX PROTOCOL - ANALYSIS MODAL V17.0 (CLICKABLE LEGAL CITATION BADGES)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { 
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
     Link as LinkIcon, Clock, Skull, AlertOctagon,
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle,
-    ZoomIn, ZoomOut, User, Landmark
+    ZoomIn, ZoomOut, User, Landmark, Eye
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
@@ -74,29 +72,93 @@ const splitExecutiveSummary = (text: string): { citizenText: string; lawyerText:
     return { citizenText: text, lawyerText: "" };
 };
 
+// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER ==========
+const renderTextWithCitations = (text: string) => {
+    if (!text) return null;
+    const clean = cleanLegalText(text);
+
+    // Citation pattern matching: (Ligjit|Ligji|Kodi|Kodin) Nr. XX/L-XXX, Neni YYY
+    const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
+
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = citationRegex.exec(clean)) !== null) {
+        if (match.index > lastIndex) {
+            elements.push(clean.substring(lastIndex, match.index));
+        }
+
+        const fullMatch = match[0];
+        const lawPrefix = match[1];
+        const lawTitle = match[2].trim();
+        const articleNum = match[3].trim();
+        const fullLawName = `${lawPrefix} ${lawTitle}`;
+        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
+
+        elements.push(
+            <Link
+                key={match.index}
+                to={targetUrl}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 mx-1 align-middle"
+                title={`Hap ${fullMatch}`}
+            >
+                <Scale size={11} className="text-primary-start" />
+                <span>{fullMatch}</span>
+                <Eye size={11} className="opacity-70 ml-0.5" />
+            </Link>
+        );
+
+        lastIndex = citationRegex.lastIndex;
+    }
+
+    if (lastIndex < clean.length) {
+        elements.push(clean.substring(lastIndex));
+    }
+
+    return elements;
+};
+
 const renderCitationItem = (item: any) => {
     if (typeof item === 'object' && item !== null && (item.law || item.title)) {
         const lawTitle = item.law || item.title || "Ligj i Paidentifikuar";
         const article = item.article || item.legal_basis || "";
         const body = item.relevance || item.argument || item.description || "";
 
+        const cleanArtNum = strArticleNumber(article);
+        const targetUrl = cleanArtNum ? `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(cleanArtNum)}` : null;
+
         return (
             <div className="flex flex-col gap-3 w-full">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2 font-bold text-primary-start text-xs uppercase tracking-wide group">
                         <LinkIcon size={12} className="text-primary-start opacity-70" />
-                        <span className="border-b border-dashed border-primary-start/30 pb-0.5">{lawTitle}</span>
+                        {targetUrl ? (
+                            <Link to={targetUrl} className="border-b border-dashed border-primary-start/50 hover:border-primary-start pb-0.5 text-primary-start transition-colors flex items-center gap-1">
+                                {lawTitle}
+                                <Eye size={12} className="opacity-70" />
+                            </Link>
+                        ) : (
+                            <span className="border-b border-dashed border-primary-start/30 pb-0.5">{lawTitle}</span>
+                        )}
                     </div>
                     {article && (
-                        <div className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 leading-relaxed">
-                            {article}
-                        </div>
+                        targetUrl ? (
+                            <Link to={targetUrl} className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 hover:bg-success-start/20 transition-all flex items-center gap-1">
+                                {article}
+                                <Eye size={10} />
+                            </Link>
+                        ) : (
+                            <div className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 leading-relaxed">
+                                {article}
+                            </div>
+                        )
                     )}
                 </div>
                 {body && (
-                    <div className="text-gray-700 dark:text-gray-300 text-[13px] leading-relaxed pl-5 border-l-2 border-main ml-0.5 mt-1">
+                    <div className="text-text-secondary text-[13px] leading-relaxed pl-5 border-l-2 border-main ml-0.5 mt-1">
                         <span className="text-primary-start opacity-80 text-[11px] font-black uppercase mr-2 tracking-widest">Relevanca:</span>
-                        {body}
+                        {renderTextWithCitations(body)}
                     </div>
                 )}
             </div>
@@ -104,30 +166,13 @@ const renderCitationItem = (item: any) => {
     }
 
     const rawText = safeString(item);
-    const parts = rawText.split(/(\[.*?\]\(doc:\/\/.*?\))/g);
+    return <span className="leading-relaxed text-text-primary">{renderTextWithCitations(rawText)}</span>;
+};
 
-    return (
-        <span className="leading-relaxed text-gray-900 dark:text-gray-100">
-            {parts.map((part, i) => {
-                const match = part.match(/\[(.*?)\]\((doc:\/\/.*?)\)/);
-                if (match) {
-                    const [_, title, link] = match;
-                    const isGlobal = ["UNCRC", "KEDNJ", "ECHR", "Konventa"].some(k => title.includes(k));
-                    return (
-                        <span key={i} title={link} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-widest border mx-1 align-middle transition-colors cursor-help ${
-                            isGlobal 
-                            ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/30' 
-                            : 'bg-primary-start/10 text-primary-start border-primary-start/30'
-                        }`}>
-                            {isGlobal ? <Globe size={10} /> : <Scale size={10} />}
-                            {title}
-                        </span>
-                    );
-                }
-                return cleanLegalText(part);
-            })}
-        </span>
-    );
+const strArticleNumber = (val: string): string | null => {
+    if (!val) return null;
+    const match = val.match(/\b\d+\b/);
+    return match ? match[0] : null;
 };
 
 const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
@@ -146,7 +191,7 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full left-1/2 transform -translate-x-1/2 mt-3 w-56 p-4 bg-white dark:bg-gray-800 text-[12px] font-medium text-gray-700 dark:text-gray-300 rounded-xl border border-main shadow-2xl z-[100] text-center leading-relaxed"
+                        className="absolute top-full left-1/2 transform -translate-x-1/2 mt-3 w-56 p-4 bg-surface text-[12px] font-medium text-text-secondary rounded-xl border border-main shadow-2xl z-[100] text-center leading-relaxed"
                     >
                         {t('analysis.success_tooltip', 'Probabiliteti i suksesit i vlerësuar nga AI bazuar në faktet dhe ligjin.')}
                     </motion.div>
@@ -169,7 +214,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [isContradictLoading, setIsContradictLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
-  // Prevention of background layout offsets via step 1 hook
   useLockBodyScroll(isOpen);
 
   useEffect(() => {
@@ -240,7 +284,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       const l = level?.toUpperCase();
       if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
       if (l === 'MEDIUM') return t('analysis.risk_medium', 'I MESËM');
-      if (l === 'LOW') return t('analysis.risk_low', 'I ULët');
+      if (l === 'LOW') return t('analysis.risk_low', 'I ULËT');
       return level;
   };
 
@@ -335,7 +379,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                 type="button"
                 onClick={toggleZoom}
                 className="p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-lg transition-all focus:outline-none"
-                title={zoomLevel === 'normal' ? t('analysis.zoomIn', 'Increase text size') : (zoomLevel === 'large' ? t('analysis.zoomMore', 'Even larger') : t('analysis.zoomOut', 'Reset text size'))}
+                title={zoomLevel === 'normal' ? t('analysis.zoomIn', 'Agrandoni tekstin') : (zoomLevel === 'large' ? t('analysis.zoomMore', 'Më i madh') : t('analysis.zoomOut', 'Teksti standard'))}
               >
                 {zoomLevel === 'normal' ? <ZoomIn size={20} /> : (zoomLevel === 'large' ? <ZoomIn size={20} /> : <ZoomOut size={20} />)}
               </button>
@@ -350,7 +394,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
             </div>
           </div>
           
-          {/* Vertical-to-horizontal flex block layout eliminates mobile overlap of capsules */}
           <div className="sm:hidden px-6 py-4 bg-surface border-b border-main flex flex-col sm:flex-row gap-3">
                {renderRiskBadge(risk_level)}
                {renderSuccessBadge(success_probability)}
@@ -375,14 +418,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         {activeTab === 'legal' && (
                             <>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    {/* DOUBLE SUB-TAB SYSTEM FOR EXECUTIVE SUMMARY */}
                                     <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-main shadow-sm hover-lift flex flex-col h-auto">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 border-b border-main pb-3 gap-3">
                                             <h3 className="text-[12px] font-black text-text-secondary uppercase tracking-widest flex items-center gap-2">
                                                 <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
                                             </h3>
                                             
-                                            {/* Symmetrical Sub-tabs to click between Citizen and Lawyer views */}
                                             {lawyerText && (
                                                 <div className="flex items-center gap-1 bg-canvas p-1 rounded-xl w-fit">
                                                     <button
