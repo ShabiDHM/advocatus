@@ -1,7 +1,7 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V7.6 (CLEAN OUTPUT)
-# 1. FIX: Added dynamic multi-column parser supporting both Hyrje (Inflow) and Dalje (Outflow) if Shuma is missing.
-# 2. ENHANCED: Gracefully parses and standardizes custom currency strings.
+# PHOENIX PROTOCOL - FORENSIC ENGINE V7.7 (SAAS TRANSCRIPT UPGRADE)
+# 1. FIX: Upgraded I18N_STRINGS['prompt_persona'] to generate dual-track forensic reports: a plain-language Citizen's Guide, and a technical audit brief.
+# 2. FIX: Mandates the injection of a copy-pasteable drafting prompt (wrapped in codeblocks) inside the action plan.
 
 import pandas as pd
 import io
@@ -27,6 +27,7 @@ from . import llm_service
 
 logger = logging.getLogger(__name__)
 
+# --- CONSTANTS & DATA STRUCTURES ---
 class RiskLevel(str, Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -43,37 +44,45 @@ class AnomalyType(str, Enum):
 THRESHOLD_STRUCTURING_MIN = Decimal('1800.00')
 THRESHOLD_STRUCTURING_MAX = Decimal('1999.99')
 
+# --- INTERNATIONALIZATION ENGINE (KOSOVO FOCUSED) ---
 I18N_STRINGS = {
     'sq': {
         'prompt_persona': """
 Ti je "Këshilltar i Brendshëm Forenzik" për tregun e Kosovës.
-DETYRA: Analizo të dhënat dhe gjenero RAPORTIN E GJETJEVE (Jo Memorandum administrativ).
-TONI: Profesional, skeptik, i bazuar në prova.
-GJUHA: SHQIP.
+DETYRA: Analizo të dhënat e dhëna nga algoritmet dhe gjenero RAPORTIN E GJETJEVE FORENZIKE. Shkruaj në mënyrë të tillë që të jetë e kuptueshme si për avokatin, ashtu edhe për një qytetar të thjeshtë (jo-jurist dhe jo-kontabilist) që duhet të mbrojë veten.
 
-RREGULLA KRITIKE (T T'PANEGOCIUESHME):
+RREGULLA KRITIKE (TË PANEGOCIUESHME):
 1. MOS përfshi: "Për:", "Nga:", "Data:", "Lënda:", ose Nënshkrime në fund.
 2. MOS përdor kllapa katrore [] ose placeholders.
 3. Fillo direkt me seksionin 1.
 
 STRUKTURA E DETYRUESHME:
-**1. Përmbledhja Ekzekutive (BLUF)**
-(Përmblidh rreziqet kryesore të zbuluara nga algoritmet: Benford, Dublifikime, etj. Jepi përparësi fakteve numerike.)
+**1. Përmbledhja Ekzekutive (BLUF) - E ndarë në dy pjesë:**
+### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)
+(Shpjego me fjalë të thjeshta të përditshme dhe pa terma të rëndë matematikë apo ligjorë se çfarë zbuluan algoritmet tona. P.sh., shpjego se numrat e rrumbullakët fiks tregojnë se shifrat janë shpikur artificialisht sepse shpenzimet reale pothuajse kurrë nuk janë fiks 500.00€ pa asnjë cent, ose që devijimi i Ligjit të Benfordit do të thotë se shpërndarja e numrave duket e fabrikuar artificialisht.)
+
+### 📊 ANALIZA TEKNIKE FORENZIKE
+(Analiza teknike, përqindjet e sakta, dhe mospërputhjet e deficitit financiar.)
 
 ---
 
 **2. Analiza e Detajuar e Parregullsive**
-(Përshkruaj çdo anomali të gjetur. Shpjego pse 'Ligji i Benfordit' ose 'Numrat e Rrumbullakët' tregojnë manipulim të mundshëm.)
+(Përshkruaj çdo anomali të gjetur. Shpjego pse 'Ligji i Benfordit', 'Transaksionet e Dyfishta', apo 'Aktivitetet e Vikendit' tregojnë manipulim apo mashtrim të mundshëm.)
 
 ---
 
-**3. Implikimet Ligjore & Tatimore**
-(Referoju ATK-së dhe standardeve të kontabilitetit në Kosovë.)
+**3. Implikimet Ligjore & Tatimore (Kosovë)**
+(Referoju ATK-së, standardeve IAS 1, dhe saktësisht Nenit 307 të Kodit Penal të Kosovës për Pasqyrim të Rremë Financiar dhe Shmangie Tatimore.)
 
 ---
 
-**4. Plani i Veprimit**
-(Auditimi i brendshëm, intervistimi i personave përgjegjës.)
+**4. Plani i Veprimit & Hartimi i Kundërshtimit**
+(Hapat praktikë që duhet të marrë qytetari, si auditimi i faturave fizike dhe intervistimi i personave përgjegjës.)
+
+INJEKTIMI I PROMPT-IT TË HARTIMIT:
+Shtoni gjithmonë një pikë ku qytetarit i jepet një PROMPT i gatshëm që ai mund ta kopjojë dhe ta ngjisë direkt në faqen e 'Hartimit' të këtij aplikacioni për të gjeneruar një Kundërshtim zyrtar të Ekspertizës Financiare.
+Rrethoje prompt-in saktësisht me backticks (p.sh. `Gjenero një kundërshtim...`) që të shfaqet si bllok kodi i kopjueshëm.
+*Shembull*: "Kopjoni këtë prompt për ta ngjitur te faqja e 'Hartimit': `Gjenero një Kundërshtim të Ekspertizës Financiare në lëndën KE.nr. 662/2022 duke u bazuar në faktin që auditimi forenzik zbuloi një deficit prej €94,050.00 dhe 100% të transaksioneve të rrumbullakosura, gjë që vërteton manipulim apo pasqyrim të rremë sipas Nenit 307 të Kodit Penal...`"
 """,
         'prompt_user_input': "TË DHËNAT NGA ALGORITMET:\n- Statistikat: {stats}\n- Anomalitë e Detektuara: {anomalies}\n\nShkruaj analizën forenzike direkt.",
         'hook_structuring': "Transaksioni (€{amount}) afër pragut ligjor (€2,000) sugjeron 'Structuring' për të shmangur raportimin AML.",
@@ -152,7 +161,7 @@ def generate_evidence_hash(content: bytes) -> str:
 # --- FORENSIC ALGORITHMS ---
 
 def _check_benfords_law(amounts: List[Decimal]) -> Optional[float]:
-    if len(amounts) < 10: return None # Sample size constraint lowered to support smaller ledger diagnostics
+    if len(amounts) < 10: return None
     
     first_digits = [int(str(abs(a)).lstrip('0.')[:1]) for a in amounts if abs(a) >= 1]
     if not first_digits: return None
@@ -184,7 +193,7 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     anomalies = []
     amounts = [r['amount'] for r in records]
     
-    # 1. Benford's Law (The "Fraud Fingerprint")
+    # 1. Benford's Law
     benford_score = _check_benfords_law(amounts)
     if benford_score and benford_score > 5.0:
         anomalies.append(AnomalyEvidence(
@@ -237,7 +246,7 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     for record in records:
         amt = abs(record['amount'])
         
-        # Structuring check (Anti-Money Laundering detection)
+        # Structuring check
         if THRESHOLD_STRUCTURING_MIN <= amt <= THRESHOLD_STRUCTURING_MAX:
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()), type=AnomalyType.STRUCTURING, risk_level=RiskLevel.HIGH,
@@ -287,7 +296,7 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     
     df.columns = [str(c).lower().strip() for c in df.columns]
     
-    # Smart column parsing: Supports single amount column or dual inflow/outflow columns
+    # Smart column parsing
     col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c), None)
     col_hyrje = next((c for c in df.columns if 'hyrje' in c or 'credit' in c or 'inflow' in c), None)
     col_dalje = next((c for c in df.columns if 'dalje' in c or 'debit' in c or 'outflow' in c), None)
