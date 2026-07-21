@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V17.0 (CLICKABLE LEGAL CITATION BADGES)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V18.0 (THREAD-SAFE CRASH-PROOF CITATION LINKER)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -59,7 +59,6 @@ const cleanLegalText = (text: any): string => {
     return clean;
 };
 
-// Client-side parser splits the executive summary into two distinct tabs cleanly
 const splitExecutiveSummary = (text: string): { citizenText: string; lawyerText: string } => {
     if (!text) return { citizenText: "", lawyerText: "" };
     const marker = "### ⚖️ ANALIZA PROFESIONALE";
@@ -72,23 +71,18 @@ const splitExecutiveSummary = (text: string): { citizenText: string; lawyerText:
     return { citizenText: text, lawyerText: "" };
 };
 
-// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER ==========
+// ========== PHOENIX: THREAD-SAFE NATIVE CITATION PARSER ==========
 const renderTextWithCitations = (text: string) => {
     if (!text) return null;
     const clean = cleanLegalText(text);
 
-    // Citation pattern matching: (Ligjit|Ligji|Kodi|Kodin) Nr. XX/L-XXX, Neni YYY
     const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
 
-    const elements: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
+    const matches: Array<{ fullMatch: string; targetUrl: string; index: number }> = [];
+    let match: RegExpExecArray | null;
 
+    // Safety guard against infinite regex loops
     while ((match = citationRegex.exec(clean)) !== null) {
-        if (match.index > lastIndex) {
-            elements.push(clean.substring(lastIndex, match.index));
-        }
-
         const fullMatch = match[0];
         const lawPrefix = match[1];
         const lawTitle = match[2].trim();
@@ -96,27 +90,52 @@ const renderTextWithCitations = (text: string) => {
         const fullLawName = `${lawPrefix} ${lawTitle}`;
         const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
 
+        matches.push({ fullMatch, targetUrl, index: match.index });
+
+        if (match.index === citationRegex.lastIndex) {
+            citationRegex.lastIndex++;
+        }
+    }
+
+    if (matches.length === 0) {
+        return clean;
+    }
+
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+
+    matches.forEach((m, i) => {
+        if (m.index > lastIndex) {
+            elements.push(clean.substring(lastIndex, m.index));
+        }
+
         elements.push(
             <Link
-                key={match.index}
-                to={targetUrl}
+                key={`cit-${i}`}
+                to={m.targetUrl}
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 mx-1 align-middle"
-                title={`Hap ${fullMatch}`}
+                title={`Hap ${m.fullMatch}`}
             >
                 <Scale size={11} className="text-primary-start" />
-                <span>{fullMatch}</span>
+                <span>{m.fullMatch}</span>
                 <Eye size={11} className="opacity-70 ml-0.5" />
             </Link>
         );
 
-        lastIndex = citationRegex.lastIndex;
-    }
+        lastIndex = m.index + m.fullMatch.length;
+    });
 
     if (lastIndex < clean.length) {
         elements.push(clean.substring(lastIndex));
     }
 
     return elements;
+};
+
+const strArticleNumber = (val: string): string | null => {
+    if (!val) return null;
+    const match = val.match(/\b\d+\b/);
+    return match ? match[0] : null;
 };
 
 const renderCitationItem = (item: any) => {
@@ -167,12 +186,6 @@ const renderCitationItem = (item: any) => {
 
     const rawText = safeString(item);
     return <span className="leading-relaxed text-text-primary">{renderTextWithCitations(rawText)}</span>;
-};
-
-const strArticleNumber = (val: string): string | null => {
-    if (!val) return null;
-    const match = val.match(/\b\d+\b/);
-    return match ? match[0] : null;
 };
 
 const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
