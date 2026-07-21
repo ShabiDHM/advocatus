@@ -1,5 +1,6 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V7.1 (FIXED DOUBLE BORDER ON TABS)
+// PHOENIX PROTOCOL - FINANCE TAB V7.2 (UNIFIED UNLIMITED TIER)
+// 1. FIX: Set isPro statically to 'true' to completely unlock all premium financial, wizard, and spreadsheet analyst features on the front-end interface.
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -69,7 +70,7 @@ export const FinanceTab: React.FC = () => {
     type ActiveTab = 'transactions' | 'reports' | 'history';
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    useAuth();
 
     const [loading, setLoading] = useState(true);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -99,10 +100,8 @@ export const FinanceTab: React.FC = () => {
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
     const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
 
-    const isPro = useMemo(() => {
-        if (!user) return false;
-        return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
-    }, [user]);
+    // PHOENIX BYPASS: Set to 'true' globally to unlock all advanced financial analytics features under a single unified plan
+    const isPro = true;
 
     const loadInitialData = async () => {
         try {
@@ -290,7 +289,6 @@ export const FinanceTab: React.FC = () => {
                 <div className="lg:col-span-2 glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden shadow-sm">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-border-main pb-4 flex-none">
                         <h2 className="text-lg font-bold text-text-primary shrink-0">{t('finance.activityAndReports')}</h2>
-                        {/* Removed duplicate border from tabs container */}
                         <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-surface/20 p-1 rounded-xl">
                             <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                             <TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />

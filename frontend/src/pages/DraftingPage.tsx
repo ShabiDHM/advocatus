@@ -1,8 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL – TYPESCRIPT COMPLIANCE & PERSISTENCE v12.6
-// POLISH: Standardized design tokens, integrated custom scroll container utilities, and refined spatial spacing.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.0 (UNIFIED UNLIMITED TIER)
+// 1. FIX: Bypassed 'isPro' checks globally, unlocking all legal templates and drafting modes for all users.
+// 2. FIX: AI now uses the requested 'selectedTemplate' unconditionally instead of degrading to 'generic' for non-pro accounts.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -36,7 +37,7 @@ const buildKosovoSystemPrompt = (template: string, basePrompt: string): string =
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
@@ -59,10 +60,8 @@ const DraftingPage: React.FC = () => {
     return { status: null, result: null, error: null };
   });
 
-  const isPro = useMemo(() => 
-    (user as any)?.subscription_tier === 'PRO' || (user as any)?.plan_tier === 'GROWTH' || user?.role === 'ADMIN', 
-    [user]
-  );
+  // PHOENIX BYPASS: Set to 'true' globally to unlock all drafting templates under the unified general plan
+  const isPro = true;
 
   useEffect(() => {
     apiService.getCases().then(setCases).catch(console.error);
@@ -81,9 +80,10 @@ const DraftingPage: React.FC = () => {
     try {
       const basePrompt = constructSmartPrompt(context.trim(), selectedTemplate);
       const securePrompt = buildKosovoSystemPrompt(selectedTemplate, basePrompt);
+      
       const stream = await apiService.draftLegalDocumentStream({
         user_prompt: securePrompt,
-        document_type: isPro ? selectedTemplate : 'generic',
+        document_type: selectedTemplate, // Fully unlocked: always uses specific layout requested
         case_id: selectedCaseId || undefined
       });
       

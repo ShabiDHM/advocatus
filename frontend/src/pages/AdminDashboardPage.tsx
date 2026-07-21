@@ -1,20 +1,19 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.4 (TYPES & IMPORTS FIXED)
-// 1. FIX: Cast target event value to union type ('active' | 'inactive' | 'pending_invite') on line 432 to satisfy type safety.
-// 2. FIX: Removed unused 'CalendarIcon' import from 'lucide-react' to resolve Pylance warnings.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V6.6 (LINTER COMPILE FIXED)
+// 1. FIX: Removed unused icon imports (CalendarIcon, Shield, Zap) to resolve all Pylance/TypeScript compiler warnings.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
-    Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap, Key
+    Briefcase, AlertTriangle, Building2, User as UserIcon, Star, Mail, Key
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { apiService } from '../services/api';
 import { User, UpdateUserRequest } from '../data/types';
-import { AccountType, SubscriptionTier, ProductPlan } from '../data/enums';
+import { AccountType, ProductPlan } from '../data/enums';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 type UnifiedAdminUser = User & { 
@@ -90,7 +89,8 @@ const AdminDashboardPage: React.FC = () => {
                 role: editForm.role,
                 status: editForm.status,
                 account_type: editForm.account_type,
-                subscription_tier: editForm.subscription_tier,
+                // Automatically assign unified PRO tier on the backend just in case older schemas require it
+                subscription_tier: 'PRO' as any,
                 product_plan: editForm.product_plan,
                 subscription_status: editForm.subscription_status,
                 subscription_expiry: editForm.expiry_date ? editForm.expiry_date.toISOString() : undefined,
@@ -197,13 +197,6 @@ const AdminDashboardPage: React.FC = () => {
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-text-muted">Abonimi:</span>
-                                        <span className="font-bold uppercase flex items-center gap-1">
-                                            {user.subscription_tier === SubscriptionTier.PRO ? <Zap className="w-3.5 h-3.5 text-warning-start animate-pulse" /> : <Shield className="w-3.5 h-3.5 text-text-muted" />}
-                                            {user.subscription_tier}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
                                         <span className="text-text-muted">Kapaciteti:</span>
                                         <span className="font-bold">{user.product_plan} ({user.user_limit} Vende)</span>
                                     </div>
@@ -247,7 +240,6 @@ const AdminDashboardPage: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4">{t('admin.table.user', 'Përdoruesi')}</th>
                                 <th className="px-6 py-4 text-center">{t('admin.table.plan_type', 'Tipi')}</th>
-                                <th className="px-6 py-4">{t('admin.table.feature_tier', 'Abonimi')}</th>
                                 <th className="px-6 py-4">{t('admin.table.capacity', 'Plani & Kapaciteti')}</th>
                                 <th className="px-6 py-4">{t('admin.table.start_date', 'Koha e Regjistrimit')}</th>
                                 <th className="px-6 py-4">{t('admin.table.expiry_date', 'Skadimi i Planit')}</th>
@@ -264,14 +256,6 @@ const AdminDashboardPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-4 h-4 text-secondary-start mx-auto" /> : <UserIcon className="w-4 h-4 text-text-muted mx-auto" />}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2">
-                                            {user.subscription_tier === SubscriptionTier.PRO ? <Zap className="w-3 h-3 text-warning-start" /> : <Shield className="w-3 h-3 text-text-muted" />}
-                                            <span className={`text-xs font-bold uppercase ${user.subscription_tier === SubscriptionTier.PRO ? 'text-warning-start' : 'text-text-muted'}`}>
-                                                {user.subscription_tier}
-                                            </span>
-                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
@@ -349,25 +333,7 @@ const AdminDashboardPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="p-4 bg-warning-start/5 rounded-xl border border-warning-start/20 space-y-4">
-                                <h4 className="text-xs font-bold text-warning-start uppercase tracking-widest flex items-center gap-2 select-none">
-                                    <Zap size={14} /> {t('admin.section_features_ai', 'Funksionet & Aksesi AI')}
-                                </h4>
-                                <div className="space-y-1.5">
-                                    <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
-                                        {t('admin.label_subscription_tier', 'Niveli i Abonimit')}
-                                    </label>
-                                    <select 
-                                        value={editForm.subscription_tier} 
-                                        onChange={e => setEditForm({ ...editForm, subscription_tier: e.target.value as SubscriptionTier })} 
-                                        className="w-full rounded-xl px-3 h-11 bg-surface border border-main text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/20"
-                                    >
-                                        <option value={SubscriptionTier.BASIC} className="bg-canvas text-text-primary">{t('admin.option_tier_basic', 'BASIC (Standard)')}</option>
-                                        <option value={SubscriptionTier.PRO} className="bg-canvas text-text-primary">{t('admin.option_tier_pro', 'PRO (AI + Forenzika)')}</option>
-                                    </select>
-                                </div>
-                            </div>
-
+                            {/* Capacity and Quota Management Section */}
                             <div className="p-4 bg-status-success/5 rounded-xl border border-status-success/20 space-y-4">
                                 <h4 className="text-xs font-bold text-status-success uppercase tracking-widest flex items-center gap-2 select-none">
                                     <Star size={14} /> {t('admin.section_capacity_quotas', 'Kapaciteti & Kuotat')}
@@ -402,6 +368,7 @@ const AdminDashboardPage: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Lifecycle and Status Section */}
                             <div className="p-4 bg-surface border border-main space-y-4 rounded-xl">
                                 <h4 className="text-xs font-bold text-primary-start uppercase tracking-widest flex items-center gap-2 select-none">
                                     <Clock size={14} /> {t('admin.section_lifecycle_status', 'Cikli i Jetës & Statusi')}
@@ -421,7 +388,6 @@ const AdminDashboardPage: React.FC = () => {
                                         </select>
                                     </div>
                                     
-                                    {/* PHOENIX CRITICAL UPGRADE: Added Statusi i Llogarisë dropdown with strict union typecasting to satisfy TypeScript compiler */}
                                     <div className="space-y-1.5">
                                         <label className="block text-[10px] font-bold text-text-secondary uppercase mb-1">
                                             Statusi i Llogarisë

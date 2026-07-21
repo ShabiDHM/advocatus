@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V30.14 (CORS-COMPLIANT CLEAR ENDPOINT)
-# 1. FIX: Changed clear analysis endpoint from 'DELETE /analyze' to 'POST /analyze/clear' to bypass browser CORS method restrictions.
+# PHOENIX PROTOCOL - CASES ROUTER V30.15 (UNIFIED GENERAL PLAN BYPASS)
+# 1. FIX: Updated 'require_pro_tier' dependency to bypass all PRO-level checks, opening all advanced AI endpoints to all users.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Dict, Any
@@ -63,11 +63,11 @@ def json_serializable(data):
     return data
 
 def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
-    if current_user.subscription_tier != SubscriptionTier.PRO and current_user.role != 'ADMIN':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This is a PRO feature."
-        )
+    """
+    PHOENIX BYPASS: Standardized to a simple return statement to allow 
+    all users to access all features on the unified general plan.
+    """
+    return
 
 # --- PYDANTIC MODELS ---
 class DeletedDocumentResponse(BaseModel):

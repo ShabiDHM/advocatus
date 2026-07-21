@@ -1,7 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V16.22 (UNIFIED THREE-WAY SPLIT-BUTTON)
-// 1. FIX: Added onClearAnalysis handler to cases.py and api.ts.
-// 2. FIX: Redesigned persistent analysis button into a single tab footprint with the static text 'Analizo Rastin' flanked by two clean, textless interactive icons (Eye on left, Trash on right).
+// PHOENIX PROTOCOL - CASE VIEW V16.20 (UNIFIED UNLIMITED TIER)
+// 1. FIX: Set isPro statically to 'true' to completely unlock all AI, War Room, and Forensic features on the front-end interface.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -250,7 +249,7 @@ const CaseHeader: React.FC<{
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null });
@@ -268,7 +267,9 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  const isPro = useMemo(() => user?.subscription_tier === 'PRO' || user?.role === 'ADMIN', [user]);
+  // PHOENIX BYPASS: Set to 'true' globally to unlock all advanced litigation features under a single unified plan
+  const isPro = true; 
+  
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;

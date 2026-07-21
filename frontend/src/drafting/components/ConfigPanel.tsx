@@ -1,15 +1,15 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN FLOATING FIX (NO CLIPPING, SOLID BG, HIGH Z-INDEX)
+// PHOENIX PROTOCOL - DROPDOWN FLOATING FIX V6.1 (UNIFIED UNLIMITED TIER)
+// 1. FIX: Removed all 'isPro' gating and visual lock UI elements, permanently unlocking the template dropdown for all users.
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { FileText, Send, RefreshCw, ChevronDown, Briefcase, Lock } from 'lucide-react';
+import { FileText, Send, RefreshCw, ChevronDown, Briefcase } from 'lucide-react';
 import { ConfigPanelProps } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
 import { TemplateType } from '../types';
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   t,
-  isPro,
   selectedTemplate,
   context,
   isSubmitting,
@@ -49,7 +49,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       pergjigje: t('drafting.templatePergjigje', 'Përgjigje në Padi'),
       kunderpadi: t('drafting.templateKunderpadi', 'Kundërpadi'),
       ankese: t('drafting.templateAnkese', 'Ankesë'),
-      prapësim: t('drafting.templatePrapesim', 'Prapësim'),
+      prapësim: t('drafting.templatePrapësim', 'Prapësim'),
       nda: t('drafting.templateNDA', 'Marrëveshje për Moszbulim'),
       mou: t('drafting.templateMoU', 'Marrëveshje e Mirëkuptimit'),
       shareholders: t('drafting.templateShareholders', 'Marrëveshje e Ortakërisë'),
@@ -104,23 +104,18 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* TEMPLATE SELECTION - FLOATING DROPDOWN FIX */}
+        {/* TEMPLATE SELECTION - UNLOCKED FOR ALL USERS */}
         <div className="relative flex-shrink-0 overflow-visible" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
               {t('drafting.templateLabel', 'Lloji i Dokumentit')}
             </label>
-            {!isPro && (
-              <span className="text-[9px] text-warning-start font-black bg-warning-start/10 px-2 py-0.5 rounded border border-warning-start/20 uppercase tracking-widest flex items-center gap-1">
-                <Lock size={10} /> PRO
-              </span>
-            )}
+            {/* PHOENIX: Visual PRO lock removed entirely */}
           </div>
           
           <button 
             type="button" 
-            onClick={() => isPro && setIsOpen(!isOpen)} 
-            disabled={!isPro} 
+            onClick={() => setIsOpen(!isOpen)} 
             className="w-full px-4 py-3 bg-surface border border-border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-between transition-all hover:border-primary-start focus:border-primary-start focus:ring-1 focus:ring-primary-start"
           >
             <span className="truncate">{getOptionLabel(selectedTemplate)}</span>
@@ -128,7 +123,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </button>
 
           {/* FLOATING DROPDOWN MENU - SOLID BG, HIGH Z-INDEX, NO CLIPPING */}
-          {isOpen && isPro && (
+          {isOpen && (
             <div className="absolute left-0 right-0 top-full mt-2 z-[999] bg-[#0B0F1A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] max-h-[350px] overflow-y-auto custom-scrollbar">
               {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
