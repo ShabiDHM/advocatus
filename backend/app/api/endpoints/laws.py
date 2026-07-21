@@ -1,11 +1,12 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V15.0 (FUZZY LAW NUMBER & ARTICLE RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V16.0 (STREAMING PDF SUPPORT & FUZZY RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Set, Any
 import re
+import os
 from app.services import vector_store_service, llm_service
 from app.api.endpoints.dependencies import get_current_user
 
@@ -90,6 +91,23 @@ DETYRA: Përgjigju pyetjeve të përdoruesit BAZUAR VETËM NË KONTEKSTIN E DHË
 STILI: Shqip standard, i qartë, me pika dhe lista për lehtësi.
 """
 
+@router.get("/pdf/{filename}")
+async def get_law_pdf(filename: str):
+    """Streams the original law PDF document directly for inline browser viewing."""
+    clean_name = os.path.basename(filename)
+    
+    possible_paths = [
+        os.path.join("app", "data", "laws", clean_name),
+        os.path.join("data", "laws", clean_name),
+        os.path.join("static", "laws", clean_name),
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            return FileResponse(path, media_type="application/pdf", filename=clean_name)
+
+    raise HTTPException(status_code=404, detail="Dokumenti PDF i ligjit nuk u gjet në server.")
+
 @router.post("/explain")
 async def explain_law_article(request: LawExplainRequest, current_user = Depends(get_current_user)):
     system_prompt = (
@@ -172,7 +190,6 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        # Try exact title or regex match by law number
         query = {"law_title": law_title}
         law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', law_title, re.I)
         if law_num_match:
@@ -182,7 +199,6 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         docs = list(cursor)
         
         if not docs: 
-            # Fallback to exact regex string match
             cursor = db.legal_knowledge_base.find({"law_title": {"$regex": f"^{re.escape(law_title)}$", "$options": "i"}}, {"law_title": 1, "article_number": 1, "source": 1})
             docs = list(cursor)
 

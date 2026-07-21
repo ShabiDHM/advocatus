@@ -1,11 +1,14 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V11.3 (DYNAMIC HISTORY BACK NAVIGATION)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V12.1 (LINTER & UNUSED IMPORT CLEANED)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, AlertCircle, BookOpen, Sparkles, Loader2, X, BrainCircuit, User, Send, MessageCircle } from 'lucide-react';
+import { 
+  ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
+  Loader2, X, BrainCircuit, User, Send, MessageCircle, FileText, ExternalLink, Download 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ArticleData {
@@ -29,18 +32,12 @@ const normalizeText = (raw: string, articleNum?: string): string => {
 
   let cleaned = raw;
 
-  // 1. Strip page separator tags
   cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
-
-  // 2. Strip official gazette headers/footers (Kosovo & Albania)
   cleaned = cleaned.replace(/GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/FLETORJA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+SHQIPËRISË.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/(?:KODI|LIGJI|UDHËZIMI|UDHËZIM)\s+Nr\.\s*[\d\/L\-]+\s+[A-ZËÇSHQËWXYZ\s\-]+(?=\n|$)/gi, '');
-
-  // 3. Strip standalone page numbers on individual lines
   cleaned = cleaned.replace(/^\s*\d{1,3}\s*$/gm, '');
 
-  // 4. Truncate strictly at the start of the NEXT article (e.g. Neni 4 when viewing Neni 3)
   if (articleNum) {
     const numMatch = articleNum.match(/\d+/);
     if (numMatch) {
@@ -55,7 +52,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
     }
   }
 
-  // 5. Merge lines split across sentences or page breaks
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
   
@@ -66,7 +62,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
       continue;
     }
 
-    // Deduplicate identical consecutive lines
     if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] === currentLine) {
       continue;
     }
@@ -88,7 +83,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
   cleaned = cleaned.trim();
 
-  // Filter out any remaining adjacent duplicate paragraphs
   const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs
     .map(para => para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
@@ -97,7 +91,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   return normalizedParagraphs.join('\n\n');
 };
 
-// ========== LIGHTWEIGHT MARKDOWN RENDERER ==========
 const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
@@ -139,6 +132,9 @@ export default function LawArticlePage() {
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- PDF MODAL STATE ---
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -185,8 +181,6 @@ export default function LawArticlePage() {
     const loadArticle = async () => {
       try {
         const data = await apiService.getLawArticle(lawTitle, articleNumber);
-        
-        // Apply deep gazette cleaning, line deduplication, & strict article truncation
         const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
         
         let chunkId = data.chunk_id || '';
@@ -197,7 +191,7 @@ export default function LawArticlePage() {
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
-          source: data.source,
+          source: data.source || `${lawTitle}.pdf`,
           text: normalizedText,
           chunk_id: chunkId,
         });
@@ -244,15 +238,12 @@ export default function LawArticlePage() {
     
     try {
       const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
-      
       let accumulated = '';
       for await (const chunk of stream) {
         accumulated += chunk;
         setSummaryContent(accumulated);
       }
-      
       setChatVisible(true);
-      
     } catch (err: any) {
       console.error('[ERROR] Summary failed:', err);
       setSummaryError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
@@ -312,25 +303,6 @@ export default function LawArticlePage() {
     }
   };
 
-  const handleSuggestedClick = (question: string) => {
-    handleSendQuery(question);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendQuery();
-    }
-  };
-
-  const handleCloseAuditor = () => {
-    setChatVisible(false);
-    setMessages([]);
-    setSummaryContent('');
-    setShowSuggestions(false);
-  };
-
-  // PHOENIX FIX: Dynamic History Back Navigation instead of hardcoded briefing dashboard
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -340,6 +312,8 @@ export default function LawArticlePage() {
       navigate('/laws/search');
     }
   };
+
+  const pdfUrl = article?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(article.source)}` : null;
 
   if (loading) {
     return (
@@ -395,7 +369,7 @@ export default function LawArticlePage() {
               </button>
             ) : (
               <button
-                onClick={handleCloseAuditor}
+                onClick={() => { setChatVisible(false); setMessages([]); setSummaryContent(''); }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm bg-surface border border-border-main text-text-primary hover:border-danger-start hover:text-danger-start"
               >
                 <X size={14} />
@@ -415,11 +389,22 @@ export default function LawArticlePage() {
                     <BookOpen size={14} />
                     <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-canvas text-text-secondary border border-border-main px-3 py-1.5 rounded-lg">
-                    <Calendar size={14} />
-                    <span className="text-xs font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[200px]">{article.source}</span>
-                  </div>
+
+                  {/* Interactive Clickable PDF Source Pill */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfModal(true)}
+                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3 py-1.5 rounded-lg transition-all hover-lift cursor-pointer focus:outline-none"
+                    title="Shiko dokumentin PDF të plotë zyrtar"
+                  >
+                    <FileText size={14} />
+                    <span className="text-xs font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[220px]">
+                      {article.source}
+                    </span>
+                    <ExternalLink size={12} className="opacity-80 shrink-0" />
+                  </button>
                 </div>
+
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tighter">{article.law_title}</h1>
                 <div className="flex items-center gap-4 border-t border-border-main/50 pt-6 mt-2">
                   <Scale size={24} className="text-primary-start" />
@@ -454,7 +439,6 @@ export default function LawArticlePage() {
                   className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
                 >
                   <div className="p-8 sm:p-12 relative">
-                    
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
                       <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-full sm:w-auto">
                         <button
@@ -581,7 +565,7 @@ export default function LawArticlePage() {
                             {SUGGESTED_QUESTIONS.map((question, idx) => (
                               <button
                                 key={idx}
-                                onClick={() => handleSuggestedClick(question)}
+                                onClick={() => handleSendQuery(question)}
                                 className="text-xs bg-surface border border-border-main hover:border-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
                                 type="button"
                               >
@@ -618,7 +602,7 @@ export default function LawArticlePage() {
                         ref={inputRef}
                         value={inputQuery}
                         onChange={(e) => setInputQuery(e.target.value)}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuery(); } }}
                         placeholder={t('lawArticle.chatPlaceholder', 'Bëj një pyetje për këtë nen...')}
                         rows={2}
                         className="flex-1 p-3 bg-surface border border-border-main rounded-xl text-sm resize-none text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
@@ -657,6 +641,67 @@ export default function LawArticlePage() {
           </div>
         </div>
       </div>
+
+      {/* FULL PDF SCROLLABLE MODAL */}
+      <AnimatePresence>
+        {showPdfModal && pdfUrl && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.95, opacity: 0 }} 
+              className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
+                    <FileText size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
+                      {article.law_title}
+                    </h3>
+                    <p className="text-xs text-text-muted font-mono truncate">
+                      {article.source}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a 
+                    href={pdfUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="p-2.5 bg-surface border border-border-main hover:border-primary-start text-text-primary rounded-xl transition-all focus:outline-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+                    title="Hap në dritare të re"
+                  >
+                    <Download size={15} />
+                    <span className="hidden sm:inline">Shkarko PDF</span>
+                  </a>
+                  <button 
+                    onClick={() => setShowPdfModal(false)} 
+                    className="p-2.5 bg-surface border border-border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
+                    aria-label="Close PDF viewer"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable PDF Iframe Container */}
+              <div className="flex-1 w-full h-full bg-slate-900 relative">
+                <iframe 
+                  src={pdfUrl} 
+                  title={article.source} 
+                  className="w-full h-full border-none"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }
