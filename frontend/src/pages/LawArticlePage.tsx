@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V15.0 (MINIMIZABLE DOCKED PDF VIEWER)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V16.0 (BIBLIOTEKA LIGJORE DIRECT REDIRECT)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -27,19 +27,15 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// ========== PHOENIX: PRECISION LEGAL TEXT SANITIZER ==========
 const normalizeText = (raw: string, articleNum?: string): string => {
   if (!raw) return '';
 
   let cleaned = raw;
 
-  // 1. Remove page dividers and gazette headers/footers
   cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
   cleaned = cleaned.replace(/GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/FLETORJA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+SHQIPËRISË.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/(?:KODI|LIGJI|UDHËZIMI|UDHËZIM)\s+Nr\.\s*[\d\/L\-]+\s+[A-ZËÇSHQËWXYZ\s\-]+(?=\n|$)/gi, '');
-
-  // 2. Remove standalone page numbers on individual lines
   cleaned = cleaned.replace(/^\s*\d{1,3}\s*$/gm, '');
 
   const cleanNumStr = (articleNum || '').replace(/\.$/, '').trim();
@@ -47,14 +43,12 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   const currentNum = numMatch ? parseInt(numMatch[0], 10) : 0;
   const isPreamble = currentNum === 0 || cleanNumStr.toLowerCase() === 'preambula' || cleanNumStr.toLowerCase() === 'hyrja';
 
-  // 3. Truncate preamble before Neni 1
   if (isPreamble) {
     const neni1Match = cleaned.match(/(?:^|\n)\s*(?:Neni|NENI)\s+1\b/i);
     if (neni1Match && neni1Match.index !== undefined) {
       cleaned = cleaned.substring(0, neni1Match.index).trim();
     }
   } else if (currentNum > 0) {
-    // 4. Isolate text between Neni X and Neni X+1
     const currentArticleRegex = new RegExp(`(?:^|\\n)\\s*(?:Neni|NENI)\\s+${currentNum}\\b`, 'i');
     const startMatch = cleaned.match(currentArticleRegex);
     if (startMatch && startMatch.index !== undefined) {
@@ -68,11 +62,9 @@ const normalizeText = (raw: string, articleNum?: string): string => {
       cleaned = cleaned.substring(0, endMatch.index).trim();
     }
 
-    // Strip redundant leading "Neni X" heading line from the body
     cleaned = cleaned.replace(new RegExp(`^(?:Neni|NENI)\\s+${currentNum}\\b[:\\.\\-]*\\s*`, 'i'), '').trim();
   }
 
-  // 5. Merge split lines & deduplicate identical consecutive lines
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
   
@@ -101,7 +93,6 @@ const normalizeText = (raw: string, articleNum?: string): string => {
   cleaned = mergedLines.join('\n');
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
-  // 6. Split into paragraphs and remove adjacent duplicate blocks
   const paragraphs = cleaned.split(/\n\n+/);
   const normalizedParagraphs = paragraphs
     .map(para => para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
@@ -152,18 +143,15 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- PDF MODAL & MINIMIZE STATE ---
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
-  // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
   const [activePerspective, setActivePerspective] = useState<'senior' | 'citizen'>('senior');
   const [summaryError, setSummaryError] = useState('');
   
-  // --- CHAT STATE ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuery, setInputQuery] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
@@ -171,7 +159,6 @@ export default function LawArticlePage() {
   const [chatVisible, setChatVisible] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // --- Refs ---
   const summarySectionRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -351,14 +338,9 @@ export default function LawArticlePage() {
     setJumpInput('');
   };
 
-  const handleBack = () => {
-    if (lawTitle) {
-      navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/laws/search');
-    }
+  // PHOENIX DIRECT REDIRECT TO BIBLIOTEKA LIGJORE
+  const handleBackToLibrary = () => {
+    navigate('/laws/search');
   };
 
   const pdfUrl = article?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(article.source)}` : null;
@@ -379,7 +361,9 @@ export default function LawArticlePage() {
           <AlertCircle className="text-danger-start w-20 h-20 mb-6" />
           <h2 className="text-2xl font-black text-text-primary uppercase tracking-tighter mb-3">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-lg mb-8">{error}</p>
-          <button onClick={handleBack} className="btn-primary flex items-center gap-2 hover-lift shadow-sm"><ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu Mbrapa')}</button>
+          <button onClick={handleBackToLibrary} className="btn-primary flex items-center gap-2 hover-lift shadow-sm">
+            <ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu te Biblioteka Ligjore')}
+          </button>
         </div>
       </div>
     );
@@ -398,15 +382,15 @@ export default function LawArticlePage() {
           {/* Top Control Bar */}
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             
-            {/* Back Button */}
+            {/* Top Back to Biblioteka Ligjore Button */}
             <button
-              onClick={handleBack}
+              onClick={handleBackToLibrary}
               className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-xs sm:text-sm uppercase tracking-widest hover-lift"
             >
               <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
                 <ArrowLeft size={16} className="text-primary-start" />
               </div>
-              <span className="hidden sm:inline">{t('lawOverview.tableOfContents', 'Përmbajtja')}</span>
+              <span>Biblioteka Ligjore</span>
             </button>
 
             {/* Middle Zone: Fast Stepper & Jump Box */}
@@ -470,7 +454,7 @@ export default function LawArticlePage() {
 
           <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-border-main rounded-2xl">
             
-            {/* Executive Header */}
+            {/* Header */}
             <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-6">
@@ -737,13 +721,13 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* Footer Stepper & Action Controls */}
+            {/* Bottom Footer Stepper & Redirect to Biblioteka Ligjore */}
             <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
               <button
-                onClick={handleBack}
+                onClick={handleBackToLibrary}
                 className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
               >
-                <ArrowLeft size={14} /> {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit')}
+                <ArrowLeft size={14} /> Biblioteka Ligjore
               </button>
 
               <div className="flex items-center gap-3">
@@ -782,7 +766,7 @@ export default function LawArticlePage() {
         </div>
       </div>
 
-      {/* FULL EXPANDED PDF SCROLLABLE MODAL */}
+      {/* FULL PDF SCROLLABLE MODAL */}
       <AnimatePresence>
         {showPdfModal && !isPdfMinimized && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
@@ -792,7 +776,6 @@ export default function LawArticlePage() {
               exit={{ scale: 0.95, opacity: 0 }} 
               className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
-              {/* Modal Header Controls: Minimize, Download, Close */}
               <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
@@ -820,7 +803,6 @@ export default function LawArticlePage() {
                     <span className="hidden sm:inline">Shkarko PDF</span>
                   </a>
 
-                  {/* MINIMIZE BUTTON */}
                   <button 
                     type="button"
                     onClick={() => setIsPdfMinimized(true)} 
@@ -831,7 +813,6 @@ export default function LawArticlePage() {
                     <Minus size={18} />
                   </button>
 
-                  {/* CLOSE BUTTON */}
                   <button 
                     type="button"
                     onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }} 
@@ -844,7 +825,6 @@ export default function LawArticlePage() {
                 </div>
               </div>
 
-              {/* Scrollable PDF Iframe Container */}
               <div className="flex-1 w-full h-full bg-slate-900 relative">
                 <iframe 
                   src={pdfUrl} 
@@ -883,7 +863,6 @@ export default function LawArticlePage() {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* EXPAND BUTTON */}
               <button
                 type="button"
                 onClick={() => setIsPdfMinimized(false)}
@@ -893,7 +872,6 @@ export default function LawArticlePage() {
                 <Maximize2 size={14} />
               </button>
 
-              {/* CLOSE BUTTON */}
               <button
                 type="button"
                 onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }}

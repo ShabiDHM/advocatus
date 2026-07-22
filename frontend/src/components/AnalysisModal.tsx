@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V23.0 (CLEAN ROLE-TAILORED STRATEGY VIEWER)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V24.0 (PRISTINE HASHTAG-FREE EXECUTIVE SUMMARY)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -59,25 +59,23 @@ const safeString = (val: any): string => {
     return String(val);
 };
 
-// Clean out any raw JSON artifacts like {"### 👨‍💼 ..."}
+// Strips out raw markdown hashtags (### 👨‍💼, ### ⚖️, etc.) for a clean executive layout
+const cleanSummaryHeadings = (raw: string): string => {
+    if (!raw) return "";
+    let clean = raw;
+    
+    // Strip ### header lines completely
+    clean = clean.replace(/###\s*[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]?\s*(UDHËZUESI|ANALIZA|PËRMBLEDHJA|KËSHILLIM).*?(?=\n|$)/giu, '');
+    clean = clean.replace(/###\s*.*?(?=\n|$)/g, '');
+    clean = clean.replace(/^["'\s{}]+|["'\s{}]+$/g, '');
+    clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+    
+    return clean.trim();
+};
+
 const cleanLegalText = (text: any): string => {
     let clean = safeString(text);
-    
-    // Strip raw JSON wrapping if present
-    if (clean.startsWith('{"') || clean.startsWith('{ "')) {
-        try {
-            const parsed = JSON.parse(clean);
-            if (typeof parsed === 'object' && parsed !== null) {
-                const keys = Object.keys(parsed);
-                clean = keys.map(k => `${k}\n${parsed[k]}`).join('\n\n');
-            }
-        } catch {
-            clean = clean.replace(/^\{"|^\s*\{\s*"/g, '').replace(/":\s*"/g, '\n').replace(/"\s*\}$/g, '');
-        }
-    }
-
-    clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
-    return clean.trim();
+    return cleanSummaryHeadings(clean);
 };
 
 const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: string } => {
@@ -87,20 +85,23 @@ const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: st
         const citizen = safeString(text.citizenText || text.citizen_summary || text.summary || text.text || '');
         const lawyer = safeString(text.lawyerText || text.lawyer_summary || text.professional || '');
         if (citizen || lawyer) {
-            return { citizenText: cleanLegalText(citizen), lawyerText: cleanLegalText(lawyer) };
+            return { citizenText: cleanSummaryHeadings(citizen), lawyerText: cleanSummaryHeadings(lawyer) };
         }
-        return { citizenText: cleanLegalText(text), lawyerText: "" };
+        return { citizenText: cleanSummaryHeadings(safeString(text)), lawyerText: "" };
     }
 
-    const strText = cleanLegalText(text);
+    const strText = safeString(text);
     const marker = "### ⚖️ ANALIZA PROFESIONALE";
     const markerIndex = strText.indexOf(marker);
     if (markerIndex !== -1) {
-        let citizenText = strText.substring(0, markerIndex).replace(/### 👨‍💼 UDHËZUESI PËR QYTETARIN\s*\(Gjuhë e Thjeshtë\)\s*/i, '').trim();
-        let lawyerText = strText.substring(markerIndex + marker.length).replace(/^\s*E AVOKATIT\s*/i, '').trim();
-        return { citizenText, lawyerText };
+        let citizenText = strText.substring(0, markerIndex).trim();
+        let lawyerText = strText.substring(markerIndex + marker.length).trim();
+        return { 
+            citizenText: cleanSummaryHeadings(citizenText), 
+            lawyerText: cleanSummaryHeadings(lawyerText) 
+        };
     }
-    return { citizenText: strText, lawyerText: "" };
+    return { citizenText: cleanSummaryHeadings(strText), lawyerText: "" };
 };
 
 const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
