@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V22.0 (STRICT TYPED ONPOSITIONCHANGE PROP)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V23.0 (CLEAN ROLE-TAILORED STRATEGY VIEWER)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -24,7 +24,6 @@ export interface AnalysisModalProps {
   result: CaseAnalysisResult; 
   caseId: string;
   isLoading?: boolean;
-  onPositionChange?: (newPosition: 'DEFENDANT' | 'PLAINTIFF') => void;
 }
 
 type ZoomLevel = 'normal' | 'large' | 'xlarge';
@@ -60,10 +59,25 @@ const safeString = (val: any): string => {
     return String(val);
 };
 
+// Clean out any raw JSON artifacts like {"### 👨‍💼 ..."}
 const cleanLegalText = (text: any): string => {
     let clean = safeString(text);
+    
+    // Strip raw JSON wrapping if present
+    if (clean.startsWith('{"') || clean.startsWith('{ "')) {
+        try {
+            const parsed = JSON.parse(clean);
+            if (typeof parsed === 'object' && parsed !== null) {
+                const keys = Object.keys(parsed);
+                clean = keys.map(k => `${k}\n${parsed[k]}`).join('\n\n');
+            }
+        } catch {
+            clean = clean.replace(/^\{"|^\s*\{\s*"/g, '').replace(/":\s*"/g, '\n').replace(/"\s*\}$/g, '');
+        }
+    }
+
     clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
-    return clean;
+    return clean.trim();
 };
 
 const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: string } => {
@@ -73,12 +87,12 @@ const splitExecutiveSummary = (text: any): { citizenText: string; lawyerText: st
         const citizen = safeString(text.citizenText || text.citizen_summary || text.summary || text.text || '');
         const lawyer = safeString(text.lawyerText || text.lawyer_summary || text.professional || '');
         if (citizen || lawyer) {
-            return { citizenText: citizen, lawyerText: lawyer };
+            return { citizenText: cleanLegalText(citizen), lawyerText: cleanLegalText(lawyer) };
         }
-        return { citizenText: safeString(text), lawyerText: "" };
+        return { citizenText: cleanLegalText(text), lawyerText: "" };
     }
 
-    const strText = String(text);
+    const strText = cleanLegalText(text);
     const marker = "### ⚖️ ANALIZA PROFESIONALE";
     const markerIndex = strText.indexOf(marker);
     if (markerIndex !== -1) {
@@ -246,15 +260,14 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
     );
 };
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false, onPositionChange }) => {
+const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading = false }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'legal' | 'war_room'>('legal');
   const [summaryTab, setSummaryTab] = useState<'citizen' | 'lawyer'>('citizen');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('normal');
   
-  const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF'>('DEFENDANT');
-  const [isUpdatingPosition, setIsUpdatingPosition] = useState(false);
+  const clientPosition = ((result as any)?.client_position || 'DEFENDANT').toUpperCase();
 
   const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null);
   const [isSimLoading, setIsSimLoading] = useState(false);
@@ -269,28 +282,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
         setActiveTab('legal'); 
         setWarRoomSubTab('strategy'); 
         setSummaryTab('citizen'); 
-        if ((result as any)?.client_position) {
-            setClientPosition((result as any).client_position.toUpperCase() === 'PLAINTIFF' ? 'PLAINTIFF' : 'DEFENDANT');
-        }
     }
-  }, [isOpen, result]);
-
-  const handlePositionToggle = async (newPos: 'DEFENDANT' | 'PLAINTIFF') => {
-      if (newPos === clientPosition || isUpdatingPosition) return;
-      setIsUpdatingPosition(true);
-      setClientPosition(newPos);
-      try {
-          await apiService.updateCasePosition(caseId, newPos);
-          if (onPositionChange) {
-              onPositionChange(newPos);
-          }
-          setDeepResult(null);
-      } catch (err) {
-          console.error("Failed to update case client position:", err);
-      } finally {
-          setIsUpdatingPosition(false);
-      }
-  };
+  }, [isOpen]);
 
   const handleWarRoomEntry = async () => {
       setActiveTab('war_room');
@@ -302,7 +295,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               setIsChronLoading(false);
           }).catch(() => setIsChronLoading(false));
 
-          apiService.analyzeDeepSimulation(caseId, clientPosition).then(data => {
+          apiService.analyzeDeepSimulation(caseId, clientPosition as any).then(data => {
               setDeepResult(prev => ({ ...(prev || { adversarial_simulation: { opponent_strategy: '', weakness_attacks: [], counter_claims: [] }, chronology: [], contradictions: [] }), adversarial_simulation: data }));
               setIsSimLoading(false);
           }).catch(() => setIsSimLoading(false));
@@ -438,41 +431,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <Gavel size={24} />
               </div>
               <div className="flex flex-col gap-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
                     
-                    {/* Interactive 1-Click Client Stance Switcher */}
-                    <div className="flex items-center p-1 bg-canvas rounded-xl border border-border-main ml-2 select-none">
-                      <button
-                        type="button"
-                        onClick={() => handlePositionToggle('DEFENDANT')}
-                        disabled={isUpdatingPosition}
-                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all focus:outline-none ${
-                          clientPosition === 'DEFENDANT'
-                            ? 'bg-primary-start text-white shadow-sm'
-                            : 'text-text-muted hover:text-text-primary'
-                        }`}
-                        title="Mbrojtja e të Paditurit / të Akuzuarit"
-                      >
-                        <Shield size={11} />
-                        <span>I Paditur</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handlePositionToggle('PLAINTIFF')}
-                        disabled={isUpdatingPosition}
-                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all focus:outline-none ${
-                          clientPosition === 'PLAINTIFF'
-                            ? 'bg-primary-start text-white shadow-sm'
-                            : 'text-text-muted hover:text-text-primary'
-                        }`}
-                        title="Paditësi / Përfaqësimi i Dëmtuar"
-                      >
-                        <Swords size={11} />
-                        <span>Paditës</span>
-                      </button>
-                    </div>
+                    {/* Role Badge Indicator */}
+                    <span className="px-3 py-1 rounded-xl bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                      {clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Shield size={12} />}
+                      <span>{clientPosition === 'PLAINTIFF' ? 'Roli: Paditës' : 'Roli: I Paditur'}</span>
+                    </span>
                   </div>
 
                   <div className="hidden sm:flex items-center mt-1 gap-2">{renderRiskBadge(risk_level)} {renderSuccessBadge(success_probability)}</div>

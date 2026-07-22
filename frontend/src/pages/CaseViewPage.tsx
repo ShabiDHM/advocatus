@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V19.0 (ZERO WARNINGS & INTEGRATED STANCE TOGGLE)
+// PHOENIX PROTOCOL - CASE VIEW V20.1 (0 COMPILER WARNINGS - CLEAN ROLE POPUP MODAL)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +15,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2, AlertTriangle, FileText, Shield, Swords } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2, AlertTriangle, FileText, Shield, Swords, Gavel } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -131,11 +131,100 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
+// ROLE SELECTION POPUP MODAL COMPONENT
+const RoleSelectionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSelectRole: (role: 'DEFENDANT' | 'PLAINTIFF') => void;
+    isAnalyzing: boolean;
+}> = ({ isOpen, onClose, onSelectRole, isAnalyzing }) => {
+    useLockBodyScroll(isOpen);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-border-main bg-canvas"
+            >
+                <div className="flex justify-between items-center mb-6 border-b border-border-main pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                            <Gavel size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-text-primary uppercase tracking-tight">Cilin Pozicion po Përfaqësoni?</h3>
+                            <p className="text-xs text-text-muted font-medium">Zgjidhni rolin e klientit për të përshtatur strategjinë AI</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-text-muted hover:text-text-primary transition-colors focus:outline-none">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 mb-6">
+                    {/* DEFENDANT OPTION */}
+                    <button
+                        type="button"
+                        onClick={() => onSelectRole('DEFENDANT')}
+                        disabled={isAnalyzing}
+                        className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm"
+                    >
+                        <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <Shield size={24} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
+                                🛡️ I Paditur / I Akuzuar (Mbrojtje)
+                            </h4>
+                            <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                                Përfaqësimi i palës që mbrohet ndaj padisë ose akuzës. Strategjia do të fokusohet në prapësime, gabime procedurale dhe rrëzimin e pretendimeve.
+                            </p>
+                        </div>
+                    </button>
+
+                    {/* PLAINTIFF OPTION */}
+                    <button
+                        type="button"
+                        onClick={() => onSelectRole('PLAINTIFF')}
+                        disabled={isAnalyzing}
+                        className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm"
+                    >
+                        <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+                            <Swords size={24} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
+                                ⚔️ Paditësi / I Dëmtuari (Sulm)
+                            </h4>
+                            <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                                Përfaqësimi i palës që ngre padinë ose kërkon dëmshpërblim. Strategjia do të fokusohet në provimin e përgjegjësisë dhe forcimin e padisë.
+                            </p>
+                        </div>
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-surface border border-border-main transition-colors focus:outline-none"
+                >
+                    Anulo
+                </button>
+            </motion.div>
+        </div>
+    );
+};
+
 const CaseHeader: React.FC<{
     caseDetails: Case;
     documents: Document[];
     t: TFunction;
-    onAnalyze: (force?: boolean) => void;
+    onTriggerRoleSelect: (forceReanalyze?: boolean) => void;
+    onViewExistingAnalysis: () => void;
     onClearAnalysis: () => void;
     isAnalyzing: boolean;
     viewMode: ViewMode;
@@ -143,9 +232,7 @@ const CaseHeader: React.FC<{
     isPro: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-    clientPosition: 'DEFENDANT' | 'PLAINTIFF';
-    onPositionToggle: (pos: 'DEFENDANT' | 'PLAINTIFF') => void;
-}> = ({ caseDetails, documents, t, onAnalyze, onClearAnalysis, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange, clientPosition, onPositionToggle }) => {
+}> = ({ caseDetails, documents, t, onTriggerRoleSelect, onViewExistingAnalysis, onClearAnalysis, isAnalyzing, viewMode, setViewMode, isPro, selectedDocumentIds, onDocumentSelectionChange }) => {
     
     const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
 
@@ -155,14 +242,14 @@ const CaseHeader: React.FC<{
                 <span className="flex items-center justify-center animate-spin shrink-0">
                     <Loader2 className="h-4 w-4 text-primary-start" />
                 </span>
-                <span className="text-primary-start truncate">{t('analysis.analyzing')}</span>
+                <span className="text-primary-start truncate">{t('analysis.analyzing', 'Duke Analizuar...')}</span>
             </span>
           )
         : selectedDocumentIds.length === 0
         ? (
             <span className="flex items-center gap-2 min-w-0">
                 <ShieldCheck size={15} className="text-primary-start shrink-0" />
-                <span className="text-primary-start truncate">{t('caseView.analyzeCase')}</span>
+                <span className="text-primary-start truncate">{t('caseView.analyzeCase', 'Analizo Rastin')}</span>
             </span>
           )
         : (
@@ -178,7 +265,7 @@ const CaseHeader: React.FC<{
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 
-                {/* LEFT COLUMN: Date, Selector & Client Stance Switcher */}
+                {/* LEFT COLUMN */}
                 <div className="flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div className={buttonBase}>
@@ -196,39 +283,9 @@ const CaseHeader: React.FC<{
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN: Client Stance, Analyst & Re-analysis Controls */}
+                {/* RIGHT COLUMN */}
                 <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {/* Client Position Stance Switcher Pill */}
-                        <div className="flex items-center p-1 bg-surface border border-main rounded-xl h-11 w-full select-none">
-                            <button
-                                type="button"
-                                onClick={() => onPositionToggle('DEFENDANT')}
-                                className={`flex-1 h-9 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all focus:outline-none ${
-                                    clientPosition === 'DEFENDANT'
-                                        ? 'bg-primary-start text-white shadow-sm'
-                                        : 'text-text-muted hover:text-text-primary'
-                                }`}
-                                title="Mbrojtja e të Paditurit"
-                            >
-                                <Shield size={12} />
-                                <span className="truncate">I Paditur</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => onPositionToggle('PLAINTIFF')}
-                                className={`flex-1 h-9 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all focus:outline-none ${
-                                    clientPosition === 'PLAINTIFF'
-                                        ? 'bg-primary-start text-white shadow-sm'
-                                        : 'text-text-muted hover:text-text-primary'
-                                }`}
-                                title="Përfaqësimi i Paditësit"
-                            >
-                                <Swords size={12} />
-                                <span className="truncate">Paditës</span>
-                            </button>
-                        </div>
-
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                             type="button"
                             onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
@@ -240,7 +297,7 @@ const CaseHeader: React.FC<{
                             } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
                         >
                             {!isPro ? <Lock size={15} className="shrink-0 text-text-muted" /> : <Activity size={15} className={viewMode === 'analyst' ? 'text-primary-start shrink-0' : 'text-primary-start opacity-70 shrink-0'} />}
-                            <span className="truncate hidden sm:inline">{t('caseView.financialAnalyst')}</span>
+                            <span className="truncate hidden sm:inline">{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
@@ -250,7 +307,7 @@ const CaseHeader: React.FC<{
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
                                     <button
                                         type="button"
-                                        onClick={() => onAnalyze(false)}
+                                        onClick={onViewExistingAnalysis}
                                         disabled={isAnalyzing}
                                         className="flex-1 h-full flex items-center justify-center gap-2 px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
                                         title="Shiko Analizën ekzistuese"
@@ -263,7 +320,7 @@ const CaseHeader: React.FC<{
 
                                     <button
                                         type="button"
-                                        onClick={() => onAnalyze(true)}
+                                        onClick={() => onTriggerRoleSelect(true)}
                                         disabled={isAnalyzing}
                                         className="flex-initial px-3 h-full flex items-center justify-center gap-2 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
                                         title="Rianalizo sërish me AI"
@@ -286,7 +343,7 @@ const CaseHeader: React.FC<{
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={() => onAnalyze(false)} 
+                                    onClick={() => onTriggerRoleSelect(false)} 
                                     disabled={!isPro || isAnalyzing}
                                     className={`${buttonBase} disabled:opacity-40`}
                                 >
@@ -321,7 +378,8 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF'>('DEFENDANT');
+  // Role Popup & Gatekeeper Notice state
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [gatekeeperNotice, setGatekeeperNotice] = useState<string | null>(null);
 
   const isPro = true; 
@@ -370,10 +428,6 @@ const CaseViewPage: React.FC = () => {
       ]);
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-      
-      if (details && (details as any).client_position) {
-          setClientPosition((details as any).client_position.toUpperCase() === 'PLAINTIFF' ? 'PLAINTIFF' : 'DEFENDANT');
-      }
 
       if (details && (details as any).latest_analysis) {
         setAnalysisResult((details as any).latest_analysis);
@@ -425,62 +479,62 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handlePositionToggle = async (newPos: 'DEFENDANT' | 'PLAINTIFF') => {
-      if (!caseId) return;
-      setClientPosition(newPos);
-      try {
-          await apiService.updateCasePosition(caseId, newPos);
-      } catch (err) {
-          console.error("Failed to set position:", err);
+  const handleTriggerRoleSelect = (force = false) => {
+      const existingAnalysis = caseData.details && (caseData.details as any).latest_analysis ? (caseData.details as any).latest_analysis : analysisResult;
+      
+      if (force && existingAnalysis) {
+          const lastDocIds: string[] = (existingAnalysis as any).analyzed_doc_ids || [];
+          const currentDocIds: string[] = liveDocuments.map(d => String(d.id)).sort();
+
+          const isIdentical = 
+              lastDocIds.length > 0 &&
+              lastDocIds.length === currentDocIds.length &&
+              lastDocIds.slice().sort().every((id, idx) => id === currentDocIds[idx]);
+
+          if (isIdentical) {
+              setGatekeeperNotice("Nuk ka ndryshime në dokumentet e rastit. Për të ekzekutuar një ri-analizë të re, kërkohet të shtohet një dokument i ri ose të fshihet një dokument ekzistues.");
+              return;
+          }
       }
+
+      setShowRoleModal(true);
   };
 
-  const handleAnalyze = async (force = false) => {
+  const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF') => {
     if (!caseId) return;
-
-    const existingAnalysis = caseData.details && (caseData.details as any).latest_analysis ? (caseData.details as any).latest_analysis : analysisResult;
-    
-    if (existingAnalysis && !force && selectedDocumentIds.length === 0) {
-        setAnalysisResult(existingAnalysis);
-        setActiveModal('analysis');
-        return;
-    }
-
-    if (force && existingAnalysis) {
-        const lastDocIds: string[] = (existingAnalysis as any).analyzed_doc_ids || [];
-        const currentDocIds: string[] = liveDocuments.map(d => String(d.id)).sort();
-
-        const isIdentical = 
-            lastDocIds.length > 0 &&
-            lastDocIds.length === currentDocIds.length &&
-            lastDocIds.slice().sort().every((id, idx) => id === currentDocIds[idx]);
-
-        if (isIdentical) {
-            setGatekeeperNotice("Nuk ka ndryshime në dokumentet e rastit. Për të ekzekutuar një ri-analizë të re, kërkohet të shtohet një dokument i ri ose të fshihet një dokument ekzistues.");
-            return;
-        }
-    }
-    
+    setShowRoleModal(false);
     setIsAnalyzing(true);
     setActiveModal('none');
+
     try {
-      let result = selectedDocumentIds.length === 0 ? await apiService.analyzeCase(caseId, clientPosition) : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
+      await apiService.updateCasePosition(caseId, selectedRole);
+
+      let result = selectedDocumentIds.length === 0 
+          ? await apiService.analyzeCase(caseId, selectedRole) 
+          : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
+
       if (result.error) alert(result.error);
       else { 
-        const resultWithDocIds = {
+        const resultWithMeta = {
             ...result,
             analyzed_doc_ids: liveDocuments.map(d => String(d.id)).sort(),
-            client_position: clientPosition
+            client_position: selectedRole
         };
 
-        setAnalysisResult(resultWithDocIds); 
+        setAnalysisResult(resultWithMeta); 
         setActiveModal('analysis'); 
-        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: resultWithDocIds } } : prev);
+        setCaseData(prev => prev.details ? { details: { ...prev.details, latest_analysis: resultWithMeta } } : prev);
       }
     } catch { 
         alert(t('error.generic')); 
     } finally { 
         setIsAnalyzing(false); 
+    }
+  };
+
+  const handleViewExistingAnalysis = () => {
+    if (analysisResult || (caseData.details && (caseData.details as any).latest_analysis)) {
+        setActiveModal('analysis');
     }
   };
 
@@ -543,7 +597,8 @@ const CaseViewPage: React.FC = () => {
             caseDetails={caseData.details} 
             documents={liveDocuments} 
             t={t} 
-            onAnalyze={handleAnalyze} 
+            onTriggerRoleSelect={handleTriggerRoleSelect} 
+            onViewExistingAnalysis={handleViewExistingAnalysis}
             onClearAnalysis={handleClearAnalysis} 
             isAnalyzing={isAnalyzing} 
             viewMode={viewMode} 
@@ -551,8 +606,6 @@ const CaseViewPage: React.FC = () => {
             isPro={isPro} 
             selectedDocumentIds={selectedDocumentIds} 
             onDocumentSelectionChange={setSelectedDocumentIds}
-            clientPosition={clientPosition}
-            onPositionToggle={handlePositionToggle}
         />
         
         <AnimatePresence mode="wait">
@@ -631,11 +684,19 @@ const CaseViewPage: React.FC = () => {
           result={analysisResult} 
           caseId={currentCaseId} 
           isLoading={isAnalyzing}
-          onPositionChange={handlePositionToggle}
         />
       )}
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
+      {/* ROLE SELECTION POPUP MODAL */}
+      <RoleSelectionModal
+        isOpen={showRoleModal}
+        onClose={() => setShowRoleModal(false)}
+        onSelectRole={handleRoleChosen}
+        isAnalyzing={isAnalyzing}
+      />
+
+      {/* RE-ANALYSIS GATEKEEPER NOTIFICATION MODAL */}
       <AnimatePresence>
         {gatekeeperNotice && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
