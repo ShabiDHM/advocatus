@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V25.4 (BULLETPROOF AUDIT CHAT FALLBACK)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V25.5 (PRIORITIZED TITLE & ARTICLE LOOKUP)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -276,21 +276,24 @@ async def audit_chat(request: AuditChatRequest, current_user = Depends(get_curre
         user_query = request.effective_query
         documents = []
 
-        if request.article_id:
+        # 1. Prioritize law title and article number lookup for 100% accuracy
+        if request.law_title and request.article_number:
+            documents = find_law_documents(db, request.law_title, request.article_number)
+
+        # 2. Fallback to article_id (chunk_id)
+        if not documents and request.article_id:
             doc = db.legal_knowledge_base.find_one({"chunk_id": request.article_id})
             if doc:
                 documents = [doc]
 
-        if not documents and request.law_title and request.article_number:
-            documents = find_law_documents(db, request.law_title, request.article_number)
-
+        # 3. Ultimate Fallback: search by article number
         if not documents and request.article_number:
             clean_art = str(request.article_number).replace('Neni', '').replace('.', '').strip()
             cursor = db.legal_knowledge_base.find({"article_number": clean_art}).limit(5)
             documents = list(cursor)
         
         if not documents:
-            documents = [{"law_title": request.law_title or "Ligji", "article_number": request.article_number or "1", "text": "Informacioni i plotë i nenit nuk u gjet në bazën e të dhënave lokale."}]
+            raise HTTPException(status_code=404, detail="Article not found in database.")
         
         full_article_text = "\n\n".join([doc.get("text", "") for doc in documents])
         law_title = documents[0].get("law_title", request.law_title or "Ligji")

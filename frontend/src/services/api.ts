@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V27.0 (GUARANTEED .PDF ARCHIVE DOWNLOAD EXTENSION)
+// PHOENIX PROTOCOL - API SERVICE V27.2 (0 WARNINGS - CLEAN RESTORATION)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -385,7 +385,7 @@ class ApiService {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    public async *askLawAuditor(articleId: string, query: string): AsyncGenerator<string, void, unknown> {
+    public async *askLawAuditor(articleId: string, query: string, lawTitle?: string, articleNumber?: string): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) {
             await this.refreshToken();
@@ -401,6 +401,8 @@ class ApiService {
             },
             body: JSON.stringify({ 
                 article_id: articleId,
+                law_title: lawTitle || '',
+                article_number: articleNumber || '',
                 query 
             })
         });

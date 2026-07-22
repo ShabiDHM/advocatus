@@ -1,7 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.3 (UNIFIED INTERPRETATION VIEW)
-// 1. FIX: Removed the 'Analiza Profesionale' and 'Për Qytetarin' dual-tabs.
-// 2. FIX: Replaced tabs with a unified 'Interpretimi Ligjor' header, rendering the AI summary as a single, continuous block.
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.4 (UNIFIED INTERPRETATION VIEW - COMPLETE REPLACEMENT)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -109,7 +107,6 @@ const renderMarkdown = (text: string) => {
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={i} className="h-4" />;
-        // Skip AI structural headers to keep the UI clean
         if (trimmed.toUpperCase().includes('### NIVELI')) return null;
         if (trimmed.toUpperCase().includes('NIVELI 1:')) return null;
         if (trimmed.toUpperCase().includes('[NDARJA]')) return null;
@@ -187,8 +184,6 @@ export default function LawArticlePage() {
   const prevArticleNum = currentNum !== null && currentNum > 0 ? (currentNum === 1 ? '0' : String(currentNum - 1)) : null;
   const nextArticleNum = currentNum !== null ? String(currentNum + 1) : null;
 
-  // ========== PHOENIX: UNIFIED INTERPRETATION PARSER ==========
-  // We clean up any disclaimer text and return the full block as a single unified string
   const cleanSummary = useMemo(() => {
     if (!summaryContent) return '';
     return summaryContent
@@ -308,7 +303,8 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery);
+      // Pass law_title and article_number to guarantee accurate MongoDB lookup
+      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery, article.law_title, article.article_number);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
@@ -541,7 +537,6 @@ export default function LawArticlePage() {
                 >
                   <div className="p-8 sm:p-12 relative">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
-                      {/* UNIFIED HEADER: Interpretimi Ligjor */}
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary-start text-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
                           <BrainCircuit size={20} />
@@ -573,7 +568,6 @@ export default function LawArticlePage() {
                       </div>
                     )}
 
-                    {/* UNIFIED CONTENT BLOCK */}
                     {summaryContent && (
                       <div className="min-h-[150px]">
                         {renderMarkdown(cleanSummary)}
@@ -765,7 +759,6 @@ export default function LawArticlePage() {
               exit={{ scale: 0.95, opacity: 0 }} 
               className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
-              {/* Modal Header Controls */}
               <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
@@ -815,7 +808,6 @@ export default function LawArticlePage() {
                 </div>
               </div>
 
-              {/* Scrollable PDF Iframe Container */}
               <div className="flex-1 w-full h-full bg-slate-900 relative">
                 <iframe 
                   src={pdfUrl} 
@@ -828,7 +820,6 @@ export default function LawArticlePage() {
         )}
       </AnimatePresence>
 
-      {/* MINIMIZED DOCKED FLOATING PDF STATUS CARD */}
       <AnimatePresence>
         {showPdfModal && isPdfMinimized && article && (
           <motion.div
