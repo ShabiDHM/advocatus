@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V25.0 (INSTANT 0S WAR ROOM PERSISTENCE HYDRATION)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V26.0 (SAFE ADVERSARIAL PROPERTY RESOLUTION)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -51,7 +51,7 @@ const safeString = (val: any): string => {
     if (typeof val === 'string') return val;
     if (typeof val === 'object') {
         try {
-            return val.citizenText || val.lawyerText || val.summary || val.text || JSON.stringify(val);
+            return val.citizenText || val.lawyerText || val.summary || val.text || val.opponent_strategy || val.strategy || JSON.stringify(val);
         } catch {
             return String(val);
         }
@@ -59,7 +59,6 @@ const safeString = (val: any): string => {
     return String(val);
 };
 
-// Strips out raw markdown hashtags (### 👨‍💼, ### ⚖️, etc.) for a clean executive layout
 const cleanSummaryHeadings = (raw: string): string => {
     if (!raw) return "";
     let clean = raw;
@@ -277,7 +276,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   useLockBodyScroll(isOpen);
 
-  // Instantly hydrate persistent War Room data from MongoDB when modal opens
+  // Hydrate stored War Room deep result directly from MongoDB
   useEffect(() => {
     if (isOpen) { 
         setActiveTab('legal'); 
@@ -294,12 +293,11 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const handleWarRoomEntry = async () => {
       setActiveTab('war_room');
       
-      // Check if deep result is already hydrated from MongoDB
       const existingDeep = deepResult || (result as any)?.latest_deep_analysis || (result as any)?.deep_analysis || (result as any)?.deep_result;
       
       if (existingDeep && (existingDeep.adversarial_simulation || existingDeep.chronology || existingDeep.contradictions)) {
           if (!deepResult) setDeepResult(existingDeep);
-          return; // Instant 0s display - skip API calls!
+          return;
       }
 
       if (!deepResult && !isSimLoading && !isChronLoading && !isContradictLoading) {
@@ -355,6 +353,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   } = result || {};
 
   const { citizenText, lawyerText } = splitExecutiveSummary(summary);
+
+  // Safe Property Resolution for Adversarial Simulation
+  const simData = deepResult?.adversarial_simulation || {};
+  const opponentStrategy = safeString(
+      simData.opponent_strategy || simData.strategy || simData.description || 
+      (typeof simData === 'string' ? simData : 'Strategjia e kundërshtarit është përpunuar.')
+  );
+  const weaknessAttacks = Array.isArray(simData.weakness_attacks) ? simData.weakness_attacks : [];
 
   const getRiskLabel = (level: string) => {
       const l = level?.toUpperCase();
@@ -449,7 +455,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
                     
-                    {/* Role Badge Indicator */}
                     <span className="px-3 py-1 rounded-xl bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                       {clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Shield size={12} />}
                       <span>{clientPosition === 'PLAINTIFF' ? 'Roli: Paditës' : 'Roli: I Paditur'}</span>
@@ -654,19 +659,21 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                             <div className="space-y-8">
                                                 <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-danger-start/30 shadow-lg shadow-danger-start/5">
                                                     <h3 className="text-[12px] font-black text-danger-start mb-5 uppercase tracking-widest flex items-center gap-3"><Skull size={16}/> {t('analysis.opponent_strategy_title', 'Strategjia e Kundërshtarit')}</h3>
-                                                    <div className="text-text-secondary leading-relaxed font-medium">{renderCitationItem(deepResult.adversarial_simulation.opponent_strategy)}</div>
+                                                    <div className="text-text-secondary leading-relaxed font-medium">{renderCitationItem(opponentStrategy)}</div>
                                                 </div>
-                                                <div className="grid gap-4">
-                                                    {deepResult.adversarial_simulation.weakness_attacks.map((attack: string, i: number) => (
-                                                        <div key={i} className="flex gap-4 bg-surface p-5 rounded-xl border border-main shadow-sm">
-                                                            <Target size={18} className="text-danger-start shrink-0 mt-0.5" />
-                                                            <div className="text-text-secondary leading-relaxed">{renderCitationItem(attack)}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                {weaknessAttacks.length > 0 && (
+                                                    <div className="grid gap-4">
+                                                        {weaknessAttacks.map((attack: string, i: number) => (
+                                                            <div key={i} className="flex gap-4 bg-surface p-5 rounded-xl border border-main shadow-sm">
+                                                                <Target size={18} className="text-danger-start shrink-0 mt-0.5" />
+                                                                <div className="text-text-secondary leading-relaxed">{renderCitationItem(attack)}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
-                                            <div className="text-center py-20 text-text-secondary"><p>{t('analysis.error_loading', 'Gabim gjatë ngarkimit.')}</p></div>
+                                            <div className="text-center py-20 text-text-secondary"><p>{t('analysis.error_loading', 'Gabim gjatë ngarkimit të simulimit.')}</p></div>
                                         )
                                     ) : warRoomSubTab === 'timeline' ? (
                                         isChronLoading ? renderSubTabLoader() : deepResult?.chronology ? (
