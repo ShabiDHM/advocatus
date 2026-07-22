@@ -1,6 +1,7 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN FLOATING FIX V6.1 (UNIFIED UNLIMITED TIER)
-// 1. FIX: Removed all 'isPro' gating and visual lock UI elements, permanently unlocking the template dropdown for all users.
+// PHOENIX PROTOCOL - DROPDOWN THEME FIX V6.2 (DYNAMIC LIGHT/DARK MODE SUPPORT)
+// 1. FIX: Replaced hardcoded black '#0B0F1A' background with semantic 'bg-canvas' to fully support Light Mode text visibility.
+// 2. FIX: Unified hover states and border colors to standard 'border-main' and 'bg-hover' semantic variables.
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { FileText, Send, RefreshCw, ChevronDown, Briefcase } from 'lucide-react';
@@ -97,7 +98,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             >
               <option value="">{t('drafting.selectCase', 'Zgjidh rastin...')}</option>
               {cases.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.title}</option>
+                <option key={c.id} value={c.id} className="bg-canvas text-text-primary">{c.title}</option>
               ))}
             </select>
             <ChevronDown size={16} className="absolute right-4 text-text-muted pointer-events-none" />
@@ -122,29 +123,29 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* FLOATING DROPDOWN MENU - SOLID BG, HIGH Z-INDEX, NO CLIPPING */}
+          {/* FLOATING DROPDOWN MENU - DYNAMIC THEME FIX */}
           {isOpen && (
-            <div className="absolute left-0 right-0 top-full mt-2 z-[999] bg-[#0B0F1A] border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] max-h-[350px] overflow-y-auto custom-scrollbar">
+            <div className="absolute left-0 right-0 top-full mt-2 z-[999] bg-canvas border border-border-main rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] max-h-[350px] overflow-y-auto custom-scrollbar">
               {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Category Bar: solid, borders */}
+                  {/* Category Bar: dynamic semantic borders */}
                   <div className={`
                     px-4 py-2 
                     text-[10px] font-black uppercase tracking-widest text-text-muted
-                    bg-white/5
-                    border-y border-white/10
+                    bg-surface/50
+                    border-y border-border-main
                     ${groupIdx === 0 ? 'border-t-0' : ''}
                   `}>
                     {group.label}
                   </div>
                   {/* Document Items */}
-                  <div className="flex flex-col">
+                  <div className="flex flex-col py-1">
                     {group.options.map((opt) => (
                       <button
                         key={opt}
                         type="button"
                         onClick={() => { onSelectTemplate(opt as TemplateType); setIsOpen(false); }}
-                        className="w-full text-left px-5 py-3 hover:bg-primary-start hover:text-white transition-all text-sm font-bold text-text-primary"
+                        className="w-full text-left px-5 py-2.5 hover:bg-hover hover:text-primary-start transition-all text-sm font-bold text-text-primary focus:outline-none"
                       >
                         {getOptionLabel(opt)}
                       </button>
