@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V32.0 (DEEP STRATEGY & WAR ROOM PERSISTENCE IN MONGO)
+# PHOENIX PROTOCOL - CASES ROUTER V33.0 (PUBLIC PORTAL & WAR ROOM PERSISTENCE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -79,6 +79,91 @@ class ChatHistoryUpdate(BaseModel):
 
 class UpdateCasePositionRequest(BaseModel):
     client_position: str
+
+# --- PUBLIC CLIENT PORTAL ENDPOINTS (NO AUTH REQUIRED) ---
+
+@router.get("/public/{case_id}/timeline")
+async def get_public_case_timeline(
+    case_id: str,
+    db: Database = Depends(get_db)
+):
+    try:
+        case_data = case_service.get_public_case_events(db, case_id)
+        if not case_data:
+            raise HTTPException(status_code=404, detail="Case not found or not public.")
+        return JSONResponse(case_data)
+    except Exception as e:
+        logger.error(f"Public timeline error for case {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/public/{case_id}/logo")
+async def get_public_firm_logo(
+    case_id: str,
+    db: Database = Depends(get_db)
+):
+    try:
+        case_oid = validate_object_id(case_id)
+        case = db.cases.find_one({"_id": case_oid})
+        if not case:
+            raise HTTPException(status_code=404)
+        
+        owner_id = case.get("owner_id") or case.get("user_id")
+        if not owner_id:
+            raise HTTPException(status_code=404)
+            
+        profile = db.business_profiles.find_one({"$or": [{"user_id": owner_id}, {"user_id": str(owner_id)}]})
+        if not profile or not profile.get("logo_storage_key"):
+            raise HTTPException(status_code=404)
+            
+        logo_key = profile["logo_storage_key"]
+        stream = storage_service.get_file_stream(logo_key)
+        if not stream:
+            raise HTTPException(status_code=404)
+            
+        return StreamingResponse(stream, media_type="image/png")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Logo not found.")
+
+@router.get("/public/{case_id}/documents/{doc_id}/download")
+async def download_public_shared_document(
+    case_id: str,
+    doc_id: str,
+    source: str = "ACTIVE",
+    db: Database = Depends(get_db)
+):
+    try:
+        if source == "ARCHIVE":
+            archive_item = db.archives.find_one({"_id": ObjectId(doc_id)})
+            if not archive_item or not archive_item.get("is_shared"):
+                raise HTTPException(status_code=403, detail="Access denied.")
+            storage_key = archive_item.get("storage_key")
+            filename = archive_item.get("title", "document.pdf")
+        else:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+            if not doc or not doc.get("is_shared"):
+                raise HTTPException(status_code=403, detail="Access denied.")
+            storage_key = doc.get("storage_key") or doc.get("preview_storage_key")
+            filename = doc.get("file_name", "document.pdf")
+
+        if not storage_key:
+            raise HTTPException(status_code=404, detail="File not found in storage.")
+
+        stream = storage_service.get_file_stream(storage_key)
+        if not stream:
+            raise HTTPException(status_code=404, detail="File stream error.")
+
+        return StreamingResponse(
+            stream,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"inline; filename=\"{filename}\"",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+# --- AUTHENTICATED CASE ENDPOINTS ---
 
 @router.get("", response_model=List[CaseOut], include_in_schema=False)
 async def get_user_cases(
@@ -339,7 +424,6 @@ async def run_deep_case_analysis(
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     
-    # Save deep War Room result to MongoDB
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
@@ -365,7 +449,6 @@ async def run_deep_simulation_only(
     context_with_role = f"POZICIONI I KLIENTIT TONË: {effective_pos}\n\n{context}"
     res = await llm_service.generate_adversarial_simulation(context_with_role)
     
-    # Update persistent simulation inside MongoDB case document
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": c_oid},
