@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V26.0 (SAFE ADVERSARIAL PROPERTY RESOLUTION)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V28.0 (TS CRASH-PROOF & 0 ERRORS)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -276,7 +276,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   useLockBodyScroll(isOpen);
 
-  // Hydrate stored War Room deep result directly from MongoDB
   useEffect(() => {
     if (isOpen) { 
         setActiveTab('legal'); 
@@ -354,13 +353,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const { citizenText, lawyerText } = splitExecutiveSummary(summary);
 
-  // Safe Property Resolution for Adversarial Simulation
-  const simData = deepResult?.adversarial_simulation || {};
+  // PHOENIX CRITICAL TYPING FIX: Cast deepResult to 'any' before accessing adversarial_simulation property 
+  const simObj = ((deepResult as any)?.adversarial_simulation?.adversarial_simulation || (deepResult as any)?.adversarial_simulation || {}) as any;
   const opponentStrategy = safeString(
-      simData.opponent_strategy || simData.strategy || simData.description || 
-      (typeof simData === 'string' ? simData : 'Strategjia e kundërshtarit është përpunuar.')
+      simObj.opponent_strategy || simObj.strategy || simObj.description || 
+      (typeof simObj === 'string' ? simObj : 'Strategjia e kundërshtarit është përpunuar.')
   );
-  const weaknessAttacks = Array.isArray(simData.weakness_attacks) ? simData.weakness_attacks : [];
+  const weaknessAttacks = Array.isArray(simObj.weakness_attacks) ? simObj.weakness_attacks : [];
 
   const getRiskLabel = (level: string) => {
       const l = level?.toUpperCase();
@@ -455,6 +454,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
                     
+                    {/* Role Badge Indicator */}
                     <span className="px-3 py-1 rounded-xl bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                       {clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Shield size={12} />}
                       <span>{clientPosition === 'PLAINTIFF' ? 'Roli: Paditës' : 'Roli: I Paditur'}</span>

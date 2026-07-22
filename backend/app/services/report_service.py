@@ -1,17 +1,12 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V6.5 (LEGAL STRATEGY REPORT LAYOUT FIX)
-# 1. ADDED: New function `generate_legal_strategy_report` for specific report type.
-# 2. FIXED: "RAPORTI I STRATEGJISË LIGJORE" replaced with "Analiza e rastit" for specific report.
-# 3. FIXED: "RASTI: Pa Titull DATA E GJENERIMIT: [date]" moved to structured header, date removed from body.
-# 4. FIXED: General layout and styling polished for improved readability.
-# 5. RETAINED: All invoice and evidence map generation logic without degradation.
+# PHOENIX PROTOCOL - REPORT SERVICE V8.0 (PROFESSIONAL EXECUTIVE PDF LAYOUT & LOCALIZATION)
 
 import io
 import os
 import structlog
 import requests
 import markdown2
-import re # Import for regex operations
+import re
 from xhtml2pdf import pisa
 from datetime import datetime
 from reportlab.pdfgen import canvas
@@ -34,10 +29,10 @@ from app.services import storage_service
 logger = structlog.get_logger(__name__)
 
 # --- STYLES & CONSTANTS ---
-COLOR_PRIMARY_TEXT = HexColor("#111827")
-COLOR_SECONDARY_TEXT = HexColor("#6B7280")
-COLOR_BORDER = HexColor("#E5E7EB")
-BRAND_COLOR_DEFAULT = "#4f46e5" # A distinct, brand-like color for meta info
+COLOR_PRIMARY_TEXT = HexColor("#0f172a")
+COLOR_SECONDARY_TEXT = HexColor("#64748b")
+COLOR_BORDER = HexColor("#e2e8f0")
+BRAND_COLOR_DEFAULT = "#4f46e5"
 
 STYLES = getSampleStyleSheet()
 STYLES.add(ParagraphStyle(name='H1', parent=STYLES['h1'], fontSize=22, textColor=COLOR_PRIMARY_TEXT, alignment=TA_RIGHT, fontName='Helvetica-Bold'))
@@ -55,7 +50,6 @@ STYLES.add(ParagraphStyle(name='NotesLabel', parent=STYLES['AddressLabel'], spac
 STYLES.add(ParagraphStyle(name='FirmName', parent=STYLES['h3'], alignment=TA_RIGHT, fontSize=14, spaceAfter=4, textColor=COLOR_PRIMARY_TEXT))
 STYLES.add(ParagraphStyle(name='FirmMeta', parent=STYLES['Normal'], alignment=TA_RIGHT, fontSize=9, textColor=COLOR_SECONDARY_TEXT, leading=12))
 
-# --- TRANSLATIONS (Updated with new keys) ---
 TRANSLATIONS = {
     "sq": {
         "invoice_title": "FATURA", "invoice_num": "Nr.", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
@@ -63,7 +57,6 @@ TRANSLATIONS = {
         "total": "Totali", "subtotal": "Nëntotali", "tax": "TVSH (18%)", "notes": "Shënime",
         "footer_gen": "Dokument i gjeneruar elektronikisht nga", "page": "Faqe", 
         "lbl_address": "Adresa:", "lbl_tel": "Tel:", "lbl_email": "Email:", "lbl_web": "Web:", "lbl_nui": "NUI:",
-        # PHOENIX ADDITION: Evidence Map Report Keys
         "map_report_title": "Raporti i Hartës së Korrelacionit të Provave",
         "map_case_id": "Nr. i Rastit:",
         "map_section_claims": "Pretendimet Ligjore Kryesore",
@@ -76,76 +69,194 @@ TRANSLATIONS = {
         "map_rel_contradicts": "Kundërthotë",
         "map_rel_related": "Lidhet me",
         "map_notes": "Shënime: ",
-        # PHOENIX ADDITION: Legal Strategy Report Keys
-        "analysis_title": "Analiza e rastit", # New title for legal strategy report
-        "report_case_label": "Rasti:" # Label for the case title in reports
+        "analysis_title": "Analiza e rastit",
+        "report_case_label": "LËNDA:"
     }
 }
 
-# --- PHOENIX: PROFESSIONAL REPORT STYLES (Updated with .report-meta) ---
-REPORT_CSS = f"""
-    @page {{
+# --- PHOENIX: EXECUTIVE PUBLICATION-GRADE REPORT CSS ---
+REPORT_CSS = """
+    @page {
         size: a4 portrait;
-        @frame header_frame {{
-            -pdf-frame-content: header_content;
-            left: 20mm; width: 170mm; top: 20mm; height: 35mm; /* Increased height to accommodate new meta info */
-        }}
-        @frame content_frame {{
-            left: 20mm; width: 170mm; top: 60mm; height: 207mm; /* Adjusted top and height */
-        }}
-        @frame footer_frame {{
+        margin: 18mm 15mm 18mm 15mm;
+        @frame footer_frame {
             -pdf-frame-content: footer_content;
-            left: 20mm; width: 170mm; bottom: 10mm; height: 10mm;
-        }}
-    }}
-    body {{
+            left: 15mm; width: 180mm; bottom: 6mm; height: 10mm;
+        }
+    }
+    body {
         font-family: 'Helvetica', sans-serif;
-        font-size: 11pt;
-        line-height: 1.6;
-        color: #333;
-    }}
-    h1, h2, h3, h4 {{
-        font-family: 'Helvetica-Bold', sans-serif;
-        color: #1a2c4b;
+        font-size: 10pt;
+        line-height: 1.55;
+        color: #1e293b;
+    }
+    .header-card {
+        background-color: #0f172a;
+        color: #ffffff;
+        padding: 22px 26px;
+        border-radius: 8px;
+        border-left: 6px solid #4f46e5;
+        margin-bottom: 25px;
+    }
+    .header-badge {
+        font-size: 8pt;
+        font-weight: bold;
+        letter-spacing: 2px;
+        color: #818cf8;
+        text-transform: uppercase;
         margin-bottom: 8px;
-        padding-bottom: 4px;
-        line-height: 1.3;
-    }}
-    h1 {{ 
-        font-size: 18pt; 
-        border-bottom: 2px solid #1a2c4b; 
-        margin-bottom: 5px; /* Adjust spacing */
-        padding-bottom: 4px; 
-    }}
-    h2 {{ 
-        font-size: 14pt; 
-        border-bottom: 1px solid #e0e0e0; 
+    }
+    .header-title {
+        font-size: 20pt;
+        font-weight: bold;
+        color: #ffffff;
+        margin: 0 0 10px 0;
+        letter-spacing: -0.5px;
+        text-transform: uppercase;
+    }
+    .header-meta {
+        font-size: 9.5pt;
+        color: #94a3b8;
+        border-top: 1px solid #334155;
+        padding-top: 10px;
+        margin-top: 10px;
+    }
+    h1 {
+        font-size: 15pt;
+        font-weight: bold;
+        color: #0f172a;
+        border-bottom: 2px solid #4f46e5;
+        margin-top: 24px;
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        text-transform: uppercase;
+    }
+    h2 {
+        font-size: 12pt;
+        font-weight: bold;
+        color: #1e293b;
+        background-color: #f8fafc;
+        border-left: 4px solid #4f46e5;
+        padding: 8px 14px;
         margin-top: 20px;
-        color: #1a2c4b; 
-    }}
-    h2.report-meta {{ /* Specific style for meta info like "Rasti: Pa Titull" */
-        font-size: 12pt; /* Slightly smaller than H1 */
-        color: {BRAND_COLOR_DEFAULT}; /* Use a distinct brand color */
-        margin-top: 10px; /* Space from H1 */
-        margin-bottom: 15px; /* Space before content */
-        font-family: 'Helvetica', sans-serif; /* Not bold */
-        border-bottom: none; /* No line below meta */
-    }}
-    h3 {{ font-size: 12pt; margin-top: 15px; }}
-    h4 {{ font-size: 11pt; color: #4f46e5; margin-top: 10px; }}
-    p {{ margin: 0 0 10px 0; }}
-    ul {{
-        list-style-type: disc;
-        padding-left: 20px;
-    }}
-    li {{
-        margin-bottom: 5px;
-    }}
-    strong {{
-        font-family: 'Helvetica-Bold', sans-serif;
-        color: #000;
-    }}
+        margin-bottom: 10px;
+        text-transform: uppercase;
+    }
+    h3 {
+        font-size: 10.5pt;
+        font-weight: bold;
+        color: #334155;
+        margin-top: 14px;
+        margin-bottom: 8px;
+    }
+    p {
+        margin: 0 0 10px 0;
+        text-align: justify;
+    }
+    ul, ol {
+        margin-top: 4px;
+        margin-bottom: 12px;
+        padding-left: 18px;
+    }
+    li {
+        margin-bottom: 6px;
+        line-height: 1.5;
+        color: #334155;
+    }
+    strong {
+        font-weight: bold;
+        color: #0f172a;
+    }
+    blockquote {
+        background-color: #f8fafc;
+        border-left: 4px solid #6366f1;
+        margin: 12px 0;
+        padding: 10px 16px;
+        font-style: italic;
+        color: #334155;
+        border-radius: 4px;
+    }
+    code, pre {
+        font-family: 'Courier', monospace;
+        font-size: 8.5pt;
+        background-color: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        padding: 10px 14px;
+        border-radius: 6px;
+        color: #0f172a;
+        display: block;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 12px 0;
+        line-height: 1.4;
+    }
 """
+
+def clean_text_for_pdf(text: str) -> str:
+    """Strips all unrenderable emojis, black box glyphs ('■'), stray 'None' values, and translates English markers."""
+    if not text:
+        return ""
+    
+    clean = text
+    
+    # 1. Strip all unrenderable symbols and black square glyphs
+    bad_chars = [
+        "■", "□", "▪", "▫", "◆", "◇", "●", "○", "★", "☆", "✔", "✓", "✅", "❌", "✖",
+        "⚖", "👨", "💼", "⚖️", "👨‍💼", "👨‍⚖️", "🛡", "⚔", "🛡️", "⚔️", "💀", "⏱", "⏱️", "⏱", "⏱️",
+        "⚡", "⚡", "⏱", "⏱️", "📁", "📂", "🔍", "🔍"
+    ]
+    for char in bad_chars:
+        clean = clean.replace(char, "")
+
+    # Clean out any remaining 4-byte UTF-8 emojis
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U0002702-\U00027B0"
+        "\U00024C2-\U0001F251"
+        "\u2600-\u26FF"          # miscellaneous symbols
+        "\u2700-\u27BF"          # dingbats
+        "]+", flags=re.UNICODE
+    )
+    clean = emoji_pattern.sub("", clean)
+
+    # 2. Translate English markers to pristine Albanian
+    replacements = {
+        "Conflict: CRITICAL": "Mospërputhje: KRITIKE",
+        "Conflict: HIGH": "Mospërputhje: E LARTË",
+        "Conflict: MEDIUM": "Mospërputhje: E MESME",
+        "Conflict: LOW": "Mospërputhje: E ULËT",
+        "Konflikt: CRITICAL": "Mospërputhje: KRITIKE",
+        "Konflikt: HIGH": "Mospërputhje: E LARTË",
+        "Konflikt: MEDIUM": "Mospërputhje: E MESME",
+        "Konflikt: LOW": "Mospërputhje: E ULËT",
+        "Severity: CRITICAL": "Rrezikshmëria: KRITIKE",
+        "Severity: HIGH": "Rrezikshmëria: E LARTË",
+        "Severity: MEDIUM": "Rrezikshmëria: E MESME",
+        "Severity: LOW": "Rrezikshmëria: E ULËT",
+        "Rrezikshmëria: CRITICAL": "Rrezikshmëria: KRITIKE",
+        "Rrezikshmëria: HIGH": "Rrezikshmëria: E LARTË",
+        "Rrezikshmëria: MEDIUM": "Rrezikshmëria: E MESME",
+        "Rrezikshmëria: LOW": "Rrezikshmëria: E ULËT",
+        "supports": "mbështet",
+        "contradicts": "kundërshton",
+        "related": "lidhet me",
+        "opponent_strategy": "strategjia_e_kundershtarit",
+        "weakness_attacks": "pikat_e_sulmit"
+    }
+    for eng, alb in replacements.items():
+        clean = re.sub(r'\b' + re.escape(eng) + r'\b', alb, clean, flags=re.IGNORECASE)
+
+    # 3. Clean up stray "None" or "None" values
+    clean = re.sub(r'^\s*(None|\*\*None\*\*)\s*$', '', clean, flags=re.MULTILINE | re.IGNORECASE)
+
+    # 4. Clean up consecutive empty lines
+    clean = re.sub(r'\n{3,}', '\n\n', clean)
+    
+    return clean.strip()
 
 def _get_text(key: str, lang: str = "sq") -> str:
     return TRANSLATIONS.get(lang, TRANSLATIONS["sq"]).get(key, key)
@@ -297,33 +408,38 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
 
 def create_pdf_from_text(text: str, document_title: str, header_meta_content_html: Optional[str] = None) -> io.BytesIO:
     """
-    Generates a professional PDF from Markdown text using an HTML+CSS pipeline.
-    Accepts optional header_meta_content_html to inject styled meta-data below the main title.
+    Generates an executive, publication-grade PDF from Markdown text using an HTML+CSS pipeline.
+    Applies strict emoji/black square stripping, executive navy header card, and shaded callout boxes.
     """
     buffer = io.BytesIO()
     
-    html_body = markdown2.markdown(text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
+    # 1. Clean emojis, black squares, and 'None' strings
+    clean_text = clean_text_for_pdf(text)
 
-    # Build header content HTML dynamically
-    header_content_parts = []
-    # PHOENIX FIX: Hide h1 only if document_title explicitly contains "Pa Titull" as primary identifier.
-    # Otherwise, render the title.
-    if document_title and "Pa Titull" not in document_title: 
-        header_content_parts.append(f"<h1>{escape(document_title)}</h1>")
-    
-    # PHOENIX ADDITION: Inject meta-content HTML if provided
-    if header_meta_content_html:
-        header_content_parts.append(header_meta_content_html)
-    
-    header_html = f"<div id='header_content'>{''.join(header_content_parts)}</div>"
-    
-    # PHOENIX FIX: Remove system branding from footer (already implemented)
+    # 2. Convert markdown to HTML
+    html_body = markdown2.markdown(clean_text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
+
     generation_date = datetime.now().strftime('%d/%m/%Y')
+    display_title = escape(document_title) if document_title and "Pa Titull" not in document_title else "ANALIZA E RASTIT"
+    meta_html = header_meta_content_html or ""
+
+    # 3. Build Executive Header Card
+    header_html = f"""
+    <div class="header-card">
+        <div class="header-badge">JURISTI AI — SISTEMI I STRATEGJISË LIGJORE & DHOMA E LUFTËS</div>
+        <div class="header-title">{display_title}</div>
+        <div class="header-meta">
+            {meta_html}
+            <span style="float: right;"><b>Data e Gjenerimit:</b> {generation_date}</span>
+        </div>
+    </div>
+    """
+    
     footer_html = f"""
-    <div id='footer_content' style='font-size: 9pt; color: #888;'>
-        <table width="100%" style="border-top: 1px solid #ccc; padding-top: 5px;">
+    <div id='footer_content' style='font-size: 8pt; color: #64748b;'>
+        <table width="100%" style="border-top: 1px solid #e2e8f0; padding-top: 4px;">
             <tr>
-                <td align="left"></td>
+                <td align="left">Juristi AI System — Dokument Konfidencial Zyrtar</td>
                 <td align="right">Data e Gjenerimit: {generation_date}</td>
             </tr>
         </table>
@@ -333,6 +449,7 @@ def create_pdf_from_text(text: str, document_title: str, header_meta_content_htm
     full_html = f"""
     <html>
     <head>
+        <meta charset="utf-8"/>
         <style>{REPORT_CSS}</style>
     </head>
     <body>
@@ -353,7 +470,6 @@ def create_pdf_from_text(text: str, document_title: str, header_meta_content_htm
     buffer.seek(0)
     return buffer
 
-# PHOENIX PHASE 4: EVIDENCE MAP REPORT FUNCTION (Unchanged)
 def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_title: str = "N/A", lang: str = "sq") -> io.BytesIO:
     """
     Converts Evidence Map nodes/edges data into a structured Markdown report for PDF generation.
@@ -366,15 +482,11 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
     
     report_parts: List[str] = []
     
-    # --- Preamble ---
-    # The evidence map report includes its meta-information as part of the markdown body,
-    # which is then rendered by markdown2. This is distinct from the legal strategy report.
     report_parts.append(f"# {_get_text('map_report_title', lang)}")
     report_parts.append(f"**{_get_text('map_case_id', lang)}** {case_title} ({case_id})")
     report_parts.append(f"**{_get_text('footer_gen', lang)}** Juristi.tech | **{_get_text('date_issue', lang)}** {datetime.now().strftime('%d/%m/%Y')}")
     report_parts.append("\n---\n")
 
-    # --- Claim Sections ---
     report_parts.append(f"## {_get_text('map_section_claims', lang)}\n")
     
     if not claims:
@@ -384,20 +496,16 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
         c_data = claim.get('data', {})
         claim_id = claim.get('id')
         
-        # Claim Header (Title + Proven Status)
-        proven_status = '✅ ' + _get_text('map_proven', lang) if c_data.get('isProven') else '❌ ' + _get_text('map_proven', lang)
+        proven_status = ' Vërtetuar' if c_data.get('isProven') else ' Pa Vërtetuar'
         
         report_parts.append(f"### {c_data.get('label', 'Pretendim pa Titull')} ({proven_status})")
         
-        # PHOENIX FINAL FIX: Using triple quotes to safely include the newline escape sequence
         if c_data.get('content'):
             content_cleaned = c_data.get('content').replace('\n', ' ')
             report_parts.append(f"""> {content_cleaned}\n""")
         
-        # Filter edges for this claim (where the claim is the target)
         claim_edges = [e for e in edges if e.target == claim_id]
         
-        # Group evidence by relationship type
         relationships: Dict[str, List[Dict[str, Any]]] = {
             'supports': [], 'contradicts': [], 'related': []
         }
@@ -415,16 +523,14 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
                     'strength': edge.data.get('strength', 3) if edge.data else 3
                 })
 
-        # --- Evidence Listing ---
         report_parts.append(f"#### {_get_text('map_section_evidence', lang)}\n")
         
         if all(not rels for rels in relationships.values()):
-            report_parts.append("*Nuk ka prova të lidhura me këtë pretendim.*\n")
+            report_parts.append("*Nuk ka prova të lidhura med këtë pretendim.*\n")
             
         for rel_type, rel_list in relationships.items():
             if not rel_list: continue
 
-            # Translate relationship header
             header_key = f"map_rel_{rel_type}"
             header_text = _get_text(header_key, lang)
             
@@ -433,7 +539,6 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
             for item in rel_list:
                 evd = item['evidence'].get('data', {})
                 
-                # Metadata Badges
                 metadata = []
                 if evd.get('exhibitNumber'): metadata.append(f"**{_get_text('map_exhibit', lang)}** {evd['exhibitNumber']}")
                 if evd.get('isAuthenticated') is not None: 
@@ -441,48 +546,35 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
                     metadata.append(f"**{_get_text('map_auth', lang)}** {status}")
                 if evd.get('isAdmitted'): metadata.append(f"**{_get_text('map_admitted', lang)}** {evd['isAdmitted']}")
                 
-                # Evidence Content Line
                 content_line = f"* **{item['evidence'].get('data', {}).get('label', 'Provë pa Titull')}**"
                 if metadata:
                     content_line += f" ({' | '.join(metadata)})"
                 
                 report_parts.append(content_line)
                 
-                # Edge Note
                 if item['label']:
                     report_parts.append(f"  > *{_get_text('map_notes', lang)} {item['label']}*")
         
-        report_parts.append("\n---\n") # Separator between claims
+        report_parts.append("\n---\n")
 
-    # Final PDF Generation
     final_markdown = "\n".join(report_parts)
     return create_pdf_from_text(final_markdown, _get_text('map_report_title', lang))
 
-# PHOENIX ADDITION: New function to generate Legal Strategy Reports
 def generate_legal_strategy_report(case_title: str, raw_report_markdown: str, lang: str = "sq") -> io.BytesIO:
     """
-    Generates a Legal Strategy Report PDF with specific title and meta-information layout.
-    This function preprocesses the raw markdown to ensure correct header formatting.
+    Generates an executive Legal Strategy Report PDF with specific title and meta-information layout.
     """
-    # 1. Determine the main title for the report (always "Analiza e rastit" for this type)
     main_title = _get_text('analysis_title', lang)
-
-    # 2. Construct the meta-information HTML (e.g., "Rasti: Pa Titull")
     display_case_title = case_title if case_title and case_title.strip() != "" else "Pa Titull"
-    header_meta_content_html = f"<h2 class='report-meta'>{_get_text('report_case_label', lang)} {escape(display_case_title)}</h2>"
+    header_meta_content_html = f"<span><b>{_get_text('report_case_label', lang)}</b> {escape(display_case_title)}</span>"
     
-    # 3. Preprocess the raw markdown to remove the unwanted "RASTI: ... DATA E GJENERIMIT: ..." line
-    # This regex looks for a line starting with "RASTI:", followed by any content, then "DATA E GJENERIMIT:", and a date.
-    # It's flexible enough for variations in case title and spacing.
-    # The re.MULTILINE flag ensures '^' matches start of lines, not just start of string.
     cleaned_report_markdown = re.sub(
         r"^\s*RASTI:\s*.*?DATA\s+E\s+GJENERIMIT:\s*\d{2}/\d{2}/\d{4}\s*$", 
         "", 
         raw_report_markdown, 
         flags=re.IGNORECASE | re.MULTILINE
-    ).strip() # .strip() removes any resulting empty lines at start/end
+    ).strip()
 
-    # 4. Call the generic create_pdf_from_text with the specific title, meta-HTML, and cleaned content
     return create_pdf_from_text(
         text=cleaned_report_markdown, 
         document_title=main_title, 
