@@ -1,6 +1,7 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.2 (REGEX SPLIT FIX)
-// 1. FIX: Upgraded client-side text parser to use a highly tolerant Regex split, preventing empty tabs when AI phrasing varies.
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.3 (UNIFIED INTERPRETATION VIEW)
+// 1. FIX: Removed the 'Analiza Profesionale' and 'Për Qytetarin' dual-tabs.
+// 2. FIX: Replaced tabs with a unified 'Interpretimi Ligjor' header, rendering the AI summary as a single, continuous block.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +9,7 @@ import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
-  Loader2, X, BrainCircuit, User, Send, MessageCircle, FileText, ExternalLink, Download,
+  Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
   ChevronLeft, ChevronRight, Search, Minus, Maximize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -111,6 +112,7 @@ const renderMarkdown = (text: string) => {
         // Skip AI structural headers to keep the UI clean
         if (trimmed.toUpperCase().includes('### NIVELI')) return null;
         if (trimmed.toUpperCase().includes('NIVELI 1:')) return null;
+        if (trimmed.toUpperCase().includes('[NDARJA]')) return null;
         if (trimmed === '---') return null;
         const parts = trimmed.split(/(\*\*.*?\*\*)/g);
         return (
@@ -155,7 +157,6 @@ export default function LawArticlePage() {
   // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
-  const [activePerspective, setActivePerspective] = useState<'senior' | 'citizen'>('senior');
   const [summaryError, setSummaryError] = useState('');
   
   // --- CHAT STATE ---
@@ -186,52 +187,13 @@ export default function LawArticlePage() {
   const prevArticleNum = currentNum !== null && currentNum > 0 ? (currentNum === 1 ? '0' : String(currentNum - 1)) : null;
   const nextArticleNum = currentNum !== null ? String(currentNum + 1) : null;
 
-  // ========== PHOENIX: BULLETPROOF DUAL-PERSPECTIVE REGEX PARSER ==========
-  const perspectives = useMemo(() => {
-    if (!summaryContent) return { senior: '', citizen: '' };
-
-    let cleanText = summaryContent
+  // ========== PHOENIX: UNIFIED INTERPRETATION PARSER ==========
+  // We clean up any disclaimer text and return the full block as a single unified string
+  const cleanSummary = useMemo(() => {
+    if (!summaryContent) return '';
+    return summaryContent
       .replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '')
       .trim();
-
-    let seniorText = '';
-    let citizenText = '';
-
-    // PHOENIX UPGRADE: Highly tolerant regex split catches ANY variation of the Level 2 / Citizen marker
-    const splitRegex = /(?:\[NDARJA\]|NIVELI 2[:\-]?|### NIVELI 2[:\-]?|KËSHILLIM PËR QYTETARIN|### KËSHILLIM)/i;
-    const match = cleanText.match(splitRegex);
-
-    if (match && match.index !== undefined) {
-        seniorText = cleanText.substring(0, match.index).trim();
-        citizenText = cleanText.substring(match.index + match[0].length).trim();
-    }
-
-    // Clean up residual Markdown headers inside parsed parts
-    const cleanHeaders = (str: string) => {
-        return str
-            .replace(/^(?:###?\s*)?NIVELI\s*[12]\s*[:\-]*\s*(?:OPINIONI\s+PROFESIONAL\s*\(Për\s+Juristët\)|KËSHILLIM\s+PËR\s+QYTETARIN\s*\(Gjuhë\s+e\s+Thjeshtë\)|OPINIONI\s+PROFESIONAL|KËSHILLIM\s+PËR\s+QYTETARIN)?/gi, '')
-            .trim();
-    };
-
-    seniorText = cleanHeaders(seniorText);
-    citizenText = cleanHeaders(citizenText);
-
-    // ULTRA-ROBUST SELF-HEALING FALLBACK: If either tab parses empty, clone whole text to both
-    if (!seniorText || !citizenText) {
-        const fallbackText = cleanText
-            .replace(/###?\s*NIVELI\s*[12].*?(\n|$)/gi, '')
-            .replace(/\[NDARJA\]/gi, '')
-            .trim();
-        return {
-            senior: fallbackText,
-            citizen: fallbackText
-        };
-    }
-
-    return {
-        senior: seniorText,
-        citizen: citizenText
-    };
   }, [summaryContent]);
 
   useEffect(() => {
@@ -299,7 +261,6 @@ export default function LawArticlePage() {
     setShowSuggestions(false);
     setChatVisible(false);
     setIsSummarizing(true);
-    setActivePerspective('senior');
     
     try {
       const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
@@ -580,28 +541,16 @@ export default function LawArticlePage() {
                 >
                   <div className="p-8 sm:p-12 relative">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
-                      <div className="flex bg-surface p-1.5 rounded-2xl border border-border-main shadow-inner w-full sm:w-auto">
-                        <button
-                          onClick={() => setActivePerspective('senior')}
-                          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                            activePerspective === 'senior'
-                              ? 'bg-primary-start text-white shadow-sm'
-                              : 'text-text-muted hover:text-text-primary hover:bg-canvas'
-                          }`}
-                        >
-                          <BrainCircuit size={16} /> Analiza Profesionale
-                        </button>
-                        <button
-                          onClick={() => setActivePerspective('citizen')}
-                          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                            activePerspective === 'citizen'
-                              ? 'bg-primary-start text-white shadow-sm'
-                              : 'text-text-muted hover:text-text-primary hover:bg-canvas'
-                          }`}
-                        >
-                          <User size={16} /> Për Qytetarin
-                        </button>
+                      {/* UNIFIED HEADER: Interpretimi Ligjor */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary-start text-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                          <BrainCircuit size={20} />
+                        </div>
+                        <h3 className="text-lg font-black text-text-primary uppercase tracking-widest">
+                          Interpretimi Ligjor
+                        </h3>
                       </div>
+
                       <button
                         onClick={() => { setSummaryContent(''); setSummaryError(''); setChatVisible(false); }}
                         className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors hover-lift self-end sm:self-auto"
@@ -624,10 +573,10 @@ export default function LawArticlePage() {
                       </div>
                     )}
 
+                    {/* UNIFIED CONTENT BLOCK */}
                     {summaryContent && (
                       <div className="min-h-[150px]">
-                        {activePerspective === 'senior' && renderMarkdown(perspectives.senior)}
-                        {activePerspective === 'citizen' && renderMarkdown(perspectives.citizen)}
+                        {renderMarkdown(cleanSummary)}
                         {isSummarizing && <span className="inline-block w-2 h-5 bg-primary-start animate-pulse ml-1 align-middle" />}
                       </div>
                     )}
