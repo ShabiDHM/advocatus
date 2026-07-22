@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V20.1 (0 COMPILER WARNINGS - CLEAN ROLE POPUP MODAL)
+// PHOENIX PROTOCOL - CASE VIEW V20.2 (0 COMPILER WARNINGS - RESPONSIVE MOBILE HEADER CONTROLS)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -259,11 +259,11 @@ const CaseHeader: React.FC<{
             </span>
           );
 
-    const buttonBase = "h-11 flex items-center justify-center gap-2.5 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-250 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider w-full text-text-primary focus:outline-none";
+    const buttonBase = "h-11 flex items-center justify-center gap-2.5 px-3 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-250 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider w-full text-text-primary focus:outline-none";
 
     return (
         <motion.div className="relative mb-6 z-[30]" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
                 
                 {/* LEFT COLUMN */}
                 <div className="flex flex-col gap-4">
@@ -301,7 +301,7 @@ const CaseHeader: React.FC<{
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
-                        {/* Minimalist Split-Button Wrapper */}
+                        {/* Responsive Split-Button Wrapper for Mobile & Desktop */}
                         <div className="w-full">
                             {hasExistingAnalysis ? (
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
@@ -309,11 +309,12 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={onViewExistingAnalysis}
                                         disabled={isAnalyzing}
-                                        className="flex-1 h-full flex items-center justify-center gap-2 px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
+                                        className="flex-1 h-full flex items-center justify-center gap-1.5 px-2 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
                                         title="Shiko Analizën ekzistuese"
                                     >
                                         <Eye size={15} className="text-primary-start shrink-0" />
-                                        <span className="truncate text-primary-start">Shiko Analizën</span>
+                                        <span className="truncate text-primary-start hidden sm:inline">Shiko Analizën</span>
+                                        <span className="truncate text-primary-start sm:hidden">Analiza</span>
                                     </button>
 
                                     <div className="border-r border-main h-6 shrink-0" />
@@ -322,7 +323,7 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={() => onTriggerRoleSelect(true)}
                                         disabled={isAnalyzing}
-                                        className="flex-initial px-3 h-full flex items-center justify-center gap-2 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none"
+                                        className="px-2.5 sm:px-3 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
                                         title="Rianalizo sërish me AI"
                                     >
                                         <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin text-primary-start" : ""}`} />
@@ -334,7 +335,7 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={onClearAnalysis}
                                         disabled={isAnalyzing}
-                                        className="flex-initial px-4 h-full flex items-center justify-center gap-2 hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none"
+                                        className="px-2.5 sm:px-3.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
                                         title="Fshi analizën e ruajtur"
                                     >
                                         <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
