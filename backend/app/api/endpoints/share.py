@@ -1,17 +1,18 @@
 # FILE: backend/app/api/endpoints/share.py
-# PHOENIX PROTOCOL - SMART SHARE ENDPOINT V3.0 (PUBLIC PORTAL API & LANDING)
+# PHOENIX PROTOCOL - SMART SHARE ENDPOINT V3.1 (SAFE PUBLIC PORTAL API)
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
 from pymongo.database import Database
 from typing import Optional
 from bson import ObjectId
+import logging
 
-from app.api.endpoints.dependencies import get_db, get_sync_redis
-from app.services import case_service, storage_service, document_service
-import redis
+from app.api.endpoints.dependencies import get_db
+from app.services import case_service, storage_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # CONFIGURATION
 FRONTEND_URL = "https://juristi.tech"
@@ -31,19 +32,22 @@ async def get_public_case_timeline(
     """
     Public endpoint for the Client Portal to fetch case timeline, shared documents, and basic metadata.
     """
-    case_data = case_service.get_public_case_events(db, case_id)
-    if not case_data:
-        raise HTTPException(status_code=404, detail="Case not found or not public.")
-    return JSONResponse(case_data)
+    try:
+        case_data = case_service.get_public_case_events(db, case_id)
+        if not case_data:
+            raise HTTPException(status_code=404, detail="Case not found or not public.")
+        return JSONResponse(case_data)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error fetching public timeline for case {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/public/{case_id}/logo")
 async def get_public_firm_logo(
     case_id: str,
     db: Database = Depends(get_db)
 ):
-    """
-    Serves the law firm's business logo for public client portal.
-    """
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
@@ -74,9 +78,6 @@ async def download_public_shared_document(
     source: str = "ACTIVE",
     db: Database = Depends(get_db)
 ):
-    """
-    Allows public clients to view/download shared documents from their portal.
-    """
     try:
         if source == "ARCHIVE":
             archive_item = db.archives.find_one({"_id": ObjectId(doc_id)})
@@ -116,10 +117,6 @@ async def get_smart_share_preview(
     case_id: str, 
     db: Database = Depends(get_db)
 ):
-    """
-    Serves a static HTML page with Open Graph tags for Social Media Bots.
-    Redirects real users to the React Client Portal.
-    """
     case_data = case_service.get_public_case_events(db, case_id)
     
     if not case_data:
