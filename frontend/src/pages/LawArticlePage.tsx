@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V16.0 (BIBLIOTEKA LIGJORE DIRECT REDIRECT)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V17.0 (BULLETPROOF DUAL-PERSPECTIVE SUMMARY PARSER)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -27,6 +27,7 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+// ========== PHOENIX: PRECISION LEGAL TEXT SANITIZER ==========
 const normalizeText = (raw: string, articleNum?: string): string => {
   if (!raw) return '';
 
@@ -178,15 +179,38 @@ export default function LawArticlePage() {
   const prevArticleNum = currentNum !== null && currentNum > 0 ? (currentNum === 1 ? '0' : String(currentNum - 1)) : null;
   const nextArticleNum = currentNum !== null ? String(currentNum + 1) : null;
 
+  // ========== PHOENIX: BULLETPROOF DUAL-PERSPECTIVE PARSER WITH FALLBACK ==========
   const perspectives = useMemo(() => {
-    let cleanText = summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '');
-    let parts = cleanText.split('[NDARJA]');
-    if (parts.length < 2) {
-        parts = cleanText.split(/(?:\n---\n|\n### NIVELI 2.*?\n)/i);
+    if (!summaryContent) return { senior: '', citizen: '' };
+
+    let cleanText = summaryContent
+      .replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '')
+      .trim();
+
+    // 1. Try splitting by explicit marker [NDARJA]
+    if (cleanText.includes('[NDARJA]')) {
+      const parts = cleanText.split('[NDARJA]');
+      return {
+        senior: parts[0] ? parts[0].replace(/NIVELI 1:.*?\n/i, '').trim() : '',
+        citizen: parts[1] ? parts[1].replace(/NIVELI 2:.*?\n/i, '').trim() : ''
+      };
     }
+
+    // 2. Try splitting by NIVELI 2 or KËSHILLIM PËR QYTETARIN markers
+    const splitRegex = /(?:\n---\n|\n###?\s*NIVELI\s*2.*?\n|\n###?\s*KËSHILLIM\s+PËR\s+QYTETARIN.*?\n|\nNIVELI\s*2:.*?\n|\nKËSHILLIM\s+PËR\s+QYTETARIN:.*?\n)/i;
+    const regexParts = cleanText.split(splitRegex);
+
+    if (regexParts.length >= 2) {
+      return {
+        senior: regexParts[0].replace(/NIVELI 1:.*?\n/i, '').trim(),
+        citizen: regexParts[1].trim()
+      };
+    }
+
+    // 3. Fail-safe Fallback: Display text in both tabs so it never renders blank
     return {
-        senior: parts[0] ? parts[0].trim() : '',
-        citizen: parts[1] ? parts[1].trim() : ''
+      senior: cleanText,
+      citizen: cleanText
     };
   }, [summaryContent]);
 
@@ -338,7 +362,6 @@ export default function LawArticlePage() {
     setJumpInput('');
   };
 
-  // PHOENIX DIRECT REDIRECT TO BIBLIOTEKA LIGJORE
   const handleBackToLibrary = () => {
     navigate('/laws/search');
   };
@@ -381,8 +404,6 @@ export default function LawArticlePage() {
           
           {/* Top Control Bar */}
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
-            
-            {/* Top Back to Biblioteka Ligjore Button */}
             <button
               onClick={handleBackToLibrary}
               className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-xs sm:text-sm uppercase tracking-widest hover-lift"
@@ -464,7 +485,6 @@ export default function LawArticlePage() {
                     <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
 
-                  {/* Interactive Clickable PDF Source Pill */}
                   <button
                     type="button"
                     onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
@@ -695,7 +715,6 @@ export default function LawArticlePage() {
                       )}
                     </div>
 
-                    {/* Chat Input */}
                     <div className="flex gap-3 items-end mt-4">
                       <textarea
                         ref={inputRef}
@@ -721,7 +740,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* Bottom Footer Stepper & Redirect to Biblioteka Ligjore */}
+            {/* Bottom Footer Control */}
             <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
               <button
                 onClick={handleBackToLibrary}

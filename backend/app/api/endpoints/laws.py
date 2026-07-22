@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V24.0 (INCREMENTAL B2 CLOUD SYNC & DUP-CHECK)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V25.0 (EXPLICIT NDARJA MARKER PROMPT)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -44,7 +44,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     art_variants = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}"]
 
-    # Stage 1: Match by Law Number (e.g. 04/L-077 or 06/L-006 or 03/L-006)
     law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', raw_law_title, re.I)
     if law_num_match:
         law_code = law_num_match.group(1)
@@ -57,7 +56,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
         if docs:
             return docs
 
-    # Stage 2: Case-insensitive exact match
     query = {
         "law_title": {"$regex": f"^{re.escape(raw_law_title.strip())}$", "$options": "i"},
         "article_number": {"$in": art_variants}
@@ -67,7 +65,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
     if docs:
         return docs
 
-    # Stage 3: Substring keyword match
     words = [w for w in raw_law_title.split() if len(w) > 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe']]
     if words:
         key_pattern = "|".join([re.escape(w) for w in words[:3]])
@@ -83,7 +80,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> List[dic
     return []
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
-    """Locates the law PDF in data/laws/ks by matching official law numbers."""
     clean_requested = os.path.basename(requested_name).strip()
 
     current_file = os.path.abspath(__file__)
@@ -114,17 +110,14 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
                     continue
 
                 if f.lower() == clean_requested.lower():
-                    logger.info(f"[PDF-Match] Exact filename match: {f}")
                     return os.path.join(root, f)
 
                 if len(digits) >= 2:
                     primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
                     if primary_nums and all(num in f for num in primary_nums):
-                        logger.info(f"[PDF-Match] Number-pair match {primary_nums} -> {f}")
                         return os.path.join(root, f)
 
                 if 'kushtetuta' in clean_requested.lower() and 'kushtetuta' in f.lower():
-                    logger.info(f"[PDF-Match] Constitution match -> {f}")
                     return os.path.join(root, f)
 
     return None
@@ -144,10 +137,8 @@ STILI: Shqip standard, i qartë, me pika dhe lista për lehtësi.
 
 @router.get("/pdf/{filename}")
 async def get_law_pdf(filename: str):
-    """Streams the original law PDF from Backblaze B2 cloud storage or local disk."""
     clean_name = os.path.basename(filename)
 
-    # 1. Search Backblaze B2 Storage
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
@@ -165,14 +156,12 @@ async def get_law_pdf(filename: str):
             is_number_match = len(primary_nums) >= 2 and all(num in b2_filename for num in primary_nums)
 
             if is_exact or is_number_match:
-                logger.info(f"[B2 Cloud PDF Match] Found in B2: {key}")
                 presigned_url = storage_service.generate_presigned_url(key)
                 if presigned_url:
                     return RedirectResponse(url=presigned_url)
     except Exception as e:
         logger.warning(f"B2 cloud PDF search skipped: {e}")
 
-    # 2. Local disk fallback
     found_file = find_pdf_by_number_pair(clean_name)
     if found_file:
         return FileResponse(found_file, media_type="application/pdf", filename=os.path.basename(found_file))
@@ -184,12 +173,10 @@ async def get_law_pdf(filename: str):
 
 @router.post("/sync-to-b2")
 async def sync_laws_to_b2(current_user = Depends(get_current_user)):
-    """Uploads ONLY new PDF files from data/laws/ to Backblaze B2 (skips existing files)."""
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
 
-        # Fetch existing B2 files to prevent duplicates
         existing_b2_files = set()
         try:
             b2_res = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
@@ -229,7 +216,6 @@ async def sync_laws_to_b2(current_user = Depends(get_current_user)):
                     if f.lower().endswith('.pdf'):
                         b2_key = f"laws/{subfolder}/{f}".replace('//', '/') if subfolder else f"laws/{f}"
 
-                        # Skip duplicates
                         if f in existing_b2_files or b2_key in existing_b2_files:
                             skipped.append(f)
                             continue
@@ -245,7 +231,6 @@ async def sync_laws_to_b2(current_user = Depends(get_current_user)):
                             uploaded.append(f)
                             existing_b2_files.add(f)
                             existing_b2_files.add(b2_key)
-                            logger.info(f"[B2 Cloud Sync] Uploaded new PDF: {b2_key}")
                         except Exception as e:
                             logger.error(f"[B2 Cloud Sync Error] {f}: {e}")
 
@@ -261,13 +246,13 @@ async def sync_laws_to_b2(current_user = Depends(get_current_user)):
 @router.post("/explain")
 async def explain_law_article(request: LawExplainRequest, current_user = Depends(get_current_user)):
     system_prompt = (
-        "ROLI: Ti je partneri kryesor (Senior Legal Partner) në zyrën më prestigjioze ligjore në Kosovë. "
-        "Klientët paguajnë shtrenjtë për mendimin tënd analitik.\n\n"
+        "ROLI: Ti je partneri kryesor (Senior Legal Partner) në zyrën më prestigjioze ligjore në Kosovë.\n\n"
+        "DUHET TË STRUKTUROSH PËRGJIGJEN SAKTËSISHT NË DY SEKSIONE TË NDARA ME MARKERIN [NDARJA]:\n\n"
         "NIVELI 1: OPINIONI PROFESIONAL (Për Juristët)\n"
-        "Analizë e thellë doktrinare.\n\n"
+        "Analizë e thellë doktrinare, precedentet dhe interpretimi i nenit.\n\n"
         "[NDARJA]\n\n"
         "NIVELI 2: KËSHILLIM PËR QYTETARIN\n"
-        "Gjuhë e thjeshtë me hapa praktikë."
+        "Shpjegim jashtëzakonisht i thjeshtë me fjalë të përditshme se çfarë do të thotë ky nen për jetën e tij."
     )
     try:
         generator = llm_service.stream_text_async(sys_p=system_prompt, user_p=request.prompt, temp=0.3)
