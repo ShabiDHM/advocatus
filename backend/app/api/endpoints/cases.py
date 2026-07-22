@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V31.0 (CLIENT POSITION STANCE ENDPOINT INTEGRATED)
+# PHOENIX PROTOCOL - CASES ROUTER V32.0 (DEEP STRATEGY & WAR ROOM PERSISTENCE IN MONGO)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -60,7 +60,6 @@ def json_serializable(data):
 def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
     return
 
-# --- PYDANTIC MODELS ---
 class DeletedDocumentResponse(BaseModel):
     documentId: str
     deletedFindingIds: List[str]
@@ -79,9 +78,7 @@ class ChatHistoryUpdate(BaseModel):
     chat_history: List[ChatMessage]
 
 class UpdateCasePositionRequest(BaseModel):
-    client_position: str  # 'DEFENDANT' or 'PLAINTIFF'
-
-# --- CORE CASE ENDPOINTS ---
+    client_position: str
 
 @router.get("", response_model=List[CaseOut], include_in_schema=False)
 async def get_user_cases(
@@ -130,7 +127,6 @@ async def update_case_client_position(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Updates the party position mandate (DEFENDANT vs PLAINTIFF) for a case."""
     case_oid = validate_object_id(case_id)
     pos = body.client_position.upper()
     if pos not in ["DEFENDANT", "PLAINTIFF"]:
@@ -187,8 +183,6 @@ async def delete_case(
         owner=current_user
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-# --- PROTECTED DOCUMENT MANAGEMENT ---
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
@@ -297,8 +291,6 @@ async def get_document_preview(
         }
     )
 
-# --- CASE ANALYSIS & WAR ROOM ---
-
 @router.post("/{case_id}/analyze")
 async def run_textual_case_analysis(
     case_id: str,
@@ -331,7 +323,7 @@ async def clear_case_analysis_endpoint(
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
-        {"$unset": {"latest_analysis": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+        {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
     )
     return {"status": "success", "message": "Persistent analysis cleared successfully."}
 
@@ -342,10 +334,17 @@ async def run_deep_case_analysis(
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
-    validate_object_id(case_id)
+    case_oid = validate_object_id(case_id)
     result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id), client_position=client_position)
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
+    
+    # Save deep War Room result to MongoDB
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$set": {"latest_deep_analysis": result, "updated_at": datetime.now(timezone.utc)}}
+    )
     return JSONResponse(result)
 
 @router.post("/{case_id}/deep-analysis/simulation", dependencies=[Depends(require_pro_tier)])
@@ -365,6 +364,13 @@ async def run_deep_simulation_only(
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
     context_with_role = f"POZICIONI I KLIENTIT TONË: {effective_pos}\n\n{context}"
     res = await llm_service.generate_adversarial_simulation(context_with_role)
+    
+    # Update persistent simulation inside MongoDB case document
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": c_oid},
+        {"$set": {"latest_deep_analysis.adversarial_simulation": res, "updated_at": datetime.now(timezone.utc)}}
+    )
     return JSONResponse(res)
 
 @router.post("/{case_id}/deep-analysis/chronology", dependencies=[Depends(require_pro_tier)])
@@ -376,9 +382,17 @@ async def run_deep_chronology_only(
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
         
+    c_oid = validate_object_id(case_id)
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
     res = await llm_service.build_case_chronology(context)
-    return JSONResponse(res.get("timeline", []))
+    timeline = res.get("timeline", [])
+
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": c_oid},
+        {"$set": {"latest_deep_analysis.chronology": timeline, "updated_at": datetime.now(timezone.utc)}}
+    )
+    return JSONResponse(timeline)
 
 @router.post("/{case_id}/deep-analysis/contradictions", dependencies=[Depends(require_pro_tier)])
 async def run_deep_contradictions_only(
@@ -389,9 +403,17 @@ async def run_deep_contradictions_only(
     if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403)
         
+    c_oid = validate_object_id(case_id)
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
     res = await llm_service.detect_contradictions(context)
-    return JSONResponse(res.get("contradictions", []))
+    contradictions = res.get("contradictions", [])
+
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": c_oid},
+        {"$set": {"latest_deep_analysis.contradictions": contradictions, "updated_at": datetime.now(timezone.utc)}}
+    )
+    return JSONResponse(contradictions)
 
 @router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
 async def archive_case_strategy_endpoint(
@@ -407,8 +429,6 @@ async def archive_case_strategy_endpoint(
     if result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
     return JSONResponse(result)
-
-# --- FORENSIC & DRAFTS ---
 
 @router.post("/{case_id}/analyze/spreadsheet/forensic", dependencies=[Depends(require_pro_tier)])
 async def analyze_forensic_spreadsheet_endpoint(

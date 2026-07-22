@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V24.0 (PRISTINE HASHTAG-FREE EXECUTIVE SUMMARY)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V25.0 (INSTANT 0S WAR ROOM PERSISTENCE HYDRATION)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -64,7 +64,6 @@ const cleanSummaryHeadings = (raw: string): string => {
     if (!raw) return "";
     let clean = raw;
     
-    // Strip ### header lines completely
     clean = clean.replace(/###\s*[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]?\s*(UDHËZUESI|ANALIZA|PËRMBLEDHJA|KËSHILLIM).*?(?=\n|$)/giu, '');
     clean = clean.replace(/###\s*.*?(?=\n|$)/g, '');
     clean = clean.replace(/^["'\s{}]+|["'\s{}]+$/g, '');
@@ -278,16 +277,31 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   useLockBodyScroll(isOpen);
 
+  // Instantly hydrate persistent War Room data from MongoDB when modal opens
   useEffect(() => {
     if (isOpen) { 
         setActiveTab('legal'); 
         setWarRoomSubTab('strategy'); 
         setSummaryTab('citizen'); 
+
+        const existingDeep = (result as any)?.latest_deep_analysis || (result as any)?.deep_analysis || (result as any)?.deep_result;
+        if (existingDeep && (existingDeep.adversarial_simulation || existingDeep.chronology || existingDeep.contradictions)) {
+            setDeepResult(existingDeep);
+        }
     }
-  }, [isOpen]);
+  }, [isOpen, result]);
 
   const handleWarRoomEntry = async () => {
       setActiveTab('war_room');
+      
+      // Check if deep result is already hydrated from MongoDB
+      const existingDeep = deepResult || (result as any)?.latest_deep_analysis || (result as any)?.deep_analysis || (result as any)?.deep_result;
+      
+      if (existingDeep && (existingDeep.adversarial_simulation || existingDeep.chronology || existingDeep.contradictions)) {
+          if (!deepResult) setDeepResult(existingDeep);
+          return; // Instant 0s display - skip API calls!
+      }
+
       if (!deepResult && !isSimLoading && !isChronLoading && !isContradictLoading) {
           setIsSimLoading(true); setIsChronLoading(true); setIsContradictLoading(true);
 
