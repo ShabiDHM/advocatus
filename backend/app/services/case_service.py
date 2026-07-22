@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V6.6 (CHAT, ANALYSIS & PUBLIC PORTAL PERSISTENCE)
+# PHOENIX PROTOCOL - CASE SERVICE V6.7 (CHAT, ANALYSIS & PUBLIC PORTAL PERSISTENCE - FULLY SERIALIZED)
 
 import re
 import importlib
@@ -239,9 +239,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             description = ev.get("description", "") or ev.get("notes", "") or ""
             clean_desc = description.replace("[CLIENT_VISIBLE]", "").replace("[client_visible]", "").strip()
             
+            ev_date = ev.get("start_date")
+            date_str = ev_date.isoformat() if isinstance(ev_date, datetime) else ev_date
+
             events.append({
                 "title": ev.get("title"),
-                "date": ev.get("start_date"),
+                "date": date_str,
                 "type": ev.get("event_type", "EVENT"),
                 "description": clean_desc
             })
@@ -254,10 +257,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         
         shared_docs = []
         for d in docs_cursor:
+            d_date = d.get("created_at")
+            d_date_str = d_date.isoformat() if isinstance(d_date, datetime) else d_date
             shared_docs.append({
                 "id": str(d["_id"]),
                 "file_name": d.get("file_name"),
-                "created_at": d.get("created_at"),
+                "created_at": d_date_str,
                 "file_type": d.get("mime_type", "application/pdf"),
                 "source": "ACTIVE"
             })
@@ -270,11 +275,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         
         for a in archive_cursor:
              if not a.get("storage_key"): continue 
-             
+             a_date = a.get("created_at")
+             a_date_str = a_date.isoformat() if isinstance(a_date, datetime) else a_date
              shared_docs.append({
                 "id": str(a["_id"]),
                 "file_name": a.get("title", "Archived File"),
-                "created_at": a.get("created_at"),
+                "created_at": a_date_str,
                 "file_type": "application/pdf", 
                 "source": "ARCHIVE"
             })
@@ -284,13 +290,17 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "related_case_id": case_id,
                 "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
             }).sort("issue_date", -1)
-            shared_invoices = [{
-                "id": str(inv["_id"]),
-                "number": inv.get("invoice_number"),
-                "amount": inv.get("total_amount"),
-                "status": inv.get("status"),
-                "date": inv.get("issue_date")
-            } for inv in invoices_cursor]
+            shared_invoices = []
+            for inv in invoices_cursor:
+                inv_date = inv.get("issue_date")
+                inv_date_str = inv_date.isoformat() if isinstance(inv_date, datetime) else inv_date
+                shared_invoices.append({
+                    "id": str(inv["_id"]),
+                    "number": inv.get("invoice_number"),
+                    "amount": inv.get("total_amount"),
+                    "status": inv.get("status"),
+                    "date": inv_date_str
+                })
         except Exception:
             shared_invoices = []
 
@@ -323,7 +333,9 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         
         client_email = client_obj.get("email") if isinstance(client_obj, dict) else None
         client_phone = client_obj.get("phone") if isinstance(client_obj, dict) else None
-        created_at = case.get("created_at")
+        
+        case_created = case.get("created_at")
+        case_created_str = case_created.isoformat() if isinstance(case_created, datetime) else case_created
 
         return {
             "case_number": case.get("case_number"), 
@@ -331,7 +343,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             "client_name": clean_name, 
             "client_email": client_email,
             "client_phone": client_phone,
-            "created_at": created_at,
+            "created_at": case_created_str,
             "status": case.get("status", "OPEN"), 
             "organization_name": organization_name,
             "logo": logo_path,
