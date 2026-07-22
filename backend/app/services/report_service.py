@@ -1,5 +1,5 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V8.0 (PROFESSIONAL EXECUTIVE PDF LAYOUT & LOCALIZATION)
+# PHOENIX PROTOCOL - REPORT SERVICE V7.1 (FIXED UNICODE ESCAPE SYNTAX ERRORS)
 
 import io
 import os
@@ -203,22 +203,22 @@ def clean_text_for_pdf(text: str) -> str:
     bad_chars = [
         "■", "□", "▪", "▫", "◆", "◇", "●", "○", "★", "☆", "✔", "✓", "✅", "❌", "✖",
         "⚖", "👨", "💼", "⚖️", "👨‍💼", "👨‍⚖️", "🛡", "⚔", "🛡️", "⚔️", "💀", "⏱", "⏱️", "⏱", "⏱️",
-        "⚡", "⚡", "⏱", "⏱️", "📁", "📂", "🔍", "🔍"
+        "⚡", "⚡", "⏱", "⏱️", "📁", "📂", "🔍"
     ]
     for char in bad_chars:
         clean = clean.replace(char, "")
 
-    # Clean out any remaining 4-byte UTF-8 emojis
+    # Clean out any remaining 4-byte UTF-8 emojis using correct 16-bit \u and 32-bit \U hex digit padding
     emoji_pattern = re.compile(
         "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U0002702-\U00027B0"
-        "\U00024C2-\U0001F251"
-        "\u2600-\u26FF"          # miscellaneous symbols
-        "\u2700-\u27BF"          # dingbats
+        "\U0001F600-\U0001F64F"  # emoticons (32-bit: 8 digits)
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs (32-bit: 8 digits)
+        "\U0001F680-\U0001F6FF"  # transport & map symbols (32-bit: 8 digits)
+        "\U0001F1E0-\U0001F1FF"  # flags (32-bit: 8 digits)
+        "\u2702-\u27B0"          # dingbats (16-bit: 4 digits)
+        "\u24C2-\U0001F251"      # regional indicators (16-bit to 32-bit)
+        "\u2600-\u26FF"          # miscellaneous symbols (16-bit: 4 digits)
+        "\u2700-\u27BF"          # dingbats (16-bit: 4 digits)
         "]+", flags=re.UNICODE
     )
     clean = emoji_pattern.sub("", clean)
@@ -250,7 +250,7 @@ def clean_text_for_pdf(text: str) -> str:
     for eng, alb in replacements.items():
         clean = re.sub(r'\b' + re.escape(eng) + r'\b', alb, clean, flags=re.IGNORECASE)
 
-    # 3. Clean up stray "None" or "None" values
+    # 3. Clean up stray "None" values
     clean = re.sub(r'^\s*(None|\*\*None\*\*)\s*$', '', clean, flags=re.MULTILINE | re.IGNORECASE)
 
     # 4. Clean up consecutive empty lines
