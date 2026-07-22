@@ -1,6 +1,5 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.3 (EXECUTIVE DESIGN SYSTEM – FINAL POLISH)
-// POLISH: Adjusted header text-truncation properties to prevent clipping of long organization names like "Data And Human Management".
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.4 (EXECUTIVE DESIGN SYSTEM – FIXED SHARE URLS)
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -60,7 +59,8 @@ const ClientPortalPage: React.FC = () => {
     useEffect(() => {
         const fetchPortal = async () => {
             try {
-                const res = await axios.get(`${API_V1_URL}/cases/public/${caseId}/timeline`);
+                // FIXED: Route through /share/public/ to match backend router prefix
+                const res = await axios.get(`${API_V1_URL}/share/public/${caseId}/timeline`);
                 setData(res.data);
                 if (res.data) {
                     document.title = `${res.data.title || 'Portal'} | ${res.data.organization_name || 'Juristi'}`;
@@ -75,7 +75,7 @@ const ClientPortalPage: React.FC = () => {
         if (caseId) fetchPortal();
     }, [caseId, t]);
 
-    const getDocUrl = (id: string, src: string) => `${API_V1_URL}/cases/public/${caseId}/documents/${id}/download?source=${src}`;
+    const getDocUrl = (id: string, src: string) => `${API_V1_URL}/share/public/${caseId}/documents/${id}/download?source=${src}`;
 
     const handleView = (doc: SharedDocument) => {
         setViewingUrl(getDocUrl(doc.id, doc.source));
