@@ -1,6 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V6.5 (CHAT & ANALYSIS PERSISTENCE)
-# 1. FIX: Added 'latest_analysis' and 'chat_history' mapping inside _map_case_document to prevent Pydantic stripping.
+# PHOENIX PROTOCOL - CASE SERVICE V6.6 (CHAT, ANALYSIS & PUBLIC PORTAL PERSISTENCE)
 
 import re
 import importlib
@@ -94,7 +93,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "created_at": created_at, 
             "updated_at": updated_at, 
             "chat_history": case_doc.get("chat_history", []), 
-            "latest_analysis": case_doc.get("latest_analysis"), # PHOENIX CRITICAL RESOLUTION: Maps latest analysis into output dictionary
+            "latest_analysis": case_doc.get("latest_analysis"), 
             **counts
         }
     except Exception as e:
@@ -128,7 +127,6 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
     })
     
-    # PHOENIX FIX: Corrected attribute name from 'organization_id' to 'org_id'
     if not case_dict.get("org_id") and getattr(owner, "org_id", None):
         case_dict["org_id"] = owner.org_id
 
@@ -139,8 +137,6 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    
-    # 1. Base Query: User is owner/creator
     query_filter: Dict[str, Any] = {
         "$or": [
             {"owner_id": owner.id},
@@ -148,12 +144,7 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
         ]
     }
     
-    # 2. Organization Query: User belongs to Org -> see Org cases (Optional/Tier 2 Logic)
-    if getattr(owner, "org_id", None):
-        pass
-
     cursor = db.cases.find(query_filter).sort("updated_at", -1)
-    
     for case_doc in cursor:
         mapped_case = _map_case_document(case_doc, db)
         if mapped_case:
@@ -233,11 +224,13 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         if not case: return None
         
         events_cursor = db.calendar_events.find({
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "$or": [
-                {"is_public": True},
-                {"notes": {"$regex": "CLIENT_VISIBLE", "$options": "i"}},
-                {"description": {"$regex": "CLIENT_VISIBLE", "$options": "i"}}
+            "$and": [
+                {"$or": [{"case_id": case_id}, {"case_id": case_oid}]},
+                {"$or": [
+                    {"is_public": True},
+                    {"notes": {"$regex": "CLIENT_VISIBLE", "$options": "i"}},
+                    {"description": {"$regex": "CLIENT_VISIBLE", "$options": "i"}}
+                ]}
             ]
         }).sort("start_date", 1)
         
@@ -286,20 +279,20 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ARCHIVE"
             })
 
-        invoices_cursor = db.invoices.find({
-            "related_case_id": case_id,
-            "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
-        }).sort("issue_date", -1)
-
-        shared_invoices = []
-        for inv in invoices_cursor:
-            shared_invoices.append({
+        try:
+            invoices_cursor = db.invoices.find({
+                "related_case_id": case_id,
+                "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
+            }).sort("issue_date", -1)
+            shared_invoices = [{
                 "id": str(inv["_id"]),
                 "number": inv.get("invoice_number"),
                 "amount": inv.get("total_amount"),
                 "status": inv.get("status"),
                 "date": inv.get("issue_date")
-            })
+            } for inv in invoices_cursor]
+        except Exception:
+            shared_invoices = []
 
         owner_id = case.get("owner_id") or case.get("user_id")
         organization_name = "Zyra Ligjore"
@@ -307,16 +300,13 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
 
         if owner_id:
             search_conditions = [{"user_id": owner_id}]
-            
             if isinstance(owner_id, ObjectId):
                 search_conditions.append({"user_id": str(owner_id)})
-            
             if isinstance(owner_id, str):
                 try: search_conditions.append({"user_id": ObjectId(owner_id)})
                 except InvalidId: pass
             
             profile = db.business_profiles.find_one({"$or": search_conditions})
-
             if profile:
                 organization_name = (
                     profile.get("firm_name") or 
@@ -324,9 +314,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                     profile.get("company_name") or 
                     "Zyra Ligjore"
                 )
-                
                 if profile.get("logo_storage_key"):
-                    logo_path = f"/cases/public/{case_id}/logo"
+                    logo_path = f"/share/public/{case_id}/logo"
 
         client_obj = case.get("client", {})
         raw_name = client_obj.get("name") if isinstance(client_obj, dict) else None
