@@ -1,5 +1,6 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V17.0 (BULLETPROOF DUAL-PERSPECTIVE SUMMARY PARSER)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.2 (REGEX SPLIT FIX)
+// 1. FIX: Upgraded client-side text parser to use a highly tolerant Regex split, preventing empty tabs when AI phrasing varies.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -107,7 +108,9 @@ const renderMarkdown = (text: string) => {
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={i} className="h-4" />;
+        // Skip AI structural headers to keep the UI clean
         if (trimmed.toUpperCase().includes('### NIVELI')) return null;
+        if (trimmed.toUpperCase().includes('NIVELI 1:')) return null;
         if (trimmed === '---') return null;
         const parts = trimmed.split(/(\*\*.*?\*\*)/g);
         return (
@@ -144,15 +147,18 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // --- PDF MODAL & MINIMIZE STATE ---
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
+  // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
   const [activePerspective, setActivePerspective] = useState<'senior' | 'citizen'>('senior');
   const [summaryError, setSummaryError] = useState('');
   
+  // --- CHAT STATE ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuery, setInputQuery] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
@@ -160,6 +166,7 @@ export default function LawArticlePage() {
   const [chatVisible, setChatVisible] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
+  // --- Refs ---
   const summarySectionRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -179,7 +186,7 @@ export default function LawArticlePage() {
   const prevArticleNum = currentNum !== null && currentNum > 0 ? (currentNum === 1 ? '0' : String(currentNum - 1)) : null;
   const nextArticleNum = currentNum !== null ? String(currentNum + 1) : null;
 
-  // ========== PHOENIX: BULLETPROOF DUAL-PERSPECTIVE PARSER WITH FALLBACK ==========
+  // ========== PHOENIX: BULLETPROOF DUAL-PERSPECTIVE REGEX PARSER ==========
   const perspectives = useMemo(() => {
     if (!summaryContent) return { senior: '', citizen: '' };
 
@@ -187,30 +194,43 @@ export default function LawArticlePage() {
       .replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '')
       .trim();
 
-    // 1. Try splitting by explicit marker [NDARJA]
-    if (cleanText.includes('[NDARJA]')) {
-      const parts = cleanText.split('[NDARJA]');
-      return {
-        senior: parts[0] ? parts[0].replace(/NIVELI 1:.*?\n/i, '').trim() : '',
-        citizen: parts[1] ? parts[1].replace(/NIVELI 2:.*?\n/i, '').trim() : ''
-      };
+    let seniorText = '';
+    let citizenText = '';
+
+    // PHOENIX UPGRADE: Highly tolerant regex split catches ANY variation of the Level 2 / Citizen marker
+    const splitRegex = /(?:\[NDARJA\]|NIVELI 2[:\-]?|### NIVELI 2[:\-]?|KËSHILLIM PËR QYTETARIN|### KËSHILLIM)/i;
+    const match = cleanText.match(splitRegex);
+
+    if (match && match.index !== undefined) {
+        seniorText = cleanText.substring(0, match.index).trim();
+        citizenText = cleanText.substring(match.index + match[0].length).trim();
     }
 
-    // 2. Try splitting by NIVELI 2 or KËSHILLIM PËR QYTETARIN markers
-    const splitRegex = /(?:\n---\n|\n###?\s*NIVELI\s*2.*?\n|\n###?\s*KËSHILLIM\s+PËR\s+QYTETARIN.*?\n|\nNIVELI\s*2:.*?\n|\nKËSHILLIM\s+PËR\s+QYTETARIN:.*?\n)/i;
-    const regexParts = cleanText.split(splitRegex);
+    // Clean up residual Markdown headers inside parsed parts
+    const cleanHeaders = (str: string) => {
+        return str
+            .replace(/^(?:###?\s*)?NIVELI\s*[12]\s*[:\-]*\s*(?:OPINIONI\s+PROFESIONAL\s*\(Për\s+Juristët\)|KËSHILLIM\s+PËR\s+QYTETARIN\s*\(Gjuhë\s+e\s+Thjeshtë\)|OPINIONI\s+PROFESIONAL|KËSHILLIM\s+PËR\s+QYTETARIN)?/gi, '')
+            .trim();
+    };
 
-    if (regexParts.length >= 2) {
-      return {
-        senior: regexParts[0].replace(/NIVELI 1:.*?\n/i, '').trim(),
-        citizen: regexParts[1].trim()
-      };
+    seniorText = cleanHeaders(seniorText);
+    citizenText = cleanHeaders(citizenText);
+
+    // ULTRA-ROBUST SELF-HEALING FALLBACK: If either tab parses empty, clone whole text to both
+    if (!seniorText || !citizenText) {
+        const fallbackText = cleanText
+            .replace(/###?\s*NIVELI\s*[12].*?(\n|$)/gi, '')
+            .replace(/\[NDARJA\]/gi, '')
+            .trim();
+        return {
+            senior: fallbackText,
+            citizen: fallbackText
+        };
     }
 
-    // 3. Fail-safe Fallback: Display text in both tabs so it never renders blank
     return {
-      senior: cleanText,
-      citizen: cleanText
+        senior: seniorText,
+        citizen: citizenText
     };
   }, [summaryContent]);
 
@@ -485,6 +505,7 @@ export default function LawArticlePage() {
                     <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
 
+                  {/* Interactive Clickable PDF Source Pill */}
                   <button
                     type="button"
                     onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
@@ -685,7 +706,7 @@ export default function LawArticlePage() {
                               <button
                                 key={idx}
                                 onClick={() => handleSendQuery(question)}
-                                className="text-xs bg-surface border border-border-main hover:border-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
+                                className="text-xs bg-surface border border-border-main hover:bg-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
                                 type="button"
                               >
                                 {question}
@@ -740,7 +761,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* Bottom Footer Control */}
+            {/* Bottom Footer Stepper */}
             <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
               <button
                 onClick={handleBackToLibrary}
@@ -787,7 +808,7 @@ export default function LawArticlePage() {
 
       {/* FULL PDF SCROLLABLE MODAL */}
       <AnimatePresence>
-        {showPdfModal && !isPdfMinimized && pdfUrl && (
+        {showPdfModal && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }} 
@@ -795,6 +816,7 @@ export default function LawArticlePage() {
               exit={{ scale: 0.95, opacity: 0 }} 
               className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
+              {/* Modal Header Controls */}
               <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
@@ -844,6 +866,7 @@ export default function LawArticlePage() {
                 </div>
               </div>
 
+              {/* Scrollable PDF Iframe Container */}
               <div className="flex-1 w-full h-full bg-slate-900 relative">
                 <iframe 
                   src={pdfUrl} 
