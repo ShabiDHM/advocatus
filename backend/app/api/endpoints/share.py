@@ -1,17 +1,15 @@
 # FILE: backend/app/api/endpoints/share.py
-# PHOENIX PROTOCOL - SMART SHARE ENDPOINT V2.0 (LANDING FIX)
-# 1. FIX: Added '/landing/preview' endpoint to resolve 404 errors in social media parsers.
-# 2. LOGIC: Redirects to the static PWA icon hosted by the frontend.
-# 3. FEATURE: Retains dynamic case preview logic for bots.
+# PHOENIX PROTOCOL - SMART SHARE ENDPOINT V3.0 (PUBLIC PORTAL API & LANDING)
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
 from pymongo.database import Database
 from typing import Optional
 from bson import ObjectId
 
-from app.api.endpoints.dependencies import get_db
-from app.services import case_service
+from app.api.endpoints.dependencies import get_db, get_sync_redis
+from app.services import case_service, storage_service, document_service
+import redis
 
 router = APIRouter()
 
@@ -22,12 +20,94 @@ API_URL = "https://api.juristi.tech"
 # --- LANDING PREVIEW (Fixes 404) ---
 @router.get("/landing/preview", include_in_schema=False)
 async def get_landing_preview():
-    """
-    Redirects social media bots to the main high-res application icon.
-    Used by index.html meta tags.
-    """
-    # Points to the static PWA asset served by Vercel/Frontend
     return RedirectResponse(url=f"{FRONTEND_URL}/pwa-512x512.png")
+
+# --- PUBLIC CLIENT PORTAL ENDPOINTS ---
+@router.get("/public/{case_id}/timeline")
+async def get_public_case_timeline(
+    case_id: str,
+    db: Database = Depends(get_db)
+):
+    """
+    Public endpoint for the Client Portal to fetch case timeline, shared documents, and basic metadata.
+    """
+    case_data = case_service.get_public_case_events(db, case_id)
+    if not case_data:
+        raise HTTPException(status_code=404, detail="Case not found or not public.")
+    return JSONResponse(case_data)
+
+@router.get("/public/{case_id}/logo")
+async def get_public_firm_logo(
+    case_id: str,
+    db: Database = Depends(get_db)
+):
+    """
+    Serves the law firm's business logo for public client portal.
+    """
+    try:
+        case_oid = ObjectId(case_id)
+        case = db.cases.find_one({"_id": case_oid})
+        if not case:
+            raise HTTPException(status_code=404)
+        
+        owner_id = case.get("owner_id") or case.get("user_id")
+        if not owner_id:
+            raise HTTPException(status_code=404)
+            
+        profile = db.business_profiles.find_one({"$or": [{"user_id": owner_id}, {"user_id": str(owner_id)}]})
+        if not profile or not profile.get("logo_storage_key"):
+            raise HTTPException(status_code=404)
+            
+        logo_key = profile["logo_storage_key"]
+        stream = storage_service.get_file_stream(logo_key)
+        if not stream:
+            raise HTTPException(status_code=404)
+            
+        return StreamingResponse(stream, media_type="image/png")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Logo not found.")
+
+@router.get("/public/{case_id}/documents/{doc_id}/download")
+async def download_public_shared_document(
+    case_id: str,
+    doc_id: str,
+    source: str = "ACTIVE",
+    db: Database = Depends(get_db)
+):
+    """
+    Allows public clients to view/download shared documents from their portal.
+    """
+    try:
+        if source == "ARCHIVE":
+            archive_item = db.archives.find_one({"_id": ObjectId(doc_id)})
+            if not archive_item or not archive_item.get("is_shared"):
+                raise HTTPException(status_code=403, detail="Access denied.")
+            storage_key = archive_item.get("storage_key")
+            filename = archive_item.get("title", "document.pdf")
+        else:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+            if not doc or not doc.get("is_shared"):
+                raise HTTPException(status_code=403, detail="Access denied.")
+            storage_key = doc.get("storage_key") or doc.get("preview_storage_key")
+            filename = doc.get("file_name", "document.pdf")
+
+        if not storage_key:
+            raise HTTPException(status_code=404, detail="File not found in storage.")
+
+        stream = storage_service.get_file_stream(storage_key)
+        if not stream:
+            raise HTTPException(status_code=404, detail="File stream error.")
+
+        return StreamingResponse(
+            stream,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"inline; filename=\"{filename}\"",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 # --- CASE PREVIEW ---
 @router.get("/{case_id}", response_class=HTMLResponse)
@@ -40,7 +120,6 @@ async def get_smart_share_preview(
     Serves a static HTML page with Open Graph tags for Social Media Bots.
     Redirects real users to the React Client Portal.
     """
-    # 1. Fetch Public Case Data
     case_data = case_service.get_public_case_events(db, case_id)
     
     if not case_data:
@@ -53,14 +132,12 @@ async def get_smart_share_preview(
         </html>
         """
 
-    # 2. Extract Data for Preview
     title = case_data.get("title", "Rast Ligjor")
     client = case_data.get("client_name", "Klient")
     case_number = case_data.get("case_number", "---")
     status = case_data.get("status", "OPEN").upper()
     org_name = case_data.get("organization_name", "Juristi Portal")
     
-    # 3. Handle Logo URL
     logo_path = case_data.get("logo")
     logo_url = f"{FRONTEND_URL}/static/logo.png" 
     
@@ -70,7 +147,6 @@ async def get_smart_share_preview(
         elif logo_path.startswith("/"):
             logo_url = f"{API_URL}{logo_path}"
 
-    # 4. Construct the HTML Response
     html_content = f"""
     <!DOCTYPE html>
     <html lang="sq">
