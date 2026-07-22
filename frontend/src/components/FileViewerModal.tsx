@@ -1,7 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FORMATTED LEGAL EXPORT V6.6
-// 1. FIX: Intercepts client-side 'blob:' URLs in loadContent and handleDownloadOriginal to prevent Axios prefixing network leaks.
-// 2. POLISH: Integrated useLockBodyScroll, standardized on design tokens, and refined mobile touch targets.
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V7.0 (SELECTABLE HIGH-TRUST INTERACTIVE TEXT LAYER)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -15,6 +13,10 @@ import {
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
+// Import essential react-pdf styles to ensure interactive text overlay alignments
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -180,7 +182,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadContent = async () => {
         try {
-            // Bypass remote network requests completely if url is already in local browser memory
             if (directUrl && directUrl.startsWith('blob:')) {
                 if (targetMode === 'PDF') {
                     setFileSource(directUrl);
@@ -258,8 +259,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           pageNumber={pageNumber} 
                           width={containerWidth > 0 ? containerWidth : undefined} 
                           scale={scale} 
-                          renderTextLayer={false} 
-                          renderAnnotationLayer={false} 
+                          renderTextLayer={true} // PHOENIX CHANGE: Enabled selectable text layers
+                          renderAnnotationLayer={true} // PHOENIX CHANGE: Enabled clickable links
                           className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main" 
                         />
                     </PdfDocument>
