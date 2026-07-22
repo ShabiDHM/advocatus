@@ -1,6 +1,6 @@
 # FILE: backend/app/core/db.py
-# PHOENIX PROTOCOL - DATABASE CORE V5.2 (GENERATOR ALIGNED)
-# 1. FIX: Changed get_redis_client from 'return' to 'yield' to support FastAPI generator expectations.
+# PHOENIX PROTOCOL - DATABASE CORE V5.3 (SETTINGS ALIGNED)
+# 1. FIX: Uses Pydantic 'settings' for DATABASE_URI and MONGO_DB_NAME instead of raw os.getenv().
 # 2. STATUS: Clean, robust, and aligned with dependencies.py.
 
 import os
@@ -8,6 +8,8 @@ import logging
 from pymongo import MongoClient
 from pymongo.database import Database
 import redis
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +20,8 @@ _redis_client = None
 # --- MONGODB CONNECTION ---
 def connect_to_mongo() -> tuple[MongoClient, Database]:
     global _mongo_client
-    uri = os.getenv("DATABASE_URI")
-    db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
+    uri = settings.DATABASE_URI
+    db_name = settings.MONGO_DB_NAME or "advocatus_db"
     if not uri: raise ValueError("DATABASE_URI missing.")
     try:
         if _mongo_client is None:
@@ -39,7 +41,7 @@ def close_mongo_connections():
 # --- REDIS CONNECTION ---
 def connect_to_redis() -> redis.Redis:
     global _redis_client
-    redis_url = os.getenv("REDIS_URL")
+    redis_url = settings.REDIS_URL
     if not redis_url: raise ValueError("REDIS_URL missing.")
     try:
         if _redis_client is None:

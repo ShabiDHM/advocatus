@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V25.0 (EXPLICIT NDARJA MARKER PROMPT)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V25.4 (BULLETPROOF AUDIT CHAT FALLBACK)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -26,9 +26,16 @@ class LawExplainRequest(BaseModel):
     prompt: str
 
 class AuditChatRequest(BaseModel):
-    law_title: str
-    article_number: str
-    query: str
+    law_title: Optional[str] = ""
+    article_number: Optional[str] = ""
+    article_id: Optional[str] = None
+    query: Optional[str] = None
+    message: Optional[str] = None
+    prompt: Optional[str] = None
+
+    @property
+    def effective_query(self) -> str:
+        return self.query or self.message or self.prompt or ""
 
 def _safe_int(value: Any) -> int:
     if value is None: return 0
@@ -266,21 +273,39 @@ async def audit_chat(request: AuditChatRequest, current_user = Depends(get_curre
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        documents = find_law_documents(db, request.law_title, request.article_number)
+        user_query = request.effective_query
+        documents = []
+
+        if request.article_id:
+            doc = db.legal_knowledge_base.find_one({"chunk_id": request.article_id})
+            if doc:
+                documents = [doc]
+
+        if not documents and request.law_title and request.article_number:
+            documents = find_law_documents(db, request.law_title, request.article_number)
+
+        if not documents and request.article_number:
+            clean_art = str(request.article_number).replace('Neni', '').replace('.', '').strip()
+            cursor = db.legal_knowledge_base.find({"article_number": clean_art}).limit(5)
+            documents = list(cursor)
         
         if not documents:
-            raise HTTPException(status_code=404, detail=f"Article not found: {request.law_title}, Neni {request.article_number}")
+            documents = [{"law_title": request.law_title or "Ligji", "article_number": request.article_number or "1", "text": "Informacioni i plotë i nenit nuk u gjet në bazën e të dhënave lokale."}]
         
         full_article_text = "\n\n".join([doc.get("text", "") for doc in documents])
+        law_title = documents[0].get("law_title", request.law_title or "Ligji")
+        art_num = documents[0].get("article_number", request.article_number or "")
         
-        context = f"=== KONTEKSTI I DOKUMENTEVE ===\nTitulli i Ligjit: {request.law_title}\nNumri i Nenit: {request.article_number}\nPërmbajtja e Nenit:\n{full_article_text}\n"
-        full_user_prompt = f"{context}\n\nPyetja e përdoruesit në lidhje me këtë nen: {request.query}"
+        context = f"=== KONTEKSTI I DOKUMENTEVE ===\nTitulli i Ligjit: {law_title}\nNumri i Nenit: {art_num}\nPërmbajtja e Nenit:\n{full_article_text}\n"
+        full_user_prompt = f"{context}\n\nPyetja e përdoruesit në lidhje me këtë nen: {user_query}"
         
         generator = llm_service.stream_text_async(sys_p=RIGID_AUDITOR_PROMPT, user_p=full_user_prompt, temp=0.0)
         return StreamingResponse(generator, media_type="text/plain")
         
     except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=f"Audit chat failed: {str(e)}")
+    except Exception as e: 
+        logger.error(f"Audit chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Audit chat failed: {str(e)}")
 
 @router.get("/search")
 async def search_laws(q: str = Query(...), limit: int = Query(50, ge=1, le=200), current_user = Depends(get_current_user)):

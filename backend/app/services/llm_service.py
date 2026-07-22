@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V88.0 (ROLE-ADAPTED ADVERSARIAL SIMULATION)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V88.4 (FORCED ENV LOADER)
 
 import os
 import json
@@ -7,11 +7,20 @@ import logging
 import re
 import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
+from dotenv import load_dotenv
+
+# Force load .env from backend or root before initializing clients
+load_dotenv()
+
 from openai import OpenAI, AsyncOpenAI
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
+def _get_api_key() -> str:
+    return getattr(settings, "OPENROUTER_API_KEY", None) or os.getenv("OPENROUTER_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+
+OPENROUTER_KEY = _get_api_key()
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
@@ -27,10 +36,12 @@ TEMP_ANALYSIS = 0.2   # High-precision audit focus
 TEMP_CHAT = 0.3       # Standard balanced interactive chat
 
 def _get_sync_client(): 
-    return OpenAI(api_key=OPENROUTER_KEY, base_url=OPENROUTER_URL)
+    key = _get_api_key()
+    return OpenAI(api_key=key, base_url=OPENROUTER_URL)
 
 def _get_async_client(): 
-    return AsyncOpenAI(api_key=OPENROUTER_KEY, base_url=OPENROUTER_URL)
+    key = _get_api_key()
+    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
     """
@@ -63,7 +74,8 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
     Synchronous helper for backend services. 
     Clears JSON response formatting options when executing R1 reasoning model to prevent API crashes.
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
     try:
         client = _get_sync_client()
@@ -87,7 +99,8 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
 
 def get_embedding(text: str) -> List[float]:
     """Generates 1536-dim vectors via OpenRouter."""
-    if not text or not OPENROUTER_KEY: 
+    key = _get_api_key()
+    if not text or not key: 
         return [0.0] * 1536
     try:
         client = _get_sync_client()
@@ -120,7 +133,8 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     Synchronously answers a specific financial forensic question based on context lines.
     Routes through high-IQ DEEP_MODEL (R1) for mathematical verification.
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
     try:
         context_text = "\n".join(context_lines)
@@ -146,7 +160,8 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     Adapts simulation dynamically based on POZICIONI I KLIENTIT TONË (DEFENDANT vs PLAINTIFF).
     Routes through high-IQ DEEP_MODEL (R1).
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return {}
     client = _get_async_client()
     system_prompt = """
@@ -196,7 +211,8 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     Builds a structured chronological timeline of events based on case facts.
     Routes through high-IQ DEEP_MODEL (R1).
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return {}
     client = _get_async_client()
     system_prompt = """
@@ -231,7 +247,8 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     Detects factual or legal contradictions in the context.
     Executes a high-IQ, three-tier legal-procedural audit on DEEP_MODEL (R1).
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return {}
     client = _get_async_client()
     system_prompt = """
@@ -275,7 +292,8 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
     Executes the main case cross-examination. Called synchronously via to_thread.
     Routes through DEEP_MODEL (R1) for high-IQ legal summaries.
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return {}
     try:
         content = _call_llm(custom_prompt or "Analizo këtë rast ligjor.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
@@ -289,7 +307,8 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
     Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
     Routes through FAST_MODEL (V3) for instant invoice auto-filling.
     """
-    if not OPENROUTER_KEY:
+    key = _get_api_key()
+    if not key:
         return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
     try:
         system_prompt = """

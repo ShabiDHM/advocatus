@@ -1,7 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v5.1 (S3 COPY SUPPORT)
-# 1. NEW: 'copy_s3_object' allows cloning files within the bucket instantly.
-# 2. STATUS: Fully compatible with Archive Import logic.
+# PHOENIX PROTOCOL - STORAGE SERVICE v5.2 (SETTINGS-ALIGNED B2 CONFIG)
 
 import os
 import boto3
@@ -16,13 +14,15 @@ import logging
 import tempfile
 from typing import Any, Optional, IO
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
-# --- B2 Configuration ---
-B2_KEY_ID = os.getenv("B2_KEY_ID")
-B2_APPLICATION_KEY = os.getenv("B2_APPLICATION_KEY")
-B2_ENDPOINT_URL = os.getenv("B2_ENDPOINT_URL")
-B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME")
+# --- B2 Configuration (Aligned with Pydantic Settings) ---
+B2_KEY_ID = settings.B2_KEY_ID or os.getenv("B2_KEY_ID")
+B2_APPLICATION_KEY = settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KEY")
+B2_ENDPOINT_URL = settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL")
+B2_BUCKET_NAME = settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME")
 
 _s3_client = None
 
@@ -229,7 +229,6 @@ def copy_s3_object(source_key: str, dest_folder: str) -> str:
     """
     s3_client = get_s3_client()
     filename = os.path.basename(source_key)
-    # Ensure unique filename to prevent overwrite
     timestamp = int(datetime.datetime.now().timestamp())
     dest_key = f"{dest_folder}/{timestamp}_{filename}"
     
