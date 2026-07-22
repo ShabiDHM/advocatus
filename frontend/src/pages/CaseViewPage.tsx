@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V20.2 (0 COMPILER WARNINGS - RESPONSIVE MOBILE HEADER CONTROLS)
+// PHOENIX PROTOCOL - CASE VIEW V20.4 (0 COMPILER WARNINGS - CLEAN NO-EYE ICON HEADER & FIXED TYPO)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +15,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Eye, Trash2, AlertTriangle, FileText, Shield, Swords, Gavel } from 'lucide-react';
+import { AlertCircle, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, RefreshCw, Trash2, AlertTriangle, FileText, Shield, Swords, Gavel } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -238,7 +238,7 @@ const CaseHeader: React.FC<{
 
     const analyzeButtonText = isAnalyzing
         ? (
-            <span className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center justify-center gap-2 min-w-0">
                 <span className="flex items-center justify-center animate-spin shrink-0">
                     <Loader2 className="h-4 w-4 text-primary-start" />
                 </span>
@@ -247,13 +247,13 @@ const CaseHeader: React.FC<{
           )
         : selectedDocumentIds.length === 0
         ? (
-            <span className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center justify-center gap-2 min-w-0">
                 <ShieldCheck size={15} className="text-primary-start shrink-0" />
                 <span className="text-primary-start truncate">{t('caseView.analyzeCase', 'Analizo Rastin')}</span>
             </span>
           )
         : (
-            <span className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center justify-center gap-2 min-w-0">
                 <ShieldCheck size={15} className="text-primary-start shrink-0" />
                 <span className="text-primary-start truncate">{t('analysis.crossExamineButton', 'Kryqëzo Dokumentin')}</span>
             </span>
@@ -301,7 +301,7 @@ const CaseHeader: React.FC<{
                             <span className="truncate sm:hidden">Financat</span>
                         </button>
                         
-                        {/* Responsive Split-Button Wrapper for Mobile & Desktop */}
+                        {/* Clean Split-Button Wrapper (No Eye Icon) */}
                         <div className="w-full">
                             {hasExistingAnalysis ? (
                                 <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
@@ -309,12 +309,10 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={onViewExistingAnalysis}
                                         disabled={isAnalyzing}
-                                        className="flex-1 h-full flex items-center justify-center gap-1.5 px-2 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
+                                        className="flex-1 h-full flex items-center justify-center px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
                                         title="Shiko Analizën ekzistuese"
                                     >
-                                        <Eye size={15} className="text-primary-start shrink-0" />
-                                        <span className="truncate text-primary-start hidden sm:inline">Shiko Analizën</span>
-                                        <span className="truncate text-primary-start sm:hidden">Analiza</span>
+                                        <span className="truncate text-primary-start font-bold">Analiza</span>
                                     </button>
 
                                     <div className="border-r border-main h-6 shrink-0" />
@@ -323,7 +321,7 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={() => onTriggerRoleSelect(true)}
                                         disabled={isAnalyzing}
-                                        className="px-2.5 sm:px-3 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
+                                        className="px-3.5 sm:px-4 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
                                         title="Rianalizo sërish me AI"
                                     >
                                         <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? "animate-spin text-primary-start" : ""}`} />
@@ -335,7 +333,7 @@ const CaseHeader: React.FC<{
                                         type="button"
                                         onClick={onClearAnalysis}
                                         disabled={isAnalyzing}
-                                        className="px-2.5 sm:px-3.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
+                                        className="px-3.5 sm:px-4 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
                                         title="Fshi analizën e ruajtur"
                                     >
                                         <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
