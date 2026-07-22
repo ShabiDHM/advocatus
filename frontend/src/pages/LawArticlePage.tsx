@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.4 (UNIFIED INTERPRETATION VIEW - COMPLETE REPLACEMENT)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.5 (UNIFIED CHAT BUBBLES - COMPLETE REPLACEMENT)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -27,7 +27,6 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// ========== PHOENIX: PRECISION LEGAL TEXT SANITIZER ==========
 const normalizeText = (raw: string, articleNum?: string): string => {
   if (!raw) return '';
 
@@ -146,17 +145,14 @@ export default function LawArticlePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- PDF MODAL & MINIMIZE STATE ---
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
-  // --- AI SUMMARY STATE ---
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
   const [summaryError, setSummaryError] = useState('');
   
-  // --- CHAT STATE ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuery, setInputQuery] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
@@ -164,7 +160,6 @@ export default function LawArticlePage() {
   const [chatVisible, setChatVisible] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // --- Refs ---
   const summarySectionRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -187,7 +182,7 @@ export default function LawArticlePage() {
   const cleanSummary = useMemo(() => {
     if (!summaryContent) return '';
     return summaryContent
-      .replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë\.\*/g, '')
+      .replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referenc\.\*/g, '')
       .trim();
   }, [summaryContent]);
 
@@ -303,7 +298,6 @@ export default function LawArticlePage() {
     }]);
 
     try {
-      // Pass law_title and article_number to guarantee accurate MongoDB lookup
       const stream = apiService.askLawAuditor(article.chunk_id, finalQuery, article.law_title, article.article_number);
       let accumulatedContent = '';
 
@@ -379,7 +373,6 @@ export default function LawArticlePage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-lawyer-dark border border-border-main">
           
-          {/* Top Control Bar */}
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             <button
               onClick={handleBackToLibrary}
@@ -391,7 +384,6 @@ export default function LawArticlePage() {
               <span>Biblioteka Ligjore</span>
             </button>
 
-            {/* Middle Zone: Fast Stepper & Jump Box */}
             <div className="flex items-center gap-2 flex-wrap">
               {prevArticleNum !== null && (
                 <button
@@ -429,7 +421,6 @@ export default function LawArticlePage() {
               )}
             </div>
 
-            {/* AI Audit Action Button */}
             {!chatVisible ? (
               <button
                 onClick={handleStartAudit}
@@ -452,7 +443,6 @@ export default function LawArticlePage() {
 
           <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-border-main rounded-2xl">
             
-            {/* Header */}
             <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="relative z-10 flex flex-col gap-6">
@@ -462,7 +452,6 @@ export default function LawArticlePage() {
                     <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
 
-                  {/* Interactive Clickable PDF Source Pill */}
                   <button
                     type="button"
                     onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
@@ -516,7 +505,6 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* Reading Surface */}
             <div className="bg-surface/50 px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
               <div className="max-w-[75ch] mx-auto">
                 <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
@@ -525,7 +513,6 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* AI SUMMARY SECTION */}
             <AnimatePresence>
               {(summaryContent || isSummarizing || summaryError) && (
                 <motion.div
@@ -584,7 +571,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* CHAT PANEL */}
+            {/* UNIFIED NEUTRAL CHAT BUBBLES (MATCHING WAR ROOM PANEL) */}
             <AnimatePresence>
               {chatVisible && (
                 <motion.div
@@ -616,13 +603,11 @@ export default function LawArticlePage() {
                       {messages.map((msg) => (
                         <div
                           key={msg.id}
-                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                          className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
                         >
                           <div
-                            className={`max-w-[85%] p-4 rounded-2xl ${
-                              msg.role === 'user'
-                                ? 'bg-primary-start text-white rounded-br-sm'
-                                : 'bg-surface border border-border-main text-text-primary rounded-bl-sm'
+                            className={`w-full max-w-[90%] p-4 rounded-2xl glass-panel bg-surface border border-main text-text-primary shadow-sm ${
+                              msg.role === 'user' ? 'bg-primary-start/5 border-primary-start/30' : ''
                             }`}
                           >
                             {msg.role === 'auditor' ? (
@@ -632,9 +617,9 @@ export default function LawArticlePage() {
                                 )}
                               </div>
                             ) : (
-                              <p className="text-sm font-medium whitespace-pre-wrap">{msg.content}</p>
+                              <p className="text-sm font-medium whitespace-pre-wrap text-text-primary">{msg.content}</p>
                             )}
-                            <p className={`text-[10px] mt-2 ${msg.role === 'user' ? 'text-white/60' : 'text-text-muted'}`}>
+                            <p className="text-[10px] mt-2 text-text-muted">
                               {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
@@ -661,7 +646,7 @@ export default function LawArticlePage() {
                       
                       {isAuditing && (
                         <div className="flex justify-start">
-                          <div className="bg-surface border border-border-main p-4 rounded-2xl rounded-bl-sm">
+                          <div className="bg-surface border border-border-main p-4 rounded-2xl">
                             <div className="flex gap-1">
                               <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                               <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -704,7 +689,6 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* Bottom Footer Stepper */}
             <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
               <button
                 onClick={handleBackToLibrary}
@@ -749,7 +733,6 @@ export default function LawArticlePage() {
         </div>
       </div>
 
-      {/* FULL PDF SCROLLABLE MODAL */}
       <AnimatePresence>
         {showPdfModal && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
