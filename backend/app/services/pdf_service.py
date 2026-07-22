@@ -1,8 +1,5 @@
 # FILE: backend/app/services/pdf_service.py
-# PHOENIX PROTOCOL - PDF SERVICE V6.0 (BULLETPROOF EMOJI SUPPORT)
-# 1. CHANGE: Primary font is now 'NotoEmoji-Regular' (Best for Text + Emojis in PDF).
-# 2. ROBUSTNESS: Disables SSL verification for font downloads to bypass container restrictions.
-# 3. FALLBACK: If font fails, strictly sanitizes text to remove rectangles (clean text is better than broken glyphs).
+# PHOENIX PROTOCOL - PDF SERVICE V7.0 (MULTI-CDN FONT FALLBACK & ZERO 404 LOGS)
 
 import io
 import os
@@ -32,14 +29,18 @@ class PDFProcessor:
     _font_registered = False
     _active_font_name = "Helvetica" # Default standard PDF font
     
-    # NotoEmoji-Regular is excellent for mixed text and monochrome emojis
-    FONT_URL = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoEmoji-Regular.ttf"
+    # Active Google Fonts CDN URLs for NotoEmoji
+    FONT_URLS = [
+        "https://raw.githubusercontent.com/google/fonts/main/ofl/notoemoji/NotoEmoji-VariableFont_wght.ttf",
+        "https://github.com/google/fonts/raw/main/ofl/notoemoji/NotoEmoji-VariableFont_wght.ttf",
+        "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji_WindowsCompatible.ttf"
+    ]
     FONT_FILENAME = "NotoEmoji-Regular.ttf"
 
     @classmethod
     def _ensure_font_available(cls):
         """
-        Attempts to download and register NotoEmoji.
+        Attempts to download and register NotoEmoji from multi-CDN fallback list.
         If successful, sets _active_font_name to 'NotoEmoji'.
         If failed, keeps 'Helvetica'.
         """
@@ -66,22 +67,30 @@ class PDFProcessor:
             logger.warning("PDFService: No writable directory for fonts.")
             return
 
-        # 2. Download if missing (with SSL bypass)
+        # 2. Download if missing (with SSL bypass and multi-URL fallback)
         if not os.path.exists(target_path) or os.path.getsize(target_path) < 1000:
-            try:
-                logger.info(f"PDFService: Downloading Font from {cls.FONT_URL}...")
-                
-                # Create unverified context to bypass strict Docker SSL issues
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                
-                with urllib.request.urlopen(cls.FONT_URL, context=ctx, timeout=10) as response, open(target_path, 'wb') as out_file:
-                    shutil.copyfileobj(response, out_file)
-                
-                logger.info("PDFService: Font download complete.")
-            except Exception as e:
-                logger.error(f"PDFService: Failed to download font: {e}")
+            font_downloaded = False
+            for url in cls.FONT_URLS:
+                try:
+                    logger.info(f"PDFService: Attempting font download from {url}...")
+                    
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, context=ctx, timeout=8) as response, open(target_path, 'wb') as out_file:
+                        shutil.copyfileobj(response, out_file)
+                    
+                    if os.path.exists(target_path) and os.path.getsize(target_path) > 1000:
+                        font_downloaded = True
+                        logger.info("PDFService: Font download complete.")
+                        break
+                except Exception as e:
+                    logger.warning(f"PDFService: CDN Font download skipped ({url}): {e}")
+
+            if not font_downloaded:
+                logger.info("PDFService: Using standard Helvetica fallback font.")
                 return
 
         # 3. Register the font
@@ -92,18 +101,15 @@ class PDFProcessor:
             cls._font_registered = True
             logger.info(f"PDFService: Active font set to {font_name}")
         except Exception as e:
-            logger.error(f"PDFService: Failed to register font: {e}")
-            # If registration fails, delete the potentially corrupt file
+            logger.warning(f"PDFService: Font registration fallback to Helvetica: {e}")
             try: os.remove(target_path)
             except: pass
 
     @staticmethod
     def _sanitize_for_standard_font(text: str) -> str:
         """
-        If we are stuck with Helvetica, we MUST strip emojis to avoid rectangles.
-        We replace them with a generic marker or space.
+        If using Helvetica, strip non-Latin characters/emojis to prevent broken glyphs.
         """
-        # Encode to Latin-1 (standard PDF support) and ignore errors (drops emojis)
         return text.encode('latin-1', 'ignore').decode('latin-1')
 
     @staticmethod
@@ -143,7 +149,6 @@ class PDFProcessor:
     def convert_bytes_to_pdf(content: bytes, filename: str) -> Tuple[bytes, str]:
         """
         Uses Platypus Engine for robust Text-to-PDF conversion.
-        Auto-detects font availability to decide whether to render emojis or strip them.
         """
         PDFProcessor._ensure_font_available()
         
@@ -151,19 +156,14 @@ class PDFProcessor:
         base_name = os.path.splitext(filename)[0]
         new_filename = f"{base_name}.pdf"
 
-        # 1. Text to PDF (Chat Logs, etc.)
+        # 1. Text to PDF
         if ext == "txt":
             try:
-                # Decode UTF-8
                 text_str = content.decode('utf-8', errors='replace')
                 
-                # INTELLIGENT SANITIZATION
-                # If we failed to load the Emoji font, we MUST strip the emojis 
-                # so the user sees clean text instead of broken rectangles.
                 if PDFProcessor._active_font_name == "Helvetica":
                     text_str = PDFProcessor._sanitize_for_standard_font(text_str)
 
-                # Buffer for PDF
                 pdf_buffer = io.BytesIO()
                 doc = SimpleDocTemplate(
                     pdf_buffer,
@@ -174,7 +174,6 @@ class PDFProcessor:
 
                 styles = getSampleStyleSheet()
                 
-                # Define Custom Style based on active font
                 chat_style = ParagraphStyle(
                     'ChatLog',
                     parent=styles['Normal'],
@@ -200,13 +199,11 @@ class PDFProcessor:
                 story.append(Paragraph("Document Evidence / Evidencë Dokumentare", header_style))
                 story.append(Spacer(1, 5*mm))
 
-                # Process lines
                 for line in text_str.split('\n'):
                     if not line.strip():
                         story.append(Spacer(1, 2*mm))
                         continue
                     
-                    # Sanitize XML chars for Platypus
                     clean_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                     story.append(Paragraph(clean_line, chat_style))
 
@@ -241,7 +238,7 @@ class PDFProcessor:
             
             watermark_stream = io.BytesIO()
             c = canvas.Canvas(watermark_stream)
-            c.setFont("Helvetica", 8) # Standard font is safe for branding
+            c.setFont("Helvetica", 8)
             c.setFillColor(colors.grey)
             
             c.drawCentredString(A4[0] / 2, 1 * cm, f"Rasti: {case_id} | Juristi AI System")
