@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V26.0 (UPDATE CASE CLIENT POSITION ADDED)
+// PHOENIX PROTOCOL - API SERVICE V27.0 (GUARANTEED .PDF ARCHIVE DOWNLOAD EXTENSION)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -257,7 +257,27 @@ class ApiService {
     public async shareDocument(caseId: string, docId: string, isShared: boolean): Promise<Document> { const response = await this.axiosInstance.put<Document>(`/cases/${caseId}/documents/${docId}/share`, { is_shared: isShared }); return response.data; }
     public async shareArchiveItem(itemId: string, isShared: boolean): Promise<ArchiveItemOut> { const response = await this.axiosInstance.put<ArchiveItemOut>(`/archive/items/${itemId}/share`, { is_shared: isShared }); return response.data; }
     public async shareArchiveCase(caseId: string, isShared: boolean): Promise<void> { await this.axiosInstance.put(`/archive/case/share`, { case_id: caseId, is_shared: isShared }); }
-    public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
+    
+    // ========== GUARANTEED .PDF ARCHIVE DOWNLOAD ==========
+    public async downloadArchiveItem(itemId: string, title: string): Promise<void> { 
+        const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); 
+        
+        let filename = (title || 'Dokument').trim();
+        if (!filename.toLowerCase().endsWith('.pdf')) {
+            filename = `${filename}.pdf`;
+        }
+
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob); 
+        const link = document.createElement('a'); 
+        link.href = url; 
+        link.setAttribute('download', filename); 
+        document.body.appendChild(link); 
+        link.click(); 
+        link.parentNode?.removeChild(link); 
+        window.URL.revokeObjectURL(url); 
+    }
+
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
     public async getCases(): Promise<Case[]> { const response = await this.axiosInstance.get<any>('/cases'); return Array.isArray(response.data) ? response.data : (response.data.cases || []); }
     public async createCase(data: CreateCaseRequest): Promise<Case> { const response = await this.axiosInstance.post<Case>('/cases', data); return response.data; }
