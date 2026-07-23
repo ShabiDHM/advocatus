@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V20.4 (0 COMPILER WARNINGS - CLEAN NO-EYE ICON HEADER & FIXED TYPO)
+// PHOENIX PROTOCOL - CASE VIEW V20.5 (MEDIA EVIDENCE PANEL INTEGRATED)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessag
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode, LegalDomain } from '../components/ChatPanel';
+import MediaEvidencePanel from '../components/MediaEvidencePanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
@@ -646,6 +647,11 @@ const CaseViewPage: React.FC = () => {
                   isPro={isPro} 
                   selectedDocumentCount={selectedDocumentIds.length}
                 />
+              </div>
+
+              {/* Media Evidence Vault Panel */}
+              <div className="col-span-1 lg:col-span-2 mt-4">
+                <MediaEvidencePanel caseId={caseData.details.id} t={t} />
               </div>
             </motion.div>
           )}

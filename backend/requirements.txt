@@ -67,3 +67,5 @@ langchain-text-splitters>=0.3.0
 langdetect>=1.0.9
 numpy>=2.1.0
 openai>=1.50.0
+pydub>=0.25.1
+moviepy>=1.0.3

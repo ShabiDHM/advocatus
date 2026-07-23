@@ -1,5 +1,5 @@
-# FILE: backend/app/main.py (LEGAL APP) - FIXED: removed support_reply_router import
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.10 (CLEAN IMPORTS)
+# FILE: backend/app/main.py (LEGAL APP)
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.11 (MEDIA ROUTER INCLUDED)
 
 import os
 import logging
@@ -23,7 +23,6 @@ from .api.endpoints.calendar import router as calendar_router
 from .api.endpoints.chat import router as chat_router
 from .api.endpoints.stream import router as stream_router
 from .api.endpoints.support import router as support_router
-# support_reply_router is not needed because reply is inside support_router
 from .api.endpoints.business import router as business_router
 from .api.endpoints.finance import router as finance_router
 from .api.endpoints.finance_wizard import router as finance_wizard_router
@@ -31,6 +30,7 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
+from .api.endpoints.media import router as media_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"
 api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
+api_v1_router.include_router(media_router, prefix="/cases", tags=["Media Evidence"])
 api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"])
 api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])

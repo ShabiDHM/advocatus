@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V6.7 (CHAT, ANALYSIS & PUBLIC PORTAL PERSISTENCE - FULLY SERIALIZED)
+# PHOENIX PROTOCOL - CASE SERVICE V6.8 (CASCADING MEDIA DELETION)
 
 import re
 import importlib
@@ -168,6 +168,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
     
+    # 1. Delete standard documents & storage files
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
@@ -180,6 +181,16 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         try: graph_service.delete_node(doc_id_str)
         except Exception: pass
 
+    # 2. Delete Media Evidence (Audio/Video) & storage files
+    media_items = list(db.media_evidence.find(any_id_query))
+    for media in media_items:
+        storage_key = media.get("storage_key")
+        if storage_key:
+            try: storage_service.delete_file(storage_key)
+            except Exception: pass
+    db.media_evidence.delete_many(any_id_query)
+
+    # 3. Delete archives, calendar events, alerts
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
