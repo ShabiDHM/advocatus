@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V27.2 (0 WARNINGS - CLEAN RESTORATION)
+// PHOENIX PROTOCOL - API SERVICE V27.3 (MINI-FOUNDRY EVIDENCE GRAPH INTEGRATED)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -171,6 +171,22 @@ class ApiService {
     // ========== CASE STANCE & POSITION METHOD ==========
     public async updateCasePosition(caseId: string, position: 'DEFENDANT' | 'PLAINTIFF'): Promise<void> {
         await this.axiosInstance.put(`/cases/${caseId}/position`, { client_position: position });
+    }
+
+    // ========== EVIDENCE GRAPH METHODS (PALANTIR FOUNDRY ENGINE) ==========
+    public async getCaseGraph(caseId: string): Promise<any> {
+        const response = await this.axiosInstance.get(`/cases/${caseId}/graph`);
+        return response.data;
+    }
+
+    public async rebuildCaseGraph(caseId: string): Promise<any> {
+        const response = await this.axiosInstance.post(`/cases/${caseId}/graph/rebuild`);
+        return response.data;
+    }
+
+    public async searchFirmGraph(query: string): Promise<any[]> {
+        const response = await this.axiosInstance.get('/cases/firm/graph/search', { params: { query } });
+        return response.data;
     }
 
     // ========== PASSWORD RESET METHODS ==========

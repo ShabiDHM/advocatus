@@ -1,12 +1,11 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.11 (MEDIA ROUTER INCLUDED)
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.12 (GRAPH ROUTER INCLUDED)
 
 import os
 import logging
 from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.routing import APIRoute
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .core.lifespan import lifespan
@@ -17,6 +16,7 @@ from .api.endpoints.auth import router as auth_router
 from .api.endpoints.auth_reset import router as auth_reset_router
 from .api.endpoints.users import router as users_router
 from .api.endpoints.cases import router as cases_router
+from .api.endpoints.media import router as media_router
 from .api.endpoints.organizations import router as organizations_router
 from .api.endpoints.admin import router as admin_router
 from .api.endpoints.calendar import router as calendar_router
@@ -30,7 +30,7 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
-from .api.endpoints.media import router as media_router
+from .api.endpoints.graph import router as graph_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentic
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
 api_v1_router.include_router(media_router, prefix="/cases", tags=["Media Evidence"])
+api_v1_router.include_router(graph_router, prefix="/cases", tags=["Evidence Graph"])
 api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"])
 api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
