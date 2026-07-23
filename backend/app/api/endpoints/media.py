@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V1.8 (AUDIO-ONLY FOCUS)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V1.9 (AUTOMATIC VECTOR RAG INDEXING)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -20,6 +20,8 @@ import json
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
 from app.services import storage_service, transcription_service
+from app.services.vector_store_service import create_and_store_embeddings_from_chunks, delete_document_embeddings
+from app.services.albanian_document_processor import EnhancedDocumentProcessor
 from app.core.config import settings
 
 router = APIRouter(tags=["Media Evidence"])
@@ -52,7 +54,7 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
     except Exception as e:
         logger.warning(f"Media deletion SSE publish failed: {e}")
 
-def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str):
+def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str):
     from app.core.db import get_db_instance
     db = get_db_instance()
     media_oid = ObjectId(media_id_str)
@@ -61,6 +63,7 @@ def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str
         logger.info(f"🎙️ [Media] Starting Whisper transcription for media ID: {media_id_str}")
         transcript = transcription_service.transcribe_media_file(file_path)
 
+        # 1. Update MongoDB with transcript
         db.media_evidence.update_one(
             {"_id": media_oid},
             {
@@ -72,8 +75,27 @@ def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str
             }
         )
         logger.info(f"✅ [Media] Transcription completed for media ID: {media_id_str}")
+
+        # 2. Vectorize and ingest into MongoDB Atlas Vector Search (RAG Knowledge Base)
+        if transcript and len(transcript.strip()) > 20:
+            logger.info(f"🧠 [Media] Indexing audio transcript into Vector RAG Knowledge Base...")
+            enriched_chunks = EnhancedDocumentProcessor.process_document(
+                text_content=transcript, 
+                document_metadata={'file_name': f"Audio Transcript: {file_name}"}, 
+                is_albanian=True
+            )
+            create_and_store_embeddings_from_chunks(
+                user_id=user_id_str,
+                document_id=media_id_str,
+                case_id=case_id_str,
+                file_name=f"Audio: {file_name}",
+                chunks=[c.content for c in enriched_chunks],
+                metadatas=[c.metadata for c in enriched_chunks]
+            )
+            logger.info(f"✅ [Media] Audio transcript successfully vectorized and indexed for RAG search!")
+
     except Exception as e:
-        logger.error(f"❌ [Media] Transcription failed for {media_id_str}: {e}")
+        logger.error(f"❌ [Media] Transcription/Vectorization failed for {media_id_str}: {e}")
         db.media_evidence.update_one(
             {"_id": media_oid},
             {"$set": {"status": "FAILED", "transcript": f"Dështoi transkriptimi: {str(e)}"}}
@@ -157,7 +179,10 @@ async def upload_case_media(
         orchestrate_media_transcription,
         db,
         media_id_str,
-        temp_path
+        temp_path,
+        str(current_user.id),
+        case_id,
+        filename
     )
 
     serialized_doc = serialize_media_doc(media_doc)
@@ -227,6 +252,13 @@ async def delete_case_media(
             logger.info(f"🗑️ Cascading delete: Purged B2 storage file {storage_key}")
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
+
+    # Also purge vector embeddings for this media item
+    try:
+        delete_document_embeddings(document_id=media_id)
+        logger.info(f"🗑️ Cascading delete: Removed vector embeddings for media {media_id}")
+    except Exception as e:
+        logger.warning(f"Failed to purge vector embeddings: {e}")
 
     db.media_evidence.delete_one({"_id": media_oid})
     logger.info(f"🗑️ Cascading delete: Removed media evidence record {media_id}")
