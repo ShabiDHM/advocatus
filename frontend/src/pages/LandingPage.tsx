@@ -1,13 +1,12 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.5 (LUCIDE IMPORT FIXED)
-// 1. FIX: Added 'BarChart2' to the 'lucide-react' imports to resolve the undefined name compiler error.
+// PHOENIX PROTOCOL - LANDING V7.0 (ONTOLOGY EVIDENCE GRAPH CAPABILITY INTEGRATED)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
-    Database, FileText, Swords, Receipt, ShieldCheck, BarChart2
+    Database, FileText, Swords, ShieldCheck, BarChart2, Network
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -93,7 +92,7 @@ const LandingPage: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">Asistenti Sokratik & Dhoma e Luftës</h3>
                     <p className="text-text-secondary leading-relaxed text-sm">
-                        Bëni pyetje të rregulluara me RAG mbi dokumentet tuaja dhe hyni në "Dhomën e Luftës" për të simuluar strategjinë e palës kundërshtare, nxjerrë kronologjinë e saktë dhe detektuar kontradiktat factual në seancë.
+                        Bëni pyetje të rregulluara me RAG mbi dokumentet tuaja dhe hyni në &quot;Dhomën e Luftës&quot; për të simuluar strategjinë e palës kundërshtare, nxjerrë kronologjinë e saktë dhe detektuar kontradiktat factual në seancë.
                     </p>
                 </div>
             </div>
@@ -109,7 +108,23 @@ const LandingPage: React.FC = () => {
                 </p>
             </div>
 
-            {/* Box 3: Context-Aware Drafting */}
+            {/* Box 3: Ontologjia e Provave (Palantir-Style Legal Graph) */}
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-purple-500/40 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
+                    <Network className="w-48 h-48 text-purple-500" />
+                </div>
+                <div className="relative z-10 h-full flex flex-col justify-end">
+                    <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4 text-purple-500 border border-purple-500/30 shadow-inner">
+                        <Network className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">Ontologjia e Provave & Radar i Kontradiktave</h3>
+                    <p className="text-text-secondary leading-relaxed text-sm">
+                        Ndërtoni hartën vizuale të të gjitha entiteteve (Personave, Kompanive, Llogarive Bankare dhe Lokacioneve). AI detekton automatikisht kontradiktat factual mes dëshmive dhe gjurmon rrjedhën e parave në Euro (€).
+                    </p>
+                </div>
+            </div>
+
+            {/* Box 4: Context-Aware Drafting */}
             <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
                 <div className="w-12 h-12 bg-accent-start/20 rounded-xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-inner">
                     <FileText className="w-6 h-6" />
@@ -120,21 +135,6 @@ const LandingPage: React.FC = () => {
                 </p>
             </div>
 
-            {/* Box 4: AI Receipt Scanner & Archive */}
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden hover:border-secondary-start/30 transition-colors border border-main bg-surface/30 rounded-3xl shadow-sm">
-                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
-                    <Database className="w-48 h-48 text-secondary-start" />
-                </div>
-                <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-secondary-start/20 rounded-xl flex items-center justify-center mb-4 text-secondary-start border border-secondary-start/20 shadow-inner">
-                        <Receipt className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-2 text-text-primary tracking-tight">Skanimi me AI & Arkivi Digjital</h3>
-                    <p className="text-text-secondary leading-relaxed text-sm">
-                        Ngarkoni fatura si PDF apo imazhe. Skaneri ynë i integruar AI do të përdorë OCR për të lexuar dhe plotësuar automatikisht të gjitha fushat e shpenzimeve. Të dhënat ruhen të sigurta në arkivin tuaj digjital.
-                    </p>
-                </div>
-            </div>
           </div>
         </section>
 

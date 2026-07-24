@@ -1,8 +1,5 @@
 // FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary.
-// 2. Updated all mockups to use semantic color variables.
-// 3. Preserved all animations and functionality.
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V7.0 (ONTOLOGY EVIDENCE GRAPH FEATURE INTEGRATED)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,17 +7,16 @@ import { useTranslation } from 'react-i18next';
 import { 
     ShieldAlert, FileText, ScanEye, BrainCircuit, 
     CheckCircle, PenTool, FolderOpen, 
-    Sparkles, Gavel, Calculator, TrendingUp
-} from 'lucide-react';
+    Sparkles, Gavel, Calculator, TrendingUp, Network} from 'lucide-react';
 
 const ProductShowcase = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState(0);
 
-    // Auto-rotate slides (5 slides)
+    // Auto-rotate slides (6 slides)
     useEffect(() => {
         const timer = setInterval(() => {
-            setActiveTab((prev) => (prev + 1) % 5);
+            setActiveTab((prev) => (prev + 1) % 6);
         }, 8000);
         return () => clearInterval(timer);
     }, []);
@@ -36,6 +32,14 @@ const ProductShowcase = () => {
         },
         {
             id: 1,
+            title: t('showcase.slide_ontology_title', 'Ontologjia e Provave'),
+            desc: t('showcase.slide_ontology_desc', 'Grafik interaktiv i lidhjeve, personave dhe kontradiktave.'),
+            icon: <Network className="w-5 h-5 lg:w-6 lg:h-6" />,
+            color: "from-purple-500 to-indigo-500",
+            mockup: <OntologyMockup />
+        },
+        {
+            id: 2,
             title: t('showcase.slide2_title', 'Deep Scan OCR'),
             desc: t('showcase.slide2_desc', 'Skanoni 50+ dokumente në sekonda.'),
             icon: <ScanEye className="w-5 h-5 lg:w-6 lg:h-6" />,
@@ -43,7 +47,7 @@ const ProductShowcase = () => {
             mockup: <DeepScanMockup />
         },
         {
-            id: 2,
+            id: 3,
             title: t('showcase.slide3_title', 'Hartim i Padukshëm'),
             desc: t('showcase.slide3_desc', 'Ju shkruani strategjinë, ne shkruajmë nenet.'),
             icon: <PenTool className="w-5 h-5 lg:w-6 lg:h-6" />,
@@ -51,15 +55,15 @@ const ProductShowcase = () => {
             mockup: <DraftingMockup />
         },
         {
-            id: 3,
+            id: 4,
             title: t('showcase.slide4_title', 'Arkiva e Gjallë'),
             desc: t('showcase.slide4_desc', 'Çdo dokument, i indeksuar dhe i sigurt.'),
             icon: <FolderOpen className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-purple-500 to-indigo-500",
+            color: "from-violet-500 to-fuchsia-500",
             mockup: <ArchiveMockup />
         },
         {
-            id: 4,
+            id: 5,
             title: t('showcase.slide5_title', 'Kontabilisti i Zyrës'),
             desc: t('showcase.slide5_desc', 'Menaxhoni financat dhe tatimet automatikisht.'),
             icon: <Calculator className="w-5 h-5 lg:w-6 lg:h-6" />,
@@ -93,7 +97,7 @@ const ProductShowcase = () => {
                             }`}
                         >
                             <div className={`p-1 rounded-full ${activeTab === index ? '' : `bg-gradient-to-br ${feature.color}`}`}>
-                                {React.cloneElement(feature.icon, {className: `w-4 h-4 ${activeTab === index ? 'text-text-primary' : 'text-text-primary'}`})}
+                                {React.cloneElement(feature.icon, {className: `w-4 h-4 text-text-primary`})}
                             </div>
                             <span className="text-sm font-bold">{feature.title}</span>
                         </button>
@@ -103,26 +107,26 @@ const ProductShowcase = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
                     
                     {/* --- DESKTOP CONTROLS --- */}
-                    <div className="hidden lg:block space-y-4">
+                    <div className="hidden lg:block space-y-3">
                         {features.map((feature, index) => (
                             <button
                                 key={feature.id}
                                 onClick={() => setActiveTab(index)}
-                                className={`w-full text-left p-5 rounded-2xl transition-all duration-300 border group glass-panel ${
+                                className={`w-full text-left p-4 lg:p-5 rounded-2xl transition-all duration-300 border group glass-panel ${
                                     activeTab === index 
                                     ? 'bg-surface/30 border-primary-start/50 shadow-2xl scale-[1.02]' 
                                     : 'hover:bg-surface/20 border-main'
                                 }`}
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} text-text-primary shadow-lg transition-transform duration-300 ${activeTab === index ? 'scale-110' : 'group-hover:scale-105'}`}>
+                                    <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-lg transition-transform duration-300 ${activeTab === index ? 'scale-110' : 'group-hover:scale-105'}`}>
                                         {feature.icon}
                                     </div>
                                     <div>
-                                        <h3 className={`text-base font-bold mb-0.5 transition-colors ${activeTab === index ? 'text-text-primary' : 'text-text-primary'}`}>
+                                        <h3 className="text-base font-bold mb-0.5 text-text-primary">
                                             {feature.title}
                                         </h3>
-                                        <p className={`text-sm leading-relaxed transition-colors ${activeTab === index ? 'text-text-secondary' : 'text-text-muted'}`}>
+                                        <p className={`text-xs sm:text-sm leading-relaxed transition-colors ${activeTab === index ? 'text-text-secondary' : 'text-text-muted'}`}>
                                             {feature.desc}
                                         </p>
                                     </div>
@@ -172,6 +176,57 @@ const ProductShowcase = () => {
 };
 
 // --- MOCKUPS (Glass Style with Semantic Colors) ---
+
+const OntologyMockup = () => (
+    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-700">
+        <div className="flex justify-between items-center bg-surface/40 p-2.5 rounded-xl border border-main">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-primary-start">
+                <Network size={14} /> Ontologjia e Provave
+            </div>
+            <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[10px] font-bold">
+                13 ENTITETE • 1 KUNDËRTHËNJE
+            </span>
+        </div>
+
+        {/* SVG Network Graph Animation */}
+        <div className="flex-1 relative flex items-center justify-center my-2">
+            <svg className="w-full h-full" viewBox="-200 -120 400 240">
+                {/* Edges */}
+                <line x1="-100" y1="-30" x2="0" y2="40" stroke="#3b82f6" strokeWidth="2" />
+                <line x1="0" y1="40" x2="100" y2="-30" stroke="#8b5cf6" strokeWidth="2" />
+                <line x1="-100" y1="-30" x2="100" y2="-30" stroke="#ef4444" strokeWidth="2" strokeDasharray="4,4" className="animate-pulse" />
+                
+                {/* Edge Badges */}
+                <rect x="-15" y="0" width="30" height="12" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="0.5" />
+                <text x="0" y="8" textAnchor="middle" fill="#93c5fd" fontSize="6" fontWeight="bold">€45,000</text>
+
+                <rect x="-30" y="-40" width="60" height="12" rx="3" fill="#450a0a" stroke="#ef4444" strokeWidth="0.5" />
+                <text x="0" y="-32" textAnchor="middle" fill="#fca5a5" fontSize="6" fontWeight="bold">KUNDËRTHËNJE</text>
+
+                {/* Nodes */}
+                <g transform="translate(-100, -30)">
+                    <circle r="16" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" />
+                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">Shaban Bala</text>
+                </g>
+
+                <g transform="translate(0, 40)">
+                    <circle r="16" fill="rgba(139, 92, 246, 0.2)" stroke="#8b5cf6" strokeWidth="2" />
+                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">Tekno Corp</text>
+                </g>
+
+                <g transform="translate(100, -30)">
+                    <circle r="16" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="2" />
+                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">XK56 1000...</text>
+                </g>
+            </svg>
+        </div>
+
+        <div className="p-2.5 bg-surface/30 rounded-xl border border-main text-[11px] text-text-secondary flex justify-between items-center">
+            <span className="font-semibold">I lidhur me 3 dokumente & transaksione bankare</span>
+            <span className="text-primary-start font-bold cursor-pointer hover:underline">Shiko Grafikin →</span>
+        </div>
+    </div>
+);
 
 const WarRoomMockup = () => (
     <div className="space-y-3 lg:space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 h-full flex flex-col justify-center">
