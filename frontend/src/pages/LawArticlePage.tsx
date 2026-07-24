@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V18.5 (UNIFIED CHAT BUBBLES - COMPLETE REPLACEMENT)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V19.0 (STANDARDIZED EXECUTIVE SIZE: MAX-W-7XL)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -341,7 +341,7 @@ export default function LawArticlePage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen pt-20">
+      <div className="flex flex-col items-center justify-center min-h-screen pt-20 bg-canvas">
         <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-sm"></div>
         <p className="text-text-primary font-black uppercase tracking-widest text-sm">{t('general.loading', 'Duke ngarkuar...')}</p>
       </div>
@@ -350,13 +350,13 @@ export default function LawArticlePage() {
 
   if (error || !article) {
     return (
-      <div className="max-w-3xl mx-auto px-6 pt-32">
-        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-[2rem] flex flex-col items-center text-center shadow-sm">
-          <AlertCircle className="text-danger-start w-20 h-20 mb-6" />
-          <h2 className="text-2xl font-black text-text-primary uppercase tracking-tighter mb-3">{t('general.error', 'Gabim')}</h2>
-          <p className="text-text-secondary text-lg mb-8">{error}</p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
+        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-3xl flex flex-col items-center text-center shadow-sm">
+          <AlertCircle className="text-danger-start w-16 h-16 mb-4" />
+          <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
+          <p className="text-text-secondary text-sm mb-6">{error}</p>
           <button onClick={handleBackToLibrary} className="btn-primary flex items-center gap-2 hover-lift shadow-sm">
-            <ArrowLeft size={18} /> {t('lawArticle.backToSearch', 'Kthehu te Biblioteka Ligjore')}
+            <ArrowLeft size={16} /> {t('lawArticle.backToSearch', 'Kthehu te Biblioteka Ligjore')}
           </button>
         </div>
       </div>
@@ -365,20 +365,21 @@ export default function LawArticlePage() {
 
   return (
     <motion.div
-      className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col"
+      className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
-        <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-lawyer-dark border border-border-main">
+      {/* STANDARDIZED EXECUTIVE MAX-W-7XL CONTAINER */}
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
+        <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
           
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             <button
               onClick={handleBackToLibrary}
-              className="group flex items-center gap-3 text-text-muted hover:text-text-primary transition-colors font-bold text-xs sm:text-sm uppercase tracking-widest hover-lift"
+              className="group flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift"
             >
-              <div className="p-2 rounded-lg bg-surface border border-border-main group-hover:border-primary-start transition-colors">
+              <div className="p-2 rounded-xl bg-canvas border border-main group-hover:border-primary-start transition-colors">
                 <ArrowLeft size={16} className="text-primary-start" />
               </div>
               <span>Biblioteka Ligjore</span>
@@ -389,7 +390,7 @@ export default function LawArticlePage() {
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(prevArticleNum)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-surface border border-border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-canvas border border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
                   title="Neni i Mëparshëm"
                 >
                   <ChevronLeft size={14} className="text-primary-start" />
@@ -404,7 +405,7 @@ export default function LawArticlePage() {
                   placeholder="Kërko nenin..."
                   value={jumpInput}
                   onChange={(e) => setJumpInput(e.target.value)}
-                  className="w-28 sm:w-32 h-9 pl-8 pr-2 bg-canvas border border-border-main rounded-xl text-xs font-bold text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 focus:outline-none"
+                  className="w-28 sm:w-32 h-9 pl-8 pr-2 bg-canvas border border-main rounded-xl text-xs font-bold text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 focus:outline-none"
                 />
               </form>
 
@@ -412,7 +413,7 @@ export default function LawArticlePage() {
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(nextArticleNum)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-surface border border-border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-canvas border border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none"
                   title="Neni i Ardhshëm"
                 >
                   <span className="hidden sm:inline">{`Neni ${nextArticleNum}`}</span>
@@ -425,7 +426,7 @@ export default function LawArticlePage() {
               <button
                 onClick={handleStartAudit}
                 disabled={isSummarizing}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm hover-lift btn-primary"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover-lift bg-primary-start hover:bg-primary-start/90 text-white"
               >
                 {isSummarizing ? <Loader2 size={14} className="animate-spin" /> : <BrainCircuit size={14} />}
                 {isSummarizing ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.auditBtn', 'Auditimi Ligjor')}
@@ -433,7 +434,7 @@ export default function LawArticlePage() {
             ) : (
               <button
                 onClick={() => { setChatVisible(false); setMessages([]); setSummaryContent(''); }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm bg-surface border border-border-main text-text-primary hover:border-danger-start hover:text-danger-start"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm bg-canvas border border-main text-text-primary hover:border-danger-start hover:text-danger-start"
               >
                 <X size={14} />
                 {t('lawArticle.closeAuditor', 'Mbyll Auditorin')}
@@ -441,36 +442,35 @@ export default function LawArticlePage() {
             )}
           </div>
 
-          <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-border-main rounded-2xl">
+          <div className="p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-2xl">
             
-            <div className="bg-surface px-8 py-10 border-b border-border-main relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-              <div className="relative z-10 flex flex-col gap-6">
+            <div className="bg-canvas px-6 sm:px-8 py-8 border-b border-main relative overflow-hidden">
+              <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1.5 rounded-lg">
+                  <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
                     <BookOpen size={14} />
-                    <span className="text-xs font-black uppercase tracking-widest">{t('lawArticle.lawTitle', 'LIGJI')}</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
-                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3 py-1.5 rounded-lg transition-all hover-lift cursor-pointer focus:outline-none"
+                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3 py-1 rounded-lg transition-all hover-lift cursor-pointer focus:outline-none"
                     title="Shiko dokumentin PDF të plotë zyrtar"
                   >
                     <FileText size={14} />
-                    <span className="text-xs font-bold uppercase tracking-widest truncate max-w-[150px] sm:max-w-[220px]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider truncate max-w-[200px] sm:max-w-[300px]">
                       {article.source}
                     </span>
                     <ExternalLink size={12} className="opacity-80 shrink-0" />
                   </button>
                 </div>
 
-                <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tighter">{article.law_title}</h1>
-                <div className="flex items-center justify-between border-t border-border-main/50 pt-6 mt-2">
+                <h1 className="text-xl sm:text-2xl font-black text-text-primary leading-tight tracking-tight">{article.law_title}</h1>
+                <div className="flex items-center justify-between border-t border-main/50 pt-4 mt-1">
                   <div className="flex items-center gap-3">
-                    <Scale size={24} className="text-primary-start" />
-                    <p className="text-lg font-black text-primary-start uppercase tracking-widest">
+                    <Scale size={20} className="text-primary-start" />
+                    <p className="text-base font-black text-primary-start uppercase tracking-wider">
                       {(() => {
                         const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
                         const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
@@ -484,7 +484,7 @@ export default function LawArticlePage() {
                       <button
                         type="button"
                         onClick={() => navigateToArticleNum(prevArticleNum)}
-                        className="p-2 rounded-lg bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-primary-start transition-colors"
+                        className="p-2 rounded-lg bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start transition-colors"
                         title="Neni i Mëparshëm"
                       >
                         <ChevronLeft size={16} />
@@ -494,7 +494,7 @@ export default function LawArticlePage() {
                       <button
                         type="button"
                         onClick={() => navigateToArticleNum(nextArticleNum)}
-                        className="p-2 rounded-lg bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-primary-start transition-colors"
+                        className="p-2 rounded-lg bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start transition-colors"
                         title="Neni i Ardhshëm"
                       >
                         <ChevronRight size={16} />
@@ -505,9 +505,9 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            <div className="bg-surface/50 px-8 sm:px-12 py-12 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
-              <div className="max-w-[75ch] mx-auto">
-                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
+            <div className="bg-canvas/50 px-6 sm:px-12 py-10">
+              <div className="max-w-[85ch] mx-auto">
+                <div className="text-sm sm:text-base text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
                   {article.text}
                 </div>
               </div>
@@ -522,33 +522,33 @@ export default function LawArticlePage() {
                   ref={summarySectionRef}
                   className="border-t border-primary-start/30 bg-primary-start/[0.02] overflow-hidden"
                 >
-                  <div className="p-8 sm:p-12 relative">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6 border-b border-border-main/50 pb-6">
+                  <div className="p-6 sm:p-10 relative">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 border-b border-main pb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary-start text-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
                           <BrainCircuit size={20} />
                         </div>
-                        <h3 className="text-lg font-black text-text-primary uppercase tracking-widest">
+                        <h3 className="text-base font-black text-text-primary uppercase tracking-wider">
                           Interpretimi Ligjor
                         </h3>
                       </div>
 
                       <button
                         onClick={() => { setSummaryContent(''); setSummaryError(''); setChatVisible(false); }}
-                        className="p-3 bg-surface border border-border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors hover-lift self-end sm:self-auto"
+                        className="p-2 bg-surface border border-main rounded-xl text-text-muted hover:text-danger-start hover:border-danger-start/30 transition-colors hover-lift self-end sm:self-auto"
                       >
-                        <X size={20} />
+                        <X size={18} />
                       </button>
                     </div>
 
                     {summaryError && (
-                      <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-6 text-danger-start text-sm font-medium flex items-center gap-3">
-                        <AlertCircle size={18} /> {summaryError}
+                      <div className="bg-danger-start/5 border border-danger-start/20 rounded-xl p-4 text-danger-start text-xs font-medium flex items-center gap-2">
+                        <AlertCircle size={16} /> {summaryError}
                       </div>
                     )}
 
                     {isSummarizing && !summaryContent && (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div className="h-4 bg-primary-start/10 rounded w-full animate-pulse" />
                         <div className="h-4 bg-primary-start/10 rounded w-5/6 animate-pulse" />
                         <div className="h-4 bg-primary-start/10 rounded w-4/6 animate-pulse" />
@@ -562,7 +562,7 @@ export default function LawArticlePage() {
                       </div>
                     )}
                     
-                    <div className="mt-8 pt-6 border-t border-border-main/30 flex items-center gap-2 text-[10px] text-text-muted font-black uppercase tracking-widest">
+                    <div className="mt-6 pt-4 border-t border-main/50 flex items-center gap-2 text-[10px] text-text-muted font-bold uppercase tracking-wider">
                       <Sparkles size={12} className="text-primary-start" /> 
                       {t('lawArticle.aiDisclaimer', 'Rezultati i gjeneruar nga modeli juridik i AI')}
                     </div>
@@ -571,7 +571,7 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* UNIFIED NEUTRAL CHAT BUBBLES (MATCHING WAR ROOM PANEL) */}
+            {/* UNIFIED NEUTRAL CHAT BUBBLES */}
             <AnimatePresence>
               {chatVisible && (
                 <motion.div
@@ -587,7 +587,7 @@ export default function LawArticlePage() {
                         <MessageCircle className="text-primary-start" size={20} />
                       </div>
                       <div>
-                        <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">
+                        <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
                           {t('lawArticle.auditorTitle', 'Bisedë me Auditorin')}
                         </h3>
                         <p className="text-xs text-text-muted">
@@ -611,13 +611,13 @@ export default function LawArticlePage() {
                             }`}
                           >
                             {msg.role === 'auditor' ? (
-                              <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                              <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
                                 {renderMarkdown(msg.content) || (
                                   <span className="inline-block w-2 h-4 bg-primary-start animate-pulse" />
                                 )}
                               </div>
                             ) : (
-                              <p className="text-sm font-medium whitespace-pre-wrap text-text-primary">{msg.content}</p>
+                              <p className="text-xs sm:text-sm font-medium whitespace-pre-wrap text-text-primary">{msg.content}</p>
                             )}
                             <p className="text-[10px] mt-2 text-text-muted">
                               {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -628,13 +628,13 @@ export default function LawArticlePage() {
                       
                       {showSuggestions && messages.length === 0 && (
                         <div className="flex flex-col gap-2 mt-2">
-                          <p className="text-xs text-text-muted font-medium uppercase tracking-widest">Pyetje të sugjeruara:</p>
+                          <p className="text-xs text-text-muted font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
                           <div className="flex flex-wrap gap-2">
                             {SUGGESTED_QUESTIONS.map((question, idx) => (
                               <button
                                 key={idx}
                                 onClick={() => handleSendQuery(question)}
-                                className="text-xs bg-surface border border-border-main hover:bg-primary-start hover:bg-primary-start/5 text-text-primary px-3 py-2 rounded-xl transition-all text-left cursor-pointer"
+                                className="text-xs bg-surface border border-main hover:bg-primary-start/10 hover:border-primary-start/40 text-text-primary px-3.5 py-2 rounded-xl transition-all text-left cursor-pointer"
                                 type="button"
                               >
                                 {question}
@@ -646,8 +646,8 @@ export default function LawArticlePage() {
                       
                       {isAuditing && (
                         <div className="flex justify-start">
-                          <div className="bg-surface border border-border-main p-4 rounded-2xl">
-                            <div className="flex gap-1">
+                          <div className="bg-surface border border-main p-3.5 rounded-2xl">
+                            <div className="flex gap-1.5">
                               <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                               <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                               <span className="w-2 h-2 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -672,15 +672,15 @@ export default function LawArticlePage() {
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuery(); } }}
                         placeholder={t('lawArticle.chatPlaceholder', 'Bëj një pyetje për këtë nen...')}
                         rows={2}
-                        className="flex-1 p-3 bg-surface border border-border-main rounded-xl text-sm resize-none text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
+                        className="flex-1 p-3 bg-surface border border-main rounded-xl text-xs sm:text-sm resize-none text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
                         disabled={isAuditing}
                       />
                       <button
                         onClick={() => handleSendQuery()}
                         disabled={!inputQuery.trim() || isAuditing || !article?.chunk_id}
-                        className="h-12 w-12 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-end transition-all shadow-sm hover-lift"
+                        className="h-11 w-11 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-start/90 transition-all shadow-sm"
                       >
-                        {isAuditing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                        {isAuditing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                       </button>
                     </div>
 
@@ -689,10 +689,10 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            <div className="bg-surface px-8 py-6 flex flex-wrap justify-between items-center border-t border-border-main gap-4">
+            <div className="bg-surface px-6 sm:px-8 py-5 flex flex-wrap justify-between items-center border-t border-main gap-4">
               <button
                 onClick={handleBackToLibrary}
-                className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
+                className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
               >
                 <ArrowLeft size={14} /> Biblioteka Ligjore
               </button>
@@ -702,9 +702,9 @@ export default function LawArticlePage() {
                   <button
                     type="button"
                     onClick={() => navigateToArticleNum(prevArticleNum)}
-                    className="flex items-center gap-2 px-4 py-2 bg-canvas hover:bg-hover border border-border-main rounded-xl text-xs font-bold text-text-primary hover:border-primary-start transition-all hover-lift shadow-sm"
+                    className="flex items-center gap-2 px-3.5 py-1.5 bg-canvas hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary hover:border-primary-start transition-all shadow-sm"
                   >
-                    <ChevronLeft size={16} />
+                    <ChevronLeft size={14} />
                     <span>{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
                   </button>
                 )}
@@ -713,17 +713,17 @@ export default function LawArticlePage() {
                   <button
                     type="button"
                     onClick={() => navigateToArticleNum(nextArticleNum)}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 rounded-xl text-xs font-black text-primary-start transition-all hover-lift shadow-sm uppercase tracking-wider"
+                    className="flex items-center gap-2 px-3.5 py-1.5 bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 rounded-xl text-xs font-bold text-primary-start transition-all shadow-sm uppercase tracking-wider"
                   >
                     <span>{`Neni ${nextArticleNum}`}</span>
-                    <ChevronRight size={16} />
+                    <ChevronRight size={14} />
                   </button>
                 )}
               </div>
 
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="text-xs font-black uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors bg-canvas px-4 py-2 rounded-lg border border-border-main hover:border-primary-start hover-lift shadow-sm"
+                className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors bg-canvas px-3.5 py-1.5 rounded-xl border border-main hover:border-primary-start shadow-sm"
               >
                 {t('general.top', 'Lart')} ↑
               </button>
@@ -733,22 +733,24 @@ export default function LawArticlePage() {
         </div>
       </div>
 
+      {/* PDF DOCUMENT FULLSCREEN MODAL (STANDARDIZED: 95VW x 92VH) */}
       <AnimatePresence>
         {showPdfModal && pdfUrl && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4">
             <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.95, opacity: 0 }} 
-              className="glass-panel w-full max-w-6xl h-[90vh] rounded-2xl border border-border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
+              initial={{ scale: 0.98, opacity: 0, y: 10 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.98, opacity: 0, y: 10 }} 
+              transition={{ duration: 0.2 }}
+              className="glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl border border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
-              <div className="px-6 py-4 bg-surface border-b border-border-main flex justify-between items-center shrink-0">
+              <div className="px-5 py-4 bg-surface border-b border-main flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 bg-primary-start/10 text-primary-start rounded-lg border border-primary-start/20 shrink-0">
+                  <div className="p-2 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
                     <FileText size={18} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
+                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">
                       {article.law_title}
                     </h3>
                     <p className="text-xs text-text-muted font-mono truncate">
@@ -762,17 +764,17 @@ export default function LawArticlePage() {
                     href={pdfUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="p-2.5 bg-surface border border-border-main hover:border-primary-start text-text-primary rounded-xl transition-all focus:outline-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
+                    className="h-9 px-4 bg-surface border border-main hover:border-primary-start text-text-primary rounded-xl transition-all focus:outline-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
                     title="Shkarko PDF"
                   >
-                    <Download size={15} />
+                    <Download size={14} />
                     <span className="hidden sm:inline">Shkarko PDF</span>
                   </a>
 
                   <button 
                     type="button"
                     onClick={() => setIsPdfMinimized(true)} 
-                    className="p-2.5 bg-surface border border-border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
+                    className="p-2 bg-surface border border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
                     aria-label="Minimize PDF viewer"
                     title="Minimizo"
                   >
@@ -782,7 +784,7 @@ export default function LawArticlePage() {
                   <button 
                     type="button"
                     onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }} 
-                    className="p-2.5 bg-surface border border-border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
+                    className="p-2 bg-surface border border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none"
                     aria-label="Close PDF viewer"
                     title="Mbyll"
                   >
@@ -809,7 +811,7 @@ export default function LawArticlePage() {
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3.5 p-3.5 bg-surface border border-border-main rounded-2xl shadow-2xl backdrop-blur-md max-w-md"
+            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3 p-3.5 bg-surface border border-main rounded-2xl shadow-2xl backdrop-blur-md max-w-md"
           >
             <div className="p-2.5 bg-primary-start/15 text-primary-start rounded-xl shrink-0 border border-primary-start/20">
               <FileText size={18} />
@@ -831,7 +833,7 @@ export default function LawArticlePage() {
               <button
                 type="button"
                 onClick={() => setIsPdfMinimized(false)}
-                className="p-2 bg-canvas hover:bg-hover border border-border-main text-primary-start hover:text-primary-hover rounded-xl transition-all focus:outline-none shadow-sm"
+                className="p-2 bg-canvas hover:bg-hover border border-main text-primary-start rounded-xl transition-all focus:outline-none shadow-sm"
                 title="Zgjero (Full Screen)"
               >
                 <Maximize2 size={14} />
@@ -840,7 +842,7 @@ export default function LawArticlePage() {
               <button
                 type="button"
                 onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }}
-                className="p-2 bg-canvas hover:bg-hover border border-border-main text-text-muted hover:text-danger-start rounded-xl transition-all focus:outline-none shadow-sm"
+                className="p-2 bg-canvas hover:bg-hover border border-main text-text-muted hover:text-danger-start rounded-xl transition-all focus:outline-none shadow-sm"
                 title="Mbyll"
               >
                 <X size={14} />

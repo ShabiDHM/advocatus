@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V7.0 (SELECTABLE HIGH-TRUST INTERACTIVE TEXT LAYER)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V8.0 (STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -54,7 +54,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Lock the outer window viewport scroll to eliminate mobile dragging layout bugs
+  // Lock the outer window viewport scroll to eliminate dragging layout bugs
   useLockBodyScroll(true);
 
   const isLegalDraft = (documentData.category === 'DRAFT' || 
@@ -110,7 +110,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       let blob: Blob;
       let filename = documentData.file_name || documentData.title || 'dokument.txt';
 
-      // 1. Fetch the data - Intercept local browser memory URLs to prevent prefixing
       if (directUrl) {
           if (directUrl.startsWith('blob:')) {
               const res = await fetch(directUrl);
@@ -126,7 +125,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           blob = await apiService.getOriginalDocument(caseId, documentData.id);
       } else { throw new Error("No source"); }
 
-      // 2. If it's a legal draft, package it as a styled HTML document
       if (isLegalDraft && textContent) {
           const htmlContent = `
             <!DOCTYPE html>
@@ -259,8 +257,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           pageNumber={pageNumber} 
                           width={containerWidth > 0 ? containerWidth : undefined} 
                           scale={scale} 
-                          renderTextLayer={true} // PHOENIX CHANGE: Enabled selectable text layers
-                          renderAnnotationLayer={true} // PHOENIX CHANGE: Enabled clickable links
+                          renderTextLayer={true}
+                          renderAnnotationLayer={true}
                           className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main" 
                         />
                     </PdfDocument>
@@ -335,13 +333,15 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-canvas/95 backdrop-blur-xl z-[9999] flex items-center justify-center p-0 sm:p-4" 
+        className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-2 sm:p-4" 
         onClick={onClose}
       >
+        {/* STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH */}
         <motion.div 
-          initial={{ y: 20, opacity: 0 }} 
-          animate={{ y: 0, opacity: 1 }} 
-          className="glass-panel w-full h-full sm:max-w-6xl sm:max-h-[95vh] sm:rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas" 
+          initial={{ scale: 0.98, opacity: 0, y: 10 }} 
+          animate={{ scale: 1, opacity: 1, y: 0 }} 
+          transition={{ duration: 0.2 }}
+          className="glass-panel w-[95vw] max-w-7xl h-[92vh] sm:rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden" 
           onClick={e => e.stopPropagation()}
         >
           <header className="flex items-center justify-between p-4 border-b border-main bg-surface shrink-0">
@@ -350,7 +350,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                     {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
-                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[150px] sm:max-w-md">{documentData.file_name || documentData.title}</h2>
+                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[180px] sm:max-w-md">{documentData.file_name || documentData.title}</h2>
                     <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest">{isLegalDraft ? 'LEGAL DRAFT MODE' : `${viewerMode} MODE`}</span>
                 </div>
             </div>
@@ -385,11 +385,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   </div>
               )}
               
-              {/* Interactive control elements mapped cleanly to 44px touch-safe zones */}
               <button 
                 onClick={handleDownloadOriginal} 
                 disabled={isDownloading} 
-                className="flex items-center justify-center w-11 h-11 sm:w-10 sm:h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                 title="Download"
                 aria-label="Download document"
               >
@@ -399,7 +398,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {onMinimize && (
                 <button 
                   onClick={onMinimize} 
-                  className="flex items-center justify-center w-11 h-11 sm:w-10 sm:h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                  className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                   title="Minimize"
                   aria-label="Minimize document preview"
                 >
@@ -409,7 +408,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
               <button 
                 onClick={onClose} 
-                className="flex items-center justify-center w-11 h-11 sm:w-10 sm:h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                 title="Close"
                 aria-label="Close modal"
               >
