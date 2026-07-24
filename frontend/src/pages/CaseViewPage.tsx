@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V34.0 (UNIFIED MODAL TRINITY ARCHITECTURE)
+// PHOENIX PROTOCOL - CASE VIEW V36.0 (FLAWLESS EXECUTIVE MOBILE & RESPONSIVE UX)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -293,69 +293,68 @@ const CaseHeader: React.FC<{
   const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
 
   const analyzeButtonText = isAnalyzing ? (
-    <span className="flex items-center justify-center gap-2 min-w-0">
-      <Loader2 className="h-4 w-4 animate-spin text-primary-start shrink-0" />
-      <span className="text-primary-start truncate">DUKE ANALIZUAR...</span>
+    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-start shrink-0" />
+      <span className="text-primary-start truncate text-[10px] sm:text-xs">ANALIZO...</span>
     </span>
   ) : selectedDocumentIds.length === 0 ? (
-    <span className="flex items-center justify-center gap-2 min-w-0">
-      <ShieldCheck size={15} className="text-primary-start shrink-0" />
-      <span className="text-primary-start truncate">ANALIZO RASTIN</span>
+    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
+      <ShieldCheck size={14} className="text-primary-start shrink-0" />
+      <span className="text-primary-start truncate text-[10px] sm:text-xs">ANALIZO RASTIN</span>
     </span>
   ) : (
-    <span className="flex items-center justify-center gap-2 min-w-0">
-      <ShieldCheck size={15} className="text-primary-start shrink-0" />
-      <span className="text-primary-start truncate">KRYQËZO DOKUMENTIN</span>
+    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
+      <ShieldCheck size={14} className="text-primary-start shrink-0" />
+      <span className="text-primary-start truncate text-[10px] sm:text-xs">KRYQËZO</span>
     </span>
   );
 
   const buttonBase =
-    'h-11 flex items-center justify-center gap-2 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none';
+    'h-10 sm:h-11 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none';
 
   return (
     <motion.div
-      className="relative mb-6 z-[30]"
+      className="relative mb-4 sm:mb-6 z-[30]"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       {/* TOP HERO BRANDING BAR */}
-      <div className="bg-surface border border-main rounded-2xl p-4 sm:p-5 shadow-sm mb-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-surface border border-main rounded-2xl p-3.5 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         
-        {/* Left: Case Info & Stance Badge */}
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-          <div className="p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
-            <Briefcase size={22} />
+        {/* Left: Case Info & Clean Stance Badge */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
+            <Briefcase size={20} className="sm:w-5 sm:h-5" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-sm sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
                 {caseDetails.title || (caseDetails as any).name || 'Rast pa Titull'}
               </h1>
               
-              {/* Client Stance Badge */}
               <button
                 type="button"
                 onClick={() => onTriggerRoleSelect(false)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm ${
                   clientPosition === 'DEFENDANT'
                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
                     : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
                 }`}
                 title="Kliko për të ndryshuar pozicionin e klientit"
               >
-                {clientPosition === 'DEFENDANT' ? <Shield size={12} /> : <Swords size={12} />}
-                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR (MBROJTJE)' : '⚔️ PADITËSI (SULM)'}</span>
+                {clientPosition === 'DEFENDANT' ? <Shield size={11} /> : <Swords size={11} />}
+                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' : '⚔️ PADITËSI'}</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-text-muted mt-1 font-medium">
+            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-text-muted mt-0.5 sm:mt-1 font-medium">
               <span className="flex items-center gap-1">
-                <Calendar size={13} className="text-primary-start/70" />
+                <Calendar size={12} className="text-primary-start/70" />
                 {new Date(caseDetails.created_at).toLocaleDateString()}
               </span>
               <span>•</span>
-              <span className="font-mono text-text-secondary">{documents.length} Dokumente</span>
+              <span className="font-mono text-text-secondary">{documents.length} Dok</span>
             </div>
           </div>
         </div>
@@ -371,8 +370,8 @@ const CaseHeader: React.FC<{
         </div>
       </div>
 
-      {/* SYMMETRICAL EXECUTIVE ACTION BUTTONS ROW (MODAL TRIGGERS) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* SYMMETRICAL EXECUTIVE ACTION BUTTONS ROW (3-COLUMN ON MOBILE) */}
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
         
         {/* 1. ANALISTI FINANCIAR MODAL TRIGGER */}
         <button
@@ -382,11 +381,11 @@ const CaseHeader: React.FC<{
           className={`${buttonBase} w-full ${!isPro && 'opacity-40 cursor-not-allowed'}`}
         >
           {!isPro ? (
-            <Lock size={15} className="shrink-0 text-text-muted" />
+            <Lock size={13} className="shrink-0 text-text-muted" />
           ) : (
-            <Activity size={15} className="text-primary-start shrink-0" />
+            <Activity size={14} className="text-primary-start shrink-0" />
           )}
-          <span className="truncate">ANALISTI FINANCIAR</span>
+          <span className="truncate">FINANCAT</span>
         </button>
 
         {/* 2. ONTOLOGJIA MODAL TRIGGER */}
@@ -395,46 +394,46 @@ const CaseHeader: React.FC<{
           onClick={onOpenOntologyModal}
           className={`${buttonBase} w-full hover:border-primary-start/80`}
         >
-          <Network size={15} className="text-primary-start shrink-0" />
+          <Network size={14} className="text-primary-start shrink-0" />
           <span className="truncate">ONTOLOGJIA</span>
         </button>
 
         {/* 3. CONSISTENT "ANALIZO RASTIN" SPLIT-BUTTON */}
         <div className="w-full">
           {hasExistingAnalysis ? (
-            <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+            <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
               <button
                 type="button"
                 onClick={onViewExistingAnalysis}
                 disabled={isAnalyzing}
-                className="flex-1 h-full flex items-center justify-center px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
+                className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
                 title="Shiko Analizën ekzistuese"
               >
-                <span className="truncate text-primary-start font-bold">ANALIZO RASTIN</span>
+                <span className="truncate text-primary-start font-bold">ANALIZA</span>
               </button>
 
-              <div className="border-r border-main h-6 shrink-0" />
+              <div className="border-r border-main h-5 sm:h-6 shrink-0" />
 
               <button
                 type="button"
                 onClick={() => onTriggerRoleSelect(true)}
                 disabled={isAnalyzing}
-                className="px-3 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
+                className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
                 title="Rianalizo sërish me AI"
               >
-                <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
+                <RefreshCw size={13} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
               </button>
 
-              <div className="border-r border-main h-6 shrink-0" />
+              <div className="border-r border-main h-5 sm:h-6 shrink-0" />
 
               <button
                 type="button"
                 onClick={onClearAnalysis}
                 disabled={isAnalyzing}
-                className="px-3 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
+                className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
                 title="Fshi analizën e ruajtur"
               >
-                <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
+                <Trash2 size={13} className="text-text-muted hover:text-danger-start shrink-0" />
               </button>
             </div>
           ) : (
@@ -763,7 +762,7 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
         
         {/* HERO EXECUTIVE HEADER */}
         <CaseHeader
@@ -780,38 +779,38 @@ const CaseViewPage: React.FC = () => {
           onDocumentSelectionChange={setSelectedDocumentIds}
         />
 
-        {/* WORKSPACE VIEW (PERSISTENT UNIFIED EVIDENCE VAULT + SOCRATIC CHAT) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 z-0">
+        {/* WORKSPACE VIEW (RESPONSIVE UNIFIED EVIDENCE VAULT + CHAT) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0">
           
-          {/* LEFT COLUMN: UNIFIED EVIDENCE VAULT PANEL (5 COLS) */}
-          <div className="lg:col-span-5 flex flex-col h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
+          {/* LEFT COLUMN: UNIFIED EVIDENCE VAULT PANEL */}
+          <div className="lg:col-span-5 flex flex-col h-[520px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
             
             {/* EVIDENCE VAULT SUB-HEADER SWITCHER */}
-            <div className="p-3 bg-canvas border-b border-main flex items-center justify-between gap-2">
+            <div className="p-2.5 sm:p-3 bg-canvas border-b border-main flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-main w-full">
                 <button
                   type="button"
                   onClick={() => setEvidenceTab('documents')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] sm:text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                     evidenceTab === 'documents'
                       ? 'bg-primary-start text-white shadow-sm'
                       : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
-                  <FileText size={14} />
+                  <FileText size={13} />
                   <span>Dokumentet ({liveDocuments.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setEvidenceTab('audio')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] sm:text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                     evidenceTab === 'audio'
                       ? 'bg-primary-start text-white shadow-sm'
                       : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
-                  <Mic size={14} />
+                  <Mic size={13} />
                   <span>Inqizimet Audio</span>
                 </button>
               </div>
@@ -833,7 +832,7 @@ const CaseViewPage: React.FC = () => {
                   className="h-full w-full bg-transparent border-0 rounded-none"
                 />
               ) : (
-                <div className="h-full overflow-y-auto p-4">
+                <div className="h-full overflow-y-auto p-3 sm:p-4">
                   <MediaEvidencePanel caseId={caseData.details.id} t={t} />
                 </div>
               )}
@@ -841,7 +840,7 @@ const CaseViewPage: React.FC = () => {
           </div>
 
           {/* RIGHT COLUMN: AGJENTI I RASTIT (7 COLS) */}
-          <div className="lg:col-span-7 flex flex-col h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             
             <ChatPanel
               messages={chatMessages}
@@ -857,30 +856,30 @@ const CaseViewPage: React.FC = () => {
               selectedDocumentCount={selectedDocumentIds.length}
             />
 
-            {/* AGJENTI I RASTIT COMMAND PALETTE */}
+            {/* AGJENTI I RASTIT COMMAND PALETTE (SCROLLABLE RELATIVE CONTAINER - NO INPUT OVERLAP) */}
             {chatMessages.length === 0 && !isSendingMessage && (
-              <div className="absolute inset-x-6 top-12 pointer-events-none flex flex-col items-center justify-center gap-3.5 text-center">
-                <div className="w-11 h-11 bg-primary-start/10 border border-primary-start/20 rounded-2xl flex items-center justify-center text-primary-start shadow-sm">
-                  <Bot size={22} />
+              <div className="absolute inset-x-3 sm:inset-x-6 top-10 bottom-20 overflow-y-auto custom-finance-scroll pointer-events-none flex flex-col items-center justify-start pt-2 gap-3 text-center pb-8">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-primary-start/10 border border-primary-start/20 rounded-2xl flex items-center justify-center text-primary-start shadow-sm shrink-0">
+                  <Bot size={20} className="sm:w-5 sm:h-5" />
                 </div>
                 
                 <div>
-                  <h3 className="text-base font-black uppercase text-text-primary tracking-tight">
+                  <h3 className="text-sm sm:text-base font-black uppercase text-text-primary tracking-tight">
                     Unë jam Agjenti i rastit tuaj, {userSalutation}
                   </h3>
-                  <p className="text-xs text-text-secondary mt-1 max-w-md leading-relaxed font-medium">
+                  <p className="text-[11px] sm:text-xs text-text-secondary mt-1 max-w-md leading-relaxed font-medium">
                     {clientPosition === 'DEFENDANT'
                       ? 'Asistenti juaj ligjor me AI për ndërtimin e mbrojtjes strategjike, rrëzimin e padisë dhe analizën e thellë të dokumenteve të lëndës.'
                       : 'Asistenti juaj ligjor me AI për vërtetimin e kërkesëpadisë, provimin e përgjegjësisë dhe argumentimin e të drejtave të klientit.'}
                   </p>
 
-                  <div className="mt-2 px-3 py-1 bg-canvas border border-main rounded-lg text-[10px] text-text-muted flex items-center justify-center gap-1.5 font-medium max-w-sm mx-auto">
-                    <Info size={12} className="text-primary-start shrink-0" />
-                    <span>Përgjigjet e AI shërbejnë për referencë dhe verifikohen nga avokati.</span>
+                  <div className="mt-1.5 px-3 py-0.5 bg-canvas border border-main rounded-lg text-[9px] sm:text-[10px] text-text-muted flex items-center justify-center gap-1.5 font-medium max-w-xs mx-auto">
+                    <Info size={11} className="text-primary-start shrink-0" />
+                    <span>Përgjigjet e AI verifikohen nga avokati.</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pointer-events-auto mt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full max-w-xl pointer-events-auto mt-1">
                   {[
                     {
                       title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
@@ -925,23 +924,23 @@ const CaseViewPage: React.FC = () => {
                             'ks'
                           )
                         }
-                        className="group p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-2 active:scale-[0.98] cursor-pointer"
+                        className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
+                          <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
                             {card.badge}
                           </span>
-                          <ChevronRight size={14} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                          <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
                         </div>
 
                         <div className="flex items-center gap-2 mt-0.5">
-                          <IconComponent size={15} className="text-primary-start shrink-0" />
-                          <h4 className="text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                          <IconComponent size={14} className="text-primary-start shrink-0" />
+                          <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
                             {card.title}
                           </h4>
                         </div>
 
-                        <p className="text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
+                        <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
                           {card.prompt}
                         </p>
                       </button>

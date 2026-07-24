@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V2.6 (TOP FLOATING SCROLLABLE LEGEND)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V3.1 (EKSPORTO BUTTON SHORTENED)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -20,7 +20,15 @@ import {
   Layers,
   ChevronRight,
   Info,
-  LucideIcon
+  LucideIcon,
+  Download,
+  Plus,
+  GitMerge,
+  Clock,
+  Euro,
+  Play,
+  Pause,
+  AlertTriangle
 } from 'lucide-react';
 
 export type EntityType = 'PERSON' | 'ORGANIZATION' | 'ACCOUNT' | 'LOCATION' | 'EVENT' | 'DOCUMENT';
@@ -39,6 +47,8 @@ export interface OntologyEdge {
   source: string;
   target: string;
   relation: string;
+  amount_eur?: number | null;
+  date_iso?: string;
   evidence_text?: string;
   source_doc_ids?: string[];
 }
@@ -76,20 +86,44 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Selection & Inspector State
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
 
+  // Filters & Search
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Rebuild & Export State
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<boolean>(false);
 
+  // Timeline Slider State
+  const [timelineYear, setTimelineYear] = useState<number>(2026);
+  const [isPlayingTimeline, setIsPlayingTimeline] = useState<boolean>(false);
+
+  // Merge Node Modal State
+  const [mergeModalOpen, setMergeModalOpen] = useState<boolean>(false);
+  const [secondaryNodeIdToMerge, setSecondaryNodeIdToMerge] = useState<string>('');
+  const [isMerging, setIsMerging] = useState<boolean>(false);
+
+  // Custom Edge Modal State
+  const [customEdgeModalOpen, setCustomEdgeModalOpen] = useState<boolean>(false);
+  const [edgeSourceId, setEdgeSourceId] = useState<string>('');
+  const [edgeTargetId, setEdgeTargetId] = useState<string>('');
+  const [edgeRelation, setEdgeRelation] = useState<string>('ASSOCIATED_WITH');
+  const [edgeEvidenceText, setEdgeEvidenceText] = useState<string>('');
+  const [edgeAmountEur, setEdgeAmountEur] = useState<string>('');
+  const [isAddingEdge, setIsAddingEdge] = useState<boolean>(false);
+
+  // Cross-Case Search Drawer State
   const [crossCaseSearchOpen, setCrossCaseSearchOpen] = useState<boolean>(false);
   const [crossCaseQuery, setCrossCaseQuery] = useState<string>('');
   const [crossCaseResults, setCrossCaseResults] = useState<CrossCaseMatch[]>([]);
   const [crossCaseLoading, setCrossCaseLoading] = useState<boolean>(false);
 
+  // SVG Pan & Zoom
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [viewBox, setViewBox] = useState({ x: -400, y: -300, width: 800, height: 600 });
   const [isPanning, setIsPanning] = useState(false);
@@ -113,6 +147,18 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     if (caseId) fetchGraph();
   }, [caseId]);
 
+  // Timeline Auto-play Loop
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isPlayingTimeline) {
+      interval = setInterval(() => {
+        setTimelineYear((prev) => (prev >= 2026 ? 2018 : prev + 1));
+      }, 1500);
+    }
+    return () => clearInterval(interval);
+  }, [isPlayingTimeline]);
+
+  // Rebuild Graph Trigger
   const handleRebuildGraph = async () => {
     setRebuilding(true);
     setRebuildStatus(null);
@@ -128,6 +174,59 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     }
   };
 
+  // Export Court PDF Report
+  const handleExportCourtReport = async () => {
+    setExporting(true);
+    try {
+      await apiService.downloadCourtGraphReport(caseId);
+    } catch (err) {
+      alert('Dështoi eksporti i raportit gjyqësor.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Execute Entity Node Merge
+  const handleExecuteNodeMerge = async () => {
+    if (!selectedNode || !secondaryNodeIdToMerge) return;
+    setIsMerging(true);
+    try {
+      await apiService.mergeGraphNodes(caseId, selectedNode.id, secondaryNodeIdToMerge);
+      setMergeModalOpen(false);
+      setSelectedNode(null);
+      await fetchGraph();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Dështoi bashkimi i entiteteve.');
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  // Execute Custom Edge Creation
+  const handleExecuteAddEdge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!edgeSourceId || !edgeTargetId || !edgeRelation) return;
+    setIsAddingEdge(true);
+    try {
+      await apiService.createCustomGraphEdge(caseId, {
+        source: edgeSourceId,
+        target: edgeTargetId,
+        relation: edgeRelation,
+        evidence_text: edgeEvidenceText,
+        amount_eur: edgeAmountEur ? parseFloat(edgeAmountEur) : undefined,
+      });
+      setCustomEdgeModalOpen(false);
+      setEdgeEvidenceText('');
+      setEdgeAmountEur('');
+      await fetchGraph();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Dështoi krijimi i lidhjes manuale.');
+    } finally {
+      setIsAddingEdge(false);
+    }
+  };
+
+  // Cross Case Intelligence Search
   const handleCrossCaseSearch = async (queryToSearch?: string) => {
     const q = queryToSearch || crossCaseQuery;
     if (!q || q.trim().length < 2) return;
@@ -143,6 +242,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     }
   };
 
+  // Filtered Nodes & Edges
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
     return graphData.nodes.filter((node) => {
@@ -164,6 +264,23 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     );
   }, [graphData?.edges, filteredNodeIds]);
 
+  // Financial Balance Calculator for Selected Node
+  const financialTotalsForSelectedNode = useMemo(() => {
+    if (!selectedNode || !graphData?.edges) return { inEur: 0, outEur: 0, netEur: 0 };
+    let inEur = 0;
+    let outEur = 0;
+
+    graphData.edges.forEach((edge) => {
+      if (edge.amount_eur && edge.amount_eur > 0) {
+        if (edge.target === selectedNode.id) inEur += edge.amount_eur;
+        if (edge.source === selectedNode.id) outEur += edge.amount_eur;
+      }
+    });
+
+    return { inEur, outEur, netEur: inEur - outEur };
+  }, [selectedNode, graphData?.edges]);
+
+  // Concentric Circular Layout
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const nodes = filteredNodes;
@@ -197,6 +314,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     return positions;
   }, [filteredNodes]);
 
+  // SVG Pan & Zoom Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
@@ -239,14 +357,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
       <div className="flex flex-wrap items-center justify-between p-3 bg-surface border-b border-main gap-3 z-10">
         
         {/* Left: Title & Case Badge */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-2 px-3 py-1 bg-primary-start/10 border border-primary-start/30 rounded-xl text-primary-start font-bold text-xs uppercase tracking-wider">
             <Network className="w-4 h-4 text-primary-start" />
             <span>Ontologjia</span>
             {caseTitle && <span className="text-text-muted font-normal">| {caseTitle}</span>}
           </div>
 
-          <div className="relative w-56">
+          <div className="relative w-52 sm:w-60">
             <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-text-muted" />
             <input
               type="text"
@@ -295,19 +413,25 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => {
-              setCrossCaseSearchOpen(true);
-              if (selectedNode) {
-                setCrossCaseQuery(selectedNode.label);
-                handleCrossCaseSearch(selectedNode.label);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-600 border border-purple-500/30 rounded-xl text-xs font-bold uppercase transition-all"
+            onClick={() => setCustomEdgeModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase transition-all shadow-sm"
+            title="Krijo lidhje manuale midis entiteteve"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Kërkim në Zyrë</span>
+            <Plus className="w-3.5 h-3.5 text-primary-start" />
+            <span className="hidden sm:inline">Shto Lidhje</span>
+          </button>
+
+          {/* SHORTENED 'EKSPORTO' BUTTON */}
+          <button
+            onClick={handleExportCourtReport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase transition-all shadow-sm disabled:opacity-50"
+            title="Shkarko raportin zyrtar të ontologjisë së provave"
+          >
+            <Download className="w-3.5 h-3.5 text-primary-start" />
+            <span className="hidden sm:inline">{exporting ? 'Eksporton...' : 'Eksporto'}</span>
           </button>
 
           <button
@@ -337,11 +461,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
       {/* GRAPH CANVAS CONTAINER */}
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         
-        {/* TOP FLOATING SCROLLABLE LEGEND BAR (PERMANENTLY VISIBLE & SCROLLABLE) */}
+        {/* TOP FLOATING SCROLLABLE LEGEND STRIP */}
         <div className="absolute top-3 left-4 right-4 bg-surface/95 backdrop-blur-md border border-main px-4 py-2 rounded-xl text-xs text-text-primary flex items-center justify-between gap-3 shadow-md z-20 overflow-x-auto custom-finance-scroll pointer-events-auto">
-          <span className="text-[10px] font-black text-text-muted uppercase tracking-wider shrink-0">
-            Kategoritë e Ontologjisë:
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-black text-text-muted uppercase tracking-wider">Kategoritë e Ontologjisë:</span>
+          </div>
+
           <div className="flex items-center gap-x-5 gap-y-1 shrink-0">
             {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
               const conf = ENTITY_CONFIG[type];
@@ -352,6 +477,27 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                 </div>
               );
             })}
+          </div>
+
+          {/* Timeline Playback Slider Controls */}
+          <div className="flex items-center gap-2 border-l border-main pl-3 shrink-0">
+            <button
+              onClick={() => setIsPlayingTimeline(!isPlayingTimeline)}
+              className="p-1 rounded-lg bg-canvas hover:bg-hover border border-main text-primary-start transition-colors"
+              title={isPlayingTimeline ? 'Pauzo Kronologjinë' : 'Luaj Kronologjinë'}
+            >
+              {isPlayingTimeline ? <Pause size={12} /> : <Play size={12} />}
+            </button>
+            <Clock size={12} className="text-text-muted" />
+            <span className="text-[11px] font-mono font-bold text-primary-start">{timelineYear}</span>
+            <input
+              type="range"
+              min="2018"
+              max="2026"
+              value={timelineYear}
+              onChange={(e) => setTimelineYear(parseInt(e.target.value))}
+              className="w-20 accent-primary-start h-1.5 cursor-pointer"
+            />
           </div>
         </div>
 
@@ -415,14 +561,26 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                 >
                   <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                 </marker>
+                <marker
+                  id="arrowhead-contradiction"
+                  markerWidth="10"
+                  markerHeight="7"
+                  refX="28"
+                  refY="3.5"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+                </marker>
               </defs>
 
+              {/* EDGES & CONTRADICTIONS */}
               <g className="edges">
                 {filteredEdges.map((edge) => {
                   const sourcePos = nodePositions[edge.source];
                   const targetPos = nodePositions[edge.target];
                   if (!sourcePos || !targetPos) return null;
 
+                  const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
                   const isConnectedToSelectedNode =
                     selectedNode && (edge.source === selectedNode.id || edge.target === selectedNode.id);
@@ -437,39 +595,65 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                         y1={sourcePos.y}
                         x2={targetPos.x}
                         y2={targetPos.y}
-                        stroke={isSelected || isConnectedToSelectedNode ? '#3b82f6' : 'currentColor'}
-                        className={`${isSelected || isConnectedToSelectedNode ? '' : 'text-text-muted/40'} transition-all duration-200`}
-                        strokeWidth={isSelected || isConnectedToSelectedNode ? 2.5 : 1.2}
-                        strokeDasharray={edge.relation.includes('CONTRADICT') ? '4,4' : 'none'}
-                        markerEnd={isSelected || isConnectedToSelectedNode ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
+                        stroke={
+                          isContradiction
+                            ? '#ef4444'
+                            : isSelected || isConnectedToSelectedNode
+                            ? '#3b82f6'
+                            : 'currentColor'
+                        }
+                        className={`${
+                          isContradiction
+                            ? 'animate-pulse'
+                            : isSelected || isConnectedToSelectedNode
+                            ? ''
+                            : 'text-text-muted/40'
+                        } transition-all duration-200`}
+                        strokeWidth={isContradiction || isSelected || isConnectedToSelectedNode ? 2.5 : 1.2}
+                        strokeDasharray={isContradiction ? '5,5' : 'none'}
+                        markerEnd={
+                          isContradiction
+                            ? 'url(#arrowhead-contradiction)'
+                            : isSelected || isConnectedToSelectedNode
+                            ? 'url(#arrowhead-selected)'
+                            : 'url(#arrowhead)'
+                        }
                       />
+
                       <rect
-                        x={midX - 35}
+                        x={midX - 45}
                         y={midY - 10}
-                        width="70"
-                        height="16"
-                        rx="4"
-                        fill="var(--bg-surface, #ffffff)"
-                        stroke={isSelected ? '#3b82f6' : 'currentColor'}
-                        className={isSelected ? '' : 'text-main'}
+                        width="90"
+                        height="18"
+                        rx="5"
+                        fill={isContradiction ? '#450a0a' : 'var(--bg-surface, #ffffff)'}
+                        stroke={isContradiction ? '#ef4444' : isSelected ? '#3b82f6' : 'currentColor'}
+                        className={isContradiction ? '' : isSelected ? '' : 'text-main'}
                         strokeWidth="1"
                       />
                       <text
                         x={midX}
-                        y={midY + 2}
+                        y={midY + 3}
                         textAnchor="middle"
-                        fill={isSelected ? '#3b82f6' : 'currentColor'}
-                        className={isSelected ? '' : 'text-text-muted'}
+                        fill={isContradiction ? '#fca5a5' : isSelected ? '#3b82f6' : 'currentColor'}
+                        className={isContradiction ? 'font-bold' : isSelected ? 'font-bold' : 'text-text-muted'}
                         fontSize="8"
                         fontWeight="bold"
                       >
-                        {edge.relation.length > 12 ? `${edge.relation.substring(0, 10)}..` : edge.relation}
+                        {edge.amount_eur
+                          ? `€${edge.amount_eur.toLocaleString()}`
+                          : isContradiction
+                          ? 'KUNDËRTHËNJE'
+                          : edge.relation.length > 12
+                          ? `${edge.relation.substring(0, 10)}..`
+                          : edge.relation}
                       </text>
                     </g>
                   );
                 })}
               </g>
 
+              {/* NODES */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = nodePositions[node.id];
@@ -578,6 +762,27 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   </div>
                 </div>
 
+                {/* Financial Summary Box */}
+                {(financialTotalsForSelectedNode.inEur > 0 || financialTotalsForSelectedNode.outEur > 0) && (
+                  <div className="bg-canvas p-3 rounded-xl border border-main text-xs flex flex-col gap-1.5 shadow-sm">
+                    <span className="text-[10px] font-black text-primary-start uppercase tracking-wider flex items-center gap-1">
+                      <Euro size={12} /> Bilanct e Transaksioneve
+                    </span>
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span>Të Pranuara:</span>
+                      <span>+€{financialTotalsForSelectedNode.inEur.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-500 font-bold">
+                      <span>Të Paguara:</span>
+                      <span>-€{financialTotalsForSelectedNode.outEur.toLocaleString()}</span>
+                    </div>
+                    <div className="border-t border-main pt-1 flex justify-between font-black text-text-primary">
+                      <span>Neto:</span>
+                      <span>€{financialTotalsForSelectedNode.netEur.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+
                 {selectedNode.description && (
                   <div className="bg-canvas p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
                     <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Roli / Konteksti Ligjor</span>
@@ -585,60 +790,75 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   </div>
                 )}
 
-                {selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0 && (
-                  <div className="bg-canvas p-3 rounded-xl border border-main text-xs flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-text-muted uppercase block">Meta-të dhënat</span>
-                    {Object.entries(selectedNode.metadata).map(([k, v]) => (
-                      <div key={k} className="flex justify-between text-text-secondary">
-                        <span className="text-text-muted capitalize">{k}:</span>
-                        <span className="font-mono text-text-primary">{String(v)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
+                {/* Connected Relationships */}
                 <div>
                   <span className="text-[10px] font-bold text-text-muted uppercase block mb-2">
                     Lidhjet e Dokumentuara ({connectedEdgesForSelectedNode.length})
                   </span>
                   <div className="flex flex-col gap-2">
-                    {connectedEdgesForSelectedNode.map((e) => (
-                      <div
-                        key={e.id}
-                        onClick={() => setSelectedEdge(e)}
-                        className="bg-canvas p-3 rounded-xl border border-main hover:border-primary-start cursor-pointer text-xs flex flex-col gap-1 transition-all"
-                      >
-                        <div className="flex items-center justify-between text-text-primary font-bold text-[11px]">
-                          <span>{e.relation}</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+                    {connectedEdgesForSelectedNode.map((e) => {
+                      const isContradiction = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR');
+                      return (
+                        <div
+                          key={e.id}
+                          onClick={() => setSelectedEdge(e)}
+                          className={`p-3 rounded-xl border cursor-pointer text-xs flex flex-col gap-1 transition-all ${
+                            isContradiction
+                              ? 'bg-rose-500/10 border-rose-500/40 hover:bg-rose-500/20'
+                              : 'bg-canvas border-main hover:border-primary-start'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold text-[11px]">
+                            <span className={isContradiction ? 'text-rose-500 flex items-center gap-1' : 'text-text-primary'}>
+                              {isContradiction && <AlertTriangle size={12} />}
+                              {e.relation}
+                            </span>
+                            <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+                          </div>
+                          {e.evidence_text && (
+                            <p className="text-[11px] text-text-secondary italic line-clamp-2">&quot;{e.evidence_text}&quot;</p>
+                          )}
                         </div>
-                        {e.evidence_text && (
-                          <p className="text-[11px] text-text-secondary italic line-clamp-2">&quot;{e.evidence_text}&quot;</p>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setCrossCaseQuery(selectedNode.label);
-                    setCrossCaseSearchOpen(true);
-                    handleCrossCaseSearch(selectedNode.label);
-                  }}
-                  className="w-full mt-2 py-2.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-600 border border-purple-500/30 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Kërko &quot;{selectedNode.label}&quot; në lëndët tjera</span>
-                </button>
+                {/* Actions: Merge & Firm Search */}
+                <div className="flex flex-col gap-2 mt-2">
+                  <button
+                    onClick={() => setMergeModalOpen(true)}
+                    className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all shadow-sm"
+                  >
+                    <GitMerge size={14} className="text-primary-start" />
+                    <span>Bashko Entitetin</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setCrossCaseQuery(selectedNode.label);
+                      setCrossCaseSearchOpen(true);
+                      handleCrossCaseSearch(selectedNode.label);
+                    }}
+                    className="w-full py-2 bg-purple-600/10 hover:bg-purple-600/20 text-purple-600 border border-purple-500/30 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Kërko në lëndët tjera</span>
+                  </button>
+                </div>
               </>
             )}
 
             {selectedEdge && (
               <>
-                <div className="bg-canvas p-3 rounded-xl border border-main flex flex-col gap-1">
+                <div className={`p-3 rounded-xl border flex flex-col gap-1 ${
+                  selectedEdge.relation.includes('CONTRADICT') ? 'bg-rose-500/10 border-rose-500/30' : 'bg-canvas border-main'
+                }`}>
                   <span className="text-[10px] font-bold text-text-muted uppercase">Lidhja Ligjore</span>
                   <span className="font-bold text-sm text-primary-start">{selectedEdge.relation}</span>
+                  {selectedEdge.amount_eur && (
+                    <span className="text-xs font-mono font-bold text-emerald-600">Shuma: €{selectedEdge.amount_eur.toLocaleString()}</span>
+                  )}
                 </div>
 
                 {selectedEdge.evidence_text && (
@@ -653,6 +873,158 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
         )}
       </div>
 
+      {/* MERGE NODE MODAL */}
+      {mergeModalOpen && selectedNode && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-main rounded-3xl w-full max-w-md p-6 flex flex-col gap-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-main pb-3">
+              <div className="flex items-center gap-2 text-primary-start">
+                <GitMerge size={20} />
+                <h3 className="font-bold text-text-primary text-sm uppercase">Bashko Entitetin</h3>
+              </div>
+              <button onClick={() => setMergeModalOpen(false)} className="text-text-muted hover:text-text-primary">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-text-secondary leading-relaxed">
+              Zgjidhni entitetin dytësor që dëshironi ta bashkoni brenda kryesorit <strong className="text-text-primary">&quot;{selectedNode.label}&quot;</strong>.
+            </p>
+
+            <select
+              value={secondaryNodeIdToMerge}
+              onChange={(e) => setSecondaryNodeIdToMerge(e.target.value)}
+              className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+            >
+              <option value="">-- Zgjidh entitetin për ta shkrirë --</option>
+              {graphData?.nodes
+                .filter((n) => n.id !== selectedNode.id)
+                .map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.label} ({n.type})
+                  </option>
+                ))}
+            </select>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setMergeModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-main text-text-secondary hover:bg-hover">
+                Anulo
+              </button>
+              <button
+                onClick={handleExecuteNodeMerge}
+                disabled={!secondaryNodeIdToMerge || isMerging}
+                className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-primary-start text-white shadow-md hover:bg-primary-start/90 disabled:opacity-50"
+              >
+                {isMerging ? 'Duke bashkuar...' : 'Bashko Tani'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM EDGE MODAL */}
+      {customEdgeModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleExecuteAddEdge} className="bg-surface border border-main rounded-3xl w-full max-w-lg p-6 flex flex-col gap-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-main pb-3">
+              <div className="flex items-center gap-2 text-primary-start">
+                <Plus size={20} />
+                <h3 className="font-bold text-text-primary text-sm uppercase">Shto Lidhje Manuale</h3>
+              </div>
+              <button type="button" onClick={() => setCustomEdgeModalOpen(false)} className="text-text-muted hover:text-text-primary">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Entiteti Burim</label>
+                <select
+                  value={edgeSourceId}
+                  onChange={(e) => setEdgeSourceId(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none"
+                  required
+                >
+                  <option value="">-- Zgjidh Burimin --</option>
+                  {graphData?.nodes.map((n) => (
+                    <option key={n.id} value={n.id}>{n.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Entiteti Synim</label>
+                <select
+                  value={edgeTargetId}
+                  onChange={(e) => setEdgeTargetId(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none"
+                  required
+                >
+                  <option value="">-- Zgjidh Synimin --</option>
+                  {graphData?.nodes.map((n) => (
+                    <option key={n.id} value={n.id}>{n.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Tipi i Marëdhënies</label>
+                <select
+                  value={edgeRelation}
+                  onChange={(e) => setEdgeRelation(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none font-bold"
+                >
+                  <option value="TRANSFERRED_FUNDS">TRANSFERRED_FUNDS (Transaksion)</option>
+                  <option value="CONTRADICTS">CONTRADICTS (Kundërthënje)</option>
+                  <option value="ASSOCIATED_WITH">ASSOCIATED_WITH (Lidhje)</option>
+                  <option value="EMPLOYED_BY">EMPLOYED_BY (Punësuar)</option>
+                  <option value="OWNED_BY">OWNED_BY (Pronësi)</option>
+                  <option value="REPRESENTED_BY">REPRESENTED_BY (Përfaqësim)</option>
+                  <option value="OWES_MONEY">OWES_MONEY (Detyrim)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Shuma në Euro (€)</label>
+                <input
+                  type="number"
+                  placeholder="p.sh. 15000"
+                  value={edgeAmountEur}
+                  onChange={(e) => setEdgeAmountEur(e.target.value)}
+                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs font-mono text-text-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Citat nga Prova (Evidence Text)</label>
+              <textarea
+                placeholder="Shkruaj citatin apo shënimin mbrojtës nga dokumenti..."
+                value={edgeEvidenceText}
+                onChange={(e) => setEdgeEvidenceText(e.target.value)}
+                rows={2}
+                className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setCustomEdgeModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-main text-text-secondary hover:bg-hover">
+                Anulo
+              </button>
+              <button
+                type="submit"
+                disabled={isAddingEdge}
+                className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-primary-start text-white shadow-md hover:bg-primary-start/90 disabled:opacity-50"
+              >
+                {isAddingEdge ? 'Duke ruajtur...' : 'Ruaj Lidhjen'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* CROSS-CASE SEARCH MODAL */}
       {crossCaseSearchOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -665,10 +1037,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   Inteligjenca e Ndërsjellë e Zyrës
                 </h3>
               </div>
-              <button
-                onClick={() => setCrossCaseSearchOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
+              <button onClick={() => setCrossCaseSearchOpen(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>

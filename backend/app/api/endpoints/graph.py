@@ -1,10 +1,11 @@
 # FILE: backend/app/api/endpoints/graph.py
-# PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH ENDPOINTS V1.3
-# REST API endpoints for Palantir-style Evidence Graphs & Firm-wide Cross-Case Intelligence
+# PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH ENDPOINTS V2.0
+# Endpoints for Case Graphing, Node Merging, Manual Connections, Cross-Case Intelligence, & Court PDF Exports
 
 import logging
 from typing import List, Dict, Any, Optional, Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, status, Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from pymongo.database import Database
 from bson import ObjectId
@@ -39,7 +40,7 @@ def verify_case_ownership(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 
-# --- PYDANTIC RESPONSE MODELS ---
+# --- PYDANTIC REQUEST & RESPONSE MODELS ---
 
 class OntologyNodeOut(BaseModel):
     id: str
@@ -54,6 +55,8 @@ class OntologyEdgeOut(BaseModel):
     source: str
     target: str
     relation: str
+    amount_eur: Optional[float] = None
+    date_iso: Optional[str] = ""
     evidence_text: Optional[str] = ""
     source_doc_ids: List[str] = Field(default_factory=list)
 
@@ -73,6 +76,17 @@ class RebuildGraphResponse(BaseModel):
     status: str
     message: str
     total_documents: int
+
+class MergeNodesRequest(BaseModel):
+    primary_id: str
+    secondary_id: str
+
+class CustomEdgeRequest(BaseModel):
+    source: str
+    target: str
+    relation: str
+    evidence_text: Optional[str] = ""
+    amount_eur: Optional[float] = None
 
 
 # --- BACKGROUND WORKER HELPER ---
@@ -181,4 +195,86 @@ async def rebuild_case_evidence_graph(
         status="processing",
         message=f"Procesimi i grafikut të provave filloi në prapavijë për {total_docs} dokumente.",
         total_documents=total_docs
+    )
+
+
+@router.post("/{case_id}/graph/nodes/merge")
+async def merge_entity_nodes(
+    case_id: str,
+    body: MergeNodesRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Merges two entity nodes into one master node and updates all connected edges.
+    """
+    validate_object_id(case_id)
+    if not verify_case_ownership(db, case_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Nuk keni leje të qaseni në këtë rast.")
+
+    result = ontology_service.merge_case_nodes(
+        db=db,
+        case_id=case_id,
+        primary_id=body.primary_id,
+        secondary_id=body.secondary_id
+    )
+
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+
+    return result
+
+
+@router.post("/{case_id}/graph/edges")
+async def create_custom_edge(
+    case_id: str,
+    body: CustomEdgeRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Allows an attorney to manually connect two entities with a custom legal edge.
+    """
+    validate_object_id(case_id)
+    if not verify_case_ownership(db, case_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Nuk keni leje të qaseni në këtë rast.")
+
+    result = ontology_service.add_custom_edge(
+        db=db,
+        case_id=case_id,
+        source_id=body.source,
+        target_id=body.target,
+        relation=body.relation,
+        evidence_text=body.evidence_text or "",
+        amount_eur=body.amount_eur
+    )
+
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+
+    return result
+
+
+@router.get("/{case_id}/graph/export")
+async def download_courtroom_graph_report(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Exports a court-ready, stamped official evidence graph report in text/PDF format.
+    """
+    validate_object_id(case_id)
+    if not verify_case_ownership(db, case_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Nuk keni leje të qaseni në këtë rast.")
+
+    report_bytes = ontology_service.generate_court_report_pdf(db=db, case_id=case_id)
+    
+    filename = f"Raporti_i_Ontologjise_Gjyqesore_{case_id[:8]}.txt"
+    return Response(
+        content=report_bytes,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
     )

@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V27.3 (MINI-FOUNDRY EVIDENCE GRAPH INTEGRATED)
+// PHOENIX PROTOCOL - API SERVICE V28.0 (ADVANCED EVIDENCE GRAPH & EXPORTER INTEGRATED)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -173,7 +173,7 @@ class ApiService {
         await this.axiosInstance.put(`/cases/${caseId}/position`, { client_position: position });
     }
 
-    // ========== EVIDENCE GRAPH METHODS (PALANTIR FOUNDRY ENGINE) ==========
+    // ========== ADVANCED ONTOLOGY & CONTRADICTION GRAPH METHODS ==========
     public async getCaseGraph(caseId: string): Promise<any> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/graph`);
         return response.data;
@@ -187,6 +187,31 @@ class ApiService {
     public async searchFirmGraph(query: string): Promise<any[]> {
         const response = await this.axiosInstance.get('/cases/firm/graph/search', { params: { query } });
         return response.data;
+    }
+
+    public async mergeGraphNodes(caseId: string, primaryId: string, secondaryId: string): Promise<any> {
+        const response = await this.axiosInstance.post(`/cases/${caseId}/graph/nodes/merge`, {
+            primary_id: primaryId,
+            secondary_id: secondaryId
+        });
+        return response.data;
+    }
+
+    public async createCustomGraphEdge(caseId: string, edgeData: { source: string; target: string; relation: string; evidence_text?: string; amount_eur?: number }): Promise<any> {
+        const response = await this.axiosInstance.post(`/cases/${caseId}/graph/edges`, edgeData);
+        return response.data;
+    }
+
+    public async downloadCourtGraphReport(caseId: string): Promise<void> {
+        const response = await this.axiosInstance.get(`/cases/${caseId}/graph/export`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/plain;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Raporti_i_Ontologjise_${caseId.slice(-6)}.txt`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
     }
 
     // ========== PASSWORD RESET METHODS ==========
