@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V22.0 (EXECUTIVE TAB STANDARDIZATION & DYNAMIC SWITCHER)
+// PHOENIX PROTOCOL - CASE VIEW V34.0 (UNIFIED MODAL TRINITY ARCHITECTURE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -10,8 +10,8 @@ import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode, LegalDomain } from '.
 import MediaEvidencePanel from '../components/MediaEvidencePanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
-import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
-import EvidenceGraphTab from '../components/EvidenceGraphTab';
+import OntologyModal from '../components/OntologyModal';
+import FinancialAnalystModal from '../components/FinancialAnalystModal';
 import { DocumentSelector } from '../components/DocumentSelector';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +34,12 @@ import {
   Swords,
   Gavel,
   Network,
-  Folder
+  Mic,
+  Briefcase,
+  Scale,
+  ChevronRight,
+  Bot,
+  Info
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
@@ -42,8 +47,8 @@ import DockedPDFViewer from '../components/DockedPDFViewer';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 type CaseData = { details: Case | null };
-type ActiveModal = 'none' | 'analysis';
-type ViewMode = 'workspace' | 'analyst' | 'graph';
+type ActiveModal = 'none' | 'analysis' | 'ontology' | 'analyst';
+type EvidenceSubTab = 'documents' | 'audio';
 
 // ========== PHOENIX: BULLETPROOF CHAT HISTORY NORMALIZER ==========
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
@@ -86,6 +91,18 @@ const safeString = (val: any): string => {
   } catch {
     return String(val);
   }
+};
+
+const getUserSalutation = (user: any): string => {
+  if (!user) return 'Avokat';
+  const rawName = (user.last_name || user.lastName || user.full_name || user.name || user.first_name || '').trim();
+  const cleanName = rawName.replace(/[\(\)]/g, '').replace(/admin/gi, '').trim();
+  
+  if (!cleanName) return 'Avokat';
+  const parts = cleanName.split(' ');
+  const lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  
+  return lastName ? `z. ${lastName}` : 'Avokat';
 };
 
 const RenameDocumentModal: React.FC<{
@@ -199,7 +216,7 @@ const RoleSelectionModal: React.FC<{
             type="button"
             onClick={() => onSelectRole('DEFENDANT')}
             disabled={isAnalyzing}
-            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm"
+            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm active:scale-95"
           >
             <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
               <Shield size={24} />
@@ -218,7 +235,7 @@ const RoleSelectionModal: React.FC<{
             type="button"
             onClick={() => onSelectRole('PLAINTIFF')}
             disabled={isAnalyzing}
-            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm"
+            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm active:scale-95"
           >
             <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
               <Swords size={24} />
@@ -246,40 +263,38 @@ const RoleSelectionModal: React.FC<{
   );
 };
 
+// EXECUTIVE CASE HERO HEADER COMPONENT
 const CaseHeader: React.FC<{
   caseDetails: Case;
   documents: Document[];
-  t: TFunction;
   onTriggerRoleSelect: (forceReanalyze?: boolean) => void;
   onViewExistingAnalysis: () => void;
+  onOpenOntologyModal: () => void;
+  onOpenAnalystModal: () => void;
   onClearAnalysis: () => void;
   isAnalyzing: boolean;
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
   isPro: boolean;
   selectedDocumentIds: string[];
   onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({
   caseDetails,
   documents,
-  t,
   onTriggerRoleSelect,
   onViewExistingAnalysis,
+  onOpenOntologyModal,
+  onOpenAnalystModal,
   onClearAnalysis,
   isAnalyzing,
-  viewMode,
-  setViewMode,
   isPro,
   selectedDocumentIds,
   onDocumentSelectionChange,
 }) => {
   const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
+  const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
 
   const analyzeButtonText = isAnalyzing ? (
     <span className="flex items-center justify-center gap-2 min-w-0">
-      <span className="flex items-center justify-center animate-spin shrink-0">
-        <Loader2 className="h-4 w-4 text-primary-start" />
-      </span>
+      <Loader2 className="h-4 w-4 animate-spin text-primary-start shrink-0" />
       <span className="text-primary-start truncate">DUKE ANALIZUAR...</span>
     </span>
   ) : selectedDocumentIds.length === 0 ? (
@@ -295,7 +310,7 @@ const CaseHeader: React.FC<{
   );
 
   const buttonBase =
-    'h-11 flex items-center justify-center gap-2 px-3 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none';
+    'h-11 flex items-center justify-center gap-2 px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover hover:border-main/80 text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none';
 
   return (
     <motion.div
@@ -304,120 +319,136 @@ const CaseHeader: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+      {/* TOP HERO BRANDING BAR */}
+      <div className="bg-surface border border-main rounded-2xl p-4 sm:p-5 shadow-sm mb-4 flex flex-wrap items-center justify-between gap-4">
         
-        {/* LEFT COLUMN: DATE & DOCUMENT SELECTOR */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className={buttonBase}>
-            <Calendar size={15} className="text-primary-start opacity-70 shrink-0" />
-            <span className="truncate select-none">{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+        {/* Left: Case Info & Stance Badge */}
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
+            <Briefcase size={22} />
           </div>
-          <div className="relative z-[60]">
-            <DocumentSelector
-              documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
-              selectedIds={selectedDocumentIds}
-              onChange={onDocumentSelectionChange}
-              disabled={!isPro}
-            />
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: EXECUTIVE SYMMETRICAL ACTION BUTTONS */}
-        <div className="grid grid-cols-3 gap-3">
-          
-          {/* 1. ANALISTI FINANCIAR BUTTON */}
-          <button
-            type="button"
-            onClick={() => isPro && setViewMode(viewMode === 'analyst' ? 'workspace' : 'analyst')}
-            disabled={!isPro}
-            className={`${buttonBase} ${
-              viewMode === 'analyst'
-                ? 'border-primary-start bg-primary-start/10 text-primary-start shadow-accent-glow'
-                : ''
-            } ${!isPro && 'opacity-40 cursor-not-allowed'}`}
-          >
-            {!isPro ? (
-              <Lock size={15} className="shrink-0 text-text-muted" />
-            ) : (
-              <Activity size={15} className={viewMode === 'analyst' ? 'text-primary-start shrink-0' : 'text-primary-start opacity-70 shrink-0'} />
-            )}
-            <span className="truncate">ANALISTI FINANCIAR</span>
-          </button>
-
-          {/* 2. DYNAMIC GRAFIKU / LËNDA SWITCHER BUTTON */}
-          <button
-            type="button"
-            onClick={() => setViewMode(viewMode === 'graph' ? 'workspace' : 'graph')}
-            className={`${buttonBase} ${
-              viewMode === 'graph'
-                ? 'border-primary-start bg-primary-start/10 text-primary-start shadow-accent-glow'
-                : ''
-            }`}
-          >
-            {viewMode === 'graph' ? (
-              <>
-                <Folder size={15} className="text-primary-start shrink-0" />
-                <span className="truncate">LËNDA</span>
-              </>
-            ) : (
-              <>
-                <Network size={15} className="text-primary-start opacity-70 shrink-0" />
-                <span className="truncate">GRAFIKU</span>
-              </>
-            )}
-          </button>
-
-          {/* 3. ANALIZO RASTIN / ANALIZA SPLIT-BUTTON */}
-          <div className="w-full">
-            {hasExistingAnalysis ? (
-              <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
-                <button
-                  type="button"
-                  onClick={onViewExistingAnalysis}
-                  disabled={isAnalyzing}
-                  className="flex-1 h-full flex items-center justify-center px-2 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
-                  title="Shiko Analizën ekzistuese"
-                >
-                  <span className="truncate text-primary-start font-bold">ANALIZA</span>
-                </button>
-
-                <div className="border-r border-main h-6 shrink-0" />
-
-                <button
-                  type="button"
-                  onClick={() => onTriggerRoleSelect(true)}
-                  disabled={isAnalyzing}
-                  className="px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
-                  title="Rianalizo sërish me AI"
-                >
-                  <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
-                </button>
-
-                <div className="border-r border-main h-6 shrink-0" />
-
-                <button
-                  type="button"
-                  onClick={onClearAnalysis}
-                  disabled={isAnalyzing}
-                  className="px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
-                  title="Fshi analizën e ruajtur"
-                >
-                  <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
-                </button>
-              </div>
-            ) : (
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
+                {caseDetails.title || (caseDetails as any).name || 'Rast pa Titull'}
+              </h1>
+              
+              {/* Client Stance Badge */}
               <button
                 type="button"
                 onClick={() => onTriggerRoleSelect(false)}
-                disabled={!isPro || isAnalyzing}
-                className={`${buttonBase} w-full disabled:opacity-40`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm ${
+                  clientPosition === 'DEFENDANT'
+                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                    : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                }`}
+                title="Kliko për të ndryshuar pozicionin e klientit"
               >
-                {analyzeButtonText}
+                {clientPosition === 'DEFENDANT' ? <Shield size={12} /> : <Swords size={12} />}
+                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR (MBROJTJE)' : '⚔️ PADITËSI (SULM)'}</span>
               </button>
-            )}
-          </div>
+            </div>
 
+            <div className="flex items-center gap-3 text-xs text-text-muted mt-1 font-medium">
+              <span className="flex items-center gap-1">
+                <Calendar size={13} className="text-primary-start/70" />
+                {new Date(caseDetails.created_at).toLocaleDateString()}
+              </span>
+              <span>•</span>
+              <span className="font-mono text-text-secondary">{documents.length} Dokumente</span>
+            </div>
+          </div>
         </div>
+
+        {/* Right: Document Selector Dropdown */}
+        <div className="w-full sm:w-64 z-[60]">
+          <DocumentSelector
+            documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
+            selectedIds={selectedDocumentIds}
+            onChange={onDocumentSelectionChange}
+            disabled={!isPro}
+          />
+        </div>
+      </div>
+
+      {/* SYMMETRICAL EXECUTIVE ACTION BUTTONS ROW (MODAL TRIGGERS) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        
+        {/* 1. ANALISTI FINANCIAR MODAL TRIGGER */}
+        <button
+          type="button"
+          onClick={onOpenAnalystModal}
+          disabled={!isPro}
+          className={`${buttonBase} w-full ${!isPro && 'opacity-40 cursor-not-allowed'}`}
+        >
+          {!isPro ? (
+            <Lock size={15} className="shrink-0 text-text-muted" />
+          ) : (
+            <Activity size={15} className="text-primary-start shrink-0" />
+          )}
+          <span className="truncate">ANALISTI FINANCIAR</span>
+        </button>
+
+        {/* 2. ONTOLOGJIA MODAL TRIGGER */}
+        <button
+          type="button"
+          onClick={onOpenOntologyModal}
+          className={`${buttonBase} w-full hover:border-primary-start/80`}
+        >
+          <Network size={15} className="text-primary-start shrink-0" />
+          <span className="truncate">ONTOLOGJIA</span>
+        </button>
+
+        {/* 3. CONSISTENT "ANALIZO RASTIN" SPLIT-BUTTON */}
+        <div className="w-full">
+          {hasExistingAnalysis ? (
+            <div className="h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+              <button
+                type="button"
+                onClick={onViewExistingAnalysis}
+                disabled={isAnalyzing}
+                className="flex-1 h-full flex items-center justify-center px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
+                title="Shiko Analizën ekzistuese"
+              >
+                <span className="truncate text-primary-start font-bold">ANALIZO RASTIN</span>
+              </button>
+
+              <div className="border-r border-main h-6 shrink-0" />
+
+              <button
+                type="button"
+                onClick={() => onTriggerRoleSelect(true)}
+                disabled={isAnalyzing}
+                className="px-3 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
+                title="Rianalizo sërish me AI"
+              >
+                <RefreshCw size={14} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
+              </button>
+
+              <div className="border-r border-main h-6 shrink-0" />
+
+              <button
+                type="button"
+                onClick={onClearAnalysis}
+                disabled={isAnalyzing}
+                className="px-3 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
+                title="Fshi analizën e ruajtur"
+              >
+                <Trash2 size={14} className="text-text-muted hover:text-danger-start shrink-0" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onTriggerRoleSelect(false)}
+              disabled={!isPro || isAnalyzing}
+              className={`${buttonBase} w-full disabled:opacity-40`}
+            >
+              {analyzeButtonText}
+            </button>
+          )}
+        </div>
+
       </div>
     </motion.div>
   );
@@ -425,7 +456,7 @@ const CaseHeader: React.FC<{
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
 
   const [caseData, setCaseData] = useState<CaseData>({ details: null });
@@ -438,10 +469,12 @@ const CaseViewPage: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('workspace');
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Evidence Vault Subtab State
+  const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
 
   // Role Popup & Gatekeeper Notice state
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -452,6 +485,9 @@ const CaseViewPage: React.FC = () => {
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
+
+  const userSalutation = useMemo(() => getUserSalutation(user), [user]);
+  const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
 
   const saveToLocalStorage = useCallback(
     (messages: ChatMessage[]) => {
@@ -589,22 +625,33 @@ const CaseViewPage: React.FC = () => {
     setShowRoleModal(true);
   };
 
+  // INSTANT ROLE MUTATION & AI ANALYSIS TRIGGER
   const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF') => {
     if (!caseId) return;
     setShowRoleModal(false);
+
+    setCaseData((prev) =>
+      prev.details ? { details: { ...prev.details, client_position: selectedRole } } : prev
+    );
+
+    try {
+      await apiService.updateCasePosition(caseId, selectedRole);
+    } catch (e) {
+      console.warn('Failed to persist position update:', e);
+    }
+
     setIsAnalyzing(true);
     setActiveModal('none');
 
     try {
-      await apiService.updateCasePosition(caseId, selectedRole);
-
       let result =
         selectedDocumentIds.length === 0
           ? await apiService.analyzeCase(caseId, selectedRole)
           : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
 
-      if (result.error) alert(result.error);
-      else {
+      if (result.error) {
+        alert(result.error);
+      } else {
         const resultWithMeta = {
           ...result,
           analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(),
@@ -613,7 +660,11 @@ const CaseViewPage: React.FC = () => {
 
         setAnalysisResult(resultWithMeta);
         setActiveModal('analysis');
-        setCaseData((prev) => (prev.details ? { details: { ...prev.details, latest_analysis: resultWithMeta } } : prev));
+        setCaseData((prev) =>
+          prev.details
+            ? { details: { ...prev.details, client_position: selectedRole, latest_analysis: resultWithMeta } }
+            : prev
+        );
       }
     } catch {
       alert(t('error.generic'));
@@ -711,34 +762,64 @@ const CaseViewPage: React.FC = () => {
     );
 
   return (
-    <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
+        
+        {/* HERO EXECUTIVE HEADER */}
         <CaseHeader
           caseDetails={caseData.details}
           documents={liveDocuments}
-          t={t}
           onTriggerRoleSelect={handleTriggerRoleSelect}
           onViewExistingAnalysis={handleViewExistingAnalysis}
+          onOpenOntologyModal={() => setActiveModal('ontology')}
+          onOpenAnalystModal={() => setActiveModal('analyst')}
           onClearAnalysis={handleClearAnalysis}
           isAnalyzing={isAnalyzing}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
           isPro={isPro}
           selectedDocumentIds={selectedDocumentIds}
           onDocumentSelectionChange={setSelectedDocumentIds}
         />
 
-        <AnimatePresence mode="wait">
-          {viewMode === 'workspace' && (
-            <motion.div
-              key="workspace"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 z-0"
-            >
-              <div className="flex flex-col h-auto lg:h-[700px]">
+        {/* WORKSPACE VIEW (PERSISTENT UNIFIED EVIDENCE VAULT + SOCRATIC CHAT) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 z-0">
+          
+          {/* LEFT COLUMN: UNIFIED EVIDENCE VAULT PANEL (5 COLS) */}
+          <div className="lg:col-span-5 flex flex-col h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
+            
+            {/* EVIDENCE VAULT SUB-HEADER SWITCHER */}
+            <div className="p-3 bg-canvas border-b border-main flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-main w-full">
+                <button
+                  type="button"
+                  onClick={() => setEvidenceTab('documents')}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                    evidenceTab === 'documents'
+                      ? 'bg-primary-start text-white shadow-sm'
+                      : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  <FileText size={14} />
+                  <span>Dokumentet ({liveDocuments.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEvidenceTab('audio')}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                    evidenceTab === 'audio'
+                      ? 'bg-primary-start text-white shadow-sm'
+                      : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  <Mic size={14} />
+                  <span>Inqizimet Audio</span>
+                </button>
+              </div>
+            </div>
+
+            {/* SUBTAB CONTENT BODY */}
+            <div className="flex-1 overflow-hidden relative">
+              {evidenceTab === 'documents' ? (
                 <DocumentsPanel
                   caseId={caseData.details.id}
                   documents={liveDocuments}
@@ -749,64 +830,132 @@ const CaseViewPage: React.FC = () => {
                   onDocumentDeleted={handleDocumentDeleted}
                   onViewOriginal={handleViewOriginal}
                   onRename={setDocumentToRename}
-                  className="h-full w-full shadow-sm hover-lift border border-main rounded-2xl overflow-hidden bg-canvas"
+                  className="h-full w-full bg-transparent border-0 rounded-none"
                 />
+              ) : (
+                <div className="h-full overflow-y-auto p-4">
+                  <MediaEvidencePanel caseId={caseData.details.id} t={t} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: AGJENTI I RASTIT (7 COLS) */}
+          <div className="lg:col-span-7 flex flex-col h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+            
+            <ChatPanel
+              messages={chatMessages}
+              connectionStatus={connectionStatus}
+              reconnect={reconnect}
+              onSendMessage={handleChatSubmit}
+              isSendingMessage={isSendingMessage}
+              onClearChat={handleClearChat}
+              t={t}
+              className="h-full w-full bg-transparent border-0 rounded-none"
+              activeContextId={currentCaseId}
+              isPro={isPro}
+              selectedDocumentCount={selectedDocumentIds.length}
+            />
+
+            {/* AGJENTI I RASTIT COMMAND PALETTE */}
+            {chatMessages.length === 0 && !isSendingMessage && (
+              <div className="absolute inset-x-6 top-12 pointer-events-none flex flex-col items-center justify-center gap-3.5 text-center">
+                <div className="w-11 h-11 bg-primary-start/10 border border-primary-start/20 rounded-2xl flex items-center justify-center text-primary-start shadow-sm">
+                  <Bot size={22} />
+                </div>
+                
+                <div>
+                  <h3 className="text-base font-black uppercase text-text-primary tracking-tight">
+                    Unë jam Agjenti i rastit tuaj, {userSalutation}
+                  </h3>
+                  <p className="text-xs text-text-secondary mt-1 max-w-md leading-relaxed font-medium">
+                    {clientPosition === 'DEFENDANT'
+                      ? 'Asistenti juaj ligjor me AI për ndërtimin e mbrojtjes strategjike, rrëzimin e padisë dhe analizën e thellë të dokumenteve të lëndës.'
+                      : 'Asistenti juaj ligjor me AI për vërtetimin e kërkesëpadisë, provimin e përgjegjësisë dhe argumentimin e të drejtave të klientit.'}
+                  </p>
+
+                  <div className="mt-2 px-3 py-1 bg-canvas border border-main rounded-lg text-[10px] text-text-muted flex items-center justify-center gap-1.5 font-medium max-w-sm mx-auto">
+                    <Info size={12} className="text-primary-start shrink-0" />
+                    <span>Përgjigjet e AI shërbejnë për referencë dhe verifikohen nga avokati.</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pointer-events-auto mt-1">
+                  {[
+                    {
+                      title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
+                      badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
+                      icon: ShieldCheck,
+                      prompt:
+                        clientPosition === 'DEFENDANT'
+                          ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
+                          : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
+                    },
+                    {
+                      title: 'BAZA LIGJORE & PROCEDURA',
+                      badge: 'LPK & KODET LIGJORE',
+                      icon: Scale,
+                      prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
+                    },
+                    {
+                      title: 'PYETËSORI I SEANCËS',
+                      badge: 'MARRJA NË PYETJE',
+                      icon: Gavel,
+                      prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
+                    },
+                    {
+                      title: 'RAPORTI PËR KLIENTIN',
+                      badge: 'MEMO TEKNIKE',
+                      icon: FileText,
+                      prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
+                    }
+                  ].map((card, idx) => {
+                    const IconComponent = card.icon;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() =>
+                          handleChatSubmit(
+                            card.prompt,
+                            'general',
+                            'FAST',
+                            'automatic',
+                            selectedDocumentIds,
+                            'ks'
+                          )
+                        }
+                        className="group p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-2 active:scale-[0.98] cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
+                            {card.badge}
+                          </span>
+                          <ChevronRight size={14} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <IconComponent size={15} className="text-primary-start shrink-0" />
+                          <h4 className="text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                            {card.title}
+                          </h4>
+                        </div>
+
+                        <p className="text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
+                          {card.prompt}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+            )}
+          </div>
 
-              <div className="flex flex-col h-auto lg:h-[700px] mt-6 lg:mt-0">
-                <ChatPanel
-                  messages={chatMessages}
-                  connectionStatus={connectionStatus}
-                  reconnect={reconnect}
-                  onSendMessage={handleChatSubmit}
-                  isSendingMessage={isSendingMessage}
-                  onClearChat={handleClearChat}
-                  t={t}
-                  className="h-full w-full shadow-sm hover-lift border border-main rounded-2xl overflow-hidden bg-canvas"
-                  activeContextId={currentCaseId}
-                  isPro={isPro}
-                  selectedDocumentCount={selectedDocumentIds.length}
-                />
-              </div>
-
-              {/* Media Evidence Vault Panel */}
-              <div className="col-span-1 lg:col-span-2 mt-4">
-                <MediaEvidencePanel caseId={caseData.details.id} t={t} />
-              </div>
-            </motion.div>
-          )}
-
-          {viewMode === 'graph' && (
-            <motion.div
-              key="graph"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="z-0 border border-main rounded-2xl overflow-hidden bg-canvas"
-            >
-              <EvidenceGraphTab
-                caseId={caseData.details.id}
-                caseTitle={caseData.details.title || (caseData.details as any).name}
-              />
-            </motion.div>
-          )}
-
-          {viewMode === 'analyst' && isPro && (
-            <motion.div
-              key="analyst"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="z-0 border border-main rounded-2xl overflow-hidden bg-canvas"
-            >
-              <SpreadsheetAnalyst caseId={caseData.details.id} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
       </div>
 
+      {/* DOCUMENT PREVIEW MODAL */}
       {viewingDocument && (
         <PDFViewerModal
           documentData={viewingDocument}
@@ -833,6 +982,8 @@ const CaseViewPage: React.FC = () => {
           onClose={() => setMinimizedDocument(null)}
         />
       )}
+
+      {/* 1. CASE ANALYSIS MODAL */}
       {analysisResult && (
         <AnalysisModal
           isOpen={activeModal === 'analysis'}
@@ -842,6 +993,24 @@ const CaseViewPage: React.FC = () => {
           isLoading={isAnalyzing}
         />
       )}
+
+      {/* 2. ONTOLOGY GRAPH MODAL */}
+      <OntologyModal
+        isOpen={activeModal === 'ontology'}
+        onClose={() => setActiveModal('none')}
+        caseId={currentCaseId}
+        caseTitle={caseData.details?.title || (caseData.details as any)?.name}
+        clientPosition={clientPosition}
+      />
+
+      {/* 3. FINANCIAL ANALYST MODAL */}
+      <FinancialAnalystModal
+        isOpen={activeModal === 'analyst'}
+        onClose={() => setActiveModal('none')}
+        caseId={currentCaseId}
+        caseTitle={caseData.details?.title || (caseData.details as any)?.name}
+      />
+
       <RenameDocumentModal
         isOpen={!!documentToRename}
         onClose={() => setDocumentToRename(null)}
@@ -866,13 +1035,13 @@ const CaseViewPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl border border-warning-start/30 bg-canvas text-center"
+              className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl border border-warning-start/30 bg-canvas text-center text-text-primary"
             >
               <div className="w-14 h-14 bg-warning-start/15 border border-warning-start/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-warning-start">
                 <AlertTriangle size={28} />
               </div>
 
-              <h3 className="text-lg sm:text-xl font-bold text-text-primary uppercase tracking-tight mb-3">
+              <h3 className="text-lg sm:text-xl font-bold uppercase tracking-tight mb-3">
                 S'ka Ndryshime në Lëndë
               </h3>
 

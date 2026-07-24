@@ -1,5 +1,5 @@
 // FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V1.8 (AUDIO-ONLY FOCUS)
+// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V2.2 (NO REDUNDANT TEXT & HIGH CONTRAST)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -20,7 +20,8 @@ interface MediaItem {
 
 interface MediaEvidencePanelProps {
     caseId: string;
-    t: any;
+    caseTitle?: string;
+    t?: any;
 }
 
 export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) {
@@ -126,19 +127,20 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const authToken = apiService.getToken();
 
     return (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-main bg-canvas space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-main pb-5">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-primary-start/10 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/20">
-                        <Headphones size={24} />
+        <div className="space-y-4">
+            {/* STREAMLINED COMPACT HEADER */}
+            <div className="flex items-center justify-between gap-3 border-b border-main pb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-lg flex items-center justify-center border border-primary-start/20 shrink-0">
+                        <Headphones size={16} />
                     </div>
-                    <div>
-                        <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Provat Audio</h2>
-                        <p className="text-xs text-text-muted font-medium">Ngarkoni incizime audio (MP3, WAV, M4A) për transkriptim me AI</p>
+                    <div className="min-w-0">
+                        <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio</h2>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim me AI</p>
                     </div>
                 </div>
 
-                <div>
+                <div className="shrink-0">
                     <input 
                         type="file" 
                         ref={fileInputRef} 
@@ -150,44 +152,50 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        className="btn-primary h-11 px-5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-primary-start/15 focus:outline-none disabled:opacity-50"
+                        className="h-8 px-3 rounded-lg bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none disabled:opacity-50 cursor-pointer"
                     >
-                        {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                        {isUploading ? `Duke ngarkuar... ${uploadProgress}%` : 'Ngarko Audio (MP3/WAV)'}
+                        {isUploading ? (
+                            <Loader2 size={13} className="animate-spin text-white shrink-0" />
+                        ) : (
+                            <Upload size={13} className="text-white shrink-0" />
+                        )}
+                        <span className="text-white font-bold whitespace-nowrap">
+                            {isUploading ? `${uploadProgress}%` : 'Ngarko Audio'}
+                        </span>
                     </button>
                 </div>
             </div>
 
             {isLoading ? (
-                <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>
+                <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6 text-primary-start" /></div>
             ) : mediaItems.length === 0 ? (
-                <div className="text-center py-16 opacity-50 border border-dashed border-main rounded-2xl p-6">
-                    <Radio size={40} className="mx-auto mb-3 text-text-disabled animate-pulse" />
-                    <p className="text-text-secondary text-sm font-bold">Nuk ka ende prova audio në këtë rast.</p>
-                    <p className="text-xs text-text-muted mt-1">Mbështet formate si MP3, WAV, M4A.</p>
+                <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
+                    <Radio size={32} className="mx-auto mb-2 text-text-muted animate-pulse" />
+                    <p className="text-text-primary text-xs font-bold">Nuk ka ende prova audio në këtë rast.</p>
+                    <p className="text-[11px] text-text-muted mt-0.5">Mbështet formate si MP3, WAV, M4A.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                     {mediaItems.map(item => {
                         const streamUrl = `${API_V1_URL}/cases/${caseId}/media/${item.id}/stream${authToken ? `?token=${authToken}` : ''}`;
                         return (
-                            <div key={item.id} className="glass-panel p-5 rounded-2xl border border-main bg-surface flex flex-col justify-between gap-4 shadow-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-10 h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center shrink-0 border border-primary-start/20">
-                                            <Mic size={18} />
+                            <div key={item.id} className="p-4 rounded-xl border border-main bg-surface flex flex-col justify-between gap-3 shadow-sm">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-primary-start/10 text-primary-start flex items-center justify-center shrink-0 border border-primary-start/20">
+                                            <Mic size={16} />
                                         </div>
                                         <div className="min-w-0">
-                                            <h4 className="text-sm font-bold text-text-primary truncate">{item.file_name}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                            <h4 className="text-xs font-bold text-text-primary truncate">{item.file_name}</h4>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
                                                     item.status === 'READY' ? 'bg-status-success/15 text-status-success border border-status-success/30' :
                                                     item.status === 'PROCESSING' ? 'bg-warning-start/15 text-warning-start border border-warning-start/30 animate-pulse' :
                                                     'bg-danger-start/15 text-danger-start border border-danger-start/30'
                                                 }`}>
                                                     {item.status === 'READY' ? 'Transkriptuar' : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
                                                 </span>
-                                                <span className="text-[10px] text-text-muted font-mono">
+                                                <span className="text-[9px] text-text-muted font-mono">
                                                     {new Date(item.created_at).toLocaleDateString()}
                                                 </span>
                                             </div>
@@ -195,17 +203,17 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <button 
                                         onClick={() => handleDelete(item.id)}
-                                        className="p-2 text-text-muted hover:text-danger-start hover:bg-hover rounded-xl transition-colors"
+                                        className="p-1.5 text-text-muted hover:text-danger-start hover:bg-hover rounded-lg transition-colors"
                                         title="Fshi provën"
                                     >
-                                        <Trash2 size={16} />
+                                        <Trash2 size={14} />
                                     </button>
                                 </div>
 
-                                <div className="w-full bg-canvas p-2.5 rounded-xl border border-main">
+                                <div className="w-full bg-canvas p-2 rounded-lg border border-main">
                                     <audio 
                                         controls 
-                                        className="w-full h-8"
+                                        className="w-full h-7"
                                         src={streamUrl}
                                     />
                                 </div>
@@ -214,9 +222,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     <button
                                         type="button"
                                         onClick={() => setSelectedTranscript(item)}
-                                        className="w-full py-2.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-2 transition-colors"
+                                        className="w-full py-2 bg-canvas hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
                                     >
-                                        <FileText size={15} /> Shiko Transkriptin e Plotë
+                                        <FileText size={14} /> Shiko Transkriptin
                                     </button>
                                 )}
                             </div>
@@ -299,7 +307,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         navigator.clipboard.writeText(selectedTranscript.transcript);
                                         alert("Transkripti u kopjua në memorien e kompjuterit!");
                                     }}
-                                    className="btn-primary h-11 px-8 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all"
+                                    className="h-11 px-8 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all"
                                 >
                                     Kopjo Transkriptin
                                 </button>

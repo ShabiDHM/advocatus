@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V28.0 (TS CRASH-PROOF & 0 ERRORS)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V29.0 (STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -353,7 +353,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const { citizenText, lawyerText } = splitExecutiveSummary(summary);
 
-  // PHOENIX CRITICAL TYPING FIX: Cast deepResult to 'any' before accessing adversarial_simulation property 
   const simObj = ((deepResult as any)?.adversarial_simulation?.adversarial_simulation || (deepResult as any)?.adversarial_simulation || {}) as any;
   const opponentStrategy = safeString(
       simObj.opponent_strategy || simObj.strategy || simObj.description || 
@@ -433,29 +432,30 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-6" 
+        className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4" 
         onClick={onClose}
       >
         <motion.div 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
-          className="w-full h-full sm:h-[85vh] sm:max-w-7xl bg-canvas border border-main rounded-2xl shadow-2xl overflow-hidden flex flex-col" 
+          transition={{ duration: 0.2 }}
+          className="glass-panel w-[95vw] max-w-7xl h-[92vh] bg-canvas border border-main rounded-3xl shadow-2xl overflow-hidden flex flex-col" 
           onClick={(e) => e.stopPropagation()}
         >
           <SpinnerStyles />
           
-          <div className="px-6 py-5 border-b border-main flex flex-wrap justify-between items-center bg-surface shrink-0 gap-4">
+          <div className="p-4 sm:p-5 border-b border-main flex flex-wrap justify-between items-center bg-surface shrink-0 gap-4">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="w-12 h-12 bg-primary-start text-white rounded-2xl flex items-center justify-center shadow-accent-glow shrink-0">
-                  <Gavel size={24} />
+              <div className="w-10 h-10 bg-primary-start text-white rounded-xl flex items-center justify-center shadow-accent-glow shrink-0">
+                  <Gavel size={20} />
               </div>
               <div className="flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-2xl font-black text-text-primary uppercase tracking-tighter truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
+                    <span className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
                     
                     {/* Role Badge Indicator */}
-                    <span className="px-3 py-1 rounded-xl bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="px-2.5 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                       {clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Shield size={12} />}
                       <span>{clientPosition === 'PLAINTIFF' ? 'Roli: Paditës' : 'Roli: I Paditur'}</span>
                     </span>
@@ -472,47 +472,47 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                 className="p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-lg transition-all focus:outline-none"
                 title={zoomLevel === 'normal' ? t('analysis.zoomIn', 'Agrandoni tekstin') : (zoomLevel === 'large' ? t('analysis.zoomMore', 'Më i madh') : t('analysis.zoomOut', 'Teksti standard'))}
               >
-                {zoomLevel === 'normal' ? <ZoomIn size={20} /> : (zoomLevel === 'large' ? <ZoomIn size={20} /> : <ZoomOut size={20} />)}
+                {zoomLevel === 'normal' ? <ZoomIn size={18} /> : (zoomLevel === 'large' ? <ZoomIn size={18} /> : <ZoomOut size={18} />)}
               </button>
               <button 
                 type="button"
                 onClick={onClose} 
-                className="p-3 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 border border-transparent focus:outline-none"
+                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
                 aria-label="Close modal"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
           </div>
           
-          <div className="sm:hidden px-6 py-4 bg-surface border-b border-main flex flex-col sm:flex-row gap-3">
+          <div className="sm:hidden px-6 py-3 bg-surface border-b border-main flex flex-col sm:flex-row gap-2">
                {renderRiskBadge(risk_level)}
                {renderSuccessBadge(success_probability)}
           </div>
 
           {!isLoading && (
              <>
-                <div className="flex border-b border-main px-8 bg-canvas shrink-0 overflow-x-auto no-scrollbar gap-8">
-                    <button type="button" onClick={() => setActiveTab('legal')} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap focus:outline-none ${activeTab === 'legal' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-                        <Scale size={16}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
+                <div className="flex border-b border-main px-6 bg-canvas shrink-0 overflow-x-auto no-scrollbar gap-6">
+                    <button type="button" onClick={() => setActiveTab('legal')} className={`py-3 text-[11px] font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap focus:outline-none ${activeTab === 'legal' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
+                        <Scale size={15}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
                     </button>
-                    <button type="button" onClick={handleWarRoomEntry} className={`py-4 text-[12px] font-black uppercase tracking-widest flex items-center gap-3 border-b-2 transition-all whitespace-nowrap focus:outline-none ${activeTab === 'war_room' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-primary-start'}`}>
-                        <Swords size={16}/> {t('analysis.tab_war_room', 'Dhoma e Luftës')}
+                    <button type="button" onClick={handleWarRoomEntry} className={`py-3 text-[11px] font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap focus:outline-none ${activeTab === 'war_room' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-primary-start'}`}>
+                        <Swords size={15}/> {t('analysis.tab_war_room', 'Dhoma e Luftës')}
                     </button>
                 </div>
 
                 <div 
-                  className="flex-1 overflow-y-auto p-6 md:p-10 custom-finance-scroll text-text-primary bg-canvas"
+                  className="flex-1 overflow-y-auto p-4 sm:p-8 custom-finance-scroll text-text-primary bg-canvas"
                   style={{ fontSize: getFontSize() }}
                 >
-                    <div className="max-w-6xl mx-auto space-y-8">
+                    <div className="max-w-6xl mx-auto space-y-6">
                         {activeTab === 'legal' && (
                             <>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-main shadow-sm hover-lift flex flex-col h-auto">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 border-b border-main pb-3 gap-3">
-                                            <h3 className="text-[12px] font-black text-text-secondary uppercase tracking-widest flex items-center gap-2">
-                                                <Info size={16} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-surface p-6 rounded-2xl border border-main shadow-sm flex flex-col h-auto">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 border-b border-main pb-3 gap-2">
+                                            <h3 className="text-[11px] font-black text-text-secondary uppercase tracking-widest flex items-center gap-2">
+                                                <Info size={15} className="text-primary-start"/> {t('analysis.section_summary', 'Përmbledhja e Rastit')}
                                             </h3>
                                             
                                             {lawyerText && (
@@ -520,7 +520,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                     <button
                                                         type="button"
                                                         onClick={() => setSummaryTab('citizen')}
-                                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
+                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
                                                             summaryTab === 'citizen' ? 'bg-primary-start text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
                                                         }`}
                                                     >
@@ -529,7 +529,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                     <button
                                                         type="button"
                                                         onClick={() => setSummaryTab('lawyer')}
-                                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
+                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all focus:outline-none ${
                                                             summaryTab === 'lawyer' ? 'bg-primary-start text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
                                                         }`}
                                                     >
@@ -538,29 +538,29 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-text-secondary leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1 animate-in fade-in duration-300">
+                                        <div className="text-text-secondary leading-relaxed border-l-2 border-primary-start/30 pl-4 ml-1 animate-in fade-in duration-300">
                                             {renderCitationItem(summaryTab === 'citizen' ? citizenText : lawyerText)}
                                         </div>
                                     </div>
 
                                     {burden_of_proof && (
-                                        <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-main shadow-sm hover-lift">
-                                            <h3 className="text-[12px] font-black text-text-secondary uppercase tracking-widest mb-5 flex items-center gap-3">
-                                                <Gavel size={16} className="text-primary-start"/> {t('analysis.section_burden', 'Barra e Provës')}
+                                        <div className="bg-surface p-6 rounded-2xl border border-main shadow-sm">
+                                            <h3 className="text-[11px] font-black text-text-secondary uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                <Gavel size={15} className="text-primary-start"/> {t('analysis.section_burden', 'Barra e Provës')}
                                             </h3>
-                                            <div className="text-text-secondary leading-relaxed italic border-l-2 border-main pl-5 ml-1">{renderCitationItem(burden_of_proof)}</div>
+                                            <div className="text-text-secondary leading-relaxed italic border-l-2 border-main pl-4 ml-1">{renderCitationItem(burden_of_proof)}</div>
                                         </div>
                                     )}
                                 </div>
 
                                 {missing_evidence && missing_evidence.length > 0 && (
-                                    <div className="bg-danger-start/5 p-6 sm:p-8 rounded-[1.5rem] border border-danger-start/20 shadow-sm hover-lift">
-                                        <h3 className="text-[12px] font-black text-danger-start uppercase tracking-widest mb-5 flex items-center gap-3">
-                                            <AlertTriangle size={16}/> {t('analysis.section_missing', 'Mungesa e Provave')}
+                                    <div className="bg-danger-start/5 p-6 rounded-2xl border border-danger-start/20 shadow-sm">
+                                        <h3 className="text-[11px] font-black text-danger-start uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <AlertTriangle size={15}/> {t('analysis.section_missing', 'Mungesa e Provave')}
                                         </h3>
                                         <div className="grid gap-3">
                                             {missing_evidence.map((item, idx) => (
-                                                <div key={idx} className="flex items-center gap-4 text-text-secondary bg-surface p-4 rounded-xl border border-danger-start/10 shadow-sm">
+                                                <div key={idx} className="flex items-center gap-3 text-text-secondary bg-surface p-4 rounded-xl border border-danger-start/10 shadow-sm">
                                                     <span className="w-2 h-2 rounded-full bg-danger-start shrink-0 animate-pulse" />
                                                     {renderCitationItem(item)}
                                                 </div>
@@ -570,14 +570,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 )}
 
                                 {key_issues && key_issues.length > 0 && (
-                                    <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-main shadow-sm hover-lift">
-                                        <h3 className="text-[12px] font-black text-text-secondary uppercase tracking-widest mb-5 flex items-center gap-3">
-                                            <FileText size={16} className="text-primary-start"/> {t('analysis.section_issues', 'Çështjet Kryesore')}
+                                    <div className="bg-surface p-6 rounded-2xl border border-main shadow-sm">
+                                        <h3 className="text-[11px] font-black text-text-secondary uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <FileText size={15} className="text-primary-start"/> {t('analysis.section_issues', 'Çështjet Kryesore')}
                                         </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {key_issues.map((issue: any, idx: number) => (
-                                                <div key={idx} className="flex items-start gap-4 bg-canvas/30 p-5 rounded-xl border border-main">
-                                                    <span className="text-primary-start font-black text-base leading-none opacity-50 mt-0.5">#{idx + 1}</span>
+                                                <div key={idx} className="flex items-start gap-3 bg-canvas/30 p-4 rounded-xl border border-main">
+                                                    <span className="text-primary-start font-black text-sm leading-none opacity-50 mt-0.5">#{idx + 1}</span>
                                                     <div className="text-text-secondary font-medium leading-relaxed">{renderCitationItem(issue)}</div>
                                                 </div>
                                             ))}
@@ -586,17 +586,17 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 )}
 
                                 {legal_basis && legal_basis.length > 0 && (
-                                    <div className="bg-primary-start/5 p-6 sm:p-8 rounded-[1.5rem] border border-primary-start/20 shadow-sm hover-lift">
-                                        <h3 className="text-[12px] font-black text-primary-start uppercase tracking-widest mb-5 flex items-center gap-3">
-                                            <BookOpen size={16}/> {t('analysis.section_rules', 'Baza Ligjore (Statutore)')}
+                                    <div className="bg-primary-start/5 p-6 rounded-2xl border border-primary-start/20 shadow-sm">
+                                        <h3 className="text-[11px] font-black text-primary-start uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <BookOpen size={15}/> {t('analysis.section_rules', 'Baza Ligjore (Statutore)')}
                                         </h3>
-                                        <ul className="space-y-4">
+                                        <ul className="space-y-3">
                                             {legal_basis.map((lawItem: any, i: number) => {
                                                 const lawStr = typeof lawItem === 'string' ? lawItem : (lawItem.law || "");
                                                 const isGlobal = lawStr.includes("UNCRC") || lawStr.includes("Konventa") || lawStr.includes("KEDNJ");
                                                 return (
-                                                    <li key={i} className={`flex gap-4 text-[13px] items-start p-5 rounded-xl transition-colors shadow-sm bg-surface border ${isGlobal ? 'border-indigo-500/30' : 'border-main'}`}>
-                                                        {isGlobal ? <Globe size={20} className="text-indigo-500 shrink-0 mt-0.5"/> : <Scale size={20} className="text-primary-start shrink-0 mt-0.5"/>}
+                                                    <li key={i} className={`flex gap-3 text-xs items-start p-4 rounded-xl transition-colors shadow-sm bg-surface border ${isGlobal ? 'border-indigo-500/30' : 'border-main'}`}>
+                                                        {isGlobal ? <Globe size={18} className="text-indigo-500 shrink-0 mt-0.5"/> : <Scale size={18} className="text-primary-start shrink-0 mt-0.5"/>}
                                                         {renderCitationItem(lawItem)}
                                                     </li>
                                                 );
@@ -609,7 +609,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         
                         {activeTab === 'war_room' && (
                             <div className="h-full flex flex-col">
-                                <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-8 shrink-0 pb-2">
+                                <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-6 shrink-0 pb-1">
                                     <button type="button" onClick={() => setWarRoomSubTab('strategy')} className={`${subTabBaseClass} ${warRoomSubTab === 'strategy' ? activeSubTabClass : inactiveSubTabClass}`}>
                                         <Target size={14} className="inline shrink-0" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
                                     </button>
@@ -624,31 +624,31 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </button>
                                 </div>
 
-                                <div className="space-y-8 animate-in fade-in">
+                                <div className="space-y-6 animate-in fade-in">
                                     {warRoomSubTab === 'strategy' ? (
-                                        <div className="space-y-8">
-                                            <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-main shadow-sm hover-lift">
-                                                <h3 className="text-[12px] font-black text-text-secondary uppercase tracking-widest mb-5 flex items-center gap-3"><Target size={16} className="text-primary-start"/> {t('analysis.section_analysis', 'Analiza Strategjike')}</h3>
-                                                <div className="text-text-secondary leading-relaxed border-l-2 border-primary-start/30 pl-5 ml-1">{renderCitationItem(strategic_analysis)}</div>
+                                        <div className="space-y-6">
+                                            <div className="bg-surface p-6 rounded-2xl border border-main shadow-sm">
+                                                <h3 className="text-[11px] font-black text-text-secondary uppercase tracking-widest mb-4 flex items-center gap-2"><Target size={15} className="text-primary-start"/> {t('analysis.section_analysis', 'Analiza Strategjike')}</h3>
+                                                <div className="text-text-secondary leading-relaxed border-l-2 border-primary-start/30 pl-4 ml-1">{renderCitationItem(strategic_analysis)}</div>
                                             </div>
-                                            <div className="bg-danger-start/5 p-6 sm:p-8 rounded-[1.5rem] border border-danger-start/20 shadow-sm">
-                                                <h3 className="text-[12px] font-black text-danger-start uppercase tracking-widest mb-5 flex items-center gap-3"><ShieldAlert size={16}/> {t('analysis.section_weaknesses', 'Pikat e Dobëta (Risku)')}</h3>
+                                            <div className="bg-danger-start/5 p-6 rounded-2xl border border-danger-start/20 shadow-sm">
+                                                <h3 className="text-[11px] font-black text-danger-start uppercase tracking-widest mb-4 flex items-center gap-2"><ShieldAlert size={15}/> {t('analysis.section_weaknesses', 'Pikat e Dobëta (Risku)')}</h3>
                                                 <ul className="space-y-3">
                                                     {weaknesses.map((w: any, i: number) => (
-                                                        <li key={i} className="flex items-center gap-4 text-text-secondary bg-surface p-4 rounded-xl border border-danger-start/10 shadow-sm">
+                                                        <li key={i} className="flex items-center gap-3 text-text-secondary bg-surface p-3.5 rounded-xl border border-danger-start/10 shadow-sm">
                                                             <span className="w-2 h-2 rounded-full bg-danger-start shrink-0 opacity-50" />
                                                             {renderCitationItem(w)}
                                                         </li>
                                                     ))}
                                                 </ul>
                                             </div>
-                                            <div className="bg-status-success/5 p-6 sm:p-8 rounded-[1.5rem] border border-status-success/20 shadow-sm">
-                                                <h3 className="text-[12px] font-black text-status-success uppercase tracking-widest mb-6 flex items-center gap-3"><CheckCircle2 size={16}/> {t('analysis.section_conclusion', 'Plani i Veprimit (Hapat)')}</h3>
-                                                <div className="space-y-4">
+                                            <div className="bg-status-success/5 p-6 rounded-2xl border border-status-success/20 shadow-sm">
+                                                <h3 className="text-[11px] font-black text-status-success uppercase tracking-widest mb-4 flex items-center gap-2"><CheckCircle2 size={15}/> {t('analysis.section_conclusion', 'Plani i Veprimit (Hapat)')}</h3>
+                                                <div className="space-y-3">
                                                     {action_plan.map((step: any, i: number) => (
-                                                        <div key={i} className="flex items-start gap-5 text-text-secondary bg-surface p-5 rounded-xl border border-status-success/10 shadow-sm">
-                                                            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-status-success/20 text-status-success font-black text-[12px] shrink-0">{i + 1}</span>
-                                                            <span className="leading-relaxed font-medium mt-1">{renderCitationItem(step)}</span>
+                                                        <div key={i} className="flex items-start gap-4 text-text-secondary bg-surface p-4 rounded-xl border border-status-success/10 shadow-sm">
+                                                            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-status-success/20 text-status-success font-black text-xs shrink-0">{i + 1}</span>
+                                                            <span className="leading-relaxed font-medium mt-0.5">{renderCitationItem(step)}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -656,16 +656,16 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         </div>
                                     ) : warRoomSubTab === 'adversarial' ? (
                                         isSimLoading ? renderSubTabLoader() : deepResult?.adversarial_simulation ? (
-                                            <div className="space-y-8">
-                                                <div className="bg-surface p-6 sm:p-8 rounded-[1.5rem] border border-danger-start/30 shadow-lg shadow-danger-start/5">
-                                                    <h3 className="text-[12px] font-black text-danger-start mb-5 uppercase tracking-widest flex items-center gap-3"><Skull size={16}/> {t('analysis.opponent_strategy_title', 'Strategjia e Kundërshtarit')}</h3>
+                                            <div className="space-y-6">
+                                                <div className="bg-surface p-6 rounded-2xl border border-danger-start/30 shadow-lg shadow-danger-start/5">
+                                                    <h3 className="text-[11px] font-black text-danger-start mb-4 uppercase tracking-widest flex items-center gap-2"><Skull size={15}/> {t('analysis.opponent_strategy_title', 'Strategjia e Kundërshtarit')}</h3>
                                                     <div className="text-text-secondary leading-relaxed font-medium">{renderCitationItem(opponentStrategy)}</div>
                                                 </div>
                                                 {weaknessAttacks.length > 0 && (
-                                                    <div className="grid gap-4">
+                                                    <div className="grid gap-3">
                                                         {weaknessAttacks.map((attack: string, i: number) => (
-                                                            <div key={i} className="flex gap-4 bg-surface p-5 rounded-xl border border-main shadow-sm">
-                                                                <Target size={18} className="text-danger-start shrink-0 mt-0.5" />
+                                                            <div key={i} className="flex gap-3 bg-surface p-4 rounded-xl border border-main shadow-sm">
+                                                                <Target size={16} className="text-danger-start shrink-0 mt-0.5" />
                                                                 <div className="text-text-secondary leading-relaxed">{renderCitationItem(attack)}</div>
                                                             </div>
                                                         ))}
@@ -677,12 +677,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         )
                                     ) : warRoomSubTab === 'timeline' ? (
                                         isChronLoading ? renderSubTabLoader() : deepResult?.chronology ? (
-                                            <div className="space-y-6 relative border-l-2 border-main ml-4 pl-8 py-4">
+                                            <div className="space-y-5 relative border-l-2 border-main ml-4 pl-6 py-2">
                                                 {deepResult.chronology.map((event: ChronologyEvent, i: number) => (
-                                                    <div key={i} className="relative group bg-surface p-5 rounded-xl border border-main shadow-sm hover-lift">
-                                                        <div className="absolute -left-[41px] top-6 w-4 h-4 rounded-full bg-canvas border-4 border-indigo-500 shadow-sm" />
-                                                        <div className="flex flex-col gap-2">
-                                                            <span className="text-indigo-500 font-mono text-[11px] uppercase tracking-widest font-black">{event.date}</span>
+                                                    <div key={i} className="relative group bg-surface p-4 rounded-xl border border-main shadow-sm">
+                                                        <div className="absolute -left-[33px] top-5 w-3.5 h-3.5 rounded-full bg-canvas border-4 border-indigo-500 shadow-sm" />
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span className="text-indigo-500 font-mono text-[10px] uppercase tracking-widest font-black">{event.date}</span>
                                                             <div className="text-text-secondary leading-relaxed">{renderCitationItem(event.event)}</div>
                                                         </div>
                                                     </div>
@@ -693,36 +693,36 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         )
                                     ) : warRoomSubTab === 'contradictions' ? (
                                         isContradictLoading ? renderSubTabLoader() : deepResult?.contradictions ? (
-                                            <div className="grid gap-6">
+                                            <div className="grid gap-5">
                                                 {deepResult.contradictions.length === 0 ? (
-                                                    <div className="bg-surface p-12 rounded-[1.5rem] text-center border border-main shadow-sm">
-                                                        <CheckCircle2 size={48} className="mx-auto mb-4 text-status-success/50 animate-bounce" />
-                                                        <p className="text-text-primary font-bold text-lg">{t('analysis.no_contradictions', 'Gjithçka e pastër.')}</p>
-                                                        <p className="text-text-muted text-[13px] mt-2 font-medium">Nuk u gjetën kontradikta mes deklaratave dhe provave.</p>
+                                                    <div className="bg-surface p-10 rounded-2xl text-center border border-main shadow-sm">
+                                                        <CheckCircle2 size={40} className="mx-auto mb-3 text-status-success/50 animate-bounce" />
+                                                        <p className="text-text-primary font-bold text-base">{t('analysis.no_contradictions', 'Gjithçka e pastër.')}</p>
+                                                        <p className="text-text-muted text-xs mt-1 font-medium">Nuk u gjetën kontradikta mes deklaratave dhe provave.</p>
                                                     </div>
                                                 ) : (
                                                     deepResult.contradictions.map((c: Contradiction, i: number) => (
-                                                        <div key={i} className="bg-surface border border-warning-start/30 p-6 rounded-[1.5rem] shadow-lg shadow-warning-start/5">
-                                                            <div className="flex justify-between items-start mb-6 pb-4 border-b border-main">
-                                                                <div className="flex items-center gap-3 text-warning-start font-black text-[11px] uppercase tracking-widest"><AlertOctagon size={16}/> {t('analysis.contradiction_label', 'Mospërputhje Factual')}</div>
-                                                                <span className="text-[10px] font-black bg-warning-start/10 text-warning-start px-2.5 py-1 rounded-md border border-warning-start/20 uppercase tracking-widest">{getRiskLabel(c.severity)}</span>
+                                                        <div key={i} className="bg-surface border border-warning-start/30 p-5 rounded-2xl shadow-md shadow-warning-start/5">
+                                                            <div className="flex justify-between items-start mb-4 pb-3 border-b border-main">
+                                                                <div className="flex items-center gap-2 text-warning-start font-black text-xs uppercase tracking-widest"><AlertOctagon size={15}/> {t('analysis.contradiction_label', 'Mospërputhje Factual')}</div>
+                                                                <span className="text-[10px] font-black bg-warning-start/10 text-warning-start px-2 py-0.5 rounded border border-warning-start/20 uppercase tracking-widest">{getRiskLabel(c.severity)}</span>
                                                             </div>
-                                                            <div className="grid md:grid-cols-2 gap-6 mb-4">
-                                                                <div className="p-5 bg-canvas rounded-xl border border-main">
-                                                                    <span className="text-[11px] text-danger-start font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                                        <FileText size={14}/> {t('analysis.claim_label', 'Deklarata')}
+                                                            <div className="grid md:grid-cols-2 gap-4 mb-3">
+                                                                <div className="p-4 bg-canvas rounded-xl border border-main">
+                                                                    <span className="text-[10px] text-danger-start font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                                        <FileText size={13}/> {t('analysis.claim_label', 'Deklarata')}
                                                                     </span>
-                                                                    <div className="text-text-secondary leading-relaxed italic">"{renderCitationItem(c.claim)}"</div>
+                                                                    <div className="text-text-secondary leading-relaxed italic text-xs">"{renderCitationItem(c.claim)}"</div>
                                                                 </div>
-                                                                <div className="p-5 bg-canvas rounded-xl border border-main">
-                                                                    <span className="text-[11px] text-status-success font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                                        <Scale size={14}/> {t('analysis.evidence_label', 'Prova Objektive')}
+                                                                <div className="p-4 bg-canvas rounded-xl border border-main">
+                                                                    <span className="text-[10px] text-status-success font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                                        <Scale size={13}/> {t('analysis.evidence_label', 'Prova Objektive')}
                                                                     </span>
-                                                                    <div className="text-text-secondary font-medium leading-relaxed">{renderCitationItem(c.evidence)}</div>
+                                                                    <div className="text-text-secondary font-medium leading-relaxed text-xs">{renderCitationItem(c.evidence)}</div>
                                                                 </div>
                                                             </div>
-                                                            <div className="mt-4 p-4 bg-warning-start/5 rounded-xl border border-warning-start/10">
-                                                                <span className="text-[11px] text-warning-start font-black uppercase tracking-widest block mb-1">Impakti</span>
+                                                            <div className="mt-3 p-3 bg-warning-start/5 rounded-xl border border-warning-start/10 text-xs">
+                                                                <span className="text-[10px] text-warning-start font-black uppercase tracking-widest block mb-1">Impakti</span>
                                                                 <div className="text-text-secondary leading-relaxed">{renderCitationItem(c.impact)}</div>
                                                             </div>
                                                         </div>
@@ -741,12 +741,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </>
           )}
           
-          <div className="px-8 py-5 border-t border-main bg-surface flex flex-col sm:flex-row gap-4 justify-between items-center shrink-0">
+          <div className="p-3.5 sm:p-4 border-t border-main bg-surface flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
               <button 
                   type="button"
                   onClick={handleArchiveStrategy} 
                   disabled={isArchiving || !deepResult}
-                  className={`w-full sm:w-auto h-11 px-6 rounded-xl text-[11px] uppercase tracking-widest font-black transition-all flex items-center justify-center gap-3 border focus:outline-none ${
+                  className={`w-full sm:w-auto h-10 px-5 rounded-xl text-xs uppercase tracking-wider font-bold transition-all flex items-center justify-center gap-2 border focus:outline-none ${
                       isArchiving || !deepResult 
                       ? 'bg-canvas text-text-disabled border-main cursor-not-allowed' 
                       : 'bg-status-success/15 text-status-success border-status-success/20 hover:bg-status-success/20 active:scale-95'
@@ -755,7 +755,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   {isArchiving ? (
                       <div className="w-4 h-4 border-2 border-status-success border-t-transparent rounded-full spinner-robust" />
                   ) : (
-                      <CheckCircle2 size={16} />
+                      <CheckCircle2 size={15} />
                   )}
                   {t('analysis.btn_archive', 'Ruaj Strategjinë në Arkiv')}
               </button>
@@ -763,7 +763,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               <button 
                   type="button"
                   onClick={onClose} 
-                  className="btn-primary w-full sm:w-auto px-10 h-11 text-[11px] uppercase tracking-widest font-black"
+                  className="h-10 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-start/15 transition-all w-full sm:w-auto"
               >
                   {t('general.close', 'Përfundo Analizën')}
               </button>
