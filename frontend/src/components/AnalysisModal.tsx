@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V29.0 (STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V30.0 (FULLSCREEN EXPAND TOGGLE & TEXT ZOOM)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -10,7 +10,7 @@ import {
     Gavel, CheckCircle2, BookOpen, Globe, 
     Link as LinkIcon, Clock, Skull, AlertOctagon,
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle,
-    ZoomIn, ZoomOut, User, Landmark, Eye
+    ZoomIn, ZoomOut, User, Landmark, Eye, Maximize2, Minimize2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
@@ -265,6 +265,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [summaryTab, setSummaryTab] = useState<'citizen' | 'lawyer'>('citizen');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('normal');
+  const [isFullScreen, setIsFullScreen] = useState(false);
   
   const clientPosition = ((result as any)?.client_position || 'DEFENDANT').toUpperCase();
 
@@ -440,7 +441,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           exit={{ scale: 0.98, opacity: 0, y: 10 }} 
           transition={{ duration: 0.2 }}
-          className="glass-panel w-[95vw] max-w-7xl h-[92vh] bg-canvas border border-main rounded-3xl shadow-2xl overflow-hidden flex flex-col" 
+          className={`glass-panel w-[95vw] rounded-3xl shadow-2xl border border-main bg-canvas flex flex-col overflow-hidden transition-all duration-300 ${
+            isFullScreen ? 'w-full h-full max-w-none rounded-none' : 'max-w-7xl h-[92vh]'
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
           <SpinnerStyles />
@@ -454,7 +457,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">{t('analysis.title', 'Strategjia Ligjore')}</span>
                     
-                    {/* Role Badge Indicator */}
                     <span className="px-2.5 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                       {clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Shield size={12} />}
                       <span>{clientPosition === 'PLAINTIFF' ? 'Roli: Paditës' : 'Roli: I Paditur'}</span>
@@ -474,6 +476,17 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               >
                 {zoomLevel === 'normal' ? <ZoomIn size={18} /> : (zoomLevel === 'large' ? <ZoomIn size={18} /> : <ZoomOut size={18} />)}
               </button>
+
+              {/* FULLSCREEN EXPAND TOGGLE BUTTON */}
+              <button
+                type="button"
+                onClick={() => setIsFullScreen(!isFullScreen)}
+                className="p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-lg transition-all focus:outline-none"
+                title={isFullScreen ? 'Zvogëlo' : 'Zmadho në Ekran të Plotë'}
+              >
+                {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+
               <button 
                 type="button"
                 onClick={onClose} 

@@ -1,9 +1,10 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V7.0 (LARGE READABLE TYPOGRAPHY & OPTIMAL DEFAULT ZOOM)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V8.0 (UNUSED TIMELINE SLIDER REMOVED)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
 import {
+  Network,
   Search,
   RefreshCw,
   User,
@@ -23,10 +24,7 @@ import {
   Download,
   Plus,
   GitMerge,
-  Clock,
   Euro,
-  Play,
-  Pause,
   AlertTriangle
 } from 'lucide-react';
 
@@ -98,7 +96,7 @@ const formatRelationText = (rel: string): string => {
   return RELATION_ALBANIAN_MAP[clean] || clean.replace(/_/g, ' ');
 };
 
-export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
+export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, caseTitle }) => {
   const [graphData, setGraphData] = useState<CaseGraphData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,10 +114,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
-
-  // Timeline State
-  const [timelineYear, setTimelineYear] = useState<number>(2026);
-  const [isPlayingTimeline, setIsPlayingTimeline] = useState<boolean>(false);
 
   // Modals State
   const [mergeModalOpen, setMergeModalOpen] = useState<boolean>(false);
@@ -162,16 +156,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   useEffect(() => {
     if (caseId) fetchGraph();
   }, [caseId]);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isPlayingTimeline) {
-      interval = setInterval(() => {
-        setTimelineYear((prev) => (prev >= 2026 ? 2018 : prev + 1));
-      }, 1500);
-    }
-    return () => clearInterval(interval);
-  }, [isPlayingTimeline]);
 
   const handleRebuildGraph = async () => {
     setRebuilding(true);
@@ -299,7 +283,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { inEur, outEur, netEur: inEur - outEur };
   }, [selectedNode, graphData?.edges]);
 
-  // BALANCED ORGANIC LAYOUT (RADIUS STEP 260PX FOR CLEAR LARGE LABELS)
+  // BALANCED ORGANIC LAYOUT (RADIUS STEP 240PX FOR CLEAR LARGE LABELS)
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const nodes = filteredNodes;
@@ -368,15 +352,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     );
   }, [selectedNode, graphData?.edges]);
 
-
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
       
       {/* SINGLE CONSOLIDATED 1-ROW EXECUTIVE CONTROL BAR */}
       <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
         
-        {/* Left: Search & Filter Pills */}
+        {/* Left: Badge, Title & Search */}
         <div className="flex items-center gap-2 min-w-0">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary-start/10 border border-primary-start/20 rounded-lg text-primary-start font-black text-[10px] uppercase tracking-wider shrink-0">
+            <Network className="w-3.5 h-3.5 text-primary-start" />
+            <span className="truncate">{caseTitle || 'Lënda'}</span>
+          </div>
+
           <div className="relative w-36 sm:w-48">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
             <input
@@ -469,26 +457,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       {/* GRAPH CANVAS CONTAINER */}
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         
-        {/* COMPACT FLOATING TIMELINE OVERLAY */}
-        <div className="absolute top-2.5 right-3 bg-surface/90 backdrop-blur-md border border-main px-2.5 py-1 rounded-lg text-[10px] text-text-primary flex items-center gap-2 shadow-md z-10 pointer-events-auto">
-          <button
-            onClick={() => setIsPlayingTimeline(!isPlayingTimeline)}
-            className="p-0.5 rounded bg-canvas hover:bg-hover border border-main text-primary-start transition-colors"
-          >
-            {isPlayingTimeline ? <Pause size={10} /> : <Play size={10} />}
-          </button>
-          <Clock size={10} className="text-text-muted" />
-          <span className="font-mono font-bold text-primary-start">{timelineYear}</span>
-          <input
-            type="range"
-            min="2018"
-            max="2026"
-            value={timelineYear}
-            onChange={(e) => setTimelineYear(parseInt(e.target.value))}
-            className="w-14 accent-primary-start h-1 cursor-pointer"
-          />
-        </div>
-
         {/* SVG GRAPH CANVAS AREA */}
         <div className="flex-1 h-full w-full relative">
           {loading ? (
