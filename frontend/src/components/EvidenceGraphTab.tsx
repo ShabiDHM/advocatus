@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V2.5 (PERMANENT FLOATING LEGEND BAR)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V2.6 (TOP FLOATING SCROLLABLE LEGEND)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -233,7 +233,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
   }, [selectedNode, graphData?.edges]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px] bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
+    <div className="flex flex-col h-[calc(100vh-200px)] min-h-[500px] bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
       
       {/* TOP CONTROL BAR */}
       <div className="flex flex-wrap items-center justify-between p-3 bg-surface border-b border-main gap-3 z-10">
@@ -337,8 +337,26 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
       {/* GRAPH CANVAS CONTAINER */}
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         
+        {/* TOP FLOATING SCROLLABLE LEGEND BAR (PERMANENTLY VISIBLE & SCROLLABLE) */}
+        <div className="absolute top-3 left-4 right-4 bg-surface/95 backdrop-blur-md border border-main px-4 py-2 rounded-xl text-xs text-text-primary flex items-center justify-between gap-3 shadow-md z-20 overflow-x-auto custom-finance-scroll pointer-events-auto">
+          <span className="text-[10px] font-black text-text-muted uppercase tracking-wider shrink-0">
+            Kategoritë e Ontologjisë:
+          </span>
+          <div className="flex items-center gap-x-5 gap-y-1 shrink-0">
+            {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
+              const conf = ENTITY_CONFIG[type];
+              return (
+                <div key={type} className="flex items-center gap-1.5 text-[11px] font-medium shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: conf.color }} />
+                  <span className="text-text-secondary whitespace-nowrap">{conf.albanianLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* SVG GRAPH CANVAS AREA */}
-        <div className="flex-1 h-full w-full relative pb-12">
+        <div className="flex-1 h-full w-full relative pt-14">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted">
               <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
@@ -353,7 +371,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
               </button>
             </div>
           ) : filteredNodes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6 text-center pb-16">
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6 text-center">
               <Layers className="w-12 h-12 text-text-muted/60" />
               <h3 className="text-base font-bold text-text-primary">Nuk u gjetën entitete të nxjerra në këtë lëndë</h3>
               <p className="text-xs text-text-secondary max-w-md leading-relaxed">
@@ -510,22 +528,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
               </g>
             </svg>
           )}
-
-          {/* PERMANENT FLOATING LEGEND BAR (ALWAYS VISIBLE) */}
-          <div className="absolute bottom-2 left-3 right-3 bg-surface/95 backdrop-blur-md border border-main px-3.5 py-2 rounded-xl text-xs text-text-primary flex flex-wrap items-center justify-between gap-2 shadow-lg z-20 pointer-events-auto">
-            <span className="text-[10px] font-black text-text-muted uppercase tracking-wider shrink-0">Kategoritë e Ontologjisë:</span>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
-                const conf = ENTITY_CONFIG[type];
-                return (
-                  <div key={type} className="flex items-center gap-1.5 text-[11px] font-medium">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: conf.color }} />
-                    <span className="text-text-secondary">{conf.albanianLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
         {/* RIGHT DRAWER: ENTITY INSPECTOR */}
