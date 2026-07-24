@@ -1,10 +1,9 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V5.1 (0 WARNINGS)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V7.0 (LARGE READABLE TYPOGRAPHY & OPTIMAL DEFAULT ZOOM)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
 import {
-  Network,
   Search,
   RefreshCw,
   User,
@@ -73,12 +72,12 @@ interface EvidenceGraphTabProps {
 }
 
 const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; color: string; border: string; bg: string; icon: LucideIcon }> = {
-  PERSON: { albanianLabel: 'Persona', color: '#3b82f6', border: '#1d4ed8', bg: 'rgba(59, 130, 246, 0.2)', icon: User },
-  ORGANIZATION: { albanianLabel: 'Institucione', color: '#8b5cf6', border: '#6d28d9', bg: 'rgba(139, 92, 246, 0.2)', icon: Building2 },
-  ACCOUNT: { albanianLabel: 'Llogari', color: '#10b981', border: '#047857', bg: 'rgba(16, 185, 129, 0.2)', icon: CreditCard },
-  LOCATION: { albanianLabel: 'Lokacione', color: '#f59e0b', border: '#b45309', bg: 'rgba(245, 158, 11, 0.2)', icon: MapPin },
-  EVENT: { albanianLabel: 'Ngjarje', color: '#ef4444', border: '#b91c1c', bg: 'rgba(239, 68, 68, 0.2)', icon: Calendar },
-  DOCUMENT: { albanianLabel: 'Dokumente', color: '#64748b', border: '#334155', bg: 'rgba(100, 116, 139, 0.2)', icon: FileText },
+  PERSON: { albanianLabel: 'Persona', color: '#3b82f6', border: '#1d4ed8', bg: 'rgba(59, 130, 246, 0.25)', icon: User },
+  ORGANIZATION: { albanianLabel: 'Institucione', color: '#8b5cf6', border: '#6d28d9', bg: 'rgba(139, 92, 246, 0.25)', icon: Building2 },
+  ACCOUNT: { albanianLabel: 'Llogari', color: '#10b981', border: '#047857', bg: 'rgba(16, 185, 129, 0.25)', icon: CreditCard },
+  LOCATION: { albanianLabel: 'Lokacione', color: '#f59e0b', border: '#b45309', bg: 'rgba(245, 158, 11, 0.25)', icon: MapPin },
+  EVENT: { albanianLabel: 'Ngjarje', color: '#ef4444', border: '#b91c1c', bg: 'rgba(239, 68, 68, 0.25)', icon: Calendar },
+  DOCUMENT: { albanianLabel: 'Dokumente', color: '#64748b', border: '#334155', bg: 'rgba(100, 116, 139, 0.25)', icon: FileText },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
@@ -99,14 +98,15 @@ const formatRelationText = (rel: string): string => {
   return RELATION_ALBANIAN_MAP[clean] || clean.replace(/_/g, ' ');
 };
 
-export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, caseTitle }) => {
+export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
   const [graphData, setGraphData] = useState<CaseGraphData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Selection State
+  // Selection & Hover State for Focus Dimming
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Filters
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
@@ -139,9 +139,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
   const [crossCaseResults, setCrossCaseResults] = useState<CrossCaseMatch[]>([]);
   const [crossCaseLoading, setCrossCaseLoading] = useState<boolean>(false);
 
-  // SVG Pan & Zoom (SPACIOUS 1800 x 1200 VIEWBOX)
+  // SVG Pan & Zoom (OPTIMAL 1100 x 750 VIEWBOX FOR LARGE CLEAR TEXT)
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -900, y: -600, width: 1800, height: 1200 });
+  const [viewBox, setViewBox] = useState({ x: -550, y: -375, width: 1100, height: 750 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
@@ -273,6 +273,17 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     );
   }, [graphData?.edges, filteredNodeIds]);
 
+  const activeFocusNodeId = selectedNode?.id || hoveredNodeId;
+  const connectedNodeIdsForFocus = useMemo(() => {
+    if (!activeFocusNodeId || !graphData?.edges) return new Set<string>();
+    const set = new Set<string>([activeFocusNodeId]);
+    graphData.edges.forEach((edge) => {
+      if (edge.source === activeFocusNodeId) set.add(edge.target);
+      if (edge.target === activeFocusNodeId) set.add(edge.source);
+    });
+    return set;
+  }, [activeFocusNodeId, graphData?.edges]);
+
   const financialTotalsForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return { inEur: 0, outEur: 0, netEur: 0 };
     let inEur = 0;
@@ -288,7 +299,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     return { inEur, outEur, netEur: inEur - outEur };
   }, [selectedNode, graphData?.edges]);
 
-  // WIDE ULTRA-SPACIOUS LAYOUT (RADIUS STEP 340PX FOR ZERO COLLISIONS)
+  // BALANCED ORGANIC LAYOUT (RADIUS STEP 260PX FOR CLEAR LARGE LABELS)
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const nodes = filteredNodes;
@@ -303,15 +314,15 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     });
 
     const groupKeys = Object.keys(typeGroups);
-    const radiusStep = 340;
+    const radiusStep = 240;
 
     groupKeys.forEach((typeKey, gIndex) => {
       const groupNodes = typeGroups[typeKey];
-      const radius = 240 + gIndex * radiusStep;
+      const radius = 180 + gIndex * radiusStep;
       const angleStep = (2 * Math.PI) / groupNodes.length;
 
       groupNodes.forEach((node, nIndex) => {
-        const angle = nIndex * angleStep + (gIndex * Math.PI) / 6;
+        const angle = nIndex * angleStep + (gIndex * Math.PI) / 5;
         positions[node.id] = {
           x: Math.round(radius * Math.cos(angle)),
           y: Math.round(radius * Math.sin(angle)),
@@ -331,8 +342,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isPanning) return;
-    const dx = (e.clientX - startPoint.x) * (viewBox.width / 1800);
-    const dy = (e.clientY - startPoint.y) * (viewBox.height / 1200);
+    const dx = (e.clientX - startPoint.x) * (viewBox.width / 1100);
+    const dy = (e.clientY - startPoint.y) * (viewBox.height / 750);
     setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
     setStartPoint({ x: e.clientX, y: e.clientY });
   };
@@ -364,13 +375,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
       {/* SINGLE CONSOLIDATED 1-ROW EXECUTIVE CONTROL BAR */}
       <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
         
-        {/* Left: Badge, Title & Search */}
+        {/* Left: Search & Filter Pills */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary-start/10 border border-primary-start/20 rounded-lg text-primary-start font-black text-[10px] uppercase tracking-wider shrink-0">
-            <Network className="w-3.5 h-3.5 text-primary-start" />
-            <span className="truncate">{caseTitle || 'Lënda'}</span>
-          </div>
-
           <div className="relative w-36 sm:w-48">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
             <input
@@ -523,86 +529,100 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
               onWheel={handleWheel}
             >
               <defs>
-                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="36" refY="3.5" orient="auto">
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
                   <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" className="text-text-muted/60" />
                 </marker>
-                <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="36" refY="3.5" orient="auto">
+                <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
                   <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                 </marker>
-                <marker id="arrowhead-contradiction" markerWidth="10" markerHeight="7" refX="36" refY="3.5" orient="auto">
+                <marker id="arrowhead-contradiction" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
                   <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
                 </marker>
               </defs>
 
               {/* EDGES & ALBANIAN LABELS */}
               <g className="edges">
-                {filteredEdges.map((edge) => {
+                {filteredEdges.map((edge, index) => {
                   const sourcePos = nodePositions[edge.source];
                   const targetPos = nodePositions[edge.target];
                   if (!sourcePos || !targetPos) return null;
 
                   const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
-                  const isConnectedToSelectedNode =
-                    selectedNode && (edge.source === selectedNode.id || edge.target === selectedNode.id);
+                  const isConnectedToActiveFocus =
+                    activeFocusNodeId && (edge.source === activeFocusNodeId || edge.target === activeFocusNodeId);
+
+                  const dx = targetPos.x - sourcePos.x;
+                  const dy = targetPos.y - sourcePos.y;
+                  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                  
+                  const curveDirection = index % 2 === 0 ? 1 : -1;
+                  const curveOffset = Math.min(dist * 0.22, 80) * curveDirection;
 
                   const midX = (sourcePos.x + targetPos.x) / 2;
                   const midY = (sourcePos.y + targetPos.y) / 2;
 
+                  const ctrlX = midX - (dy / dist) * curveOffset;
+                  const ctrlY = midY + (dx / dist) * curveOffset;
+
+                  const pathData = `M ${sourcePos.x} ${sourcePos.y} Q ${ctrlX} ${ctrlY} ${targetPos.x} ${targetPos.y}`;
                   const albanianLabel = formatRelationText(edge.relation);
 
+                  const isDimmed = activeFocusNodeId && !isConnectedToActiveFocus && !isSelected;
+
                   return (
-                    <g key={edge.id} className="group cursor-pointer" onClick={() => setSelectedEdge(edge)}>
-                      <line
-                        x1={sourcePos.x}
-                        y1={sourcePos.y}
-                        x2={targetPos.x}
-                        y2={targetPos.y}
+                    <g
+                      key={edge.id}
+                      className={`group cursor-pointer transition-opacity duration-300 ${isDimmed ? 'opacity-20' : 'opacity-100'}`}
+                      onClick={() => setSelectedEdge(edge)}
+                    >
+                      <path
+                        d={pathData}
+                        fill="none"
                         stroke={
                           isContradiction
                             ? '#ef4444'
-                            : isSelected || isConnectedToSelectedNode
+                            : isSelected || isConnectedToActiveFocus
                             ? '#3b82f6'
                             : 'currentColor'
                         }
                         className={`${
                           isContradiction
                             ? 'animate-pulse'
-                            : isSelected || isConnectedToSelectedNode
+                            : isSelected || isConnectedToActiveFocus
                             ? ''
                             : 'text-text-muted/40'
                         } transition-all duration-200`}
-                        strokeWidth={isContradiction || isSelected || isConnectedToSelectedNode ? 2.5 : 1.2}
-                        strokeDasharray={isContradiction ? '5,5' : 'none'}
+                        strokeWidth={isContradiction || isSelected || isConnectedToActiveFocus ? 3 : 1.5}
+                        strokeDasharray={isContradiction ? '6,6' : 'none'}
                         markerEnd={
                           isContradiction
                             ? 'url(#arrowhead-contradiction)'
-                            : isSelected || isConnectedToSelectedNode
+                            : isSelected || isConnectedToActiveFocus
                             ? 'url(#arrowhead-selected)'
                             : 'url(#arrowhead)'
                         }
                       />
 
-                      {/* Edge Label Badge */}
+                      {/* HIGH-CONTRAST EXPANDED BADGE (130px x 26px) */}
                       <rect
-                        x={midX - 55}
-                        y={midY - 11}
-                        width="110"
-                        height="22"
-                        rx="6"
+                        x={ctrlX - 65}
+                        y={ctrlY - 13}
+                        width="130"
+                        height="26"
+                        rx="7"
                         fill={isContradiction ? '#450a0a' : 'var(--bg-surface, #ffffff)'}
                         stroke={isContradiction ? '#ef4444' : isSelected ? '#3b82f6' : 'currentColor'}
                         className={isContradiction ? '' : isSelected ? '' : 'text-main'}
-                        strokeWidth="1"
+                        strokeWidth="1.5"
                       />
                       <text
-                        x={midX}
-                        y={midY + 4}
+                        x={ctrlX}
+                        y={ctrlY + 4}
                         textAnchor="middle"
                         fill={isContradiction ? '#fca5a5' : isSelected ? '#3b82f6' : 'currentColor'}
-                        className={isContradiction ? 'font-bold' : isSelected ? 'font-bold' : 'text-text-muted'}
-                        fontSize="9"
-                        fontWeight="bold"
+                        className={isContradiction ? 'font-black' : isSelected ? 'font-black' : 'text-text-muted font-bold'}
+                        fontSize="12"
                       >
                         {edge.amount_eur
                           ? `€${edge.amount_eur.toLocaleString()}`
@@ -615,7 +635,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                 })}
               </g>
 
-              {/* NODES */}
+              {/* ENLARGED ENTITY NODES (28PX RADIUS & 14PX BOLD TEXT) */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = nodePositions[node.id];
@@ -623,13 +643,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
 
                   const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
                   const isSelected = selectedNode?.id === node.id;
+                  const isConnectedToFocus = connectedNodeIdsForFocus.has(node.id);
+                  const isDimmed = activeFocusNodeId && !isConnectedToFocus;
                   const Icon = config.icon;
 
                   return (
                     <g
                       key={node.id}
                       transform={`translate(${pos.x}, ${pos.y})`}
-                      className="cursor-pointer group"
+                      className={`cursor-pointer group transition-opacity duration-300 ${
+                        isDimmed ? 'opacity-20' : 'opacity-100'
+                      }`}
+                      onMouseEnter={() => setHoveredNodeId(node.id)}
+                      onMouseLeave={() => setHoveredNodeId(null)}
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedNode(node);
@@ -638,35 +664,38 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                     >
                       {isSelected && (
                         <circle
-                          r="34"
+                          r="38"
                           fill="none"
                           stroke="#3b82f6"
-                          strokeWidth="2.5"
+                          strokeWidth="3"
                           className="animate-pulse"
                         />
                       )}
 
                       <circle
-                        r="24"
+                        r="28"
                         fill={config.bg}
                         stroke={isSelected ? '#3b82f6' : config.color}
-                        strokeWidth={isSelected ? '3' : '2'}
-                        className="transition-all duration-200 group-hover:scale-110 shadow-lg"
+                        strokeWidth={isSelected ? '3.5' : '2.5'}
+                        className="transition-all duration-200 group-hover:scale-110 shadow-xl"
                       />
 
-                      <foreignObject x="-12" y="-12" width="24" height="24" className="pointer-events-none">
+                      <foreignObject x="-14" y="-14" width="28" height="28" className="pointer-events-none">
                         <div className="w-full h-full flex items-center justify-center">
-                          <Icon className="w-5 h-5" style={{ color: config.color }} />
+                          <Icon className="w-6 h-6" style={{ color: config.color }} />
                         </div>
                       </foreignObject>
 
+                      {/* CLEAR LARGE 14PX BOLD NODE TEXT */}
                       <text
-                        y="42"
+                        y="48"
                         textAnchor="middle"
                         fill="currentColor"
-                        className="text-text-primary text-[11px] font-bold pointer-events-none drop-shadow-sm"
+                        fontSize="14"
+                        fontWeight="bold"
+                        className="text-text-primary pointer-events-none drop-shadow-md"
                       >
-                        {node.label.length > 20 ? `${node.label.substring(0, 18)}...` : node.label}
+                        {node.label.length > 22 ? `${node.label.substring(0, 20)}...` : node.label}
                       </text>
                     </g>
                   );
