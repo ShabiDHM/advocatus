@@ -1,10 +1,9 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V8.0 (UNUSED TIMELINE SLIDER REMOVED)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V9.0 (MOBILE TOUCH GESTURES & BOTTOM SHEET INSPECTOR)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
 import {
-  Network,
   Search,
   RefreshCw,
   User,
@@ -96,15 +95,14 @@ const formatRelationText = (rel: string): string => {
   return RELATION_ALBANIAN_MAP[clean] || clean.replace(/_/g, ' ');
 };
 
-export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, caseTitle }) => {
+export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
   const [graphData, setGraphData] = useState<CaseGraphData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Selection & Hover State for Focus Dimming
+  // Selection State
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Filters
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
@@ -133,7 +131,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
   const [crossCaseResults, setCrossCaseResults] = useState<CrossCaseMatch[]>([]);
   const [crossCaseLoading, setCrossCaseLoading] = useState<boolean>(false);
 
-  // SVG Pan & Zoom (OPTIMAL 1100 x 750 VIEWBOX FOR LARGE CLEAR TEXT)
+  // SVG Pan & Zoom (RESPONSIVE 1100 x 750 VIEWBOX)
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [viewBox, setViewBox] = useState({ x: -550, y: -375, width: 1100, height: 750 });
   const [isPanning, setIsPanning] = useState(false);
@@ -257,17 +255,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     );
   }, [graphData?.edges, filteredNodeIds]);
 
-  const activeFocusNodeId = selectedNode?.id || hoveredNodeId;
-  const connectedNodeIdsForFocus = useMemo(() => {
-    if (!activeFocusNodeId || !graphData?.edges) return new Set<string>();
-    const set = new Set<string>([activeFocusNodeId]);
-    graphData.edges.forEach((edge) => {
-      if (edge.source === activeFocusNodeId) set.add(edge.target);
-      if (edge.target === activeFocusNodeId) set.add(edge.source);
-    });
-    return set;
-  }, [activeFocusNodeId, graphData?.edges]);
-
   const financialTotalsForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return { inEur: 0, outEur: 0, netEur: 0 };
     let inEur = 0;
@@ -283,7 +270,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     return { inEur, outEur, netEur: inEur - outEur };
   }, [selectedNode, graphData?.edges]);
 
-  // BALANCED ORGANIC LAYOUT (RADIUS STEP 240PX FOR CLEAR LARGE LABELS)
+  // ORGANIC LAYOUT
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const nodes = filteredNodes;
@@ -298,11 +285,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     });
 
     const groupKeys = Object.keys(typeGroups);
-    const radiusStep = 240;
+    const radiusStep = 220;
 
     groupKeys.forEach((typeKey, gIndex) => {
       const groupNodes = typeGroups[typeKey];
-      const radius = 180 + gIndex * radiusStep;
+      const radius = 170 + gIndex * radiusStep;
       const angleStep = (2 * Math.PI) / groupNodes.length;
 
       groupNodes.forEach((node, nIndex) => {
@@ -317,6 +304,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     return positions;
   }, [filteredNodes]);
 
+  // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
@@ -333,6 +321,24 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
   };
 
   const handleMouseUp = () => setIsPanning(false);
+
+  // Native Mobile Touch Pan Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPanning || e.touches.length !== 1) return;
+    const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1100);
+    const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 750);
+    setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+    setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+  };
+
+  const handleTouchEnd = () => setIsPanning(false);
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -356,20 +362,15 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
       
       {/* SINGLE CONSOLIDATED 1-ROW EXECUTIVE CONTROL BAR */}
-      <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
+      <div className="flex items-center justify-between px-2.5 sm:px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-11 sm:h-12">
         
-        {/* Left: Badge, Title & Search */}
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary-start/10 border border-primary-start/20 rounded-lg text-primary-start font-black text-[10px] uppercase tracking-wider shrink-0">
-            <Network className="w-3.5 h-3.5 text-primary-start" />
-            <span className="truncate">{caseTitle || 'Lënda'}</span>
-          </div>
-
-          <div className="relative w-36 sm:w-48">
+        {/* Left: Search & Filter Pills */}
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+          <div className="relative w-32 sm:w-48 shrink-0">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
             <input
               type="text"
-              placeholder="Kërko entitetin..."
+              placeholder="Kërko..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-canvas border border-main rounded-lg pl-8 pr-2 py-1 text-[11px] text-text-primary placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-primary-start"
@@ -401,7 +402,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: conf.color }} />
-                  <span>{conf.albanianLabel}</span>
+                  <span className="hidden sm:inline">{conf.albanianLabel}</span>
                   <span className="font-mono text-text-secondary">({count})</span>
                 </button>
               );
@@ -410,43 +411,43 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <button
             onClick={() => setCustomEdgeModalOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all"
-            title="Krijo lidhje manuale"
+            className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all"
+            title="Krijo lidhje"
           >
-            <Plus className="w-3 h-3 text-primary-start" />
+            <Plus className="w-3.5 h-3.5 text-primary-start" />
             <span className="hidden sm:inline">Lidhje</span>
           </button>
 
           <button
             onClick={handleExportCourtReport}
             disabled={exporting}
-            className="flex items-center gap-1 px-2.5 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50"
-            title="Shkarko raportin"
+            className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50"
+            title="Eksporto"
           >
-            <Download className="w-3 h-3 text-primary-start" />
-            <span className="hidden sm:inline">{exporting ? 'Eksporton...' : 'Eksporto'}</span>
+            <Download className="w-3.5 h-3.5 text-primary-start" />
+            <span className="hidden sm:inline">{exporting ? '...' : 'Eksporto'}</span>
           </button>
 
           <button
             onClick={handleRebuildGraph}
             disabled={rebuilding}
-            className="flex items-center gap-1 px-3 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50 shadow-sm"
+            className="flex items-center gap-1 px-2.5 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50 shadow-sm"
           >
-            <RefreshCw className={`w-3 h-3 ${rebuilding ? 'animate-spin' : ''}`} />
-            <span>{rebuilding ? 'Proceson...' : 'Rirregullo'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{rebuilding ? 'Proceson...' : 'Rirregullo'}</span>
           </button>
         </div>
       </div>
 
       {/* REBUILD BANNER */}
       {rebuildStatus && (
-        <div className="bg-primary-start/10 border-b border-primary-start/30 px-3 py-1 flex items-center justify-between text-[11px] text-primary-start font-medium z-10 shrink-0">
-          <div className="flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-primary-start" />
-            <span>{rebuildStatus}</span>
+        <div className="bg-primary-start/10 border-b border-primary-start/30 px-3 py-1 flex items-center justify-between text-[10px] sm:text-[11px] text-primary-start font-medium z-10 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-primary-start shrink-0" />
+            <span className="truncate">{rebuildStatus}</span>
           </div>
           <button onClick={() => setRebuildStatus(null)} className="text-primary-start hover:opacity-80">
             <X className="w-3.5 h-3.5" />
@@ -489,11 +490,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
           ) : (
             <svg
               ref={svgRef}
-              className="w-full h-full cursor-grab active:cursor-grabbing select-none"
+              className="w-full h-full cursor-grab active:cursor-grabbing select-none touch-none"
               viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
               onWheel={handleWheel}
             >
               <defs>
@@ -517,15 +521,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
 
                   const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
-                  const isConnectedToActiveFocus =
-                    activeFocusNodeId && (edge.source === activeFocusNodeId || edge.target === activeFocusNodeId);
 
                   const dx = targetPos.x - sourcePos.x;
                   const dy = targetPos.y - sourcePos.y;
                   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                   
                   const curveDirection = index % 2 === 0 ? 1 : -1;
-                  const curveOffset = Math.min(dist * 0.22, 80) * curveDirection;
+                  const curveOffset = Math.min(dist * 0.22, 75) * curveDirection;
 
                   const midX = (sourcePos.x + targetPos.x) / 2;
                   const midY = (sourcePos.y + targetPos.y) / 2;
@@ -536,12 +538,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   const pathData = `M ${sourcePos.x} ${sourcePos.y} Q ${ctrlX} ${ctrlY} ${targetPos.x} ${targetPos.y}`;
                   const albanianLabel = formatRelationText(edge.relation);
 
-                  const isDimmed = activeFocusNodeId && !isConnectedToActiveFocus && !isSelected;
-
                   return (
                     <g
                       key={edge.id}
-                      className={`group cursor-pointer transition-opacity duration-300 ${isDimmed ? 'opacity-20' : 'opacity-100'}`}
+                      className="group cursor-pointer transition-opacity duration-200"
                       onClick={() => setSelectedEdge(edge)}
                     >
                       <path
@@ -550,35 +550,35 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                         stroke={
                           isContradiction
                             ? '#ef4444'
-                            : isSelected || isConnectedToActiveFocus
+                            : isSelected
                             ? '#3b82f6'
                             : 'currentColor'
                         }
                         className={`${
                           isContradiction
                             ? 'animate-pulse'
-                            : isSelected || isConnectedToActiveFocus
+                            : isSelected
                             ? ''
                             : 'text-text-muted/40'
                         } transition-all duration-200`}
-                        strokeWidth={isContradiction || isSelected || isConnectedToActiveFocus ? 3 : 1.5}
+                        strokeWidth={isContradiction || isSelected ? 3 : 1.5}
                         strokeDasharray={isContradiction ? '6,6' : 'none'}
                         markerEnd={
                           isContradiction
                             ? 'url(#arrowhead-contradiction)'
-                            : isSelected || isConnectedToActiveFocus
+                            : isSelected
                             ? 'url(#arrowhead-selected)'
                             : 'url(#arrowhead)'
                         }
                       />
 
-                      {/* HIGH-CONTRAST EXPANDED BADGE (130px x 26px) */}
+                      {/* HIGH-CONTRAST BADGE */}
                       <rect
-                        x={ctrlX - 65}
-                        y={ctrlY - 13}
-                        width="130"
-                        height="26"
-                        rx="7"
+                        x={ctrlX - 60}
+                        y={ctrlY - 12}
+                        width="120"
+                        height="24"
+                        rx="6"
                         fill={isContradiction ? '#450a0a' : 'var(--bg-surface, #ffffff)'}
                         stroke={isContradiction ? '#ef4444' : isSelected ? '#3b82f6' : 'currentColor'}
                         className={isContradiction ? '' : isSelected ? '' : 'text-main'}
@@ -590,12 +590,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                         textAnchor="middle"
                         fill={isContradiction ? '#fca5a5' : isSelected ? '#3b82f6' : 'currentColor'}
                         className={isContradiction ? 'font-black' : isSelected ? 'font-black' : 'text-text-muted font-bold'}
-                        fontSize="12"
+                        fontSize="11"
                       >
                         {edge.amount_eur
                           ? `€${edge.amount_eur.toLocaleString()}`
-                          : albanianLabel.length > 16
-                          ? `${albanianLabel.substring(0, 14)}..`
+                          : albanianLabel.length > 15
+                          ? `${albanianLabel.substring(0, 13)}..`
                           : albanianLabel}
                       </text>
                     </g>
@@ -603,7 +603,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                 })}
               </g>
 
-              {/* ENLARGED ENTITY NODES (28PX RADIUS & 14PX BOLD TEXT) */}
+              {/* ENLARGED ENTITY NODES */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = nodePositions[node.id];
@@ -611,19 +611,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
 
                   const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
                   const isSelected = selectedNode?.id === node.id;
-                  const isConnectedToFocus = connectedNodeIdsForFocus.has(node.id);
-                  const isDimmed = activeFocusNodeId && !isConnectedToFocus;
                   const Icon = config.icon;
 
                   return (
                     <g
                       key={node.id}
                       transform={`translate(${pos.x}, ${pos.y})`}
-                      className={`cursor-pointer group transition-opacity duration-300 ${
-                        isDimmed ? 'opacity-20' : 'opacity-100'
-                      }`}
-                      onMouseEnter={() => setHoveredNodeId(node.id)}
-                      onMouseLeave={() => setHoveredNodeId(null)}
+                      className="cursor-pointer group transition-opacity duration-200"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedNode(node);
@@ -654,7 +648,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                         </div>
                       </foreignObject>
 
-                      {/* CLEAR LARGE 14PX BOLD NODE TEXT */}
                       <text
                         y="48"
                         textAnchor="middle"
@@ -673,11 +666,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
           )}
         </div>
 
-        {/* RIGHT DRAWER: ENTITY INSPECTOR */}
+        {/* RESPONSIVE INSPECTOR (DESKTOP: SIDEBAR | MOBILE: SLIDE-UP BOTTOM SHEET) */}
         {(selectedNode || selectedEdge) && (
-          <div className="w-80 bg-surface border-l border-main p-4 overflow-y-auto flex flex-col gap-4 z-20 shadow-2xl animate-in slide-in-from-right duration-200 shrink-0">
+          <div className="fixed sm:relative inset-x-0 bottom-0 sm:inset-auto sm:w-80 bg-surface border-t sm:border-t-0 sm:border-l border-main p-4 overflow-y-auto flex flex-col gap-3.5 z-30 shadow-2xl max-h-[55vh] sm:max-h-none rounded-t-3xl sm:rounded-none shrink-0 animate-in slide-in-from-bottom sm:slide-in-from-right duration-200">
             
-            <div className="flex items-center justify-between border-b border-main pb-3">
+            <div className="flex items-center justify-between border-b border-main pb-2.5">
               <span className="text-xs font-bold text-primary-start uppercase tracking-wider">
                 {selectedNode ? 'Inspektori i Entitetit' : 'Inspektori i Lidhjes'}
               </span>
@@ -781,7 +774,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId, case
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 mt-2">
+                <div className="flex flex-col gap-2 mt-1">
                   <button
                     onClick={() => setMergeModalOpen(true)}
                     className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all shadow-sm"
