@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V10.0 (GUARANTEED MOUSE WHEEL ZOOM & ON-SCREEN CONTROLS)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V24.0 (REACT NATIVE ONWHEEL SVG ZOOM)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -13,22 +13,21 @@ import {
   Calendar,
   FileText,
   X,
-  ExternalLink,
-  ShieldAlert,
-  Sparkles,
   Layers,
-  ChevronRight,
-  Info,
   LucideIcon,
   Download,
-  Plus,
-  GitMerge,
-  Euro,
-  AlertTriangle,
   ZoomIn,
   ZoomOut,
-  Maximize2
+  Maximize2,
+  AlertTriangle,
+  FileCheck,
+  MessageCircle,
+  Euro,
+  Send,
+  Loader2,
+  Bot
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export type EntityType = 'PERSON' | 'ORGANIZATION' | 'ACCOUNT' | 'LOCATION' | 'EVENT' | 'DOCUMENT';
 
@@ -59,11 +58,10 @@ export interface CaseGraphData {
   updated_at?: string | null;
 }
 
-export interface CrossCaseMatch {
-  case_id: string;
-  case_title: string;
-  matched_entity: OntologyNode;
-  connected_edges: OntologyEdge[];
+interface ChatMsg {
+  id: string;
+  role: 'user' | 'ai';
+  content: string;
 }
 
 interface EvidenceGraphTabProps {
@@ -71,84 +69,85 @@ interface EvidenceGraphTabProps {
   caseTitle?: string;
 }
 
-const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; color: string; border: string; bg: string; icon: LucideIcon }> = {
-  PERSON: { albanianLabel: 'Persona', color: '#3b82f6', border: '#1d4ed8', bg: 'rgba(59, 130, 246, 0.25)', icon: User },
-  ORGANIZATION: { albanianLabel: 'Institucione', color: '#8b5cf6', border: '#6d28d9', bg: 'rgba(139, 92, 246, 0.25)', icon: Building2 },
-  ACCOUNT: { albanianLabel: 'Llogari', color: '#10b981', border: '#047857', bg: 'rgba(16, 185, 129, 0.25)', icon: CreditCard },
-  LOCATION: { albanianLabel: 'Lokacione', color: '#f59e0b', border: '#b45309', bg: 'rgba(245, 158, 11, 0.25)', icon: MapPin },
-  EVENT: { albanianLabel: 'Ngjarje', color: '#ef4444', border: '#b91c1c', bg: 'rgba(239, 68, 68, 0.25)', icon: Calendar },
-  DOCUMENT: { albanianLabel: 'Dokumente', color: '#64748b', border: '#334155', bg: 'rgba(100, 116, 139, 0.25)', icon: FileText },
+const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; icon: LucideIcon; size: number }> = {
+  PERSON: { albanianLabel: 'Persona', bg: '#eab308', icon: User, size: 32 },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#a855f7', icon: Building2, size: 34 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#10b981', icon: CreditCard, size: 30 },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#06b6d4', icon: MapPin, size: 28 },
+  EVENT: { albanianLabel: 'Ngjarje', bg: '#ef4444', icon: Calendar, size: 30 },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#3b82f6', icon: FileText, size: 28 },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
-  REPRESENTED_BY: 'PËRFAQËSOHET NGA',
-  ASSOCIATED_WITH: 'I LIDHUR ME',
+  REPRESENTED_BY: 'PËRFAQËSOHET_NGA',
+  ASSOCIATED_WITH: 'LIDHUR_ME',
   TRANSFERRED_FUNDS: 'TRANSAKSION',
-  EMPLOYED_BY: 'I PUNËSUAR NË',
-  OWNED_BY: 'PRONËSI E',
-  PRESENT_AT: 'I PRANISHËM NË',
+  EMPLOYED_BY: 'PUNËSUAR_NË',
+  OWNED_BY: 'PRONËSI_E',
+  PRESENT_AT: 'PRANISHËM_NË',
+  LOCATED_AT: 'LOKACIONI',
+  LOCATED_IN: 'LOKACIONI',
   CONTRADICTS: 'KUNDËRTHËNJE',
   OWES_MONEY: 'DETYRIM',
   SIGNED: 'NËNSHKRUAR',
-  MENTIONED_IN: 'PËRMENDUR NË'
+  MENTIONED_IN: 'PËRMENDUR_NË',
+  HAS_ACCOUNT: 'LLOGARI_BANKARE',
+  WORKED_AT: 'PUNËSUAR_NË',
+  PARTY_TO: 'PALË_NË'
 };
 
 const formatRelationText = (rel: string): string => {
   const clean = rel.toUpperCase().trim().replace(/ /g, '_');
-  return RELATION_ALBANIAN_MAP[clean] || clean.replace(/_/g, ' ');
+  return RELATION_ALBANIAN_MAP[clean] || clean;
+};
+
+const getLineRotationAngle = (x1: number, y1: number, x2: number, y2: number): number => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  if (angle > 90 || angle < -90) {
+    angle += 180;
+  }
+  return angle;
 };
 
 export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
   const [graphData, setGraphData] = useState<CaseGraphData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   
-  // Selection State
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
-  // Filters
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Rebuild & Export State
   const [rebuilding, setRebuilding] = useState<boolean>(false);
-  const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
   const [exporting, setExporting] = useState<boolean>(false);
 
-  // Modals State
-  const [mergeModalOpen, setMergeModalOpen] = useState<boolean>(false);
-  const [secondaryNodeIdToMerge, setSecondaryNodeIdToMerge] = useState<string>('');
-  const [isMerging, setIsMerging] = useState<boolean>(false);
+  // In-Modal Entity Chat State
+  const [entityChatOpen, setEntityChatOpen] = useState<boolean>(false);
+  const [chatEntityName, setChatEntityName] = useState<string>('');
+  const [entityMessages, setEntityMessages] = useState<ChatMsg[]>([]);
+  const [inputQuestion, setInputQuestion] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  const [customEdgeModalOpen, setCustomEdgeModalOpen] = useState<boolean>(false);
-  const [edgeSourceId, setEdgeSourceId] = useState<string>('');
-  const [edgeTargetId, setEdgeTargetId] = useState<string>('');
-  const [edgeRelation, setEdgeRelation] = useState<string>('ASSOCIATED_WITH');
-  const [edgeEvidenceText, setEdgeEvidenceText] = useState<string>('');
-  const [edgeAmountEur, setEdgeAmountEur] = useState<string>('');
-  const [isAddingEdge, setIsAddingEdge] = useState<boolean>(false);
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
 
-  const [crossCaseSearchOpen, setCrossCaseSearchOpen] = useState<boolean>(false);
-  const [crossCaseQuery, setCrossCaseQuery] = useState<string>('');
-  const [crossCaseResults, setCrossCaseResults] = useState<CrossCaseMatch[]>([]);
-  const [crossCaseLoading, setCrossCaseLoading] = useState<boolean>(false);
-
-  // SVG Pan & Zoom (OPTIMAL DEFAULT 1100 x 750 VIEWBOX)
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -550, y: -375, width: 1100, height: 750 });
+  const [viewBox, setViewBox] = useState({ x: -700, y: -450, width: 1400, height: 900 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
   const fetchGraph = async () => {
     setLoading(true);
-    setError(null);
     try {
       const data: CaseGraphData = await apiService.getCaseGraph(caseId);
       setGraphData(data);
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Gabim gjatë lidhjes me serverin.';
-      setError(msg);
+    } catch (err) {
+      console.error('Failed to load graph:', err);
     } finally {
       setLoading(false);
     }
@@ -157,6 +156,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   useEffect(() => {
     if (caseId) fetchGraph();
   }, [caseId]);
+
+  useEffect(() => {
+    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [entityMessages, isSending]);
 
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
@@ -170,29 +173,39 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     });
   }, [graphData?.nodes, activeFilter, searchQuery]);
 
-  // NON-PASSIVE WHEEL LISTENER (GUARANTEED ATTACHMENT AFTER SVG MOUNT)
   useEffect(() => {
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
+    if (filteredNodes.length === 0) return;
+    const initialPos: Record<string, { x: number; y: number }> = {};
+    
+    const clusters: Record<string, OntologyNode[]> = {};
+    filteredNodes.forEach(n => {
+      if (!clusters[n.type]) clusters[n.type] = [];
+      clusters[n.type].push(n);
+    });
 
-    const handleNonPassiveWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
-      setViewBox((prev) => ({
-        x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-        y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-        width: prev.width * zoomFactor,
-        height: prev.height * zoomFactor,
-      }));
-    };
+    const clusterKeys = Object.keys(clusters);
+    const numClusters = clusterKeys.length;
 
-    svgEl.addEventListener('wheel', handleNonPassiveWheel, { passive: false });
-    return () => {
-      svgEl.removeEventListener('wheel', handleNonPassiveWheel);
-    };
-  }, [loading, filteredNodes.length]);
+    clusterKeys.forEach((typeKey, cIndex) => {
+      const clusterNodes = clusters[typeKey];
+      const clusterAngle = (cIndex * 2 * Math.PI) / numClusters;
+      const clusterCenterX = Math.cos(clusterAngle) * 450;
+      const clusterCenterY = Math.sin(clusterAngle) * 320;
 
-  // ON-SCREEN BUTTON ZOOM HANDLERS
+      const subRadius = Math.max(160, clusterNodes.length * 40);
+
+      clusterNodes.forEach((node, nIndex) => {
+        const subAngle = (nIndex * 2 * Math.PI) / clusterNodes.length;
+        initialPos[node.id] = {
+          x: Math.round(clusterCenterX + Math.cos(subAngle) * subRadius),
+          y: Math.round(clusterCenterY + Math.sin(subAngle) * subRadius)
+        };
+      });
+    });
+
+    setPositions(initialPos);
+  }, [filteredNodes]);
+
   const handleZoomIn = () => {
     const zoomFactor = 0.85;
     setViewBox((prev) => ({
@@ -214,19 +227,16 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleResetZoom = () => {
-    setViewBox({ x: -550, y: -375, width: 1100, height: 750 });
+    setViewBox({ x: -700, y: -450, width: 1400, height: 900 });
   };
 
   const handleRebuildGraph = async () => {
     setRebuilding(true);
-    setRebuildStatus(null);
     try {
-      const result = await apiService.rebuildCaseGraph(caseId);
-      setRebuildStatus(result.message);
+      await apiService.rebuildCaseGraph(caseId);
       setTimeout(() => fetchGraph(), 3000);
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Gabim gjatë kërkesës për rindërtim të grafikut.';
-      setRebuildStatus(msg);
+    } catch (err) {
+      console.error('Rebuild failed:', err);
     } finally {
       setRebuilding(false);
     }
@@ -243,59 +253,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
   };
 
-  const handleExecuteNodeMerge = async () => {
-    if (!selectedNode || !secondaryNodeIdToMerge) return;
-    setIsMerging(true);
-    try {
-      await apiService.mergeGraphNodes(caseId, selectedNode.id, secondaryNodeIdToMerge);
-      setMergeModalOpen(false);
-      setSelectedNode(null);
-      await fetchGraph();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Dështoi bashkimi i entiteteve.');
-    } finally {
-      setIsMerging(false);
-    }
-  };
-
-  const handleExecuteAddEdge = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!edgeSourceId || !edgeTargetId || !edgeRelation) return;
-    setIsAddingEdge(true);
-    try {
-      await apiService.createCustomGraphEdge(caseId, {
-        source: edgeSourceId,
-        target: edgeTargetId,
-        relation: edgeRelation,
-        evidence_text: edgeEvidenceText,
-        amount_eur: edgeAmountEur ? parseFloat(edgeAmountEur) : undefined,
-      });
-      setCustomEdgeModalOpen(false);
-      setEdgeEvidenceText('');
-      setEdgeAmountEur('');
-      await fetchGraph();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Dështoi krijimi i lidhjes manuale.');
-    } finally {
-      setIsAddingEdge(false);
-    }
-  };
-
-  const handleCrossCaseSearch = async (queryToSearch?: string) => {
-    const q = queryToSearch || crossCaseQuery;
-    if (!q || q.trim().length < 2) return;
-    
-    setCrossCaseLoading(true);
-    try {
-      const data: CrossCaseMatch[] = await apiService.searchFirmGraph(q.trim());
-      setCrossCaseResults(data);
-    } catch (err) {
-      console.error('Cross-case search error:', err);
-    } finally {
-      setCrossCaseLoading(false);
-    }
-  };
-
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
 
   const filteredEdges = useMemo(() => {
@@ -304,6 +261,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       (edge) => filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)
     );
   }, [graphData?.edges, filteredNodeIds]);
+
+  const connectedEdgesForSelectedNode = useMemo(() => {
+    if (!selectedNode || !graphData?.edges) return [];
+    return graphData.edges.filter(
+      (e) => e.source === selectedNode.id || e.target === selectedNode.id
+    );
+  }, [selectedNode, graphData?.edges]);
+
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, OntologyNode>();
+    graphData?.nodes?.forEach(n => map.set(n.id, n));
+    return map;
+  }, [graphData?.nodes]);
 
   const financialTotalsForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return { inEur: 0, outEur: 0, netEur: 0 };
@@ -320,42 +290,17 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { inEur, outEur, netEur: inEur - outEur };
   }, [selectedNode, graphData?.edges]);
 
-  // ORGANIC LAYOUT
-  const nodePositions = useMemo(() => {
-    const positions: Record<string, { x: number; y: number }> = {};
-    const nodes = filteredNodes;
-    const total = nodes.length;
+  const getSVGPoint = (clientX: number, clientY: number) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const pt = svgRef.current.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const transformed = pt.matrixTransform(svgRef.current.getScreenCTM()?.inverse());
+    return { x: transformed.x, y: transformed.y };
+  };
 
-    if (total === 0) return positions;
-
-    const typeGroups: Record<string, OntologyNode[]> = {};
-    nodes.forEach((n) => {
-      if (!typeGroups[n.type]) typeGroups[n.type] = [];
-      typeGroups[n.type].push(n);
-    });
-
-    const groupKeys = Object.keys(typeGroups);
-    const radiusStep = 220;
-
-    groupKeys.forEach((typeKey, gIndex) => {
-      const groupNodes = typeGroups[typeKey];
-      const radius = 170 + gIndex * radiusStep;
-      const angleStep = (2 * Math.PI) / groupNodes.length;
-
-      groupNodes.forEach((node, nIndex) => {
-        const angle = nIndex * angleStep + (gIndex * Math.PI) / 5;
-        positions[node.id] = {
-          x: Math.round(radius * Math.cos(angle)),
-          y: Math.round(radius * Math.sin(angle)),
-        };
-      });
-    });
-
-    return positions;
-  }, [filteredNodes]);
-
-  // Mouse Pan Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (draggedNodeId) return;
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
       setIsPanning(true);
       setStartPoint({ x: e.clientX, y: e.clientY });
@@ -363,56 +308,89 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPanning) return;
-    const dx = (e.clientX - startPoint.x) * (viewBox.width / 1100);
-    const dy = (e.clientY - startPoint.y) * (viewBox.height / 750);
-    setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
-    setStartPoint({ x: e.clientX, y: e.clientY });
-  };
+    if (draggedNodeId) {
+      const point = getSVGPoint(e.clientX, e.clientY);
+      setPositions(prev => ({
+        ...prev,
+        [draggedNodeId]: { x: Math.round(point.x), y: Math.round(point.y) }
+      }));
+      return;
+    }
 
-  const handleMouseUp = () => setIsPanning(false);
-
-  // Native Mobile Touch Pan Handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      setIsPanning(true);
-      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    if (isPanning) {
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 1400);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 900);
+      setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+      setStartPoint({ x: e.clientX, y: e.clientY });
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPanning || e.touches.length !== 1) return;
-    const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1100);
-    const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 750);
-    setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
-    setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+  const handleMouseUp = () => {
+    setIsPanning(false);
+    setDraggedNodeId(null);
   };
 
-  const handleTouchEnd = () => setIsPanning(false);
+  const handleOpenEntityChat = (entityLabel: string) => {
+    setChatEntityName(entityLabel);
+    setEntityMessages([
+      {
+        id: '1',
+        role: 'ai',
+        content: `Përshëndetje! Jam Sokrati AI. Çfarë dëshironi të dini rreth entitetit **"${entityLabel}"** në këtë lëndë?`
+      }
+    ]);
+    setEntityChatOpen(true);
+  };
 
-  const connectedEdgesForSelectedNode = useMemo(() => {
-    if (!selectedNode || !graphData?.edges) return [];
-    return graphData.edges.filter(
-      (e) => e.source === selectedNode.id || e.target === selectedNode.id
-    );
-  }, [selectedNode, graphData?.edges]);
+  const handleSendEntityQuestion = async (customPrompt?: string) => {
+    const q = customPrompt || inputQuestion.trim();
+    if (!q || isSending) return;
+
+    const userMsg: ChatMsg = { id: Date.now().toString(), role: 'user', content: q };
+    const aiMsgPlaceholder: ChatMsg = { id: (Date.now() + 1).toString(), role: 'ai', content: '' };
+
+    setEntityMessages(prev => [...prev, userMsg, aiMsgPlaceholder]);
+    if (!customPrompt) setInputQuestion('');
+    setIsSending(true);
+
+    try {
+      const fullPrompt = `Lidhja me Entitetin: "${chatEntityName}".\nPyetja e Avokatit: ${q}`;
+      const stream = apiService.sendChatMessageStream(caseId, fullPrompt, undefined, 'ks', 'FAST');
+      
+      let acc = '';
+      for await (const chunk of stream) {
+        acc += chunk;
+        setEntityMessages(prev => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
+          return copy;
+        });
+      }
+    } catch (err) {
+      setEntityMessages(prev => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { ...copy[copy.length - 1], content: "[Gabim gjatë marrjes së përgjigjes në chat.]" };
+        return copy;
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
       
-      {/* SINGLE CONSOLIDATED 1-ROW EXECUTIVE CONTROL BAR */}
-      <div className="flex items-center justify-between px-2.5 sm:px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-11 sm:h-12">
-        
-        {/* Left: Search & Filter Pills */}
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-          <div className="relative w-32 sm:w-48 shrink-0">
+      {/* CONTROL BAR */}
+      <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="relative w-36 sm:w-48 shrink-0">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
             <input
               type="text"
-              placeholder="Kërko..."
+              placeholder="Kërko entitetin..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-2 py-1 text-[11px] text-text-primary placeholder-text-muted focus:outline-none focus:ring-1 focus:ring-primary-start"
+              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-2 py-1 text-[11px] text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
             />
           </div>
 
@@ -440,7 +418,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: conf.color }} />
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: conf.bg }} />
                   <span className="hidden sm:inline">{conf.albanianLabel}</span>
                   <span className="font-mono text-text-secondary">({count})</span>
                 </button>
@@ -449,109 +427,35 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         </div>
 
-        {/* Right: Interactive Zoom Buttons & Actions */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          
-          {/* ON-SCREEN ZOOM CONTROLS */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="flex items-center gap-0.5 bg-canvas p-0.5 rounded-lg border border-main">
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
-              title="Zmadho (+)"
-            >
-              <ZoomIn size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={handleResetZoom}
-              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
-              title="Reset Zoom"
-            >
-              <Maximize2 size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
-              title="Zvogëlo (-)"
-            >
-              <ZoomOut size={14} />
-            </button>
+            <button type="button" onClick={handleZoomIn} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zmadho"><ZoomIn size={14} /></button>
+            <button type="button" onClick={handleResetZoom} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Reset"><Maximize2 size={13} /></button>
+            <button type="button" onClick={handleZoomOut} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zvogëlo"><ZoomOut size={14} /></button>
           </div>
 
-          <button
-            onClick={() => setCustomEdgeModalOpen(true)}
-            className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all"
-            title="Krijo lidhje"
-          >
-            <Plus className="w-3.5 h-3.5 text-primary-start" />
-            <span className="hidden sm:inline">Lidhje</span>
+          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1 px-2.5 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase disabled:opacity-50">
+            <Download className="w-3.5 h-3.5 text-primary-start" /> <span className="hidden sm:inline">{exporting ? '...' : 'Eksporto'}</span>
           </button>
 
-          <button
-            onClick={handleExportCourtReport}
-            disabled={exporting}
-            className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50"
-            title="Eksporto"
-          >
-            <Download className="w-3.5 h-3.5 text-primary-start" />
-            <span className="hidden sm:inline">{exporting ? '...' : 'Eksporto'}</span>
-          </button>
-
-          <button
-            onClick={handleRebuildGraph}
-            disabled={rebuilding}
-            className="flex items-center gap-1 px-2.5 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-[10px] font-bold uppercase transition-all disabled:opacity-50 shadow-sm"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{rebuilding ? 'Proceson...' : 'Rirregullo'}</span>
+          <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1 px-3 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-[10px] font-bold uppercase shadow-sm">
+            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Rirregullo</span>
           </button>
         </div>
       </div>
 
-      {/* REBUILD BANNER */}
-      {rebuildStatus && (
-        <div className="bg-primary-start/10 border-b border-primary-start/30 px-3 py-1 flex items-center justify-between text-[10px] sm:text-[11px] text-primary-start font-medium z-10 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 text-primary-start shrink-0" />
-            <span className="truncate">{rebuildStatus}</span>
-          </div>
-          <button onClick={() => setRebuildStatus(null)} className="text-primary-start hover:opacity-80">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* GRAPH CANVAS CONTAINER */}
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
-        
-        {/* SVG GRAPH CANVAS AREA */}
         <div className="flex-1 h-full w-full relative">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted">
               <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
               <p className="text-xs font-semibold">Po ngarkohet Ontologjia e Provave...</p>
             </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-rose-500">
-              <ShieldAlert className="w-8 h-8" />
-              <p className="text-xs font-semibold">{error}</p>
-              <button onClick={fetchGraph} className="mt-2 text-xs bg-surface border border-main px-3 py-1 rounded-xl text-text-primary font-bold">
-                Riprovo Ngarkimin
-              </button>
-            </div>
           ) : filteredNodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6 text-center">
-              <Layers className="w-12 h-12 text-text-muted/60" />
-              <h3 className="text-sm font-bold text-text-primary">Nuk u gjetën entitete të nxjerra në këtë lëndë</h3>
-              <p className="text-xs text-text-secondary max-w-md leading-relaxed">
-                Klikoni butonin &quot;Rirregullo&quot; më sipër që inteligjenca artificiale të skanojë dokumentet dhe të ndërtojë grafikun.
-              </p>
-              <button
-                onClick={handleRebuildGraph}
-                className="mt-2 px-5 py-2 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase shadow-md transition-all"
-              >
+              <Layers className="w-12 h-12 opacity-40" />
+              <h3 className="text-sm font-bold text-text-primary">Nuk u gjetën entitete të nxjerra</h3>
+              <button onClick={handleRebuildGraph} className="mt-2 px-5 py-2 bg-primary-start text-white rounded-xl text-xs font-bold uppercase shadow-md">
                 Gjenero Grafikun Tani
               </button>
             </div>
@@ -563,167 +467,145 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              onWheel={(e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
+                setViewBox((prev) => ({
+                  x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+                  y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+                  width: prev.width * zoomFactor,
+                  height: prev.height * zoomFactor,
+                }));
+              }}
             >
               <defs>
-                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
-                  <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" className="text-text-muted/60" />
+                <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
+                  <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
                 </marker>
-                <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                <marker id="arrowhead-selected" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
+                  <polygon points="0 0, 6 2, 0 4" fill="#3b82f6" />
                 </marker>
-                <marker id="arrowhead-contradiction" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+                <marker id="arrowhead-contradiction" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
+                  <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
                 </marker>
               </defs>
 
-              {/* EDGES & ALBANIAN LABELS */}
               <g className="edges">
-                {filteredEdges.map((edge, index) => {
-                  const sourcePos = nodePositions[edge.source];
-                  const targetPos = nodePositions[edge.target];
+                {filteredEdges.map((edge) => {
+                  const sourcePos = positions[edge.source];
+                  const targetPos = positions[edge.target];
                   if (!sourcePos || !targetPos) return null;
 
                   const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
-
-                  const dx = targetPos.x - sourcePos.x;
-                  const dy = targetPos.y - sourcePos.y;
-                  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                  
-                  const curveDirection = index % 2 === 0 ? 1 : -1;
-                  const curveOffset = Math.min(dist * 0.22, 75) * curveDirection;
+                  const isHovered = hoveredEdgeId === edge.id;
 
                   const midX = (sourcePos.x + targetPos.x) / 2;
                   const midY = (sourcePos.y + targetPos.y) / 2;
 
-                  const ctrlX = midX - (dy / dist) * curveOffset;
-                  const ctrlY = midY + (dx / dist) * curveOffset;
-
-                  const pathData = `M ${sourcePos.x} ${sourcePos.y} Q ${ctrlX} ${ctrlY} ${targetPos.x} ${targetPos.y}`;
                   const albanianLabel = formatRelationText(edge.relation);
+                  const angle = getLineRotationAngle(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y);
+
+                  const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
+                  const maskWidth = Math.max(40, labelDisplayText.length * 5.2);
 
                   return (
                     <g
                       key={edge.id}
-                      className="group cursor-pointer transition-opacity duration-200"
+                      className="group cursor-pointer"
                       onClick={() => setSelectedEdge(edge)}
+                      onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                      onMouseLeave={() => setHoveredEdgeId(null)}
                     >
-                      <path
-                        d={pathData}
-                        fill="none"
-                        stroke={
-                          isContradiction
-                            ? '#ef4444'
-                            : isSelected
-                            ? '#3b82f6'
-                            : 'currentColor'
-                        }
-                        className={`${
-                          isContradiction
-                            ? 'animate-pulse'
-                            : isSelected
-                            ? ''
-                            : 'text-text-muted/40'
-                        } transition-all duration-200`}
-                        strokeWidth={isContradiction || isSelected ? 3 : 1.5}
-                        strokeDasharray={isContradiction ? '6,6' : 'none'}
-                        markerEnd={
-                          isContradiction
-                            ? 'url(#arrowhead-contradiction)'
-                            : isSelected
-                            ? 'url(#arrowhead-selected)'
-                            : 'url(#arrowhead)'
-                        }
+                      <line
+                        x1={sourcePos.x}
+                        y1={sourcePos.y}
+                        x2={targetPos.x}
+                        y2={targetPos.y}
+                        stroke="transparent"
+                        strokeWidth="20"
                       />
 
-                      {/* HIGH-CONTRAST BADGE */}
-                      <rect
-                        x={ctrlX - 60}
-                        y={ctrlY - 12}
-                        width="120"
-                        height="24"
-                        rx="6"
-                        fill={isContradiction ? '#450a0a' : 'var(--bg-surface, #ffffff)'}
-                        stroke={isContradiction ? '#ef4444' : isSelected ? '#3b82f6' : 'currentColor'}
-                        className={isContradiction ? '' : isSelected ? '' : 'text-main'}
-                        strokeWidth="1.5"
+                      <line
+                        x1={sourcePos.x}
+                        y1={sourcePos.y}
+                        x2={targetPos.x}
+                        y2={targetPos.y}
+                        stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 2.5 : 1.2}
+                        strokeDasharray={isContradiction ? '4,4' : 'none'}
+                        markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
+                        opacity={isHovered || isSelected || isContradiction ? 1 : 0.65}
                       />
-                      <text
-                        x={ctrlX}
-                        y={ctrlY + 4}
-                        textAnchor="middle"
-                        fill={isContradiction ? '#fca5a5' : isSelected ? '#3b82f6' : 'currentColor'}
-                        className={isContradiction ? 'font-black' : isSelected ? 'font-black' : 'text-text-muted font-bold'}
-                        fontSize="11"
-                      >
-                        {edge.amount_eur
-                          ? `€${edge.amount_eur.toLocaleString()}`
-                          : albanianLabel.length > 15
-                          ? `${albanianLabel.substring(0, 13)}..`
-                          : albanianLabel}
-                      </text>
+
+                      <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
+                        <rect
+                          x={-maskWidth / 2}
+                          y={-6}
+                          width={maskWidth}
+                          height={12}
+                          fill="var(--bg-canvas, #090d16)"
+                          rx={2}
+                        />
+                        <text
+                          x={0}
+                          y={3}
+                          textAnchor="middle"
+                          fill={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
+                          fontSize="8"
+                          fontWeight="700"
+                          letterSpacing="0.4px"
+                          className="select-none uppercase font-mono pointer-events-none"
+                        >
+                          {labelDisplayText}
+                        </text>
+                      </g>
                     </g>
                   );
                 })}
               </g>
 
-              {/* ENLARGED ENTITY NODES */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
-                  const pos = nodePositions[node.id];
-                  if (!pos) return null;
-
+                  const pos = positions[node.id] || { x: 0, y: 0 };
                   const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
                   const isSelected = selectedNode?.id === node.id;
-                  const Icon = config.icon;
+
+                  const labelText = node.label.length > 14 ? `${node.label.substring(0, 12)}..` : node.label;
 
                   return (
                     <g
                       key={node.id}
                       transform={`translate(${pos.x}, ${pos.y})`}
-                      className="cursor-pointer group transition-opacity duration-200"
-                      onClick={(e) => {
+                      className="cursor-grab active:cursor-grabbing group"
+                      onMouseDown={(e) => {
                         e.stopPropagation();
+                        setDraggedNodeId(node.id);
                         setSelectedNode(node);
                         setSelectedEdge(null);
                       }}
                     >
                       {isSelected && (
-                        <circle
-                          r="38"
-                          fill="none"
-                          stroke="#3b82f6"
-                          strokeWidth="3"
-                          className="animate-pulse"
-                        />
+                        <circle r={config.size + 8} fill="none" stroke="#3b82f6" strokeWidth="3" className="animate-pulse" />
                       )}
 
                       <circle
-                        r="28"
+                        r={config.size}
                         fill={config.bg}
-                        stroke={isSelected ? '#3b82f6' : config.color}
-                        strokeWidth={isSelected ? '3.5' : '2.5'}
-                        className="transition-all duration-200 group-hover:scale-110 shadow-xl"
+                        stroke="#ffffff"
+                        strokeWidth="2.5"
+                        className="transition-transform duration-100 group-hover:scale-110 shadow-2xl"
                       />
 
-                      <foreignObject x="-14" y="-14" width="28" height="28" className="pointer-events-none">
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Icon className="w-6 h-6" style={{ color: config.color }} />
-                        </div>
-                      </foreignObject>
-
                       <text
-                        y="48"
+                        y="3.5"
                         textAnchor="middle"
-                        fill="currentColor"
-                        fontSize="14"
-                        fontWeight="bold"
-                        className="text-text-primary pointer-events-none drop-shadow-md"
+                        fill="#ffffff"
+                        fontSize="9.5"
+                        fontWeight="900"
+                        className="select-none uppercase tracking-tight pointer-events-none font-sans"
                       >
-                        {node.label.length > 22 ? `${node.label.substring(0, 20)}...` : node.label}
+                        {labelText}
                       </text>
                     </g>
                   );
@@ -733,88 +615,69 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           )}
         </div>
 
-        {/* RESPONSIVE INSPECTOR */}
+        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL */}
         {(selectedNode || selectedEdge) && (
-          <div className="fixed sm:relative inset-x-0 bottom-0 sm:inset-auto sm:w-80 bg-surface border-t sm:border-t-0 sm:border-l border-main p-4 overflow-y-auto flex flex-col gap-3.5 z-30 shadow-2xl max-h-[55vh] sm:max-h-none rounded-t-3xl sm:rounded-none shrink-0 animate-in slide-in-from-bottom sm:slide-in-from-right duration-200">
-            
-            <div className="flex items-center justify-between border-b border-main pb-2.5">
-              <span className="text-xs font-bold text-primary-start uppercase tracking-wider">
-                {selectedNode ? 'Inspektori i Entitetit' : 'Inspektori i Lidhjes'}
+          <div className="w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll">
+            <div className="flex items-center justify-between border-b border-main pb-3">
+              <span className="text-xs font-black text-primary-start uppercase tracking-widest flex items-center gap-2">
+                <FileCheck size={16} /> {selectedNode ? 'Doshja e Entitetit' : 'Detajet e Lidhjes'}
               </span>
-              <button
-                onClick={() => {
-                  setSelectedNode(null);
-                  setSelectedEdge(null);
-                }}
-                className="p-1 text-text-muted hover:text-text-primary transition-colors"
-              >
-                <X className="w-4 h-4" />
+              <button onClick={() => { setSelectedNode(null); setSelectedEdge(null); }} className="p-1 text-text-muted hover:text-text-primary rounded-lg">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {selectedNode && (
-              <>
-                <div className="flex items-start gap-3">
-                  <div
-                    className="p-2.5 rounded-xl border shrink-0"
-                    style={{
-                      backgroundColor: ENTITY_CONFIG[selectedNode.type].bg,
-                      borderColor: ENTITY_CONFIG[selectedNode.type].color,
-                    }}
-                  >
-                    {React.createElement(ENTITY_CONFIG[selectedNode.type].icon, {
-                      className: 'w-6 h-6',
-                      style: { color: ENTITY_CONFIG[selectedNode.type].color },
-                    })}
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 bg-canvas border border-main rounded-2xl">
+                  <div className="p-3 rounded-2xl text-white shrink-0 border border-white/20 shadow-md" style={{ backgroundColor: ENTITY_CONFIG[selectedNode.type].bg }}>
+                    {React.createElement(ENTITY_CONFIG[selectedNode.type].icon, { className: 'w-6 h-6 text-white' })}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-text-primary">{selectedNode.label}</h4>
-                    <span
-                      className="inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase"
-                      style={{
-                        backgroundColor: ENTITY_CONFIG[selectedNode.type].bg,
-                        color: ENTITY_CONFIG[selectedNode.type].color,
-                      }}
-                    >
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-black text-base text-text-primary leading-snug">{selectedNode.label}</h4>
+                    <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase text-white tracking-wider" style={{ backgroundColor: ENTITY_CONFIG[selectedNode.type].bg }}>
                       {ENTITY_CONFIG[selectedNode.type].albanianLabel}
                     </span>
                   </div>
                 </div>
 
                 {(financialTotalsForSelectedNode.inEur > 0 || financialTotalsForSelectedNode.outEur > 0) && (
-                  <div className="bg-canvas p-3 rounded-xl border border-main text-xs flex flex-col gap-1.5 shadow-sm">
-                    <span className="text-[10px] font-black text-primary-start uppercase tracking-wider flex items-center gap-1">
-                      <Euro size={12} /> Bilanct e Transaksioneve
+                  <div className="bg-canvas p-4 rounded-2xl border border-main space-y-2">
+                    <span className="text-[10px] font-black text-primary-start uppercase tracking-widest flex items-center gap-1.5">
+                      <Euro size={14} /> Balanca e Transaksioneve
                     </span>
-                    <div className="flex justify-between text-emerald-600 font-bold">
+                    <div className="flex justify-between text-xs font-bold text-emerald-400">
                       <span>Të Pranuara:</span>
                       <span>+€{financialTotalsForSelectedNode.inEur.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-rose-500 font-bold">
+                    <div className="flex justify-between text-xs font-bold text-rose-400">
                       <span>Të Paguara:</span>
                       <span>-€{financialTotalsForSelectedNode.outEur.toLocaleString()}</span>
                     </div>
-                    <div className="border-t border-main pt-1 flex justify-between font-black text-text-primary">
-                      <span>Neto:</span>
+                    <div className="border-t border-main pt-2 flex justify-between font-black text-sm text-text-primary">
+                      <span>Bilanci Neto:</span>
                       <span>€{financialTotalsForSelectedNode.netEur.toLocaleString()}</span>
                     </div>
                   </div>
                 )}
 
                 {selectedNode.description && (
-                  <div className="bg-canvas p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
-                    <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Roli / Konteksti Ligjor</span>
-                    {selectedNode.description}
+                  <div className="bg-canvas p-4 rounded-2xl border border-main space-y-1.5">
+                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
+                    <p className="text-xs text-text-secondary leading-relaxed font-medium">{selectedNode.description}</p>
                   </div>
                 )}
 
-                <div>
-                  <span className="text-[10px] font-bold text-text-muted uppercase block mb-2">
-                    Lidhjet e Dokumentuara ({connectedEdgesForSelectedNode.length})
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
+                    Veprimet & Lidhjet Ligjore ({connectedEdgesForSelectedNode.length})
                   </span>
-                  <div className="flex flex-col gap-2">
+                  <div className="space-y-2 max-h-60 overflow-y-auto custom-finance-scroll pr-1">
                     {connectedEdgesForSelectedNode.map((e) => {
+                      const otherNodeId = e.source === selectedNode.id ? e.target : e.source;
+                      const otherNode = nodeMap.get(otherNodeId);
                       const isContradiction = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR');
+
                       return (
                         <div
                           key={e.id}
@@ -825,15 +688,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                               : 'bg-canvas border-main hover:border-primary-start'
                           }`}
                         >
-                          <div className="flex items-center justify-between font-bold text-[11px]">
-                            <span className={isContradiction ? 'text-rose-500 flex items-center gap-1' : 'text-text-primary'}>
+                          <div className="flex items-center justify-between font-black text-[11px]">
+                            <span className={isContradiction ? 'text-rose-400 flex items-center gap-1 uppercase' : 'text-primary-start uppercase'}>
                               {isContradiction && <AlertTriangle size={12} />}
                               {formatRelationText(e.relation)}
                             </span>
-                            <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+                            {otherNode && (
+                              <span className="text-text-primary truncate max-w-[120px] font-bold">
+                                {otherNode.label}
+                              </span>
+                            )}
                           </div>
                           {e.evidence_text && (
-                            <p className="text-[11px] text-text-secondary italic line-clamp-2">&quot;{e.evidence_text}&quot;</p>
+                            <p className="text-[11px] text-text-secondary italic line-clamp-2 mt-1">&quot;{e.evidence_text}&quot;</p>
                           )}
                         </div>
                       );
@@ -841,295 +708,101 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 mt-1">
-                  <button
-                    onClick={() => setMergeModalOpen(true)}
-                    className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all shadow-sm"
-                  >
-                    <GitMerge size={14} className="text-primary-start" />
-                    <span>Bashko Entitetin</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setCrossCaseQuery(selectedNode.label);
-                      setCrossCaseSearchOpen(true);
-                      handleCrossCaseSearch(selectedNode.label);
-                    }}
-                    className="w-full py-2 bg-purple-600/10 hover:bg-purple-600/20 text-purple-600 border border-purple-500/30 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Kërko në lëndët tjera</span>
-                  </button>
-                </div>
-              </>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEntityChat(selectedNode.label)}
+                  className="w-full py-3 bg-primary-start hover:bg-opacity-95 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary-start/15 transition-all"
+                >
+                  <MessageCircle size={16} /> Pyet AI për këtë person
+                </button>
+              </div>
             )}
 
             {selectedEdge && (
-              <>
-                <div className={`p-3 rounded-xl border flex flex-col gap-1 ${
-                  selectedEdge.relation.includes('CONTRADICT') ? 'bg-rose-500/10 border-rose-500/30' : 'bg-canvas border-main'
-                }`}>
-                  <span className="text-[10px] font-bold text-text-muted uppercase">Lidhja Ligjore</span>
-                  <span className="font-bold text-sm text-primary-start">{formatRelationText(selectedEdge.relation)}</span>
+              <div className="bg-canvas p-4 rounded-2xl border border-main space-y-3">
+                <div className="flex items-center justify-between border-b border-main pb-2">
+                  <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Lidhja Ligjore</span>
                   {selectedEdge.amount_eur && (
-                    <span className="text-xs font-mono font-bold text-emerald-600">Shuma: €{selectedEdge.amount_eur.toLocaleString()}</span>
+                    <span className="text-xs font-mono font-black text-emerald-400">€{selectedEdge.amount_eur.toLocaleString()}</span>
                   )}
                 </div>
+                
+                <h4 className="font-black text-sm text-primary-start uppercase">{formatRelationText(selectedEdge.relation)}</h4>
 
                 {selectedEdge.evidence_text && (
-                  <div className="bg-canvas p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
-                    <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Prova nga Teksti</span>
+                  <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
+                    <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Dëshmia nga Dokumentet</span>
                     <p className="italic text-text-primary">&quot;{selectedEdge.evidence_text}&quot;</p>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {/* MERGE NODE MODAL */}
-      {mergeModalOpen && selectedNode && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-main rounded-3xl w-full max-w-md p-6 flex flex-col gap-4 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-main pb-3">
-              <div className="flex items-center gap-2 text-primary-start">
-                <GitMerge size={20} />
-                <h3 className="font-bold text-text-primary text-sm uppercase">Bashko Entitetin</h3>
-              </div>
-              <button onClick={() => setMergeModalOpen(false)} className="text-text-muted hover:text-text-primary">
-                <X size={18} />
-              </button>
-            </div>
-
-            <p className="text-xs text-text-secondary leading-relaxed">
-              Zgjidhni entitetin dytësor që dëshironi ta bashkoni brenda kryesorit <strong className="text-text-primary">&quot;{selectedNode.label}&quot;</strong>.
-            </p>
-
-            <select
-              value={secondaryNodeIdToMerge}
-              onChange={(e) => setSecondaryNodeIdToMerge(e.target.value)}
-              className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+      {/* IN-MODAL ENTITY CHAT DRAWER */}
+      <AnimatePresence>
+        {entityChatOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-4">
+            <motion.div
+              initial={{ x: 300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 300, opacity: 0 }}
+              className="w-full max-w-lg h-[90vh] bg-canvas border border-main rounded-3xl shadow-2xl flex flex-col overflow-hidden"
             >
-              <option value="">-- Zgjidh entitetin për ta shkrirë --</option>
-              {graphData?.nodes
-                .filter((n) => n.id !== selectedNode.id)
-                .map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.label} ({n.type})
-                  </option>
-                ))}
-            </select>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setMergeModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-main text-text-secondary hover:bg-hover">
-                Anulo
-              </button>
-              <button
-                onClick={handleExecuteNodeMerge}
-                disabled={!secondaryNodeIdToMerge || isMerging}
-                className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-primary-start text-white shadow-md hover:bg-primary-start/90 disabled:opacity-50"
-              >
-                {isMerging ? 'Duke bashkuar...' : 'Bashko Tani'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CUSTOM EDGE MODAL */}
-      {customEdgeModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleExecuteAddEdge} className="bg-surface border border-main rounded-3xl w-full max-w-lg p-6 flex flex-col gap-4 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-main pb-3">
-              <div className="flex items-center gap-2 text-primary-start">
-                <Plus size={20} />
-                <h3 className="font-bold text-text-primary text-sm uppercase">Shto Lidhje Manuale</h3>
-              </div>
-              <button type="button" onClick={() => setCustomEdgeModalOpen(false)} className="text-text-muted hover:text-text-primary">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Entiteti Burim</label>
-                <select
-                  value={edgeSourceId}
-                  onChange={(e) => setEdgeSourceId(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none"
-                  required
-                >
-                  <option value="">-- Zgjidh Burimin --</option>
-                  {graphData?.nodes.map((n) => (
-                    <option key={n.id} value={n.id}>{n.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Entiteti Synim</label>
-                <select
-                  value={edgeTargetId}
-                  onChange={(e) => setEdgeTargetId(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none"
-                  required
-                >
-                  <option value="">-- Zgjidh Synimin --</option>
-                  {graphData?.nodes.map((n) => (
-                    <option key={n.id} value={n.id}>{n.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Tipi i Marëdhënies</label>
-                <select
-                  value={edgeRelation}
-                  onChange={(e) => setEdgeRelation(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none font-bold"
-                >
-                  <option value="TRANSFERRED_FUNDS">TRANSAKSION FINANCIAR</option>
-                  <option value="CONTRADICTS">KUNDËRTHËNJE</option>
-                  <option value="ASSOCIATED_WITH">I LIDHUR ME</option>
-                  <option value="EMPLOYED_BY">I PUNËSUAR NË</option>
-                  <option value="OWNED_BY">PRONËSI E</option>
-                  <option value="REPRESENTED_BY">PËRFAQËSOHET NGA</option>
-                  <option value="OWES_MONEY">DETYRIM FINANCIAR</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Shuma në Euro (€)</label>
-                <input
-                  type="number"
-                  placeholder="p.sh. 15000"
-                  value={edgeAmountEur}
-                  onChange={(e) => setEdgeAmountEur(e.target.value)}
-                  className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs font-mono text-text-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-text-muted uppercase block mb-1">Citat nga Prova (Evidence Text)</label>
-              <textarea
-                placeholder="Shkruaj citatin apo shënimin mbrojtës nga dokumenti..."
-                value={edgeEvidenceText}
-                onChange={(e) => setEdgeEvidenceText(e.target.value)}
-                rows={2}
-                className="w-full p-2.5 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none resize-none"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setCustomEdgeModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold border border-main text-text-secondary hover:bg-hover">
-                Anulo
-              </button>
-              <button
-                type="submit"
-                disabled={isAddingEdge}
-                className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-primary-start text-white shadow-md hover:bg-primary-start/90 disabled:opacity-50"
-              >
-                {isAddingEdge ? 'Duke ruajtur...' : 'Ruaj Lidhjen'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* CROSS-CASE SEARCH MODAL */}
-      {crossCaseSearchOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95 text-slate-900 dark:text-slate-100">
-            
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-              <div className="flex items-center gap-2.5 text-purple-600 dark:text-purple-400">
-                <Sparkles className="w-5 h-5" />
-                <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wider">
-                  Inteligjenca e Ndërsjellë e Zyrës
-                </h3>
-              </div>
-              <button onClick={() => setCrossCaseSearchOpen(false)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-100/70 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Shkruaj emrin e dëshmitarit, kompanisë ose llogarisë bankare..."
-                value={crossCaseQuery}
-                onChange={(e) => setCrossCaseQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCrossCaseSearch()}
-                className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm"
-              />
-              <button
-                onClick={() => handleCrossCaseSearch()}
-                disabled={crossCaseLoading}
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all disabled:opacity-50 shadow-md"
-              >
-                {crossCaseLoading ? 'Kërkon...' : 'Kërko'}
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
-              {crossCaseLoading ? (
-                <div className="flex justify-center p-8">
-                  <RefreshCw className="w-6 h-6 animate-spin text-purple-600 dark:text-purple-400" />
-                </div>
-              ) : crossCaseResults.length === 0 ? (
-                <div className="text-center p-8 flex flex-col items-center gap-2">
-                  <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1" />
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 max-w-sm">
-                    Nuk u gjetën përputhje ndër-lëndore për këtë kërkim në arkivin e zyrës suaj.
-                  </p>
-                </div>
-              ) : (
-                crossCaseResults.map((match, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col gap-2 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5" />
-                        Lënda: {match.case_title}
-                      </span>
-                      <a
-                        href={`/cases/${match.case_id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-bold"
-                      >
-                        Hap Lëndën <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        {match.matched_entity.label}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 uppercase">
-                        {ENTITY_CONFIG[match.matched_entity.type]?.albanianLabel || match.matched_entity.type}
-                      </span>
-                    </div>
-
-                    {match.matched_entity.description && (
-                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                        {match.matched_entity.description}
-                      </p>
-                    )}
+              <div className="p-5 bg-surface border-b border-main flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
+                    <Bot size={20} />
                   </div>
-                ))
-              )}
-            </div>
+                  <div>
+                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {chatEntityName}</h3>
+                    <p className="text-[10px] text-text-muted font-bold uppercase">Konteksti Specifik i Entitetit</p>
+                  </div>
+                </div>
+                <button onClick={() => setEntityChatOpen(false)} className="p-2 text-text-muted hover:text-text-primary rounded-xl">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 p-5 overflow-y-auto custom-finance-scroll space-y-4">
+                {entityMessages.map((m) => (
+                  <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
+                      m.role === 'user' ? 'bg-primary-start text-white font-medium' : 'bg-surface border border-main text-text-primary font-medium'
+                    }`}>
+                      {m.content || <Loader2 className="animate-spin h-4 w-4 text-primary-start" />}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatScrollRef} />
+              </div>
+
+              <div className="p-4 bg-surface border-t border-main shrink-0 space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inputQuestion}
+                    onChange={(e) => setInputQuestion(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendEntityQuestion()}
+                    placeholder={`Bëj një pyetje për ${chatEntityName}...`}
+                    className="flex-1 h-11 px-4 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+                  />
+                  <button
+                    onClick={() => handleSendEntityQuestion()}
+                    disabled={!inputQuestion.trim() || isSending}
+                    className="h-11 px-5 bg-primary-start text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center shadow-md disabled:opacity-40"
+                  >
+                    {isSending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send size={16} />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
