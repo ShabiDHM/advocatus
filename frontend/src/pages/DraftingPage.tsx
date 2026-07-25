@@ -1,7 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.0 (UNIFIED UNLIMITED TIER)
-// 1. FIX: Bypassed 'isPro' checks globally, unlocking all legal templates and drafting modes for all users.
-// 2. FIX: AI now uses the requested 'selectedTemplate' unconditionally instead of degrading to 'generic' for non-pro accounts.
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.2 (100% TEMPLATE-SPECIFIC CUSTOM PROMPT MATRIX)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -60,12 +58,64 @@ const DraftingPage: React.FC = () => {
     return { status: null, result: null, error: null };
   });
 
-  // PHOENIX BYPASS: Set to 'true' globally to unlock all drafting templates under the unified general plan
   const isPro = true;
 
   useEffect(() => {
     apiService.getCases().then(setCases).catch(console.error);
   }, []);
+
+  // TEMPLATE & ROLE MATRIX AUTO-PROMPT GENERATOR
+  useEffect(() => {
+    if (!selectedCaseId || cases.length === 0) return;
+    const activeCase = cases.find((c: any) => String(c.id) === String(selectedCaseId));
+    if (!activeCase) return;
+
+    const pos = (activeCase.client_position || 'DEFENDANT').toUpperCase();
+    const caseTitle = activeCase.title || activeCase.case_name || 'Lënda';
+    const caseNum = activeCase.case_number ? `(Nr. ${activeCase.case_number})` : '';
+    const clientName = activeCase.client?.name || 'Klienti ynë';
+    const opposingParty = activeCase.opposing_party?.name || 'Pala Kundërshtare';
+
+    let generatedPrompt = '';
+
+    switch (selectedTemplate) {
+      case 'prapësim':
+        generatedPrompt = `Në emër të të paditurit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër paditësit (${opposingParty}):\n\n1. Paraqes këtë PRAPËSIM me të cilin kundërshtoj në tërësi kërkesëpadinë e paditësit si të pabazuar në ligj dhe në prova.\n2. Shfrytëzoj lëshimet procedurale, mungesën e autorizimit dhe parashkrimin e afateve.\n3. Kërkoj nga Gjykata hedhjen poshtë ose refuzimin e padisë.`;
+        break;
+      case 'padi':
+        generatedPrompt = `Në emër të paditësit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër të paditurit (${opposingParty}):\n\n1. Paraqes këtë KËRKESËPADI për vërtetimin e detyrimit dhe kompensimin e dëmit të shkaktuar.\n2. Kërkoj detyrimin e të paditurit për përmbushjen e të gjitha detyrimeve së bashku me kamatën vonesore.\n3. Kërkoj caktimin e masës së sigurisë për mbrojtjen e kërkesës sonë.`;
+        break;
+      case 'kunderpadi':
+        generatedPrompt = `Në emër të të paditurit/kundërpaditësit (${clientName}) kundër paditësit/të kundërpaditurit (${opposingParty}) në lëndën "${caseTitle}":\n\n1. Paraqes KUNDËRPADI për shkak të shkeljes së detyrimeve reciproke.\n2. Kërkoj kompensimin e dëmit të shkaktuar dhe përmbushjen e detyrimeve ligjore nga pala tjetër.`;
+        break;
+      case 'ankese':
+        generatedPrompt = `Në emër të palës (${clientName}) në lëndën "${caseTitle}" ${caseNum}:\n\n1. Paraqes ANKESË kundër vendimit të Gjykatës për shkak të shkeljeve esenciale të dispozitave të procedurës dhe vërtetimit të gabuar të gjendjes faktike.\n2. Kërkoj nga Gjykata e Shkallës së Dytë ndryshimin apo prishjen e vendimit të ankimuar.`;
+        break;
+      case 'employment_contract':
+        generatedPrompt = `Hartoj KONTRATË PUNE sipas Ligjit të Punës Nr. 03/L-212 ndërmjet Punëdhënësit (${clientName}) dhe Punëmarrësit (${opposingParty}) me kohë të caktuar/pacaktuar, orar të plotë dhe të drejta të garantuara.`;
+        break;
+      case 'lease_agreement':
+        generatedPrompt = `Hartoj KONTRATË QIRAJE sipas LMD-së ndërmjet Qiradhënësit (${clientName}) dhe Qiramarrësit (${opposingParty}) për shfrytëzimin e paluajtshmërisë me afat të përcaktuar dhe depozitë garancie.`;
+        break;
+      case 'nda':
+        generatedPrompt = `Hartoj MARRËVESHJE PËR MOSZBULIM TË INFORMACIONIT CONFIDENTIAL (NDA) midis palëve ${clientName} dhe ${opposingParty} për mbrojtjen e sekretit afarist dhe të dhënave komerciale.`;
+        break;
+      case 'power_of_attorney':
+        generatedPrompt = `Hartoj AUTORIZIM ZYRTAR (Prokurë) me të cilin ${clientName} autorizon avokatin për përfaqësim të plotë para të gjitha gjykatave, zyrave përmbarimore dhe organeve shtetërore në Kosovë.`;
+        break;
+      default:
+        if (pos === 'DEFENDANT') {
+          generatedPrompt = `Në emër të të paditurit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër paditësit (${opposingParty}):\n\n1. Kundërshtoj në tërësi pretendimet si të pabazuara.\n2. Kërkoj mbrojtje ligjore dhe hedhjen poshtë të kërkesës.`;
+        } else if (pos === 'PLAINTIFF') {
+          generatedPrompt = `Në emër të paditësit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër të paditurit (${opposingParty}):\n\n1. Paraqes këtë shkresë për vërtetimin e detyrimit dhe mbrojtjen e të drejtave tona.`;
+        } else {
+          generatedPrompt = `Hartoj një shkresë dhe analizë të paanshme ligjore për lëndën "${caseTitle}" ${caseNum} që përfshin palët ${clientName} dhe ${opposingParty}.`;
+        }
+        break;
+    }
+
+    setContext(generatedPrompt);
+  }, [selectedCaseId, selectedTemplate, cases]);
 
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
@@ -83,7 +133,7 @@ const DraftingPage: React.FC = () => {
       
       const stream = await apiService.draftLegalDocumentStream({
         user_prompt: securePrompt,
-        document_type: selectedTemplate, // Fully unlocked: always uses specific layout requested
+        document_type: selectedTemplate,
         case_id: selectedCaseId || undefined
       });
       
@@ -100,7 +150,6 @@ const DraftingPage: React.FC = () => {
     }
   };
 
-  // Generic Save to Archive (Required by ResultPanelProps)
   const handleSaveToArchive = async () => {
     if (!currentJob.result) return;
     setSaving(true);
@@ -116,7 +165,6 @@ const DraftingPage: React.FC = () => {
     }
   };
 
-  // Modal-driven Save with Custom Title
   const handleSaveWithTitle = async (title: string) => {
     if (!currentJob.result) return;
     setSaving(true);
@@ -142,11 +190,8 @@ const DraftingPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 flex flex-col h-full bg-canvas">
-        
-        {/* Responsive Dual Column workspace layout with standardized scroll parameters */}
         <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 sm:gap-8 mt-4 flex-1 lg:h-[730px] min-h-0">
           
-          {/* Left Column: Template configurations */}
           <div className="h-full overflow-y-auto custom-finance-scroll border border-main rounded-2xl bg-surface/30 p-4">
             <ConfigPanel
               t={t}
@@ -163,7 +208,6 @@ const DraftingPage: React.FC = () => {
             />
           </div>
 
-          {/* Right Column: Dynamic drafting stream results */}
           <div className="h-full overflow-y-auto custom-finance-scroll border border-main rounded-2xl bg-surface/30 p-4">
             <ResultPanel
               t={t}
