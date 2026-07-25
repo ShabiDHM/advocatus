@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V38.0 (MOBILE CHAT PANEL OVERLAP FIX)
+// PHOENIX PROTOCOL - CASE VIEW V39.0 (REDUNDANT BOT AVATAR REMOVED)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -38,7 +38,6 @@ import {
   Briefcase,
   Scale,
   ChevronRight,
-  Bot,
   Info
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
@@ -839,7 +838,7 @@ const CaseViewPage: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: AGJENTI I RASTIT (7 COLS) */}
+          {/* RIGHT COLUMN: AGJENTI I RASTIT (CLEAN TOP PADDING - NO OVERLAP) */}
           <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             
             <ChatPanel
@@ -856,17 +855,12 @@ const CaseViewPage: React.FC = () => {
               selectedDocumentCount={selectedDocumentIds.length}
             />
 
-            {/* AGJENTI I RASTIT COMMAND PALETTE (PERFECT TOP-14 POSITIONING - NO OVERLAP) */}
+            {/* AGJENTI I RASTIT COMMAND PALETTE (PERFECT TOP-16 POSITIONING - NO OVERLAP) */}
             {chatMessages.length === 0 && !isSendingMessage && (
-              <div className="absolute inset-x-2 sm:inset-x-6 top-14 sm:top-16 bottom-20 overflow-y-auto custom-finance-scroll pointer-events-none flex flex-col items-center justify-start text-center pt-2 sm:pt-4 pb-6 gap-2.5 sm:gap-3.5">
-                
-                {/* BOT AVATAR */}
-                <div className="w-9 h-9 sm:w-11 sm:h-11 bg-primary-start/10 border border-primary-start/20 rounded-2xl flex items-center justify-center text-primary-start shadow-sm shrink-0">
-                  <Bot size={18} className="sm:w-5 sm:h-5" />
-                </div>
+              <div className="absolute inset-x-2 sm:inset-x-6 top-16 sm:top-20 bottom-20 overflow-y-auto custom-finance-scroll pointer-events-none flex flex-col items-center justify-start text-center pt-2 sm:pt-4 pb-6 gap-2.5 sm:gap-3.5">
                 
                 {/* SALUTATION & DISCLAIMER */}
-                <div className="space-y-1 max-w-lg px-2">
+                <div className="space-y-1.5 max-w-lg px-2">
                   <h3 className="text-xs sm:text-base font-black uppercase text-text-primary tracking-tight">
                     Unë jam Agjenti i rastit tuaj, {userSalutation}
                   </h3>
@@ -876,14 +870,14 @@ const CaseViewPage: React.FC = () => {
                       : 'Asistenti juaj ligjor me AI për vërtetimin e kërkesëpadisë, provimin e përgjegjësisë dhe argumentimin e të drejtave të klientit.'}
                   </p>
 
-                  <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-canvas border border-main rounded-lg text-[9px] sm:text-[10px] text-text-muted font-medium mt-0.5">
-                    <Info size={10} className="text-primary-start shrink-0" />
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-canvas border border-main rounded-lg text-[9px] sm:text-[10px] text-text-muted font-medium mt-1">
+                    <Info size={11} className="text-primary-start shrink-0" />
                     <span>Përgjigjet e AI verifikohen nga avokati.</span>
                   </div>
                 </div>
 
                 {/* 2x2 COMMAND CARDS GRID */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full max-w-xl pointer-events-auto px-1 sm:px-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full max-w-xl pointer-events-auto px-1 sm:px-0 mt-1">
                   {[
                     {
                       title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
