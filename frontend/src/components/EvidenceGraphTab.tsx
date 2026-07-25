@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V24.0 (REACT NATIVE ONWHEEL SVG ZOOM)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V25.0 (MOBILE PINCH-TO-ZOOM & PASSIVE FIX)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -140,6 +140,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [viewBox, setViewBox] = useState({ x: -700, y: -450, width: 1400, height: 900 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
+  
+  // Mobile Touch Pinch State
+  const initialPinchDistRef = useRef<number | null>(null);
 
   const fetchGraph = async () => {
     setLoading(true);
@@ -205,6 +208,80 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     setPositions(initialPos);
   }, [filteredNodes]);
+
+  // NON-PASSIVE MOBILE TOUCH & WHEEL EVENT LISTENERS (FIXES PREVENTDEFAULT WARNINGS)
+  useEffect(() => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
+      setViewBox((prev) => ({
+        x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+        y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+        width: prev.width * zoomFactor,
+        height: prev.height * zoomFactor,
+      }));
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Start pinch to zoom
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialPinchDistRef.current = dist;
+      } else if (e.touches.length === 1) {
+        setIsPanning(true);
+        setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && initialPinchDistRef.current) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = initialPinchDistRef.current / dist;
+        const zoomFactor = factor > 1 ? 1.05 : 0.95;
+
+        setViewBox((prev) => ({
+          x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+          y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+          width: prev.width * zoomFactor,
+          height: prev.height * zoomFactor,
+        }));
+        initialPinchDistRef.current = dist;
+      } else if (e.touches.length === 1 && isPanning) {
+        e.preventDefault();
+        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1400);
+        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 900);
+        setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+        setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      }
+    };
+
+    const handleTouchEnd = () => {
+      initialPinchDistRef.current = null;
+      setIsPanning(false);
+    };
+
+    svgEl.addEventListener('wheel', handleWheel, { passive: false });
+    svgEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+    svgEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+    svgEl.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      svgEl.removeEventListener('wheel', handleWheel);
+      svgEl.removeEventListener('touchstart', handleTouchStart);
+      svgEl.removeEventListener('touchmove', handleTouchMove);
+      svgEl.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [loading, isPanning, viewBox, startPoint]);
 
   const handleZoomIn = () => {
     const zoomFactor = 0.85;
@@ -467,16 +544,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onWheel={(e) => {
-                e.preventDefault();
-                const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
-                setViewBox((prev) => ({
-                  x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-                  y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-                  width: prev.width * zoomFactor,
-                  height: prev.height * zoomFactor,
-                }));
-              }}
             >
               <defs>
                 <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
