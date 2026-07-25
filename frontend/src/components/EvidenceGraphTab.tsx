@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V9.0 (MOBILE TOUCH GESTURES & BOTTOM SHEET INSPECTOR)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V10.0 (GUARANTEED MOUSE WHEEL ZOOM & ON-SCREEN CONTROLS)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -24,7 +24,10 @@ import {
   Plus,
   GitMerge,
   Euro,
-  AlertTriangle
+  AlertTriangle,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from 'lucide-react';
 
 export type EntityType = 'PERSON' | 'ORGANIZATION' | 'ACCOUNT' | 'LOCATION' | 'EVENT' | 'DOCUMENT';
@@ -131,7 +134,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [crossCaseResults, setCrossCaseResults] = useState<CrossCaseMatch[]>([]);
   const [crossCaseLoading, setCrossCaseLoading] = useState<boolean>(false);
 
-  // SVG Pan & Zoom (RESPONSIVE 1100 x 750 VIEWBOX)
+  // SVG Pan & Zoom (OPTIMAL DEFAULT 1100 x 750 VIEWBOX)
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [viewBox, setViewBox] = useState({ x: -550, y: -375, width: 1100, height: 750 });
   const [isPanning, setIsPanning] = useState(false);
@@ -154,6 +157,65 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   useEffect(() => {
     if (caseId) fetchGraph();
   }, [caseId]);
+
+  const filteredNodes = useMemo(() => {
+    if (!graphData?.nodes) return [];
+    return graphData.nodes.filter((node) => {
+      const matchesType = activeFilter === 'ALL' || node.type === activeFilter;
+      const matchesSearch =
+        !searchQuery ||
+        node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (node.description && node.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesType && matchesSearch;
+    });
+  }, [graphData?.nodes, activeFilter, searchQuery]);
+
+  // NON-PASSIVE WHEEL LISTENER (GUARANTEED ATTACHMENT AFTER SVG MOUNT)
+  useEffect(() => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const handleNonPassiveWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
+      setViewBox((prev) => ({
+        x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+        y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+        width: prev.width * zoomFactor,
+        height: prev.height * zoomFactor,
+      }));
+    };
+
+    svgEl.addEventListener('wheel', handleNonPassiveWheel, { passive: false });
+    return () => {
+      svgEl.removeEventListener('wheel', handleNonPassiveWheel);
+    };
+  }, [loading, filteredNodes.length]);
+
+  // ON-SCREEN BUTTON ZOOM HANDLERS
+  const handleZoomIn = () => {
+    const zoomFactor = 0.85;
+    setViewBox((prev) => ({
+      x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+      y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+      width: prev.width * zoomFactor,
+      height: prev.height * zoomFactor,
+    }));
+  };
+
+  const handleZoomOut = () => {
+    const zoomFactor = 1.15;
+    setViewBox((prev) => ({
+      x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+      y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+      width: prev.width * zoomFactor,
+      height: prev.height * zoomFactor,
+    }));
+  };
+
+  const handleResetZoom = () => {
+    setViewBox({ x: -550, y: -375, width: 1100, height: 750 });
+  };
 
   const handleRebuildGraph = async () => {
     setRebuilding(true);
@@ -233,18 +295,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       setCrossCaseLoading(false);
     }
   };
-
-  const filteredNodes = useMemo(() => {
-    if (!graphData?.nodes) return [];
-    return graphData.nodes.filter((node) => {
-      const matchesType = activeFilter === 'ALL' || node.type === activeFilter;
-      const matchesSearch =
-        !searchQuery ||
-        node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (node.description && node.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesType && matchesSearch;
-    });
-  }, [graphData?.nodes, activeFilter, searchQuery]);
 
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
 
@@ -340,17 +390,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const handleTouchEnd = () => setIsPanning(false);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-    setViewBox((prev) => ({
-      x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-      y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-      width: prev.width * zoomFactor,
-      height: prev.height * zoomFactor,
-    }));
-  };
-
   const connectedEdgesForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return [];
     return graphData.edges.filter(
@@ -410,8 +449,37 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         </div>
 
-        {/* Right: Actions */}
+        {/* Right: Interactive Zoom Buttons & Actions */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          
+          {/* ON-SCREEN ZOOM CONTROLS */}
+          <div className="flex items-center gap-0.5 bg-canvas p-0.5 rounded-lg border border-main">
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
+              title="Zmadho (+)"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
+              title="Reset Zoom"
+            >
+              <Maximize2 size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded transition-colors"
+              title="Zvogëlo (-)"
+            >
+              <ZoomOut size={14} />
+            </button>
+          </div>
+
           <button
             onClick={() => setCustomEdgeModalOpen(true)}
             className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase transition-all"
@@ -498,7 +566,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              onWheel={handleWheel}
             >
               <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="40" refY="3.5" orient="auto">
@@ -666,7 +733,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           )}
         </div>
 
-        {/* RESPONSIVE INSPECTOR (DESKTOP: SIDEBAR | MOBILE: SLIDE-UP BOTTOM SHEET) */}
+        {/* RESPONSIVE INSPECTOR */}
         {(selectedNode || selectedEdge) && (
           <div className="fixed sm:relative inset-x-0 bottom-0 sm:inset-auto sm:w-80 bg-surface border-t sm:border-t-0 sm:border-l border-main p-4 overflow-y-auto flex flex-col gap-3.5 z-30 shadow-2xl max-h-[55vh] sm:max-h-none rounded-t-3xl sm:rounded-none shrink-0 animate-in slide-in-from-bottom sm:slide-in-from-right duration-200">
             
