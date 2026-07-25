@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V25.0 (MOBILE PINCH-TO-ZOOM & PASSIVE FIX)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V29.0 (ROLE-BIASED SOCRATIC CARDS & DISCLAIMER HEADER)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -25,7 +25,13 @@ import {
   Euro,
   Send,
   Loader2,
-  Bot
+  Bot,
+  Shield,
+  Scale,
+  Gavel,
+  ChevronRight,
+  Info,
+  Swords
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -70,12 +76,12 @@ interface EvidenceGraphTabProps {
 }
 
 const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; icon: LucideIcon; size: number }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#eab308', icon: User, size: 32 },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#a855f7', icon: Building2, size: 34 },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#10b981', icon: CreditCard, size: 30 },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#06b6d4', icon: MapPin, size: 28 },
-  EVENT: { albanianLabel: 'Ngjarje', bg: '#ef4444', icon: Calendar, size: 30 },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#3b82f6', icon: FileText, size: 28 },
+  PERSON: { albanianLabel: 'Persona', bg: '#eab308', icon: User, size: 36 },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#a855f7', icon: Building2, size: 38 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#10b981', icon: CreditCard, size: 34 },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#06b6d4', icon: MapPin, size: 32 },
+  EVENT: { albanianLabel: 'Ngjarje', bg: '#ef4444', icon: Calendar, size: 34 },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#3b82f6', icon: FileText, size: 32 },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
@@ -114,7 +120,8 @@ const getLineRotationAngle = (x1: number, y1: number, x2: number, y2: number): n
 export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
   const [graphData, setGraphData] = useState<CaseGraphData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
+  const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'>('DEFENDANT');
+
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -127,7 +134,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   // In-Modal Entity Chat State
   const [entityChatOpen, setEntityChatOpen] = useState<boolean>(false);
-  const [chatEntityName, setChatEntityName] = useState<string>('');
+  const [chatEntity, setChatEntity] = useState<OntologyNode | null>(null);
   const [entityMessages, setEntityMessages] = useState<ChatMsg[]>([]);
   const [inputQuestion, setInputQuestion] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
@@ -137,27 +144,34 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -700, y: -450, width: 1400, height: 900 });
+  const [viewBox, setViewBox] = useState({ x: -600, y: -400, width: 1200, height: 800 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
-  
-  // Mobile Touch Pinch State
-  const initialPinchDistRef = useRef<number | null>(null);
 
-  const fetchGraph = async () => {
+  const lastTouchDistRef = useRef<number | null>(null);
+
+  const fetchGraphAndCaseDetails = async () => {
     setLoading(true);
     try {
-      const data: CaseGraphData = await apiService.getCaseGraph(caseId);
-      setGraphData(data);
+      const [gData, cDetails] = await Promise.all([
+        apiService.getCaseGraph(caseId),
+        apiService.getCaseDetails(caseId)
+      ]);
+      setGraphData(gData);
+      
+      const pos = (cDetails as any)?.client_position || 'DEFENDANT';
+      if (pos === 'PLAINTIFF') setClientPosition('PLAINTIFF');
+      else if (pos === 'NEUTRAL') setClientPosition('NEUTRAL');
+      else setClientPosition('DEFENDANT');
     } catch (err) {
-      console.error('Failed to load graph:', err);
+      console.error('Failed to load graph data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (caseId) fetchGraph();
+    if (caseId) fetchGraphAndCaseDetails();
   }, [caseId]);
 
   useEffect(() => {
@@ -192,10 +206,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     clusterKeys.forEach((typeKey, cIndex) => {
       const clusterNodes = clusters[typeKey];
       const clusterAngle = (cIndex * 2 * Math.PI) / numClusters;
-      const clusterCenterX = Math.cos(clusterAngle) * 450;
-      const clusterCenterY = Math.sin(clusterAngle) * 320;
+      const clusterCenterX = Math.cos(clusterAngle) * 400;
+      const clusterCenterY = Math.sin(clusterAngle) * 280;
 
-      const subRadius = Math.max(160, clusterNodes.length * 40);
+      const subRadius = Math.max(150, clusterNodes.length * 36);
 
       clusterNodes.forEach((node, nIndex) => {
         const subAngle = (nIndex * 2 * Math.PI) / clusterNodes.length;
@@ -209,7 +223,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setPositions(initialPos);
   }, [filteredNodes]);
 
-  // NON-PASSIVE MOBILE TOUCH & WHEEL EVENT LISTENERS (FIXES PREVENTDEFAULT WARNINGS)
   useEffect(() => {
     const svgEl = svgRef.current;
     if (!svgEl) return;
@@ -227,12 +240,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
-        // Start pinch to zoom
+        e.preventDefault();
         const dist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        initialPinchDistRef.current = dist;
+        lastTouchDistRef.current = dist;
       } else if (e.touches.length === 1) {
         setIsPanning(true);
         setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
@@ -240,14 +253,15 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && initialPinchDistRef.current) {
+      if (e.touches.length === 2 && lastTouchDistRef.current !== null) {
         e.preventDefault();
-        const dist = Math.hypot(
+        const currentDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const factor = initialPinchDistRef.current / dist;
-        const zoomFactor = factor > 1 ? 1.05 : 0.95;
+        
+        const delta = currentDist - lastTouchDistRef.current;
+        const zoomFactor = delta > 0 ? 0.96 : 1.04;
 
         setViewBox((prev) => ({
           x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
@@ -255,18 +269,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           width: prev.width * zoomFactor,
           height: prev.height * zoomFactor,
         }));
-        initialPinchDistRef.current = dist;
+
+        lastTouchDistRef.current = currentDist;
       } else if (e.touches.length === 1 && isPanning) {
         e.preventDefault();
-        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1400);
-        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 900);
+        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1200);
+        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 800);
         setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
         setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
       }
     };
 
     const handleTouchEnd = () => {
-      initialPinchDistRef.current = null;
+      lastTouchDistRef.current = null;
       setIsPanning(false);
     };
 
@@ -284,7 +299,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   }, [loading, isPanning, viewBox, startPoint]);
 
   const handleZoomIn = () => {
-    const zoomFactor = 0.85;
+    const zoomFactor = 0.82;
     setViewBox((prev) => ({
       x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
       y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
@@ -294,7 +309,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleZoomOut = () => {
-    const zoomFactor = 1.15;
+    const zoomFactor = 1.18;
     setViewBox((prev) => ({
       x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
       y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
@@ -304,14 +319,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleResetZoom = () => {
-    setViewBox({ x: -700, y: -450, width: 1400, height: 900 });
+    setViewBox({ x: -600, y: -400, width: 1200, height: 800 });
   };
 
   const handleRebuildGraph = async () => {
     setRebuilding(true);
     try {
       await apiService.rebuildCaseGraph(caseId);
-      setTimeout(() => fetchGraph(), 3000);
+      setTimeout(() => fetchGraphAndCaseDetails(), 3000);
     } catch (err) {
       console.error('Rebuild failed:', err);
     } finally {
@@ -395,8 +410,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
 
     if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 1400);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 900);
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 1200);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 800);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
     }
@@ -407,21 +422,15 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setDraggedNodeId(null);
   };
 
-  const handleOpenEntityChat = (entityLabel: string) => {
-    setChatEntityName(entityLabel);
-    setEntityMessages([
-      {
-        id: '1',
-        role: 'ai',
-        content: `Përshëndetje! Jam Sokrati AI. Çfarë dëshironi të dini rreth entitetit **"${entityLabel}"** në këtë lëndë?`
-      }
-    ]);
+  const handleOpenEntityChat = (node: OntologyNode) => {
+    setChatEntity(node);
+    setEntityMessages([]);
     setEntityChatOpen(true);
   };
 
   const handleSendEntityQuestion = async (customPrompt?: string) => {
     const q = customPrompt || inputQuestion.trim();
-    if (!q || isSending) return;
+    if (!q || isSending || !chatEntity) return;
 
     const userMsg: ChatMsg = { id: Date.now().toString(), role: 'user', content: q };
     const aiMsgPlaceholder: ChatMsg = { id: (Date.now() + 1).toString(), role: 'ai', content: '' };
@@ -431,7 +440,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setIsSending(true);
 
     try {
-      const fullPrompt = `Lidhja me Entitetin: "${chatEntityName}".\nPyetja e Avokatit: ${q}`;
+      const mandateText = clientPosition === 'DEFENDANT' 
+        ? "POZICIONI E TUAJ: I PADITUR / MBROJTJE. Detyra jote është të rrëzosh kërkesëpadinë, të gjejshe gabime procedurale dhe të shfajësosh klientin tonë." 
+        : clientPosition === 'PLAINTIFF'
+        ? "POZICIONI E TUAJ: PADITËS / SULM. Detyra jote është të provosh përgjegjësinë e palës tjetër, të forcosh kërkesëpadinë dhe të sigurosh dëmshpërblimin."
+        : "POZICIONI E TUAJ: NEUTRAL / OBJEKTIV. Detyra jote është të vlerësosh rastin në mënyrë të paanshme, të peshosh barrën e provës dhe argumentet e të dyja palëve.";
+
+      const fullPrompt = `${mandateText}\n\nLidhja me Entitetin: "${chatEntity.label}" (${chatEntity.type}).\nPyetja e Avokatit: ${q}`;
       const stream = apiService.sendChatMessageStream(caseId, fullPrompt, undefined, 'ks', 'FAST');
       
       let acc = '';
@@ -453,6 +468,64 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       setIsSending(false);
     }
   };
+
+  // ROLE-BIASED SUGGESTED ACTION CARDS (STRICTLY TAILORED FOR DEFENDANT VS PLAINTIFF VS NEUTRAL)
+  const entitySuggestedCards = useMemo(() => {
+    if (!chatEntity) return [];
+    
+    if (clientPosition === 'DEFENDANT') {
+      return [
+        {
+          badge: '🛡️ STRATEGJIA E MBROJTJES',
+          title: 'RRËZIMI I PRETENDIMEVE',
+          desc: `Si mund ta përdorim entitetin ${chatEntity.label} për të prapësuar padinë dhe mbrojtur klientin?`,
+          query: `Si i paditur, si mund ta përdorim entitetin ${chatEntity.label} për të rrëzuar pretendimet e paditësit dhe forcuar mbrojtjen tonë?`,
+          icon: Shield
+        },
+        {
+          badge: '⚔️ GODITJA E KUNDËRSHTARIT',
+          title: 'HETIMI I MOSPËRPUTHJEVE',
+          desc: `Identifiko çdo kontradiktë apo dobësi procedurale që lidhet me ${chatEntity.label}.`,
+          query: `Identifiko çdo mospërputhje, kontradiktë apo dobësi ligjore te ${chatEntity.label} që do të prapësonte kërkesëpadinë.`,
+          icon: AlertTriangle
+        }
+      ];
+    } else if (clientPosition === 'PLAINTIFF') {
+      return [
+        {
+          badge: '⚔️ FORCIMI I PADISË',
+          title: 'PROVA E PËRGJEGJËSISË',
+          desc: `Si i vërteton ${chatEntity.label} shkeljet dhe dëmin e kërkuar nga ne?`,
+          query: `Si paditës, si i provon ${chatEntity.label} përgjegjësinë dhe dëmin e shkaktuar nga pala tjetër?`,
+          icon: Swords
+        },
+        {
+          badge: '⚖️ BAZA LIGJORE & DETYRIMI',
+          title: 'KRONOLOGJIA E SHKELJES',
+          desc: `Marrja e dëshmive dhe detyrimeve financiare që ngarkojnë ${chatEntity.label}.`,
+          query: `Nxirr të gjitha dëshmitë, transaksionet dhe afatet që e ngarkojnë me përgjegjësi ${chatEntity.label}.`,
+          icon: Scale
+        }
+      ];
+    } else {
+      return [
+        {
+          badge: '⚖️ ANALIZË NEUTRALE',
+          title: 'VLERËSIMI I BARRËS SË PROVËS',
+          desc: `Vlerëso në mënyrë objektive peshën e provave që lidhen me ${chatEntity.label}.`,
+          query: `Si një auditor i paanshëm, vlerëso barrën e provës dhe rëndësinë e entitetit ${chatEntity.label} për të dyja palët.`,
+          icon: Scale
+        },
+        {
+          badge: '🔍 AUDITI PROCEDURAL',
+          title: 'SINTEZA E RASTIT',
+          desc: `Përmbledhje paanshme e fakteve dhe kornizës ligjore për ${chatEntity.label}.`,
+          query: `Jep një përmbledhje të paanshme dhe objektive të fakteve ligjore për ${chatEntity.label}.`,
+          icon: Gavel
+        }
+      ];
+    }
+  }, [chatEntity, clientPosition]);
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
@@ -574,7 +647,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const angle = getLineRotationAngle(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y);
 
                   const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                  const maskWidth = Math.max(40, labelDisplayText.length * 5.2);
+                  const maskWidth = Math.max(50, labelDisplayText.length * 6.5);
 
                   return (
                     <g
@@ -590,7 +663,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         x2={targetPos.x}
                         y2={targetPos.y}
                         stroke="transparent"
-                        strokeWidth="20"
+                        strokeWidth="24"
                       />
 
                       <line
@@ -599,29 +672,29 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         x2={targetPos.x}
                         y2={targetPos.y}
                         stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
-                        strokeWidth={isContradiction || isSelected || isHovered ? 2.5 : 1.2}
-                        strokeDasharray={isContradiction ? '4,4' : 'none'}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 3 : 1.8}
+                        strokeDasharray={isContradiction ? '5,5' : 'none'}
                         markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
-                        opacity={isHovered || isSelected || isContradiction ? 1 : 0.65}
+                        opacity={isHovered || isSelected || isContradiction ? 1 : 0.75}
                       />
 
                       <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
                         <rect
                           x={-maskWidth / 2}
-                          y={-6}
+                          y={-8}
                           width={maskWidth}
-                          height={12}
+                          height={16}
                           fill="var(--bg-canvas, #090d16)"
-                          rx={2}
+                          rx={3}
                         />
                         <text
                           x={0}
-                          y={3}
+                          y={4}
                           textAnchor="middle"
-                          fill={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
-                          fontSize="8"
-                          fontWeight="700"
-                          letterSpacing="0.4px"
+                          fill={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#cbd5e1'}
+                          fontSize="10"
+                          fontWeight="800"
+                          letterSpacing="0.5px"
                           className="select-none uppercase font-mono pointer-events-none"
                         >
                           {labelDisplayText}
@@ -653,22 +726,22 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       }}
                     >
                       {isSelected && (
-                        <circle r={config.size + 8} fill="none" stroke="#3b82f6" strokeWidth="3" className="animate-pulse" />
+                        <circle r={config.size + 10} fill="none" stroke="#3b82f6" strokeWidth="3.5" className="animate-pulse" />
                       )}
 
                       <circle
                         r={config.size}
                         fill={config.bg}
                         stroke="#ffffff"
-                        strokeWidth="2.5"
+                        strokeWidth="3"
                         className="transition-transform duration-100 group-hover:scale-110 shadow-2xl"
                       />
 
                       <text
-                        y="3.5"
+                        y="4"
                         textAnchor="middle"
                         fill="#ffffff"
-                        fontSize="9.5"
+                        fontSize="11"
                         fontWeight="900"
                         className="select-none uppercase tracking-tight pointer-events-none font-sans"
                       >
@@ -777,7 +850,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                 <button
                   type="button"
-                  onClick={() => handleOpenEntityChat(selectedNode.label)}
+                  onClick={() => handleOpenEntityChat(selectedNode)}
                   className="w-full py-3 bg-primary-start hover:bg-opacity-95 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary-start/15 transition-all"
                 >
                   <MessageCircle size={16} /> Pyet AI për këtë person
@@ -808,9 +881,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
       </div>
 
-      {/* IN-MODAL ENTITY CHAT DRAWER */}
+      {/* IN-MODAL ENTITY CHAT DRAWER WITH DYNAMIC ROLE MANDATE (DEFENDANT | PLAINTIFF | NEUTRAL) */}
       <AnimatePresence>
-        {entityChatOpen && (
+        {entityChatOpen && chatEntity && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-4">
             <motion.div
               initial={{ x: 300, opacity: 0 }}
@@ -824,8 +897,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <Bot size={20} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {chatEntityName}</h3>
-                    <p className="text-[10px] text-text-muted font-bold uppercase">Konteksti Specifik i Entitetit</p>
+                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {chatEntity.label}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-text-muted font-bold uppercase">{ENTITY_CONFIG[chatEntity.type].albanianLabel}</span>
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        clientPosition === 'DEFENDANT' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' :
+                        clientPosition === 'PLAINTIFF' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
+                        'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      }`}>
+                        {clientPosition === 'DEFENDANT' ? '🛡️ Mandati: I Paditur (Mbrojtje)' :
+                         clientPosition === 'PLAINTIFF' ? '⚔️ Mandati: Paditësi (Sulm)' :
+                         '⚖️ Mandati: Neutral / Objektiv'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button onClick={() => setEntityChatOpen(false)} className="p-2 text-text-muted hover:text-text-primary rounded-xl">
@@ -833,10 +917,58 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 </button>
               </div>
 
-              <div className="flex-1 p-5 overflow-y-auto custom-finance-scroll space-y-4">
+              <div className="flex-1 p-5 overflow-y-auto custom-finance-scroll space-y-6">
+                
+                {entityMessages.length === 0 && (
+                  <div className="text-center space-y-3 pt-4">
+                    <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">
+                      AGJENTI I HETIMIT: {chatEntity.label}
+                    </h2>
+                    <p className="text-xs text-text-secondary leading-relaxed font-medium max-w-md mx-auto">
+                      {clientPosition === 'DEFENDANT' 
+                        ? `Asistenti juaj mbrojtës për prapësimin e kërkesëpadisë dhe shfajësimin që lidhet me ${chatEntity.label}.` 
+                        : clientPosition === 'PLAINTIFF'
+                        ? `Asistenti juaj sulmues për vërtetimin e përgjegjësisë dhe forcat e padisë lidhur me ${chatEntity.label}.`
+                        : `Asistenti juaj neutral për vërtetimin objektiv të barrës së provës dhe paanshmërisë lidhur me ${chatEntity.label}.`}
+                    </p>
+                    
+                    <div className="p-2.5 bg-surface/60 border border-main rounded-xl text-[11px] text-text-muted inline-flex items-center gap-2">
+                      <Info size={14} className="text-primary-start shrink-0" />
+                      <span>Përgjigjet e AI shërbejnë për referencë dhe verifikohen nga avokati.</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-6 text-left">
+                      {entitySuggestedCards.map((card, idx) => {
+                        const CardIcon = card.icon;
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => handleSendEntityQuestion(card.query)}
+                            className="p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 rounded-2xl cursor-pointer transition-all hover-lift flex flex-col justify-between gap-3 group"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-primary-start bg-primary-start/10 px-2 py-0.5 rounded border border-primary-start/20">
+                                {card.badge}
+                              </span>
+                              <ChevronRight size={14} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-text-primary uppercase tracking-wide flex items-center gap-1.5 mb-1">
+                                <CardIcon size={14} className="text-primary-start" />
+                                {card.title}
+                              </h4>
+                              <p className="text-[11px] text-text-secondary leading-snug line-clamp-2">{card.desc}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {entityMessages.map((m) => (
                   <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
+                    <div className={`max-w-[88%] p-4 rounded-2xl text-xs leading-relaxed ${
                       m.role === 'user' ? 'bg-primary-start text-white font-medium' : 'bg-surface border border-main text-text-primary font-medium'
                     }`}>
                       {m.content || <Loader2 className="animate-spin h-4 w-4 text-primary-start" />}
@@ -853,7 +985,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     value={inputQuestion}
                     onChange={(e) => setInputQuestion(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendEntityQuestion()}
-                    placeholder={`Bëj një pyetje për ${chatEntityName}...`}
+                    placeholder={`Bëj një pyetje për ${chatEntity.label}...`}
                     className="flex-1 h-11 px-4 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
                   />
                   <button

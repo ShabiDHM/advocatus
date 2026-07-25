@@ -1,8 +1,5 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.3 (FINAL GRAPH TYPE DECOMMISSION & ENHANCEDANOMALY VERIFICATION)
-// 1. REMOVED: All Graph-related interfaces (GraphNode, GraphLink, GraphData) as the feature is decommissioned.
-// 2. VERIFIED: 'EnhancedAnomaly' definition is present and unchanged, addressing reported 'Cannot find name' error (likely cache/environment issue).
-// 3. STATUS: 100% Type Clean. No orphaned types.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V30.0 (ADDED CLIENT_POSITION TO CASE INTERFACE)
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -107,6 +104,7 @@ export interface Case {
     case_name: string; 
     title: string; 
     status: 'open' | 'closed' | 'pending' | 'archived'; 
+    client_position?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL';
     client?: { name: string; phone: string; email: string; }; 
     opposing_party?: { name: string; lawyer: string; }; 
     court_info?: { name: string; judge: string; }; 
@@ -317,7 +315,7 @@ export interface AnalyticsDashboardData {
 }
 
 // --- 8. FORENSIC ANALYSIS ---
-export interface EnhancedAnomaly { // This is the definition of EnhancedAnomaly
+export interface EnhancedAnomaly { 
     date: string;
     amount: number;
     description: string;
@@ -335,7 +333,7 @@ export interface SpreadsheetAnalysisResult {
     columns: string[]; 
     narrative_report: string; 
     charts: any[]; 
-    anomalies: EnhancedAnomaly[]; // This correctly uses EnhancedAnomaly
+    anomalies: EnhancedAnomaly[]; 
     key_statistics: Record<string, string | number>; 
     preview_rows?: Record<string, any>[]; 
     processed_at: string; 
@@ -374,7 +372,6 @@ export interface Organization {
     status: string; 
     created_at: string; 
     
-    // Legacy / Backward Compat
     tier?: string; 
     plan?: string; 
     seat_limit?: number; 

@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V28.0 (ADVANCED EVIDENCE GRAPH & EXPORTER INTEGRATED)
+// PHOENIX PROTOCOL - API SERVICE V28.3 (TRI-PARTY ROLE TYPE SIGNATURES ADDED - FULL REPLACEMENT)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -168,8 +168,8 @@ class ApiService {
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
-    // ========== CASE STANCE & POSITION METHOD ==========
-    public async updateCasePosition(caseId: string, position: 'DEFENDANT' | 'PLAINTIFF'): Promise<void> {
+    // ========== CASE STANCE & POSITION METHOD (DEFENDANT | PLAINTIFF | NEUTRAL) ==========
+    public async updateCasePosition(caseId: string, position: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<void> {
         await this.axiosInstance.put(`/cases/${caseId}/position`, { client_position: position });
     }
 
@@ -338,20 +338,20 @@ class ApiService {
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
     
-    // ========== ROLE-AWARE CASE ANALYSIS METHOD ==========
-    public async analyzeCase(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<CaseAnalysisResult> { 
+    // ========== ROLE-AWARE CASE ANALYSIS METHOD (DEFENDANT | PLAINTIFF | NEUTRAL) ==========
+    public async analyzeCase(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<CaseAnalysisResult> { 
         const params = clientPosition ? { client_position: clientPosition } : {};
         const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`, null, { params }); 
         return response.data; 
     }
     
-    public async analyzeDeepStrategy(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<DeepAnalysisResult> { 
+    public async analyzeDeepStrategy(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<DeepAnalysisResult> { 
         const params = clientPosition ? { client_position: clientPosition } : {};
         const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`, null, { params }); 
         return response.data; 
     }
 
-    public async analyzeDeepSimulation(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF'): Promise<any> { 
+    public async analyzeDeepSimulation(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<any> { 
         const params = clientPosition ? { client_position: clientPosition } : {};
         const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`, null, { params }); 
         return response.data; 

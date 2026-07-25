@@ -1,9 +1,5 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V31.3 (STREAMING BRACKET PARSER)
-# 1. OPTIMIZATION: Implements a character-by-character 'stream_with_placeholder_cleaning' buffer to intercept split brackets on-the-fly.
-# 2. DESIGN: Switches to direct real-time Markdown streaming to completely eliminate the pre-generation "thinking" pause.
-# 3. ACCURACY: Preserves the strict Kosovo law mapping and zero-hallucination grounding from promptConstructor.ts.
-# 4. STATUS: 100% compliant with Python 3.13, compatible with Render, and production-ready.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V31.4 (ROLE-CENTRALIZED ADVOCATE MANDATE)
 
 import os
 import re
@@ -11,6 +7,7 @@ import asyncio
 import structlog
 from datetime import datetime, timezone
 from typing import Optional, Dict, List, AsyncGenerator
+from bson import ObjectId
 from pymongo.database import Database
 from . import llm_service, vector_store_service
 
@@ -70,9 +67,6 @@ def detect_legal_domain(text: str) -> Dict[str, str]:
     }
 
 def sanitize_unresolved_placeholders(bracket_text: str) -> str:
-    """
-    Transforms bracketed text such as [EMRI_I_PUNONJËSIT] into a neat underline.
-    """
     pattern = r"\[([^\]]{1,100})\]"
     
     def replacement(match):
@@ -84,11 +78,6 @@ def sanitize_unresolved_placeholders(bracket_text: str) -> str:
 async def stream_with_placeholder_cleaning(
     raw_generator: AsyncGenerator[str, None]
 ) -> AsyncGenerator[str, None]:
-    """
-    PHOENIX V31.3: Character-by-character streaming bracket parser.
-    Intercepts brackets split across different network tokens and sanitizes them on-the-fly,
-    retaining immediate typing responsiveness with 100% clean high-grade output.
-    """
     buffer = ""
     in_bracket = False
     
@@ -100,13 +89,11 @@ async def stream_with_placeholder_cleaning(
             elif char == "]":
                 buffer += char
                 in_bracket = False
-                # Intercepted complete bracket, clean and yield immediately
                 cleaned = sanitize_unresolved_placeholders(buffer)
                 yield cleaned
                 buffer = ""
             elif in_bracket:
                 buffer += char
-                # Safety: If bracket exceeds 120 characters, it is not a standard placeholder; flush it.
                 if len(buffer) > 120:
                     yield buffer
                     buffer = ""
@@ -114,7 +101,6 @@ async def stream_with_placeholder_cleaning(
             else:
                 yield char
                 
-    # Flush any remaining text at stream end
     if buffer:
         yield buffer
 
@@ -128,6 +114,36 @@ async def stream_draft_generator(
     
     logger.info("Drafting initiated", user=user_id, type=draft_type)
     
+    # Read case client position to enforce central advocate mandate
+    client_position = "DEFENDANT"
+    if case_id and db:
+        try:
+            c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+            case_doc = db.cases.find_one({"_id": c_oid})
+            if case_doc and case_doc.get("client_position"):
+                client_position = str(case_doc["client_position"]).upper()
+        except Exception as ex:
+            logger.warning(f"Could not read case position for drafting: {ex}")
+
+    if client_position == "PLAINTIFF":
+        role_mandate = """
+        MANDATI ZYRTAR I HARTIMIT: SULM / PADITËS
+        - Harto këtë shkresë me ton rigorozisht sulmues dhe profesional për Paditësin.
+        - Vërteto bazën e kërkesëpadisë, detyrimin e palës tjetër, dëmin e shkaktuar dhe forcat e kërkesës sonë.
+        """
+    elif client_position == "NEUTRAL":
+        role_mandate = """
+        MANDATI ZYRTAR I HARTIMIT: OBJEKTIV / NEUTRAL
+        - Harto këtë shkresë me ton të paanshëm, objektiv dhe neutral (p.sh. si Aktvendim ose Memorandum Analitik).
+        - Vlerëso pretendimet e të dyja palëve me paanshmëri zyrtare.
+        """
+    else:
+        role_mandate = """
+        MANDATI ZYRTAR I HARTIMIT: MBROJTJE / I PADITUR
+        - Harto këtë shkresë me ton rigorozisht mbrojtës dhe prapësues për të Paditurin.
+        - Shfrytëzo gabimet procedurale, parashkrimin e afateve, mungesën e provave dhe kërko rrëzimin ose hedhjen poshtë të padisë.
+        """
+
     domain_context = detect_legal_domain(user_prompt)
     detected_law = domain_context["law"]
     context_note = domain_context["context_note"]
@@ -135,7 +151,6 @@ async def stream_draft_generator(
 
     search_query = f"{user_prompt} {detected_law} neni dispozita"
 
-    # Parallel RAG retrieval
     try:
         tasks = [
             asyncio.to_thread(
@@ -161,7 +176,6 @@ async def stream_draft_generator(
 
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     
-    # Format laws block: include full law title and article if available, without extra metadata
     if legal_articles_list:
         laws_lines = []
         for l in legal_articles_list:
@@ -177,9 +191,11 @@ async def stream_draft_generator(
     else:
         laws_block = "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === ULTRA-STRICT SYSTEM PROMPT ===
+    # === ULTRA-STRICT ROLE-AWARE SYSTEM PROMPT ===
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
+
+{role_mandate}
 
 UDHËZIME TË RREPTA JURIDIKE PËR GJERNERIMIN:
 1. Përdor dhe plotëso saktësisht strukturën e shabllonit të zgjedhur të paraqitur në [STRUKTURA SPECIFIKE E DOKUMENTIT TË ZGJEDHUR].
@@ -201,17 +217,14 @@ Udhëzim: {context_note}
 {facts_block}
 """
 
-    # PHOENIX V31.3: Direct streaming from OpenRouter (0 waiting time!)
     raw_stream = llm_service.stream_text_async(system_prompt, user_prompt, temp=llm_service.TEMP_DRAFTING)
     
     full_content = ""
     try:
-        # Run standard stream through character-by-character bracket filter
         async for clean_char in stream_with_placeholder_cleaning(raw_stream):
             full_content += clean_char
             yield clean_char
 
-        # Save to DB asynchronously once the stream finishes
         if full_content.strip() and case_id:
             asyncio.create_task(save_draft_result(db, user_id, case_id, draft_type, full_content))
 

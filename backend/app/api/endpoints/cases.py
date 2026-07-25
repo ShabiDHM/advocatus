@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V33.0 (PUBLIC PORTAL & WAR ROOM PERSISTENCE)
+# PHOENIX PROTOCOL - CASES ROUTER V35.0 (TRI-PARTY ROLE: DEFENDANT | PLAINTIFF | NEUTRAL)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -214,8 +214,8 @@ async def update_case_client_position(
 ):
     case_oid = validate_object_id(case_id)
     pos = body.client_position.upper()
-    if pos not in ["DEFENDANT", "PLAINTIFF"]:
-        raise HTTPException(status_code=400, detail="Position must be DEFENDANT or PLAINTIFF")
+    if pos not in ["DEFENDANT", "PLAINTIFF", "NEUTRAL"]:
+        raise HTTPException(status_code=400, detail="Position must be DEFENDANT, PLAINTIFF, or NEUTRAL")
 
     await asyncio.to_thread(
         db.cases.update_one,

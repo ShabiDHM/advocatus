@@ -1,10 +1,8 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN THEME FIX V6.2 (DYNAMIC LIGHT/DARK MODE SUPPORT)
-// 1. FIX: Replaced hardcoded black '#0B0F1A' background with semantic 'bg-canvas' to fully support Light Mode text visibility.
-// 2. FIX: Unified hover states and border colors to standard 'border-main' and 'bg-hover' semantic variables.
+// PHOENIX PROTOCOL - CONFIG PANEL V6.4 (CLEAN NO-HEADER LAYOUT WITH AUTO-TEMPLATE SELECTION)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { FileText, Send, RefreshCw, ChevronDown, Briefcase } from 'lucide-react';
+import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale } from 'lucide-react';
 import { ConfigPanelProps } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
 import { TemplateType } from '../types';
@@ -24,6 +22,25 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const placeholder = useMemo(() => getTemplatePlaceholder(selectedTemplate), [selectedTemplate]);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Find currently selected case object
+  const activeCase = useMemo(() => {
+    if (!selectedCaseId) return null;
+    return cases.find((c: any) => String(c.id) === String(selectedCaseId));
+  }, [cases, selectedCaseId]);
+
+  const clientPosition = (activeCase as any)?.client_position || 'DEFENDANT';
+
+  // AUTO-SELECT TEMPLATE WHEN CASE CHANGES
+  useEffect(() => {
+    if (!activeCase) return;
+    const pos = (activeCase as any)?.client_position || 'DEFENDANT';
+    if (pos === 'DEFENDANT') {
+      onSelectTemplate('prapësim' as TemplateType);
+    } else if (pos === 'PLAINTIFF') {
+      onSelectTemplate('padi' as TemplateType);
+    }
+  }, [selectedCaseId, activeCase, onSelectTemplate]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -68,25 +85,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   };
 
   return (
-    // Main panel: overflow-visible to allow dropdown to escape
     <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto overflow-visible">
       
-      {/* SECTION HEADER */}
-      <div className="flex items-center gap-3 border-b border-border-main pb-5 mb-6 flex-shrink-0">
-        <div className="h-10 w-10 flex items-center justify-center bg-primary-start/10 rounded-xl border border-primary-start/20">
-          <FileText className="text-primary-start" size={20} />
-        </div>
-        <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
-          {t('drafting.configuration', 'Konfigurimi')}
-        </h2>
-      </div>
-
-      {/* Content wrapper: overflow-visible */}
-      <div className="flex flex-col gap-6 flex-1 min-h-0 overflow-visible">
+      <div className="flex flex-col gap-5 flex-1 min-h-0 overflow-visible">
         
-        {/* CASE SELECTION */}
-        <div className="relative flex-shrink-0">
-          <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
+        {/* CASE SELECTION WITH CLEAN COMPACT STANCE BADGE */}
+        <div className="relative flex-shrink-0 space-y-2">
+          <label className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
             {t('drafting.caseLabel', 'Zgjidh rastin')}
           </label>
           <div className="relative flex items-center">
@@ -98,20 +103,39 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             >
               <option value="">{t('drafting.selectCase', 'Zgjidh rastin...')}</option>
               {cases.map((c: any) => (
-                <option key={c.id} value={c.id} className="bg-canvas text-text-primary">{c.title}</option>
+                <option key={c.id} value={c.id} className="bg-canvas text-text-primary">{c.title || c.case_number}</option>
               ))}
             </select>
             <ChevronDown size={16} className="absolute right-4 text-text-muted pointer-events-none" />
           </div>
+
+          {/* CLEAN COMPACT BADGE (NO CROWDING) */}
+          {activeCase && (
+            <div className="pt-0.5">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                clientPosition === 'DEFENDANT'
+                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                  : clientPosition === 'PLAINTIFF'
+                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30'
+                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+              }`}>
+                {clientPosition === 'DEFENDANT' ? <Shield size={12} /> : clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Scale size={12} />}
+                <span>
+                  {clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' :
+                   clientPosition === 'PLAINTIFF' ? '⚔️ PADITËSI' :
+                   '⚖️ NEUTRAL'}
+                </span>
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* TEMPLATE SELECTION - UNLOCKED FOR ALL USERS */}
+        {/* TEMPLATE SELECTION */}
         <div className="relative flex-shrink-0 overflow-visible" ref={dropdownRef}>
           <div className="flex justify-between items-center mb-2">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest">
               {t('drafting.templateLabel', 'Lloji i Dokumentit')}
             </label>
-            {/* PHOENIX: Visual PRO lock removed entirely */}
           </div>
           
           <button 
@@ -123,12 +147,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className={`text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* FLOATING DROPDOWN MENU - DYNAMIC THEME FIX */}
           {isOpen && (
             <div className="absolute left-0 right-0 top-full mt-2 z-[999] bg-canvas border border-border-main rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] max-h-[350px] overflow-y-auto custom-scrollbar">
               {templateGroups.map((group, groupIdx) => (
                 <div key={group.label} className="flex flex-col">
-                  {/* Category Bar: dynamic semantic borders */}
                   <div className={`
                     px-4 py-2 
                     text-[10px] font-black uppercase tracking-widest text-text-muted
@@ -138,7 +160,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   `}>
                     {group.label}
                   </div>
-                  {/* Document Items */}
                   <div className="flex flex-col py-1">
                     {group.options.map((opt) => (
                       <button
@@ -157,7 +178,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           )}
         </div>
 
-        {/* INSTRUCTIONS - relative z-0 to stay below dropdown */}
+        {/* INSTRUCTIONS */}
         <div className="flex-1 flex flex-col min-h-0 relative z-0">
           <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
             {t('drafting.instructionsLabel', 'Udhëzimet')}

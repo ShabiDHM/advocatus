@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V41.0 (NATIVE CHAT EMBEDDED COMMAND PALETTE)
+// PHOENIX PROTOCOL - CASE VIEW V41.1 (100% PRESERVED LAYOUT WITH TRI-PARTY ROLES: DEFENDANT | PLAINTIFF | NEUTRAL)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -35,7 +35,8 @@ import {
   Gavel,
   Network,
   Mic,
-  Briefcase
+  Briefcase,
+  Scale
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
@@ -173,11 +174,11 @@ const RenameDocumentModal: React.FC<{
   );
 };
 
-// ROLE SELECTION POPUP MODAL COMPONENT
+// TRI-PARTY ROLE SELECTION POPUP MODAL COMPONENT (DEFENDANT | PLAINTIFF | NEUTRAL)
 const RoleSelectionModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onSelectRole: (role: 'DEFENDANT' | 'PLAINTIFF') => void;
+  onSelectRole: (role: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => void;
   isAnalyzing: boolean;
 }> = ({ isOpen, onClose, onSelectRole, isAnalyzing }) => {
   useLockBodyScroll(isOpen);
@@ -207,41 +208,63 @@ const RoleSelectionModal: React.FC<{
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-3 mb-6">
+          {/* DEFENDANT OPTION */}
           <button
             type="button"
             onClick={() => onSelectRole('DEFENDANT')}
             disabled={isAnalyzing}
-            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm active:scale-95"
+            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
           >
-            <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
-              <Shield size={24} />
+            <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+              <Shield size={22} />
             </div>
             <div>
-              <h4 className="text-sm font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
+              <h4 className="text-xs font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
                 🛡️ I Paditur / I Akuzuar (Mbrojtje)
               </h4>
-              <p className="text-xs text-text-secondary leading-relaxed mt-1">
-                Përfaqësimi i palës që mbrohet ndaj padisë ose akuzës. Strategjia do të fokusohet në prapësime, gabime procedurale dhe rrëzimin e pretendimeve.
+              <p className="text-[11px] text-text-secondary leading-relaxed mt-0.5">
+                Mbrojtja e palës që paditet. Strategjia fokusohet në prapësime, gabime procedurale dhe rrëzimin e pretendimeve.
               </p>
             </div>
           </button>
 
+          {/* PLAINTIFF OPTION */}
           <button
             type="button"
             onClick={() => onSelectRole('PLAINTIFF')}
             disabled={isAnalyzing}
-            className="group p-5 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-4 shadow-sm active:scale-95"
+            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
           >
-            <div className="p-3 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
-              <Swords size={24} />
+            <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+              <Swords size={22} />
             </div>
             <div>
-              <h4 className="text-sm font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
+              <h4 className="text-xs font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
                 ⚔️ Paditësi / I Dëmtuari (Sulm)
               </h4>
-              <p className="text-xs text-text-secondary leading-relaxed mt-1">
-                Përfaqësimi i palës që ngre padinë ose kërkon dëmshpërblim. Strategjia do të fokusohet në provimin e përgjegjësisë dhe forcimin e padisë.
+              <p className="text-[11px] text-text-secondary leading-relaxed mt-0.5">
+                Përfaqësimi i palës që ngre padinë. Strategjia fokusohet në provimin e përgjegjësisë dhe forcat e padisë.
+              </p>
+            </div>
+          </button>
+
+          {/* NEUTRAL OPTION */}
+          <button
+            type="button"
+            onClick={() => onSelectRole('NEUTRAL')}
+            disabled={isAnalyzing}
+            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
+          >
+            <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
+              <Scale size={22} />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-text-primary uppercase tracking-wide group-hover:text-primary-start transition-colors">
+                ⚖️ Neutral / Analizë Objektive
+              </h4>
+              <p className="text-[11px] text-text-secondary leading-relaxed mt-0.5">
+                Vlerësim i paanshëm ligjor (për Gjyqtarë, Arbitra ose Simuluar të Seancës). Peshon të dyja anët në mënyrë objektive.
               </p>
             </div>
           </button>
@@ -335,12 +358,14 @@ const CaseHeader: React.FC<{
                 className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm ${
                   clientPosition === 'DEFENDANT'
                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
-                    : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                    : clientPosition === 'PLAINTIFF'
+                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                 }`}
                 title="Kliko për të ndryshuar pozicionin e klientit"
               >
-                {clientPosition === 'DEFENDANT' ? <Shield size={11} /> : <Swords size={11} />}
-                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' : '⚔️ PADITËSI'}</span>
+                {clientPosition === 'DEFENDANT' ? <Shield size={11} /> : clientPosition === 'PLAINTIFF' ? <Swords size={11} /> : <Scale size={11} />}
+                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' : clientPosition === 'PLAINTIFF' ? '⚔️ PADITËSI' : '⚖️ NEUTRAL'}</span>
               </button>
             </div>
 
@@ -621,7 +646,7 @@ const CaseViewPage: React.FC = () => {
   };
 
   // INSTANT ROLE MUTATION & AI ANALYSIS TRIGGER
-  const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF') => {
+  const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => {
     if (!caseId) return;
     setShowRoleModal(false);
 
