@@ -1,11 +1,12 @@
-// FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V16.0 (STRICT NULL-GUARDED RENDERER)
+// FILE: frontend/src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V17.0 (EMBEDDED NATIVE COMMAND PALETTE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Scale, Eye,
-    ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles
+    ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles,
+    ShieldCheck, Gavel, FileText, Info, ChevronRight
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -43,6 +44,8 @@ interface ChatPanelProps {
   activeContextId: string;
   isPro?: boolean;
   selectedDocumentCount?: number;
+  userSalutation?: string;
+  clientPosition?: 'DEFENDANT' | 'PLAINTIFF';
 }
 
 const ThinkingDots = () => (
@@ -53,10 +56,8 @@ const ThinkingDots = () => (
     </span>
 );
 
-// ========== PHOENIX: DYNAMIC LEGAL CITATION AUTO-LINKER (SAFEGUARDED) ==========
 const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
-
   const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
 
   try {
@@ -72,7 +73,6 @@ const autoLinkLegalCitations = (text: any): string => {
   }
 };
 
-// Helper to split AI response into clean Markdown content and structured follow-up questions
 const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
     if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
 
@@ -231,7 +231,7 @@ const MarkdownComponents = (t: TFunction) => ({
 });
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages = [], connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0
+    messages = [], connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, selectedDocumentCount = 0, userSalutation = 'Avokat', clientPosition = 'DEFENDANT'
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
@@ -278,11 +278,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
       
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-5 py-3.5 border-b border-main bg-surface z-50 shrink-0 gap-3 sm:gap-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3 border-b border-main bg-surface z-50 shrink-0 gap-2.5 sm:gap-0">
         
         {/* Left group */}
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-text-primary uppercase tracking-wide leading-none">
+          <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none">
             {t('chatPanel.title', 'Asistenti Sokratik')}
           </h2>
           <div className="flex items-center justify-center ml-0.5">
@@ -303,12 +303,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Right group */}
-        <div className="flex items-center justify-end gap-2 h-9">
-          <div className="relative group h-9 flex items-center">
+        <div className="flex items-center justify-end gap-2 h-8 sm:h-9">
+          <div className="relative group h-8 sm:h-9 flex items-center">
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="appearance-none h-9 rounded-xl border border-main bg-surface text-text-primary text-xs font-semibold pl-2.5 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
+              className="appearance-none h-8 sm:h-9 rounded-xl border border-main bg-surface text-text-primary text-[11px] sm:text-xs font-semibold pl-2.5 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
             >
               {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value} className="bg-canvas text-text-primary">{label}</option>)}
             </select>
@@ -319,26 +319,110 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <button 
                 type="button"
                 onClick={onExportChat} 
-                className="flex items-center justify-center w-9 h-9 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none" 
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none" 
                 title="Download"
             >
-              <Download size={16} />
+              <Download size={15} />
             </button>
           )}
           <button 
               type="button"
               onClick={onClearChat} 
-              className="flex items-center justify-center w-9 h-9 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none" 
+              className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none" 
               title="Clear"
           >
-            <Trash2 size={16} />
+            <Trash2 size={15} />
           </button>
         </div>
       </div>
 
-      {/* MESSAGE STREAM - INVISIBLE SCROLLBAR & STRICT TYPE-GUARDED RENDERER */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main">
+      {/* MESSAGE AREA / NATIVE EMBEDDED COMMAND PALETTE */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col justify-start">
         <AnimatePresence initial={false}>
+          
+          {/* NATIVE EMBEDDED COMMAND PALETTE (VERTICALLY CENTERED WHEN MESSAGES = 0) */}
+          {safeMessages.length === 0 && !isSendingMessage && (
+            <div className="flex-1 my-auto flex flex-col items-center justify-center text-center p-2 sm:p-4 gap-3 sm:gap-4">
+              
+              <div className="space-y-1.5 max-w-lg">
+                <h3 className="text-xs sm:text-base font-black uppercase text-text-primary tracking-tight">
+                  Unë jam Agjenti i rastit tuaj, {userSalutation}
+                </h3>
+                <p className="text-[10px] sm:text-xs text-text-secondary leading-relaxed font-medium">
+                  {clientPosition === 'DEFENDANT'
+                    ? 'Asistenti juaj ligjor me AI për ndërtimin e mbrojtjes strategjike, rrëzimin e padisë dhe analizën e thellë të dokumenteve të lëndës.'
+                    : 'Asistenti juaj ligjor me AI për vërtetimin e kërkesëpadisë, provimin e përgjegjësisë dhe argumentimin e të drejtave të klientit.'}
+                </p>
+
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-surface border border-main rounded-lg text-[9px] sm:text-[10px] text-text-muted font-medium mt-1">
+                  <Info size={11} className="text-primary-start shrink-0" />
+                  <span>Përgjigjet e AI shërbejnë për referencë dhe verifikohen nga avokati.</span>
+                </div>
+              </div>
+
+              {/* 2x2 COMMAND CARDS GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full max-w-xl text-left mt-1">
+                {[
+                  {
+                    title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
+                    badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
+                    icon: ShieldCheck,
+                    prompt:
+                      clientPosition === 'DEFENDANT'
+                        ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
+                        : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
+                  },
+                  {
+                    title: 'BAZA LIGJORE & PROCEDURA',
+                    badge: 'LPK & KODET LIGJORE',
+                    icon: Scale,
+                    prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
+                  },
+                  {
+                    title: 'PYETËSORI I SEANCËS',
+                    badge: 'MARRJA NË PYETJE',
+                    icon: Gavel,
+                    prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
+                  },
+                  {
+                    title: 'RAPORTI PËR KLIENTIN',
+                    badge: 'MEMO TEKNIKE',
+                    icon: FileText,
+                    prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
+                  }
+                ].map((card, idx) => {
+                  const IconComponent = card.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => sendMessage(card.prompt)}
+                      className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
+                          {card.badge}
+                        </span>
+                        <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <IconComponent size={14} className="text-primary-start shrink-0" />
+                        <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                          {card.title}
+                        </h4>
+                      </div>
+
+                      <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
+                        {card.prompt}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {safeMessages.filter(m => m && typeof m.content === 'string' && m.content.trim() !== "").map((msg, idx) => {
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
             const autoLinkedText = autoLinkLegalCitations(cleanText);
@@ -352,12 +436,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                   <MessageCopyButton text={msg.content} />
                   
-                  {/* Clean response */}
                   <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
                   
-                  {/* DYNAMIC INTERACTIVE FOLLOW-UP QUESTIONS */}
                   {msg.role === 'ai' && idx === safeMessages.length - 1 && !isSendingMessage && suggestedQuestions.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
@@ -409,7 +491,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* INPUT AREA */}
-      <div className="p-4 bg-surface shrink-0 z-20">
+      <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="max-w-5xl mx-auto">
           <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
             <textarea 

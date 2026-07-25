@@ -1,19 +1,20 @@
-// FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V7.0 (ONTOLOGY EVIDENCE GRAPH FEATURE INTEGRATED)
+// FILE: frontend/src/components/landing/ProductShowcase.tsx
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V8.1 (0 WARNINGS - CHEVRONRIGHT FIXED)
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { 
     ShieldAlert, FileText, ScanEye, BrainCircuit, 
     CheckCircle, PenTool, FolderOpen, 
-    Sparkles, Gavel, Calculator, TrendingUp, Network} from 'lucide-react';
+    Sparkles, Calculator, Network, ArrowRight, Lock, AlertTriangle, ChevronRight
+} from 'lucide-react';
 
 const ProductShowcase = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState(0);
 
-    // Auto-rotate slides (6 slides)
+    // Auto-rotate slides every 8 seconds
     useEffect(() => {
         const timer = setInterval(() => {
             setActiveTab((prev) => (prev + 1) % 6);
@@ -24,144 +25,172 @@ const ProductShowcase = () => {
     const features = [
         {
             id: 0,
-            title: t('showcase.slide1_title', 'Dhoma e Luftës'),
-            desc: t('showcase.slide1_desc', 'Gjeni gënjeshtrat automatikisht.'),
-            icon: <Gavel className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-red-500 to-orange-500",
+            title: t('showcase.slide1_title', 'Dhoma e Luftës (War Room)'),
+            desc: t('showcase.slide1_desc', 'Simulim adversar i strategjisë së kundërshtarit dhe detektim automatik i kontradiktave.'),
+            icon: <SwordsIcon className="w-5 h-5" />,
+            badge: "ANALIZË ADVERSARE",
+            color: "from-rose-600 to-red-600",
             mockup: <WarRoomMockup />
         },
         {
             id: 1,
             title: t('showcase.slide_ontology_title', 'Ontologjia e Provave'),
-            desc: t('showcase.slide_ontology_desc', 'Grafik interaktiv i lidhjeve, personave dhe kontradiktave.'),
-            icon: <Network className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-purple-500 to-indigo-500",
+            desc: t('showcase.slide_ontology_desc', 'Grafik interaktiv i lidhjeve midis personave, kompanive, llogarive dhe provave.'),
+            icon: <Network className="w-5 h-5" />,
+            badge: "PALANTIR FOUNDRY ENGINE",
+            color: "from-indigo-600 to-purple-600",
             mockup: <OntologyMockup />
         },
         {
             id: 2,
-            title: t('showcase.slide2_title', 'Deep Scan OCR'),
-            desc: t('showcase.slide2_desc', 'Skanoni 50+ dokumente në sekonda.'),
-            icon: <ScanEye className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-blue-500 to-cyan-500",
+            title: t('showcase.slide2_title', 'Deep Scan OCR Engine'),
+            desc: t('showcase.slide2_desc', 'Skanim dhe lexim automatik i dhjetëra fashikujve e dokumenteve të fotografuara në sekonda.'),
+            icon: <ScanEye className="w-5 h-5" />,
+            badge: "KOSOVO OCR TUNED",
+            color: "from-blue-600 to-cyan-600",
             mockup: <DeepScanMockup />
         },
         {
             id: 3,
-            title: t('showcase.slide3_title', 'Hartim i Padukshëm'),
-            desc: t('showcase.slide3_desc', 'Ju shkruani strategjinë, ne shkruajmë nenet.'),
-            icon: <PenTool className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-emerald-500 to-green-500",
+            title: t('showcase.slide3_title', 'Hartimi i Shkresave me AI'),
+            desc: t('showcase.slide3_desc', 'Gjenerim automatik i padive, kundërshtimeve dhe kontratave me citime të neneve të LPK.'),
+            icon: <PenTool className="w-5 h-5" />,
+            badge: "NENET E KODIT CITTED",
+            color: "from-emerald-600 to-teal-600",
             mockup: <DraftingMockup />
         },
         {
             id: 4,
-            title: t('showcase.slide4_title', 'Arkiva e Gjallë'),
-            desc: t('showcase.slide4_desc', 'Çdo dokument, i indeksuar dhe i sigurt.'),
-            icon: <FolderOpen className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-violet-500 to-fuchsia-500",
+            title: t('showcase.slide4_title', 'Arkiva e Sigurt Digjitale'),
+            desc: t('showcase.slide4_desc', 'Ruajtje me enkriptim ushtarak AES-256 dhe kërkim vektorial i menjëhershëm.'),
+            icon: <FolderOpen className="w-5 h-5" />,
+            badge: "ENKRIPTIM AES-256",
+            color: "from-violet-600 to-fuchsia-600",
             mockup: <ArchiveMockup />
         },
         {
             id: 5,
-            title: t('showcase.slide5_title', 'Kontabilisti i Zyrës'),
-            desc: t('showcase.slide5_desc', 'Menaxhoni financat dhe tatimet automatikisht.'),
-            icon: <Calculator className="w-5 h-5 lg:w-6 lg:h-6" />,
-            color: "from-amber-500 to-yellow-500",
+            title: t('showcase.slide5_title', 'Analisti Financiar Forenzik'),
+            desc: t('showcase.slide5_desc', 'Auditim automatik i librave të shpenzimeve, Benford Check dhe analizë e faturave.'),
+            icon: <Calculator className="w-5 h-5" />,
+            badge: "BENFORD'S LAW CHECK",
+            color: "from-amber-600 to-yellow-600",
             mockup: <FinanceMockup />
         }
     ];
 
     return (
-        <div className="py-16 lg:py-24 bg-canvas/50 relative overflow-hidden backdrop-blur-sm border-y border-main">
+        <div className="py-20 lg:py-28 bg-canvas relative overflow-hidden border-y border-main">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-primary-start/5 rounded-full blur-[140px] pointer-events-none" />
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                <div className="text-center mb-10 lg:mb-16">
-                    <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
-                        {t('showcase.title', 'Jo Thjesht Softuer. Partneri Juaj.')}
+                
+                <div className="text-center mb-12 lg:mb-16 space-y-4">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 border border-primary-start/20 text-primary-start text-xs font-black uppercase tracking-widest">
+                        <Sparkles size={13} />
+                        <span>Platforma Ekzekutive për Avokatë</span>
+                    </div>
+                    <h2 className="text-3xl sm:text-5xl font-black text-text-primary tracking-tight uppercase">
+                        Salla e Komandimit të Lëndëve Ligjore
                     </h2>
-                    <p className="text-lg lg:text-xl text-text-secondary max-w-2xl mx-auto">
-                        {t('showcase.subtitle', 'Inteligjencë Artificiale e ndërtuar për sistemin e Kosovës.')}
+                    <p className="text-base sm:text-lg text-text-secondary max-w-2xl mx-auto font-medium leading-relaxed">
+                        Teknologjia më e avancuar e inteligjencës artificiale në Kosovë, e ndërtuar posaçërisht për zyrat e avokatisë.
                     </p>
                 </div>
 
-                {/* --- MOBILE NAVIGATION --- */}
-                <div className="lg:hidden flex overflow-x-auto gap-3 mb-8 no-scrollbar pb-2 px-2">
+                {/* Mobile Tab Selector */}
+                <div className="lg:hidden flex overflow-x-auto gap-2 mb-8 no-scrollbar pb-2 px-1">
                     {features.map((feature, index) => (
                         <button
                             key={feature.id}
                             onClick={() => setActiveTab(index)}
-                            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border transition-all whitespace-nowrap ${
+                            className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all text-xs font-bold uppercase tracking-wider ${
                                 activeTab === index 
-                                ? 'btn-primary border-transparent shadow-lg' 
-                                : 'bg-surface/30 border-main text-text-secondary'
+                                ? 'bg-primary-start text-white border-primary-start shadow-md' 
+                                : 'bg-surface border-main text-text-muted hover:text-text-primary'
                             }`}
                         >
-                            <div className={`p-1 rounded-full ${activeTab === index ? '' : `bg-gradient-to-br ${feature.color}`}`}>
-                                {React.cloneElement(feature.icon, {className: `w-4 h-4 text-text-primary`})}
-                            </div>
-                            <span className="text-sm font-bold">{feature.title}</span>
+                            {feature.title}
                         </button>
                     ))}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+                {/* Stage Grid Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
                     
-                    {/* --- DESKTOP CONTROLS --- */}
-                    <div className="hidden lg:block space-y-3">
-                        {features.map((feature, index) => (
-                            <button
-                                key={feature.id}
-                                onClick={() => setActiveTab(index)}
-                                className={`w-full text-left p-4 lg:p-5 rounded-2xl transition-all duration-300 border group glass-panel ${
-                                    activeTab === index 
-                                    ? 'bg-surface/30 border-primary-start/50 shadow-2xl scale-[1.02]' 
-                                    : 'hover:bg-surface/20 border-main'
-                                }`}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-lg transition-transform duration-300 ${activeTab === index ? 'scale-110' : 'group-hover:scale-105'}`}>
-                                        {feature.icon}
+                    {/* Desktop Control Buttons List */}
+                    <div className="hidden lg:flex lg:col-span-5 flex-col justify-between space-y-3">
+                        {features.map((feature, index) => {
+                            const isActive = activeTab === index;
+                            return (
+                                <button
+                                    key={feature.id}
+                                    onClick={() => setActiveTab(index)}
+                                    className={`w-full text-left p-4 lg:p-5 rounded-2xl transition-all duration-300 border flex items-center justify-between group cursor-pointer ${
+                                        isActive 
+                                        ? 'bg-surface border-primary-start/60 shadow-xl ring-1 ring-primary-start/30 scale-[1.02]' 
+                                        : 'bg-surface/40 hover:bg-surface/80 border-main'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-md shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-105'}`}>
+                                            {feature.icon}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                                    isActive ? 'bg-primary-start/15 text-primary-start border border-primary-start/30' : 'bg-canvas text-text-muted border border-main'
+                                                }`}>
+                                                    {feature.badge}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase text-text-primary tracking-tight truncate">
+                                                {feature.title}
+                                            </h3>
+                                            <p className="text-xs text-text-secondary leading-relaxed font-medium line-clamp-1 mt-0.5">
+                                                {feature.desc}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-base font-bold mb-0.5 text-text-primary">
-                                            {feature.title}
-                                        </h3>
-                                        <p className={`text-xs sm:text-sm leading-relaxed transition-colors ${activeTab === index ? 'text-text-secondary' : 'text-text-muted'}`}>
-                                            {feature.desc}
-                                        </p>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
+
+                                    <ChevronRight size={18} className={`shrink-0 transition-transform duration-300 ${isActive ? 'text-primary-start translate-x-1' : 'text-text-muted opacity-40 group-hover:opacity-100'}`} />
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    {/* --- VISUAL STAGE --- */}
-                    <div className="relative h-[350px] sm:h-[400px] lg:h-[500px] w-full perspective-1000">
+                    {/* Interactive Stage Viewport */}
+                    <div className="lg:col-span-7 h-[420px] sm:h-[480px] lg:h-[540px] w-full relative">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
-                                initial={{ opacity: 0, x: 20, rotateY: 5 }}
-                                animate={{ opacity: 1, x: 0, rotateY: 0 }}
-                                exit={{ opacity: 0, x: -20, rotateY: -5 }}
-                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                initial={{ opacity: 0, scale: 0.97, y: 10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.97, y: -10 }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
                                 className="absolute inset-0"
                             >
-                                <div className="w-full h-full glass-panel border border-main rounded-3xl shadow-2xl overflow-hidden relative flex flex-col">
-                                    {/* Mockup Header */}
-                                    <div className="h-8 lg:h-10 bg-surface/40 border-b border-main flex items-center px-4 gap-2 flex-shrink-0">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-danger-start" />
-                                        <div className="w-2.5 h-2.5 rounded-full bg-warning-start" />
-                                        <div className="w-2.5 h-2.5 rounded-full bg-success-start" />
+                                <div className="w-full h-full glass-panel border border-main rounded-3xl shadow-2xl overflow-hidden relative flex flex-col bg-slate-950 text-slate-100">
+                                    <div className="h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-rose-500/80" />
+                                            <div className="w-3 h-3 rounded-full bg-amber-500/80" />
+                                            <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                                            <span className="text-[10px] font-mono text-slate-400 font-bold ml-2 uppercase tracking-widest">
+                                                Juristi AI — {features[activeTab].badge}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase font-bold">
+                                            LIVE ENGINE
+                                        </span>
                                     </div>
                                     
-                                    {/* Mockup Body */}
-                                    <div className="p-4 lg:p-6 flex-1 bg-gradient-to-b from-canvas/20 to-canvas/10 relative overflow-hidden">
+                                    <div className="p-5 lg:p-8 flex-1 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
                                         {features[activeTab].mockup}
                                     </div>
 
-                                    {/* Mobile Footer Desc */}
-                                    <div className="lg:hidden p-4 bg-surface/30 border-t border-main backdrop-blur-md">
-                                        <p className="text-sm text-text-secondary text-center">
+                                    <div className="lg:hidden p-3.5 bg-slate-900 border-t border-slate-800">
+                                        <p className="text-xs text-slate-300 text-center font-medium">
                                             {features[activeTab].desc}
                                         </p>
                                     </div>
@@ -169,182 +198,223 @@ const ProductShowcase = () => {
                             </motion.div>
                         </AnimatePresence>
                     </div>
+
                 </div>
             </div>
         </div>
     );
 };
 
-// --- MOCKUPS (Glass Style with Semantic Colors) ---
+// --- MOCKUP COMPONENTS ---
+
+const SwordsIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.4a1 1 0 001.4 0l3.7-3.7a1 1 0 000-1.4l-1.6-1.4a1 1 0 00-1.4 0l-3.7 3.7z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3L4.5 16.5M3 21l3-1.5M16.5 4.5L21 3" />
+    </svg>
+);
 
 const OntologyMockup = () => (
-    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-700">
-        <div className="flex justify-between items-center bg-surface/40 p-2.5 rounded-xl border border-main">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-primary-start">
-                <Network size={14} /> Ontologjia e Provave
+    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500">
+        <div className="flex justify-between items-center bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider">
+                <Network size={16} /> Ontologjia e Provave
             </div>
-            <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[10px] font-bold">
-                13 ENTITETE • 1 KUNDËRTHËNJE
+            <span className="px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-mono font-bold">
+                17 ENTITETE • 1 KUNDËRTHËNJE
             </span>
         </div>
 
-        {/* SVG Network Graph Animation */}
-        <div className="flex-1 relative flex items-center justify-center my-2">
-            <svg className="w-full h-full" viewBox="-200 -120 400 240">
-                {/* Edges */}
-                <line x1="-100" y1="-30" x2="0" y2="40" stroke="#3b82f6" strokeWidth="2" />
-                <line x1="0" y1="40" x2="100" y2="-30" stroke="#8b5cf6" strokeWidth="2" />
-                <line x1="-100" y1="-30" x2="100" y2="-30" stroke="#ef4444" strokeWidth="2" strokeDasharray="4,4" className="animate-pulse" />
+        <div className="flex-1 relative flex items-center justify-center my-3">
+            <svg className="w-full h-full" viewBox="-220 -130 440 260">
+                <path d="M -120 -40 Q 0 20 120 -40" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" />
+                <path d="M -120 -40 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                <path d="M 0 50 Q 60 50 120 -40" fill="none" stroke="#8b5cf6" strokeWidth="2" />
                 
-                {/* Edge Badges */}
-                <rect x="-15" y="0" width="30" height="12" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="0.5" />
-                <text x="0" y="8" textAnchor="middle" fill="#93c5fd" fontSize="6" fontWeight="bold">€45,000</text>
+                <rect x="-45" y="-12" width="90" height="18" rx="5" fill="#450a0a" stroke="#ef4444" strokeWidth="1" />
+                <text x="0" y="0" textAnchor="middle" fill="#fca5a5" fontSize="8" fontWeight="black">KUNDËRTHËNJE</text>
 
-                <rect x="-30" y="-40" width="60" height="12" rx="3" fill="#450a0a" stroke="#ef4444" strokeWidth="0.5" />
-                <text x="0" y="-32" textAnchor="middle" fill="#fca5a5" fontSize="6" fontWeight="bold">KUNDËRTHËNJE</text>
+                <rect x="-30" y="42" width="60" height="16" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                <text x="0" y="53" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">€45,000</text>
 
-                {/* Nodes */}
-                <g transform="translate(-100, -30)">
-                    <circle r="16" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" />
-                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">Shaban Bala</text>
+                <g transform="translate(-120, -40)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(59, 130, 246, 0.25)" stroke="#3b82f6" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Shaban Bala</text>
                 </g>
 
-                <g transform="translate(0, 40)">
-                    <circle r="16" fill="rgba(139, 92, 246, 0.2)" stroke="#8b5cf6" strokeWidth="2" />
-                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">Tekno Corp</text>
+                <g transform="translate(0, 50)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(139, 92, 246, 0.25)" stroke="#8b5cf6" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Tekno Corp Sh.p.k.</text>
                 </g>
 
-                <g transform="translate(100, -30)">
-                    <circle r="16" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="2" />
-                    <text y="24" textAnchor="middle" fill="currentColor" className="text-text-primary text-[8px] font-bold">XK56 1000...</text>
+                <g transform="translate(120, -40)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">XK56 1000 1234...</text>
                 </g>
             </svg>
         </div>
 
-        <div className="p-2.5 bg-surface/30 rounded-xl border border-main text-[11px] text-text-secondary flex justify-between items-center">
-            <span className="font-semibold">I lidhur me 3 dokumente & transaksione bankare</span>
-            <span className="text-primary-start font-bold cursor-pointer hover:underline">Shiko Grafikin →</span>
+        <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
+            <span className="font-semibold text-slate-400">Detektuar automatikisht nga transkripti i seancës</span>
+            <span className="text-purple-400 font-bold flex items-center gap-1">Eksporto Raportin <ArrowRight size={12} /></span>
         </div>
     </div>
 );
 
 const WarRoomMockup = () => (
-    <div className="space-y-3 lg:space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 h-full flex flex-col justify-center">
-        <div className="flex items-center gap-3 mb-2 lg:mb-6">
-            <div className="p-2 bg-danger-start/10 rounded-lg border border-danger-start/20"><ShieldAlert className="text-danger-start w-5 h-5 lg:w-6 lg:h-6" /></div>
-            <div className="h-3 lg:h-4 w-32 bg-surface/20 rounded" />
+    <div className="space-y-4 h-full flex flex-col justify-center animate-in fade-in duration-500">
+        <div className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-wider">
+                <ShieldAlert size={16} /> Analiza Adversare e Mbrojtjes
+            </div>
+            <span className="text-[10px] font-mono bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded uppercase font-bold border border-rose-500/30">
+                PALA KUNDËRSHTARE
+            </span>
         </div>
-        <div className="p-3 lg:p-4 bg-danger-start/10 border border-danger-start/20 rounded-xl shadow-inner">
-            <div className="flex items-center gap-2 mb-2 text-danger-start font-bold text-[10px] lg:text-xs uppercase">
-                <Sparkles size={12} /> Kontradiktë e Gjetur
+
+        <div className="p-4 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase">
+                <AlertTriangle size={14} /> Pika e Sulmit e Kundërshtarit
             </div>
-            <div className="space-y-2">
-                <div className="h-2 lg:h-3 w-full bg-danger-start/10 rounded" />
-                <div className="h-2 lg:h-3 w-3/4 bg-danger-start/10 rounded" />
-            </div>
+            <p className="text-xs text-slate-200 leading-relaxed font-mono">
+                &quot;Paditësi do të kontestojë vlefshmërinë e nënshkrimit në Nenin 4 pasi mungon vula e autorizuar...&quot;
+            </p>
         </div>
-        <div className="flex gap-3 lg:gap-4">
-            <div className="flex-1 p-3 lg:p-4 bg-primary-start/10 border border-primary-start/20 rounded-xl">
-                <div className="text-primary-start font-bold text-[10px] lg:text-xs mb-2">PALA E PADITUR</div>
-                <div className="h-1.5 lg:h-2 w-full bg-primary-start/10 rounded mb-1" />
-                <div className="h-1.5 lg:h-2 w-1/2 bg-primary-start/10 rounded" />
+
+        <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-blue-950/40 border border-blue-800/50 rounded-xl">
+                <span className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Mbrojtja Jonë</span>
+                <p className="text-xs text-slate-300 font-medium">Neni 24 i LPK-së konfirmon pranimin e hilës me konkludim faktik.</p>
             </div>
-            <div className="flex-1 p-3 lg:p-4 bg-surface/20 border border-main rounded-xl opacity-60">
-                <div className="text-text-muted font-bold text-[10px] lg:text-xs mb-2">PROVA</div>
-                <div className="h-1.5 lg:h-2 w-full bg-surface/20 rounded mb-1" />
-                <div className="h-1.5 lg:h-2 w-1/2 bg-surface/20 rounded" />
+            <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Probabiliteti</span>
+                <p className="text-sm font-mono font-black text-emerald-300">85% Sukses</p>
             </div>
         </div>
     </div>
 );
 
 const DeepScanMockup = () => (
-    <div className="space-y-2 lg:space-y-3 h-full flex flex-col justify-center">
-        {[1, 2, 3, 4].map((i) => (
-            <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.2 }} className="flex items-center justify-between p-2 lg:p-3 bg-surface/20 border border-main rounded-lg">
+    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500">
+        <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2 mb-1">
+            <ScanEye size={16} /> Skanim OCR i 4 Dokumenteve
+        </div>
+        {[
+            { name: "Procesverbali_I_Seances.pdf", pages: "12 Faqe", status: "100% Skanuar" },
+            { name: "Prapësimi_I_Padise.pdf", pages: "8 Faqe", status: "100% Skanuar" },
+            { name: "Marrëveshja_Financiare.pdf", pages: "24 Faqe", status: "100% Skanuar" },
+        ].map((item, i) => (
+            <div key={i} className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-xl">
                 <div className="flex items-center gap-3">
-                    <div className="p-1.5 lg:p-2 bg-primary-start/10 rounded-lg"><FileText className="w-3 h-3 lg:w-4 lg:h-4 text-primary-start" /></div>
-                    <div className="space-y-1"><div className="h-1.5 lg:h-2 w-16 lg:w-24 bg-surface/30 rounded" /><div className="h-1 lg:h-1.5 w-10 lg:w-16 bg-surface/20 rounded" /></div>
+                    <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
+                        <FileText size={16} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{item.pages}</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 lg:gap-3">
-                    <div className="w-16 lg:w-24 h-1 lg:h-1.5 bg-surface/30 rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: "100%" }} transition={{ duration: 1.5, delay: i * 0.2 }} className="h-full bg-success-start" /></div>
-                    <CheckCircle className="w-3 h-3 lg:w-4 lg:h-4 text-success-start" />
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                        {item.status}
+                    </span>
+                    <CheckCircle size={16} className="text-emerald-400" />
                 </div>
-            </motion.div>
+            </div>
         ))}
     </div>
 );
 
 const DraftingMockup = () => (
-    <div className="relative h-full flex flex-col">
-        <div className="flex gap-2 mb-4 border-b border-main pb-2">
-            <div className="w-4 h-4 lg:w-6 lg:h-6 bg-surface/30 rounded" />
-            <div className="w-4 h-4 lg:w-6 lg:h-6 bg-surface/30 rounded" />
-            <div className="w-4 h-4 lg:w-6 lg:h-6 bg-surface/30 rounded" />
-            <div className="flex-1" />
-            <div className="w-12 lg:w-20 h-4 lg:h-6 bg-primary-start/20 rounded" />
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
+        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                <PenTool size={16} /> Gjeneruesi i Prapësimit
+            </span>
+            <span className="text-[10px] font-mono text-slate-400">FORMATI .DOCX</span>
         </div>
-        <div className="space-y-2 lg:space-y-3">
-            <motion.div initial={{ width: 0 }} animate={{ width: "60%" }} transition={{ duration: 1 }} className="h-3 lg:h-4 bg-surface/30 rounded" />
-            <motion.div initial={{ width: 0 }} animate={{ width: "90%" }} transition={{ duration: 1.5, delay: 0.5 }} className="h-2 lg:h-3 bg-surface/20 rounded" />
-            <motion.div initial={{ width: 0 }} animate={{ width: "85%" }} transition={{ duration: 1.5, delay: 1 }} className="h-2 lg:h-3 bg-surface/20 rounded" />
-             <motion.div initial={{ width: 0 }} animate={{ width: "40%" }} transition={{ duration: 0.5, delay: 2 }} className="h-2 lg:h-3 bg-surface/20 rounded" />
+
+        <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 font-serif leading-relaxed my-2 space-y-2">
+            <p className="font-bold uppercase text-center text-slate-100 border-b border-slate-800 pb-2">
+                GJYKATA THEMELORE NË PRISHTINË — DEPARTAMENTI PËR ÇËSHTJE EKONOMIKE
+            </p>
+            <p className="italic text-slate-400">
+                Në bazë të Nenit 297 të Ligjit për Procedurën Kontestimore (LPK)...
+            </p>
         </div>
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 2.5 }} className="absolute bottom-2 lg:bottom-10 right-0 left-0 mx-2 lg:mx-4 p-3 bg-primary-start/90 backdrop-blur-sm border border-primary-start/40 rounded-xl shadow-lg">
-            <div className="flex items-center gap-2 mb-1"><BrainCircuit className="w-3 h-3 lg:w-4 lg:h-4 text-text-primary" /><span className="text-[9px] lg:text-[10px] text-text-primary font-bold uppercase">Juristi AI</span></div>
-            <div className="text-[10px] lg:text-xs text-text-primary/90">Duke analizuar Ligjin nr. 03/L-006... Sugjeroj të shtoni Nenin 14.</div>
-        </motion.div>
+
+        <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
+            <BrainCircuit size={20} className="text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-200 font-medium leading-normal">
+                AI sugjeroi automatikisht Nenin 14 dhe futi emrat zyrtarë të palëve nga fashikulli.
+            </p>
+        </div>
     </div>
 );
 
 const ArchiveMockup = () => (
-    <div className="grid grid-cols-2 gap-3 lg:gap-4 h-full content-center">
-        {[1, 2, 3, 4].map(i => (
-            <motion.div key={i} whileHover={{ scale: 1.05 }} className="aspect-square bg-surface/20 border border-main rounded-xl p-3 lg:p-4 flex flex-col items-center justify-center gap-2 lg:gap-3 cursor-pointer hover:bg-surface/40 transition-colors">
-                <FolderOpen className={`w-8 h-8 lg:w-10 lg:h-10 ${i === 1 ? 'text-accent-start' : 'text-primary-start'}`} />
-                <div className="h-1.5 lg:h-2 w-12 lg:w-16 bg-surface/30 rounded" />
-            </motion.div>
-        ))}
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
+        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+            <span className="text-xs font-bold text-violet-400 uppercase tracking-wider flex items-center gap-2">
+                <FolderOpen size={16} /> Arkivi i Enkriptuar
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold flex items-center gap-1">
+                <Lock size={10} /> AES-256
+            </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 my-2">
+            {[
+                { title: "Lëndët Penale", docs: "42 Dokumente" },
+                { title: "Marrëveshjet Tregtare", docs: "18 Dokumente" },
+                { title: "Vendimet e Gjykatës", docs: "89 Dokumente" },
+                { title: "Llogaritë Financiale", docs: "31 Fatura" },
+            ].map((folder, i) => (
+                <div key={i} className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center gap-3 hover:border-violet-500/40 transition-colors">
+                    <FolderOpen className="text-violet-400 shrink-0" size={20} />
+                    <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-200 truncate">{folder.title}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{folder.docs}</p>
+                    </div>
+                </div>
+            ))}
+        </div>
+
+        <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Kërkim vektorial i menjëhershëm në të gjithë arkivin</span>
+            <span className="text-violet-400 font-mono font-bold">0.02s</span>
+        </div>
     </div>
 );
 
 const FinanceMockup = () => (
-    <div className="h-full flex flex-col gap-4 justify-center animate-in fade-in zoom-in-95 duration-500">
-        <div className="flex gap-3">
-            <div className="flex-1 bg-success-start/10 border border-success-start/20 rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-2 text-success-start font-bold text-[10px] uppercase"><TrendingUp size={12} /> Të Hyra</div>
-                <div className="text-lg lg:text-xl font-mono text-text-primary">€ 2,450</div>
-            </div>
-            <div className="flex-1 bg-danger-start/10 border border-danger-start/20 rounded-xl p-3">
-                <div className="flex items-center gap-2 mb-2 text-danger-start font-bold text-[10px] uppercase"><TrendingUp size={12} className="rotate-180" /> Shpenzime</div>
-                <div className="text-lg lg:text-xl font-mono text-text-primary">€ 850</div>
-            </div>
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
+        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                <Calculator size={16} /> Auditimi Financiar & Benford Check
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                PASQYRAT E RREGULLTA
+            </span>
         </div>
-        
-        <div className="bg-surface/20 border border-main rounded-xl p-4">
-            <div className="flex justify-between items-center mb-3">
-                <span className="text-text-secondary text-xs uppercase font-bold tracking-wider">Tatimi i Llogaritur (ATK)</span>
-                <span className="text-xs bg-accent-start/20 text-accent-start px-2 py-0.5 rounded font-bold">Q4 2025</span>
+
+        <div className="grid grid-cols-2 gap-3 my-2">
+            <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase block">Qarkullimi Total</span>
+                <span className="text-base font-mono font-black text-slate-100">€ 142,500.00</span>
             </div>
-            <div className="w-full bg-surface/30 rounded-full h-2 mb-2">
-                <div className="bg-accent-start h-2 rounded-full w-[65%]"></div>
-            </div>
-            <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Progresi</span>
-                <span className="text-text-primary font-mono">€ 144.00</span>
+            <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl">
+                <span className="text-[10px] font-bold text-amber-400 uppercase block">Tërheqje me Risk</span>
+                <span className="text-base font-mono font-black text-amber-300">€ 4,200.00</span>
             </div>
         </div>
 
-        <div className="space-y-2">
-            {[1, 2].map(i => (
-                <div key={i} className="flex justify-between items-center p-2 bg-surface/20 rounded-lg text-xs">
-                    <div className="flex items-center gap-2">
-                        <FileText size={12} className="text-text-muted" />
-                        <span className="text-text-secondary">Fatura #{100+i} - Konsultim</span>
-                    </div>
-                    <span className="text-success-start font-mono">+ € 150</span>
-                </div>
-            ))}
+        <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1">
+            <div className="flex justify-between text-xs font-bold text-slate-200">
+                <span>Rezultati i Ligjit të Benfordit:</span>
+                <span className="text-emerald-400 font-mono">98.4% Normal</span>
+            </div>
+            <p className="text-[10px] text-slate-400">Nuk u gjetën manipulime të shifrave në ditarin e arkës.</p>
         </div>
     </div>
 );
