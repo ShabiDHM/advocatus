@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V30.0 (ROBUST ACRONYM & PREFIX RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V31.0 (PRODUCTION RESILIENT DUAL-TYPE MATCHING)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -172,7 +172,7 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Dict[str, Any]]:
     """
     Find law documents with confidence scoring.
-    Returns: (documents, metadata) where metadata contains confidence info.
+    Supports dual integer/string database matching and trailing whitespace resilience.
     """
     # === 1. PREFIX & SUFFIX NORMALIZATION PIPELINE ===
     clean_title = raw_law_title.strip()
@@ -273,7 +273,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     original_law_title = raw_law_title
     mapped = False
     
-    # Case-insensitive resolution of mapped acronyms/topics
+    # Case-insensitive acronym resolution
     lookup_title = clean_title.upper()
     if lookup_title in law_title_mappings:
         mapped_title = law_title_mappings[lookup_title]
@@ -281,11 +281,21 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         raw_law_title = mapped_title
         mapped = True
     else:
-        # Fallback to the normalized cleaned title if not mapped
         raw_law_title = clean_title
     
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
-    art_variants = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}"]
+    
+    # Build complete variants pool (Strings + Integers to bypass Atlas Type Mismatch)
+    art_variants: List[Any] = [
+        clean_art, 
+        f"{clean_art}.", 
+        f"Neni {clean_art}", 
+        f"NENI {clean_art}",
+        f"{clean_art} ",
+        f" {clean_art}"
+    ]
+    if clean_art.isdigit():
+        art_variants.append(int(clean_art))
     
     metadata = {
         "original_law_title": original_law_title,
@@ -373,6 +383,14 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     query = {"article_number": {"$in": art_variants}}
     cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(10)
     docs = list(cursor)
+    
+    # Whitespace-insensitive regex fallback for missing seeded documents
+    if not docs and clean_art.isdigit():
+        logger.info(f"Applying fallback whitespace-insensitive query for '{clean_art}'")
+        fallback_query = {"article_number": {"$regex": f"^\\s*{clean_art}\\s*$"}}
+        cursor = db.legal_knowledge_base.find(fallback_query).sort("chunk_index", 1).limit(10)
+        docs = list(cursor)
+
     if docs:
         matching_laws = set()
         for doc in docs:
