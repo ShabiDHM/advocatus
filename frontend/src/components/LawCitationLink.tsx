@@ -1,5 +1,5 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - EXACT ASCII MATCH LAW CITATION LINK V4.0
+// PHOENIX PROTOCOL - COMPACT SOLID LAW CITATION LINK V5.3 (PERFECT CENTER ALIGNMENT)
 
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -86,20 +86,48 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const getBadgeStyle = (level: string) => {
     switch (level) {
       case 'HIGH':
-        return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
       case 'MEDIUM':
-        return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30';
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
       case 'LOW':
       case 'LOWEST':
-        return 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30';
+        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
       default:
-        return 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30';
+        return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getTopAccentBorder = (level: string) => {
+    switch (level) {
+      case 'HIGH':
+        return 'border-t-emerald-500';
+      case 'MEDIUM':
+        return 'border-t-amber-500';
+      case 'LOW':
+      case 'LOWEST':
+        return 'border-t-rose-500';
+      default:
+        return 'border-t-slate-400';
+    }
+  };
+
+  const getHintTextColor = (level: string) => {
+    switch (level) {
+      case 'HIGH':
+        return 'text-emerald-600 dark:text-emerald-400';
+      case 'MEDIUM':
+        return 'text-amber-600 dark:text-amber-400';
+      case 'LOW':
+      case 'LOWEST':
+        return 'text-rose-600 dark:text-rose-400';
+      default:
+        return 'text-text-secondary';
     }
   };
 
   return (
     <span
-      className={`relative inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-surface/90 border border-main shadow-sm my-1 align-middle group cursor-pointer transition-all hover:border-primary-start/50 ${className}`}
+      className={`relative inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-surface border border-main shadow-sm my-1 align-middle group cursor-pointer transition-all hover:border-primary-start/50 ${className}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -136,18 +164,25 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
         </span>
       )}
 
-      {/* 3. Executive Tooltip Card */}
+      {/* 3. Center Aligned Tooltip Card */}
       <AnimatePresence>
         {showTooltip && sourceInfo && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            initial={{ opacity: 0, y: 6, scale: 0.97, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
+            exit={{ opacity: 0, y: 4, scale: 0.97, x: "-50%" }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 mt-2 w-[440px] max-w-[90vw] p-4 bg-surface/98 backdrop-blur-2xl border-2 border-main rounded-2xl shadow-2xl z-[500] text-left font-mono text-xs text-text-primary pointer-events-none"
+            className={`absolute bottom-full left-1/2 mb-3.5 w-80 sm:w-[360px] max-w-[90vw] p-4 border border-main border-t-4 ${getTopAccentBorder(
+              confidenceLevel
+            )} rounded-2xl shadow-2xl z-[500] text-left font-mono text-xs text-text-primary pointer-events-none`}
+            style={{
+              backgroundColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))',
+              opacity: 1,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
+            }}
           >
             {/* Row 1: Status + Score */}
-            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-main/70">
+            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-main/70 font-sans">
               <div className="flex items-center gap-1.5 font-bold text-xs">
                 <span>{sourceInfo.confidence?.icon || '✅'}</span>
                 <span className="text-text-primary uppercase tracking-wide">
@@ -167,7 +202,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             </div>
 
             {/* Row 3: Article Number */}
-            <div className="text-xs font-bold text-primary-start mb-2">
+            <div className="text-xs font-bold text-primary-start mb-2 font-sans">
               Neni {sourceInfo.matched_article || articleNum}
             </div>
 
@@ -188,12 +223,20 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             )}
 
             {/* Row 5: Verification Hint */}
-            <div className="text-[11px] text-emerald-500 dark:text-emerald-400 font-medium border-t border-main/50 pt-2 mt-2 flex items-center gap-1.5 font-sans">
+            <div className={`text-[11px] ${getHintTextColor(
+              confidenceLevel
+            )} font-medium border-t border-main/50 pt-2 mt-2 flex items-center gap-1.5 font-sans`}>
               <span>{sourceInfo.confidence?.icon || '✅'}</span>
               <span>
                 {sourceInfo.verification_hint || 'Ky nen korrespondon saktësisht me kërkimin.'}
               </span>
             </div>
+
+            {/* Caret Down Pointer */}
+            <div 
+              className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[8px] border-transparent pointer-events-none" 
+              style={{ borderTopColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))' }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
