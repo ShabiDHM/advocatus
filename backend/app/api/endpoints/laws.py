@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V32.0 (HIGH-ACCURACY RESOLVED RESOLUTION MATCHING)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V33.0 (HIGH-ACCURACY PARENTHESIS & ACRONYM RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -174,23 +174,14 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     Find law documents with confidence scoring.
     Supports dual integer/string database matching and trailing whitespace resilience.
     """
-    # === 1. PREFIX & SUFFIX NORMALIZATION PIPELINE ===
-    clean_title = raw_law_title.strip()
-    # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
-    clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
-    # Strip common preposition prefixes
-    clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
-    # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
-    clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
-    clean_title = clean_title.strip()
-
-    # === 2. COMPREHENSIVE MAPPING & ACRONYMS ===
+    # === 1. COMPREHENSIVE MAPPING & ACRONYMS ===
     law_title_mappings = {
         # === ACCURATE ALBANIAN ACRONYMS ===
         'LPK': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
         'LMD': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
         'KPK': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
         'KPPK': 'Kodi Nr. 08 L-032 I Procedurës Penale',
+        'KPPRK': 'Kodi Nr. 08 L-032 I Procedurës Penale',
         'LPA': 'Ligji Nr. 04 L-189 Për Procedurën Administrative',
         'LPP': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
         'KPC': 'Kodi I Procedurës Civile',
@@ -269,19 +260,37 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         '(TË MITURIT)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
         '(TË MITUR)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
     }
-    
+
     original_law_title = raw_law_title
     mapped = False
-    
-    # Case-insensitive acronym resolution
-    lookup_title = clean_title.upper()
-    if lookup_title in law_title_mappings:
-        mapped_title = law_title_mappings[lookup_title]
-        logger.info(f"Mapped law title from '{raw_law_title}' ({clean_title}) to: '{mapped_title}'")
-        raw_law_title = mapped_title
-        mapped = True
-    else:
-        raw_law_title = clean_title
+
+    # === 2. EXTRACT EMBEDDED ACRONYM (e.g., LPK, KPPRK, LMD) ===
+    acronym_match = re.search(r'\b([A-ZÇË]{3,5})\b', raw_law_title)
+    if acronym_match:
+        acronym = acronym_match.group(1).upper()
+        if acronym in law_title_mappings:
+            raw_law_title = law_title_mappings[acronym]
+            mapped = True
+            logger.info(f"RAG extracted acronym '{acronym}' mapped to: '{raw_law_title}'")
+
+    if not mapped:
+        clean_title = raw_law_title.strip()
+        # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
+        clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
+        # Strip common preposition prefixes
+        clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
+        # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
+        clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
+        clean_title = clean_title.strip()
+
+        # Case-insensitive acronym resolution
+        lookup_title = clean_title.upper()
+        if lookup_title in law_title_mappings:
+            raw_law_title = law_title_mappings[lookup_title]
+            logger.info(f"Mapped law title from '{raw_law_title}' ({clean_title}) to: '{raw_law_title}'")
+            mapped = True
+        else:
+            raw_law_title = clean_title
     
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     
