@@ -1,10 +1,10 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V17.0 (EMBEDDED NATIVE COMMAND PALETTE)
+// PHOENIX PROTOCOL - CHAT PANEL V18.0 (INTEGRATED LAW CITATION LINKS)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, User, Copy, Check, Scale, Eye,
+    Send, BrainCircuit, Trash2, User, Copy, Check, Scale,
     ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles,
     ShieldCheck, Gavel, FileText, Info, ChevronRight
 } from 'lucide-react';
@@ -12,8 +12,8 @@ import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { LawCitationLink } from './LawCitationLink';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -58,13 +58,29 @@ const ThinkingDots = () => (
 
 const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
-  const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
+  
+  // Flexible multi-pattern citation regex:
+  // Pattern 1: Ligji/Ligjit/Kodi Nr. XXX, Neni YYY
+  // Pattern 2: Neni YYY i/e/të Ligjit/Kodit...
+  // Pattern 3: Standalone Neni YYY
+  const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
   try {
-    return text.replace(citationRegex, (match, lawPrefix, lawTitle, articleNum) => {
-      const fullLawName = `${lawPrefix} ${lawTitle.trim()}`;
-      const cleanArtNum = articleNum.trim();
-      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${cleanArtNum}`;
+    return text.replace(citationRegex, (match, lawPrefix, lawNumber, art1, art2, lawName2) => {
+      let lawTitle = "";
+      let articleNum = "";
+
+      if (lawPrefix && art1) {
+        lawTitle = `${lawPrefix} ${lawNumber.trim()}`;
+        articleNum = art1.trim();
+      } else if (art2) {
+        articleNum = art2.trim();
+        lawTitle = lawName2 ? lawName2.trim() : "Ligji i Përgjithshëm";
+      }
+
+      if (!articleNum) return match;
+
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(articleNum)}`;
       return `[${match.trim()}](${targetUrl})`;
     });
   } catch (err) {
@@ -162,45 +178,7 @@ const FeedbackButtons: React.FC<{
     );
 };
 
-const LawPreviewTooltip: React.FC<{ chunkId?: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
-    const [preview, setPreview] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [show, setShow] = useState(false);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-
-    useEffect(() => {
-        if (show && !preview && !loading && chunkId) {
-            setLoading(true);
-            apiService.getLawByChunkId(chunkId)
-                .then(data => setPreview(data.text.substring(0, 200) + '...'))
-                .catch(() => setPreview(t('lawPreview.error', 'Nuk u ngarkua')))
-                .finally(() => setLoading(false));
-        }
-    }, [show, chunkId, preview, loading, t]);
-
-    return (
-        <div className="relative inline-block" onMouseEnter={() => { timeoutRef.current = setTimeout(() => setShow(true), 400); }} onMouseLeave={() => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setShow(false); }}>
-            {children}
-            <AnimatePresence>
-                {show && chunkId && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-sm text-text-secondary rounded-2xl border border-main shadow-2xl z-50 leading-relaxed"
-                    >
-                        <p className="text-xs font-bold text-primary-start uppercase tracking-wide mb-2 border-b border-main pb-2 flex items-center gap-2">
-                            <Scale size={12}/> {t('chat.lawReference', 'Referencë Ligjore')}
-                        </p>
-                        {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
-
-const MarkdownComponents = (t: TFunction) => ({
+const MarkdownComponents = (_t: TFunction) => ({
     h1: ({node, ...props}: any) => <h1 className="text-lg font-bold text-text-primary mb-2 mt-3 border-b border-main pb-1 uppercase tracking-tight" {...props} />,
     h2: ({node, ...props}: any) => <h2 className="text-base font-semibold text-primary-start mb-1.5 mt-2" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-sm font-semibold text-text-primary mb-1 mt-1.5 flex items-center gap-2" {...props} />,
@@ -208,19 +186,30 @@ const MarkdownComponents = (t: TFunction) => ({
     li: ({node, ...props}: any) => <li className="mb-1 leading-relaxed text-text-secondary" {...props} />, 
     a: ({href, children}: any) => {
         if (href?.startsWith('/laws/')) {
-            const chunkId = href.startsWith('/laws/chunk/') ? href.split('/').pop() : undefined;
-            return (
-                <LawPreviewTooltip chunkId={chunkId} t={t}>
-                    <Link
-                        to={href}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 my-0.5"
-                    >
-                        <Scale size={12} className="text-primary-start" />
-                        <span>{children}</span>
-                        <Eye size={12} className="opacity-70 ml-0.5" />
-                    </Link>
-                </LawPreviewTooltip>
-            );
+            try {
+                const url = new URL(href, window.location.origin);
+                const lawTitle = url.searchParams.get('lawTitle') || "Ligj i Paidentifikuar";
+                const articleNum = url.searchParams.get('articleNumber') || "1";
+                const fullMatch = String(children || `${lawTitle} - Neni ${articleNum}`);
+
+                return (
+                    <LawCitationLink
+                        lawTitle={lawTitle}
+                        articleNum={articleNum}
+                        fullMatch={fullMatch}
+                        targetUrl={href}
+                    />
+                );
+            } catch {
+                return (
+                    <LawCitationLink
+                        lawTitle="Ligj"
+                        articleNum="1"
+                        fullMatch={String(children || 'Referencë Ligjore')}
+                        targetUrl={href}
+                    />
+                );
+            }
         }
         return (
             <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors">

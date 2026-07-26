@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V29.0 (ROLE-BIASED SOCRATIC CARDS & DISCLAIMER HEADER)
+// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V30.0 (INTEGRATED LAW CITATION TEXT)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -34,6 +34,7 @@ import {
   Swords
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LawCitationText } from './LawCitationText';
 
 export type EntityType = 'PERSON' | 'ORGANIZATION' | 'ACCOUNT' | 'LOCATION' | 'EVENT' | 'DOCUMENT';
 
@@ -804,7 +805,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 {selectedNode.description && (
                   <div className="bg-canvas p-4 rounded-2xl border border-main space-y-1.5">
                     <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
-                    <p className="text-xs text-text-secondary leading-relaxed font-medium">{selectedNode.description}</p>
+                    <div className="text-xs text-text-secondary leading-relaxed font-medium">
+                      <LawCitationText text={selectedNode.description} />
+                    </div>
                   </div>
                 )}
 
@@ -840,7 +843,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                             )}
                           </div>
                           {e.evidence_text && (
-                            <p className="text-[11px] text-text-secondary italic line-clamp-2 mt-1">&quot;{e.evidence_text}&quot;</p>
+                            <div className="text-[11px] text-text-secondary italic line-clamp-2 mt-1">
+                              &quot;<LawCitationText text={e.evidence_text} />&quot;
+                            </div>
                           )}
                         </div>
                       );
@@ -872,7 +877,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 {selectedEdge.evidence_text && (
                   <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
                     <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Dëshmia nga Dokumentet</span>
-                    <p className="italic text-text-primary">&quot;{selectedEdge.evidence_text}&quot;</p>
+                    <div className="italic text-text-primary">
+                      &quot;<LawCitationText text={selectedEdge.evidence_text} />&quot;
+                    </div>
                   </div>
                 )}
               </div>
@@ -971,7 +978,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <div className={`max-w-[88%] p-4 rounded-2xl text-xs leading-relaxed ${
                       m.role === 'user' ? 'bg-primary-start text-white font-medium' : 'bg-surface border border-main text-text-primary font-medium'
                     }`}>
-                      {m.content || <Loader2 className="animate-spin h-4 w-4 text-primary-start" />}
+                      {m.content ? <LawCitationText text={m.content} /> : <Loader2 className="animate-spin h-4 w-4 text-primary-start" />}
                     </div>
                   </div>
                 ))}

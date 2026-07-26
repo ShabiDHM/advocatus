@@ -1,5 +1,5 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V8.0 (STANDARDIZED TYPOGRAPHY & ZERO DOUBLE SCROLL)
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V9.0 (INTEGRATED LAW CITATION TEXT)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
+import { LawCitationText } from './LawCitationText';
 
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
@@ -18,7 +19,7 @@ interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; tim
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
 
-// --- High-Fidelity Markdown Renderer (theme-aware) ---
+// --- High-Fidelity Markdown Renderer (theme-aware with Law Citation Parsing) ---
 const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
@@ -29,7 +30,7 @@ const renderMarkdown = (text: string) => {
             return <h3 key={i} className="text-xs font-black text-text-primary uppercase tracking-wider mt-6 mb-3 border-b border-main pb-2">{trimmed.slice(2, -2)}</h3>;
         }
         if (/^\d\.\d\.?/.test(trimmed) || /^\d\.\s/.test(trimmed)) {
-             return <h4 key={i} className="text-primary-start font-black text-xs uppercase tracking-wider mt-4 mb-2">{trimmed}</h4>;
+             return <h4 key={i} className="text-primary-start font-black text-xs uppercase tracking-wider mt-4 mb-2"><LawCitationText text={trimmed} /></h4>;
         }
         if (trimmed.includes(':')) {
             const parts = trimmed.split(/:(.*)/s);
@@ -37,7 +38,7 @@ const renderMarkdown = (text: string) => {
                 return (
                     <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-2.5">
                         <strong className="font-black uppercase text-[10px] tracking-wider text-primary-start mr-2">{parts[0]}:</strong>
-                        <span>{parts[1]}</span>
+                        <LawCitationText text={parts[1]} />
                     </p>
                 );
             }
@@ -46,11 +47,11 @@ const renderMarkdown = (text: string) => {
             return (
                 <div key={i} className="flex gap-2.5 ml-1 mb-2.5 items-start">
                     <span className="text-primary-start mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-start shrink-0" />
-                    <p className="text-text-primary text-xs sm:text-sm leading-relaxed">{trimmed.substring(2)}</p>
+                    <p className="text-text-primary text-xs sm:text-sm leading-relaxed"><LawCitationText text={trimmed.substring(2)} /></p>
                 </div>
             );
         }
-        return <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-2.5">{trimmed}</p>;
+        return <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-2.5"><LawCitationText text={trimmed} /></p>;
     });
 };
 

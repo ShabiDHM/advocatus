@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V33.0 (TRI-PARTY MANDATE: DEFENDANT | PLAINTIFF | NEUTRAL)
+# PHOENIX PROTOCOL - RAG SERVICE V33.1 (SOLVED MONGO TRUTHY EXCEPTION)
 
 import os
 import sys
@@ -122,7 +122,7 @@ class AlbanianRAGService:
         logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
 
         client_position = "DEFENDANT"
-        if case_id and self.db:
+        if case_id and self.db is not None:
             try:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
                 case_doc = self.db.cases.find_one({"_id": c_oid})
@@ -150,7 +150,7 @@ class AlbanianRAGService:
             **MANDATI LIGJOR: MBROJTJE / I PADITUR**
             - Ti je Mbrojtësi Ligjor i të Paditurit / të Akuzuarit.
             - Analiza jote DUHET të përqendrohet 100% në rrëzimin e padisë, shfrytëzimin e gabimeve procedurale të paditësit (si parashkrimi i afateve, mungesa e prokurës, apo mungesa e provave), dhe mbrojtjen strategjike.
-            - Rrëzo pretendimet e paditësit me prapësime ose kundërpadi.
+            - Rrëzo pretendimet e paditësit med prapësime ose kundërpadi.
             """
 
         optimized_query = self._optimize_query(query)
@@ -172,7 +172,7 @@ class AlbanianRAGService:
 
         **RREGULLI I REFUZIMIT (I DETYRUESHËM):**
         Nëse përgjigjja nuk mund të nxirret nga [KONTEKSTI], je i ndaluar rreptësisht të përgjigjesh.
-        Përgjigju VETËM me: "Më vjen keq, por ky informacion nuk gjendet në dokumentet e ngarkuara."
+        Përgjigju VETËM me: "Më vjen keq, pot ky informacion nuk gjendet në dokumentet e ngarkuara."
 
         **PRIORITETI I BURIMEVE:**
         Në rast konflikti midis <<< MATERIALET E DOSJES >>> dhe <<< BAZA LIGJORE STATUTORE >>>, **materialet e dosjes kanë përparësi absolute**.

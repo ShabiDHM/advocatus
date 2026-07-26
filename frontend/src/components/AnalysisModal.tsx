@@ -1,23 +1,21 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V31.1 (FIXED: LawCitationLink USAGE)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V31.5 (FULLSCREEN LAYOUT STRETCH)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import { 
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
-    Link as LinkIcon, Clock, Skull, AlertOctagon,
+    Clock, Skull, AlertOctagon,
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle,
-    ZoomIn, ZoomOut, User, Landmark, Eye, Maximize2, Minimize2
+    ZoomIn, ZoomOut, User, Landmark, Maximize2, Minimize2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
 import { apiService } from '../services/api';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
-// ✅ IMPORT THE NEW COMPONENT
 import { LawCitationLink } from './LawCitationLink';
 
 export interface AnalysisModalProps {
@@ -135,38 +133,48 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
 };
 
 // ============================================================
-// MODIFIED: renderTextWithCitations using LawCitationLink
+// FLEXIBLE MULTI-PATTERN CITATION PARSER
 // ============================================================
 const renderTextWithCitations = (text: string) => {
     if (!text) return null;
     const clean = cleanLegalText(text);
 
-    const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
+    const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
     const matches: Array<{ 
         fullMatch: string; 
         targetUrl: string; 
         index: number;
-        lawPrefix: string;
         lawTitle: string;
         articleNum: string;
     }> = [];
+
     let match: RegExpExecArray | null;
 
     while ((match = citationRegex.exec(clean)) !== null) {
         const fullMatch = match[0];
-        const lawPrefix = match[1];
-        const lawTitle = match[2].trim();
-        const articleNum = match[3].trim();
-        const fullLawName = `${lawPrefix} ${lawTitle}`;
-        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
+        let lawTitle = "";
+        let articleNum = "";
+
+        if (match[1] && match[3]) {
+            const lawPrefix = match[1];
+            const lawNumber = match[2].trim();
+            lawTitle = `${lawPrefix} ${lawNumber}`;
+            articleNum = match[3].trim();
+        } else if (match[4]) {
+            articleNum = match[4].trim();
+            lawTitle = match[5] ? match[5].trim() : "Ligji i Përgjithshëm";
+        }
+
+        if (!articleNum) continue;
+
+        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(articleNum)}`;
 
         matches.push({ 
             fullMatch, 
             targetUrl, 
             index: match.index,
-            lawPrefix,
-            lawTitle: fullLawName,
+            lawTitle,
             articleNum
         });
 
@@ -189,7 +197,7 @@ const renderTextWithCitations = (text: string) => {
 
         elements.push(
             <LawCitationLink
-                key={`cit-${i}`}
+                key={`cit-${i}-${m.index}`}
                 lawTitle={m.lawTitle}
                 articleNum={m.articleNum}
                 fullMatch={m.fullMatch}
@@ -207,33 +215,26 @@ const renderTextWithCitations = (text: string) => {
     return elements;
 };
 
+// ============================================================
+// UNIFIED CITATION ITEM RENDERER USING LawCitationLink DIRECTLY
+// ============================================================
 const renderCitationItem = (item: any) => {
     if (typeof item === 'object' && item !== null && (item.law || item.title)) {
         const rawLawTitle = item.law || item.title || "Ligj i Paidentifikuar";
         const rawArticle = item.article || item.legal_basis || "";
         const body = item.relevance || item.argument || item.description || "";
 
-        const { targetUrl } = parseLawTitleAndArticle(rawLawTitle, rawArticle);
+        const { cleanLawTitle, articleNum, targetUrl } = parseLawTitleAndArticle(rawLawTitle, rawArticle);
 
         return (
             <div className="flex flex-col gap-3 w-full">
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 font-bold text-primary-start text-xs uppercase tracking-wide group">
-                        <LinkIcon size={12} className="text-primary-start opacity-70" />
-                        <Link 
-                            to={targetUrl} 
-                            className="border-b border-dashed border-primary-start/60 hover:border-primary-start pb-0.5 text-primary-start hover:text-primary-hover transition-all flex items-center gap-1.5 hover:scale-[1.01]"
-                            title={`Hap ${rawLawTitle}`}
-                        >
-                            <span>{rawLawTitle}</span>
-                            <Eye size={12} className="opacity-80 shrink-0" />
-                        </Link>
-                    </div>
-                    {rawArticle && (
-                        <span className="px-3 py-1 rounded-lg bg-success-start/10 text-[11px] font-black uppercase tracking-widest text-success-start border border-success-start/20 leading-relaxed">
-                            {rawArticle}
-                        </span>
-                    )}
+                    <LawCitationLink
+                        lawTitle={cleanLawTitle}
+                        articleNum={articleNum || "1"}
+                        fullMatch={`${rawLawTitle}${rawArticle ? ` - ${rawArticle}` : ''}`}
+                        targetUrl={targetUrl}
+                    />
                 </div>
                 {body && (
                     <div className="text-text-secondary text-[13px] leading-relaxed pl-5 border-l-2 border-main ml-0.5 mt-1">
@@ -493,7 +494,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                 {zoomLevel === 'normal' ? <ZoomIn size={18} /> : (zoomLevel === 'large' ? <ZoomIn size={18} /> : <ZoomOut size={18} />)}
               </button>
 
-              {/* FULLSCREEN EXPAND TOGGLE BUTTON */}
               <button
                 type="button"
                 onClick={() => setIsFullScreen(!isFullScreen)}
@@ -534,7 +534,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   className="flex-1 overflow-y-auto p-4 sm:p-8 custom-finance-scroll text-text-primary bg-canvas"
                   style={{ fontSize: getFontSize() }}
                 >
-                    <div className="max-w-6xl mx-auto space-y-6">
+                    <div className={`mx-auto space-y-6 transition-all duration-300 ${isFullScreen ? 'max-w-none px-4 sm:px-12' : 'max-w-6xl'}`}>
                         {activeTab === 'legal' && (
                             <>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V41.1 (100% PRESERVED LAYOUT WITH TRI-PARTY ROLES: DEFENDANT | PLAINTIFF | NEUTRAL)
+// PHOENIX PROTOCOL - CASE VIEW V42.0 (STREAMLINED DIRECT ANALYSIS TRIGGER)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -47,7 +47,7 @@ type CaseData = { details: Case | null };
 type ActiveModal = 'none' | 'analysis' | 'ontology' | 'analyst';
 type EvidenceSubTab = 'documents' | 'audio';
 
-// ========== PHOENIX: BULLETPROOF CHAT HISTORY NORMALIZER ==========
+// BULLETPROOF CHAT HISTORY NORMALIZER
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
   if (!data) return [];
   const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
@@ -179,8 +179,7 @@ const RoleSelectionModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   onSelectRole: (role: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => void;
-  isAnalyzing: boolean;
-}> = ({ isOpen, onClose, onSelectRole, isAnalyzing }) => {
+}> = ({ isOpen, onClose, onSelectRole }) => {
   useLockBodyScroll(isOpen);
 
   if (!isOpen) return null;
@@ -191,9 +190,9 @@ const RoleSelectionModal: React.FC<{
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-border-main bg-canvas"
+        className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-canvas"
       >
-        <div className="flex justify-between items-center mb-6 border-b border-border-main pb-4">
+        <div className="flex justify-between items-center mb-6 border-b border-main pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
               <Gavel size={20} />
@@ -213,8 +212,7 @@ const RoleSelectionModal: React.FC<{
           <button
             type="button"
             onClick={() => onSelectRole('DEFENDANT')}
-            disabled={isAnalyzing}
-            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
+            className="group p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95 cursor-pointer"
           >
             <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
               <Shield size={22} />
@@ -233,8 +231,7 @@ const RoleSelectionModal: React.FC<{
           <button
             type="button"
             onClick={() => onSelectRole('PLAINTIFF')}
-            disabled={isAnalyzing}
-            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
+            className="group p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95 cursor-pointer"
           >
             <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
               <Swords size={22} />
@@ -253,8 +250,7 @@ const RoleSelectionModal: React.FC<{
           <button
             type="button"
             onClick={() => onSelectRole('NEUTRAL')}
-            disabled={isAnalyzing}
-            className="group p-4 bg-surface hover:bg-hover border border-border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95"
+            className="group p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-2xl text-left transition-all hover-lift focus:outline-none flex items-start gap-3.5 shadow-sm active:scale-95 cursor-pointer"
           >
             <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 group-hover:scale-110 transition-transform">
               <Scale size={22} />
@@ -273,7 +269,7 @@ const RoleSelectionModal: React.FC<{
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-surface border border-border-main transition-colors focus:outline-none"
+          className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary bg-surface border border-main transition-colors focus:outline-none"
         >
           Anulo
         </button>
@@ -286,7 +282,8 @@ const RoleSelectionModal: React.FC<{
 const CaseHeader: React.FC<{
   caseDetails: Case;
   documents: Document[];
-  onTriggerRoleSelect: (forceReanalyze?: boolean) => void;
+  onOpenRoleModal: () => void;
+  onRunAnalysis: (forceReanalyze?: boolean) => void;
   onViewExistingAnalysis: () => void;
   onOpenOntologyModal: () => void;
   onOpenAnalystModal: () => void;
@@ -298,7 +295,8 @@ const CaseHeader: React.FC<{
 }> = ({
   caseDetails,
   documents,
-  onTriggerRoleSelect,
+  onOpenRoleModal,
+  onRunAnalysis,
   onViewExistingAnalysis,
   onOpenOntologyModal,
   onOpenAnalystModal,
@@ -341,7 +339,7 @@ const CaseHeader: React.FC<{
       {/* TOP HERO BRANDING BAR */}
       <div className="bg-surface border border-main rounded-2xl p-3.5 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         
-        {/* Left: Case Info & Clean Stance Badge */}
+        {/* Left: Case Info & Role Badge Switcher */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="p-2.5 sm:p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
             <Briefcase size={20} className="sm:w-5 sm:h-5" />
@@ -352,10 +350,11 @@ const CaseHeader: React.FC<{
                 {caseDetails.title || (caseDetails as any).name || 'Rast pa Titull'}
               </h1>
               
+              {/* CLICKING ROLE BADGE OPENS ROLE MODAL EXPLICITLY */}
               <button
                 type="button"
-                onClick={() => onTriggerRoleSelect(false)}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm ${
+                onClick={onOpenRoleModal}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm cursor-pointer ${
                   clientPosition === 'DEFENDANT'
                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
                     : clientPosition === 'PLAINTIFF'
@@ -419,7 +418,7 @@ const CaseHeader: React.FC<{
           <span className="truncate">ONTOLOGJIA</span>
         </button>
 
-        {/* 3. CONSISTENT "ANALIZO RASTIN" SPLIT-BUTTON */}
+        {/* 3. DIRECT ANALYSIS TRIGGER (NO REDUNDANT ROLE POPUP) */}
         <div className="w-full">
           {hasExistingAnalysis ? (
             <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
@@ -437,7 +436,7 @@ const CaseHeader: React.FC<{
 
               <button
                 type="button"
-                onClick={() => onTriggerRoleSelect(true)}
+                onClick={() => onRunAnalysis(true)}
                 disabled={isAnalyzing}
                 className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
                 title="Rianalizo sërish me AI"
@@ -460,7 +459,7 @@ const CaseHeader: React.FC<{
           ) : (
             <button
               type="button"
-              onClick={() => onTriggerRoleSelect(false)}
+              onClick={() => onRunAnalysis(false)}
               disabled={!isPro || isAnalyzing}
               className={`${buttonBase} w-full disabled:opacity-40`}
             >
@@ -619,7 +618,10 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handleTriggerRoleSelect = (force = false) => {
+  // DIRECT ANALYSIS RUNNER (USES ACTIVE clientPosition DIRECTLY)
+  const handleRunAnalysis = async (force = false) => {
+    if (!caseId) return;
+
     const existingAnalysis =
       caseData.details && (caseData.details as any).latest_analysis
         ? (caseData.details as any).latest_analysis
@@ -642,10 +644,41 @@ const CaseViewPage: React.FC = () => {
       }
     }
 
-    setShowRoleModal(true);
+    setIsAnalyzing(true);
+    setActiveModal('none');
+
+    try {
+      const activeRole = clientPosition || 'DEFENDANT';
+      let result =
+        selectedDocumentIds.length === 0
+          ? await apiService.analyzeCase(caseId, activeRole)
+          : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
+
+      if (result.error) {
+        alert(result.error);
+      } else {
+        const resultWithMeta = {
+          ...result,
+          analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(),
+          client_position: activeRole,
+        };
+
+        setAnalysisResult(resultWithMeta);
+        setActiveModal('analysis');
+        setCaseData((prev) =>
+          prev.details
+            ? { details: { ...prev.details, client_position: activeRole, latest_analysis: resultWithMeta } }
+            : prev
+        );
+      }
+    } catch {
+      alert(t('error.generic'));
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  // INSTANT ROLE MUTATION & AI ANALYSIS TRIGGER
+  // ROLE SELECTION FROM TOP BADGE SWITCHER
   const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => {
     if (!caseId) return;
     setShowRoleModal(false);
@@ -658,38 +691,6 @@ const CaseViewPage: React.FC = () => {
       await apiService.updateCasePosition(caseId, selectedRole);
     } catch (e) {
       console.warn('Failed to persist position update:', e);
-    }
-
-    setIsAnalyzing(true);
-    setActiveModal('none');
-
-    try {
-      let result =
-        selectedDocumentIds.length === 0
-          ? await apiService.analyzeCase(caseId, selectedRole)
-          : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
-
-      if (result.error) {
-        alert(result.error);
-      } else {
-        const resultWithMeta = {
-          ...result,
-          analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(),
-          client_position: selectedRole,
-        };
-
-        setAnalysisResult(resultWithMeta);
-        setActiveModal('analysis');
-        setCaseData((prev) =>
-          prev.details
-            ? { details: { ...prev.details, client_position: selectedRole, latest_analysis: resultWithMeta } }
-            : prev
-        );
-      }
-    } catch {
-      alert(t('error.generic'));
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -789,7 +790,8 @@ const CaseViewPage: React.FC = () => {
         <CaseHeader
           caseDetails={caseData.details}
           documents={liveDocuments}
-          onTriggerRoleSelect={handleTriggerRoleSelect}
+          onOpenRoleModal={() => setShowRoleModal(true)}
+          onRunAnalysis={handleRunAnalysis}
           onViewExistingAnalysis={handleViewExistingAnalysis}
           onOpenOntologyModal={() => setActiveModal('ontology')}
           onOpenAnalystModal={() => setActiveModal('analyst')}
@@ -951,7 +953,6 @@ const CaseViewPage: React.FC = () => {
         isOpen={showRoleModal}
         onClose={() => setShowRoleModal(false)}
         onSelectRole={handleRoleChosen}
-        isAnalyzing={isAnalyzing}
       />
 
       {/* RE-ANALYSIS GATEKEEPER NOTIFICATION MODAL */}
@@ -976,7 +977,7 @@ const CaseViewPage: React.FC = () => {
                 {gatekeeperNotice}
               </p>
 
-              <div className="p-3.5 bg-surface border border-border-main rounded-xl text-[11px] text-text-muted flex items-center gap-2 font-mono mb-6 justify-center">
+              <div className="p-3.5 bg-surface border border-main rounded-xl text-[11px] text-text-muted flex items-center gap-2 font-mono mb-6 justify-center">
                 <FileText size={14} className="text-primary-start shrink-0" />
                 <span>Dokumente Aktive: {liveDocuments.length}</span>
               </div>

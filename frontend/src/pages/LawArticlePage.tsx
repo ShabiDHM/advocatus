@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V19.0 (STANDARDIZED EXECUTIVE SIZE: MAX-W-7XL)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V20.0 (INTEGRATED SOURCE VERIFICATION CARD)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,9 +8,31 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
   Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search, Minus, Maximize2
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LawCitationText } from '../components/LawCitationText';
+
+interface SourceInfo {
+  confidence: {
+    level: 'HIGH' | 'MEDIUM' | 'LOW' | 'LOWEST' | 'UNKNOWN' | 'NONE';
+    label: string;
+    icon: string;
+    color: string;
+    description: string;
+    score: number;
+  };
+  matched_law: string;
+  matched_article: string;
+  source_file: string;
+  was_mapped: boolean;
+  mapped_from: string | null;
+  multiple_matches: boolean;
+  matching_laws: string[];
+  strategy_used: string;
+  verification_hint: string;
+  match_count: number;
+}
 
 interface ArticleData {
   law_title: string;
@@ -18,6 +40,7 @@ interface ArticleData {
   source: string;
   text: string;
   chunk_id: string;
+  source_info?: SourceInfo;
 }
 
 interface ChatMessage {
@@ -110,15 +133,9 @@ const renderMarkdown = (text: string) => {
         if (trimmed.toUpperCase().includes('NIVELI 1:')) return null;
         if (trimmed.toUpperCase().includes('[NDARJA]')) return null;
         if (trimmed === '---') return null;
-        const parts = trimmed.split(/(\*\*.*?\*\*)/g);
         return (
             <p key={i} className="mb-4 text-base sm:text-lg text-text-primary leading-relaxed font-medium">
-                {parts.map((part, j) => {
-                    if (part.startsWith('**') && part.endsWith('**')) {
-                        return <strong key={j} className="font-black text-text-primary">{part.slice(2, -2)}</strong>;
-                    }
-                    return <span key={j}>{part}</span>;
-                })}
+                <LawCitationText text={trimmed} />
             </p>
         );
     });
@@ -142,6 +159,7 @@ export default function LawArticlePage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [article, setArticle] = useState<ArticleData | null>(null);
+  const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -205,12 +223,14 @@ export default function LawArticlePage() {
           chunkId = generateFallbackChunkId(lawTitle, articleNumber);
         }
         
+        setSourceInfo(data.source_info || null);
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
           source: data.source || `${lawTitle}.pdf`,
           text: normalizedText,
           chunk_id: chunkId,
+          source_info: data.source_info,
         });
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
@@ -502,6 +522,59 @@ export default function LawArticlePage() {
                     )}
                   </div>
                 </div>
+
+                {/* EXACT MATCH SOURCE VERIFICATION CARD */}
+                {sourceInfo && (
+                  <div className="mt-2 p-4 rounded-2xl bg-surface border border-main shadow-sm font-mono text-xs text-text-primary">
+                    {/* Row 1: Status + Match Score */}
+                    <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 border-b border-main/70 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{sourceInfo.confidence?.icon || '✅'}</span>
+                        <span className="font-black text-xs uppercase tracking-wider text-text-primary">
+                          {sourceInfo.confidence?.label || 'E verifikuar'}
+                        </span>
+                      </div>
+                      {sourceInfo.confidence?.score !== undefined && sourceInfo.confidence.score > 0 && (
+                        <span className="text-xs font-mono font-black px-2.5 py-1 rounded-lg bg-canvas border border-main text-text-primary shadow-inner">
+                          {Math.round(sourceInfo.confidence.score * 100)}% përputhje
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Row 2: Official Law Name */}
+                    <div className="font-bold text-xs sm:text-sm text-text-primary leading-relaxed mb-1 font-sans">
+                      {sourceInfo.matched_law || article.law_title}
+                    </div>
+
+                    {/* Row 3: Article Number */}
+                    <div className="text-xs font-bold text-primary-start mb-2">
+                      Neni {sourceInfo.matched_article || article.article_number}
+                    </div>
+
+                    {/* Row 4: Search Mapping (If Mapped) */}
+                    {sourceInfo.was_mapped && sourceInfo.mapped_from && (
+                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-2 flex items-center gap-1.5">
+                        <span>📌</span>
+                        <span>Kërkuar si: ({sourceInfo.mapped_from})</span>
+                      </div>
+                    )}
+
+                    {/* Multiple Matches Warning */}
+                    {sourceInfo.multiple_matches && sourceInfo.matching_laws?.length > 0 && (
+                      <div className="text-xs text-rose-600 dark:text-rose-400 font-medium mb-2 flex items-center gap-1.5">
+                        <span>⚠️</span>
+                        <span>Ky nen ekziston në {sourceInfo.matching_laws.length} ligje të ndryshme në bazë</span>
+                      </div>
+                    )}
+
+                    {/* Row 5: Verification Hint */}
+                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans">
+                      <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
+                      <span>{sourceInfo.verification_hint || 'Ky nen korrespondon saktësisht me kërkimin.'}</span>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
 

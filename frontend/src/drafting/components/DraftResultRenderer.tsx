@@ -1,12 +1,11 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V3.3 (CITATION PUNCTUATION FIX)
+// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V4.0 (INTEGRATED LAW CITATION LINKS)
 
 import React from 'react';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Link } from 'react-router-dom';
-import { Scale, Eye } from 'lucide-react';
+import { LawCitationLink } from '../../components/LawCitationLink';
 
 const highlightPlaceholders = (text: string) => {
   if (!text) return text;
@@ -17,7 +16,7 @@ const highlightPlaceholders = (text: string) => {
       return (
         <span 
           key={i} 
-          className="inline-block border-b border-dashed border-gray-400 text-gray-500 font-bold px-1 mx-0.5 tracking-wider uppercase text-[10px] sm:text-xs"
+          className="inline-block border-b border-dashed border-gray-400 text-gray-500 font-bold px-1 mx-0.5 tracking-wider uppercase text-[10px] sm:text-xs font-sans"
           title="Të dhëna që duhet të plotësohen manualisht"
         >
           {cleanText}
@@ -31,10 +30,19 @@ const highlightPlaceholders = (text: string) => {
 const processContent = (text: string) => {
   if (!text) return text;
 
-  // Match legal citations: (Ligjit|Ligji|Kodi|Kodin) Nr. XX/L-XXX, Neni YYY
-  const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
+  // Flexible multi-pattern citation regex:
+  // Pattern 1: Ligji/Ligjit/Kodi Nr. XXX, Neni YYY
+  // Pattern 2: Neni YYY i/e/të Ligjit/Kodit...
+  // Pattern 3: Standalone Neni YYY
+  const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
-  const segments: Array<{ type: 'text' | 'citation'; value: string; url?: string }> = [];
+  const segments: Array<{ 
+    type: 'text' | 'citation'; 
+    value: string; 
+    url?: string;
+    lawTitle?: string;
+    articleNum?: string;
+  }> = [];
   let lastIndex = 0;
   let match;
 
@@ -44,20 +52,32 @@ const processContent = (text: string) => {
     }
 
     const fullMatch = match[0];
-    const lawPrefix = match[1];
-    
-    // PHOENIX FIX: Aggressively strip trailing parenthesis, commas, or periods from the extracted titles
-    let lawTitle = match[2].trim().replace(/[\),.;]+$/, '');
-    let articleNum = match[3].trim().replace(/[\),.;]+$/, '');
-    
-    const fullLawName = `${lawPrefix} ${lawTitle}`;
-    const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
+    let lawTitle = "";
+    let articleNum = "";
 
-    segments.push({
-      type: 'citation',
-      value: fullMatch,
-      url: targetUrl
-    });
+    if (match[1] && match[3]) {
+      const lawPrefix = match[1];
+      const lawNumber = match[2].trim().replace(/[\),.;]+$/, '');
+      lawTitle = `${lawPrefix} ${lawNumber}`;
+      articleNum = match[3].trim().replace(/[\),.;]+$/, '');
+    } else if (match[4]) {
+      articleNum = match[4].trim().replace(/[\),.;]+$/, '');
+      lawTitle = match[5] ? match[5].trim().replace(/[\),.;]+$/, '') : "Ligji i Përgjithshëm";
+    }
+
+    if (articleNum) {
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(articleNum)}`;
+
+      segments.push({
+        type: 'citation',
+        value: fullMatch,
+        url: targetUrl,
+        lawTitle,
+        articleNum
+      });
+    } else {
+      segments.push({ type: 'text', value: fullMatch });
+    }
 
     lastIndex = citationRegex.lastIndex;
   }
@@ -67,18 +87,16 @@ const processContent = (text: string) => {
   }
 
   return segments.map((seg, idx) => {
-    if (seg.type === 'citation' && seg.url) {
+    if (seg.type === 'citation' && seg.url && seg.lawTitle && seg.articleNum) {
       return (
-        <Link
+        <LawCitationLink
           key={`cit-${idx}`}
-          to={seg.url}
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] sm:text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 transition-all mx-1 align-middle no-underline shadow-sm font-sans tracking-widest"
-          title={`Hap ${seg.value}`}
-        >
-          <Scale size={11} className="text-indigo-600 shrink-0" />
-          <span>{seg.value}</span>
-          <Eye size={11} className="text-indigo-500 ml-0.5 opacity-80 shrink-0" />
-        </Link>
+          lawTitle={seg.lawTitle}
+          articleNum={seg.articleNum}
+          fullMatch={seg.value}
+          targetUrl={seg.url}
+          className="font-sans font-normal border-0 bg-transparent p-0"
+        />
       );
     }
     return highlightPlaceholders(seg.value);
