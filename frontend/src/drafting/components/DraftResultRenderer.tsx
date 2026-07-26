@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V4.0 (INTEGRATED LAW CITATION LINKS)
+// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V4.1 (ACRONYM PRE-FIX & SUFFIX AWARE)
 
 import React from 'react';
 import { TFunction } from 'i18next';
@@ -30,11 +30,11 @@ const highlightPlaceholders = (text: string) => {
 const processContent = (text: string) => {
   if (!text) return text;
 
-  // Flexible multi-pattern citation regex:
-  // Pattern 1: Ligji/Ligjit/Kodi Nr. XXX, Neni YYY
-  // Pattern 2: Neni YYY i/e/të Ligjit/Kodit...
-  // Pattern 3: Standalone Neni YYY
-  const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
+  // Suffix-aware and Pre-acronym aware unified regex matcher:
+  // Pattern 1: LPK Neni 92 (Acronym before Article)
+  // Pattern 2: Ligji Nr. XXX, Neni YYY (Standard Full Code)
+  // Pattern 3: Neni YYY i/e/të LPK-së (Suffix-aware article first)
+  const citationRegex = /(?:(LPK|LMD|KPK|KPPK|KPPRK|LPA|KPC)\s+(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin|nene|Nene|nenet|Nenet)\s+(\d+))|(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin|nene|Nene|nenet|Nenet)\s+(\d+))|(?:(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin|nene|Nene|nenet|Nenet)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
   const segments: Array<{ 
     type: 'text' | 'citation'; 
@@ -55,14 +55,20 @@ const processContent = (text: string) => {
     let lawTitle = "";
     let articleNum = "";
 
-    if (match[1] && match[3]) {
-      const lawPrefix = match[1];
-      const lawNumber = match[2].trim().replace(/[\),.;]+$/, '');
+    if (match[1] && match[2]) {
+      // Pattern 1: LPK Neni 92 (Acronym first)
+      lawTitle = match[1].trim();
+      articleNum = match[2].trim().replace(/[\),.;]+$/, '');
+    } else if (match[3] && match[5]) {
+      // Pattern 2: Ligji Nr. XXX, Neni YYY
+      const lawPrefix = match[3];
+      const lawNumber = match[4].trim().replace(/[\),.;]+$/, '');
       lawTitle = `${lawPrefix} ${lawNumber}`;
-      articleNum = match[3].trim().replace(/[\),.;]+$/, '');
-    } else if (match[4]) {
-      articleNum = match[4].trim().replace(/[\),.;]+$/, '');
-      lawTitle = match[5] ? match[5].trim().replace(/[\),.;]+$/, '') : "Ligji i Përgjithshëm";
+      articleNum = match[5].trim().replace(/[\),.;]+$/, '');
+    } else if (match[6]) {
+      // Pattern 3: Neni YYY të LPK-së
+      articleNum = match[6].trim().replace(/[\),.;]+$/, '');
+      lawTitle = match[7] ? match[7].trim().replace(/[\),.;]+$/, '') : "Ligji i Përgjithshëm";
     }
 
     if (articleNum) {
