@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V33.0 (HIGH-ACCURACY PARENTHESIS & ACRONYM RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V34.0 (UNIQUE STATUTE BOOST & CONCEPT MAPPER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -174,7 +174,19 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     Find law documents with confidence scoring.
     Supports dual integer/string database matching and trailing whitespace resilience.
     """
-    # === 1. COMPREHENSIVE MAPPING & ACRONYMS ===
+    # === 1. PREFIX, SUFFIX & PARENTHESES NORMALIZATION ===
+    clean_title = raw_law_title.strip()
+    # Strip wrapping parentheses (e.g. "(LPK)" -> "LPK", "(Parim i...)" -> "Parim i...")
+    clean_title = re.sub(r'^\s*[\(\[{(](.*?)[\)\]})]\s*$', r'\1', clean_title)
+    # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
+    clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
+    # Strip common preposition prefixes
+    clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
+    # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
+    clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
+    clean_title = clean_title.strip()
+
+    # === 2. COMPREHENSIVE MAPPING & ACRONYMS ===
     law_title_mappings = {
         # === ACCURATE ALBANIAN ACRONYMS ===
         'LPK': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
@@ -185,6 +197,11 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         'LPA': 'Ligji Nr. 04 L-189 Për Procedurën Administrative',
         'LPP': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
         'KPC': 'Kodi I Procedurës Civile',
+
+        # === CORE CONCEPT HEADINGS ===
+        'PARIM I PAVLEFSHMËRISË SË DISPOZITAVE': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'PAVLEFSHMËRISË SË DISPOZITAVE': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'PAVLEFSHMËRIA E DISPOZITAVE': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
 
         # === CONSTITUTIONAL PRINCIPLES ===
         'KUSHTETUTA': 'Kushtetuta E Republikës Së Kosovës',
@@ -264,7 +281,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     original_law_title = raw_law_title
     mapped = False
 
-    # === 2. EXTRACT EMBEDDED ACRONYM (e.g., LPK, KPPRK, LMD) ===
+    # === 3. EXTRACT EMBEDDED ACRONYM (e.g., LPK, KPPRK, LMD) ===
     acronym_match = re.search(r'\b([A-ZÇË]{3,5})\b', raw_law_title)
     if acronym_match:
         acronym = acronym_match.group(1).upper()
@@ -274,16 +291,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.info(f"RAG extracted acronym '{acronym}' mapped to: '{raw_law_title}'")
 
     if not mapped:
-        clean_title = raw_law_title.strip()
-        # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
-        clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
-        # Strip common preposition prefixes
-        clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
-        # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
-        clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
-        clean_title = clean_title.strip()
-
-        # Case-insensitive acronym resolution
+        # Case-insensitive acronym resolution of normalized clean title
         lookup_title = clean_title.upper()
         if lookup_title in law_title_mappings:
             raw_law_title = law_title_mappings[lookup_title]
@@ -431,10 +439,10 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             metadata["confidence"] = conf
             return [docs[0]], metadata
         else:
-            logger.info(f"Found 1 document by article number only (LOW CONFIDENCE)")
-            metadata["strategy_used"] = "article_only_single_match"
+            logger.info(f"Found 1 document by article number only (UNIQUE SINGLE MATCH)")
+            metadata["strategy_used"] = "ARTICLE_ONLY_SINGLE"
             metadata["match_count"] = 1
-            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "ARTICLE_ONLY")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "ARTICLE_ONLY_SINGLE")
             metadata["confidence"] = conf
             return docs, metadata
 
@@ -520,8 +528,11 @@ def _calculate_confidence(doc: dict, raw_law_title: str, raw_article_num: str, s
     
     # Strategy-based boost
     if strategy in ["LAW_CODE", "EXACT_TITLE"]:
-        confidence["score"] += 0.1
+        confidence["score"] += 0.15
         confidence["reason"].append("Matched via exact title/code strategies")
+    elif strategy == "ARTICLE_ONLY_SINGLE":
+        confidence["score"] += 0.5
+        confidence["reason"].append("Uniquely identified law (no other law contains this article)")
     
     # Cap score at 1.0
     confidence["score"] = min(confidence["score"], 1.0)
