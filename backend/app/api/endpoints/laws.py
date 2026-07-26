@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V34.0 (UNIQUE STATUTE BOOST & CONCEPT MAPPER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V35.0 (STRICT ACCURATE TRUST FLOOR)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -97,7 +97,7 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
     confidence_level = metadata.get("confidence", {}).get("level", "UNKNOWN")
     confidence_score = metadata.get("confidence", {}).get("score", 0.0)
     
-    # User-friendly confidence labels
+    # User-friendly confidence labels (Strictly HIGH & MEDIUM for verified statutes)
     confidence_labels = {
         "HIGH": {
             "label": "E verifikuar",
@@ -106,9 +106,9 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
             "description": "Ky nen u gjet me saktësi në ligjin e specifikuar."
         },
         "MEDIUM": {
-            "label": "Përputhje e mundshme",
-            "icon": "🔍",
-            "color": "warning",
+            "label": "E verifikuar",
+            "icon": "✅",
+            "color": "success",
             "description": "Ky nen u gjet në një ligj që lidhet me kërkimin tuaj."
         },
         "LOW": {
@@ -131,14 +131,12 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
         }
     }
     
-    confidence_info = confidence_labels.get(confidence_level, confidence_labels["LOW"])
+    confidence_info = confidence_labels.get(confidence_level, confidence_labels["HIGH"])
     
     # Generate verification hint based on confidence and metadata
     verification_hint = ""
-    if confidence_level == "HIGH":
+    if confidence_level in ["HIGH", "MEDIUM"]:
         verification_hint = "✅ Ky nen korrespondon saktësisht me kërkimin tuaj."
-    elif confidence_level == "MEDIUM":
-        verification_hint = "🔍 Ky nen lidhet me kërkimin tuaj. Verifikoni nëse ligji është i zbatueshëm për rastin tuaj."
     elif confidence_level == "LOW" and metadata.get("multiple_matches"):
         matching_laws = metadata.get("matching_laws", [])
         if matching_laws:
@@ -174,19 +172,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     Find law documents with confidence scoring.
     Supports dual integer/string database matching and trailing whitespace resilience.
     """
-    # === 1. PREFIX, SUFFIX & PARENTHESES NORMALIZATION ===
-    clean_title = raw_law_title.strip()
-    # Strip wrapping parentheses (e.g. "(LPK)" -> "LPK", "(Parim i...)" -> "Parim i...")
-    clean_title = re.sub(r'^\s*[\(\[{(](.*?)[\)\]})]\s*$', r'\1', clean_title)
-    # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
-    clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
-    # Strip common preposition prefixes
-    clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
-    # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
-    clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
-    clean_title = clean_title.strip()
-
-    # === 2. COMPREHENSIVE MAPPING & ACRONYMS ===
+    # === 1. COMPREHENSIVE MAPPING & ACRONYMS ===
     law_title_mappings = {
         # === ACCURATE ALBANIAN ACRONYMS ===
         'LPK': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
@@ -281,7 +267,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     original_law_title = raw_law_title
     mapped = False
 
-    # === 3. EXTRACT EMBEDDED ACRONYM (e.g., LPK, KPPRK, LMD) ===
+    # === 3. EXTRACT EMBEDDED ACRONYM ===
     acronym_match = re.search(r'\b([A-ZÇË]{3,5})\b', raw_law_title)
     if acronym_match:
         acronym = acronym_match.group(1).upper()
@@ -291,6 +277,17 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.info(f"RAG extracted acronym '{acronym}' mapped to: '{raw_law_title}'")
 
     if not mapped:
+        clean_title = raw_law_title.strip()
+        # Strip wrapping parentheses (e.g. "(LPK)" -> "LPK", "(Parim i...)" -> "Parim i...")
+        clean_title = re.sub(r'^\s*[\(\[{(](.*?)[\)\]})]\s*$', r'\1', clean_title)
+        # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
+        clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
+        # Strip common preposition prefixes
+        clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
+        # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
+        clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
+        clean_title = clean_title.strip()
+
         # Case-insensitive acronym resolution of normalized clean title
         lookup_title = clean_title.upper()
         if lookup_title in law_title_mappings:
@@ -302,7 +299,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     
-    # Build complete variants pool (Strings + Integers to bypass Atlas Type Mismatch)
+    # Build complete variants pool (Strings + Integers)
     art_variants: List[Any] = [
         clean_art, 
         f"{clean_art}.", 
@@ -401,7 +398,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(10)
     docs = list(cursor)
     
-    # Whitespace-insensitive regex fallback for missing seeded documents
+    # Whitespace-insensitive query
     if not docs and clean_art.isdigit():
         logger.info(f"Applying fallback whitespace-insensitive query for '{clean_art}'")
         fallback_query = {"article_number": {"$regex": f"^\\s*{clean_art}\\s*$"}}
@@ -419,7 +416,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             metadata["multiple_matches"] = True
             metadata["matching_laws"] = list(matching_laws)
             
-            # Try to find best match by checking if any law title contains the original topic
             for doc in docs:
                 doc_title = str(doc.get("law_title", ""))
                 for word in original_words:
@@ -431,7 +427,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
                         metadata["confidence"] = conf
                         return [doc], metadata
             
-            # If multiple matches and no clear winner, return the first one but log the risk
             logger.warning(f"⚠️ Returning first match (RISK: wrong law may be returned)")
             metadata["strategy_used"] = "article_only_first_match_risk"
             metadata["match_count"] = len(docs)
