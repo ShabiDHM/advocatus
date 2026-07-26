@@ -1,5 +1,5 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - PORTAL-BACKED ZERO-CLIPPING LAW CITATION LINK V6.0
+// PHOENIX PROTOCOL - PORTAL-BACKED FIXED-COORDINATES LAW CITATION LINK V6.1
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -50,7 +50,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const [error, setError] = useState<string | null>(null);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Coordinate tracking for portal positioning
+  // Coordinate tracking for absolute portal positioning
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLSpanElement>(null);
 
@@ -58,8 +58,8 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       setCoords({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top + window.scrollY, // True vertical offset relative to document body
+        left: rect.left + window.scrollX, // True horizontal offset relative to document body
         width: rect.width,
       });
     }
@@ -142,7 +142,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     }
   };
 
-  // The actual floating portal tooltip rendered directly inside document.body
+  // The actual floating portal tooltip rendered directly inside document.body as absolute
   const tooltipContent = (
     <AnimatePresence>
       {showTooltip && sourceInfo && (
@@ -151,13 +151,13 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 4, scale: 0.97 }}
           transition={{ duration: 0.15 }}
-          className={`fixed w-80 sm:w-[360px] max-w-[90vw] p-4 border border-main border-t-4 ${getTopAccentBorder(
+          className={`absolute w-80 sm:w-[360px] max-w-[90vw] p-4 border border-main border-t-4 ${getTopAccentBorder(
             confidenceLevel
           )} rounded-2xl shadow-2xl z-[9999] text-left font-mono text-xs text-text-primary pointer-events-none`}
           style={{
             backgroundColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))',
             opacity: 1,
-            top: `${coords.top - 12}px`, // Floating exactly 12px above the citation pill
+            top: `${coords.top - 12}px`, // Floating exactly 12px above the citation pill relative to document top
             left: `${coords.left + coords.width / 2}px`,
             transform: 'translate(-50%, -100%)', // Centered horizontally & aligned upwards
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 20px -10px rgba(0, 0, 0, 0.3)'
@@ -264,7 +264,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
         </span>
       )}
 
-      {/* 3. Render Tooltip outside via React Portal */}
+      {/* 3. Render Tooltip outside via React Portal (Opaque, Centered, Scroll-aware) */}
       {createPortal(tooltipContent, document.body)}
     </span>
   );
