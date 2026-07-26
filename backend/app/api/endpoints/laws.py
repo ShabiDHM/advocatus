@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V31.0 (PRODUCTION RESILIENT DUAL-TYPE MATCHING)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V32.0 (HIGH-ACCURACY RESOLVED RESOLUTION MATCHING)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -322,7 +322,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.info(f"Found documents with law code variation: '{law_code}' (HIGH CONFIDENCE)")
             metadata["strategy_used"] = f"law_code_variation: {law_code}"
             metadata["match_count"] = len(docs)
-            conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "LAW_CODE")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "LAW_CODE")
             metadata["confidence"] = conf
             return docs, metadata
 
@@ -337,7 +337,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         logger.info(f"Found documents with exact title match (HIGH CONFIDENCE)")
         metadata["strategy_used"] = "exact_title_match"
         metadata["match_count"] = len(docs)
-        conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "EXACT_TITLE")
+        conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "EXACT_TITLE")
         metadata["confidence"] = conf
         return docs, metadata
 
@@ -355,7 +355,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.info(f"Found documents with keyword match (MEDIUM CONFIDENCE)")
             metadata["strategy_used"] = f"keyword_fallback: {key_pattern}"
             metadata["match_count"] = len(docs)
-            conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "KEYWORD")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "KEYWORD")
             metadata["confidence"] = conf
             return docs, metadata
 
@@ -375,7 +375,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.info(f"Found {len(docs)} documents by article + law keywords (MEDIUM CONFIDENCE)")
             metadata["strategy_used"] = f"article_plus_keywords: {word_pattern}"
             metadata["match_count"] = len(docs)
-            conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "ARTICLE_KEYWORD")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "ARTICLE_KEYWORD")
             metadata["confidence"] = conf
             return docs, metadata
 
@@ -410,7 +410,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
                         logger.info(f"Best match: '{doc_title}' contains '{word}'")
                         metadata["strategy_used"] = f"article_only_best_match: {word}"
                         metadata["match_count"] = len(docs)
-                        conf = _calculate_confidence(doc, original_law_title, raw_article_num, "ARTICLE_ONLY_BEST")
+                        conf = _calculate_confidence(doc, raw_law_title, raw_article_num, "ARTICLE_ONLY_BEST")
                         metadata["confidence"] = conf
                         return [doc], metadata
             
@@ -418,14 +418,14 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             logger.warning(f"⚠️ Returning first match (RISK: wrong law may be returned)")
             metadata["strategy_used"] = "article_only_first_match_risk"
             metadata["match_count"] = len(docs)
-            conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "ARTICLE_ONLY_LOW")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "ARTICLE_ONLY_LOW")
             metadata["confidence"] = conf
             return [docs[0]], metadata
         else:
             logger.info(f"Found 1 document by article number only (LOW CONFIDENCE)")
             metadata["strategy_used"] = "article_only_single_match"
             metadata["match_count"] = 1
-            conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "ARTICLE_ONLY")
+            conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "ARTICLE_ONLY")
             metadata["confidence"] = conf
             return docs, metadata
 
@@ -447,7 +447,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         
         metadata["strategy_used"] = "partial_article_match"
         metadata["match_count"] = len(docs)
-        conf = _calculate_confidence(docs[0], original_law_title, raw_article_num, "PARTIAL_ARTICLE")
+        conf = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "PARTIAL_ARTICLE")
         metadata["confidence"] = conf
         return docs, metadata
 
