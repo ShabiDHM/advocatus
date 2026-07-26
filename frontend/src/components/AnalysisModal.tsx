@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V31.5 (FULLSCREEN LAYOUT STRETCH)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V31.6 (SUFFIX AWARE & SAFE HEADER CLEANER)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -63,9 +63,8 @@ const cleanSummaryHeadings = (raw: string): string => {
     if (!raw) return "";
     let clean = raw;
     
-    clean = clean.replace(/###\s*[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]?\s*(UDHËZUESI|ANALIZA|PËRMBLEDHJA|KËSHILLIM).*?(?=\n|$)/giu, '');
-    clean = clean.replace(/###\s*.*?(?=\n|$)/g, '');
-    clean = clean.replace(/^["'\s{}]+|["'\s{}]+$/g, '');
+    // Safely remove structural markdown headings without risking paragraph lines
+    clean = clean.replace(/###\s*[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]?\s*(UDHËZUESI|ANALIZA|PËRMBLEDHJA|KËSHILLIM|STRATEGJIA|OPINIONI|KËSHILLË).*?(?=\r?\n|$)/giu, '');
     clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
     
     return clean.trim();
@@ -106,20 +105,20 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
     let lawTitle = titleStr || "Ligj i Paidentifikuar";
     let articleNum: string | null = null;
 
-    const artMatchInArticle = articleStr ? articleStr.match(/(?:Neni|neni|NENI)?\s*(\d+)/) : null;
+    const artMatchInArticle = articleStr ? articleStr.match(/(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin)?\s*(\d+)/) : null;
     if (artMatchInArticle) {
         articleNum = artMatchInArticle[1];
     }
 
     if (!articleNum && titleStr) {
-        const artMatchInTitle = titleStr.match(/(?:Neni|neni|NENI)\s*(\d+)/i) || titleStr.match(/\b(\d+)\b/);
+        const artMatchInTitle = titleStr.match(/(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin)\s*(\d+)/i) || titleStr.match(/\b(\d+)\b/);
         if (artMatchInTitle) {
             articleNum = artMatchInTitle[1];
         }
     }
 
     let cleanLawTitle = lawTitle
-        .replace(/(?:Neni|neni|NENI)\s*\d+/gi, '')
+        .replace(/(?:Neni|neni|NENI|nenit|Nenit|nenin|Nenin)\s*\d+/gi, '')
         .replace(/^[,\s\-\–]+|[,\s\-\–]+$/g, '')
         .trim();
 
@@ -133,13 +132,14 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
 };
 
 // ============================================================
-// FLEXIBLE MULTI-PATTERN CITATION PARSER
+// FLEXIBLE MULTI-PATTERN CITATION PARSER (ALBANIAN SUFFIX AWARE)
 // ============================================================
 const renderTextWithCitations = (text: string) => {
     if (!text) return null;
     const clean = cleanLegalText(text);
 
-    const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
+    // Suffix aware: neni, nenit, nenin, nene, nenet
+    const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI|nenit|nenit|Nenit|NENIT|nenin|Nenin|NENIN|nene|Nene|NENE|nenet|Nenet|NENET)\s+(\d+))|(?:(?:Neni|neni|NENI|nenit|nenit|Nenit|NENIT|nenin|Nenin|NENIN|nene|Nene|NENE|nenet|Nenet|NENET)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
     const matches: Array<{ 
         fullMatch: string; 
@@ -215,9 +215,6 @@ const renderTextWithCitations = (text: string) => {
     return elements;
 };
 
-// ============================================================
-// UNIFIED CITATION ITEM RENDERER USING LawCitationLink DIRECTLY
-// ============================================================
 const renderCitationItem = (item: any) => {
     if (typeof item === 'object' && item !== null && (item.law || item.title)) {
         const rawLawTitle = item.law || item.title || "Ligj i Paidentifikuar";
@@ -364,7 +361,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   };
 
   const {
-      summary = "", key_issues = [], legal_basis = [], strategic_analysis = "",
+      summary = result?.summary || (result as any)?.executive_summary || (result as any)?.citizen_summary || (result as any)?.citizenText || "",
+      key_issues = [], legal_basis = [], strategic_analysis = "",
       weaknesses = [], action_plan = [], risk_level = "MEDIUM",
       success_probability = null, burden_of_proof = "", missing_evidence = []
   } = result || {};
