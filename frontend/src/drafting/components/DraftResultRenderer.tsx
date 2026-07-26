@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V2.0 (INTERACTIVE CITATION BADGES)
+// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V3.3 (CITATION PUNCTUATION FIX)
 
 import React from 'react';
 import { TFunction } from 'i18next';
@@ -13,13 +13,14 @@ const highlightPlaceholders = (text: string) => {
   const parts = text.split(/(\[[^\]]+\])/g);
   return parts.map((part, i) => {
     if (part.startsWith('[') && part.endsWith(']')) {
+      const cleanText = part.slice(1, -1);
       return (
         <span 
           key={i} 
-          className="bg-yellow-100 text-yellow-900 border border-yellow-300 px-1 py-0.5 rounded-sm font-bold shadow-sm mx-0.5"
-          title="Të dhëna që duhet të plotësohen"
+          className="inline-block border-b border-dashed border-gray-400 text-gray-500 font-bold px-1 mx-0.5 tracking-wider uppercase text-[10px] sm:text-xs"
+          title="Të dhëna që duhet të plotësohen manualisht"
         >
-          {part}
+          {cleanText}
         </span>
       );
     }
@@ -27,7 +28,6 @@ const highlightPlaceholders = (text: string) => {
   });
 };
 
-// ========== PHOENIX: DYNAMIC CITATION PARSER & PLACEHOLDER HIGHLIGHTER ==========
 const processContent = (text: string) => {
   if (!text) return text;
 
@@ -45,8 +45,11 @@ const processContent = (text: string) => {
 
     const fullMatch = match[0];
     const lawPrefix = match[1];
-    const lawTitle = match[2].trim();
-    const articleNum = match[3].trim();
+    
+    // PHOENIX FIX: Aggressively strip trailing parenthesis, commas, or periods from the extracted titles
+    let lawTitle = match[2].trim().replace(/[\),.;]+$/, '');
+    let articleNum = match[3].trim().replace(/[\),.;]+$/, '');
+    
     const fullLawName = `${lawPrefix} ${lawTitle}`;
     const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
 
@@ -69,12 +72,12 @@ const processContent = (text: string) => {
         <Link
           key={`cit-${idx}`}
           to={seg.url}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300 hover:bg-indigo-200 transition-all mx-1 align-middle no-underline shadow-sm"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] sm:text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 transition-all mx-1 align-middle no-underline shadow-sm font-sans tracking-widest"
           title={`Hap ${seg.value}`}
         >
-          <Scale size={11} className="text-indigo-700" />
+          <Scale size={11} className="text-indigo-600 shrink-0" />
           <span>{seg.value}</span>
-          <Eye size={11} className="text-indigo-600 ml-0.5 opacity-80" />
+          <Eye size={11} className="text-indigo-500 ml-0.5 opacity-80 shrink-0" />
         </Link>
       );
     }
@@ -83,39 +86,65 @@ const processContent = (text: string) => {
 };
 
 export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = React.memo(({ text, t }) => {
-  const disclaimer = t('drafting.subtitle', 'Kjo përgjigje është gjeneruar nga Juristi AI, vetëm për referencë.');
+  const disclaimer = t('drafting.subtitle', 'Kjo shkresë është gjeneruar nga Juristi AI dhe duhet të verifikohet nga avokati përpara dorëzimit në gjykatë.');
+
+  const cleanMarkdownText = text
+    .replace(/^```markdown\s*/gi, '')
+    .replace(/^```\s*/gi, '')
+    .replace(/```$/gi, '')
+    .trim();
 
   return (
-    <div className="legal-document flex flex-col h-full font-serif w-full max-w-full">
-      <div className="legal-content text-black flex-1 w-full overflow-x-auto">
+    <div className="flex flex-col h-full w-full max-w-full font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+      <div className="flex-1 w-full overflow-x-auto text-black">
+        
         <style>
           {`
-            .legal-content .markdown-body {
+            .legal-markdown-body {
               word-wrap: break-word;
               word-break: break-word;
               white-space: normal;
               overflow-wrap: break-word;
+              color: #000000;
             }
-            .legal-content p, .legal-content li, .legal-content h1, .legal-content h2, .legal-content h3 {
+            .legal-markdown-body p, 
+            .legal-markdown-body li, 
+            .legal-markdown-body h1, 
+            .legal-markdown-body h2, 
+            .legal-markdown-body h3 {
               word-wrap: break-word;
               word-break: break-word;
               white-space: normal;
+              color: #000000;
+            }
+            .legal-markdown-body strong {
+              color: #000000;
+              font-weight: 900;
             }
           `}
         </style>
-        <div className="markdown-body w-full max-w-full">
+
+        <div className="legal-markdown-body w-full max-w-full">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              h1: ({ node, ...props }) => <h1 {...props} className="text-black font-black uppercase text-center mb-4 text-xl tracking-wide" />,
-              h2: ({ node, ...props }) => <h2 {...props} className="text-black font-bold uppercase text-center mt-4 mb-3 text-lg" />,
-              h3: ({ node, ...props }) => <h3 {...props} className="text-black font-bold uppercase mt-3 mb-2 text-base" />,
+              h1: ({ node, ...props }) => (
+                <h1 {...props} className="font-black uppercase text-center mb-8 text-xl sm:text-2xl tracking-widest leading-tight" />
+              ),
+              h2: ({ node, ...props }) => (
+                <h2 {...props} className="font-bold uppercase text-center mt-10 mb-6 text-lg sm:text-xl tracking-wider leading-snug" />
+              ),
+              h3: ({ node, ...props }) => (
+                <h3 {...props} className="font-bold uppercase mt-8 mb-4 text-base sm:text-lg tracking-wide" />
+              ),
               
-              strong: ({ node, ...props }) => <strong {...props} className="text-black font-black" />,
+              strong: ({ node, ...props }) => (
+                <strong {...props} className="font-black" />
+              ),
               
               p: ({ node, children, ...props }) => {
                 return (
-                  <p {...props} className="text-black mb-2 leading-relaxed text-justify whitespace-normal break-words">
+                  <p {...props} className="mb-5 leading-[1.8] text-justify whitespace-normal break-words text-sm sm:text-[15px]">
                     {React.Children.map(children, child => {
                       if (typeof child === 'string') {
                         return processContent(child);
@@ -126,10 +155,14 @@ export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = Rea
                 );
               },
               
-              ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-5 mb-2 space-y-1 text-black text-justify break-words" />,
-              ol: ({ node, ...props }) => <ol {...props} className="list-decimal pl-5 mb-2 space-y-1 text-black text-justify break-words" />,
+              ul: ({ node, ...props }) => (
+                <ul {...props} className="list-disc pl-6 sm:pl-10 mb-5 space-y-2 text-justify break-words text-sm sm:text-[15px]" />
+              ),
+              ol: ({ node, ...props }) => (
+                <ol {...props} className="list-decimal pl-6 sm:pl-10 mb-5 space-y-2 text-justify break-words text-sm sm:text-[15px]" />
+              ),
               li: ({ node, children, ...props }) => (
-                <li {...props} className="text-black leading-relaxed pl-1 break-words">
+                <li {...props} className="leading-[1.8] pl-2 break-words text-sm sm:text-[15px]">
                   {React.Children.map(children, child => {
                     if (typeof child === 'string') {
                       return processContent(child);
@@ -140,25 +173,25 @@ export const DraftResultRenderer: React.FC<{ text: string; t: TFunction }> = Rea
               ),
               
               blockquote: ({ node, ...props }) => (
-                <blockquote {...props} className="border-l-4 border-gray-400 pl-4 py-1 my-3 text-gray-800 italic bg-gray-50 break-words" />
+                <blockquote {...props} className="border-l-4 border-gray-400 pl-5 py-2 my-6 text-gray-700 italic bg-gray-50/50 break-words text-sm sm:text-[15px]" />
               ),
               
               code: ({ node, inline, ...props }: any) => {
                 if (inline) {
-                  return <code {...props} className="font-mono text-sm bg-gray-100 px-1 rounded text-black break-words" />;
+                  return <code {...props} className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-800 break-words" />;
                 }
-                return <code {...props} className="block bg-gray-100 p-3 rounded-lg my-3 font-mono text-sm text-black overflow-x-auto whitespace-pre-wrap break-words" />;
+                return <code {...props} className="block bg-gray-100 p-4 rounded-xl my-5 font-mono text-xs text-gray-800 overflow-x-auto whitespace-pre-wrap break-words border border-gray-200" />;
               }
             }}
           >
-            {text}
+            {cleanMarkdownText}
           </ReactMarkdown>
         </div>
       </div>
       
       {/* Footer Disclaimer */}
-      <div className="mt-8 pt-3 border-t border-gray-300 text-center shrink-0">
-        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+      <div className="mt-12 pt-4 border-t border-gray-300 text-center shrink-0 font-sans">
+        <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">
           {disclaimer}
         </p>
       </div>

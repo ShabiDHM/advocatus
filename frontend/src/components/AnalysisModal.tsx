@@ -1,5 +1,5 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V30.0 (FULLSCREEN EXPAND TOGGLE & TEXT ZOOM)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V31.1 (FIXED: LawCitationLink USAGE)
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -17,6 +17,8 @@ import { TFunction } from 'i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
 import { apiService } from '../services/api';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+// ✅ IMPORT THE NEW COMPONENT
+import { LawCitationLink } from './LawCitationLink';
 
 export interface AnalysisModalProps {
   isOpen: boolean;
@@ -132,13 +134,23 @@ const parseLawTitleAndArticle = (titleStr: string, articleStr: string) => {
     return { cleanLawTitle, articleNum, targetUrl };
 };
 
+// ============================================================
+// MODIFIED: renderTextWithCitations using LawCitationLink
+// ============================================================
 const renderTextWithCitations = (text: string) => {
     if (!text) return null;
     const clean = cleanLegalText(text);
 
     const citationRegex = /(?:Në\s+bazë\s+të\s+)?(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,]*?),\s*(?:Neni|neni)\s+(\d+)/gi;
 
-    const matches: Array<{ fullMatch: string; targetUrl: string; index: number }> = [];
+    const matches: Array<{ 
+        fullMatch: string; 
+        targetUrl: string; 
+        index: number;
+        lawPrefix: string;
+        lawTitle: string;
+        articleNum: string;
+    }> = [];
     let match: RegExpExecArray | null;
 
     while ((match = citationRegex.exec(clean)) !== null) {
@@ -149,7 +161,14 @@ const renderTextWithCitations = (text: string) => {
         const fullLawName = `${lawPrefix} ${lawTitle}`;
         const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawName)}&articleNumber=${encodeURIComponent(articleNum)}`;
 
-        matches.push({ fullMatch, targetUrl, index: match.index });
+        matches.push({ 
+            fullMatch, 
+            targetUrl, 
+            index: match.index,
+            lawPrefix,
+            lawTitle: fullLawName,
+            articleNum
+        });
 
         if (match.index === citationRegex.lastIndex) {
             citationRegex.lastIndex++;
@@ -169,16 +188,13 @@ const renderTextWithCitations = (text: string) => {
         }
 
         elements.push(
-            <Link
+            <LawCitationLink
                 key={`cit-${i}`}
-                to={m.targetUrl}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all shadow-sm hover:shadow-md hover:scale-[1.02] bg-primary-start/10 text-primary-start border border-primary-start/30 hover:bg-primary-start/20 mx-1 align-middle"
-                title={`Hap ${m.fullMatch}`}
-            >
-                <Scale size={11} className="text-primary-start" />
-                <span>{m.fullMatch}</span>
-                <Eye size={11} className="opacity-70 ml-0.5" />
-            </Link>
+                lawTitle={m.lawTitle}
+                articleNum={m.articleNum}
+                fullMatch={m.fullMatch}
+                targetUrl={m.targetUrl}
+            />
         );
 
         lastIndex = m.index + m.fullMatch.length;

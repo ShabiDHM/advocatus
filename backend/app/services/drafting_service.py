@@ -1,5 +1,5 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V31.4 (ROLE-CENTRALIZED ADVOCATE MANDATE)
+# PHOENIX PROTOCOL - DRAFTING SERVICE V31.5 (PYMONGO BOOLEAN FIX & ROLE-CENTRALIZED ADVOCATE MANDATE)
 
 import os
 import re
@@ -116,7 +116,9 @@ async def stream_draft_generator(
     
     # Read case client position to enforce central advocate mandate
     client_position = "DEFENDANT"
-    if case_id and db:
+    
+    # PHOENIX FIX: Strict `is not None` check for PyMongo compatibility
+    if case_id and db is not None:
         try:
             c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case_doc = db.cases.find_one({"_id": c_oid})

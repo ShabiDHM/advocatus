@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V28.3 (TRI-PARTY ROLE TYPE SIGNATURES ADDED - FULL REPLACEMENT)
+// PHOENIX PROTOCOL - API SERVICE V28.4 (ADDED SOURCE_INFO TO LAWARTICLE)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,12 +17,37 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
+// ============================================================
+// UPDATED: LawArticle Interface with source_info
+// ============================================================
+export interface SourceInfo {
+  confidence: {
+    level: 'HIGH' | 'MEDIUM' | 'LOW' | 'LOWEST' | 'UNKNOWN' | 'NONE';
+    label: string;
+    icon: string;
+    color: string;
+    description: string;
+    score: number;
+  };
+  matched_law: string;
+  matched_article: string;
+  source_file: string;
+  was_mapped: boolean;
+  mapped_from: string | null;
+  multiple_matches: boolean;
+  matching_laws: string[];
+  strategy_used: string;
+  verification_hint: string;
+  match_count: number;
+}
+
 export interface LawArticle {
   law_title: string;
   article_number?: string;
   source: string;
   text: string;
   chunk_id?: string;
+  source_info?: SourceInfo;  // ✅ NEW: Source tracking and confidence data
 }
 
 interface LoginResponse { access_token: string; }

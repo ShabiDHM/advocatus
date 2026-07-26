@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.2 (100% TEMPLATE-SPECIFIC CUSTOM PROMPT MATRIX)
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.4 (TYPO FIX - 0 WARNINGS)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,7 +37,7 @@ const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
   useAuth();
   
-  const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
+  const [context, setContext] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -66,7 +66,10 @@ const DraftingPage: React.FC = () => {
 
   // TEMPLATE & ROLE MATRIX AUTO-PROMPT GENERATOR
   useEffect(() => {
-    if (!selectedCaseId || cases.length === 0) return;
+    if (!selectedCaseId || cases.length === 0) {
+      setContext('');
+      return;
+    }
     const activeCase = cases.find((c: any) => String(c.id) === String(selectedCaseId));
     if (!activeCase) return;
 
@@ -117,7 +120,6 @@ const DraftingPage: React.FC = () => {
     setContext(generatedPrompt);
   }, [selectedCaseId, selectedTemplate, cases]);
 
-  useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
 
   const runDraftingStream = async () => {
