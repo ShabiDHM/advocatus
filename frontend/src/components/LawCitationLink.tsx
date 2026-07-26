@@ -1,5 +1,5 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - PORTAL-BACKED VIEWPORT-ALIGNED LAW CITATION LINK V6.3
+// PHOENIX PROTOCOL - PORTAL-BACKED BOUNDARY-CLAMPED LAW CITATION LINK V7.0
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -50,17 +50,33 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const [error, setError] = useState<string | null>(null);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Coordinate tracking for viewport-relative fixed positioning
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  // Coordinate tracking with smart screen boundary clamping
+  const [coords, setCoords] = useState({ top: 0, tooltipLeft: 0, arrowOffset: 0 });
   const containerRef = useRef<HTMLSpanElement>(null);
 
   const updateCoordinates = () => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      
+      // Determine layout size
+      const tooltipWidth = viewportWidth < 640 ? 320 : 360;
+      const margin = 16; // 16px safety padding from screen edges
+      
+      const idealLeft = rect.left + rect.width / 2;
+      const minLeft = tooltipWidth / 2 + margin;
+      const maxLeft = viewportWidth - (tooltipWidth / 2) - margin;
+      
+      // Clamp tooltip horizontal position inside screen bounds
+      const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft));
+      
+      // Shift the caret arrow dynamically to remain aligned with the hovered pill
+      const arrowOffset = idealLeft - clampedLeft;
+
       setCoords({
-        top: rect.top, // Viewport-relative top (matches position: fixed perfectly)
-        left: rect.left, // Viewport-relative left (matches position: fixed perfectly)
-        width: rect.width,
+        top: rect.top + window.scrollY,
+        tooltipLeft: clampedLeft,
+        arrowOffset: arrowOffset
       });
     }
   };
@@ -142,7 +158,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     }
   };
 
-  // The actual floating portal tooltip rendered directly inside document.body as fixed
+  // The actual floating portal tooltip rendered directly inside document.body as absolute
   const tooltipContent = (
     <AnimatePresence>
       {showTooltip && sourceInfo && (
@@ -151,14 +167,14 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 4, scale: 0.97 }}
           transition={{ duration: 0.15 }}
-          className={`fixed w-80 sm:w-[360px] max-w-[90vw] p-4 border border-main border-t-4 ${getTopAccentBorder(
+          className={`absolute w-80 sm:w-[360px] max-w-[90vw] p-4 border border-main border-t-4 ${getTopAccentBorder(
             confidenceLevel
           )} rounded-2xl shadow-2xl z-[9999] text-left font-mono text-xs text-text-primary pointer-events-none`}
           style={{
             backgroundColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))',
             opacity: 1,
-            top: `${coords.top - 12}px`, // Floating exactly 12px above the citation pill relative to viewport top
-            left: `${coords.left + coords.width / 2}px`,
+            top: `${coords.top - 12}px`, // Floating exactly 12px above the citation pill relative to document top
+            left: `${coords.tooltipLeft}px`, // Smart clamped left coordinate
             transform: 'translate(-50%, -100%)', // Centered horizontally & aligned upwards
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 20px -10px rgba(0, 0, 0, 0.3)'
           }}
@@ -214,10 +230,13 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             </span>
           </div>
 
-          {/* Caret Down Pointer */}
+          {/* Caret Down Pointer with dynamic shift offset to point perfectly at citation pill */}
           <div 
-            className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[8px] border-transparent pointer-events-none" 
-            style={{ borderTopColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))' }}
+            className="absolute top-full -translate-x-1/2 -mt-[1px] border-[8px] border-transparent pointer-events-none" 
+            style={{ 
+              borderTopColor: 'var(--bg-surface, var(--bg-canvas, #ffffff))',
+              left: `calc(50% + ${coords.arrowOffset}px)`
+            }}
           />
         </motion.div>
       )}
@@ -264,7 +283,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
         </span>
       )}
 
-      {/* 3. Render Tooltip outside via React Portal (Millimeter Viewport Aligned) */}
+      {/* 3. Render Tooltip outside via React Portal */}
       {createPortal(tooltipContent, document.body)}
     </span>
   );
