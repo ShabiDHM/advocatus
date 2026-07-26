@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V29.0 (HIGH-ACCURACY DETERMINISTIC ROUTING)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V30.0 (ROBUST ACRONYM & PREFIX RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -174,90 +174,115 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     Find law documents with confidence scoring.
     Returns: (documents, metadata) where metadata contains confidence info.
     """
-    # === COMPREHENSIVE MAPPING ===
+    # === 1. PREFIX & SUFFIX NORMALIZATION PIPELINE ===
+    clean_title = raw_law_title.strip()
+    # Strip leading periods, numbers, and spaces (e.g. ".3 LPK" -> "LPK", "3 KPK" -> "KPK")
+    clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
+    # Strip common preposition prefixes
+    clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
+    # Strip common possessive/definite suffixes (e.g. "LPK-së" -> "LPK", "LMD-së" -> "LMD")
+    clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
+    clean_title = clean_title.strip()
+
+    # === 2. COMPREHENSIVE MAPPING & ACRONYMS ===
     law_title_mappings = {
+        # === ACCURATE ALBANIAN ACRONYMS ===
+        'LPK': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'LMD': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'KPK': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
+        'KPPK': 'Kodi Nr. 08 L-032 I Procedurës Penale',
+        'LPA': 'Ligji Nr. 04 L-189 Për Procedurën Administrative',
+        'LPP': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'KPC': 'Kodi I Procedurës Civile',
+
         # === CONSTITUTIONAL PRINCIPLES ===
-        '(Barazia para Ligjit)': 'Kushtetuta E Republikës Së Kosovës',
-        'Barazia para Ligjit': 'Kushtetuta E Republikës Së Kosovës',
-        'Kushtetuta': 'Kushtetuta E Republikës Së Kosovës',
-        '(Barazia)': 'Kushtetuta E Republikës Së Kosovës',
-        'Barazia': 'Kushtetuta E Republikës Së Kosovës',
-        '(Liria e Shprehjes)': 'Kushtetuta E Republikës Së Kosovës',
-        '(E Drejta e Pronës)': 'Kushtetuta E Republikës Së Kosovës',
-        '(E Drejta e Punës)': 'Kushtetuta E Republikës Së Kosovës',
+        'KUSHTETUTA': 'Kushtetuta E Republikës Së Kosovës',
+        'KUSHTETUTËN': 'Kushtetuta E Republikës Së Kosovës',
+        'KUSHTETUTËS': 'Kushtetuta E Republikës Së Kosovës',
+        '(BARAZIA PARA LIGJIT)': 'Kushtetuta E Republikës Së Kosovës',
+        'BARAZIA PARA LIGJIT': 'Kushtetuta E Republikës Së Kosovës',
+        '(BARAZIA)': 'Kushtetuta E Republikës Së Kosovës',
+        'BARAZIA': 'Kushtetuta E Republikës Së Kosovës',
+        '(LIRIA E SHPREHJES)': 'Kushtetuta E Republikës Së Kosovës',
+        '(E DREJTA E PRONËS)': 'Kushtetuta E Republikës Së Kosovës',
+        '(E DREJTA E PUNËS)': 'Kushtetuta E Republikës Së Kosovës',
         
         # === TOPICS ===
-        '(Gjobat)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        'Gjobat': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Gjoba)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        'Gjoba': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Detyrimet)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        'Detyrimet': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Kontratat)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Dëmshpërblimi)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Kamata)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Dëmi)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(GJOBAT)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'GJOBAT': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(GJOBA)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'GJOBA': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(DETYRIMET)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'DETYRIMET': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(KONTRATAT)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(DËMSHPËRBLIMI)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(KAMATA)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(DËMI)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
         
         # === SECTION HEADINGS ===
-        '(Dispozitat Kalimtare)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        'Dispozitat Kalimtare': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Dispozitat)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        'Dispozitat': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Dispozita)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        'Dispozita': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Dispozitat Finale)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        'Dispozitat Finale': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Dispozitat e Përgjithshme)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        'Dispozitat e Përgjithshme': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DISPOZITAT KALIMTARE)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'DISPOZITAT KALIMTARE': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DISPOZITAT)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'DISPOZITAT': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DISPOZITA)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'DISPOZITA': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DISPOZITAT FINALE)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'DISPOZITAT FINALE': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DISPOZITAT E PËRGJITHSHME)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        'DISPOZITAT E PËRGJITHSHME': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
         
         # === LEGAL CONCEPTS ===
-        '(Nuliteti i Dispozitave)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        'Nuliteti i Dispozitave': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Nuliteti)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        'Nuliteti': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
-        '(Padia)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Paditë)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Apeli)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Ekzekutimi)': 'Ligji Nr. 04 L-139 Për Procedurën Përmbarimore',
-        '(Përmbarimi)': 'Ligji Nr. 04 L-139 Për Procedurën Përmbarimore',
-        '(Procedura)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Provat)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Dëshmitarët)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
-        '(Ekspertiza)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(NULITETI I DISPOZITAVE)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'NULITETI I DISPOZITAVE': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(NULITETI)': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        'NULITETI': 'Ligji Nr. 04 L-077 Për Marrëdhëniet E Detyrimeve',
+        '(PADIA)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(PADITË)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(APELI)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(EKZEKUTIMI)': 'Ligji Nr. 04 L-139 Për Procedurën Përmbarimore',
+        '(PËRMBARIMI)': 'Ligji Nr. 04 L-139 Për Procedurën Përmbarimore',
+        '(PROCEDURA)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(PROVAT)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(DËSHMITARËT)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
+        '(EKSPERTIZA)': 'Ligji Nr. 03 L-006 Për Procedurën Kontestimore',
         
         # === SPECIFIC LAWS BY TOPIC ===
-        '(Puna)': 'Ligji Nr. 03 L-212 I Punës',
-        '(Punë)': 'Ligji Nr. 03 L-212 I Punës',
-        '(Punësimi)': 'Ligji Nr. 03 L-212 I Punës',
-        '(Kontrata e Punës)': 'Ligji Nr. 03 L-212 I Punës',
-        '(Siguria në Punë)': 'Ligji Nr. 04 L-161 Për Sigurinë Dhe Shëndetin Në Punë',
-        '(Shëndeti në Punë)': 'Ligji Nr. 04 L-161 Për Sigurinë Dhe Shëndetin Në Punë',
-        '(Tatimi)': 'Ligji Nr. 05 L-029 Për Tatimin Në Të Ardhurat E Korporatave',
-        '(Tatimet)': 'Ligji Nr. 05 L-029 Për Tatimin Në Të Ardhurat E Korporatave',
-        '(Tatimore)': 'Ligji Nr. 08 L-257 Për Administrimin E Procedurave Tatimore',
-        '(Shoqëritë Tregtare)': 'Ligji Nr. 06 L-016 Për Shoqëritë Tregtare',
-        '(Shoqëria Tregtare)': 'Ligji Nr. 06 L-016 Për Shoqëritë Tregtare',
-        '(Familja)': 'Ligji Nr. 2004 32 Ligji Për Familjen I Kosovës',
-        '(Familje)': 'Ligji Nr. 2004 32 Ligji Për Familjen I Kosovës',
-        '(Fëmija)': 'Ligji Nr. 06 L-084 Për Mbrojtjen E Fëmijës',
-        '(Fëmijë)': 'Ligji Nr. 06 L-084 Për Mbrojtjen E Fëmijës',
-        '(Të Dhënat Personale)': 'Ligji Nr. 06 L-082 Për Mbrojtjen E Të Dhënave Personale',
-        '(Penal)': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
-        '(Krimi)': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
-        '(Procedura Penale)': 'Kodi Nr. 08 L-032 I Procedurës Penale',
-        '(Të Miturit)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
-        '(Të Mitur)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
+        '(PUNA)': 'Ligji Nr. 03 L-212 I Punës',
+        '(PUNË)': 'Ligji Nr. 03 L-212 I Punës',
+        '(PUNËSIMI)': 'Ligji Nr. 03 L-212 I Punës',
+        '(KONTRATA E PUNËS)': 'Ligji Nr. 03 L-212 I Punës',
+        '(SIGURIA NË PUNË)': 'Ligji Nr. 04 L-161 Për Sigurinë Dhe Shëndetin Në Punë',
+        '(SHËNDETI NË PUNË)': 'Ligji Nr. 04 L-161 Për Sigurinë Dhe Shëndetin Në Punë',
+        '(TATIMI)': 'Ligji Nr. 05 L-029 Për Tatimin Në Të Ardhurat E Korporatave',
+        '(TATIMET)': 'Ligji Nr. 05 L-029 Për Tatimin Në Të Ardhurat E Korporatave',
+        '(TATIMORE)': 'Ligji Nr. 08 L-257 Për Administrimin E Procedurave Tatimore',
+        '(SHOQËRITË TREGTAPE)': 'Ligji Nr. 06 L-016 Për Shoqëritë Tregtare',
+        '(SHOQËRIA TREGTAPE)': 'Ligji Nr. 06 L-016 Për Shoqëritë Tregtare',
+        '(FAMILJA)': 'Ligji Nr. 2004 32 Ligji Për Familjen I Kosovës',
+        '(FAMILJE)': 'Ligji Nr. 2004 32 Ligji Për Familjen I Kosovës',
+        '(FËMIJA)': 'Ligji Nr. 06 L-084 Për Mbrojtjen E Fëmijës',
+        '(FËMIJË)': 'Ligji Nr. 06 L-084 Për Mbrojtjen E Fëmijës',
+        '(TË DHËNAT PERSONALE)': 'Ligji Nr. 06 L-082 Për Mbrojtjen E Të Dhënave Personale',
+        '(PENAL)': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
+        '(KRIMI)': 'Kodi Nr. 06 L-074 Kodi Penal I Republikës Së Kosovës',
+        '(PROCEDURA PENALE)': 'Kodi Nr. 08 L-032 I Procedurës Penale',
+        '(TË MITURIT)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
+        '(TË MITUR)': 'Kodi Nr. 06 L-006 I Drejtësisë Për Të Mitur',
     }
     
     original_law_title = raw_law_title
     mapped = False
     
-    # Apply mapping if needed
-    if raw_law_title in law_title_mappings:
-        mapped_title = law_title_mappings[raw_law_title]
-        logger.info(f"Mapped law title from '{raw_law_title}' to: '{mapped_title}'")
+    # Case-insensitive resolution of mapped acronyms/topics
+    lookup_title = clean_title.upper()
+    if lookup_title in law_title_mappings:
+        mapped_title = law_title_mappings[lookup_title]
+        logger.info(f"Mapped law title from '{raw_law_title}' ({clean_title}) to: '{mapped_title}'")
         raw_law_title = mapped_title
         mapped = True
+    else:
+        # Fallback to the normalized cleaned title if not mapped
+        raw_law_title = clean_title
     
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     art_variants = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}"]
@@ -307,7 +332,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         return docs, metadata
 
     # === STRATEGY 3: Keyword fallback (MEDIUM CONFIDENCE) ===
-    words = [w for w in raw_law_title.split() if len(w) > 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe', 'nr']]
+    words = [w for w in raw_law_title.split() if len(w) >= 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe', 'nr']]
     if words:
         key_pattern = "|".join([re.escape(w) for w in words[:3]])
         query = {
@@ -326,7 +351,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
 
     # === STRATEGY 4: Article + Law Title Keywords (MEDIUM CONFIDENCE) ===
     logger.info(f"Attempting article + law title keywords search for '{raw_article_num}'")
-    original_words = [w.lower() for w in original_law_title.split() if len(w) > 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe', 'nr']]
+    original_words = [w.lower() for w in original_law_title.split() if len(w) >= 3 and w.lower() not in ['ligji', 'ligjit', 'kodi', 'kodin', 'për', 'per', 'dhe', 'nr']]
     
     if original_words:
         word_pattern = "|".join([re.escape(w) for w in original_words[:2]])
@@ -414,7 +439,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     return [], metadata
 
 def _calculate_confidence(doc: dict, raw_law_title: str, raw_article_num: str, strategy: str) -> Dict[str, Any]:
-    """Calculate confidence score for a matched document."""
+    """Calculate confidence score for a matched document with high normalization accuracy."""
     confidence = {
         "score": 0.0,
         "level": "UNKNOWN",
@@ -425,31 +450,51 @@ def _calculate_confidence(doc: dict, raw_law_title: str, raw_article_num: str, s
     doc_title = str(doc.get("law_title", ""))
     doc_article = str(doc.get("article_number", ""))
     
-    # Check law title match
-    if raw_law_title.lower() in doc_title.lower() or doc_title.lower() in raw_law_title.lower():
-        confidence["score"] += 0.4
-        confidence["reason"].append("Law title matches")
+    # Normalize titles (remove punctuation/spaces/slashes)
+    def normalize_title(t: str) -> str:
+        t_clean = re.sub(r'[^a-z0-9]', '', t.lower())
+        return t_clean
+
+    norm_raw_title = normalize_title(raw_law_title)
+    norm_doc_title = normalize_title(doc_title)
     
-    # Check law code match (numbers in title)
-    raw_numbers = re.findall(r'\d+', raw_law_title)
-    doc_numbers = re.findall(r'\d+', doc_title)
-    common_numbers = set(raw_numbers) & set(doc_numbers)
+    # Check match or cross-substring match
+    if norm_raw_title == norm_doc_title or norm_raw_title in norm_doc_title or norm_doc_title in norm_raw_title:
+        confidence["score"] += 0.5
+        confidence["reason"].append("Law title matches (normalized)")
+    else:
+        # Check if words match
+        raw_words = set([w for w in re.sub(r'[^a-z0-9\s]', ' ', raw_law_title.lower()).split() if len(w) >= 3])
+        doc_words = set([w for w in re.sub(r'[^a-z0-9\s]', ' ', doc_title.lower()).split() if len(w) >= 3])
+        intersect = raw_words & doc_words
+        if intersect:
+            word_score = min(0.3, len(intersect) * 0.1)
+            confidence["score"] += word_score
+            confidence["reason"].append(f"Partial keyword matches: {intersect}")
+
+    # Check law code match (numbers like 04/L-077 or 03/L-006)
+    raw_numbers = set(re.findall(r'\d+', raw_law_title))
+    doc_numbers = set(re.findall(r'\d+', doc_title))
+    common_numbers = raw_numbers & doc_numbers
     if common_numbers:
         confidence["score"] += 0.2
         confidence["reason"].append(f"Law code numbers match: {common_numbers}")
     
-    # Check article number exact match
-    if raw_article_num == doc_article:
-        confidence["score"] += 0.3
-        confidence["reason"].append("Article number exact match")
-    elif raw_article_num in doc_article or doc_article in raw_article_num:
-        confidence["score"] += 0.15
-        confidence["reason"].append("Article number partial match")
+    # Extract only digits from article numbers
+    clean_raw_art = re.sub(r'\D', '', raw_article_num)
+    clean_doc_art = re.sub(r'\D', '', doc_article)
     
-    # Check if it's from mapping (higher confidence)
-    if strategy == "MAPPED":
+    if clean_raw_art and clean_doc_art and clean_raw_art == clean_doc_art:
+        confidence["score"] += 0.3
+        confidence["reason"].append("Article digits exact match")
+    elif clean_raw_art in clean_doc_art or clean_doc_art in clean_raw_art:
+        confidence["score"] += 0.15
+        confidence["reason"].append("Article digits partial match")
+    
+    # Strategy-based boost
+    if strategy in ["LAW_CODE", "EXACT_TITLE"]:
         confidence["score"] += 0.1
-        confidence["reason"].append("Mapped from topic to law")
+        confidence["reason"].append("Matched via exact title/code strategies")
     
     # Cap score at 1.0
     confidence["score"] = min(confidence["score"], 1.0)
