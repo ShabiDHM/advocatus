@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V28.0 (SOURCE_INFO + USER-FRIENDLY CONFIDENCE)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V29.0 (HIGH-ACCURACY DETERMINISTIC ROUTING)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
