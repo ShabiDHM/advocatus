@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - ENTERPRISE STRUCTURED LEGAL GRAPH V35.0 (3-LANE ZERO-COLLISION GRID)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V37.0 (FLOATING EVIDENCE TOOLTIP & BALANCED 3-COLUMN GRID)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -32,7 +32,9 @@ import {
   ChevronRight,
   Info,
   Swords,
-  Sparkles} from 'lucide-react';
+  Sparkles,
+  Link2
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from './LawCitationText';
 
@@ -122,11 +124,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
-  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<OntologyEdge | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [simplifiedView, setSimplifiedView] = useState<boolean>(true); // Smart Clutter Reduction Default
+  const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
 
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -143,7 +146,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -1100, y: -700, width: 2200, height: 1400 });
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // OPTIMIZED BALANCED VIEWBOX: Centered across all 3 lanes (-1250, -800, 2500, 1600)
+  const [viewBox, setViewBox] = useState({ x: -1250, y: -800, width: 2500, height: 1600 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
@@ -175,7 +181,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entityMessages, isSending]);
 
-  // Filtered nodes according to search, category, and simplified view toggle
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
     
@@ -188,7 +193,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    // In simplified view, prioritize core entities with highest edge connections or contradictions
     if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 14) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
@@ -221,7 +225,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
   }, [selectedNode, graphData?.edges]);
 
-  // 3-LANE STRUCTURED GRID LAYOUT COMPUTATION (Zero Overlap Guaranteed)
+  // WORLD-CLASS BALANCED 3-LANE GRID DISTRIBUTION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -238,7 +242,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     });
 
     const calculateLanePositions = (nodes: OntologyNode[], xPos: number) => {
-      const spacingY = 160;
+      const spacingY = 190; // Generous vertical gap preventing card overlaps
       const startY = -((nodes.length - 1) * spacingY) / 2;
       nodes.forEach((node, idx) => {
         initialPos[node.id] = {
@@ -248,9 +252,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     };
 
-    calculateLanePositions(leftLaneNodes, -680);   // PALËT & SUBJEKTET
+    calculateLanePositions(leftLaneNodes, -750);   // PALËT & SUBJEKTET
     calculateLanePositions(centerLaneNodes, 0);     // PROVAT & DOKUMENTET
-    calculateLanePositions(rightLaneNodes, 680);   // ORGANET & SEANCAT
+    calculateLanePositions(rightLaneNodes, 750);   // ORGANET & SEANCAT
 
     setPositions(initialPos);
   }, [filteredNodes]);
@@ -297,7 +301,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const handleResetZoom = () => {
     setSelectedNode(null);
     setSelectedEdge(null);
-    setViewBox({ x: -1100, y: -700, width: 2200, height: 1400 });
+    setHoveredEdge(null);
+    setViewBox({ x: -1250, y: -800, width: 2500, height: 1600 });
   };
 
   const handleRebuildGraph = async () => {
@@ -388,10 +393,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
 
     if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2200);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1400);
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2500);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1600);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
+    }
+
+    // Update floating hover tooltip positioning relative to graph container
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setTooltipPos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
     }
   };
 
@@ -586,7 +600,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         </div>
       </div>
 
-      <div className="flex-1 flex relative overflow-hidden bg-canvas">
+      <div ref={containerRef} className="flex-1 flex relative overflow-hidden bg-canvas">
         <div className="flex-1 h-full w-full relative">
 
           {loading ? (
@@ -626,25 +640,25 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               {/* 3-COLUMN LEGAL LANE BACKDROP HEADERS */}
               <g className="lane-headers" pointerEvents="none">
                 {/* Lane 1: Left */}
-                <g transform="translate(-680, -620)">
-                  <rect x="-140" y="-24" width="280" height="48" rx="24" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#93c5fd" fontSize="16" fontWeight="900" letterSpacing="1px">
+                <g transform="translate(-750, -700)">
+                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#93c5fd" fontSize="17" fontWeight="900" letterSpacing="1px">
                     👤 PALËT & SUBJEKTET
                   </text>
                 </g>
 
                 {/* Lane 2: Center */}
-                <g transform="translate(0, -620)">
-                  <rect x="-140" y="-24" width="280" height="48" rx="24" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="16" fontWeight="900" letterSpacing="1px">
+                <g transform="translate(0, -700)">
+                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="17" fontWeight="900" letterSpacing="1px">
                     📄 PROVAT & DOKUMENTET
                   </text>
                 </g>
 
                 {/* Lane 3: Right */}
-                <g transform="translate(680, -620)">
-                  <rect x="-140" y="-24" width="280" height="48" rx="24" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#fca5a5" fontSize="16" fontWeight="900" letterSpacing="1px">
+                <g transform="translate(750, -700)">
+                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#fca5a5" fontSize="17" fontWeight="900" letterSpacing="1px">
                     ⚖️ ORGANET & SEANCAT
                   </text>
                 </g>
@@ -659,7 +673,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
-                  const isHovered = hoveredEdgeId === edge.id;
+                  const isHovered = hoveredEdge?.id === edge.id;
 
                   // Focus mode evaluation
                   const isFocusedMode = Boolean(selectedNode);
@@ -670,7 +684,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   // Cubic Bezier curve control points preventing straight line overlaps
                   const dx = targetPos.x - sourcePos.x;
                   const dy = targetPos.y - sourcePos.y;
-                  const curveOffset = dx === 0 ? 120 : (dy > 0 ? 80 : -80);
+                  const curveOffset = dx === 0 ? 140 : (dy > 0 ? 90 : -90);
                   
                   const controlX1 = sourcePos.x + dx * 0.4;
                   const controlY1 = sourcePos.y + curveOffset;
@@ -685,48 +699,51 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   const albanianLabel = formatRelationText(edge.relation);
                   const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                  const badgeWidth = Math.max(110, labelDisplayText.length * 11);
+                  const badgeWidth = Math.max(120, labelDisplayText.length * 12);
 
                   return (
                     <g
                       key={edge.id}
                       className={`group cursor-pointer transition-opacity duration-300 ${isEdgeDisabled ? 'pointer-events-none' : ''}`}
-                      onClick={() => setSelectedEdge(edge)}
-                      onMouseEnter={() => setHoveredEdgeId(edge.id)}
-                      onMouseLeave={() => setHoveredEdgeId(null)}
+                      onClick={() => {
+                        setSelectedEdge(edge);
+                        setSelectedNode(null);
+                      }}
+                      onMouseEnter={() => setHoveredEdge(edge)}
+                      onMouseLeave={() => setHoveredEdge(null)}
                       style={{ opacity: edgeOpacity }}
                     >
-                      {/* Invisible wider hit area */}
-                      <path d={pathD} fill="none" stroke="transparent" strokeWidth="28" />
+                      {/* Invisible wider hit area for easy hover */}
+                      <path d={pathD} fill="none" stroke="transparent" strokeWidth="32" />
 
                       {/* Visible Curved Line Path */}
                       <path
                         d={pathD}
                         fill="none"
                         stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#475569'}
-                        strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2.5}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 5 : 2.8}
                         strokeDasharray={isContradiction ? '8,8' : 'none'}
-                        markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
+                        markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected || isHovered ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
                       />
 
                       {/* Relationship Pill Badge */}
                       <g transform={`translate(${midX}, ${midY})`}>
                         <rect
                           x={-badgeWidth / 2}
-                          y={-15}
+                          y={-16}
                           width={badgeWidth}
-                          height={30}
-                          fill={isContradiction ? '#450a0a' : '#090d16'}
-                          stroke={isContradiction ? '#ef4444' : '#334155'}
-                          strokeWidth="1.5"
-                          rx={15}
-                          className="shadow-xl"
+                          height={32}
+                          fill={isContradiction ? '#450a0a' : isHovered || isSelected ? '#1e3a8a' : '#090d16'}
+                          stroke={isContradiction ? '#ef4444' : isHovered || isSelected ? '#60a5fa' : '#334155'}
+                          strokeWidth={isHovered || isSelected ? '2' : '1.5'}
+                          rx={16}
+                          className="shadow-xl transition-all"
                         />
                         <text
                           x={0}
                           y={5}
                           textAnchor="middle"
-                          fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#60a5fa' : '#cbd5e1'}
+                          fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#ffffff' : '#cbd5e1'}
                           fontSize="13"
                           fontWeight="800"
                           letterSpacing="0.5px"
@@ -754,8 +771,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
                   const isNodeDisabled = isFocusedMode && !isNodeConnected;
 
-                  const cardWidth = 260;
-                  const cardHeight = 72;
+                  const cardWidth = 280;
+                  const cardHeight = 80;
 
                   return (
                     <g
@@ -773,11 +790,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       {/* Active Halo Glow */}
                       {isSelected && (
                         <rect
-                          x={-cardWidth / 2 - 6}
-                          y={-cardHeight / 2 - 6}
-                          width={cardWidth + 12}
-                          height={cardHeight + 12}
-                          rx={20}
+                          x={-cardWidth / 2 - 8}
+                          y={-cardHeight / 2 - 8}
+                          width={cardWidth + 16}
+                          height={cardHeight + 16}
+                          rx={22}
                           fill="none"
                           stroke="#60a5fa"
                           strokeWidth="4"
@@ -791,7 +808,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         y={-cardHeight / 2}
                         width={cardWidth}
                         height={cardHeight}
-                        rx={16}
+                        rx={18}
                         fill="#0b0f19"
                         stroke={isSelected ? '#ffffff' : '#1e293b'}
                         strokeWidth={isSelected ? '3' : '2'}
@@ -802,50 +819,50 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       <rect
                         x={-cardWidth / 2}
                         y={-cardHeight / 2}
-                        width="8"
+                        width="10"
                         height={cardHeight}
-                        rx="4"
+                        rx="5"
                         fill={config.bg}
                       />
 
                       {/* Entity Icon Container */}
-                      <g transform={`translate(${-cardWidth / 2 + 30}, 0)`}>
-                        <circle r="18" fill={config.bg} />
-                        <foreignObject x={-10} y={-10} width={20} height={20} className="pointer-events-none">
+                      <g transform={`translate(${-cardWidth / 2 + 34}, 0)`}>
+                        <circle r="20" fill={config.bg} />
+                        <foreignObject x={-11} y={-11} width={22} height={22} className="pointer-events-none">
                           <div className="w-full h-full flex items-center justify-center text-white">
-                            <IconComponent className="w-4 h-4" />
+                            <IconComponent className="w-5 h-5" />
                           </div>
                         </foreignObject>
                       </g>
 
                       {/* Label Text */}
                       <text
-                        x={-cardWidth / 2 + 58}
-                        y={-6}
+                        x={-cardWidth / 2 + 66}
+                        y={-8}
                         fill="#ffffff"
-                        fontSize="14"
+                        fontSize="15"
                         fontWeight="800"
                         className="select-none tracking-tight pointer-events-none font-sans"
                       >
-                        {node.label.length > 20 ? `${node.label.substring(0, 18)}..` : node.label}
+                        {node.label.length > 22 ? `${node.label.substring(0, 20)}..` : node.label}
                       </text>
 
                       {/* Category Badge Pill */}
-                      <g transform={`translate(${-cardWidth / 2 + 58}, 16)`}>
+                      <g transform={`translate(${-cardWidth / 2 + 66}, 18)`}>
                         <rect
                           x="0"
                           y="-10"
-                          width="110"
-                          height="18"
-                          rx="9"
+                          width="120"
+                          height="20"
+                          rx="10"
                           fill={config.bg}
                           fillOpacity="0.25"
                           stroke={config.border}
-                          strokeWidth="0.8"
+                          strokeWidth="1"
                         />
                         <text
-                          x="55"
-                          y="2"
+                          x="60"
+                          y="3"
                           textAnchor="middle"
                           fill={config.border}
                           fontSize="10"
@@ -861,6 +878,66 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               </g>
             </svg>
           )}
+
+          {/* FLOATING HOVER EVIDENCE TOOLTIP CARD (HOVER INTELLIGENCE) */}
+          <AnimatePresence>
+            {hoveredEdge && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  position: 'absolute',
+                  left: Math.min(window.innerWidth - 380, tooltipPos.x + 20),
+                  top: Math.max(20, tooltipPos.y - 40),
+                  pointerEvents: 'none'
+                }}
+                className="z-[200] w-80 p-4 bg-[#090d1a]/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl space-y-2.5 font-sans"
+              >
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    hoveredEdge.relation.includes('CONTRADICT') || hoveredEdge.relation.includes('KUNDËR')
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                      : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  }`}>
+                    {hoveredEdge.relation.includes('CONTRADICT') || hoveredEdge.relation.includes('KUNDËR') ? '⚠️ ' : '⚖️ '}
+                    {formatRelationText(hoveredEdge.relation)}
+                  </span>
+
+                  {hoveredEdge.amount_eur && (
+                    <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      €{hoveredEdge.amount_eur.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+
+                {/* Connection Pair */}
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">
+                  <span className="truncate max-w-[110px] text-white">
+                    {nodeMap.get(hoveredEdge.source)?.label || 'Burimi'}
+                  </span>
+                  <Link2 size={12} className="text-blue-400 shrink-0 mx-1" />
+                  <span className="truncate max-w-[110px] text-white">
+                    {nodeMap.get(hoveredEdge.target)?.label || 'Caku'}
+                  </span>
+                </div>
+
+                {/* Evidence Quote */}
+                {hoveredEdge.evidence_text ? (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia nga Dokumenti:</span>
+                    <p className="text-xs text-slate-200 italic leading-relaxed bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/60 line-clamp-4">
+                      &quot;<LawCitationText text={hoveredEdge.evidence_text} />&quot;
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic">Klikoni për të parë detajet e plotë në fashikull.</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         </div>
 
         {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL */}
