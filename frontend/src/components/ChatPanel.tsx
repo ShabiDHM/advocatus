@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V20.0 (AI LAWYER CONSULT & AUTOMATED DRAFTING BRIDGE)
+// PHOENIX PROTOCOL - CHAT PANEL V22.0 (CLEAN BADGE & GUIDED INTAKE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -256,6 +256,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleRetry = () => { if (lastUserMessage) sendMessage(lastUserMessage); };
 
+  // GUIDED INTAKE: Pre-fills input template and focuses cursor without auto-sending
+  const handleInitiateConsultation = () => {
+    const starterTemplate = `Përshëndetje Avokat! Ja situata ime me fjalët e mia:\n\n[Shkruani këtu çfarë ka ndodhur me fjalët tuaja...]\n\nMë jep një diagnostikim të qartë të situatës, rreziqet ligjore dhe hapat e veprimit!`;
+    setInput(starterTemplate);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const startPos = starterTemplate.indexOf('[');
+        const endPos = starterTemplate.indexOf(']') + 1;
+        if (startPos !== -1 && endPos !== -1) {
+          textareaRef.current.setSelectionRange(startPos, endPos);
+        }
+      }
+    }, 100);
+  };
+
   // Automated Bridge to Drafting Page (/drafting)
   const handleTransferToDrafting = (templateType: string, customContext: string) => {
     try {
@@ -361,13 +378,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
               </div>
 
-              {/* CONTEST CATCHER & COMMAND CARDS GRID */}
+              {/* COMMAND CARDS GRID */}
               <div className="w-full max-w-xl space-y-2.5 text-left mt-1">
                 
-                {/* FEATURED TOP CARD: CONTEST CATCHER & AI LAWYER CONSULT */}
+                {/* FEATURED TOP CARD: AI LAWYER CONSULT (INTERACTIVE INTAKE) */}
                 <button
                   type="button"
-                  onClick={() => sendMessage('Jam një qytetar/përfaqësues biznesi pa përvojë ligjore. Analizo të gjitha dokumentet e lëndës sime dhe më jep një diagnostikim të qartë në gjuhë të thjeshtë: 1. Diagnostikimi i Situatës, 2. Plani i Veprimit, dhe 3. Sugjerimet se cila shkresë ligjore duhet të hartohet (Padi, Kundërpadi, apo Prapësim).')}
+                  onClick={handleInitiateConsultation}
                   className="w-full p-3.5 sm:p-4 bg-gradient-to-r from-primary-start/15 via-surface to-surface hover:border-primary-start border border-primary-start/40 rounded-2xl text-left transition-all duration-200 shadow-md group cursor-pointer flex items-start gap-3"
                 >
                   <div className="p-2.5 rounded-xl bg-primary-start text-white shadow-md shrink-0 mt-0.5">
@@ -376,7 +393,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 tracking-wider">
-                        ⚖️ CONTEST CATCHER & KONSULTA LIGJORE
+                        ⚖️ KONSULTA LIGJORE
                       </span>
                       <ChevronRight size={14} className="text-primary-start group-hover:translate-x-1 transition-transform" />
                     </div>
