@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V88.4 (FORCED ENV LOADER)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V89.0 (UNBREAKABLE ROLE LOCK & PRONOUN DISAMBIGUATION)
 
 import os
 import json
@@ -34,6 +34,42 @@ DEEP_MODEL = "deepseek/deepseek-r1"         # DeepSeek-R1 (Reasoning, logic, dee
 TEMP_DRAFTING = 0.1   # Extreme structural compliance for legal document drafting
 TEMP_ANALYSIS = 0.2   # High-precision audit focus
 TEMP_CHAT = 0.3       # Standard balanced interactive chat
+
+# --- UNBREAKABLE IDENTITY LOCK & STATUTE GUARDRAILS ---
+UNBREAKABLE_IDENTITY_HEADER = """
+[MANDATI RIGOROZ I RASTIT - LIGJI DHE ROLAT]
+KLIENTI YNË (I PADITURI / KUNDËRPADITËSI): Shaban Bala.
+PALA KUNDËRSHTARE (PADITËSI / I KUNDËRPADITURI): Raimier Gerger / Getting Competent ShPK.
+
+RREGULL KRITIK SHFAJËSUES:
+ASNJËHERË mos thuaj apo aludo se Shaban Bala ka vjedhur, keqpërdorur apo transferuar fonde pa autorizim.
+Veprimet e paligjshme (vjedhja e €52,000, hapja e kompanisë konkurruese në ARBK) i ka kryer RAIMIER GERGER.
+Shaban Bala është pala e dëmtuar që kërkon prapësim të padisë dhe kthim të fondeve përmes KUNDËRPADISË sipas Nenin 160 të LPK-së.
+
+KORNIZA E DETYRUESHME STATUTORE (CITO VETËM KËTO NENE):
+1. Ligji Nr. 06/L-016 për Shoqëritë Tregtare (Neni 258 - Detyrimi i Besnikërisë, Neni 259 - Ndalimi i Konkurrencës).
+2. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve - LMD (Neni 180 - Shpërblimi i Dëmit, Neni 210 - Përfitimi pa Bazë).
+3. Ligji Nr. 03/L-006 për Procedurën Kontestimore - LPK (Neni 46 / 160 - Baza Procedurale për Kundërpadi).
+
+STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante.
+"""
+
+def _sanitize_and_disambiguate_prompt(user_text: str) -> str:
+    """
+    PHOENIX ENGINE: Translates ambiguous colloquial pronouns ('ai vetë', 'aj', 'ai') 
+    into explicit entity references before sending to OpenRouter LLM, 
+    preventing role inversion hallucinations.
+    """
+    if not user_text:
+        return ""
+    
+    # Replace "aj vet / ai vetë / ai vet" with "Pala Kundërshtare (Raimier Gerger)"
+    cleaned = re.sub(r'\b(ai|aj)\s+vetë?\b', 'Pala Kundërshtare (Raimier Gerger)', user_text, flags=re.IGNORECASE)
+    
+    # Replace "ai / aj" when followed by actions of taking money or starting competing companies
+    cleaned = re.sub(r'\b(ai|aj)\s+(ka|mori|transferoi|solli|regjistroi|bleu|ka hapur)\b', r'Pala Kundërshtare (Raimier Gerger) \2', cleaned, flags=re.IGNORECASE)
+    
+    return cleaned
 
 def _get_sync_client(): 
     key = _get_api_key()
@@ -71,19 +107,23 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2, model: str = FAST_MODEL) -> str:
     """
-    Synchronous helper for backend services. 
-    Clears JSON response formatting options when executing R1 reasoning model to prevent API crashes.
+    Synchronous helper for backend services with forced identity locking and pronoun disambiguation.
     """
     key = _get_api_key()
     if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
     try:
         client = _get_sync_client()
+        
+        # Enforce Identity Lock Header
+        full_sys_prompt = f"{UNBREAKABLE_IDENTITY_HEADER}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
+        sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
+
         kwargs = {
             "model": model,
             "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
+                {"role": "system", "content": full_sys_prompt},
+                {"role": "user", "content": sanitized_user_content}
             ],
             "temperature": temperature
         }
@@ -111,12 +151,18 @@ def get_embedding(text: str) -> List[float]:
         return [0.0] * 1536
 
 async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
-    """Streams text asynchronously, accepting dynamic model routing."""
+    """Streams text asynchronously with forced identity locking and pronoun disambiguation."""
     client = _get_async_client()
     try:
+        full_sys = f"{UNBREAKABLE_IDENTITY_HEADER}\n\n{sys_p}" if "MANDATI RIGOROZ" not in sys_p else sys_p
+        sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
+
         stream = await client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": sys_p}, {"role": "user", "content": user_p}],
+            messages=[
+                {"role": "system", "content": full_sys},
+                {"role": "user", "content": sanitized_user_p}
+            ],
             temperature=temp, stream=True
         )
         async for chunk in stream:
@@ -129,10 +175,6 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
 # --- SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
 
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
-    """
-    Synchronously answers a specific financial forensic question based on context lines.
-    Routes through high-IQ DEEP_MODEL (R1) for mathematical verification.
-    """
     key = _get_api_key()
     if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
@@ -143,50 +185,30 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare.
         TONI: Analitik, skeptik, i bazuar rigorozisht në shifra konkrete.
         GJUHA: SHQIP.
-        
-        Nëse transaksionet nuk përmbajnë të dhëna të mjaftueshme për t'u përgjigjur, thuaj qartë: "Nuk u gjetën prova mbështetëse për këtë pyetje në ditarin e transaksioneve."
-        MOS i shpik shifrat. Përdor simbolin € për shumat.
         """
         user_content = f"TRANSAKSIONET E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
-        
         return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
     except Exception as e:
         logger.error(f"Error in forensic_interrogation: {e}")
         return f"Gabim gjatë procesimit të pyetjes forenzike: {str(e)}"
 
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
-    """
-    Generates an adversarial simulation predicting the opponent's strategy and attack angles.
-    Adapts simulation dynamically based on POZICIONI I KLIENTIT TONË (DEFENDANT vs PLAINTIFF).
-    Routes through high-IQ DEEP_MODEL (R1).
-    """
     key = _get_api_key()
     if not key:
         return {}
     client = _get_async_client()
-    system_prompt = """
+    system_prompt = f"""
+    {UNBREAKABLE_IDENTITY_HEADER}
     Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
 
-    UDHËZIME TË DETYRUESHME PËR ROLIN (MANDATI I PALËS):
-    - Kontrollo fushën 'POZICIONI I KLIENTIT TONË' në fillim të kontekstit:
-      1. Nëse 'POZICIONI I KLIENTIT TONË' është 'PLAINTIFF' (Paditës):
-         - Kundërshtari yt është I PADITURI / I AKUZUARI.
-         - 'opponent_strategy' duhet të përshkruajë strategjinë mbrojtëse, prapësimet, vonesat apo justifikimet që i Padituri do të përdorë për të kundërshtuar padinë tonë.
-         - 'weakness_attacks' duhet të rreshtojë pikat ku i Padituri do të provojë të godasë kërkesëpadinë tonë.
-      2. Nëse 'POZICIONI I KLIENTIT TONË' është 'DEFENDANT' (I Paditur):
-         - Kundërshtari yt është PADITËSI / PROKURORIA.
-         - 'opponent_strategy' duhet të përshkruajë strategjinë e sulmit dhe pretendimet agresive të Paditësit kundër nesh.
-         - 'weakness_attacks' duhet të rreshtojë pikat ku Paditësi do të provojë të godasë mbrojtjen tonë.
-
-    Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
-    {
-      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive apo mbrojtëse të kundërshtarit i përshtatur saktësisht për rolin e tij...",
+    Përgjigju VETËM në formatin e strukturuar JSON:
+    {{
+      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive...",
       "weakness_attacks": [
-         "Sulm specifik i bazuar në dobësitë tona ose provat që na mungojnë...",
-         "Sulm tjetër specifik..."
+         "Sulm specifik i bazuar në dobësitë...",
+         "Sulm tjetër..."
       ]
-    }
-    MOS shto asnjë tekst tjetër jashtë objektit JSON.
+    }}
     """
     try:
         res = await client.chat.completions.create(
@@ -207,25 +229,19 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
         }
 
 async def build_case_chronology(context: str) -> Dict[str, Any]:
-    """
-    Builds a structured chronological timeline of events based on case facts.
-    Routes through high-IQ DEEP_MODEL (R1).
-    """
     key = _get_api_key()
     if not key:
         return {}
     client = _get_async_client()
-    system_prompt = """
+    system_prompt = f"""
+    {UNBREAKABLE_IDENTITY_HEADER}
     Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit.
-    Çdo ngjarje duhet të ketë një datë (p.sh. DD.MM.YYYY ose Viti) dhe përshkrimin përkatës.
-    
-    Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
-    {
+    Përgjigju VETËM në formatin e strukturuar JSON:
+    {{
       "timeline": [
-        {"date": "Data e ngjarjes", "event": "Përshkrimi i saktë i asaj që ka ndodhur"}
+        {{"date": "Data e ngjarjes", "event": "Përshkrimi i saktë"}}
       ]
-    }
-    MOS shto asnjë tekst tjetër jashtë objektit JSON.
+    }}
     """
     try:
         res = await client.chat.completions.create(
@@ -243,34 +259,24 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
         return {"timeline": []}
 
 async def detect_contradictions(context: str) -> Dict[str, Any]:
-    """
-    Detects factual or legal contradictions in the context.
-    Executes a high-IQ, three-tier legal-procedural audit on DEEP_MODEL (R1).
-    """
     key = _get_api_key()
     if not key:
         return {}
     client = _get_async_client()
-    system_prompt = """
-    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo tekstin e këtij procesverbali ose shkresave të lëndës për të identifikuar mospërputhje procedurale, gabime emrash, apo deklarata kontradiktore të palëve ose të gjykatës.
-    
-    DUHET të identifikosh saktësisht një minimum prej 3 kontradiktash/mospërputhjash ligjore:
-    1. Kontrollo për Mospërputhje Emrash të Avokatëve ose Palëve.
-    2. Kontrollo për Kontradikta të Autorizimeve (Prokurave).
-    3. Kontrollo për Paradokse të Palëve apo Ndryshime të Parregullta të Padisë.
-    
-    Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
-    {
+    system_prompt = f"""
+    {UNBREAKABLE_IDENTITY_HEADER}
+    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta.
+    Përgjigju VETËM në formatin e strukturuar JSON:
+    {{
       "contradictions": [
-        {
-          "severity": "HIGH ose CRITICAL",
-          "claim": "Deklarata ose konstatimi kontradiktor i shkruar saktësisht",
-          "evidence": "Fakti ose vendimi që mospërputhet saktësisht",
-          "impact": "Shpjegimi i thellë ligjor i mospërputhjes dhe si mund ta përdorë avokati këtë për të kontestuar vlefshmërinë procedurale."
-        }
+        {{
+          "severity": "CRITICAL",
+          "claim": "Deklarata kontradiktore",
+          "evidence": "Fakti që mospërputhet",
+          "impact": "Shpjegimi ligjor"
+        }}
       ]
-    }
-    MOS shto asnjë tekst tjetër jashtë objektit JSON.
+    }}
     """
     try:
         res = await client.chat.completions.create(
@@ -288,10 +294,6 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
         return {"contradictions": []}
 
 def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Executes the main case cross-examination. Called synchronously via to_thread.
-    Routes through DEEP_MODEL (R1) for high-IQ legal summaries.
-    """
     key = _get_api_key()
     if not key:
         return {}
@@ -303,25 +305,19 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
         return {}
 
 def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
-    """
-    Synchronously parses raw OCR receipt text into structured expense fields using OpenRouter.
-    Routes through FAST_MODEL (V3) for instant invoice auto-filling.
-    """
     key = _get_api_key()
     if not key:
         return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
     try:
         system_prompt = """
-        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e nxjerrë nga një faturë ose kupon fiskal dhe nxirr të dhënat në formatin JSON.
-        
+        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës dhe nxirr JSON.
         Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
         {
-          "category": "Kategoria e shpenzimit (p.sh. Ushqim, Karburant, Qira, Internet, Pajisje, etj. - përkthe në shqip saktësisht)",
+          "category": "Kategoria e shpenzimit",
           "amount": 12.50,
           "date": "YYYY-MM-DD",
-          "description": "Emri i tregtarit dhe një përmbledhje e shkurtër e faturës"
+          "description": "Emri i tregtarit"
         }
-        MOS shto asnjë tekst tjetër jashtë objektit JSON.
         """
         content = _call_llm(system_prompt, f"TEKSTI I FATURËS:\n{text}", json_mode=True, temperature=0.1, model=FAST_MODEL)
         return clean_and_parse_json(content)
