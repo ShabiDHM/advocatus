@@ -1,10 +1,7 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - SAAS LAW INGESTOR V7.0 (IDEMPOTENT & RESILIENT)
-# 1. FIX: Added MD5 Hash checking to skip already-ingested files.
-# 2. FIX: Added try/except around individual files to prevent pipeline crashes.
-# 3. STATUS: 100% Robust for continuous deployment operations.
+# PHOENIX PROTOCOL - SAAS LAW INGESTOR V7.1 (UNICODE & CASING COMPLIANT)
 
-import os, sys, time, uuid, logging, hashlib
+import os, sys, time, uuid, logging, hashlib, unicodedata
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -26,7 +23,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.services.embedding_service import generate_embedding
 from app.services.text_extraction_service import extract_text
 
-print("--- [PHOENIX] Starting Smart Ingestion Sequence V7.0 ---")
+print("--- [PHOENIX] Starting Smart Ingestion Sequence V7.1 ---")
 
 def calculate_file_hash(filepath: str) -> str:
     hasher = hashlib.md5()
@@ -38,6 +35,20 @@ def calculate_file_hash(filepath: str) -> str:
     except Exception as e:
         print(f"⚠️ Could not hash file {filepath}: {e}")
         return ""
+
+def clean_law_title(filename: str) -> str:
+    """Compose decomposed Unicode characters and apply elegant title casing."""
+    # 1. Remove extension and replace dashes/underscores with spaces
+    clean_name = filename.replace(".pdf", "").replace("_", " ").replace("-", " ")
+    
+    # 2. Normalize Unicode to NFC (merges decomposed combining accents into unified characters)
+    clean_name = unicodedata.normalize('NFC', clean_name)
+    
+    # 3. Capitalize individual words cleanly
+    words = clean_name.split()
+    capitalized_words = [word.capitalize() for word in words]
+    
+    return " ".join(capitalized_words)
 
 def ingest():
     uri = os.getenv("DATABASE_URI")
@@ -86,7 +97,7 @@ def ingest():
                 stats["failed"] += 1
                 continue
             
-            law_title = fname.replace(".pdf", "").replace("_", " ").title()
+            law_title = clean_law_title(fname)
             print(f"   -> Title: {law_title}")
             
             articles = raw_text.split("Neni ") 
@@ -102,7 +113,7 @@ def ingest():
                     
                     vector = generate_embedding(chunk)
                     if not vector or all(v == 0.0 for v in vector):
-                        print(f"\n❌ Embedding Blocked at chunk {idx}.{i}. Waiting 5 seconds...")
+                        print(f"❌ Embedding Blocked at chunk {idx}.{i}. Waiting 5 seconds...")
                         time.sleep(5.0) 
                         continue
                     
