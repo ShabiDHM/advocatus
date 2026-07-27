@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V23.0 (CLEAN CARD HEADER & NATURAL INTAKE SALUTATION)
+// PHOENIX PROTOCOL - CHAT PANEL V24.0 (ROLE-AWARE DRAFTING BUTTONS & TACTICAL BRIDGE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -471,14 +471,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
             const autoLinkedText = autoLinkLegalCitations(cleanText);
             
-            // Detect legal document recommendations or formal drafts
-            const isLegalRecommendation = msg.role === 'ai' && (
-              cleanText.includes('Kundërpadi') || 
-              cleanText.includes('Prapësim') || 
-              cleanText.includes('Padi') || 
-              cleanText.includes('Ankesë')
-            );
-
             return (
               <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
@@ -492,15 +484,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
                   
-                  {/* DYNAMIC 1-CLICK BRIDGE BUTTONS TO DRAFTING MODULE */}
-                  {isLegalRecommendation && !isSendingMessage && (
+                  {/* TACTICALLY ALIGNED 1-CLICK BRIDGE BUTTONS TO DRAFTING MODULE */}
+                  {msg.role === 'ai' && !isSendingMessage && (
                     <div className="mt-3 pt-3 border-t border-main flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
                       <span className="text-[10px] font-bold text-primary-start uppercase tracking-wider flex items-center gap-1 w-full sm:w-auto">
                         <FileEdit size={12} /> Veprime të Sugjeruara për Hartim:
                       </span>
                       
                       <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                        {cleanText.includes('Kundërpadi') && (
+                        {/* If Client is Defendant or text mentions Counterclaim */}
+                        {(clientPosition === 'DEFENDANT' || cleanText.includes('Kundërpadi')) && (
                           <button
                             type="button"
                             onClick={() => handleTransferToDrafting('kunderpadi', cleanText)}
@@ -511,7 +504,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           </button>
                         )}
 
-                        {cleanText.includes('Prapësim') && (
+                        {/* Defense Response Button */}
+                        {(clientPosition === 'DEFENDANT' || cleanText.includes('Prapësim')) && (
                           <button
                             type="button"
                             onClick={() => handleTransferToDrafting('prapësim', cleanText)}
@@ -522,7 +516,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           </button>
                         )}
 
-                        {cleanText.includes('Padi') && !cleanText.includes('Kundërpadi') && (
+                        {/* Lawsuit Claim Button if Plaintiff */}
+                        {clientPosition === 'PLAINTIFF' && (
                           <button
                             type="button"
                             onClick={() => handleTransferToDrafting('padi', cleanText)}
