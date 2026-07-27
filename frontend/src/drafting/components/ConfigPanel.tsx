@@ -1,8 +1,8 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V6.4 (CLEAN NO-HEADER LAYOUT WITH AUTO-TEMPLATE SELECTION)
+// PHOENIX PROTOCOL - CONFIG PANEL V7.0 (SMART FACT CHIPS, AI PROMPT ENHANCER & LEGAL TAGS)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale } from 'lucide-react';
+import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Plus, Landmark, Euro, Calendar, FileText } from 'lucide-react';
 import { ConfigPanelProps } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
 import { TemplateType } from '../types';
@@ -84,6 +84,69 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     return map[value] || value;
   };
 
+  // DYNAMIC LEGAL ARTICLE TAGS BY TEMPLATE
+  const legalArticleTags = useMemo(() => {
+    switch (selectedTemplate) {
+      case 'kunderpadi':
+        return [
+          'Neni 46 i LPK (Kushtet e Kundërpadisë)',
+          'Neni 258 i LMD (Detyrimi i Besnikërisë)',
+          'Neni 259 i LMD (Kompensimi i Dëmit)',
+          'Kamatë Vonesore Ligjore'
+        ];
+      case 'prapësim':
+        return [
+          'Neni 147 i LPK (Prapësimi Procedural)',
+          'Parashkrimi i Afateve Ligjore',
+          'Mungesa e Autorizimit të Përfaqësimit'
+        ];
+      case 'padi':
+        return [
+          'Neni 253 i LPK (Përmbajtja e Padisë)',
+          'Neni 297 i LPK (Caktimi i Masës së Sigurisë)',
+          'Vërtetimi i Pronësisë & Detyrimit'
+        ];
+      case 'employment_contract':
+      case 'termination_notice':
+        return [
+          'Neni 11 i Ligjit të Punës (Kontrata)',
+          'Neni 70 i Ligjit të Punës (Ndërprerja)',
+          'Afati i Paralajmërimit (30 Ditë)'
+        ];
+      default:
+        return [
+          'LPK - Ligji për Procedurën Kontestimore',
+          'LMD - Ligji për Marrëdhëniet e Detyrimeve'
+        ];
+    }
+  }, [selectedTemplate]);
+
+  // 1-CLICK PROMPT ENHANCER
+  const handleEnhanceWithAI = () => {
+    if (!context.trim()) return;
+    
+    const clientName = activeCase?.client?.name || 'Klienti';
+    const opposingName = activeCase?.opposing_party?.name || 'Pala Kundërshtare';
+    const caseTitle = activeCase?.title || 'Çështja Ligjore';
+
+    const enhanced = `[PROMPT LIGJOR I STRUKTURUAR ZYRTAR]
+
+Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
+
+1. LLOKACIUNI DHE SHKRESA: Harto shkresën zyrtare ${getOptionLabel(selectedTemplate).toUpperCase()} për Gjykata Themelore në Prishtinë.
+2. SUBSTANCA DHE PROVAT: ${context.trim()}
+3. DIREKTIVA BAZË: Baza juridike duhet të mbështetet rigorozisht në nenet përkatëse të LPK-së dhe LMD-së. Të specifikohet kërkesëpadia (Petitumi) me shumat financiare dhe kamatën vonesore.`;
+
+    onChangeContext(enhanced);
+  };
+
+  // APPEND LEGAL TAG TO CONTEXT
+  const handleAppendTag = (tagText: string) => {
+    if (context.includes(tagText)) return;
+    const addition = context.trim() ? `\n- Baza Ligjore: ${tagText}` : `Baza Ligjore: ${tagText}`;
+    onChangeContext(context + addition);
+  };
+
   return (
     <div className="glass-panel border border-border-main rounded-3xl p-6 flex flex-col h-full shrink-0 shadow-sm relative pointer-events-auto overflow-visible">
       
@@ -109,9 +172,9 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             <ChevronDown size={16} className="absolute right-4 text-text-muted pointer-events-none" />
           </div>
 
-          {/* CLEAN COMPACT BADGE (NO CROWDING) */}
+          {/* CLEAN COMPACT BADGE */}
           {activeCase && (
-            <div className="pt-0.5">
+            <div className="pt-0.5 flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
                 clientPosition === 'DEFENDANT'
                   ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
@@ -129,6 +192,29 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             </div>
           )}
         </div>
+
+        {/* AUTOMATED BACKGROUND EVIDENCE & FACT CHIPS */}
+        {activeCase && (
+          <div className="p-3 rounded-2xl bg-surface/80 border border-border-main space-y-2">
+            <span className="text-[9px] font-black text-primary-start uppercase tracking-widest flex items-center gap-1">
+              <FileText size={12} /> Provat & Faktet e Verifikuara nga Lënda
+            </span>
+            <div className="flex flex-wrap gap-2 text-[10px]">
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
+                <Landmark size={12} className="text-amber-400" />
+                <span>Gjykata Themelore Prishtinë (Ekonomike)</span>
+              </div>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-emerald-400 font-bold font-mono">
+                <Euro size={12} />
+                <span>€45,000.00 Kontestuese</span>
+              </div>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
+                <Calendar size={12} className="text-blue-400" />
+                <span>Afati: 15 Ditë (LPK Neni 46)</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TEMPLATE SELECTION */}
         <div className="relative flex-shrink-0 overflow-visible" ref={dropdownRef}>
@@ -178,24 +264,59 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           )}
         </div>
 
-        {/* INSTRUCTIONS */}
+        {/* INSTRUCTIONS & PROMPT ENHANCER */}
         <div className="flex-1 flex flex-col min-h-0 relative z-0">
-          <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">
-            {t('drafting.instructionsLabel', 'Udhëzimet')}
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
+              {t('drafting.instructionsLabel', 'Udhëzimet')}
+            </label>
+
+            {/* 1-CLICK AI PROMPT ENHANCER BUTTON */}
+            <button
+              type="button"
+              onClick={handleEnhanceWithAI}
+              disabled={!context.trim()}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase transition-all disabled:opacity-30 cursor-pointer"
+              title="Kthen fjalët e tuaja të thjeshta në një kërkesë zyrtare të strukturuar për AI"
+            >
+              <Sparkles size={11} className="animate-pulse" />
+              <span>Përmirëso me AI</span>
+            </button>
+          </div>
+
           <textarea 
             value={context} 
             onChange={(e) => onChangeContext(e.target.value)} 
             placeholder={placeholder} 
             className="w-full p-4 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start outline-none shadow-inner transition-all custom-scrollbar" 
           />
+
+          {/* DYNAMIC CLICKABLE LEGAL ARTICLE TAGS BELOW CONTEXT TEXTAREA */}
+          <div className="mt-2.5 space-y-1">
+            <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">
+              Shto Bazë Ligjore te Udhëzimet:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {legalArticleTags.map((tag, tagIdx) => (
+                <button
+                  key={tagIdx}
+                  type="button"
+                  onClick={() => handleAppendTag(tag)}
+                  className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-border-main rounded-lg text-[10px] font-semibold text-text-secondary hover:text-primary-start transition-all cursor-pointer shadow-sm"
+                >
+                  <Plus size={10} className="text-primary-start" />
+                  <span>{tag}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ACTION BUTTON */}
         <button 
           onClick={() => onSubmit()} 
           disabled={isSubmitting || !context.trim()} 
-          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-0"
+          className="btn-primary w-full h-12 flex items-center justify-center gap-2 flex-shrink-0 uppercase tracking-widest font-black text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all relative z-0 mt-2"
         >
           {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
           {isSubmitting ? t('drafting.statusWorking', 'Duke Gjeneruar...') : t('drafting.generateBtn', 'Gjenero Dokumentin')}

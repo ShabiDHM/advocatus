@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V8.0 (AUTOMATED CHAT TRANSFER & CONTEST INGESTION)
+// PHOENIX PROTOCOL - DRAFTING PAGE V9.0 (STRICT TEMPLATE LOCK & CHAT INGESTION FIX)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +17,11 @@ const buildKosovoSystemPrompt = (template: string, basePrompt: string): string =
   let structuralBlueprint = "";
   
   switch (true) {
-    case ['padi', 'pergjigje', 'kunderpadi', 'ankese', 'prapësim'].includes(template):
+    case template === 'kunderpadi':
+      statute = "Ligjin për Procedurën Kontestimore (Nr. 03/L-006) - Neni 46, dhe Ligjin për Marrëdhëniet e Detyrimeve të Kosovës";
+      structuralBlueprint = `GJYKATËS THEMELORE NË [QYTETI]\nDepartamenti për Çështje Ekonomike\n\nKUNDËRPADITËS (I Padituri): [EMRI], Nr. Personal: [NR]\nI KUNDËRPADITUR (Paditësi): [EMRI], ARBK: [NR]\n\nKUNDËRPADI PËR SHPËRBLIM DËMI DHE KTHIM TË FONDEVE\nVlera e Objektit të Kontestit: €[SHUMA]`;
+      break;
+    case ['padi', 'pergjigje', 'ankese', 'prapësim'].includes(template):
       statute = "Ligjin për Procedurën Kontestimore (Nr. 03/L-006) të Republikës së Kosovës"; 
       structuralBlueprint = `GJYKATËS THEMELORE NË [QYTETI]\nDepartamenti: [DEPARTAMENTI]\nPaditësi: [EMRI], E Paditura: [EMRI]...`;
       break;
@@ -45,6 +49,7 @@ const DraftingPage: React.FC = () => {
   const [cases, setCases] = useState<any[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [isTransferredContext, setIsTransferredContext] = useState<boolean>(false);
   
   const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
     const saved = localStorage.getItem('drafting_job');
@@ -72,8 +77,13 @@ const DraftingPage: React.FC = () => {
           try {
             const parsed = JSON.parse(transferPayload);
             if (parsed.caseId) setSelectedCaseId(String(parsed.caseId));
-            if (parsed.template) setSelectedTemplate(parsed.template as TemplateType);
-            if (parsed.context) setContext(parsed.context);
+            if (parsed.template) {
+              setSelectedTemplate(parsed.template as TemplateType);
+            }
+            if (parsed.context) {
+              setContext(parsed.context);
+              setIsTransferredContext(true); // Lock context to prevent auto-overwriting
+            }
 
             // Clean consumed payload after initial load
             localStorage.removeItem('juristi_draft_transfer');
@@ -87,8 +97,8 @@ const DraftingPage: React.FC = () => {
 
   // TEMPLATE & ROLE MATRIX AUTO-PROMPT GENERATOR
   useEffect(() => {
-    // If context was populated directly via transfer payload, do not overwrite it
-    if (localStorage.getItem('juristi_draft_transfer')) return;
+    // If context was transferred directly from Chat, preserve it until user manually changes template or case
+    if (isTransferredContext) return;
 
     if (!selectedCaseId || cases.length === 0) {
       return;
@@ -105,14 +115,14 @@ const DraftingPage: React.FC = () => {
     let generatedPrompt = '';
 
     switch (selectedTemplate) {
+      case 'kunderpadi':
+        generatedPrompt = `Në emër të të paditurit/kundërpaditësit (${clientName}) kundër paditësit/të kundërpaditurit (${opposingParty}) në lëndën "${caseTitle}":\n\n1. Paraqes KUNDËRPADI për shkak të shkeljes së detyrimeve të besnikërisë, transferimit të fondeve në kompaninë tjetër në ARBK dhe mos-kthimit të 50% të parave.\n2. Baza juridike: Neni 46 i LPK-së dhe Neni 259 i LMD-së.\n3. Kërkoj kompensimin e dëmit të shkaktuar me kamatë ligjore vonesore.`;
+        break;
       case 'prapësim':
         generatedPrompt = `Në emër të të paditurit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër paditësit (${opposingParty}):\n\n1. Paraqes këtë PRAPËSIM me të cilin kundërshtoj në tërësi kërkesëpadinë e paditësit si të pabazuar në ligj dhe në prova.\n2. Shfrytëzoj lëshimet procedurale, mungesën e autorizimit dhe parashkrimin e afateve.\n3. Kërkoj nga Gjykata hedhjen poshtë ose refuzimin e padisë.`;
         break;
       case 'padi':
         generatedPrompt = `Në emër të paditësit (${clientName}) në lëndën "${caseTitle}" ${caseNum} kundër të paditurit (${opposingParty}):\n\n1. Paraqes këtë KËRKESËPADI për vërtetimin e detyrimit dhe kompensimin e dëmit të shkaktuar.\n2. Kërkoj detyrimin e të paditurit për përmbushjen e të gjitha detyrimeve së bashku me kamatën vonesore.\n3. Kërkoj caktimin e masës së sigurisë për mbrojtjen e kërkesës sonë.`;
-        break;
-      case 'kunderpadi':
-        generatedPrompt = `Në emër të të paditurit/kundërpaditësit (${clientName}) kundër paditësit/të kundërpaditurit (${opposingParty}) në lëndën "${caseTitle}":\n\n1. Paraqes KUNDËRPADI për shkak të shkeljes së detyrimeve reciproke.\n2. Kërkoj kompensimin e dëmit të shkaktuar dhe përmbushjen e detyrimeve ligjore nga pala tjetër.`;
         break;
       case 'ankese':
         generatedPrompt = `Në emër të palës (${clientName}) në lëndën "${caseTitle}" ${caseNum}:\n\n1. Paraqes ANKESË kundër vendimit të Gjykatës për shkak të shkeljeve esenciale të dispozitave të procedurës dhe vërtetimit të gabuar të gjendjes faktike.\n2. Kërkoj nga Gjykata e Shkallës së Dytë ndryshimin apo prishjen e vendimit të ankimuar.`;
@@ -141,7 +151,7 @@ const DraftingPage: React.FC = () => {
     }
 
     setContext(generatedPrompt);
-  }, [selectedCaseId, selectedTemplate, cases]);
+  }, [selectedCaseId, selectedTemplate, cases, isTransferredContext]);
 
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
 
@@ -210,6 +220,7 @@ const DraftingPage: React.FC = () => {
     if (currentJob.result && !window.confirm(t('drafting.confirmClear'))) return;
     setCurrentJob({ status: null, result: null, error: null });
     setContext('');
+    setIsTransferredContext(false);
   };
 
   return (
@@ -223,11 +234,17 @@ const DraftingPage: React.FC = () => {
               isPro={isPro}
               cases={cases}
               selectedCaseId={selectedCaseId || undefined}
-              onSelectCase={(id) => setSelectedCaseId(id || '')}
+              onSelectCase={(id) => {
+                setSelectedCaseId(id || '');
+                setIsTransferredContext(false); // Reset transfer lock on manual case pick
+              }}
               selectedTemplate={selectedTemplate}
               context={context}
               isSubmitting={isSubmitting}
-              onSelectTemplate={(val) => setSelectedTemplate(val as TemplateType)}
+              onSelectTemplate={(val) => {
+                setSelectedTemplate(val as TemplateType);
+                setIsTransferredContext(false); // Reset transfer lock on manual template change
+              }}
               onChangeContext={setContext}
               onSubmit={runDraftingStream}
             />
