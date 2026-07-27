@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V37.0 (FLOATING EVIDENCE TOOLTIP & BALANCED 3-COLUMN GRID)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V38.0 (STAGGERED SUB-LANES & DYNAMIC CAMERA AUTO-FIT)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -78,13 +78,13 @@ interface EvidenceGraphTabProps {
   caseTitle?: string;
 }
 
-const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; icon: LucideIcon; lane: 'LEFT' | 'CENTER' | 'RIGHT' }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', border: '#60a5fa', icon: User, lane: 'LEFT' },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#6d28d9', border: '#a78bfa', icon: Building2, lane: 'LEFT' },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#047857', border: '#34d399', icon: CreditCard, lane: 'LEFT' },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#374151', border: '#9ca3af', icon: FileText, lane: 'CENTER' },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#b45309', border: '#fbbf24', icon: MapPin, lane: 'RIGHT' },
-  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#b91c1c', border: '#f87171', icon: Calendar, lane: 'RIGHT' },
+const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; icon: LucideIcon }> = {
+  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', border: '#60a5fa', icon: User },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#6d28d9', border: '#a78bfa', icon: Building2 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#047857', border: '#34d399', icon: CreditCard },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#374151', border: '#9ca3af', icon: FileText },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#b45309', border: '#fbbf24', icon: MapPin },
+  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#b91c1c', border: '#f87171', icon: Calendar },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
@@ -148,7 +148,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // OPTIMIZED BALANCED VIEWBOX: Centered across all 3 lanes (-1250, -800, 2500, 1600)
   const [viewBox, setViewBox] = useState({ x: -1250, y: -800, width: 2500, height: 1600 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
@@ -225,24 +224,31 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
   }, [selectedNode, graphData?.edges]);
 
-  // WORLD-CLASS BALANCED 3-LANE GRID DISTRIBUTION
+  // STAGGERED MULTI-SUBLANE GRID DISTRIBUTION (Zero Overlaps)
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
     
-    const leftLaneNodes: OntologyNode[] = [];
+    const leftPrimaryNodes: OntologyNode[] = [];
+    const leftSecondaryNodes: OntologyNode[] = [];
     const centerLaneNodes: OntologyNode[] = [];
     const rightLaneNodes: OntologyNode[] = [];
 
-    filteredNodes.forEach(node => {
-      const lane = ENTITY_CONFIG[node.type]?.lane || 'CENTER';
-      if (lane === 'LEFT') leftLaneNodes.push(node);
-      else if (lane === 'CENTER') centerLaneNodes.push(node);
-      else rightLaneNodes.push(node);
+    filteredNodes.forEach((node) => {
+      if (node.type === 'PERSON' || node.type === 'ORGANIZATION' || node.type === 'ACCOUNT') {
+        if (leftPrimaryNodes.length <= leftSecondaryNodes.length) {
+          leftPrimaryNodes.push(node);
+        } else {
+          leftSecondaryNodes.push(node);
+        }
+      } else if (node.type === 'DOCUMENT') {
+        centerLaneNodes.push(node);
+      } else {
+        rightLaneNodes.push(node);
+      }
     });
 
-    const calculateLanePositions = (nodes: OntologyNode[], xPos: number) => {
-      const spacingY = 190; // Generous vertical gap preventing card overlaps
+    const calculateSubLane = (nodes: OntologyNode[], xPos: number, spacingY: number = 140) => {
       const startY = -((nodes.length - 1) * spacingY) / 2;
       nodes.forEach((node, idx) => {
         initialPos[node.id] = {
@@ -252,12 +258,40 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     };
 
-    calculateLanePositions(leftLaneNodes, -750);   // PALËT & SUBJEKTET
-    calculateLanePositions(centerLaneNodes, 0);     // PROVAT & DOKUMENTET
-    calculateLanePositions(rightLaneNodes, 750);   // ORGANET & SEANCAT
+    calculateSubLane(leftPrimaryNodes, -920, 140);     // Left Sub-lane A (Primary)
+    calculateSubLane(leftSecondaryNodes, -520, 140);   // Left Sub-lane B (Secondary)
+    calculateSubLane(centerLaneNodes, 0, 160);         // Center Lane (Documents)
+    calculateSubLane(rightLaneNodes, 650, 160);        // Right Lane (Courts/Events)
 
     setPositions(initialPos);
   }, [filteredNodes]);
+
+  // AUTO-FIT CAMERA VIEWBOX
+  useEffect(() => {
+    const keys = Object.keys(positions);
+    if (keys.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    keys.forEach(id => {
+      const p = positions[id];
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    });
+
+    const calcWidth = Math.max(2400, (maxX - minX) + 600);
+    const calcHeight = Math.max(1500, (maxY - minY) + 400);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    setViewBox({
+      x: Math.round(centerX - calcWidth / 2),
+      y: Math.round(centerY - calcHeight / 2),
+      width: Math.round(calcWidth),
+      height: Math.round(calcHeight)
+    });
+  }, [positions]);
 
   useEffect(() => {
     const svgEl = svgRef.current;
@@ -302,7 +336,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setSelectedNode(null);
     setSelectedEdge(null);
     setHoveredEdge(null);
-    setViewBox({ x: -1250, y: -800, width: 2500, height: 1600 });
   };
 
   const handleRebuildGraph = async () => {
@@ -393,13 +426,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
 
     if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2500);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1600);
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2400);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1500);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
     }
 
-    // Update floating hover tooltip positioning relative to graph container
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       setTooltipPos({
@@ -639,25 +671,25 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
               {/* 3-COLUMN LEGAL LANE BACKDROP HEADERS */}
               <g className="lane-headers" pointerEvents="none">
-                {/* Lane 1: Left */}
-                <g transform="translate(-750, -700)">
-                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                {/* Lane 1 Header: Left */}
+                <g transform="translate(-720, -680)">
+                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#93c5fd" fontSize="17" fontWeight="900" letterSpacing="1px">
                     👤 PALËT & SUBJEKTET
                   </text>
                 </g>
 
-                {/* Lane 2: Center */}
-                <g transform="translate(0, -700)">
-                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                {/* Lane 2 Header: Center */}
+                <g transform="translate(0, -680)">
+                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="17" fontWeight="900" letterSpacing="1px">
                     📄 PROVAT & DOKUMENTET
                   </text>
                 </g>
 
-                {/* Lane 3: Right */}
-                <g transform="translate(750, -700)">
-                  <rect x="-150" y="-26" width="300" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
+                {/* Lane 3 Header: Right */}
+                <g transform="translate(650, -680)">
+                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#fca5a5" fontSize="17" fontWeight="900" letterSpacing="1px">
                     ⚖️ ORGANET & SEANCAT
                   </text>
@@ -681,10 +713,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.65);
                   const isEdgeDisabled = isFocusedMode && !isEdgeConnected;
 
-                  // Cubic Bezier curve control points preventing straight line overlaps
                   const dx = targetPos.x - sourcePos.x;
                   const dy = targetPos.y - sourcePos.y;
-                  const curveOffset = dx === 0 ? 140 : (dy > 0 ? 90 : -90);
+                  const curveOffset = dx === 0 ? 120 : (dy > 0 ? 70 : -70);
                   
                   const controlX1 = sourcePos.x + dx * 0.4;
                   const controlY1 = sourcePos.y + curveOffset;
@@ -693,13 +724,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   const pathD = `M ${sourcePos.x},${sourcePos.y} C ${controlX1},${controlY1} ${controlX2},${controlY2} ${targetPos.x},${targetPos.y}`;
                   
-                  // Midpoint for relationship pill badge
                   const midX = (sourcePos.x + targetPos.x) / 2;
                   const midY = (sourcePos.y + targetPos.y) / 2 + (curveOffset / 3);
 
                   const albanianLabel = formatRelationText(edge.relation);
                   const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                  const badgeWidth = Math.max(120, labelDisplayText.length * 12);
+                  const badgeWidth = Math.max(110, labelDisplayText.length * 11);
 
                   return (
                     <g
@@ -713,38 +743,35 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       onMouseLeave={() => setHoveredEdge(null)}
                       style={{ opacity: edgeOpacity }}
                     >
-                      {/* Invisible wider hit area for easy hover */}
                       <path d={pathD} fill="none" stroke="transparent" strokeWidth="32" />
 
-                      {/* Visible Curved Line Path */}
                       <path
                         d={pathD}
                         fill="none"
                         stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#475569'}
-                        strokeWidth={isContradiction || isSelected || isHovered ? 5 : 2.8}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2.5}
                         strokeDasharray={isContradiction ? '8,8' : 'none'}
                         markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected || isHovered ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
                       />
 
-                      {/* Relationship Pill Badge */}
                       <g transform={`translate(${midX}, ${midY})`}>
                         <rect
                           x={-badgeWidth / 2}
-                          y={-16}
+                          y={-14}
                           width={badgeWidth}
-                          height={32}
+                          height={28}
                           fill={isContradiction ? '#450a0a' : isHovered || isSelected ? '#1e3a8a' : '#090d16'}
                           stroke={isContradiction ? '#ef4444' : isHovered || isSelected ? '#60a5fa' : '#334155'}
                           strokeWidth={isHovered || isSelected ? '2' : '1.5'}
-                          rx={16}
+                          rx={14}
                           className="shadow-xl transition-all"
                         />
                         <text
                           x={0}
-                          y={5}
+                          y={4}
                           textAnchor="middle"
                           fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#ffffff' : '#cbd5e1'}
-                          fontSize="13"
+                          fontSize="12"
                           fontWeight="800"
                           letterSpacing="0.5px"
                           className="select-none uppercase font-mono pointer-events-none"
@@ -771,8 +798,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
                   const isNodeDisabled = isFocusedMode && !isNodeConnected;
 
-                  const cardWidth = 280;
-                  const cardHeight = 80;
+                  const cardWidth = 260;
+                  const cardHeight = 72;
 
                   return (
                     <g
@@ -790,11 +817,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       {/* Active Halo Glow */}
                       {isSelected && (
                         <rect
-                          x={-cardWidth / 2 - 8}
-                          y={-cardHeight / 2 - 8}
-                          width={cardWidth + 16}
-                          height={cardHeight + 16}
-                          rx={22}
+                          x={-cardWidth / 2 - 6}
+                          y={-cardHeight / 2 - 6}
+                          width={cardWidth + 12}
+                          height={cardHeight + 12}
+                          rx={20}
                           fill="none"
                           stroke="#60a5fa"
                           strokeWidth="4"
@@ -808,7 +835,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         y={-cardHeight / 2}
                         width={cardWidth}
                         height={cardHeight}
-                        rx={18}
+                        rx={16}
                         fill="#0b0f19"
                         stroke={isSelected ? '#ffffff' : '#1e293b'}
                         strokeWidth={isSelected ? '3' : '2'}
@@ -819,50 +846,50 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       <rect
                         x={-cardWidth / 2}
                         y={-cardHeight / 2}
-                        width="10"
+                        width="8"
                         height={cardHeight}
-                        rx="5"
+                        rx="4"
                         fill={config.bg}
                       />
 
                       {/* Entity Icon Container */}
-                      <g transform={`translate(${-cardWidth / 2 + 34}, 0)`}>
-                        <circle r="20" fill={config.bg} />
-                        <foreignObject x={-11} y={-11} width={22} height={22} className="pointer-events-none">
+                      <g transform={`translate(${-cardWidth / 2 + 30}, 0)`}>
+                        <circle r="18" fill={config.bg} />
+                        <foreignObject x={-10} y={-10} width={20} height={20} className="pointer-events-none">
                           <div className="w-full h-full flex items-center justify-center text-white">
-                            <IconComponent className="w-5 h-5" />
+                            <IconComponent className="w-4 h-4" />
                           </div>
                         </foreignObject>
                       </g>
 
                       {/* Label Text */}
                       <text
-                        x={-cardWidth / 2 + 66}
-                        y={-8}
+                        x={-cardWidth / 2 + 58}
+                        y={-6}
                         fill="#ffffff"
-                        fontSize="15"
+                        fontSize="14"
                         fontWeight="800"
                         className="select-none tracking-tight pointer-events-none font-sans"
                       >
-                        {node.label.length > 22 ? `${node.label.substring(0, 20)}..` : node.label}
+                        {node.label.length > 20 ? `${node.label.substring(0, 18)}..` : node.label}
                       </text>
 
                       {/* Category Badge Pill */}
-                      <g transform={`translate(${-cardWidth / 2 + 66}, 18)`}>
+                      <g transform={`translate(${-cardWidth / 2 + 58}, 16)`}>
                         <rect
                           x="0"
                           y="-10"
-                          width="120"
-                          height="20"
-                          rx="10"
+                          width="110"
+                          height="18"
+                          rx="9"
                           fill={config.bg}
                           fillOpacity="0.25"
                           stroke={config.border}
-                          strokeWidth="1"
+                          strokeWidth="0.8"
                         />
                         <text
-                          x="60"
-                          y="3"
+                          x="55"
+                          y="2"
                           textAnchor="middle"
                           fill={config.border}
                           fontSize="10"
@@ -912,7 +939,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   )}
                 </div>
 
-                {/* Connection Pair */}
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">
                   <span className="truncate max-w-[110px] text-white">
                     {nodeMap.get(hoveredEdge.source)?.label || 'Burimi'}
@@ -923,7 +949,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </span>
                 </div>
 
-                {/* Evidence Quote */}
                 {hoveredEdge.evidence_text ? (
                   <div className="space-y-1">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia nga Dokumenti:</span>
