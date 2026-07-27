@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH TAB V30.0 (INTEGRATED LAW CITATION TEXT)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V32.0 (EXTREME FOCUS MODE & CANVAS EXPANSION)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -77,35 +77,44 @@ interface EvidenceGraphTabProps {
 }
 
 const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; icon: LucideIcon; size: number }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#eab308', icon: User, size: 36 },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#a855f7', icon: Building2, size: 38 },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#10b981', icon: CreditCard, size: 34 },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#06b6d4', icon: MapPin, size: 32 },
-  EVENT: { albanianLabel: 'Ngjarje', bg: '#ef4444', icon: Calendar, size: 34 },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#3b82f6', icon: FileText, size: 32 },
+  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', icon: User, size: 36 },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', icon: Building2, size: 38 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#059669', icon: CreditCard, size: 34 },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', icon: MapPin, size: 32 },
+  EVENT: { albanianLabel: 'Ngjarje', bg: '#dc2626', icon: Calendar, size: 34 },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#475569', icon: FileText, size: 32 },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
   REPRESENTED_BY: 'PËRFAQËSOHET_NGA',
+  REPRESENTS: 'PËRFAQËSON',
   ASSOCIATED_WITH: 'LIDHUR_ME',
   TRANSFERRED_FUNDS: 'TRANSAKSION',
   EMPLOYED_BY: 'PUNËSUAR_NË',
   OWNED_BY: 'PRONËSI_E',
+  OWNS: 'PRONËSI_E',
   PRESENT_AT: 'PRANISHËM_NË',
   LOCATED_AT: 'LOKACIONI',
   LOCATED_IN: 'LOKACIONI',
-  CONTRADICTS: 'KUNDËRTHËNJE',
+  CONTRADICTS: 'KUNDËRTHËNIE',
+  KUNDËRTHËNIE: 'KUNDËRTHËNIE',
+  KUNDËRTHËNJE: 'KUNDËRTHËNIE',
   OWES_MONEY: 'DETYRIM',
   SIGNED: 'NËNSHKRUAR',
   MENTIONED_IN: 'PËRMENDUR_NË',
   HAS_ACCOUNT: 'LLOGARI_BANKARE',
   WORKED_AT: 'PUNËSUAR_NË',
-  PARTY_TO: 'PALË_NË'
+  PARTY_TO: 'PALË_NË',
+  ISSUED_BY: 'LËSHUAR_NGA',
+  FINANCED_BY: 'FINANCUAR_NGA'
 };
 
 const formatRelationText = (rel: string): string => {
+  if (!rel) return '';
   const clean = rel.toUpperCase().trim().replace(/ /g, '_');
-  return RELATION_ALBANIAN_MAP[clean] || clean;
+  const mapped = RELATION_ALBANIAN_MAP[clean];
+  if (mapped) return mapped.replace(/_/g, ' ');
+  return clean.replace(/_/g, ' ');
 };
 
 const getLineRotationAngle = (x1: number, y1: number, x2: number, y2: number): number => {
@@ -129,6 +138,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [timelineYear, setTimelineYear] = useState<number>(2026);
 
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -145,7 +155,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [viewBox, setViewBox] = useState({ x: -600, y: -400, width: 1200, height: 800 });
+  // MASSIVE CANVAS EXPANSION: Initial ViewBox bounds (-1800, -1200, 3600, 2400)
+  const [viewBox, setViewBox] = useState({ x: -1800, y: -1200, width: 3600, height: 2400 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
@@ -191,6 +202,26 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     });
   }, [graphData?.nodes, activeFilter, searchQuery]);
 
+  // EXTREME FOCUS MODE CALCULATION
+  const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
+    if (!selectedNode || !graphData?.edges) {
+      return { connectedNodeIds: new Set<string>(), connectedEdgeIds: new Set<string>() };
+    }
+    const nodeSet = new Set<string>([selectedNode.id]);
+    const edgeSet = new Set<string>();
+
+    graphData.edges.forEach((edge) => {
+      if (edge.source === selectedNode.id || edge.target === selectedNode.id) {
+        edgeSet.add(edge.id);
+        nodeSet.add(edge.source);
+        nodeSet.add(edge.target);
+      }
+    });
+
+    return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
+  }, [selectedNode, graphData?.edges]);
+
+  // WIDE FORCE SPREADING / MASSIVE SPATIAL SEPARATION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -207,10 +238,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     clusterKeys.forEach((typeKey, cIndex) => {
       const clusterNodes = clusters[typeKey];
       const clusterAngle = (cIndex * 2 * Math.PI) / numClusters;
-      const clusterCenterX = Math.cos(clusterAngle) * 400;
-      const clusterCenterY = Math.sin(clusterAngle) * 280;
+      
+      // Massive spatial dispersion vectors
+      const clusterCenterX = Math.cos(clusterAngle) * 950;
+      const clusterCenterY = Math.sin(clusterAngle) * 650;
 
-      const subRadius = Math.max(150, clusterNodes.length * 36);
+      const subRadius = Math.max(300, clusterNodes.length * 90);
 
       clusterNodes.forEach((node, nIndex) => {
         const subAngle = (nIndex * 2 * Math.PI) / clusterNodes.length;
@@ -274,8 +307,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         lastTouchDistRef.current = currentDist;
       } else if (e.touches.length === 1 && isPanning) {
         e.preventDefault();
-        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 1200);
-        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 800);
+        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 3600);
+        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 2400);
         setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
         setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
       }
@@ -320,7 +353,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleResetZoom = () => {
-    setViewBox({ x: -600, y: -400, width: 1200, height: 800 });
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setViewBox({ x: -1800, y: -1200, width: 3600, height: 2400 });
   };
 
   const handleRebuildGraph = async () => {
@@ -411,8 +446,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
 
     if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 1200);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 800);
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 3600);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 2400);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
     }
@@ -470,7 +505,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
   };
 
-  // ROLE-BIASED SUGGESTED ACTION CARDS (STRICTLY TAILORED FOR DEFENDANT VS PLAINTIFF VS NEUTRAL)
   const entitySuggestedCards = useMemo(() => {
     if (!chatEntity) return [];
     
@@ -529,7 +563,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   }, [chatEntity, clientPosition]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative">
+    <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans">
       
       {/* CONTROL BAR */}
       <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
@@ -597,6 +631,27 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         <div className="flex-1 h-full w-full relative">
+          
+          {/* FLOATING TIMELINE SLIDER (Jumps to right-[400px] when Inspector drawer opens) */}
+          <div 
+            className={`absolute top-3 z-20 flex items-center gap-2.5 px-3.5 py-1.5 bg-surface/90 border border-main rounded-xl shadow-xl backdrop-blur-md transition-all duration-300 ease-in-out ${
+              (selectedNode || selectedEdge) ? 'right-[400px]' : 'right-4'
+            }`}
+          >
+            <span className="text-[10px] font-black text-text-muted uppercase tracking-wider">KOHËSHTRIRJA:</span>
+            <input 
+              type="range" 
+              min={2020} 
+              max={2026} 
+              value={timelineYear} 
+              onChange={(e) => setTimelineYear(Number(e.target.value))}
+              className="w-24 h-1.5 bg-canvas rounded-lg appearance-none cursor-pointer accent-primary-start"
+            />
+            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 font-mono">
+              {timelineYear}
+            </span>
+          </div>
+
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted">
               <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
@@ -631,6 +686,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 </marker>
               </defs>
 
+              {/* EDGES / RELATION LINES */}
               <g className="edges">
                 {filteredEdges.map((edge) => {
                   const sourcePos = positions[edge.source];
@@ -640,6 +696,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
                   const isSelected = selectedEdge?.id === edge.id;
                   const isHovered = hoveredEdgeId === edge.id;
+
+                  // Focus mode evaluation
+                  const isFocusedMode = Boolean(selectedNode);
+                  const isEdgeConnected = connectedEdgeIds.has(edge.id);
+                  const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.75);
+                  const isEdgeDisabled = isFocusedMode && !isEdgeConnected;
 
                   const midX = (sourcePos.x + targetPos.x) / 2;
                   const midY = (sourcePos.y + targetPos.y) / 2;
@@ -653,10 +715,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   return (
                     <g
                       key={edge.id}
-                      className="group cursor-pointer"
+                      className={`group cursor-pointer transition-opacity duration-300 ${isEdgeDisabled ? 'pointer-events-none' : ''}`}
                       onClick={() => setSelectedEdge(edge)}
                       onMouseEnter={() => setHoveredEdgeId(edge.id)}
                       onMouseLeave={() => setHoveredEdgeId(null)}
+                      style={{ opacity: edgeOpacity }}
                     >
                       <line
                         x1={sourcePos.x}
@@ -673,20 +736,21 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         x2={targetPos.x}
                         y2={targetPos.y}
                         stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
-                        strokeWidth={isContradiction || isSelected || isHovered ? 3 : 1.8}
-                        strokeDasharray={isContradiction ? '5,5' : 'none'}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 3.5 : 2}
+                        strokeDasharray={isContradiction ? '6,6' : 'none'}
                         markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
-                        opacity={isHovered || isSelected || isContradiction ? 1 : 0.75}
                       />
 
                       <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
                         <rect
                           x={-maskWidth / 2}
-                          y={-8}
+                          y={-9}
                           width={maskWidth}
-                          height={16}
+                          height={18}
                           fill="var(--bg-canvas, #090d16)"
-                          rx={3}
+                          rx={4}
+                          stroke={isContradiction ? '#ef4444' : '#334155'}
+                          strokeWidth="1"
                         />
                         <text
                           x={0}
@@ -706,19 +770,27 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 })}
               </g>
 
+              {/* NODES */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = positions[node.id] || { x: 0, y: 0 };
                   const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
                   const isSelected = selectedNode?.id === node.id;
 
-                  const labelText = node.label.length > 14 ? `${node.label.substring(0, 12)}..` : node.label;
+                  // Focus mode evaluation
+                  const isFocusedMode = Boolean(selectedNode);
+                  const isNodeConnected = connectedNodeIds.has(node.id);
+                  const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
+                  const isNodeDisabled = isFocusedMode && !isNodeConnected;
+
+                  const labelText = node.label.length > 16 ? `${node.label.substring(0, 14)}..` : node.label;
 
                   return (
                     <g
                       key={node.id}
                       transform={`translate(${pos.x}, ${pos.y})`}
-                      className="cursor-grab active:cursor-grabbing group"
+                      className={`cursor-grab active:cursor-grabbing group transition-opacity duration-300 ${isNodeDisabled ? 'pointer-events-none' : ''}`}
+                      style={{ opacity: nodeOpacity }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         setDraggedNodeId(node.id);
@@ -726,15 +798,22 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         setSelectedEdge(null);
                       }}
                     >
+                      {/* Active / Focus Glow Halo */}
                       {isSelected && (
-                        <circle r={config.size + 10} fill="none" stroke="#3b82f6" strokeWidth="3.5" className="animate-pulse" />
+                        <circle 
+                          r={config.size + 14} 
+                          fill="none" 
+                          stroke="#3b82f6" 
+                          strokeWidth="4" 
+                          className="animate-ping opacity-75" 
+                        />
                       )}
 
                       <circle
                         r={config.size}
                         fill={config.bg}
-                        stroke="#ffffff"
-                        strokeWidth="3"
+                        stroke={isSelected ? '#ffffff' : '#334155'}
+                        strokeWidth={isSelected ? '4' : '2.5'}
                         className="transition-transform duration-100 group-hover:scale-110 shadow-2xl"
                       />
 
@@ -758,7 +837,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
         {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL */}
         {(selectedNode || selectedEdge) && (
-          <div className="w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll">
+          <div className="w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-main pb-3">
               <span className="text-xs font-black text-primary-start uppercase tracking-widest flex items-center gap-2">
                 <FileCheck size={16} /> {selectedNode ? 'Doshja e Entitetit' : 'Detajet e Lidhjes'}
