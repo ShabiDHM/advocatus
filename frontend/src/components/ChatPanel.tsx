@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V22.0 (CLEAN BADGE & GUIDED INTAKE)
+// PHOENIX PROTOCOL - CHAT PANEL V23.0 (CLEAN CARD HEADER & NATURAL INTAKE SALUTATION)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -258,7 +258,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   // GUIDED INTAKE: Pre-fills input template and focuses cursor without auto-sending
   const handleInitiateConsultation = () => {
-    const starterTemplate = `Përshëndetje Avokat! Ja situata ime me fjalët e mia:\n\n[Shkruani këtu çfarë ka ndodhur me fjalët tuaja...]\n\nMë jep një diagnostikim të qartë të situatës, rreziqet ligjore dhe hapat e veprimit!`;
+    const starterTemplate = `Përshëndetje, ja situata ime me fjalët e mia:\n\n[Shkruani këtu çfarë ka ndodhur me fjalët tuaja...]\n\nMë jep një diagnostikim të qartë të situatës, rreziqet ligjore dhe hapat e veprimit!`;
     setInput(starterTemplate);
 
     setTimeout(() => {
@@ -392,14 +392,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 tracking-wider">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 tracking-wider">
                         ⚖️ KONSULTA LIGJORE
                       </span>
                       <ChevronRight size={14} className="text-primary-start group-hover:translate-x-1 transition-transform" />
                     </div>
-                    <h4 className="text-xs sm:text-sm font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
-                      KONSULTA DHE DIAGNOSTIKIMI LIGJOR
-                    </h4>
                     <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal mt-0.5">
                       Përshkruani problemin tuaj si te avokati — AI analizon situatën, identifikon rreziqet ligjore dhe ju jep hapat e qartë të veprimit pa asnjë term teknik.
                     </p>
