@@ -1,12 +1,13 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V18.0 (INTEGRATED LAW CITATION LINKS)
+// PHOENIX PROTOCOL - CHAT PANEL V20.0 (AI LAWYER CONSULT & AUTOMATED DRAFTING BRIDGE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Scale,
     ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles,
-    ShieldCheck, Gavel, FileText, Info, ChevronRight
+    ShieldCheck, Gavel, FileText, Info, ChevronRight, PenTool, FileEdit,
+    ArrowRight
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -59,10 +60,6 @@ const ThinkingDots = () => (
 const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
   
-  // Flexible multi-pattern citation regex:
-  // Pattern 1: Ligji/Ligjit/Kodi Nr. XXX, Neni YYY
-  // Pattern 2: Neni YYY i/e/të Ligjit/Kodit...
-  // Pattern 3: Standalone Neni YYY
   const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
 
   try {
@@ -259,6 +256,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleRetry = () => { if (lastUserMessage) sendMessage(lastUserMessage); };
 
+  // Automated Bridge to Drafting Page (/drafting)
+  const handleTransferToDrafting = (templateType: string, customContext: string) => {
+    try {
+      const payload = {
+        caseId: activeContextId !== 'general' ? activeContextId : undefined,
+        template: templateType,
+        context: customContext
+      };
+      localStorage.setItem('juristi_draft_transfer', JSON.stringify(payload));
+      window.location.href = '/drafting';
+    } catch (err) {
+      console.error('Failed to transfer to drafting page:', err);
+    }
+  };
+
   const safeMessages = Array.isArray(messages) ? messages : [];
   const lastMessage = safeMessages[safeMessages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content?.trim());
@@ -349,65 +361,94 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
               </div>
 
-              {/* 2x2 COMMAND CARDS GRID */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full max-w-xl text-left mt-1">
-                {[
-                  {
-                    title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
-                    badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
-                    icon: ShieldCheck,
-                    prompt:
-                      clientPosition === 'DEFENDANT'
-                        ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
-                        : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
-                  },
-                  {
-                    title: 'BAZA LIGJORE & PROCEDURA',
-                    badge: 'LPK & KODET LIGJORE',
-                    icon: Scale,
-                    prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
-                  },
-                  {
-                    title: 'PYETËSORI I SEANCËS',
-                    badge: 'MARRJA NË PYETJE',
-                    icon: Gavel,
-                    prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
-                  },
-                  {
-                    title: 'RAPORTI PËR KLIENTIN',
-                    badge: 'MEMO TEKNIKE',
-                    icon: FileText,
-                    prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
-                  }
-                ].map((card, idx) => {
-                  const IconComponent = card.icon;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => sendMessage(card.prompt)}
-                      className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
-                          {card.badge}
-                        </span>
-                        <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
-                      </div>
+              {/* CONTEST CATCHER & COMMAND CARDS GRID */}
+              <div className="w-full max-w-xl space-y-2.5 text-left mt-1">
+                
+                {/* FEATURED TOP CARD: CONTEST CATCHER & AI LAWYER CONSULT */}
+                <button
+                  type="button"
+                  onClick={() => sendMessage('Jam një qytetar/përfaqësues biznesi pa përvojë ligjore. Analizo të gjitha dokumentet e lëndës sime dhe më jep një diagnostikim të qartë në gjuhë të thjeshtë: 1. Diagnostikimi i Situatës, 2. Plani i Veprimit, dhe 3. Sugjerimet se cila shkresë ligjore duhet të hartohet (Padi, Kundërpadi, apo Prapësim).')}
+                  className="w-full p-3.5 sm:p-4 bg-gradient-to-r from-primary-start/15 via-surface to-surface hover:border-primary-start border border-primary-start/40 rounded-2xl text-left transition-all duration-200 shadow-md group cursor-pointer flex items-start gap-3"
+                >
+                  <div className="p-2.5 rounded-xl bg-primary-start text-white shadow-md shrink-0 mt-0.5">
+                    <PenTool size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 tracking-wider">
+                        ⚖️ CONTEST CATCHER & KONSULTA LIGJORE
+                      </span>
+                      <ChevronRight size={14} className="text-primary-start group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                      KONSULTA DHE DIAGNOSTIKIMI LIGJOR
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal mt-0.5">
+                      Përshkruani problemin tuaj si te avokati — AI analizon situatën, identifikon rreziqet ligjore dhe ju jep hapat e qartë të veprimit pa asnjë term teknik.
+                    </p>
+                  </div>
+                </button>
 
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <IconComponent size={14} className="text-primary-start shrink-0" />
-                        <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
-                          {card.title}
-                        </h4>
-                      </div>
+                {/* 2x2 SECONDARY ACTION CARDS GRID */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  {[
+                    {
+                      title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
+                      badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
+                      icon: ShieldCheck,
+                      prompt:
+                        clientPosition === 'DEFENDANT'
+                          ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
+                          : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
+                    },
+                    {
+                      title: 'BAZA LIGJORE & PROCEDURA',
+                      badge: 'LPK & KODET LIGJORE',
+                      icon: Scale,
+                      prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
+                    },
+                    {
+                      title: 'PYETËSORI I SEANCËS',
+                      badge: 'MARRJA NË PYETJE',
+                      icon: Gavel,
+                      prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
+                    },
+                    {
+                      title: 'RAPORTI PËR KLIENTIN',
+                      badge: 'MEMO TEKNIKE',
+                      icon: FileText,
+                      prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
+                    }
+                  ].map((card, idx) => {
+                    const IconComponent = card.icon;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => sendMessage(card.prompt)}
+                        className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
+                            {card.badge}
+                          </span>
+                          <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                        </div>
 
-                      <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
-                        {card.prompt}
-                      </p>
-                    </button>
-                  );
-                })}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <IconComponent size={14} className="text-primary-start shrink-0" />
+                          <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                            {card.title}
+                          </h4>
+                        </div>
+
+                        <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
+                          {card.prompt}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -416,6 +457,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
             const autoLinkedText = autoLinkLegalCitations(cleanText);
             
+            // Detect legal document recommendations or formal drafts
+            const isLegalRecommendation = msg.role === 'ai' && (
+              cleanText.includes('Kundërpadi') || 
+              cleanText.includes('Prapësim') || 
+              cleanText.includes('Padi') || 
+              cleanText.includes('Ankesë')
+            );
+
             return (
               <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'}`}>
@@ -429,6 +478,50 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
                   
+                  {/* DYNAMIC 1-CLICK BRIDGE BUTTONS TO DRAFTING MODULE */}
+                  {isLegalRecommendation && !isSendingMessage && (
+                    <div className="mt-3 pt-3 border-t border-main flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
+                      <span className="text-[10px] font-bold text-primary-start uppercase tracking-wider flex items-center gap-1 w-full sm:w-auto">
+                        <FileEdit size={12} /> Veprime të Sugjeruara për Hartim:
+                      </span>
+                      
+                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                        {cleanText.includes('Kundërpadi') && (
+                          <button
+                            type="button"
+                            onClick={() => handleTransferToDrafting('kunderpadi', cleanText)}
+                            className="px-3 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-primary-start/20 transition-all hover-lift"
+                          >
+                            <PenTool size={12} /> Harto Kundërpadinë
+                            <ArrowRight size={12} />
+                          </button>
+                        )}
+
+                        {cleanText.includes('Prapësim') && (
+                          <button
+                            type="button"
+                            onClick={() => handleTransferToDrafting('prapësim', cleanText)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all hover-lift"
+                          >
+                            <ShieldCheck size={12} /> Harto Prapësimin
+                            <ArrowRight size={12} />
+                          </button>
+                        )}
+
+                        {cleanText.includes('Padi') && !cleanText.includes('Kundërpadi') && (
+                          <button
+                            type="button"
+                            onClick={() => handleTransferToDrafting('padi', cleanText)}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all hover-lift"
+                          >
+                            <FileText size={12} /> Harto Padinë
+                            <ArrowRight size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {msg.role === 'ai' && idx === safeMessages.length - 1 && !isSendingMessage && suggestedQuestions.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
                           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
@@ -488,7 +581,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               value={input} 
               onChange={(e) => setInput(e.target.value)} 
               onKeyDown={handleKeyDown} 
-              placeholder={t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu...')} 
+              placeholder={t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu ose përshkruaj situatën për konsulencë ligjore...')} 
               className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" 
               rows={1} 
             />

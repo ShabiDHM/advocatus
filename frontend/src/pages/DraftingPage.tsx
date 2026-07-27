@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.4 (TYPO FIX - 0 WARNINGS)
+// PHOENIX PROTOCOL - DRAFTING PAGE V8.0 (AUTOMATED CHAT TRANSFER & CONTEST INGESTION)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -60,14 +60,37 @@ const DraftingPage: React.FC = () => {
 
   const isPro = true;
 
+  // Fetch Cases and consume any pending transfer payload from Socratic Chat
   useEffect(() => {
-    apiService.getCases().then(setCases).catch(console.error);
+    apiService.getCases()
+      .then(fetchedCases => {
+        setCases(fetchedCases);
+        
+        // CONSUME AUTOMATED CHAT DRAFTING PAYLOAD
+        const transferPayload = localStorage.getItem('juristi_draft_transfer');
+        if (transferPayload) {
+          try {
+            const parsed = JSON.parse(transferPayload);
+            if (parsed.caseId) setSelectedCaseId(String(parsed.caseId));
+            if (parsed.template) setSelectedTemplate(parsed.template as TemplateType);
+            if (parsed.context) setContext(parsed.context);
+
+            // Clean consumed payload after initial load
+            localStorage.removeItem('juristi_draft_transfer');
+          } catch (err) {
+            console.error('Failed to parse draft transfer payload:', err);
+          }
+        }
+      })
+      .catch(console.error);
   }, []);
 
   // TEMPLATE & ROLE MATRIX AUTO-PROMPT GENERATOR
   useEffect(() => {
+    // If context was populated directly via transfer payload, do not overwrite it
+    if (localStorage.getItem('juristi_draft_transfer')) return;
+
     if (!selectedCaseId || cases.length === 0) {
-      setContext('');
       return;
     }
     const activeCase = cases.find((c: any) => String(c.id) === String(selectedCaseId));
