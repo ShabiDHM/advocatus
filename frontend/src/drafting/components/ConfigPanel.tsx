@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V7.0 (SMART FACT CHIPS, AI PROMPT ENHANCER & LEGAL TAGS)
+// PHOENIX PROTOCOL - CONFIG PANEL V8.0 (STRICT TEMPLATE PRESERVATION & FIX OVERRIDE BUG)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Plus, Landmark, Euro, Calendar, FileText } from 'lucide-react';
@@ -31,16 +31,22 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
   const clientPosition = (activeCase as any)?.client_position || 'DEFENDANT';
 
-  // AUTO-SELECT TEMPLATE WHEN CASE CHANGES
+  // FIX: AUTO-SELECT TEMPLATE ONLY WHEN UNINITIALIZED (NEVER OVERWRITE EXPLICIT 'KUNDERPADI' SELECTION)
   useEffect(() => {
     if (!activeCase) return;
+    
+    // If user or chat transfer already explicitly picked a template (like 'kunderpadi'), PRESERVE IT!
+    if (selectedTemplate && selectedTemplate !== 'generic') {
+      return;
+    }
+
     const pos = (activeCase as any)?.client_position || 'DEFENDANT';
     if (pos === 'DEFENDANT') {
       onSelectTemplate('prapësim' as TemplateType);
     } else if (pos === 'PLAINTIFF') {
       onSelectTemplate('padi' as TemplateType);
     }
-  }, [selectedCaseId, activeCase, onSelectTemplate]);
+  }, [selectedCaseId, activeCase, selectedTemplate, onSelectTemplate]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
