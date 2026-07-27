@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V32.0 (EXTREME FOCUS MODE & CANVAS EXPANSION)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V33.0 (HIGH-LEGIBILITY & OPTIMIZED NODE SIZING)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -76,13 +76,14 @@ interface EvidenceGraphTabProps {
   caseTitle?: string;
 }
 
-const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; icon: LucideIcon; size: number }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', icon: User, size: 36 },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', icon: Building2, size: 38 },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#059669', icon: CreditCard, size: 34 },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', icon: MapPin, size: 32 },
-  EVENT: { albanianLabel: 'Ngjarje', bg: '#dc2626', icon: Calendar, size: 34 },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#475569', icon: FileText, size: 32 },
+// Enlarged node radii for optimal readability across device screens
+const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; icon: LucideIcon; size: number }> = {
+  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', border: '#60a5fa', icon: User, size: 52 },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#6d28d9', border: '#a78bfa', icon: Building2, size: 56 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#047857', border: '#34d399', icon: CreditCard, size: 48 },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#b45309', border: '#fbbf24', icon: MapPin, size: 48 },
+  EVENT: { albanianLabel: 'Ngjarje', bg: '#b91c1c', border: '#f87171', icon: Calendar, size: 50 },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#374151', border: '#9ca3af', icon: FileText, size: 48 },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
@@ -155,8 +156,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // MASSIVE CANVAS EXPANSION: Initial ViewBox bounds (-1800, -1200, 3600, 2400)
-  const [viewBox, setViewBox] = useState({ x: -1800, y: -1200, width: 3600, height: 2400 });
+  // OPTIMIZED VIEWBOX: Perfect balance between wide canvas and node visibility
+  const [viewBox, setViewBox] = useState({ x: -1000, y: -700, width: 2000, height: 1400 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
@@ -221,7 +222,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
   }, [selectedNode, graphData?.edges]);
 
-  // WIDE FORCE SPREADING / MASSIVE SPATIAL SEPARATION
+  // BALANCED NODE LAYOUT DISTRIBUTION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -239,11 +240,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       const clusterNodes = clusters[typeKey];
       const clusterAngle = (cIndex * 2 * Math.PI) / numClusters;
       
-      // Massive spatial dispersion vectors
-      const clusterCenterX = Math.cos(clusterAngle) * 950;
-      const clusterCenterY = Math.sin(clusterAngle) * 650;
+      const clusterCenterX = Math.cos(clusterAngle) * 580;
+      const clusterCenterY = Math.sin(clusterAngle) * 420;
 
-      const subRadius = Math.max(300, clusterNodes.length * 90);
+      const subRadius = Math.max(220, clusterNodes.length * 75);
 
       clusterNodes.forEach((node, nIndex) => {
         const subAngle = (nIndex * 2 * Math.PI) / clusterNodes.length;
@@ -307,8 +307,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         lastTouchDistRef.current = currentDist;
       } else if (e.touches.length === 1 && isPanning) {
         e.preventDefault();
-        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 3600);
-        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 2400);
+        const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 2000);
+        const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 1400);
         setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
         setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
       }
@@ -355,7 +355,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const handleResetZoom = () => {
     setSelectedNode(null);
     setSelectedEdge(null);
-    setViewBox({ x: -1800, y: -1200, width: 3600, height: 2400 });
+    setViewBox({ x: -1000, y: -700, width: 2000, height: 1400 });
   };
 
   const handleRebuildGraph = async () => {
@@ -446,8 +446,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
 
     if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 3600);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 2400);
+      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2000);
+      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1400);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
     }
@@ -632,22 +632,22 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         <div className="flex-1 h-full w-full relative">
           
-          {/* FLOATING TIMELINE SLIDER (Jumps to right-[400px] when Inspector drawer opens) */}
+          {/* FLOATING TIMELINE SLIDER (Dynamically adjusts position to avoid panel overlap) */}
           <div 
-            className={`absolute top-3 z-20 flex items-center gap-2.5 px-3.5 py-1.5 bg-surface/90 border border-main rounded-xl shadow-xl backdrop-blur-md transition-all duration-300 ease-in-out ${
-              (selectedNode || selectedEdge) ? 'right-[400px]' : 'right-4'
+            className={`absolute top-4 z-20 flex items-center gap-3 px-4 py-2 bg-[#090d1a]/95 border border-slate-700/80 rounded-xl shadow-2xl backdrop-blur-md transition-all duration-300 ease-in-out ${
+              (selectedNode || selectedEdge) ? 'right-[400px]' : 'right-6'
             }`}
           >
-            <span className="text-[10px] font-black text-text-muted uppercase tracking-wider">KOHËSHTRIRJA:</span>
+            <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider">KOHËSHTRIRJA:</span>
             <input 
               type="range" 
               min={2020} 
               max={2026} 
               value={timelineYear} 
               onChange={(e) => setTimelineYear(Number(e.target.value))}
-              className="w-24 h-1.5 bg-canvas rounded-lg appearance-none cursor-pointer accent-primary-start"
+              className="w-28 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
-            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 font-mono">
+            <span className="px-2.5 py-0.5 text-xs font-black rounded-md bg-blue-600/30 text-blue-300 border border-blue-500/40 font-mono">
               {timelineYear}
             </span>
           </div>
@@ -675,14 +675,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               onMouseUp={handleMouseUp}
             >
               <defs>
-                <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
-                  <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="54" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" />
                 </marker>
-                <marker id="arrowhead-selected" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
-                  <polygon points="0 0, 6 2, 0 4" fill="#3b82f6" />
+                <marker id="arrowhead-selected" markerWidth="8" markerHeight="6" refX="54" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#3b82f6" />
                 </marker>
-                <marker id="arrowhead-contradiction" markerWidth="6" markerHeight="4" refX="36" refY="2" orient="auto">
-                  <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
+                <marker id="arrowhead-contradiction" markerWidth="8" markerHeight="6" refX="54" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#ef4444" />
                 </marker>
               </defs>
 
@@ -710,7 +710,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const angle = getLineRotationAngle(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y);
 
                   const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                  const maskWidth = Math.max(50, labelDisplayText.length * 6.5);
+                  const maskWidth = Math.max(70, labelDisplayText.length * 8.5);
 
                   return (
                     <g
@@ -727,7 +727,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         x2={targetPos.x}
                         y2={targetPos.y}
                         stroke="transparent"
-                        strokeWidth="24"
+                        strokeWidth="32"
                       />
 
                       <line
@@ -735,29 +735,30 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         y1={sourcePos.y}
                         x2={targetPos.x}
                         y2={targetPos.y}
-                        stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#94a3b8'}
-                        strokeWidth={isContradiction || isSelected || isHovered ? 3.5 : 2}
-                        strokeDasharray={isContradiction ? '6,6' : 'none'}
+                        stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#64748b'}
+                        strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2.5}
+                        strokeDasharray={isContradiction ? '8,8' : 'none'}
                         markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
                       />
 
+                      {/* Relationship Pill Badge */}
                       <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
                         <rect
                           x={-maskWidth / 2}
-                          y={-9}
+                          y={-12}
                           width={maskWidth}
-                          height={18}
-                          fill="var(--bg-canvas, #090d16)"
-                          rx={4}
+                          height={24}
+                          fill={isContradiction ? '#450a0a' : '#0f172a'}
                           stroke={isContradiction ? '#ef4444' : '#334155'}
-                          strokeWidth="1"
+                          strokeWidth="1.5"
+                          rx={12}
                         />
                         <text
                           x={0}
                           y={4}
                           textAnchor="middle"
-                          fill={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#cbd5e1'}
-                          fontSize="10"
+                          fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#60a5fa' : '#cbd5e1'}
+                          fontSize="12"
                           fontWeight="800"
                           letterSpacing="0.5px"
                           className="select-none uppercase font-mono pointer-events-none"
@@ -775,6 +776,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 {filteredNodes.map((node) => {
                   const pos = positions[node.id] || { x: 0, y: 0 };
                   const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
+                  const IconComponent = config.icon;
                   const isSelected = selectedNode?.id === node.id;
 
                   // Focus mode evaluation
@@ -783,7 +785,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
                   const isNodeDisabled = isFocusedMode && !isNodeConnected;
 
-                  const labelText = node.label.length > 16 ? `${node.label.substring(0, 14)}..` : node.label;
+                  const fullText = node.label;
+                  const badgeWidth = Math.max(120, fullText.length * 9.5);
 
                   return (
                     <g
@@ -798,35 +801,59 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         setSelectedEdge(null);
                       }}
                     >
-                      {/* Active / Focus Glow Halo */}
+                      {/* Outer Active Glowing Ring */}
                       {isSelected && (
                         <circle 
-                          r={config.size + 14} 
+                          r={config.size + 16} 
                           fill="none" 
-                          stroke="#3b82f6" 
-                          strokeWidth="4" 
+                          stroke="#60a5fa" 
+                          strokeWidth="5" 
                           className="animate-ping opacity-75" 
                         />
                       )}
 
+                      {/* Main Circle Body */}
                       <circle
                         r={config.size}
                         fill={config.bg}
-                        stroke={isSelected ? '#ffffff' : '#334155'}
-                        strokeWidth={isSelected ? '4' : '2.5'}
-                        className="transition-transform duration-100 group-hover:scale-110 shadow-2xl"
+                        stroke={isSelected ? '#ffffff' : config.border}
+                        strokeWidth={isSelected ? '5' : '3.5'}
+                        className="transition-transform duration-100 group-hover:scale-105 shadow-2xl"
                       />
 
-                      <text
-                        y="4"
-                        textAnchor="middle"
-                        fill="#ffffff"
-                        fontSize="11"
-                        fontWeight="900"
-                        className="select-none uppercase tracking-tight pointer-events-none font-sans"
-                      >
-                        {labelText}
-                      </text>
+                      {/* Central Lucide Icon */}
+                      <foreignObject x={-20} y={-20} width={40} height={40} className="pointer-events-none">
+                        <div className="w-full h-full flex items-center justify-center text-white">
+                          <IconComponent className="w-7 h-7" />
+                        </div>
+                      </foreignObject>
+
+                      {/* High-Legibility Label Pill below Node */}
+                      <g transform={`translate(0, ${config.size + 22})`}>
+                        <rect
+                          x={-badgeWidth / 2}
+                          y={-14}
+                          width={badgeWidth}
+                          height={28}
+                          rx={8}
+                          fill="#030712"
+                          fillOpacity="0.95"
+                          stroke={isSelected ? '#ffffff' : config.border}
+                          strokeWidth="1.5"
+                          className="shadow-2xl"
+                        />
+                        <text
+                          x={0}
+                          y={4}
+                          textAnchor="middle"
+                          fill="#ffffff"
+                          fontSize="13"
+                          fontWeight="800"
+                          className="select-none tracking-tight pointer-events-none font-sans"
+                        >
+                          {fullText}
+                        </text>
+                      </g>
                     </g>
                   );
                 })}
