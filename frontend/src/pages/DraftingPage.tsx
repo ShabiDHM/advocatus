@@ -1,5 +1,5 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.0 (REAL FACT INJECTION & ZERO BLANK PLACEHOLDERS)
+// PHOENIX PROTOCOL - DRAFTING PAGE V11.0 (EXPLICIT TYPES & 0 WARNINGS)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,8 +16,8 @@ const buildKosovoSystemPrompt = (template: string, basePrompt: string, activeCas
   let statute = "";
   
   const courtName = "GJYKATA THEMELORE NË PRISHTINË - DEPARTAMENTI PËR ÇËSHTJE EKONOMIKE";
-  const clientName = activeCase?.client?.name || activeCase?.client_name || "Shaban Bala";
-  const opposingName = activeCase?.opposing_party?.name || activeCase?.opposing_party || "Getting Competent ShPK";
+  const clientName = activeCase?.client?.name || (activeCase as any)?.client_name || "Shaban Bala";
+  const opposingName = activeCase?.opposing_party?.name || (activeCase as any)?.opposing_party || "Getting Competent ShPK";
 
   switch (true) {
     case template === 'kunderpadi':
@@ -116,8 +116,8 @@ const DraftingPage: React.FC = () => {
     const pos = (activeCase.client_position || 'DEFENDANT').toUpperCase();
     const caseTitle = activeCase.title || activeCase.case_name || 'Lënda';
     const caseNum = activeCase.case_number ? `(Nr. ${activeCase.case_number})` : '';
-    const clientName = activeCase.client?.name || activeCase.client_name || 'Shaban Bala';
-    const opposingParty = activeCase.opposing_party?.name || activeCase.opposing_party || 'Getting Competent ShPK';
+    const clientName = activeCase.client?.name || (activeCase as any)?.client_name || 'Shaban Bala';
+    const opposingParty = activeCase.opposing_party?.name || (activeCase as any)?.opposing_party || 'Getting Competent ShPK';
 
     let generatedPrompt = '';
 
@@ -225,14 +225,14 @@ const DraftingPage: React.FC = () => {
               isPro={isPro}
               cases={cases}
               selectedCaseId={selectedCaseId || undefined}
-              onSelectCase={(id) => {
+              onSelectCase={(id: string | undefined) => {
                 setSelectedCaseId(id || '');
                 setIsTransferredContext(false);
               }}
               selectedTemplate={selectedTemplate}
               context={context}
               isSubmitting={isSubmitting}
-              onSelectTemplate={(val) => {
+              onSelectTemplate={(val: string) => {
                 setSelectedTemplate(val as TemplateType);
                 setIsTransferredContext(false);
               }}

@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V24.0 (ROLE-AWARE DRAFTING BUTTONS & TACTICAL BRIDGE)
+// PHOENIX PROTOCOL - CHAT PANEL V26.0 (UNIVERSAL LAW CITATION MATCHER & BLUE LINKING)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,31 +57,39 @@ const ThinkingDots = () => (
     </span>
 );
 
+// UNIVERSAL LAW CITATION MATCHER (Matches full laws, codes, & standalone articles)
 const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
   
-  const citationRegex = /(?:(Ligjit|Ligji|Kodi|Kodin)\s+(Nr\.\s*[\d\/L\-]+[^\n,.]*?)\s*,?\s*(?:Neni|neni|NENI)\s+(\d+))|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.]*|[A-Z][a-zçëA-ZÇË\s\d\/L\-]{3,30})?)/gi;
+  // Universal Regex matching:
+  // 1. "Ligji/Kodi Nr. XXX/L-YYY..."
+  // 2. "Neni XXX i/e/të Ligjit/Kodit..."
+  // 3. Standalone "Neni XXX"
+  const universalLawRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;]*?)(?:,?\s*(?:Neni|neni|NENI)\s+(\d+))?)|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)[^\n,.:;]*|LPK|LMD|LIDK|Kodi Penal|Kodi Civil)?)/gi;
 
   try {
-    return text.replace(citationRegex, (match, lawPrefix, lawNumber, art1, art2, lawName2) => {
+    return text.replace(universalLawRegex, (match, fullLawTitle, art1, art2, shortLawTitle) => {
+      // Avoid re-nesting if already inside markdown link syntax
+      if (match.startsWith('[') && match.includes('](')) return match;
+
       let lawTitle = "";
       let articleNum = "";
 
-      if (lawPrefix && art1) {
-        lawTitle = `${lawPrefix} ${lawNumber.trim()}`;
-        articleNum = art1.trim();
+      if (fullLawTitle) {
+        lawTitle = fullLawTitle.trim();
+        articleNum = art1 ? art1.trim() : "1";
       } else if (art2) {
         articleNum = art2.trim();
-        lawTitle = lawName2 ? lawName2.trim() : "Ligji i Përgjithshëm";
+        lawTitle = shortLawTitle ? shortLawTitle.trim() : "Ligji përkatës";
       }
 
-      if (!articleNum) return match;
+      if (!lawTitle) return match;
 
       const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(articleNum)}`;
       return `[${match.trim()}](${targetUrl})`;
     });
   } catch (err) {
-    console.error("Citation replacement failed:", err);
+    console.error("Universal law linking failed:", err);
     return String(text);
   }
 };
@@ -256,23 +264,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleRetry = () => { if (lastUserMessage) sendMessage(lastUserMessage); };
 
-  // GUIDED INTAKE: Pre-fills input template and focuses cursor without auto-sending
-  const handleInitiateConsultation = () => {
-    const starterTemplate = `Përshëndetje, ja situata ime me fjalët e mia:\n\n[Shkruani këtu çfarë ka ndodhur me fjalët tuaja...]\n\nMë jep një diagnostikim të qartë të situatës, rreziqet ligjore dhe hapat e veprimit!`;
-    setInput(starterTemplate);
-
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        const startPos = starterTemplate.indexOf('[');
-        const endPos = starterTemplate.indexOf(']') + 1;
-        if (startPos !== -1 && endPos !== -1) {
-          textareaRef.current.setSelectionRange(startPos, endPos);
-        }
-      }
-    }, 100);
-  };
-
   // Automated Bridge to Drafting Page (/drafting)
   const handleTransferToDrafting = (templateType: string, customContext: string) => {
     try {
@@ -378,91 +369,65 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
               </div>
 
-              {/* COMMAND CARDS GRID */}
-              <div className="w-full max-w-xl space-y-2.5 text-left mt-1">
-                
-                {/* FEATURED TOP CARD: AI LAWYER CONSULT (INTERACTIVE INTAKE) */}
-                <button
-                  type="button"
-                  onClick={handleInitiateConsultation}
-                  className="w-full p-3.5 sm:p-4 bg-gradient-to-r from-primary-start/15 via-surface to-surface hover:border-primary-start border border-primary-start/40 rounded-2xl text-left transition-all duration-200 shadow-md group cursor-pointer flex items-start gap-3"
-                >
-                  <div className="p-2.5 rounded-xl bg-primary-start text-white shadow-md shrink-0 mt-0.5">
-                    <PenTool size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/20 text-primary-start border border-primary-start/30 tracking-wider">
-                        ⚖️ KONSULTA LIGJORE
-                      </span>
-                      <ChevronRight size={14} className="text-primary-start group-hover:translate-x-1 transition-transform" />
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal mt-0.5">
-                      Përshkruani problemin tuaj si te avokati — AI analizon situatën, identifikon rreziqet ligjore dhe ju jep hapat e qartë të veprimit pa asnjë term teknik.
-                    </p>
-                  </div>
-                </button>
+              {/* CLEAN 2x2 ACTION CARDS GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full max-w-xl text-left mt-1">
+                {[
+                  {
+                    title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
+                    badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
+                    icon: ShieldCheck,
+                    prompt:
+                      clientPosition === 'DEFENDANT'
+                        ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
+                        : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
+                  },
+                  {
+                    title: 'BAZA LIGJORE & PROCEDURA',
+                    badge: 'LPK & KODET LIGJORE',
+                    icon: Scale,
+                    prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
+                  },
+                  {
+                    title: 'PYETËSORI I SEANCËS',
+                    badge: 'MARRJA NË PYETJE',
+                    icon: Gavel,
+                    prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
+                  },
+                  {
+                    title: 'RAPORTI PËR KLIENTIN',
+                    badge: 'MEMO TEKNIKE',
+                    icon: FileText,
+                    prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
+                  }
+                ].map((card, idx) => {
+                  const IconComponent = card.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => sendMessage(card.prompt)}
+                      className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
+                          {card.badge}
+                        </span>
+                        <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                      </div>
 
-                {/* 2x2 SECONDARY ACTION CARDS GRID */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                  {[
-                    {
-                      title: clientPosition === 'DEFENDANT' ? 'STRATEGJIA E MBROJTJES' : 'STRATEGJIA E PADISË',
-                      badge: clientPosition === 'DEFENDANT' ? 'MBROJTJA & ARGUMENTET' : 'SULMI & PRETEGIMET',
-                      icon: ShieldCheck,
-                      prompt:
-                        clientPosition === 'DEFENDANT'
-                          ? 'Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës.'
-                          : 'Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull.'
-                    },
-                    {
-                      title: 'BAZA LIGJORE & PROCEDURA',
-                      badge: 'LPK & KODET LIGJORE',
-                      icon: Scale,
-                      prompt: 'Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK).'
-                    },
-                    {
-                      title: 'PYETËSORI I SEANCËS',
-                      badge: 'MARRJA NË PYETJE',
-                      icon: Gavel,
-                      prompt: 'Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë.'
-                    },
-                    {
-                      title: 'RAPORTI PËR KLIENTIN',
-                      badge: 'MEMO TEKNIKE',
-                      icon: FileText,
-                      prompt: 'Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.'
-                    }
-                  ].map((card, idx) => {
-                    const IconComponent = card.icon;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => sendMessage(card.prompt)}
-                        className="group p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/60 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col justify-between gap-1.5 active:scale-[0.98] cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary-start/10 text-primary-start border border-primary-start/20 tracking-wider">
-                            {card.badge}
-                          </span>
-                          <ChevronRight size={13} className="text-text-muted group-hover:text-primary-start transition-colors" />
-                        </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <IconComponent size={14} className="text-primary-start shrink-0" />
+                        <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
+                          {card.title}
+                        </h4>
+                      </div>
 
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <IconComponent size={14} className="text-primary-start shrink-0" />
-                          <h4 className="text-[11px] sm:text-xs font-black uppercase text-text-primary tracking-wide group-hover:text-primary-start transition-colors">
-                            {card.title}
-                          </h4>
-                        </div>
-
-                        <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
-                          {card.prompt}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+                      <p className="text-[10px] sm:text-[11px] text-text-secondary leading-relaxed font-normal line-clamp-2">
+                        {card.prompt}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

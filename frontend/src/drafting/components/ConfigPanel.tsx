@@ -1,11 +1,10 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V10.0 (TYPESAFE CASE PROPERTY FALLBACKS & 0 WARNINGS)
+// PHOENIX PROTOCOL - CONFIG PANEL V11.0 (CLEAN IMPORTS & DUAL EXPORT TYPE FIX)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Plus, Landmark, Euro, Calendar, FileText } from 'lucide-react';
-import { ConfigPanelProps } from '../types';
+import { ConfigPanelProps, TemplateType } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
-import { TemplateType } from '../types';
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   t,
@@ -23,7 +22,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // FIX: Support both MongoDB `_id` and `id`
+  // Support both MongoDB `_id` and `id`
   const activeCase = useMemo(() => {
     if (!selectedCaseId) return null;
     return cases.find((c: any) => String(c.id || c._id) === String(selectedCaseId));
@@ -320,3 +319,5 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
     </div>
   );
 };
+
+export default ConfigPanel;
