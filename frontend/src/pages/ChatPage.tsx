@@ -1,14 +1,11 @@
 // FILE: src/pages/ChatPage.tsx
-// PHOENIX PROTOCOL - CHAT PAGE V1.2 (HTTP STREAMING, MULTI‑DOCUMENT SUPPORT)
-// 1. UPDATED: Now uses apiService.sendChatMessageStream instead of WebSocket for chat.
-// 2. FIXED: Signature matches ChatPanelProps (documentIds array).
-// 3. RETAINED: All other functionality.
+// PHOENIX PROTOCOL - CHAT PAGE V1.3 (CLEAN IMPORTS & BUILD FIX)
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
-import ChatPanel, { ChatMode, ReasoningMode, LegalDomain, Jurisdiction } from '../components/ChatPanel';
+import ChatPanel, { ChatMode, ReasoningMode, Jurisdiction } from '../components/ChatPanel';
 import { ChatMessage } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 
@@ -46,7 +43,7 @@ const ChatPage: React.FC = () => {
     text: string,
     _mode: ChatMode,
     reasoning: ReasoningMode,
-    domain: LegalDomain,
+    domain: string,
     documentIds?: string[],
     jurisdiction?: Jurisdiction
   ) => {
@@ -131,7 +128,6 @@ const ChatPage: React.FC = () => {
         t={t}
         activeContextId={caseId || 'general'}
         isPro={user?.subscription_tier === 'PRO' || user?.role === 'ADMIN'}
-        // documents not needed for general chat, but could be added later
       />
     </div>
   );
