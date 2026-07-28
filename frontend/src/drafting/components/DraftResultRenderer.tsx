@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V6.0 (SUFFIX-AWARE BLUE CITATION MATCHING)
+// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V7.0 (BULLETPROOF NON-TRUNCATING LAW CITATION MATCHING)
 
 import React from 'react';
 import { TFunction } from 'i18next';
@@ -30,9 +30,12 @@ const highlightPlaceholders = (text: string) => {
 const processContent = (text: string) => {
   if (!text) return text;
 
-  // SUFFIX-AWARE UNIVERSAL REGEX MATCHING:
-  // Handles: "Ligji Nr. 03/L-006", "Nenit 160 të LPK-së", "Neni 258", "LMD-së"
-  const universalCitationRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;]*?)(?:,?\s*(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))?)|(?:(LPK|LMD|KPK|KPPK|KPPRK|LPA|KPC)(?:-së|-it|-at)?\s+(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))|(?:(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)[^\n,.:;]*|LPK(?:-së)?|LMD(?:-së)?|LIDK(?:-së)?|Kodi Penal|Kodi Civil)?)/gi;
+  // BULLETPROOF CONTINUOUS CITATION REGEX
+  // Matches full phrases like:
+  // 1. "nenit 160 të Ligjit Nr. 03/L-006 për Procedurën Kontestimore"
+  // 2. "Ligji Nr. 06/L-016 për Shoqëritë Tregtare, Neni 258"
+  // 3. "LPK Neni 160" or "LMD-së Neni 259"
+  const universalCitationRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,;:]*?)(?:,?\s*(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))?)|(?:(LPK|LMD|KPK|KPPK|KPPRK|LPA|KPC)(?:-së|-it|-at)?\s+(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))|(?:((?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,;:]*|LPK(?:-së)?|LMD(?:-së)?|LIDK(?:-së)?|Kodi Penal|Kodi Civil)?)/gi;
 
   const segments: Array<{ 
     type: 'text' | 'citation'; 
@@ -54,18 +57,17 @@ const processContent = (text: string) => {
     let articleNum = "1";
 
     if (match[1]) {
-      // Pattern 1: Full Law Title
+      // Pattern 1: Ligji Nr. 03/L-006 për Procedurën Kontestimore, Neni 160
       lawTitle = match[1].trim();
       if (match[2]) articleNum = match[2].trim();
     } else if (match[3] && match[4]) {
       // Pattern 2: LPK-së Neni 160
       lawTitle = match[3].trim();
       articleNum = match[4].trim();
-    } else if (match[5]) {
-      // Pattern 3: Nenit 258 të LMD-së
-      articleNum = match[5].trim();
-      const rawTitle = match[6] ? match[6].trim().replace(/-së$/i, '') : `Neni ${articleNum}`;
-      lawTitle = rawTitle;
+    } else if (match[5] && match[6]) {
+      // Pattern 3: nenit 160 të Ligjit Nr. 03/L-006 për Procedurën Kontestimore
+      articleNum = match[6].trim();
+      lawTitle = match[7] ? match[7].trim().replace(/-së$/i, '') : `Neni ${articleNum}`;
     }
 
     if (lawTitle) {
