@@ -1,12 +1,12 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V42.0 (STREAMLINED DIRECT ANALYSIS TRIGGER)
+// PHOENIX PROTOCOL - CASE VIEW V43.0 (CLEAN IMPORTS & 0 WARNINGS)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
-import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode, LegalDomain } from '../components/ChatPanel';
+import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
 import MediaEvidencePanel from '../components/MediaEvidencePanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
@@ -418,7 +418,7 @@ const CaseHeader: React.FC<{
           <span className="truncate">ONTOLOGJIA</span>
         </button>
 
-        {/* 3. DIRECT ANALYSIS TRIGGER (NO REDUNDANT ROLE POPUP) */}
+        {/* 3. DIRECT ANALYSIS TRIGGER */}
         <div className="w-full">
           {hasExistingAnalysis ? (
             <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
@@ -618,7 +618,6 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  // DIRECT ANALYSIS RUNNER (USES ACTIVE clientPosition DIRECTLY)
   const handleRunAnalysis = async (force = false) => {
     if (!caseId) return;
 
@@ -678,7 +677,6 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  // ROLE SELECTION FROM TOP BADGE SWITCHER
   const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => {
     if (!caseId) return;
     setShowRoleModal(false);
@@ -704,7 +702,7 @@ const CaseViewPage: React.FC = () => {
     text: string,
     mode: ChatMode,
     reasoning: ReasoningMode,
-    domain: LegalDomain,
+    domain: string,
     documentIds?: string[],
     jurisdiction?: Jurisdiction
   ) => {
@@ -802,7 +800,7 @@ const CaseViewPage: React.FC = () => {
           onDocumentSelectionChange={setSelectedDocumentIds}
         />
 
-        {/* WORKSPACE VIEW (RESPONSIVE UNIFIED EVIDENCE VAULT + CHAT) */}
+        {/* WORKSPACE VIEW */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0">
           
           {/* LEFT COLUMN: UNIFIED EVIDENCE VAULT PANEL */}
@@ -862,7 +860,7 @@ const CaseViewPage: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: AGJENTI I RASTIT (WITH EMBEDDED COMMAND PALETTE) */}
+          {/* RIGHT COLUMN: AGJENTI I RASTIT */}
           <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             <ChatPanel
               messages={chatMessages}
