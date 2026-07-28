@@ -1,8 +1,8 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V11.0 (CLEAN IMPORTS & DUAL EXPORT TYPE FIX)
+// PHOENIX PROTOCOL - CONFIG PANEL V12.0 (CLEAN MINIMALIST UI - AUTOMATED LEGAL ENGINE)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Plus, Landmark, Euro, Calendar, FileText } from 'lucide-react';
+import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Landmark, Euro, Calendar, FileText } from 'lucide-react';
 import { ConfigPanelProps, TemplateType } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
 
@@ -85,36 +85,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     return map[value] || value;
   };
 
-  // DYNAMIC LEGAL ARTICLE TAGS BY TEMPLATE
-  const legalArticleTags = useMemo(() => {
-    switch (selectedTemplate) {
-      case 'kunderpadi':
-        return [
-          'Neni 46 i LPK (Kushtet e Kundërpadisë)',
-          'Neni 258 i LMD (Detyrimi i Besnikërisë)',
-          'Neni 259 i LMD (Kompensimi i Dëmit)',
-          'Kamatë Vonesore Ligjore'
-        ];
-      case 'prapësim':
-        return [
-          'Neni 147 i LPK (Prapësimi Procedural)',
-          'Parashkrimi i Afateve Ligjore',
-          'Mungesa e Autorizimit të Përfaqësimit'
-        ];
-      case 'padi':
-        return [
-          'Neni 253 i LPK (Përmbajtja e Padisë)',
-          'Neni 297 i LPK (Caktimi i Masës së Sigurisë)',
-          'Vërtetimi i Pronësisë & Detyrimit'
-        ];
-      default:
-        return [
-          'LPK - Ligji për Procedurën Kontestimore',
-          'LMD - Ligji për Marrëdhëniet e Detyrimeve'
-        ];
-    }
-  }, [selectedTemplate]);
-
   // 1-CLICK PROMPT ENHANCER
   const handleEnhanceWithAI = () => {
     if (!context.trim()) return;
@@ -132,13 +102,6 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
 3. DIREKTIVA BAZË: Baza juridike duhet të mbështetet rigorozisht në nenet përkatëse të LPK-së dhe LMD-së. Të specifikohet kërkesëpadia (Petitumi) me shumat financiare me kamatë ligjore. MOS PËRDOR BLANK PLACEHOLDERS.`;
 
     onChangeContext(enhanced);
-  };
-
-  // APPEND LEGAL TAG TO CONTEXT
-  const handleAppendTag = (tagText: string) => {
-    if (context.includes(tagText)) return;
-    const addition = context.trim() ? `\n- Baza Ligjore: ${tagText}` : `Baza Ligjore: ${tagText}`;
-    onChangeContext(context + addition);
   };
 
   return (
@@ -284,26 +247,6 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
             placeholder={placeholder} 
             className="w-full p-4 bg-surface border border-border-main rounded-xl text-sm flex-1 resize-none font-medium text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start outline-none shadow-inner transition-all custom-scrollbar" 
           />
-
-          {/* DYNAMIC CLICKABLE LEGAL ARTICLE TAGS */}
-          <div className="mt-2.5 space-y-1">
-            <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">
-              Shto Bazë Ligjore te Udhëzimet:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {legalArticleTags.map((tag, tagIdx) => (
-                <button
-                  key={tagIdx}
-                  type="button"
-                  onClick={() => handleAppendTag(tag)}
-                  className="flex items-center gap-1 px-2 py-1 bg-surface hover:bg-hover border border-border-main rounded-lg text-[10px] font-semibold text-text-secondary hover:text-primary-start transition-all cursor-pointer shadow-sm"
-                >
-                  <Plus size={10} className="text-primary-start" />
-                  <span>{tag}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* ACTION BUTTON */}
