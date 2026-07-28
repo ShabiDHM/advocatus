@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V35.0 (TRI-PARTY ROLE: DEFENDANT | PLAINTIFF | NEUTRAL)
+# PHOENIX PROTOCOL - CASES ROUTER V36.0 (TRILINGUAL FASHIKULL & STAGE-REASONING INTEGRATION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
