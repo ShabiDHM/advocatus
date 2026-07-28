@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V34.0 (CONSOLIDATED FASHIKULL INGESTION & IDENTITY LOCK FIX)
+# PHOENIX PROTOCOL - RAG SERVICE V35.0 (RAW EXTRACTED TEXT & SIGNATORY ACCURACY)
 
 import os
 import sys
@@ -94,14 +94,28 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> str:
-        context = "\n<<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE) >>>\n"
+        context = "\n<<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE SQ/EN/DE) >>>\n"
         
-        # 1. Direct Document Summaries from MongoDB
+        # 1. Direct Extracted Document Text + Summaries from MongoDB
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
                 file_name = doc.get("file_name") or doc.get("title") or "Dokument"
-                text_content = (doc.get("summary") or doc.get("extracted_text") or "")[:2500]
-                context += f"DOKUMENTI {idx}: {file_name}\nPËRMBAJTJA / DËSHMIA: {text_content}\n\n"
+                raw_t = doc.get("extracted_text") or ""
+                summ = doc.get("summary") or ""
+                
+                if summ == "Sinteza...":
+                    summ = ""
+
+                if raw_t and summ:
+                    text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI DIREKT I DOKUMENTIT (PREAMBULA & PARAGRAFET E PARË):\n{raw_t[:3500]}"
+                elif raw_t:
+                    text_content = f"TEKSTI DIREKT I DOKUMENTIT:\n{raw_t[:4000]}"
+                elif summ:
+                    text_content = f"PËRMBLEDHJE: {summ}"
+                else:
+                    text_content = "Dokument i verifikuar në fashikull."
+
+                context += f"DOKUMENTI {idx}: {file_name}\n{text_content}\n\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
 
@@ -155,7 +169,7 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case details or documents from Mongo: {ex}")
 
-        # Dynamic Identity Header
+        # Dynamic Identity Header with Strict Contract Signatory Rules
         identity_header = llm_service.build_dynamic_identity_header(
             client_name=client_name, 
             opposing_name=opposing_name, 
@@ -181,9 +195,9 @@ class AlbanianRAGService:
 
         Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor".
 
-        **UDHËZIME TË DETYRUESHME:**
+        **UDHËZIME T TË DETYRUESHME TË PRECIZIONIT:**
         1. Analizo të gjitha dokumentet në <<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS >>> (përfshirë kontratat në anglisht/gjermanisht, raportet e ATK-së, pasqyrat e bankës dhe vendimet e gjykatës).
-        2. Nëse në fashikull ekziston një kontratë (p.sh. Contract - Rainer Gerke), trego qartë datën, palët dhe kushtet e saj.
+        2. RREGULL KRITIK SHENJUES TË PALËVE TË KONTRATËS: Kur përgjigjesh për ndonjë kontratë (p.sh. Contract - Rainer Gerke), cito saktësisht emrat e palëve që figurojnë në PREAMBULËN e tekstit origjinal të dokumentit. Mos thuaj se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse tekstualisht kontrata është lidhur mes një kompanie/subjekti tjetër dhe {opposing_name}.
         3. Përgjigju në fushën e pretendimeve duke mbrojtur të drejtat e {client_name}.
         
         {PROTOKOLLI_MANDATOR}

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V92.0 (TRILINGUAL SQ/EN/DE RAG & REAL SUMMARY ENGINE)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V93.0 (STRICT CONTRACT SIGNATORY VERIFICATION)
 
 import os
 import json
@@ -39,7 +39,7 @@ def build_dynamic_identity_header(
 ) -> str:
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
-    Supports trilingual documents (SQ, EN, DE) and forces non-discrimination against non-Albanian evidence.
+    Forces literal extraction of contract signatories to eliminate entity hallucinations.
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -48,9 +48,10 @@ def build_dynamic_identity_header(
 KLIENTI YNË ({role_label}): {client_name}.
 PALA KUNDËRSHTARE: {opposing_name}.
 
-MANDATI MULTILINGUAL (SQ / EN / DE):
-Dokumentet dhe provat në fashikull mund të jenë në gjuhën Shqipe, Angleze apo Gjermane.
-Lexo dhe analizo me saktësi të plotë çdo eksponat pa marrë parasysh gjuhën e dokumentit origjinal.
+MANDATI MULTILINGUAL DHE EMANIMI I SAKTË I PALËVE (SQ / EN / DE):
+1. Lexo dhe analizo me saktësi të plotë çdo eksponat (Shqip, Anglisht, Gjermanisht).
+2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXYRR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
+3. Mos supozo automatikisht se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse teksti i kontratës specifikon një kompani tjetër ose palë të tretë të nënshkruar me {opposing_name}. Trego saktësisht emrat e entiteteve që figurojnë në tekst!
 
 RREGULL KRITIK SHFAJËSUES:
 ASNJËHERË mos thuaj apo aludo se {client_name} ka kryer veprime të paligjshme apo vjedhje.
@@ -168,8 +169,6 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
     except Exception as e: 
         yield f"[Gabim: {str(e)}]"
 
-# --- REAL ASYNC TRILINGUAL DOCUMENT SUMMARIZER ---
-
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
     """
     PHOENIX ENGINE: Generates real, structured summaries for Albanian, English, or German documents.
@@ -185,7 +184,7 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
         
         Përmbledhja duhet të përfshijë:
         1. Llojin e dokumentit (Kontratë, Faturë, Vendim, Shkresë, etj.)
-        2. Palët e përfshira dhe datat kryesore.
+        2. Palët e saktësisht të emëruara në nënshkrim dhe datat kryesore.
         3. Shumat monetare, obligimet ose fushëveprimin e marrëveshjes.
         4. Fakti më i rëndësishëm ligjor ose financiar.
         """
@@ -202,8 +201,6 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
     except Exception as e:
         logger.error(f"Error in process_large_document_async: {e}")
         return text[:500]
-
-# --- SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
 
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     key = _get_api_key()
