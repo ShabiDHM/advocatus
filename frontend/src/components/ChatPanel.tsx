@@ -1,13 +1,12 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V26.0 (UNIVERSAL LAW CITATION MATCHER & BLUE LINKING)
+// PHOENIX PROTOCOL - CHAT PANEL V27.0 (PURE CONVERSATIONAL SOCRATIC AGENT - NO DRAFTING BUTTONS)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Scale,
     ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles,
-    ShieldCheck, Gavel, FileText, Info, ChevronRight, PenTool, FileEdit,
-    ArrowRight
+    ShieldCheck, Gavel, FileText, Info, ChevronRight
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -57,19 +56,14 @@ const ThinkingDots = () => (
     </span>
 );
 
-// UNIVERSAL LAW CITATION MATCHER (Matches full laws, codes, & standalone articles)
+// UNIVERSAL LAW CITATION MATCHER
 const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
   
-  // Universal Regex matching:
-  // 1. "Ligji/Kodi Nr. XXX/L-YYY..."
-  // 2. "Neni XXX i/e/të Ligjit/Kodit..."
-  // 3. Standalone "Neni XXX"
   const universalLawRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;]*?)(?:,?\s*(?:Neni|neni|NENI)\s+(\d+))?)|(?:(?:Neni|neni|NENI)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)[^\n,.:;]*|LPK|LMD|LIDK|Kodi Penal|Kodi Civil)?)/gi;
 
   try {
     return text.replace(universalLawRegex, (match, fullLawTitle, art1, art2, shortLawTitle) => {
-      // Avoid re-nesting if already inside markdown link syntax
       if (match.startsWith('[') && match.includes('](')) return match;
 
       let lawTitle = "";
@@ -264,21 +258,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleRetry = () => { if (lastUserMessage) sendMessage(lastUserMessage); };
 
-  // Automated Bridge to Drafting Page (/drafting)
-  const handleTransferToDrafting = (templateType: string, customContext: string) => {
-    try {
-      const payload = {
-        caseId: activeContextId !== 'general' ? activeContextId : undefined,
-        template: templateType,
-        context: customContext
-      };
-      localStorage.setItem('juristi_draft_transfer', JSON.stringify(payload));
-      window.location.href = '/drafting';
-    } catch (err) {
-      console.error('Failed to transfer to drafting page:', err);
-    }
-  };
-
   const safeMessages = Array.isArray(messages) ? messages : [];
   const lastMessage = safeMessages[safeMessages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content?.trim());
@@ -448,53 +427,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{autoLinkedText}</ReactMarkdown>
                   </div>
-                  
-                  {/* TACTICALLY ALIGNED 1-CLICK BRIDGE BUTTONS TO DRAFTING MODULE */}
-                  {msg.role === 'ai' && !isSendingMessage && (
-                    <div className="mt-3 pt-3 border-t border-main flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
-                      <span className="text-[10px] font-bold text-primary-start uppercase tracking-wider flex items-center gap-1 w-full sm:w-auto">
-                        <FileEdit size={12} /> Veprime të Sugjeruara për Hartim:
-                      </span>
-                      
-                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                        {/* If Client is Defendant or text mentions Counterclaim */}
-                        {(clientPosition === 'DEFENDANT' || cleanText.includes('Kundërpadi')) && (
-                          <button
-                            type="button"
-                            onClick={() => handleTransferToDrafting('kunderpadi', cleanText)}
-                            className="px-3 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-primary-start/20 transition-all hover-lift"
-                          >
-                            <PenTool size={12} /> Harto Kundërpadinë
-                            <ArrowRight size={12} />
-                          </button>
-                        )}
-
-                        {/* Defense Response Button */}
-                        {(clientPosition === 'DEFENDANT' || cleanText.includes('Prapësim')) && (
-                          <button
-                            type="button"
-                            onClick={() => handleTransferToDrafting('prapësim', cleanText)}
-                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all hover-lift"
-                          >
-                            <ShieldCheck size={12} /> Harto Prapësimin
-                            <ArrowRight size={12} />
-                          </button>
-                        )}
-
-                        {/* Lawsuit Claim Button if Plaintiff */}
-                        {clientPosition === 'PLAINTIFF' && (
-                          <button
-                            type="button"
-                            onClick={() => handleTransferToDrafting('padi', cleanText)}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all hover-lift"
-                          >
-                            <FileText size={12} /> Harto Padinë
-                            <ArrowRight size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   {msg.role === 'ai' && idx === safeMessages.length - 1 && !isSendingMessage && suggestedQuestions.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -555,7 +487,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               value={input} 
               onChange={(e) => setInput(e.target.value)} 
               onKeyDown={handleKeyDown} 
-              placeholder={t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu ose përshkruaj situatën për konsulencë ligjore...')} 
+              placeholder={t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu...')} 
               className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" 
               rows={1} 
             />
