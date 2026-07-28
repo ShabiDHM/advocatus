@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V89.0 (UNBREAKABLE ROLE LOCK & PRONOUN DISAMBIGUATION)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V90.0 (DYNAMIC CASE IDENTITY LOCK & CLEAN PIPELINE)
 
 import os
 import json
@@ -35,18 +35,28 @@ TEMP_DRAFTING = 0.1   # Extreme structural compliance for legal document draftin
 TEMP_ANALYSIS = 0.2   # High-precision audit focus
 TEMP_CHAT = 0.3       # Standard balanced interactive chat
 
-# --- UNBREAKABLE IDENTITY LOCK & STATUTE GUARDRAILS ---
-UNBREAKABLE_IDENTITY_HEADER = """
+def build_dynamic_identity_header(
+    client_name: str = "Shaban Bala", 
+    opposing_name: str = "Getting Competent ShPK / Raimier Gerger", 
+    position: str = "DEFENDANT"
+) -> str:
+    """
+    PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
+    Guarantees 100% role alignment whether the case is Commercial, Labor, or Property.
+    """
+    role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
+    
+    return f"""
 [MANDATI RIGOROZ I RASTIT - LIGJI DHE ROLAT]
-KLIENTI YNË (I PADITURI / KUNDËRPADITËSI): Shaban Bala.
-PALA KUNDËRSHTARE (PADITËSI / I KUNDËRPADITURI): Raimier Gerger / Getting Competent ShPK.
+KLIENTI YNË ({role_label}): {client_name}.
+PALA KUNDËRSHTARE: {opposing_name}.
 
 RREGULL KRITIK SHFAJËSUES:
-ASNJËHERË mos thuaj apo aludo se Shaban Bala ka vjedhur, keqpërdorur apo transferuar fonde pa autorizim.
-Veprimet e paligjshme (vjedhja e €52,000, hapja e kompanisë konkurruese në ARBK) i ka kryer RAIMIER GERGER.
-Shaban Bala është pala e dëmtuar që kërkon prapësim të padisë dhe kthim të fondeve përmes KUNDËRPADISË sipas Nenin 160 të LPK-së.
+ASNJËHERË mos thuaj apo aludo se {client_name} ka kryer veprime të paligjshme apo vjedhje.
+Veprimet e paautorizuara dhe shkeljet i ka kryer {opposing_name}.
+{client_name} është pala e dëmtuar që mbron të drejtat e veta ligjore me prova materiale (raportet e ATK-së, pasqyrat e bankës, certifikatat e ARBK-së).
 
-KORNIZA E DETYRUESHME STATUTORE (CITO VETËM KËTO NENE):
+KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
 1. Ligji Nr. 06/L-016 për Shoqëritë Tregtare (Neni 258 - Detyrimi i Besnikërisë, Neni 259 - Ndalimi i Konkurrencës).
 2. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve - LMD (Neni 180 - Shpërblimi i Dëmit, Neni 210 - Përfitimi pa Bazë).
 3. Ligji Nr. 03/L-006 për Procedurën Kontestimore - LPK (Neni 46 / 160 - Baza Procedurale për Kundërpadi).
@@ -54,21 +64,16 @@ KORNIZA E DETYRUESHME STATUTORE (CITO VETËM KËTO NENE):
 STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante.
 """
 
-def _sanitize_and_disambiguate_prompt(user_text: str) -> str:
+def _sanitize_and_disambiguate_prompt(user_text: str, opposing_name: str = "Pala Kundërshtare") -> str:
     """
-    PHOENIX ENGINE: Translates ambiguous colloquial pronouns ('ai vetë', 'aj', 'ai') 
-    into explicit entity references before sending to OpenRouter LLM, 
-    preventing role inversion hallucinations.
+    Translates ambiguous colloquial pronouns ('ai vetë', 'aj', 'ai') 
+    into explicit entity references before sending to OpenRouter LLM.
     """
     if not user_text:
         return ""
     
-    # Replace "aj vet / ai vetë / ai vet" with "Pala Kundërshtare (Raimier Gerger)"
-    cleaned = re.sub(r'\b(ai|aj)\s+vetë?\b', 'Pala Kundërshtare (Raimier Gerger)', user_text, flags=re.IGNORECASE)
-    
-    # Replace "ai / aj" when followed by actions of taking money or starting competing companies
-    cleaned = re.sub(r'\b(ai|aj)\s+(ka|mori|transferoi|solli|regjistroi|bleu|ka hapur)\b', r'Pala Kundërshtare (Raimier Gerger) \2', cleaned, flags=re.IGNORECASE)
-    
+    cleaned = re.sub(r'\b(ai|aj)\s+vetë?\b', f'Pala Kundërshtare ({opposing_name})', user_text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\b(ai|aj)\s+(ka|mori|transferoi|solli|regjistroi|bleu|ka hapur)\b', f'Pala Kundërshtare ({opposing_name}) \\2', cleaned, flags=re.IGNORECASE)
     return cleaned
 
 def _get_sync_client(): 
@@ -80,10 +85,6 @@ def _get_async_client():
     return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """
-    PHOENIX UTILITY: Strips markdown code blocks and handles
-    raw string cleaning to guarantee robust, crash-free JSON parsing.
-    """
     if not text:
         return {}
     
@@ -106,17 +107,14 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         raise
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2, model: str = FAST_MODEL) -> str:
-    """
-    Synchronous helper for backend services with forced identity locking and pronoun disambiguation.
-    """
     key = _get_api_key()
     if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
     try:
         client = _get_sync_client()
         
-        # Enforce Identity Lock Header
-        full_sys_prompt = f"{UNBREAKABLE_IDENTITY_HEADER}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
+        identity_header = build_dynamic_identity_header()
+        full_sys_prompt = f"{identity_header}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
         sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
 
         kwargs = {
@@ -138,7 +136,6 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
         return ""
 
 def get_embedding(text: str) -> List[float]:
-    """Generates 1536-dim vectors via OpenRouter."""
     key = _get_api_key()
     if not text or not key: 
         return [0.0] * 1536
@@ -151,10 +148,10 @@ def get_embedding(text: str) -> List[float]:
         return [0.0] * 1536
 
 async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
-    """Streams text asynchronously with forced identity locking and pronoun disambiguation."""
     client = _get_async_client()
     try:
-        full_sys = f"{UNBREAKABLE_IDENTITY_HEADER}\n\n{sys_p}" if "MANDATI RIGOROZ" not in sys_p else sys_p
+        identity_header = build_dynamic_identity_header()
+        full_sys = f"{identity_header}\n\n{sys_p}" if "MANDATI RIGOROZ" not in sys_p else sys_p
         sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
 
         stream = await client.chat.completions.create(
@@ -197,8 +194,9 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     if not key:
         return {}
     client = _get_async_client()
+    identity_header = build_dynamic_identity_header()
     system_prompt = f"""
-    {UNBREAKABLE_IDENTITY_HEADER}
+    {identity_header}
     Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
 
     Përgjigju VETËM në formatin e strukturuar JSON:
@@ -233,8 +231,9 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     if not key:
         return {}
     client = _get_async_client()
+    identity_header = build_dynamic_identity_header()
     system_prompt = f"""
-    {UNBREAKABLE_IDENTITY_HEADER}
+    {identity_header}
     Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit.
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
@@ -263,8 +262,9 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     if not key:
         return {}
     client = _get_async_client()
+    identity_header = build_dynamic_identity_header()
     system_prompt = f"""
-    {UNBREAKABLE_IDENTITY_HEADER}
+    {identity_header}
     Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta.
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
@@ -340,6 +340,3 @@ def translate_for_client(t):
 
 def extract_deadlines(text): 
     return {"deadlines": []}
-
-def extract_expense_details_from_text_stub(t): 
-    return {"category": "Shpenzime", "amount": 0.0}

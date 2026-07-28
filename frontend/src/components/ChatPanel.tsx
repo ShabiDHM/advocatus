@@ -1,11 +1,11 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V27.0 (PURE CONVERSATIONAL SOCRATIC AGENT - NO DRAFTING BUTTONS)
+// PHOENIX PROTOCOL - CHAT PANEL V28.0 (CLEAN HEADER - AUTOMATED DOMAIN DETECTION)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Scale,
-    ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown, Sparkles,
+    ThumbsUp, ThumbsDown, RefreshCw, Download, Sparkles,
     ShieldCheck, Gavel, FileText, Info, ChevronRight
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
@@ -18,24 +18,12 @@ import { LawCitationLink } from './LawCitationLink';
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
-export type LegalDomain = 'automatic' | 'family' | 'corporate' | 'property' | 'labor' | 'obligations' | 'administrative' | 'criminal';
-
-const domainLabels: Record<LegalDomain, string> = {
-  automatic: 'Automatik',
-  family: 'Familjar',
-  corporate: 'Tregtar',
-  property: 'Pronësor',
-  labor: 'Punës',
-  obligations: 'Detyrimeve',
-  administrative: 'Administrativ',
-  criminal: 'Penal'
-};
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   connectionStatus: string;
   reconnect: () => void;
-  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => void;
+  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: string, documentIds?: string[], jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
   onClearChat: () => void;
   onExportChat?: () => void;
@@ -223,7 +211,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
-  const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   
@@ -244,7 +231,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const mode = activeContextId === 'general' ? 'general' : 'document';
     
     setLastUserMessage(text);
-    onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks');
+    onSendMessage(text, mode, reasoningMode, 'automatic', [], 'ks');
     setInput('');
   };
 
@@ -266,7 +253,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
       
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-3 border-b border-main bg-surface z-50 shrink-0 gap-2.5 sm:gap-0">
+      <div className="flex flex-row items-center justify-between px-4 sm:px-5 py-3 border-b border-main bg-surface z-50 shrink-0 h-12">
         
         {/* Left group */}
         <div className="flex items-center gap-2">
@@ -291,23 +278,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         {/* Right group */}
-        <div className="flex items-center justify-end gap-2 h-8 sm:h-9">
-          <div className="relative group h-8 sm:h-9 flex items-center">
-            <select
-              value={selectedDomain}
-              onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="appearance-none h-8 sm:h-9 rounded-xl border border-main bg-surface text-text-primary text-[11px] sm:text-xs font-semibold pl-2.5 pr-7 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer transition-all"
-            >
-              {Object.entries(domainLabels).map(([value, label]) => <option key={value} value={value} className="bg-canvas text-text-primary">{label}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          </div>
-
+        <div className="flex items-center justify-end gap-1.5 h-8">
           {onExportChat && (
             <button 
                 type="button"
                 onClick={onExportChat} 
-                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none" 
+                className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none" 
                 title="Download"
             >
               <Download size={15} />
@@ -316,7 +292,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           <button 
               type="button"
               onClick={onClearChat} 
-              className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none" 
+              className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none" 
               title="Clear"
           >
             <Trash2 size={15} />

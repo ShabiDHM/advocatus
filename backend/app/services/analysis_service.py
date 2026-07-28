@@ -1,9 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V25.0 (DYNAMIC DUAL-PARTY ROLE PROMPT ENGINE)
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V26.0 (CONSOLIDATED FASHIKULL INGESTION & STAGE-REASONING ENGINE)
 
 import asyncio
 import structlog
-import io
 from typing import List, Dict, Any, Tuple, Optional
 from pymongo.database import Database
 from bson import ObjectId
@@ -15,46 +14,58 @@ from .report_service import _get_text
 
 logger = structlog.get_logger(__name__)
 
-import logging
-debug_logger = logging.getLogger("analysis_debug")
-debug_logger.setLevel(logging.DEBUG)
-if not debug_logger.handlers:
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    debug_logger.addHandler(ch)
-
 async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, include_laws: bool = True) -> str:
-    """Parallelized and filtered RAG retrieval."""
-    case = await asyncio.to_thread(db.cases.find_one, {"_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id})
-    q = f"{case.get('case_name', '')} {case.get('description', '')}" if case else "Legal analysis"
+    """
+    CONSOLIDATED FASHIKULL INGESTION (SQ + EN + DE)
+    Combines top semantic vector search with complete document summaries of ALL uploaded exhibits.
+    """
+    c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+    case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid})
     
+    q = f"{case.get('title', '')} {case.get('case_name', '')} {case.get('description', '')}" if case else "Legal analysis"
+    
+    # 1. Fetch Top Vector Chunks
     tasks = [
         asyncio.to_thread(vector_store_service.query_case_knowledge_base, user_id=user_id, query_text=q, case_context_id=case_id, n_results=15)
     ]
     if include_laws:
-        law_query = f"{q} ligj neni dispozita"
+        law_query = f"{q} ligj neni LPK LMD shoqëritë tregtare"
         tasks.append(asyncio.to_thread(vector_store_service.query_global_knowledge_base, query_text=law_query, n_results=15))
     
     results = await asyncio.gather(*tasks)
     case_facts = results[0]
     global_laws = results[1] if include_laws else []
 
-    blocks = ["=== FAKTE NGA DOSJA ==="]
+    # 2. Fetch ALL Uploaded Case Documents directly (Consolidated Fashikull)
+    doc_filter = {"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}}
+    documents = await asyncio.to_thread(lambda: list(db.documents.find(doc_filter)))
+
+    blocks = ["=== FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE) ==="]
+    
+    if documents:
+        for idx, doc in enumerate(documents, 1):
+            file_name = doc.get("file_name") or doc.get("title") or "Dokument"
+            text_content = (doc.get("summary") or doc.get("extracted_text") or "")[:2000]
+            blocks.append(f"EKSPONATI {idx}: {file_name}\nPËRMBAJTJA / PROVA: {text_content}\n")
+    else:
+        blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.")
+
+    blocks.append("\n=== VEKTORËT E KËRKIMIT SEMANTIK ===")
     for f in case_facts:
         blocks.append(f"DOKUMENTI: {f['source']} (Faqja {f['page']})\nTEKSTI: {f['text']}\n")
     
     if include_laws:
+        blocks.append("\n=== BAZA LIGJORE STATUTORE (LPK, LMD, LSHT) ===")
         if global_laws:
-            blocks.append("=== BAZA LIGJORE STATUTORE ===")
             for l in global_laws:
-                law_title = l.get('law_title', 'Ligji i panjohur')
+                law_title = l.get('law_title', 'Ligji përkatës')
                 article_num = l.get('article_number', '')
                 if article_num:
                     blocks.append(f"LIGJI: {law_title}, Neni {article_num}\nTEKSTI: {l['text']}\n")
                 else:
                     blocks.append(f"LIGJI: {law_title}\nTEKSTI: {l['text']}\n")
         else:
-            blocks.append("=== BAZA LIGJORE STATUTORE ===\nNuk u gjetën dispozita ligjore specifike.")
+            blocks.append("Nuk u gjetën dispozita statutore dytësore.")
             
     return "\n".join(blocks)
 
@@ -62,8 +73,9 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
     try:
         c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
-        return db.cases.find_one({"_id": c_oid, "owner_id": u_oid}) is not None
-    except: return False
+        return db.cases.find_one({"_id": c_oid, "$or": [{"owner_id": u_oid}, {"user_id": u_oid}]}) is not None
+    except Exception: 
+        return False
 
 def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
     """Synchronously extracts entities from all case documents and populates the Graph DB."""
@@ -73,7 +85,9 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
     try:
         from .document_service import get_document_content_by_key
         from .graph_service import graph_service
-        doc_cursor = db.documents.find({"case_id": ObjectId(case_id)})
+        
+        c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        doc_cursor = db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}]})
         docs = list(doc_cursor)
         if not docs: return False
 
@@ -99,7 +113,10 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 async def cross_examine_case(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """PHOENIX: High-IQ analysis mapping law to case relevance with explicit Party Role Mandate."""
+    """
+    PHOENIX: High-IQ Stage-Reasoning Analysis Engine.
+    Executes deep cross-examination with locked client role and full fashikull ingestion.
+    """
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
@@ -109,86 +126,33 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     user = await asyncio.to_thread(db.users.find_one, {"_id": u_oid}) or {}
     profile = await asyncio.to_thread(db.business_profiles.find_one, {"$or": [{"user_id": u_oid}, {"user_id": str(user_id)}]}) or {}
     
-    # Resolve explicit client party stance (DEFENDANT vs PLAINTIFF)
     effective_position = (client_position or case.get("client_position") or "DEFENDANT").upper()
-    active_user_identity = f"Emri: {user.get('username', '')}, Email: {user.get('email', '')}, Biznesi: {profile.get('firm_name', '')}"
-    
+    client_name = case.get("client_name") or case.get("client", {}).get("name") or "Shaban Bala"
+    opposing_name = case.get("opposing_party") or "Getting Competent ShPK / Raimier Gerger"
+
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
 
-    if effective_position == "PLAINTIFF":
-        position_instruction = """
-        MANDATI ZYRTAR I PALËS: SULM / PADITËS / I DËMTUAR
-        - TI JE PËRFAQËSUESI LIGJOR I PADITËSIT / TË DËMTUARIT.
-        - KUNDËRSHTARI TUAJ ËSHTË: I Padituri / I Akuzuari.
-        - Të gjitha strategjitë, pikat e forta, pikat e dobëta të kundërshtarit dhe plani i veprimit DUHET TË JENË 100% OFENSIVE DHE SULMUESE PËR PADITËSIN.
-        - Fokusohuni te: vërtetimi i përgjegjësisë së të paditurit, provimi i dëmit të shkaktuar, sigurimi i kërkesëpadisë, dhe rrëzimi i prapësimeve apo justifikimeve të të paditurit.
-        """
-    else:
-        position_instruction = """
-        MANDATI ZYRTAR I PALËS: MBROJTJE / I PADITUR / I AKUZUAR
-        - TI JE MBROJTËSI LIGJOR I TË PADITURIT / TË AKUZUARIT.
-        - KUNDËRSHTARI TUAJ ËSHTË: Paditësi / Prokuroria.
-        - Të gjitha strategjitë, pikat e forta, pikat e dobëta të kundërshtarit dhe plani i veprimit DUHET TË JENË 100% MBROJTËSE DHE KUNDËRSHTUESE PËR TË PADITURIN.
-        - Fokusohuni te: rrëzimi i padisë, shfrytëzimi i gabimeve procedurale të paditësit (si mungesa e prokurës origjinale, parashkrimi i kërkesës, apo mungesa e provave), dhe hartimi i Prapësimit apo Kundërpadisë.
-        """
+    system_prompt = f"""
+    {llm_service.UNBREAKABLE_IDENTITY_HEADER}
+    
+    DETYRA: Analizë e thellë strategjike dhe gjyqësore e lëndës.
+    
+    MANDATI KRITIK I PALËS:
+    - KLIENTI YNË: {client_name} ({'I PADITUR / KUNDËRPADITËS' if effective_position == 'DEFENDANT' else 'PADITËS'})
+    - PALA KUNDËRSHTARE: {opposing_name}
+    
+    STRUKTURA E MANDATUAR E PËRMBLEDHJES (EXECUTIVE SUMMARY):
+    Seksioni 'executive_summary' DUHET të ndahet në dy pjesë të qarta:
+    1. '### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)'
+       - Shpjegoni me fjalë të thjeshta dhe të qarta se çfarë po ndodh me këtë rast.
+       - Identifikoni veprimet e paautorizuara të palës kundërshtare dhe hapat e mbrojtjes/sulmit.
+    2. '### ⚖️ ANALIZA PROFESIONALE E AVOKATIT'
+       - Goditja Procedurale: Kontrollo për LPK Nenet 98/99 (Mungesa e prokurës, afatet prekluzive 7-ditore).
+       - Baza Materiale: LSHT Neni 258/259 (Detyrimi i Besnikërisë & Ndalimi i Konkurrencës), LMD Neni 180.
+       - Provat Zyrtare: Cito raportet e ATK-së, pasqyrat e bankës TEB/NLB, dhe certifikatat e ARBK-së.
 
-    system_prompt = """
-    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin, dhe shpjegime praktike për qytetarin.
-    
-    PËRDORUESI AKTIV QË PO KËRKON ANALIZËN:
-    __ACTIVE_USER_IDENTITY__
-    
-    __PARTY_POSITION_INSTRUCTION__
-    
-    UDHËZIME PËR THJESHTËSINË (CITIZEN-FRIENDLY MANDATE):
-    1. Seksioni 'executive_summary' (Përmbledhja) DUHET të ndahet në dy pjesë të qarta duke përdorur saktësisht këto kryetituj:
-       - '### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)'
-         (Shpjegoni me fjalë të thjeshta të përditshme se çfarë po ndodh në këtë lëndë dhe çfarë do të thotë për anën tuaj.)
-       - '### ⚖️ ANALIZA PROFESIONALE E AVOKATIT'
-         (Përmbledhja teknike, strategjike dhe procedurale për avokatët.)
-         
-    2. Seksioni 'action_plan' (Plani i Veprimit) DUHET të ketë udhëzime konkrete për rolin tuaj.
-    
-    3. INJEKTIMI I PROMPT-IT TË HARTIMIT (DRAFTING PROMPT):
-       Në pikën ku udhëzohet përgatitja e shkresës, shkruani një PROMPT konkret dhe të gatshëm që përdoruesi mund ta kopjojë dhe ta ngjisë direkt në faqen e 'Hartimit'.
-       *Shembull*: "Hapi 2: Shkoni te faqja e 'Hartimit' dhe ngjisni këtë prompt: `Gjenero një Prapësim në lëndën...`"
-    
-    MANDATI SHTESË LIGJOR:
-    - MOS përdor asnjë ligj që nuk shfaqet në kontekstin e dhënë në "BAZA LIGJORE STATUTORE".
-    - Për çdo nen të cituar, shpjego 'RELEVANCËN' për këtë rast specifik.
-    
-    STRUKTURA E PËRGJIGJES (JSON):
-    {
-      "executive_summary": "### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)\\n[Shpjegimi i thjeshtë]\\n\\n### ⚖️ ANALIZA PROFESIONALE E AVOKATIT\\n[Analiza teknike]",
-      "legal_audit": {
-          "burden_of_proof": "Kush e mban barrën e provës dhe pse?",
-          "legal_basis": [
-            {
-              "title": "[Emri i Ligjit, Neni XX](doc://ligji)",
-              "article": "Teksti i nenit",
-              "relevance": "Pse ky nen është vendimtar për këtë rast?"
-            }
-          ]
-      },
-      "strategic_recommendation": {
-          "recommendation_text": "Analiza strategjike e përshtatur për anën tuaj",
-          "strengths": ["Lista e pikave tona të forta"],
-          "weaknesses": ["Pikat e dobëta të kundërshtarit dhe rreziqet tona"],
-          "key_arguments": ["Argumentet kryesore specifike për parashtresën tonë"],
-          "action_plan": [
-             "HAPAT PËR JU (Si Qytetar): [Udhëzimi i thjeshtë praktik i veprimit]",
-             "HAPAT PËR JU (Si Qytetar) - HARTIMI: Përdorni këtë prompt të gatshëm: `[Teksti i prompt-it]`",
-             "HAPAT PËR AVOKATIN TUAJ: [Udhëzimi teknik ligjor]"
-          ],
-          "success_probability": "XX%",
-          "risk_level": "LOW/MEDIUM/HIGH"
-      },
-      "missing_evidence": ["Çfarë provash ose dokumentesh duhen siguruar?"]
-    }
+    Përgjigju VETËM në formatin e strukturuar JSON ashtu siç kërkohet.
     """
-    
-    system_prompt = system_prompt.replace("__ACTIVE_USER_IDENTITY__", active_user_identity)
-    system_prompt = system_prompt.replace("__PARTY_POSITION_INSTRUCTION__", position_instruction)
     
     try:
         raw_res = await asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt)
@@ -214,7 +178,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         return {"summary": "Dështoi gjenerimi i analizës strategjike."}
 
 async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """PHOENIX: Parallel execution with role-adapted War Room simulation."""
+    """PHOENIX: Parallel execution with role-adapted War Room simulation and full fashikull ingestion."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -227,8 +191,7 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_pos
         
         full_context, facts_only = await asyncio.gather(full_context_task, facts_only_task)
 
-        # Append explicit party mandate context to simulation prompt
-        context_with_role = f"POZICIONI I KLIENTIT TONË: {effective_position}\n\n{full_context}"
+        context_with_role = f"{llm_service.UNBREAKABLE_IDENTITY_HEADER}\n\nPOZICIONI I KLIENTIT TONË: {effective_position}\n\n{full_context}"
 
         tasks = [
             llm_service.generate_adversarial_simulation(context_with_role),
@@ -252,12 +215,13 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     """Synthesizes all analysis data and persists it as a PDF in the Archive."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
-    case = await asyncio.to_thread(db.cases.find_one, {"_id": ObjectId(case_id)})
+    c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+    case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid})
     
     if not case:
         return {"error": "Rasti nuk u gjet."}
         
-    case_name = case.get("case_name", "Pa Titull")
+    case_name = case.get("title") or case.get("case_name") or "Pa Titull"
     position = (case.get("client_position") or "DEFENDANT").upper()
     role_label = "I PADITUR / MBROJTJE" if position == "DEFENDANT" else "PADITËS / SULM"
 
