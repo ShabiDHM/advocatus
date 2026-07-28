@@ -1,5 +1,5 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V31.5 (PYMONGO BOOLEAN FIX & ROLE-CENTRALIZED ADVOCATE MANDATE)
+# PHOENIX PROTOCOL - DRAFTING SERVICE V32.0 (ISOLATED DOKUMENT BOUNDARIES & HIGH-PRECISION OCR INGESTION)
 
 import os
 import re
@@ -68,11 +68,9 @@ def detect_legal_domain(text: str) -> Dict[str, str]:
 
 def sanitize_unresolved_placeholders(bracket_text: str) -> str:
     pattern = r"\[([^\]]{1,100})\]"
-    
     def replacement(match):
         placeholder_content = match.group(1).strip()
         return f"________________________ ({placeholder_content})"
-        
     return re.sub(pattern, replacement, bracket_text)
 
 async def stream_with_placeholder_cleaning(
@@ -114,18 +112,21 @@ async def stream_draft_generator(
     
     logger.info("Drafting initiated", user=user_id, type=draft_type)
     
-    # Read case client position to enforce central advocate mandate
     client_position = "DEFENDANT"
+    db_documents = []
     
-    # PHOENIX FIX: Strict `is not None` check for PyMongo compatibility
     if case_id and db is not None:
         try:
             c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case_doc = db.cases.find_one({"_id": c_oid})
             if case_doc and case_doc.get("client_position"):
                 client_position = str(case_doc["client_position"]).upper()
+
+            # Direct Mongo Documents Fetch
+            doc_cursor = db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}})
+            db_documents = list(doc_cursor)
         except Exception as ex:
-            logger.warning(f"Could not read case position for drafting: {ex}")
+            logger.warning(f"Could not read case or documents for drafting: {ex}")
 
     if client_position == "PLAINTIFF":
         role_mandate = """
@@ -136,8 +137,7 @@ async def stream_draft_generator(
     elif client_position == "NEUTRAL":
         role_mandate = """
         MANDATI ZYRTAR I HARTIMIT: OBJEKTIV / NEUTRAL
-        - Harto këtë shkresë me ton të paanshëm, objektiv dhe neutral (p.sh. si Aktvendim ose Memorandum Analitik).
-        - Vlerëso pretendimet e të dyja palëve me paanshmëri zyrtare.
+        - Harto këtë shkresë me ton të paanshëm, objektiv dhe neutral.
         """
     else:
         role_mandate = """
@@ -149,7 +149,6 @@ async def stream_draft_generator(
     domain_context = detect_legal_domain(user_prompt)
     detected_law = domain_context["law"]
     context_note = domain_context["context_note"]
-    logger.info(f"Domain Detected: {detected_law}")
 
     search_query = f"{user_prompt} {detected_law} neni dispozita"
 
@@ -176,35 +175,45 @@ async def stream_draft_generator(
         case_facts_list = []
         legal_articles_list = []
 
-    facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
-    
+    # Build Strict Document Boundary Block for Case Exhibits
+    exhibits_block = ""
+    if db_documents:
+        for idx, doc in enumerate(db_documents, 1):
+            file_name = doc.get("file_name") or doc.get("title") or "Dokument"
+            raw_t = doc.get("extracted_text") or ""
+            summ = doc.get("summary") or ""
+            if summ == "Sinteza...": summ = ""
+
+            text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI EKSKLUSIV:\n{raw_t[:3500]}" if raw_t else summ
+            exhibits_block += f"\n==================== DOKUMENTI INDIVIDUAL #{idx} ====================\n"
+            exhibits_block += f"EMRI I SKEDARIT: {file_name}\n"
+            exhibits_block += f"PËRMBAJTJA TEKSTUALE:\n{text_content}\n"
+            exhibits_block += f"=======================================================================\n"
+
+    vector_facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else ""
+    full_facts_context = f"{exhibits_block}\n\n[PARAGRAFET TË TJERA NGA KËRKIMI SEMANTIK]\n{vector_facts_block}"
+
     if legal_articles_list:
         laws_lines = []
         for l in legal_articles_list:
             law_title = l.get('law_title', 'Ligji i panjohur')
             article_num = l.get('article_number')
             text = l.get('text', '')
-            if article_num:
-                line = f"- {law_title}, Neni {article_num}:\n  {text}"
-            else:
-                line = f"- {law_title}:\n  {text}"
-            laws_lines.append(line)
+            laws_lines.append(f"- {law_title}, Neni {article_num}:\n  {text}" if article_num else f"- {law_title}:\n  {text}")
         laws_block = "\n".join(laws_lines)
     else:
         laws_block = "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === ULTRA-STRICT ROLE-AWARE SYSTEM PROMPT ===
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
 {role_mandate}
 
-UDHËZIME TË RREPTA JURIDIKE PËR GJERNERIMIN:
-1. Përdor dhe plotëso saktësisht strukturën e shabllonit të zgjedhur të paraqitur në [STRUKTURA SPECIFIKE E DOKUMENTIT TË ZGJEDHUR].
-2. CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]. Mos shpik ose supozo ligje të tjera.
-3. Për çdo ligj të cituar, kopjo fjalë për fjalë titullin e plotë zyrtar duke përfshirë numrin (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").
-4. Mos përziej ligje nga fusha të ndryshme.
-5. Nëse klienti nuk ofron të dhëna specifike në tekst për ndonjë fushë, përdor kllapa katrore me emërtime të qarta sipas udhëzimit të frontendit (p.sh. [DATA_E_KONTRES], [EMRI_I_BLERËSIT]).
+UDHËZIME TË RREPTA JURIDIKE DHE AKURATESE TË PALËVE:
+1. Përdor dhe plotëso saktësisht strukturën e shabllonit të zgjedhur.
+2. RREGULLI KRITIK I KONTRATAVE: Cito me saktësi absolute palët nënshkruese të dhëna në [FAKTET DHE DOKUMENTET E RASTIT] (p.sh. INTEGRATION GmbH, Dr. Rainer Gerke, GIZ Kosovo, €51,500 EUR, TEB Bank).
+3. Mos përziej procesverbalet e seancave gjyqësore me preambulën e kontratave origjinale!
+4. CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]. Përdor titujt e plotë zyrtarë me numra ligjesh (p.sh. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve).
 
 Ofroni draftin direkt në format markdown të strukturuar sipas shabllonit, pa asnjë hyrje ose koment shtesë.
 
@@ -212,11 +221,11 @@ Ofroni draftin direkt në format markdown të strukturuar sipas shabllonit, pa a
 Ligji primar i identifikuar: {detected_law}
 Udhëzim: {context_note}
 
-[MATERIALI LIGJOR NDIHMËS (NGA BAZA JONË E LIGJEVE)]
+[MATERIALI LIGJOR NDIHMËS]
 {laws_block}
 
-[FAKTET NGA DOSJA E RASTIT (NËSE KA)]
-{facts_block}
+[FAKTET DHE DOKUMENTET E RASTIT (ME BOUNDARIES TË TË IZOLUARA)]
+{full_facts_context}
 """
 
     raw_stream = llm_service.stream_text_async(system_prompt, user_prompt, temp=llm_service.TEMP_DRAFTING)
