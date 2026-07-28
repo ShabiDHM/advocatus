@@ -1,5 +1,5 @@
-// FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V28.0 (CLEAN HEADER - AUTOMATED DOMAIN DETECTION)
+// FILE: src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V29.0 (LIVE SRC PATH - ZERO DROPDOWN - CLEAN AGENT)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -252,7 +252,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
       
-      {/* HEADER */}
+      {/* CLEAN HEADER - ZERO DROPDOWN */}
       <div className="flex flex-row items-center justify-between px-4 sm:px-5 py-3 border-b border-main bg-surface z-50 shrink-0 h-12">
         
         {/* Left group */}
