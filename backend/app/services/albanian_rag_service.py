@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V35.0 (RAW EXTRACTED TEXT & SIGNATORY ACCURACY)
+# PHOENIX PROTOCOL - RAG SERVICE V36.0 (STRICT DOCUMENT BOUNDARY ISOLATION & ANTI-CONFUSION LOCK)
 
 import os
 import sys
@@ -94,9 +94,9 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> str:
-        context = "\n<<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE SQ/EN/DE) >>>\n"
+        context = "\n<<< FASHIKULLI I PROVEVE MATERIALE (DOKUMENTE TË IZOLUARA) >>>\n"
         
-        # 1. Direct Extracted Document Text + Summaries from MongoDB
+        # 1. Direct Extracted Document Text with Strict Boundary Tagging
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
                 file_name = doc.get("file_name") or doc.get("title") or "Dokument"
@@ -107,23 +107,26 @@ class AlbanianRAGService:
                     summ = ""
 
                 if raw_t and summ:
-                    text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI DIREKT I DOKUMENTIT (PREAMBULA & PARAGRAFET E PARË):\n{raw_t[:3500]}"
+                    text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI EKSKLUSIV I KËTIJ SKEDARI:\n{raw_t[:3500]}"
                 elif raw_t:
-                    text_content = f"TEKSTI DIREKT I DOKUMENTIT:\n{raw_t[:4000]}"
+                    text_content = f"TEKSTI EKSKLUSIV I KËTIJ SKEDARI:\n{raw_t[:4000]}"
                 elif summ:
                     text_content = f"PËRMBLEDHJE: {summ}"
                 else:
-                    text_content = "Dokument i verifikuar në fashikull."
+                    text_content = "Dokument i verifikuar në fashikull (Teksti në procesim)."
 
-                context += f"DOKUMENTI {idx}: {file_name}\n{text_content}\n\n"
+                context += f"\n==================== DOKUMENTI INDIVIDUAL #{idx} ====================\n"
+                context += f"EMRI I SKEDARIT: {file_name}\n"
+                context += f"PËRMBAJTJA TIEKSTUALE TË KËTIJ SKEDARI:\n{text_content}\n"
+                context += f"=======================================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
 
         # 2. Vector Semantic Chunks
-        context += "\n<<< PARAGRAFET E RELEVANTE NGA KËRKIMI SEMANTIK >>>\n"
+        context += "\n<<< PARAGRAFET SELEKTIVE NGA KËRKIMI SEMANTIK >>>\n"
         for idx, d in enumerate(case_docs):
             text_content = self._get_expanded_text(d)
-            context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n\n"
+            context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
 
         # 3. Global Statutory Law Base
         context += "\n<<< BAZA LIGJORE STATUTORE (LPK, LMD, LSHT) >>>\n"
@@ -131,7 +134,7 @@ class AlbanianRAGService:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
             text_content = self._get_expanded_text(d)
-            context += f"LIGJI: {law_title}, Neni {article_num}\nPËRMBAJTJA: {text_content}\n\n"
+            context += f"LIGJI: {law_title}, Neni {article_num}\nPËRMBAJTJA: {text_content}\n"
         return context
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
@@ -179,7 +182,6 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
         sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
-        # Vector search with explicit case_context_id filter
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=6
         )
@@ -195,20 +197,20 @@ class AlbanianRAGService:
 
         Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor".
 
-        **UDHËZIME T TË DETYRUESHME TË PRECIZIONIT:**
-        1. Analizo të gjitha dokumentet në <<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS >>> (përfshirë kontratat në anglisht/gjermanisht, raportet e ATK-së, pasqyrat e bankës dhe vendimet e gjykatës).
-        2. RREGULL KRITIK SHENJUES TË PALËVE TË KONTRATËS: Kur përgjigjesh për ndonjë kontratë (p.sh. Contract - Rainer Gerke), cito saktësisht emrat e palëve që figurojnë në PREAMBULËN e tekstit origjinal të dokumentit. Mos thuaj se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse tekstualisht kontrata është lidhur mes një kompanie/subjekti tjetër dhe {opposing_name}.
-        3. Përgjigju në fushën e pretendimeve duke mbrojtur të drejtat e {client_name}.
+        **RREGULLAT KRITIKE TË MOS-PËRZIJES SË DOKUMENTEVE (STRICT ISOLATION MANDATE):**
+        1. Çdo dokument në fashikull është me vete. MOS PËRZI faktet, sekretarët, avokatët apo procesverbalet e seancave (p.sh. "Seanca e par Get_com.pdf") me përmbajtjen e një kontrate origjinale (p.sh. "Contract - Rainer Gerke.pdf")!
+        2. Kur pyetesh për KONTRATËN ("Contract - Rainer Gerke.pdf"), lexo VETËM tekstin brenda bllokut që përket me atë skedar.
+        3. Identifiko me saktësi absolute palët nënshkruese që citohen EKSPLIÇITISHT në vetë atë kontratë (Party A vs Party B). Mos përmend përfaqësueset ligjore ose procesverbalet e gjykatës sikur janë nënshkrues të kontratës!
         
         {PROTOKOLLI_MANDATOR}
 
-        **KONTEKSTI I LËNDËS:**
+        **KONTEKSTI I LËNDËS ME SKEDARË TË IZOLUAR:**
         {context_str}
 
         **PYETJA E DREJTPËRDREJTË E PËRDORUESIT:** "{sanitized_query}"
 
         **STRUKTURA E OBLIGUESHME E PËRGJIGJES:**
-        ### 1. ANALIZA E FAKTEVE
+        ### 1. ANALIZA E FAKTEVE (Nga skedari përkatës)
 
         ### 2. BAZA LIGJORE DHE RELEVANCA
 
@@ -224,7 +226,7 @@ class AlbanianRAGService:
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": sanitized_query}
                 ],
-                temperature=0.2,
+                temperature=0.1,  # Lower temperature for maximum literal accuracy
                 stream=True
             )
             async for chunk in response:
