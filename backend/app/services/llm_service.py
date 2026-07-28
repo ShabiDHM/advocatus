@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V90.0 (DYNAMIC CASE IDENTITY LOCK & CLEAN PIPELINE)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V91.0 (DYNAMIC IDENTITY HEADER & FALLBACK ALIAS FIX)
 
 import os
 import json
@@ -63,6 +63,9 @@ KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
 
 STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante.
 """
+
+# Fallback string constant to prevent AttributeError in external modules
+UNBREAKABLE_IDENTITY_HEADER = build_dynamic_identity_header()
 
 def _sanitize_and_disambiguate_prompt(user_text: str, opposing_name: str = "Pala Kundërshtare") -> str:
     """

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V26.0 (CONSOLIDATED FASHIKULL INGESTION & STAGE-REASONING ENGINE)
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V27.0 (DYNAMIC DYNAMIC IDENTITY HEADER INVOCATION FIX)
 
 import asyncio
 import structlog
@@ -131,9 +131,10 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     opposing_name = case.get("opposing_party") or "Getting Competent ShPK / Raimier Gerger"
 
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
+    identity_header = llm_service.build_dynamic_identity_header(client_name=client_name, opposing_name=opposing_name, position=effective_position)
 
     system_prompt = f"""
-    {llm_service.UNBREAKABLE_IDENTITY_HEADER}
+    {identity_header}
     
     DETYRA: Analizë e thellë strategjike dhe gjyqësore e lëndës.
     
@@ -184,14 +185,17 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_pos
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid}) or {}
     effective_position = (client_position or case.get("client_position") or "DEFENDANT").upper()
+    client_name = case.get("client_name") or case.get("client", {}).get("name") or "Shaban Bala"
+    opposing_name = case.get("opposing_party") or "Getting Competent ShPK / Raimier Gerger"
 
     try:
         full_context_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
         facts_only_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=False)
         
         full_context, facts_only = await asyncio.gather(full_context_task, facts_only_task)
+        identity_header = llm_service.build_dynamic_identity_header(client_name=client_name, opposing_name=opposing_name, position=effective_position)
 
-        context_with_role = f"{llm_service.UNBREAKABLE_IDENTITY_HEADER}\n\nPOZICIONI I KLIENTIT TONË: {effective_position}\n\n{full_context}"
+        context_with_role = f"{identity_header}\n\nPOZICIONI I KLIENTIT TONË: {effective_position}\n\n{full_context}"
 
         tasks = [
             llm_service.generate_adversarial_simulation(context_with_role),
