@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/DraftResultRenderer.tsx
-// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V5.0 (UNIVERSAL BLUE LAW CITATION MATCHING)
+// PHOENIX PROTOCOL - DRAFT RESULT RENDERER V6.0 (SUFFIX-AWARE BLUE CITATION MATCHING)
 
 import React from 'react';
 import { TFunction } from 'i18next';
@@ -30,11 +30,9 @@ const highlightPlaceholders = (text: string) => {
 const processContent = (text: string) => {
   if (!text) return text;
 
-  // UNIVERSAL CITATION REGEX:
-  // Pattern 1: (Ligji|Kodi) Nr. XXX/L-YYY... (with optional Neni ZZZ)
-  // Pattern 2: (LPK|LMD|KPK|KPC) Neni ZZZ
-  // Pattern 3: Neni ZZZ (i/e/të...)
-  const universalCitationRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;]*?)(?:,?\s*(?:Neni|neni|NENI|nenit|Nenit)\s+(\d+))?)|(?:(LPK|LMD|KPK|KPPK|KPPRK|LPA|KPC)\s+(?:Neni|neni|NENI|nenit|Nenit)\s+(\d+))|(?:(?:Neni|neni|NENI|nenit|Nenit)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)[^\n,.:;]*|LPK|LMD|LIDK|Kodi Penal|Kodi Civil)?)/gi;
+  // SUFFIX-AWARE UNIVERSAL REGEX MATCHING:
+  // Handles: "Ligji Nr. 03/L-006", "Nenit 160 të LPK-së", "Neni 258", "LMD-së"
+  const universalCitationRegex = /(?:((?:Ligji|Ligjit|Kodi|Kodin)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;]*?)(?:,?\s*(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))?)|(?:(LPK|LMD|KPK|KPPK|KPPRK|LPA|KPC)(?:-së|-it|-at)?\s+(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+))|(?:(?:Neni|Nenit|Nenin|neni|nenit|nenin)\s+(\d+)\s*(?:i|e|të)?\s*((?:Ligjit|Ligji|Kodi|Kodin)[^\n,.:;]*|LPK(?:-së)?|LMD(?:-së)?|LIDK(?:-së)?|Kodi Penal|Kodi Civil)?)/gi;
 
   const segments: Array<{ 
     type: 'text' | 'citation'; 
@@ -56,17 +54,18 @@ const processContent = (text: string) => {
     let articleNum = "1";
 
     if (match[1]) {
-      // Pattern 1: Full Law Title with optional Neni
+      // Pattern 1: Full Law Title
       lawTitle = match[1].trim();
       if (match[2]) articleNum = match[2].trim();
     } else if (match[3] && match[4]) {
-      // Pattern 2: LPK Neni 160
+      // Pattern 2: LPK-së Neni 160
       lawTitle = match[3].trim();
       articleNum = match[4].trim();
     } else if (match[5]) {
-      // Pattern 3: Neni 258 i/e/të LMD-së
+      // Pattern 3: Nenit 258 të LMD-së
       articleNum = match[5].trim();
-      lawTitle = match[6] ? match[6].trim() : `Neni ${articleNum}`;
+      const rawTitle = match[6] ? match[6].trim().replace(/-së$/i, '') : `Neni ${articleNum}`;
+      lawTitle = rawTitle;
     }
 
     if (lawTitle) {

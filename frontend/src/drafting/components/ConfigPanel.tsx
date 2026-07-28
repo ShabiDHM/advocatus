@@ -1,5 +1,5 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V12.0 (CLEAN MINIMALIST UI - AUTOMATED LEGAL ENGINE)
+// PHOENIX PROTOCOL - CONFIG PANEL V13.0 (EXPLICIT LAW NUMBER MANDATE IN AI ENHANCER)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Landmark, Euro, Calendar, FileText } from 'lucide-react';
@@ -85,7 +85,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
     return map[value] || value;
   };
 
-  // 1-CLICK PROMPT ENHANCER
+  // 1-CLICK PROMPT ENHANCER (MANDATES EXPLICIT LAW NUMBERS)
   const handleEnhanceWithAI = () => {
     if (!context.trim()) return;
     
@@ -99,7 +99,11 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
 
 1. SHKRESA E KËRKUAR: Harto shkresën zyrtare ${getOptionLabel(selectedTemplate).toUpperCase()} për Gjykata Themelore në Prishtinë - Departamenti për Çështje Ekonomike.
 2. SUBSTANCA DHE PROVAT: ${context.trim()}
-3. DIREKTIVA BAZË: Baza juridike duhet të mbështetet rigorozisht në nenet përkatëse të LPK-së dhe LMD-së. Të specifikohet kërkesëpadia (Petitumi) me shumat financiare me kamatë ligjore. MOS PËRDOR BLANK PLACEHOLDERS.`;
+3. BAZA E DETYRUESHME LIGJORE (CITO SAKTE ME NUMRA LIGJESH):
+   - Ligji Nr. 03/L-006 për Procedurën Kontestimore (LPK), Neni 160 dhe Neni 46.
+   - Ligji Nr. 06/L-016 për Shoqëritë Tregtare, Neni 258 dhe Neni 259.
+   - Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD), Neni 180 dhe Neni 210.
+4. DIREKTIVA BAZË: Të specifikohet kërkesëpadia (Petitumi) me shumat financiare (€52,000) me kamatë ligjore vonesore. MOS PËRDOR BLANK PLACEHOLDERS.`;
 
     onChangeContext(enhanced);
   };
