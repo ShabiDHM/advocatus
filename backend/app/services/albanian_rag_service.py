@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V33.1 (SOLVED MONGO TRUTHY EXCEPTION)
+# PHOENIX PROTOCOL - RAG SERVICE V34.0 (CONSOLIDATED FASHIKULL INGESTION & IDENTITY LOCK FIX)
 
 import os
 import sys
@@ -23,8 +23,7 @@ AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për 
 
 PROTOKOLLI_MANDATOR = """
 **URDHËRA TË RREPTË FORMATIMI (NDIQINI ME PRECIZION):**
-1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR** (p.sh., "Nr. 04/L-077").  
-   **Shembull i saktë:** `Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 5`  
+1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR** (p.sh., "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 180").
 2. Për çdo ligj të cituar, DUHET të shtoni rreshtin: **RELEVANCA:** [Pse ky nen është thelbësor për këtë rast].
 3. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
 """
@@ -57,6 +56,7 @@ class AlbanianRAGService:
         cleaned = query.strip()
         preambles = [
             r"^\s*më\s+trego\s+rreth\s+",
+            r"^\s*më\s+trego\s+për\s+",
             r"^\s*a\s+mund\s+të\s+më\s+ndihmosh\s+me\s+",
             r"^\s*ju\s+lutem\s+më\s+gjej\s+",
             r"^\s*kërko\s+për\s+",
@@ -93,13 +93,26 @@ class AlbanianRAGService:
             ""
         ).strip()
 
-    def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
-        context = "\n<<< MATERIALET E DOSJES >>>\n"
+    def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> str:
+        context = "\n<<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE) >>>\n"
+        
+        # 1. Direct Document Summaries from MongoDB
+        if db_documents:
+            for idx, doc in enumerate(db_documents, 1):
+                file_name = doc.get("file_name") or doc.get("title") or "Dokument"
+                text_content = (doc.get("summary") or doc.get("extracted_text") or "")[:2500]
+                context += f"DOKUMENTI {idx}: {file_name}\nPËRMBAJTJA / DËSHMIA: {text_content}\n\n"
+        else:
+            context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
+
+        # 2. Vector Semantic Chunks
+        context += "\n<<< PARAGRAFET E RELEVANTE NGA KËRKIMI SEMANTIK >>>\n"
         for idx, d in enumerate(case_docs):
             text_content = self._get_expanded_text(d)
             context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n\n"
 
-        context += "\n<<< BAZA LIGJORE STATUTORE >>>\n"
+        # 3. Global Statutory Law Base
+        context += "\n<<< BAZA LIGJORE STATUTORE (LPK, LMD, LSHT) >>>\n"
         for d in global_docs:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
@@ -117,81 +130,77 @@ class AlbanianRAGService:
             yield AI_DISCLAIMER
             return
 
-        from app.services import vector_store_service
+        from app.services import vector_store_service, llm_service
 
         logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
 
         client_position = "DEFENDANT"
+        client_name = "Shaban Bala"
+        opposing_name = "Getting Competent ShPK / Raimier Gerger"
+        db_documents = []
+
         if case_id and self.db is not None:
             try:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
                 case_doc = self.db.cases.find_one({"_id": c_oid})
-                if case_doc and case_doc.get("client_position"):
-                    client_position = str(case_doc["client_position"]).upper()
-            except Exception as ex:
-                logger.warning(f"Could not read case position: {ex}")
+                if case_doc:
+                    if case_doc.get("client_position"):
+                        client_position = str(case_doc["client_position"]).upper()
+                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
+                    opposing_name = case_doc.get("opposing_party") or opposing_name
 
-        # Dynamic Tri-Party Role Instructions
-        if client_position == "PLAINTIFF":
-            role_instruction = """
-            **MANDATI LIGJOR: SULM / PADITËS**
-            - Ti je Avokati i Paditësit / të Dëmtuarit.
-            - Analiza jote DUHET të përqendrohet 100% në vërtetimin e përgjegjësisë së palës tjetër, sigurimin e provave për dëmin e shkaktuar, dhe forcat e kërkesëpadisë.
-            - Rrëzo çdo prapësim apo pretendim mbrojtës të të paditurit.
-            """
-        elif client_position == "NEUTRAL":
-            role_instruction = """
-            **MANDATI LIGJOR: NEUTRAL / OBJEKTIV**
-            - Ti je një Analist dhe Auditor Ligjor plotësisht Objektiv dhe Neutral.
-            - Analizo rastin me paanshmëri zyrtare: pesho argumentet e të dyja palëve, vlerëso barrën e provës (barra e provës), dhe trego me objektivitet se cila palë ka bazën më të fortë ligjore sipas kornizës statutore të Kosovës.
-            """
-        else:
-            role_instruction = """
-            **MANDATI LIGJOR: MBROJTJE / I PADITUR**
-            - Ti je Mbrojtësi Ligjor i të Paditurit / të Akuzuarit.
-            - Analiza jote DUHET të përqendrohet 100% në rrëzimin e padisë, shfrytëzimin e gabimeve procedurale të paditësit (si parashkrimi i afateve, mungesa e prokurës, apo mungesa e provave), dhe mbrojtjen strategjike.
-            - Rrëzo pretendimet e paditësit med prapësime ose kundërpadi.
-            """
+                # FETCH ALL UPLOADED CASE DOCUMENTS DIRECTLY FROM MONGO
+                doc_cursor = self.db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}})
+                db_documents = list(doc_cursor)
+            except Exception as ex:
+                logger.warning(f"Could not read case details or documents from Mongo: {ex}")
+
+        # Dynamic Identity Header
+        identity_header = llm_service.build_dynamic_identity_header(
+            client_name=client_name, 
+            opposing_name=opposing_name, 
+            position=client_position
+        )
 
         optimized_query = self._optimize_query(query)
+        sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
+        # Vector search with explicit case_context_id filter
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=optimized_query, n_results=4
+            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=6
         )
 
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=optimized_query, n_results=3
+            query_text=sanitized_query, n_results=4
         )
 
-        context_str = self._build_context(case_docs, global_docs)
+        context_str = self._build_context(case_docs, global_docs, db_documents)
 
         prompt = f"""
-        Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor". 
+        {identity_header}
 
-        {role_instruction}
+        Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor".
 
-        **RREGULLI I REFUZIMIT (I DETYRUESHËM):**
-        Nëse përgjigjja nuk mund të nxirret nga [KONTEKSTI], je i ndaluar rreptësisht të përgjigjesh.
-        Përgjigju VETËM me: "Më vjen keq, pot ky informacion nuk gjendet në dokumentet e ngarkuara."
-
-        **PRIORITETI I BURIMEVE:**
-        Në rast konflikti midis <<< MATERIALET E DOSJES >>> dhe <<< BAZA LIGJORE STATUTORE >>>, **materialet e dosjes kanë përparësi absolute**.
-
+        **UDHËZIME TË DETYRUESHME:**
+        1. Analizo të gjitha dokumentet në <<< FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS >>> (përfshirë kontratat në anglisht/gjermanisht, raportet e ATK-së, pasqyrat e bankës dhe vendimet e gjykatës).
+        2. Nëse në fashikull ekziston një kontratë (p.sh. Contract - Rainer Gerke), trego qartë datën, palët dhe kushtet e saj.
+        3. Përgjigju në fushën e pretendimeve duke mbrojtur të drejtat e {client_name}.
+        
         {PROTOKOLLI_MANDATOR}
 
-        **KONTEKSTI:**
+        **KONTEKSTI I LËNDËS:**
         {context_str}
 
-        **PYETJA AKTUALE:** "{query}"
+        **PYETJA E DREJTPËRDREJTË E PËRDORUESIT:** "{sanitized_query}"
 
-        **STRUKTURA (OBLIGATIVE):**
+        **STRUKTURA E OBLIGUESHME E PËRGJIGJES:**
         ### 1. ANALIZA E FAKTEVE
 
         ### 2. BAZA LIGJORE DHE RELEVANCA
 
         ### 3. KONKLUZIONI STRATEGJIK
 
-        Fillo hartimin tani:
+        Fillo përgjigjen tani:
         """
 
         try:
@@ -199,7 +208,7 @@ class AlbanianRAGService:
                 model=OPENROUTER_MODEL,
                 messages=[
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": query}
+                    {"role": "user", "content": sanitized_query}
                 ],
                 temperature=0.2,
                 stream=True
