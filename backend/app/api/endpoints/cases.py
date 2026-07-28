@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V36.0 (TRILINGUAL FASHIKULL & STAGE-REASONING INTEGRATION)
+# PHOENIX PROTOCOL - CASES ROUTER V37.0 (BULK DELETE SUPPORT & TRILINGUAL FASHIKULL INTEGRATION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -63,6 +63,10 @@ def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)
 class DeletedDocumentResponse(BaseModel):
     documentId: str
     deletedFindingIds: List[str]
+
+class BulkDeleteDocumentsRequest(BaseModel):
+    document_ids: Optional[List[str]] = None
+    documentIds: Optional[List[str]] = None
 
 class RenameDocumentRequest(BaseModel):
     new_name: str
@@ -316,6 +320,52 @@ async def upload_document_for_case(
     )
 
     return DocumentOut.model_validate(doc)
+
+# --- BULK DELETE ENDPOINT (POST & DELETE METHODS) ---
+
+@router.post("/{case_id}/documents/bulk-delete")
+@router.delete("/{case_id}/documents/bulk-delete")
+async def bulk_delete_documents_endpoint(
+    case_id: str,
+    body: Optional[BulkDeleteDocumentsRequest] = Body(None),
+    current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_sync_redis)
+):
+    case_oid = validate_object_id(case_id)
+    user_oid = ObjectId(current_user.id)
+    
+    doc_ids = []
+    if body:
+        doc_ids = body.document_ids or body.documentIds or []
+    
+    if not doc_ids:
+        docs = list(db.documents.find({"case_id": case_oid, "owner_id": user_oid, "status": {"$ne": "DELETED"}}))
+        doc_ids = [str(d["_id"]) for d in docs]
+
+    if not doc_ids:
+        return {"status": "success", "deleted_count": 0, "deleted_finding_ids": []}
+
+    result = await asyncio.to_thread(
+        document_service.bulk_delete_documents,
+        db=db,
+        redis_client=redis_client,
+        document_ids=doc_ids,
+        owner=current_user
+    )
+    
+    for doc_id_str in doc_ids:
+        try:
+            await asyncio.to_thread(graph_service.delete_node, doc_id_str)
+        except Exception as e:
+            logger.warning(f"Failed to remove graph node for {doc_id_str}: {e}")
+
+    return {
+        "status": "success",
+        "deleted_count": result.get("deleted_count", len(doc_ids)),
+        "deleted_finding_ids": result.get("deleted_finding_ids", []),
+        "deleted_document_ids": doc_ids
+    }
 
 @router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse)
 async def delete_document(
