@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V26.0 (AUTOMATIC FAIL-SAFE DIRECT MONGO FALLBACK)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V27.0 (TRILINGUAL MONGO FALLBACK)
 
 import os, time, logging, json
 from typing import List, Dict, Any, Sequence
@@ -8,7 +8,6 @@ from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
-# --- UTILITIES ---
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     return {k: (v if isinstance(v, (str, int, float, bool)) else json.dumps(v, ensure_ascii=False)) for k, v in metadata.items()}
 
@@ -34,7 +33,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) 
         except Exception as e:
             logger.warning(f"SaaS Global Vector Query Failed, running keyword fallback: {e}")
 
-    # Fallback to direct text search if vector search returns empty
     if not results:
         try:
             results = list(coll.find({"$text": {"$search": query_text}}).limit(n_results))
@@ -47,7 +45,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
     """
     UNBREAKABLE DUAL-RETRIEVAL ENGINE:
     1. Executes Atlas $vectorSearch with case_id + owner_id filter.
-    2. Fallback: Directly queries db.user_vectors & db.documents if $vectorSearch yields 0 chunks.
+    2. Fallback: Directly queries db.user_vectors & db.documents for full extracted text.
     """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
@@ -65,7 +63,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
             {"case_id": ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str}
         ]
 
-    # Step 1: Try Vector Search if vector embedding succeeded
+    # Step 1: Vector Search if vector embedding succeeded
     if vector:
         try:
             pipeline = [{
@@ -86,13 +84,12 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
     if not results:
         logger.info(f"⚡ [VectorStore] Vector search returned 0 results. Executing Direct Mongo Ingestion Fallback for case {case_context_id}")
         
-        # A. Query chunks from user_vectors directly
         try:
             results = list(coll.find(case_filter).limit(n_results))
         except Exception as e:
             logger.error(f"Direct user_vectors fetch failed: {e}")
 
-        # B. Direct Document Text Ingestion if user_vectors is empty
+        # Direct Document Text Ingestion if user_vectors is empty
         if not results and case_context_id:
             try:
                 c_oid = ObjectId(case_context_id) if ObjectId.is_valid(case_context_id) else case_context_id
@@ -102,10 +99,10 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
                 fallback_chunks = []
                 for doc in docs:
                     text_content = doc.get("extracted_text") or doc.get("summary") or ""
-                    if text_content:
+                    if text_content and text_content != "Sinteza...":
                         file_name = doc.get("file_name") or doc.get("title") or "Dokument i Lëndës"
                         fallback_chunks.append({
-                            "text": text_content[:2500],
+                            "text": text_content[:3000],
                             "source": file_name,
                             "page": 1
                         })

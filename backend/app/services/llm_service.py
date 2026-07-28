@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V91.0 (DYNAMIC IDENTITY HEADER & FALLBACK ALIAS FIX)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V92.0 (TRILINGUAL SQ/EN/DE RAG & REAL SUMMARY ENGINE)
 
 import os
 import json
@@ -9,7 +9,6 @@ import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from dotenv import load_dotenv
 
-# Force load .env from backend or root before initializing clients
 load_dotenv()
 
 from openai import OpenAI, AsyncOpenAI
@@ -26,14 +25,12 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
 
-# --- DUAL-MODEL DEPLOYMENT DEFINITIONS ---
-FAST_MODEL = "deepseek/deepseek-chat"       # DeepSeek-V3 (Super fast, cheap, standard)
-DEEP_MODEL = "deepseek/deepseek-r1"         # DeepSeek-R1 (Reasoning, logic, deep audit - OpenRouter ID)
+FAST_MODEL = "deepseek/deepseek-chat"
+DEEP_MODEL = "deepseek/deepseek-r1"
 
-# --- TEMPERATURE CONSTANTS FOR SAAS PRECISION ---
-TEMP_DRAFTING = 0.1   # Extreme structural compliance for legal document drafting
-TEMP_ANALYSIS = 0.2   # High-precision audit focus
-TEMP_CHAT = 0.3       # Standard balanced interactive chat
+TEMP_DRAFTING = 0.1
+TEMP_ANALYSIS = 0.2
+TEMP_CHAT = 0.3
 
 def build_dynamic_identity_header(
     client_name: str = "Shaban Bala", 
@@ -42,7 +39,7 @@ def build_dynamic_identity_header(
 ) -> str:
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
-    Guarantees 100% role alignment whether the case is Commercial, Labor, or Property.
+    Supports trilingual documents (SQ, EN, DE) and forces non-discrimination against non-Albanian evidence.
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -51,10 +48,14 @@ def build_dynamic_identity_header(
 KLIENTI YNË ({role_label}): {client_name}.
 PALA KUNDËRSHTARE: {opposing_name}.
 
+MANDATI MULTILINGUAL (SQ / EN / DE):
+Dokumentet dhe provat në fashikull mund të jenë në gjuhën Shqipe, Angleze apo Gjermane.
+Lexo dhe analizo me saktësi të plotë çdo eksponat pa marrë parasysh gjuhën e dokumentit origjinal.
+
 RREGULL KRITIK SHFAJËSUES:
 ASNJËHERË mos thuaj apo aludo se {client_name} ka kryer veprime të paligjshme apo vjedhje.
 Veprimet e paautorizuara dhe shkeljet i ka kryer {opposing_name}.
-{client_name} është pala e dëmtuar që mbron të drejtat e veta ligjore me prova materiale (raportet e ATK-së, pasqyrat e bankës, certifikatat e ARBK-së).
+{client_name} është pala e dëmtuar që mbron të drejtat e veta ligjore me prova materiale (raportet e ATK-së, pasqyrat e bankës, certifikatat e ARBK-së, kontratat dhe faturat).
 
 KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
 1. Ligji Nr. 06/L-016 për Shoqëritë Tregtare (Neni 258 - Detyrimi i Besnikërisë, Neni 259 - Ndalimi i Konkurrencës).
@@ -64,14 +65,9 @@ KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
 STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante.
 """
 
-# Fallback string constant to prevent AttributeError in external modules
 UNBREAKABLE_IDENTITY_HEADER = build_dynamic_identity_header()
 
 def _sanitize_and_disambiguate_prompt(user_text: str, opposing_name: str = "Pala Kundërshtare") -> str:
-    """
-    Translates ambiguous colloquial pronouns ('ai vetë', 'aj', 'ai') 
-    into explicit entity references before sending to OpenRouter LLM.
-    """
     if not user_text:
         return ""
     
@@ -172,6 +168,41 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
     except Exception as e: 
         yield f"[Gabim: {str(e)}]"
 
+# --- REAL ASYNC TRILINGUAL DOCUMENT SUMMARIZER ---
+
+async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
+    """
+    PHOENIX ENGINE: Generates real, structured summaries for Albanian, English, or German documents.
+    Replaces the previous stub to ensure all exhibits have accurate summaries.
+    """
+    if not text or not text.strip():
+        return "Dokument pa përmbajtje tekstuale."
+    try:
+        client = _get_async_client()
+        system_prompt = """
+        Detyra: Ti je një asistent ligjor shumëgjuhësh (Shqip, Anglisht, Gjermanisht).
+        Analizo tekstin e këtij dokumenti ligjor ose financiar dhe përpiqet të bësh një përmbledhje të qartë, të saktë dhe të strukturuar në gjuhën shqipe.
+        
+        Përmbledhja duhet të përfshijë:
+        1. Llojin e dokumentit (Kontratë, Faturë, Vendim, Shkresë, etj.)
+        2. Palët e përfshira dhe datat kryesore.
+        3. Shumat monetare, obligimet ose fushëveprimin e marrëveshjes.
+        4. Fakti më i rëndësishëm ligjor ose financiar.
+        """
+        res = await client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"TEKSTI I DOKUMENTIT PËR PËRMBLEDHJE:\n{text[:6000]}"}
+            ],
+            temperature=TEMP_ANALYSIS
+        )
+        content = res.choices[0].message.content or ""
+        return content.strip() if content else text[:500]
+    except Exception as e:
+        logger.error(f"Error in process_large_document_async: {e}")
+        return text[:500]
+
 # --- SPECIALIZED WAR ROOM & FORENSIC CHAT METHODS ---
 
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
@@ -182,11 +213,11 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         context_text = "\n".join(context_lines)
         system_prompt = """
         Ti je një Auditor dhe Hetues Financiar Forenzik me eksperiencë në tregun e Kosovës.
-        DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare.
+        DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare apo dokumenteve financiare.
         TONI: Analitik, skeptik, i bazuar rigorozisht në shifra konkrete.
         GJUHA: SHQIP.
         """
-        user_content = f"TRANSAKSIONET E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
+        user_content = f"TRANSAKSIONET / PROVAT E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
         return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
     except Exception as e:
         logger.error(f"Error in forensic_interrogation: {e}")
@@ -200,7 +231,7 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
+    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit (përfshirë dokumentet në Shqip, Anglisht, Gjermanisht) dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
 
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
@@ -237,7 +268,7 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit.
+    Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit dhe të gjitha dokumentet e bashkangjitura (Shqip/Anglisht/Gjermanisht).
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "timeline": [
@@ -268,7 +299,7 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta.
+    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta midis deklaratave dhe dokumenteve (Shqip/Anglisht/Gjermanisht).
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "contradictions": [
@@ -313,7 +344,7 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
         return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
     try:
         system_prompt = """
-        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës dhe nxirr JSON.
+        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës (Shqip, Anglisht, apo Gjermanisht) dhe nxirr JSON.
         Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
         {
           "category": "Kategoria e shpenzimit",
@@ -333,10 +364,7 @@ def categorize_document_text(text: str) -> str:
     return "Procedurale"
 
 def sterilize_legal_text(text: str): 
-    return text.strip()
-
-async def process_large_document_async(text, task_type="SUMMARY"): 
-    return "Sinteza..."
+    return text.strip() if text else ""
 
 def translate_for_client(t): 
     return t

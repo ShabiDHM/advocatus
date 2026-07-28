@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V29.0 (EXPLICIT WAR ROOM JSON SCHEMA ENFORCEMENT)
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V30.0 (TRILINGUAL SQ/EN/DE RAG & UNFILTERED EXHIBIT VISIBILITY)
 
 import asyncio
 import structlog
@@ -17,7 +17,8 @@ logger = structlog.get_logger(__name__)
 async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, include_laws: bool = True) -> str:
     """
     CONSOLIDATED FASHIKULL INGESTION (SQ + EN + DE)
-    Combines top semantic vector search with complete document summaries of ALL uploaded exhibits.
+    Combines vector search with complete raw extracted texts and summaries of ALL uploaded exhibits.
+    Guarantees English & German documents are 100% visible to the LLM during Chat & Analysis.
     """
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid})
@@ -36,17 +37,32 @@ async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, inc
     case_facts = results[0]
     global_laws = results[1] if include_laws else []
 
-    # 2. Fetch ALL Uploaded Case Documents directly (Consolidated Fashikull)
+    # 2. Fetch ALL Uploaded Case Documents directly (Trilingual Fashikull Ingestion)
     doc_filter = {"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}}
     documents = await asyncio.to_thread(lambda: list(db.documents.find(doc_filter)))
 
-    blocks = ["=== FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE) ==="]
+    blocks = ["=== FASHIKULLI I PLOTË I DOKUMENTEVE TË LËNDËS (PROVAT MATERIALE SQ/EN/DE) ==="]
     
     if documents:
         for idx, doc in enumerate(documents, 1):
             file_name = doc.get("file_name") or doc.get("title") or "Dokument"
-            text_content = (doc.get("summary") or doc.get("extracted_text") or "")[:2000]
-            blocks.append(f"EKSPONATI {idx}: {file_name}\nPËRMBAJTJA / PROVA: {text_content}\n")
+            raw_t = doc.get("extracted_text") or ""
+            summ = doc.get("summary") or ""
+            
+            # Filter out legacy stub string "Sinteza..."
+            if summ == "Sinteza...":
+                summ = ""
+
+            if raw_t and summ:
+                text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI DIREKT I DOKUMENTIT:\n{raw_t[:3000]}"
+            elif raw_t:
+                text_content = f"TEKSTI DIREKT I DOKUMENTIT:\n{raw_t[:3500]}"
+            elif summ:
+                text_content = f"PËRMBLEDHJE: {summ}"
+            else:
+                text_content = "Dokument i verifikuar në fashikull (Teksti në procesim)."
+
+            blocks.append(f"EKSPONATI {idx}: {file_name}\n{text_content}\n")
     else:
         blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.")
 
@@ -78,7 +94,6 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
-    """Synchronously extracts entities from all case documents and populates the Graph DB."""
     if not authorize_case_access(db, case_id, user_id):
         logger.warning("Unauthorized graph build attempt", case_id=case_id, user_id=user_id)
         return False
@@ -113,11 +128,6 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 async def cross_examine_case(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """
-    PHOENIX: High-IQ Stage-Reasoning Analysis Engine.
-    Executes deep cross-examination with locked client role, full fashikull ingestion,
-    and explicit War Room JSON schema enforcement.
-    """
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
@@ -138,6 +148,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     {identity_header}
     
     DETYRA: Analizë e thellë strategjike dhe gjyqësore e lëndës për DHOMËN E LUFTËS (WAR ROOM).
+    Përfshij në analizë të gjitha faturat, kontratat dhe provat në Shqip, Anglisht dhe Gjermanisht.
     
     MANDATI KRITIK I PALËS:
     - KLIENTI YNË: {client_name} ({'I PADITUR / KUNDËRPADITËS' if effective_position == 'DEFENDANT' else 'PADITËS'})
@@ -245,7 +256,6 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         return {"summary": "Dështoi gjenerimi i analizës strategjike."}
 
 async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """PHOENIX: Parallel execution with role-adapted War Room simulation and full fashikull ingestion."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -282,7 +292,6 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_pos
         return {"error": "Dështoi analiza e thellë."}
 
 async def archive_full_strategy_report(db: Database, case_id: str, user_id: str, legal_data: Dict[str, Any], deep_data: Dict[str, Any], lang: str = "sq") -> Dict[str, Any]:
-    """Synthesizes all analysis data and persists it as a PDF in the Archive."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id

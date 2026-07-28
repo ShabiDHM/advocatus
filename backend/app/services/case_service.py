@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V7.0 (TRILINGUAL SQ/EN/DE RAG & METADATA INGESTION)
+# PHOENIX PROTOCOL - CASE SERVICE V8.0 (UNBREAKABLE TRILINGUAL EXHIBIT CONTEXT)
 
 import re
 import importlib
@@ -19,7 +19,6 @@ from ..celery_app import celery_app
 # --- HELPER FUNCTIONS ---
 
 def _safe_str(oid: Any) -> Optional[str]:
-    """Safely converts ObjectId/Any to string or returns None."""
     if not oid: return None
     return str(oid)
 
@@ -30,7 +29,6 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
         case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
         
-        # Date Handling: Ensure valid datetime object
         created_at = case_doc.get("created_at")
         if not isinstance(created_at, datetime):
             created_at = datetime.now(timezone.utc)
@@ -39,11 +37,9 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         if not isinstance(updated_at, datetime):
             updated_at = created_at
         
-        # User/Owner Handling (Critical for CaseOut validation)
         user_id = case_doc.get("user_id") or case_doc.get("owner_id")
         org_id = case_doc.get("org_id")
 
-        # Client & Opposing Party Metadata Extraction (Trilingual SQ/EN/DE Support)
         client_obj = case_doc.get("client") if isinstance(case_doc.get("client"), dict) else {}
         client_name = case_doc.get("client_name") or client_obj.get("name") or "Shaban Bala"
         
@@ -59,14 +55,12 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
         if db is not None:
-            # Performance Optimization
             event_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}, {"caseId": case_id_str}]}
             counts["event_count"] = db.calendar_events.count_documents(event_filter)
             
             doc_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}]}
             counts["document_count"] = db.documents.count_documents(doc_filter)
             
-            # Alerts & Active Events
             now_utc = datetime.now(timezone.utc)
             active_events_filter = {
                 "$and": [
@@ -179,7 +173,7 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
 def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> Dict[str, Any]:
     """
     TRILINGUAL CROSS-LINGUAL CONTEXT INGESTION (SQ + EN + DE)
-    Retrieves complete case metadata and attached document summaries regardless of language.
+    Retrieves complete case metadata and attached document summaries/text regardless of language.
     """
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
     if not case:
@@ -195,13 +189,21 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
     trilingual_doc_summaries = []
     for doc in documents:
         file_name = doc.get("file_name") or doc.get("title") or "Dokument i Lëndës"
-        text_preview = (doc.get("summary") or doc.get("extracted_text") or "")[:1500]
-        
+        raw_t = doc.get("extracted_text") or ""
+        summ = doc.get("summary") or ""
+        if summ == "Sinteza...":
+            summ = ""
+
+        if summ and raw_t:
+            text_preview = f"{summ}\n{raw_t[:1000]}".strip()
+        else:
+            text_preview = (raw_t[:2000] or summ or "Dokument i verifikuar në fashikull.").strip()
+
         trilingual_doc_summaries.append({
             "id": str(doc["_id"]),
             "file_name": file_name,
             "mime_type": doc.get("mime_type", "application/pdf"),
-            "summary": text_preview or "Dokument i verifikuar në fashikull.",
+            "summary": text_preview,
             "language": doc.get("detected_language", "auto")
         })
     
@@ -221,7 +223,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
     
-    # 1. Delete standard documents & storage files
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
@@ -229,12 +230,11 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         for key in filter(None, keys_to_delete):
             try: storage_service.delete_file(key)
             except Exception: pass
-        try: vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+        try: vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
         except Exception: pass
         try: graph_service.delete_node(doc_id_str)
         except Exception: pass
 
-    # 2. Delete Media Evidence (Audio/Video) & storage files
     media_items = list(db.media_evidence.find(any_id_query))
     for media in media_items:
         storage_key = media.get("storage_key")
@@ -243,7 +243,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
             except Exception: pass
     db.media_evidence.delete_many(any_id_query)
 
-    # 3. Delete archives, calendar events, alerts
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
@@ -280,7 +279,6 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
     db.documents.update_one({"_id": doc_id}, {"$set": {"file_name": final_name, "title": final_name, "updated_at": datetime.now(timezone.utc)}})
     return {"id": str(doc_id), "file_name": final_name, "message": "Document renamed successfully."}
 
-# --- PUBLIC PORTAL FUNCTIONS ---
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     try:
         case_oid = ObjectId(case_id)

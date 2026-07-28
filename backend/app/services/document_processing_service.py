@@ -1,7 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V19.1
-# FIX: Optimized publish_sse_update_async to accept user_id directly, bypassing slow DB queries
-# FIX: Reduced Redis connection timeout configuration for immediate publishes
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V20.0 (TRILINGUAL EXTRACTED_TEXT MONGO PERSISTENCE)
 
 import os
 import tempfile
@@ -24,15 +22,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Custom error to support Celery retries if needed
 class DocumentNotFoundInDBError(Exception):
     pass
 
 async def publish_sse_update_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
-    """
-    Publishes status updates asynchronously to Redis.
-    Bypasses MongoDB entirely to eliminate network round-trip overhead.
-    """
     redis_client = None
     try:
         payload = {
@@ -64,13 +57,8 @@ async def orchestrate_document_processing_mongo(
     redis_client: Any = None,
     **kwargs
 ):
-    """
-    Self-Healing Orchestrator. Made signature defensively compatible with direct
-    FastAPI BackgroundTasks as well as Celery worker task execution.
-    """
     logger.info(f"⚡ [Orchestrator] Self-Healing Thread Booted for doc: {document_id_str}")
     
-    # Lazy load / fall back to fresh connection handles if not supplied
     if db is None:
         from app.core.db import get_db_instance
         db = get_db_instance()
@@ -97,7 +85,6 @@ async def orchestrate_document_processing_mongo(
     doc_name = document.get("file_name", "Unknown Document")
     case_id_str = str(document.get("case_id"))
 
-    # Immediately publish that processing has begun (no database query required)
     await publish_sse_update_async(user_id, document_id_str, "PROCESSING")
 
     temp_original_file_path = ""
@@ -113,7 +100,7 @@ async def orchestrate_document_processing_mongo(
             file_stream.close()
 
         # --- 1/3: TEXT EXTRACTION ---
-        logger.info("⚡ [Orchestrator] Step 1/3: Extracting text via OCR...")
+        logger.info("⚡ [Orchestrator] Step 1/3: Extracting text via OCR/Pdf parser...")
         raw_text = await asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", ""))
         if not raw_text or not raw_text.strip(): 
             raise ValueError("Extracted text empty.")
@@ -137,11 +124,14 @@ async def orchestrate_document_processing_mongo(
                 EnhancedDocumentProcessor.process_document, 
                 text_content=raw_text, document_metadata={'file_name': doc_name}, is_albanian=is_albanian
             )
+            chunks_to_store = [c.content for c in enriched_chunks] if enriched_chunks else [raw_text[i:i+1500] for i in range(0, len(raw_text), 1200)]
+            metadatas_to_store = [c.metadata for c in enriched_chunks] if enriched_chunks else [{"page": 1, "source": doc_name} for _ in chunks_to_store]
+
             success = await asyncio.to_thread(
                 create_and_store_embeddings_from_chunks,
                 user_id=user_id, document_id=document_id_str, case_id=case_id_str, 
-                file_name=doc_name, chunks=[c.content for c in enriched_chunks], 
-                metadatas=[c.metadata for c in enriched_chunks]
+                file_name=doc_name, chunks=chunks_to_store, 
+                metadatas=metadatas_to_store
             )
             return success
 
@@ -184,13 +174,26 @@ async def orchestrate_document_processing_mongo(
             return_exceptions=True
         )
 
-        # Extract results safely
-        final_summary = results[0] if not isinstance(results[0], Exception) else "Përmbledhja dështoi."
+        final_summary = results[0] if not isinstance(results[0], Exception) else raw_text[:500]
         text_key = results[2] if not isinstance(results[2], Exception) else ""
         preview_storage_key = results[5] if not isinstance(results[5], Exception) else ""
         
-        logger.info("⚡ [Orchestrator] Finalizing document processing records...")
+        logger.info("⚡ [Orchestrator] Finalizing document processing records with full text persistence...")
         
+        # PERSIST EXTRACTED TEXT DIRECTLY ON MONGO DOCUMENT
+        await asyncio.to_thread(
+            db.documents.update_one,
+            {"_id": doc_id},
+            {
+                "$set": {
+                    "extracted_text": raw_text[:15000],
+                    "summary": final_summary,
+                    "status": DocumentStatus.READY,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
+
         await asyncio.to_thread(
             document_service.finalize_document_processing, 
             db, redis_client, document_id_str, 
@@ -198,13 +201,11 @@ async def orchestrate_document_processing_mongo(
         )
         logger.info(f"⚡ [Orchestrator] SUCCESS: Document {document_id_str} is 100% Finalized!")
         
-        # Publish final completed state to the user's stream instantly
         await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
 
     except Exception as e:
         logger.error(f"❌ [Orchestrator] FAILURE: {e}")
         await asyncio.to_thread(db.documents.update_one, {"_id": doc_id}, {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}})
-        # Publish failed state to user stream
         await publish_sse_update_async(user_id, document_id_str, DocumentStatus.FAILED, error=str(e))
     finally:
         if temp_original_file_path and os.path.exists(temp_original_file_path): 
