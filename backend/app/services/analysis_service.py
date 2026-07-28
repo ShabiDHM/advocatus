@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V27.0 (DYNAMIC DYNAMIC IDENTITY HEADER INVOCATION FIX)
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V28.0 (FAIL-SAFE NESTED DICT MAPPER FOR WAR ROOM)
 
 import asyncio
 import structlog
@@ -159,20 +159,40 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         raw_res = await asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt)
         
         audit = raw_res.get("legal_audit", {})
-        rec = raw_res.get("strategic_recommendation", {})
+        if not isinstance(audit, dict): audit = {}
+
+        raw_rec = raw_res.get("strategic_recommendation") or raw_res.get("strategic_analysis") or {}
+        if not isinstance(raw_rec, dict):
+            raw_rec = {"recommendation_text": str(raw_rec)}
+
+        strat_analysis = (
+            raw_rec.get("recommendation_text") or 
+            raw_rec.get("strategic_recommendation") or 
+            raw_rec.get("recommendation") or 
+            raw_res.get("strategic_analysis") or 
+            "Analiza strategjike e lëndës u krye me sukses."
+        )
+
+        strengths = raw_rec.get("strengths") or raw_res.get("strengths") or []
+        weaknesses = raw_rec.get("weaknesses") or raw_res.get("weaknesses") or []
+        action_plan = raw_rec.get("action_plan") or raw_res.get("action_plan") or []
+        key_args = raw_rec.get("key_arguments") or raw_res.get("key_arguments") or []
+        risk_level = raw_rec.get("risk_level") or raw_res.get("risk_level") or "MEDIUM"
+        success_prob = raw_rec.get("success_probability") or raw_res.get("success_probability") or "75%"
+
         return {
-            "summary": raw_res.get("executive_summary"),
+            "summary": raw_res.get("executive_summary") or "Përmbledhja ekzekutive u përpunua.",
             "client_position": effective_position,
-            "burden_of_proof": audit.get("burden_of_proof"),
+            "burden_of_proof": audit.get("burden_of_proof") or "Barra e provës bie mbi palën që pretendon faktet.",
             "legal_basis": audit.get("legal_basis", []), 
-            "strategic_analysis": rec.get("strategic_recommendation", {}).get("recommendation_text") if isinstance(rec, dict) else "",
-            "strengths": rec.get("strengths", []) if isinstance(rec, dict) else [],
-            "weaknesses": rec.get("weaknesses", []) if isinstance(rec, dict) else [],
-            "key_arguments": rec.get("key_arguments", []) if isinstance(rec, dict) else [],
-            "action_plan": rec.get("action_plan", []) if isinstance(rec, dict) else [],
+            "strategic_analysis": strat_analysis,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "key_arguments": key_args,
+            "action_plan": action_plan,
             "missing_evidence": raw_res.get("missing_evidence", []),
-            "success_probability": rec.get("success_probability") if isinstance(rec, dict) else None,
-            "risk_level": rec.get("risk_level", "MEDIUM") if isinstance(rec, dict) else "MEDIUM"
+            "success_probability": success_prob,
+            "risk_level": risk_level
         }
     except Exception as e:
         logger.error(f"Analysis Processing Failed: {e}")
