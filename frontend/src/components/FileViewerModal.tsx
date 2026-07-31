@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V9.0 (MOBILE & DESKTOP FULL-SPECTRUM COMPATIBILITY)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V10.0 (MOBILE-OPTIMIZED PDF FALLBACK & EXECUTIVE VIEW)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -14,11 +14,9 @@ import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
-// Import essential react-pdf styles to ensure interactive text overlay alignments
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-// Standardized highly reliable CDN worker source to bypass mobile CORS/MIME blocks
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
@@ -55,34 +53,27 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Lock the outer window viewport scroll to eliminate dragging layout bugs
   useLockBodyScroll(true);
+
+  // Detect mobile device to bypass flaky mobile PDF web workers & Android Chrome iframe traps
+  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const isLegalDraft = (documentData?.category === 'DRAFT' || 
                         documentData?.file_name?.toLowerCase().includes('draft') ||
                         documentData?.file_name?.toLowerCase().includes('kontrat') ||
                         (textContent && textContent.includes('# ')));
 
-  // Instant & ResizeObserver responsive width observer for immediate mobile scaling
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
     const updateWidth = () => {
       const padding = window.innerWidth < 640 ? 16 : 40;
       const measured = el.clientWidth - padding;
-      if (measured > 0) {
-        setContainerWidth(measured);
-      }
+      if (measured > 0) setContainerWidth(measured);
     };
-
     updateWidth();
-
-    const observer = new ResizeObserver(() => {
-      updateWidth();
-    });
+    const observer = new ResizeObserver(updateWidth);
     observer.observe(el);
-
     return () => observer.disconnect();
   }, [viewerMode]);
 
@@ -130,7 +121,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     setIsDownloading(true);
     try {
       let blob: Blob;
-      let filename = documentData.file_name || documentData.title || 'dokument.txt';
+      let filename = documentData?.file_name || documentData?.title || 'dokument.pdf';
 
       if (directUrl) {
           if (directUrl.startsWith('blob:')) {
@@ -143,43 +134,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               const res = await fetch(directUrl);
               blob = await res.blob();
           }
-      } else if (caseId) {
+      } else if (caseId && documentData?.id) {
           blob = await apiService.getOriginalDocument(caseId, documentData.id);
       } else { throw new Error("No source"); }
-
-      if (isLegalDraft && textContent) {
-          const htmlContent = `
-            <!DOCTYPE html>
-            <html lang="sq">
-            <head>
-                <meta charset="UTF-8">
-                <title>${filename}</title>
-                <style>
-                    body { background: #f4f4f7; padding: 50px; font-family: "Times New Roman", Times, serif; color: black; line-height: 1.6; }
-                    .a4-page { background: white; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 25mm; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box; }
-                    h1 { text-align: center; font-size: 18pt; text-transform: uppercase; margin-bottom: 30px; }
-                    h2 { text-align: center; font-size: 14pt; text-transform: uppercase; margin-top: 25px; margin-bottom: 15px; }
-                    p { text-align: justify; margin-bottom: 15px; font-size: 11pt; }
-                    .placeholder { background: #fef3c7; border: 1px solid #fcd34d; padding: 0 4px; font-weight: bold; border-radius: 2px; }
-                    @media print { body { background: white; padding: 0; } .a4-page { box-shadow: none; margin: 0; width: 100%; } }
-                </style>
-            </head>
-            <body>
-                <div class="a4-page">
-                    ${textContent
-                        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                        .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
-                        .replace(/\[([^\]]+)\]/g, '<span class="placeholder">[$1]</span>')
-                        .split('\n\n').map(p => p.trim().startsWith('<h') ? p : `<p>${p}</p>`).join('')}
-                </div>
-            </body>
-            </html>
-          `;
-          blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-          filename = filename.replace('.txt', '.html');
-          if (!filename.endsWith('.html')) filename += '.html';
-      }
 
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -209,7 +166,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                     return;
                 }
                 const response = await fetch(directUrl);
-                if (!response.ok) throw new Error("Local blob fetch failed");
+                if (!response.ok) throw new Error("Blob fetch failed");
                 const blob = await response.blob();
                 await handleBlobContent(blob, targetMode);
                 return;
@@ -217,6 +174,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
             if (targetMode === 'PDF' && directUrl && !isAuth) {
                 setFileSource(directUrl);
+                setIsLoading(false);
                 return; 
             }
             if (directUrl) {
@@ -225,7 +183,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                     await handleBlobContent(response.data, targetMode);
                 } else {
                     const response = await fetch(directUrl);
-                    if (!response.ok) throw new Error("Network Response Fail");
+                    if (!response.ok) throw new Error("Fetch failed");
                     const blob = await response.blob();
                     await handleBlobContent(blob, targetMode);
                 }
@@ -258,7 +216,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {documentData?.file_name || documentData?.title || t('pdfViewer.previewNotAvailable')}
             </h3>
             <p className="text-xs text-text-muted mb-6 max-w-sm">
-              Formati ose shfletuesi celular nuk mbështet shikimin direk. Mund ta hapni ose shkarkoni me poshtë.
+              Shfletuesi celular kërkon hapjen e dokumentit në një skedë të re për ta shfaqur pa gabime.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button 
@@ -282,8 +240,43 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
 
     if (viewerMode === 'PDF') {
+        // ON MOBILE DEVICES: Render clean executive action view to prevent Android Chrome iframe/pdf fallback bug
+        if (isMobile) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 sm:p-8 bg-canvas">
+                    <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
+                        <FileText size={32} className="text-primary-start" />
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-text-primary mb-2 max-w-sm truncate">
+                      {documentData?.file_name || documentData?.title || 'Dokument PDF'}
+                    </h3>
+                    <p className="text-xs text-text-muted mb-6 max-w-xs">
+                      Përvojë optimale në pajisjet celulare. Klikoni më poshtë për ta hapur direkt ose shkarkuar.
+                    </p>
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                      <button 
+                        onClick={handleOpenInNewTab} 
+                        className="btn-primary px-6 py-3.5 rounded-xl flex items-center justify-center gap-2 font-medium transition-all text-sm shadow-lg"
+                        style={{ minHeight: '48px' }}
+                      >
+                        <ExternalLink size={18} /> Hap PDF në Shfletues
+                      </button>
+                      <button 
+                        onClick={handleDownloadOriginal} 
+                        disabled={isDownloading} 
+                        className="px-6 py-3.5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-sm"
+                        style={{ minHeight: '48px' }}
+                      >
+                        {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal')}
+                      </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ON DESKTOP: Render canvas PDF viewer
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-4 sm:pt-6 pb-20 sm:pb-24 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-canvas/60 backdrop-blur-xs z-10">
                     <Loader className="animate-spin text-primary-start" size={36} />
@@ -329,13 +322,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     switch (viewerMode) {
       case 'TEXT':
         return (
-          <div className="p-3 sm:p-10 h-full overflow-auto bg-canvas/40 flex justify-center custom-finance-scroll">
+          <div className="p-4 sm:p-10 h-full overflow-auto bg-canvas/40 flex justify-center custom-finance-scroll">
             {isLegalDraft ? (
-               <div className="w-full max-w-[21cm] bg-white text-black p-6 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-main">
+               <div className="w-full max-w-[21cm] bg-white text-black p-8 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-main">
                   <DraftResultRenderer text={textContent || ''} t={t} />
                </div>
             ) : (
-                <div className="glass-panel p-4 sm:p-10 rounded-2xl border border-main w-full bg-surface">
+                <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface">
                     <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed">{textContent}</pre>
                 </div>
             )}
@@ -343,14 +336,14 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         );
       case 'CSV':
         return (
-            <div className="p-3 sm:p-8 h-full overflow-auto bg-canvas/40 custom-finance-scroll">
+            <div className="p-4 sm:p-8 h-full overflow-auto bg-canvas/40 custom-finance-scroll">
                 <div className="glass-panel p-0 rounded-2xl border border-main overflow-hidden shadow-2xl bg-surface">
                     <div className="overflow-x-auto custom-finance-scroll">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-surface/20">
                                 <tr>
                                     {csvContent?.[0]?.map((header, i) => (
-                                        <th key={i} className="p-3 sm:p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-main whitespace-nowrap">{header}</th>
+                                        <th key={i} className="p-4 text-[10px] sm:text-xs font-bold text-text-primary uppercase tracking-widest border-b border-main whitespace-nowrap">{header}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -370,7 +363,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         );
       case 'IMAGE':
         return (
-            <div className="flex items-center justify-center h-full p-3 sm:p-10 bg-canvas/40">
+            <div className="flex items-center justify-center h-full p-4 sm:p-10 bg-canvas/40">
                 <img src={fileSource!} alt="Preview" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-main" />
             </div>
         );
@@ -392,55 +385,33 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           transition={{ duration: 0.2 }}
-          className="glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden" 
+          className="glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden" 
           onClick={e => e.stopPropagation()}
         >
-          <header className="flex items-center justify-between p-3 sm:p-4 border-b border-main bg-surface shrink-0">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <header className="flex items-center justify-between p-4 border-b border-main bg-surface shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
                 <div className="p-2 bg-hover rounded-lg border border-main flex items-center justify-center shrink-0">
-                    {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-4 h-4 sm:w-5 sm:h-5" /> : <FileText className="text-primary-start w-4 h-4 sm:w-5 sm:h-5" />}
+                    {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
-                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[150px] sm:max-w-md">{documentData?.file_name || documentData?.title}</h2>
+                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[180px] sm:max-w-md">{documentData?.file_name || documentData?.title}</h2>
                     <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest block truncate">{isLegalDraft ? 'LEGAL DRAFT MODE' : `${viewerMode} MODE`}</span>
                 </div>
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2">
-              {viewerMode === 'PDF' && (
-                  <div className="hidden sm:flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-1">
-                      <button 
-                        onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} 
-                        className="p-1.5 text-text-muted hover:text-text-primary focus:outline-none"
-                        title="Zoom Out"
-                        aria-label="Zoom Out"
-                      >
-                        <ZoomOut size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setScale(1.0)} 
-                        className="p-1.5 text-text-muted hover:text-text-primary focus:outline-none"
-                        title="Reset Zoom"
-                        aria-label="Reset Zoom"
-                      >
-                        <Maximize size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} 
-                        className="p-1.5 text-text-muted hover:text-text-primary focus:outline-none"
-                        title="Zoom In"
-                        aria-label="Zoom In"
-                      >
-                        <ZoomIn size={16} />
-                      </button>
+            <div className="flex items-center gap-2">
+              {!isMobile && viewerMode === 'PDF' && (
+                  <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
+                      <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary" title="Zoom Out"><ZoomOut size={16} /></button>
+                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary" title="Reset Zoom"><Maximize size={16} /></button>
+                      <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary" title="Zoom In"><ZoomIn size={16} /></button>
                   </div>
               )}
 
               <button 
                 onClick={handleOpenInNewTab} 
-                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                 title="Hape ne tab te ri"
-                aria-label="Open in new tab"
               >
                 <ExternalLink size={18} />
               </button>
@@ -448,56 +419,39 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button 
                 onClick={handleDownloadOriginal} 
                 disabled={isDownloading} 
-                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                 title="Download"
-                aria-label="Download document"
               >
-                {isDownloading ? <Loader className="animate-spin" size={18} /> : <Download size={18} />}
+                {isDownloading ? <Loader className="animate-spin" size={20} /> : <Download size={20} />}
               </button>
 
               {onMinimize && (
                 <button 
                   onClick={onMinimize} 
-                  className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                  className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                   title="Minimize"
-                  aria-label="Minimize document preview"
                 >
-                  <Minus size={18} />
+                  <Minus size={20} />
                 </button>
               )}
 
               <button 
                 onClick={onClose} 
-                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
                 title="Close"
-                aria-label="Close modal"
               >
-                <X size={20} />
+                <X size={22} />
               </button>
             </div>
           </header>
 
           <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
-          {viewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 bg-surface/90 px-4 sm:px-5 py-1.5 sm:py-2 rounded-full border border-main flex items-center gap-3 sm:gap-4 backdrop-blur-xl z-[100] shadow-2xl">
-              <button 
-                onClick={() => setPageNumber(p => Math.max(1, p - 1))} 
-                disabled={pageNumber <= 1} 
-                className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 text-text-primary disabled:opacity-30 focus:outline-none"
-                aria-label="Previous page"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <span className="text-[10px] sm:text-xs font-bold text-text-primary font-mono select-none">{pageNumber} / {numPages}</span>
-              <button 
-                onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} 
-                disabled={pageNumber >= numPages} 
-                className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 text-text-primary disabled:opacity-30 focus:outline-none"
-                aria-label="Next page"
-              >
-                <ChevronRight size={18} />
-              </button>
+          {!isMobile && viewerMode === 'PDF' && numPages && numPages > 1 && (
+            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-surface px-5 py-2 rounded-full border border-main flex items-center gap-4 backdrop-blur-xl z-[100] shadow-xl">
+              <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30"><ChevronLeft size={20} /></button>
+              <span className="text-xs font-bold text-text-primary font-mono select-none">{pageNumber} / {numPages}</span>
+              <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30"><ChevronRight size={20} /></button>
             </footer>
           )}
         </motion.div>
