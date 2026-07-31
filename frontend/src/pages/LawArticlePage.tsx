@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V21.0 (MOBILE-SAFE PDF EMBED REPAIR)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V22.0 (1-CLICK DIRECT MOBILE PDF OPENER)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -186,7 +186,7 @@ export default function LawArticlePage() {
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
-  // Detect mobile device to bypass buggy mobile iframe PDF embeds
+  // Detect mobile device
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const currentNum = useMemo(() => {
@@ -362,6 +362,17 @@ export default function LawArticlePage() {
 
   const pdfUrl = article?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(article.source)}` : null;
 
+  // 1-Click Open handler for mobile: opens directly in browser tab, avoiding iframe traps
+  const handleOpenPdf = () => {
+    if (!pdfUrl) return;
+    if (isMobile) {
+      window.open(pdfUrl, '_blank');
+    } else {
+      setShowPdfModal(true);
+      setIsPdfMinimized(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20 bg-canvas">
@@ -477,7 +488,7 @@ export default function LawArticlePage() {
 
                   <button
                     type="button"
-                    onClick={() => { setShowPdfModal(true); setIsPdfMinimized(false); }}
+                    onClick={handleOpenPdf}
                     className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3 py-1 rounded-lg transition-all hover-lift cursor-pointer focus:outline-none"
                     title="Shiko dokumentin PDF të plotë zyrtar"
                   >
@@ -811,7 +822,7 @@ export default function LawArticlePage() {
 
       {/* PDF DOCUMENT FULLSCREEN MODAL (STANDARDIZED: 95VW x 92VH) */}
       <AnimatePresence>
-        {showPdfModal && pdfUrl && (
+        {showPdfModal && pdfUrl && !isMobile && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4">
             <motion.div 
               initial={{ scale: 0.98, opacity: 0, y: 10 }} 
@@ -869,45 +880,12 @@ export default function LawArticlePage() {
                 </div>
               </div>
 
-              <div className="flex-1 w-full h-full bg-slate-900 relative flex items-center justify-center p-4">
-                {isMobile ? (
-                  // MOBILE FALLBACK CARD: Bypasses Android Chrome iframe/pdf native viewer trap
-                  <div className="flex flex-col items-center justify-center text-center p-6 bg-canvas rounded-2xl border border-main max-w-sm w-full shadow-2xl">
-                    <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
-                      <FileText size={32} className="text-primary-start" />
-                    </div>
-                    <h4 className="text-sm font-bold text-text-primary mb-2 truncate max-w-xs">
-                      {article.source}
-                    </h4>
-                    <p className="text-xs text-text-muted mb-6">
-                      Pajisjet celulare nuk lejojnë shfaqjen e PDF brenda kornizave. Klikoni më poshtë për ta hapur direkt:
-                    </p>
-                    <div className="flex flex-col gap-3 w-full">
-                      <a 
-                        href={pdfUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="btn-primary py-3 rounded-xl flex items-center justify-center gap-2 font-medium text-xs sm:text-sm shadow-lg"
-                      >
-                        <ExternalLink size={16} /> Hap PDF në Shfletues
-                      </a>
-                      <a 
-                        href={pdfUrl} 
-                        download={article.source}
-                        className="py-3 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium text-xs sm:text-sm"
-                      >
-                        <Download size={16} /> Shkarko PDF
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  // DESKTOP IFRAME VIEWER
-                  <iframe 
-                    src={pdfUrl} 
-                    title={article.source} 
-                    className="w-full h-full border-none rounded-2xl"
-                  />
-                )}
+              <div className="flex-1 w-full h-full bg-slate-900 relative p-4">
+                <iframe 
+                  src={pdfUrl} 
+                  title={article.source} 
+                  className="w-full h-full border-none rounded-2xl"
+                />
               </div>
             </motion.div>
           </div>
