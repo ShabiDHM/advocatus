@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V22.0 (1-CLICK DIRECT MOBILE PDF OPENER)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V23.0 (EXECUTIVE LEGAL BOOK READING SURFACE)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -186,7 +186,6 @@ export default function LawArticlePage() {
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
 
-  // Detect mobile device
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const currentNum = useMemo(() => {
@@ -362,7 +361,6 @@ export default function LawArticlePage() {
 
   const pdfUrl = article?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(article.source)}` : null;
 
-  // 1-Click Open handler for mobile: opens directly in browser tab, avoiding iframe traps
   const handleOpenPdf = () => {
     if (!pdfUrl) return;
     if (isMobile) {
@@ -592,11 +590,39 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            <div className="bg-canvas/50 px-6 sm:px-12 py-10">
-              <div className="max-w-[85ch] mx-auto">
-                <div className="text-sm sm:text-base text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify">
+            {/* EXECUTIVE LEGAL BOOK READING SURFACE (THEME AWARE) */}
+            <div className="bg-canvas/40 px-4 sm:px-12 py-10 flex justify-center">
+              <div className="w-full max-w-[90ch] bg-surface border border-main rounded-3xl p-8 sm:p-14 shadow-2xl relative overflow-hidden">
+                
+                {/* Decorative Book Spine / Header Accent */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-primary-start/40 via-primary-start to-primary-start/40" />
+
+                {/* Article Header Inside Book */}
+                <div className="text-center pb-8 mb-8 border-b border-main/60">
+                  <span className="text-xs font-mono font-black text-primary-start uppercase tracking-widest block mb-2">
+                    {article.law_title}
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-black text-text-primary uppercase tracking-tight font-serif">
+                    {(() => {
+                      const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
+                      const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
+                      return isPreamble ? 'Preambula' : `Neni ${cleanNum}`;
+                    })()}
+                  </h2>
+                </div>
+
+                {/* Article Body Text */}
+                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20">
                   {article.text}
                 </div>
+
+                {/* Decorative Book Footer */}
+                <div className="mt-12 pt-6 border-t border-main/40 flex justify-between items-center text-xs font-mono text-text-muted">
+                  <span>Juristi AI Legal Codex</span>
+                  <span>§</span>
+                  <span>Official Verified Source</span>
+                </div>
+
               </div>
             </div>
 
