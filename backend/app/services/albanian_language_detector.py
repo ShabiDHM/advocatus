@@ -1,73 +1,89 @@
 # FILE: backend/app/services/albanian_language_detector.py
-# PHOENIX PROTOCOL - LANGUAGE ID V4.1
-# 1. ENGINE: Uses 'langdetect' library for statistical accuracy.
-# 2. HEURISTIC: "Kosovo Bias" list to force detection on legal docs.
-# 3. PERFORMANCE: <10ms execution time (Local CPU).
+# PHOENIX PROTOCOL - MULTI-LANGUAGE ID V5.1 (WARNING-FREE FIX)
+# 1. ENGINE: Uses 'langdetect' for statistical accuracy across sq, en, sr, de.
+# 2. HEURISTIC: Kosovo Legal Bias for Albanian recognition.
+# 3. PERFORMANCE: <10ms execution time, returning exact ISO language code ('sq', 'en', 'sr', 'de').
 
 import logging
+import re
 from typing import List
-from langdetect import detect, LangDetectException
+from langdetect import detect, detect_langs, LangDetectException
 
 logger = logging.getLogger(__name__)
 
 class AlbanianLanguageDetector:
     """
-    Hybrid Language Detector optimized for Kosovo Legal Documents.
-    Prioritizes Local Signals -> Falls back to Statistical Detection.
+    Multilingual Legal Document Detector optimized for Kosovo & Regional Context.
+    Returns ISO language codes: 'sq', 'en', 'sr', 'de', etc.
     """
 
-    # Strong signals that almost guarantee the document is Albanian Legal Text
     KOSOVO_LEGAL_MARKERS: List[str] = [
         "republika e kosovës", "gjykata themelore", "neni", "ligji nr.", 
         "kodi penal", "gazeta zyrtare", "aktgjykim", "padi", 
-        "kontratë", "prishinë", "prizren", "ferizaj", "gjakovë"
+        "kontratë", "prishtinë", "prizren", "ferizaj", "gjakovë"
     ]
 
-    # Common stopwords for density check
+    ENGLISH_LEGAL_MARKERS: List[str] = [
+        "republic of kosovo", "article", "court", "law no.", 
+        "criminal code", "plaintiff", "defendant", "contract", "agreement"
+    ]
+
+    SERBIAN_LEGAL_MARKERS: List[str] = [re.escape(m) for m in [
+        "republika kosova", "osnovni sud", "član", "zakon br.", 
+        "krivični zakonik", "tužilac", "tuženi", "ugovor"
+    ]]
+
     ALBANIAN_STOPWORDS: List[str] = [
         "të", "e", "të", "i", "me", "në", "për", "nga", "që", "u", 
         "do", "ka", "një", "janë", "dhe", "apo", "ose", "si"
     ]
 
     @classmethod
-    def detect_language(cls, text: str) -> bool:
+    def detect_language(cls, text: str) -> str:
         """
-        Determines if the text is Albanian.
-        Returns True if Albanian, False otherwise (English/Serbian/Other).
+        Determines the precise language code of the text ('sq', 'en', 'sr', etc.).
+        Defaults to 'sq' if ambiguous.
         """
         if not text or len(text.strip()) < 10:
-            return False
+            return "sq"
 
-        text_lower = text.lower()[:5000] # Check first 5k chars only
+        text_lower = text.lower()[:5000] # Check first 5k chars
 
-        # 1. Heuristic Check (The "Kosovo Bias")
-        # If we see "Republika e Kosovës" or "Gjykata", it IS Albanian.
-        # This overrides statistical noise in short documents.
-        strong_matches = sum(1 for marker in cls.KOSOVO_LEGAL_MARKERS if marker in text_lower)
-        if strong_matches >= 2:
-            return True
+        # 1. Heuristic Check for Albanian
+        albanian_matches = sum(1 for marker in cls.KOSOVO_LEGAL_MARKERS if marker in text_lower)
+        if albanian_matches >= 2:
+            return "sq"
 
-        # 2. Statistical Check (LangDetect)
+        # 2. Heuristic Check for English
+        english_matches = sum(1 for marker in cls.ENGLISH_LEGAL_MARKERS if marker in text_lower)
+        if english_matches >= 2:
+            return "en"
+
+        # 3. Statistical Check via LangDetect
         try:
-            detected_lang = detect(text_lower)
-            if detected_lang == 'sq':
-                return True
+            langs = detect_langs(text_lower)
+            if langs:
+                best_lang = langs[0].lang
+                if best_lang in ['sq', 'en', 'sr', 'hr', 'bs', 'de']:
+                    # Normalize Serbo-Croatian variants to 'sr'
+                    if best_lang in ['hr', 'bs']:
+                        return 'sr'
+                    return best_lang
         except LangDetectException:
-            pass # Fallback to density check if library fails (rare)
+            pass
 
-        # 3. Density Fallback (For very noisy OCR text)
+        # 4. Density Fallback for Albanian
         words = text_lower.split()
-        if not words: return False
-        
-        stopword_count = sum(1 for w in words if w in cls.ALBANIAN_STOPWORDS)
-        density = stopword_count / len(words)
-        
-        # If > 5% of words are Albanian stopwords, it's likely Albanian
-        if density > 0.05:
-            return True
+        if words:
+            stopword_count = sum(1 for w in words if w in cls.ALBANIAN_STOPWORDS)
+            if (stopword_count / len(words)) > 0.05:
+                return "sq"
 
-        return False
+        return "sq"
 
-# Standalone function for easy import
-def is_albanian(text: str) -> bool:
+# Standalone function for easy import and backward compatibility
+def detect_document_language(text: str) -> str:
     return AlbanianLanguageDetector.detect_language(text)
+
+def is_albanian(text: str) -> bool:
+    return AlbanianLanguageDetector.detect_language(text) == "sq"

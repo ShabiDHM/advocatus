@@ -1,13 +1,14 @@
 // FILE: frontend/src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V8.1 (0 WARNINGS - CHEVRONRIGHT FIXED)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V9.1 (0 WARNINGS - CLEAN IMPORTS)
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { 
     ShieldAlert, FileText, ScanEye, BrainCircuit, 
-    CheckCircle, PenTool, FolderOpen, 
-    Sparkles, Calculator, Network, ArrowRight, Lock, AlertTriangle, ChevronRight
+    CheckCircle, PenTool, 
+    Sparkles, Calculator, Network, ArrowRight, AlertTriangle, ChevronRight,
+    Scale, CheckCircle2
 } from 'lucide-react';
 
 const ProductShowcase = () => {
@@ -26,54 +27,54 @@ const ProductShowcase = () => {
         {
             id: 0,
             title: t('showcase.slide1_title', 'Dhoma e Luftës (War Room)'),
-            desc: t('showcase.slide1_desc', 'Simulim adversar i strategjisë së kundërshtarit dhe detektim automatik i kontradiktave.'),
+            desc: t('showcase.slide1_desc', 'Simulim i strategjisë së kundërshtarit, pyetje kryqëzuese dhe detektim automatik i kontradiktave.'),
             icon: <SwordsIcon className="w-5 h-5" />,
-            badge: "ANALIZË ADVERSARE",
+            badge: "ANALIZË ADVERSARE SOKRATIKE",
             color: "from-rose-600 to-red-600",
             mockup: <WarRoomMockup />
         },
         {
             id: 1,
-            title: t('showcase.slide_ontology_title', 'Ontologjia e Provave'),
-            desc: t('showcase.slide_ontology_desc', 'Grafik interaktiv i lidhjeve midis personave, kompanive, llogarive dhe provave.'),
-            icon: <Network className="w-5 h-5" />,
-            badge: "PALANTIR FOUNDRY ENGINE",
-            color: "from-indigo-600 to-purple-600",
-            mockup: <OntologyMockup />
+            title: t('showcase.slide_ontology_title', 'Zero Halucinacione & Citime Zyrtare'),
+            desc: t('showcase.slide_ontology_desc', 'Çdo citim lidhet drejtpërdrejt me nene zyrtare të Kosovës (LPK, LMD, LSHT). Avokati mbetet Kryeredaktori.'),
+            icon: <CheckCircle2 className="w-5 h-5" />,
+            badge: "VERIFIKIM ME LIGJET E KOSOVËS",
+            color: "from-emerald-600 to-teal-600",
+            mockup: <LegalGroundingMockup />
         },
         {
             id: 2,
-            title: t('showcase.slide2_title', 'Deep Scan OCR Engine'),
-            desc: t('showcase.slide2_desc', 'Skanim dhe lexim automatik i dhjetëra fashikujve e dokumenteve të fotografuara në sekonda.'),
+            title: t('showcase.slide2_title', 'Leximi i Provave të Skanuara (HD OCR)'),
+            desc: t('showcase.slide2_desc', 'Lexim me precizion i fotokopjeve të dëmtuara, vulave dhe kontratave të nënshkruara pa përzierje skedarësh.'),
             icon: <ScanEye className="w-5 h-5" />,
-            badge: "KOSOVO OCR TUNED",
+            badge: "KOSOVO SCANNED OCR HD",
             color: "from-blue-600 to-cyan-600",
             mockup: <DeepScanMockup />
         },
         {
             id: 3,
-            title: t('showcase.slide3_title', 'Hartimi i Shkresave me AI'),
-            desc: t('showcase.slide3_desc', 'Gjenerim automatik i padive, kundërshtimeve dhe kontratave me citime të neneve të LPK.'),
+            title: t('showcase.slide3_title', 'Hartimi i Shkresave (Drafting Engine)'),
+            desc: t('showcase.slide3_desc', 'Gjenerim automatik i Përgjigjeve në Padi, Kundërpadive dhe Masave të Sigurisë sipas mandatit të klientit.'),
             icon: <PenTool className="w-5 h-5" />,
-            badge: "NENET E KODIT CITTED",
-            color: "from-emerald-600 to-teal-600",
+            badge: "MANDATI I AVOKATIT",
+            color: "from-purple-600 to-indigo-600",
             mockup: <DraftingMockup />
         },
         {
             id: 4,
-            title: t('showcase.slide4_title', 'Arkiva e Sigurt Digjitale'),
-            desc: t('showcase.slide4_desc', 'Ruajtje me enkriptim ushtarak AES-256 dhe kërkim vektorial i menjëhershëm.'),
-            icon: <FolderOpen className="w-5 h-5" />,
-            badge: "ENKRIPTIM AES-256",
-            color: "from-violet-600 to-fuchsia-600",
-            mockup: <ArchiveMockup />
+            title: t('showcase.slide4_title', 'Ontologjia e Provave & Grafiku'),
+            desc: t('showcase.slide4_desc', 'Grafik interaktiv i lidhjeve midis personave, kompanive, llogarive bankare dhe kontratave.'),
+            icon: <Network className="w-5 h-5" />,
+            badge: "GRAPH RELATIONSHIP ENGINE",
+            color: "from-indigo-600 to-violet-600",
+            mockup: <OntologyMockup />
         },
         {
             id: 5,
             title: t('showcase.slide5_title', 'Analisti Financiar Forenzik'),
-            desc: t('showcase.slide5_desc', 'Auditim automatik i librave të shpenzimeve, Benford Check dhe analizë e faturave.'),
+            desc: t('showcase.slide5_desc', 'Auditim automatik i librave bankarë, Benford Check dhe analizë e parregullsive financiare.'),
             icon: <Calculator className="w-5 h-5" />,
-            badge: "BENFORD'S LAW CHECK",
+            badge: "BENFORD'S LAW AUDIT",
             color: "from-amber-600 to-yellow-600",
             mockup: <FinanceMockup />
         }
@@ -94,7 +95,7 @@ const ProductShowcase = () => {
                         Salla e Komandimit të Lëndëve Ligjore
                     </h2>
                     <p className="text-base sm:text-lg text-text-secondary max-w-2xl mx-auto font-medium leading-relaxed">
-                        Teknologjia më e avancuar e inteligjencës artificiale në Kosovë, e ndërtuar posaçërisht për zyrat e avokatisë.
+                        Teknologjia më e avancuar e inteligjencës artificiale në Kosovë, e ndërtuar për të mbrojtur avokatin dhe për të siguruar fitoren gjyqësore.
                     </p>
                 </div>
 
@@ -214,58 +215,11 @@ const SwordsIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-const OntologyMockup = () => (
-    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500">
-        <div className="flex justify-between items-center bg-slate-900/90 p-3 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider">
-                <Network size={16} /> Ontologjia e Provave
-            </div>
-            <span className="px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-mono font-bold">
-                17 ENTITETE • 1 KUNDËRTHËNJE
-            </span>
-        </div>
-
-        <div className="flex-1 relative flex items-center justify-center my-3">
-            <svg className="w-full h-full" viewBox="-220 -130 440 260">
-                <path d="M -120 -40 Q 0 20 120 -40" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" />
-                <path d="M -120 -40 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                <path d="M 0 50 Q 60 50 120 -40" fill="none" stroke="#8b5cf6" strokeWidth="2" />
-                
-                <rect x="-45" y="-12" width="90" height="18" rx="5" fill="#450a0a" stroke="#ef4444" strokeWidth="1" />
-                <text x="0" y="0" textAnchor="middle" fill="#fca5a5" fontSize="8" fontWeight="black">KUNDËRTHËNJE</text>
-
-                <rect x="-30" y="42" width="60" height="16" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                <text x="0" y="53" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">€45,000</text>
-
-                <g transform="translate(-120, -40)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(59, 130, 246, 0.25)" stroke="#3b82f6" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Shaban Bala</text>
-                </g>
-
-                <g transform="translate(0, 50)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(139, 92, 246, 0.25)" stroke="#8b5cf6" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Tekno Corp Sh.p.k.</text>
-                </g>
-
-                <g transform="translate(120, -40)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">XK56 1000 1234...</text>
-                </g>
-            </svg>
-        </div>
-
-        <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
-            <span className="font-semibold text-slate-400">Detektuar automatikisht nga transkripti i seancës</span>
-            <span className="text-purple-400 font-bold flex items-center gap-1">Eksporto Raportin <ArrowRight size={12} /></span>
-        </div>
-    </div>
-);
-
 const WarRoomMockup = () => (
     <div className="space-y-4 h-full flex flex-col justify-center animate-in fade-in duration-500">
         <div className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-wider">
-                <ShieldAlert size={16} /> Analiza Adversare e Mbrojtjes
+                <ShieldAlert size={16} /> Analiza Adversare e Mbrojtjes (I PADITUR)
             </div>
             <span className="text-[10px] font-mono bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded uppercase font-bold border border-rose-500/30">
                 PALA KUNDËRSHTARE
@@ -274,22 +228,64 @@ const WarRoomMockup = () => (
 
         <div className="p-4 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-2">
             <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase">
-                <AlertTriangle size={14} /> Pika e Sulmit e Kundërshtarit
+                <AlertTriangle size={14} /> Pika e Sulmit të Kundërshtarit
             </div>
             <p className="text-xs text-slate-200 leading-relaxed font-mono">
-                &quot;Paditësi do të kontestojë vlefshmërinë e nënshkrimit në Nenin 4 pasi mungon vula e autorizuar...&quot;
+                &quot;Paditësi pretendoi se ekziston marrëveshje verbale, por nuk ka prokurë përfaqësimi (LPK Neni 98/99)...&quot;
             </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-blue-950/40 border border-blue-800/50 rounded-xl">
-                <span className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Mbrojtja Jonë</span>
-                <p className="text-xs text-slate-300 font-medium">Neni 24 i LPK-së konfirmon pranimin e hilës me konkludim faktik.</p>
+                <span className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Mbrojtja Jonë & Prapësimi</span>
+                <p className="text-xs text-slate-300 font-medium">Kalimi i afatit prekluziv 7-ditor (LPK Neni 99 par. 3) për Hudhje Padie.</p>
             </div>
             <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Probabiliteti</span>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Probabiliteti i Fitores</span>
                 <p className="text-sm font-mono font-black text-emerald-300">85% Sukses</p>
             </div>
+        </div>
+    </div>
+);
+
+const LegalGroundingMockup = () => (
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500 space-y-3">
+        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle2 size={16} /> Verifikim me Bazën Ligjore të Kosovës
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                100% SAKTI
+            </span>
+        </div>
+
+        <div className="space-y-2 my-1">
+            <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div>
+                    <span className="text-xs font-bold text-slate-100 block">Ligji Nr. 06/L-016 për Shoqëritë Tregtare</span>
+                    <span className="text-[10px] text-slate-400">Neni 258 (Detyrimi i Besnikërisë) & Neni 259 (Ndalimi i Konkurrencës)</span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-bold">
+                    ✅ Verifikuar
+                </span>
+            </div>
+
+            <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div>
+                    <span className="text-xs font-bold text-slate-100 block">Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve</span>
+                    <span className="text-[10px] text-slate-400">Neni 180 (Shpërblimi i Dëmit) & Neni 210 (Përfitimi pa Bazë)</span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-bold">
+                    ✅ Verifikuar
+                </span>
+            </div>
+        </div>
+
+        <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
+            <Scale size={20} className="text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-200 font-medium leading-normal">
+                Kryeredaktori: Çdo citim përmban numrin zyrtar të ligjit dhe mund të verifikohet me klikim te burimi origjinal.
+            </p>
         </div>
     </div>
 );
@@ -297,12 +293,12 @@ const WarRoomMockup = () => (
 const DeepScanMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500">
         <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-            <ScanEye size={16} /> Skanim OCR i 4 Dokumenteve
+            <ScanEye size={16} /> Leximi i Shkresave të Skanuara (HD OCR 10.0)
         </div>
         {[
-            { name: "Procesverbali_I_Seances.pdf", pages: "12 Faqe", status: "100% Skanuar" },
-            { name: "Prapësimi_I_Padise.pdf", pages: "8 Faqe", status: "100% Skanuar" },
-            { name: "Marrëveshja_Financiare.pdf", pages: "24 Faqe", status: "100% Skanuar" },
+            { name: "Contract - Rainer Gerke_countersigned.pdf", pages: "5 Faqe", status: "100% Skanuar (€51,500 EUR)" },
+            { name: "Seanca_E_Pare_GetCom.pdf", pages: "12 Faqe", status: "100% Skanuar" },
+            { name: "Raporti_Zyrtar_ATK_0.00.pdf", pages: "4 Faqe", status: "100% Skanuar" },
         ].map((item, i) => (
             <div key={i} className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-xl">
                 <div className="flex items-center gap-3">
@@ -328,8 +324,8 @@ const DeepScanMockup = () => (
 const DraftingMockup = () => (
     <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
         <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                <PenTool size={16} /> Gjeneruesi i Prapësimit
+            <span className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                <PenTool size={16} /> Gjeneruesi i Prapësimit & Kundërpadisë
             </span>
             <span className="text-[10px] font-mono text-slate-400">FORMATI .DOCX</span>
         </div>
@@ -339,50 +335,62 @@ const DraftingMockup = () => (
                 GJYKATA THEMELORE NË PRISHTINË — DEPARTAMENTI PËR ÇËSHTJE EKONOMIKE
             </p>
             <p className="italic text-slate-400">
-                Në bazë të Nenit 297 të Ligjit për Procedurën Kontestimore (LPK)...
+                Lënda: Përgjigje në Padi dhe Kundërpadi sipas Nenit 160 të LPK-së dhe Nenit 258 të LSHT-së...
             </p>
         </div>
 
-        <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
-            <BrainCircuit size={20} className="text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-200 font-medium leading-normal">
-                AI sugjeroi automatikisht Nenin 14 dhe futi emrat zyrtarë të palëve nga fashikulli.
+        <div className="p-3 bg-purple-950/40 border border-purple-800/50 rounded-xl flex items-center gap-3">
+            <BrainCircuit size={20} className="text-purple-400 shrink-0" />
+            <p className="text-xs text-purple-200 font-medium leading-normal">
+                AI futi automatikisht emrat e palëve (INTEGRATION GmbH / Dr. Rainer Gerke) dhe kërkesën për shpërblim dëmi.
             </p>
         </div>
     </div>
 );
 
-const ArchiveMockup = () => (
-    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
-        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-            <span className="text-xs font-bold text-violet-400 uppercase tracking-wider flex items-center gap-2">
-                <FolderOpen size={16} /> Arkivi i Enkriptuar
-            </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold flex items-center gap-1">
-                <Lock size={10} /> AES-256
+const OntologyMockup = () => (
+    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500">
+        <div className="flex justify-between items-center bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                <Network size={16} /> Ontologjia e Provave
+            </div>
+            <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono font-bold">
+                17 ENTITETE • 1 KUNDËRTHËNJE
             </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 my-2">
-            {[
-                { title: "Lëndët Penale", docs: "42 Dokumente" },
-                { title: "Marrëveshjet Tregtare", docs: "18 Dokumente" },
-                { title: "Vendimet e Gjykatës", docs: "89 Dokumente" },
-                { title: "Llogaritë Financiale", docs: "31 Fatura" },
-            ].map((folder, i) => (
-                <div key={i} className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center gap-3 hover:border-violet-500/40 transition-colors">
-                    <FolderOpen className="text-violet-400 shrink-0" size={20} />
-                    <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-200 truncate">{folder.title}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{folder.docs}</p>
-                    </div>
-                </div>
-            ))}
+        <div className="flex-1 relative flex items-center justify-center my-3">
+            <svg className="w-full h-full" viewBox="-220 -130 440 260">
+                <path d="M -120 -40 Q 0 20 120 -40" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" />
+                <path d="M -120 -40 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                <path d="M 0 50 Q 60 50 120 -40" fill="none" stroke="#8b5cf6" strokeWidth="2" />
+                
+                <rect x="-45" y="-12" width="90" height="18" rx="5" fill="#450a0a" stroke="#ef4444" strokeWidth="1" />
+                <text x="0" y="0" textAnchor="middle" fill="#fca5a5" fontSize="8" fontWeight="black">KUNDËRTHËNJE</text>
+
+                <rect x="-30" y="42" width="60" height="16" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                <text x="0" y="53" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">€51,500</text>
+
+                <g transform="translate(-120, -40)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(59, 130, 246, 0.25)" stroke="#3b82f6" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Shaban Bala</text>
+                </g>
+
+                <g transform="translate(0, 50)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(139, 92, 246, 0.25)" stroke="#8b5cf6" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Getting Competent Sh.p.k.</text>
+                </g>
+
+                <g transform="translate(120, -40)" className="cursor-pointer">
+                    <circle r="22" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2.5" />
+                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">TEB Bank QAFA</text>
+                </g>
+            </svg>
         </div>
 
-        <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Kërkim vektorial i menjëhershëm në të gjithë arkivin</span>
-            <span className="text-violet-400 font-mono font-bold">0.02s</span>
+        <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
+            <span className="font-semibold text-slate-400">Gjurmim i automatizuar i rrjedhës financiare</span>
+            <span className="text-indigo-400 font-bold flex items-center gap-1">Eksporto Raportin <ArrowRight size={12} /></span>
         </div>
     </div>
 );
@@ -404,8 +412,8 @@ const FinanceMockup = () => (
                 <span className="text-base font-mono font-black text-slate-100">€ 142,500.00</span>
             </div>
             <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl">
-                <span className="text-[10px] font-bold text-amber-400 uppercase block">Tërheqje me Risk</span>
-                <span className="text-base font-mono font-black text-amber-300">€ 4,200.00</span>
+                <span className="text-[10px] font-bold text-amber-400 uppercase block">Depozitë e Mbrojtur</span>
+                <span className="text-base font-mono font-black text-amber-300">€ 52,000.00</span>
             </div>
         </div>
 

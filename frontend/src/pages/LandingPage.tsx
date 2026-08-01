@@ -1,12 +1,13 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V8.1 (0 WARNINGS - CLEAN IMPORTS)
+// PHOENIX PROTOCOL - LANDING V9.1 (0 WARNINGS - CLEAN IMPORTS)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
-    Database, FileText, Swords, ShieldCheck, BarChart2, Network, Cpu, Zap
+    Database, FileText, Swords, ShieldCheck, BarChart2, Cpu, Zap,
+    Scale, FileSearch, CheckCircle2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -53,46 +54,46 @@ const LandingPage: React.FC = () => {
                 </div>
 
                 <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.1] text-text-primary uppercase select-none">
-                    Salla e Komandimit <br />
+                    Mburoja dhe Strategjia <br />
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-start via-purple-500 to-primary-end">
-                        dhe Strategjisë Gjyqësore
+                        Gjyqësore e Zyrës Suaj
                     </span>
                 </h1>
                 
                 <p className="text-base sm:text-lg md:text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed font-medium">
-                    Zëvendësoni orët e gjata të leximit me analizë të menjëhershme të provave, detektim automatik të kontradiktave dhe hartim shkresash me inteligjencë Sokratike.
+                    Auditoni 100+ faqe provash të skanuara, simuloni strategjinë e kundërshtarit dhe eliminoni çdo lëshim procedural me verifikim të klikueshëm të ligjeve të Kosovës (LPK, LMD, LSHT).
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
                     <Link to="/register" className="btn-primary px-8 py-4 rounded-2xl text-sm sm:text-base font-extrabold uppercase tracking-wider shadow-2xl shadow-primary-start/30 hover-lift flex items-center justify-center gap-2.5 focus:outline-none">
-                        <span>Përdore Gratis Sot</span>
+                        <span>Përdore Gratis në 1 Lëndë</span>
                         <ChevronRight size={18} />
                     </Link>
                     <a href="#showcase" className="px-8 py-4 rounded-2xl bg-surface border border-main hover:bg-hover text-text-primary text-sm sm:text-base font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm">
                         <Cpu size={18} className="text-primary-start" />
-                        <span>Shiko Platformën</span>
+                        <span>Shiko Dhomën e Luftës</span>
                     </a>
                 </div>
             </motion.div>
         </div>
 
-        {/* --- METRICS TRUST BANNER --- */}
+        {/* --- HIGH-TRUST METRICS BANNER --- */}
         <div className="max-w-6xl mx-auto my-12 grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-surface/50 border border-main rounded-3xl backdrop-blur-md shadow-sm text-center">
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-primary-start font-mono">50,000+</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Dokumente të Skanuara</p>
+            <p className="text-2xl sm:text-3xl font-black text-primary-start font-mono">100%</p>
+            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Auditim i Provave të Skanuara</p>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-purple-500 font-mono">100%</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">GDPR & Sovranitet i Të Dhënave</p>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-500 font-mono">ZERO</p>
+            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Halucinacione (Citime me LPK/LMD)</p>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-emerald-500 font-mono">0.02s</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Koha e Kërkimit Vektorial</p>
+            <p className="text-2xl sm:text-3xl font-black text-purple-500 font-mono">GDPR</p>
+            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Sovranitet i Të Dhënave</p>
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-amber-500 font-mono">24 / 7</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Asistent Ligjor Sokratik</p>
+            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Asistent i Mandatit të Avokatit</p>
           </div>
         </div>
 
@@ -106,19 +107,19 @@ const LandingPage: React.FC = () => {
           <div className="text-center space-y-4 max-w-3xl mx-auto">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 text-primary-start text-xs font-black uppercase tracking-widest border border-primary-start/20">
                 <Zap size={14} />
-                <span>Teknologji e Nivelit Botëror</span>
+                <span>Inteligjencë Strategjike për Avokatë</span>
               </div>
               <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase text-text-primary">
-                  Sistemi i Inteligjencës Ligjore
+                  Arsenali i Mbrojtjes dhe Sulmit Gjyqësor
               </h2>
               <p className="text-text-secondary text-sm md:text-base leading-relaxed font-medium">
-                  Mjetet dhe algoritmet e thella që kemi integruar për të shndërruar dokumentet e lëndës në strategji të pakontestueshme gjyqësore.
+                  Ndërtuar për të mbrojtur licencën dhe licencën e zyrës suaj: eliminon gabimet procedurale, parashikon sulmet e kundërshtarit dhe i mban avokatët në 100% kontroll.
               </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[320px]">
             
-            {/* Box 1: Socratic RAG Chat & War Room */}
+            {/* Box 1: Dhoma e Luftës (War Room) */}
             <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
                     <Swords className="w-48 h-48 text-primary-start" />
@@ -127,49 +128,73 @@ const LandingPage: React.FC = () => {
                     <div className="w-12 h-12 bg-primary-start/15 rounded-2xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-sm">
                         <Swords className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Asistenti Sokratik & Dhoma e Luftës</h3>
+                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Dhoma e Luftës (War Room & Simulimi Adversarial)</h3>
                     <p className="text-text-secondary leading-relaxed text-sm font-medium">
-                        Bëni pyetje mbi fashikullin e lëndës dhe hyni në &quot;Dhomën e Luftës&quot; për të simuluar strategjinë e palës kundërshtare, nxjerrë kronologjinë e saktë dhe detektuar mospërputhjet procedural.
+                        Simuloni strategjinë e palës kundërshtare përpara se të hyni në seancë. AI analizon të gjitha provat e depozituara, detekton kontradiktat factual mes procesverbaleve dhe kontratave, si dhe përgatit pyetjet kryqëzuese.
                     </p>
                 </div>
             </div>
 
-            {/* Box 2: Forensic Accounting Analyst */}
+            {/* Box 2: Zero-Hallucinations & Lawyer in Control */}
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-emerald-500/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
+                 <div className="w-12 h-12 bg-emerald-500/15 rounded-2xl flex items-center justify-center mb-4 text-emerald-500 border border-emerald-500/20 shadow-sm">
+                    <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Zero Halucinacione & Kontroll i Plotë</h3>
+                <p className="text-text-secondary text-sm leading-relaxed font-medium">
+                    Çdo citim ligjor përmban titullin dhe numrin zyrtar (LPK, LMD, LSHT). Avokati mbetet Kryeredaktori: çdo argument mund të verifikohet me klikim te burimi origjinal.
+                </p>
+            </div>
+
+            {/* Box 3: Centralized Advocate Mandate (I Paditur vs Paditës) */}
+            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-purple-500/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
+                <div className="w-12 h-12 bg-purple-500/15 rounded-2xl flex items-center justify-center mb-4 text-purple-500 border border-purple-500/30 shadow-sm">
+                    <Scale className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Mandat Dinamik i Avokatit</h3>
+                <p className="text-text-secondary text-sm leading-relaxed font-medium">
+                    Zgjidhni pozicionin e klientit tuaj (I Paditur apo Paditës). Sistemi përshtat menjëherë të gjithë inteligjencën: kërkon prapësime procedurale dhe parashkrim afatesh (LPK) ose provon detyrimin dhe dëmin (LMD).
+                </p>
+            </div>
+
+            {/* Box 4: Scanned Evidence OCR HD 10.0 */}
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-accent-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
+                    <FileSearch className="w-48 h-48 text-accent-start" />
+                </div>
+                <div className="relative z-10 h-full flex flex-col justify-end">
+                    <div className="w-12 h-12 bg-accent-start/15 rounded-2xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-sm">
+                        <FileSearch className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Leximi i Shkresave dhe Provave të Skanuara (HD OCR)</h3>
+                    <p className="text-text-secondary leading-relaxed text-sm font-medium">
+                        Lexon me precizion fotokopjet e dëmtuara, vendimet e gjykatave, vulat dhe faturat në Shqip, Anglisht dhe Gjermanisht. Izolon çdo skedar për të parandaluar përzierjen e fakteve midis seancave dhe kontratave.
+                    </p>
+                </div>
+            </div>
+
+            {/* Box 5: Forensic Accounting */}
             <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-status-success/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
                  <div className="w-12 h-12 bg-status-success/15 rounded-2xl flex items-center justify-center mb-4 text-status-success border border-status-success/20 shadow-sm">
                     <BarChart2 className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Analizë Financiare Forenzike</h3>
                 <p className="text-text-secondary text-sm leading-relaxed font-medium">
-                    Auditim i librave bankarë, vlerësim i anomalisë financiare përmes Ligjit të Benfordit, zbulim i transaksioneve të dyshimta dhe bisedë direkte me ditarin e arkës.
+                    Auditim i librave bankarë dhe ditarit të arkës përmes Ligjit të Benfordit. Zbulon automatikisht transaksionet e dyshimta dhe parregullsitë financiare.
                 </p>
             </div>
 
-            {/* Box 3: Ontologjia e Provave */}
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-purple-500/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
-                    <Network className="w-48 h-48 text-purple-500" />
-                </div>
+            {/* Box 6: Context-Aware Drafting */}
+            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
                 <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-purple-500/15 rounded-2xl flex items-center justify-center mb-4 text-purple-500 border border-purple-500/30 shadow-sm">
-                        <Network className="w-6 h-6" />
+                    <div className="w-12 h-12 bg-primary-start/15 rounded-2xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-sm">
+                        <FileText className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Ontologjia e Provave & Radar i Kontradiktave</h3>
+                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Hartimi i Dokumenteve & Përgjigjeve në Padi</h3>
                     <p className="text-text-secondary leading-relaxed text-sm font-medium">
-                        Ndërtoni hartën vizuale të të gjitha entiteteve (Personave, Kompanive, Llogarive Bankare dhe Lokacioneve). AI detekton automatikisht kontradiktat factual mes dëshmive dhe gjurmon rrjedhën e parave në Euro (€).
+                        Gjeneroni Përgjigje në Padi, Kundërpadi apo Propozime për Masë Sigurie me ton rigorozisht profesional. Përfshin automatikisht emrat e palëve, datat dhe numrat e nenit nga fashikulli.
                     </p>
                 </div>
-            </div>
-
-            {/* Box 4: Context-Aware Drafting */}
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-accent-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="w-12 h-12 bg-accent-start/15 rounded-2xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-sm">
-                    <FileText className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Hartimi i Dokumenteve</h3>
-                <p className="text-text-secondary text-sm leading-relaxed font-medium">
-                    Gjeneroni shkresa ligjore, Kundërpadi, padi apo kontrata të ndryshme direkt me AI. Përfshin automatikisht nenet e LPK-së, emrat dhe numrat zyrtarë nga lënda.
-                </p>
             </div>
 
           </div>

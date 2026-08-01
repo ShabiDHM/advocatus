@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_document_processor.py
-# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V32.0 (STRICT LEGAL ARTICLE & SEMANTIC CHUNKING)
-# 1. LEGAL PRECISION: Splits statutory laws strictly by article boundaries (NENI X) to prevent article mixing.
-# 2. ACADEMY SUPPORT: Uses semantic paragraph splitting for commentaries and guidebooks.
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V32.1 (MULTI-LANGUAGE & STRICT ARTICLE CHUNKING)
+# 1. MULTI-LANGUAGE SUPPORT: Fully supports Albanian (sq), English (en), and Serbian/Regional (sr).
+# 2. LEGAL PRECISION: Splits statutory laws strictly by article boundaries across supported languages.
 # 3. COMPATIBILITY: 100% compliant with Python 3.13 and memory-optimized for Render Free Tier.
 
 import re
@@ -17,17 +17,17 @@ class DocumentChunk(BaseModel):
 
 class EnhancedDocumentProcessor:
     """
-    Advanced processor for splitting Albanian-language legal text and academy materials.
-    Guarantees strict article-level separation for statutory laws.
+    Advanced multi-language processor for splitting legal text and documents.
+    Supports Albanian (sq), English (en), and Serbian/Regional (sr).
     """
 
     @staticmethod
     def _extract_article_number(text: str) -> str:
-        """Extracts article number (e.g., 'Neni 3' -> '3', 'Preambula' -> '0') if present."""
-        match = re.search(r'\b(?:Neni|NENI|Artikulli)\s+(\d+[a-zA-Z]*)', text)
+        """Extracts article number across multiple languages."""
+        match = re.search(r'\b(?:Neni|NENI|Artikulli|Article|Artikel|Član|Članak)\s+(\d+[a-zA-Z]*)', text, re.IGNORECASE)
         if match:
             return match.group(1)
-        if re.search(r'\b(?:Preambula|Hyrja)\b', text, re.IGNORECASE):
+        if re.search(r'\b(?:Preambula|Hyrja|Preamble|Uvod)\b', text, re.IGNORECASE):
             return '0'
         return ''
 
@@ -36,15 +36,17 @@ class EnhancedDocumentProcessor:
         cls,
         text_content: str,
         document_metadata: Dict[str, Any],
-        is_albanian: bool,
+        language: str = "sq",
     ) -> List[DocumentChunk]:
         """
-        Intelligently processes documents:
-        - If document is a Law (contains 'Neni' / 'NENI'): Splits strictly by article.
-        - If document is a Commentary/Academy book: Uses semantic paragraph chunking.
+        Intelligently processes documents based on language ('sq', 'en', 'sr'):
+        - Statutory laws: Splits strictly by article/section boundaries.
+        - Commentaries/manuals: Uses semantic paragraph chunking.
         """
         if not text_content:
             return []
+
+        lang = language.lower() if language else "sq"
 
         # Step 1: Extract pages if page markers exist
         page_splits = re.split(r'--- \[FAQJA (\d+)\] ---', text_content)
@@ -62,15 +64,14 @@ class EnhancedDocumentProcessor:
         enriched_chunks: List[DocumentChunk] = []
         global_chunk_index = 0
 
-        # Check if text contains statutory law article markers
-        is_statutory_law = bool(re.search(r'\b(?:Neni|NENI|Artikulli)\s+\d+', text_content))
+        # Check if text contains statutory law article markers in any supported language
+        is_statutory_law = bool(re.search(r'\b(?:Neni|NENI|Artikulli|Article|Artikel|Član|Članak)\s+\d+', text_content, re.IGNORECASE))
 
         if is_statutory_law:
-            logger_msg = "⚖️ [DocumentProcessor] Statutory Law detected: Splitting strictly by Article boundaries."
-            print(logger_msg)
+            print(f"⚖️ [DocumentProcessor] Statutory Law detected ({lang}): Splitting strictly by Article boundaries.")
 
-            # Split text by Article boundaries (Neni 1, Neni 2, etc.)
-            article_pattern = re.compile(r'(?=\b(?:Neni|NENI|Artikulli)\s+\d+)', re.IGNORECase)
+            # Split text by Article boundaries across languages
+            article_pattern = re.compile(r'(?=\b(?:Neni|NENI|Artikulli|Article|Artikel|Član|Članak)\s+\d+)', re.IGNORECASE)
 
             for page_num, page_text in content_by_page.items():
                 if not page_text.strip():
@@ -89,8 +90,8 @@ class EnhancedDocumentProcessor:
                     chunk_metadata.update({
                         "page": page_num,
                         "chunk_index": global_chunk_index,
-                        "language": "sq" if is_albanian else "en",
-                        "processor_version": "V32.0-STRICT-ARTICLE",
+                        "language": lang,
+                        "processor_version": "V32.1-MULTI-ARTICLE",
                         "article_number": art_num,
                         "is_article": bool(art_num),
                         "char_count": len(cleaned_art)
@@ -101,8 +102,7 @@ class EnhancedDocumentProcessor:
                     )
                     global_chunk_index += 1
         else:
-            # Semantic chunking for Academy manuals, commentaries, and non-statutory documents
-            print("📚 [DocumentProcessor] Academy/Treatise detected: Using semantic paragraph chunking.")
+            print(f"📚 [DocumentProcessor] Commentary/Manual detected ({lang}): Using semantic paragraph chunking.")
             
             chunk_size = 1500
             chunk_overlap = 200
@@ -128,8 +128,8 @@ class EnhancedDocumentProcessor:
                     chunk_metadata.update({
                         "page": page_num,
                         "chunk_index": global_chunk_index,
-                        "language": "sq" if is_albanian else "en",
-                        "processor_version": "V32.0-SEMANTIC",
+                        "language": lang,
+                        "processor_version": "V32.1-MULTI-SEMANTIC",
                         "char_count": len(text_chunk)
                     })
 
