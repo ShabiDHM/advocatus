@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V23.0 (EXECUTIVE LEGAL BOOK READING SURFACE)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V24.0 (EXECUTIVE OPEN BOOK & 1-CLICK MOBILE PDF)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -590,19 +590,22 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* EXECUTIVE LEGAL BOOK READING SURFACE (THEME AWARE) */}
-            <div className="bg-canvas/40 px-4 sm:px-12 py-10 flex justify-center">
-              <div className="w-full max-w-[90ch] bg-surface border border-main rounded-3xl p-8 sm:p-14 shadow-2xl relative overflow-hidden">
+            {/* EXECUTIVE OPEN BOOK READING SURFACE */}
+            <div className="bg-canvas/50 px-2 sm:px-10 py-12 flex justify-center">
+              <div className="w-full max-w-[95ch] bg-surface border border-main rounded-2xl sm:rounded-r-3xl sm:rounded-l-lg shadow-2xl p-8 sm:p-16 relative overflow-hidden transition-all duration-300">
                 
-                {/* Decorative Book Spine / Header Accent */}
-                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-primary-start/40 via-primary-start to-primary-start/40" />
+                {/* Realistic Hardcover Left Spine Binding Effect */}
+                <div className="absolute top-0 bottom-0 left-0 w-4 bg-gradient-to-r from-black/20 via-primary-start/1 to-transparent pointer-events-none border-r border-main/40 hidden sm:block" />
+
+                {/* Center Book Spine Crease Shadow */}
+                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none hidden sm:block" />
 
                 {/* Article Header Inside Book */}
-                <div className="text-center pb-8 mb-8 border-b border-main/60">
-                  <span className="text-xs font-mono font-black text-primary-start uppercase tracking-widest block mb-2">
+                <div className="text-center pb-8 mb-8 border-b border-main/60 relative z-10">
+                  <span className="text-xs font-mono font-bold text-primary-start uppercase tracking-widest block mb-2">
                     {article.law_title}
                   </span>
-                  <h2 className="text-xl sm:text-2xl font-black text-text-primary uppercase tracking-tight font-serif">
+                  <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-tight font-serif">
                     {(() => {
                       const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
                       const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
@@ -611,16 +614,16 @@ export default function LawArticlePage() {
                   </h2>
                 </div>
 
-                {/* Article Body Text */}
-                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-medium whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20">
+                {/* Article Body Text (Pure Albanian, Standard Serif Typographical Flow) */}
+                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
                   {article.text}
                 </div>
 
-                {/* Decorative Book Footer */}
-                <div className="mt-12 pt-6 border-t border-main/40 flex justify-between items-center text-xs font-mono text-text-muted">
-                  <span>Juristi AI Legal Codex</span>
+                {/* Standardized Albanian Book Footer */}
+                <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs font-mono text-text-muted relative z-10">
+                  <span>Kodi Juridik i Republikës së Kosovës</span>
                   <span>§</span>
-                  <span>Official Verified Source</span>
+                  <span>Burim Zyrtar i Verifikuar</span>
                 </div>
 
               </div>
