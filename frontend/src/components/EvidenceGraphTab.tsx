@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V39.0 (MOBILE PINCH-ZOOM & ENTERPRISE GLASS-CARDS)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V40.0 (5-COLUMN LEGAL PIPELINE & EXECUTIVE CARDS)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -148,11 +148,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [viewBox, setViewBox] = useState({ x: -1250, y: -800, width: 2500, height: 1600 });
+  const [viewBox, setViewBox] = useState({ x: -1400, y: -700, width: 2800, height: 1400 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
-  // Touch Gesture Refs for Mobile Pinch Zoom
   const touchDistRef = useRef<number | null>(null);
 
   const fetchGraphAndCaseDetails = async () => {
@@ -195,14 +194,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 14) {
+    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 18) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
         edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + 1);
         edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + 1);
       });
 
-      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 16);
+      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 20);
     }
 
     return base;
@@ -226,31 +225,26 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
   }, [selectedNode, graphData?.edges]);
 
-  // STAGGERED MULTI-SUBLANE GRID DISTRIBUTION
+  // STRUCTURED 5-COLUMN LEGAL PIPELINE DISTRIBUTION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
     
-    const leftPrimaryNodes: OntologyNode[] = [];
-    const leftSecondaryNodes: OntologyNode[] = [];
-    const centerLaneNodes: OntologyNode[] = [];
-    const rightLaneNodes: OntologyNode[] = [];
+    const colPersons: OntologyNode[] = [];
+    const colOrgs: OntologyNode[] = [];
+    const colAccountsLocs: OntologyNode[] = [];
+    const colDocs: OntologyNode[] = [];
+    const colEvents: OntologyNode[] = [];
 
     filteredNodes.forEach((node) => {
-      if (node.type === 'PERSON' || node.type === 'ORGANIZATION' || node.type === 'ACCOUNT') {
-        if (leftPrimaryNodes.length <= leftSecondaryNodes.length) {
-          leftPrimaryNodes.push(node);
-        } else {
-          leftSecondaryNodes.push(node);
-        }
-      } else if (node.type === 'DOCUMENT') {
-        centerLaneNodes.push(node);
-      } else {
-        rightLaneNodes.push(node);
-      }
+      if (node.type === 'PERSON') colPersons.push(node);
+      else if (node.type === 'ORGANIZATION') colOrgs.push(node);
+      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') colAccountsLocs.push(node);
+      else if (node.type === 'DOCUMENT') colDocs.push(node);
+      else colEvents.push(node);
     });
 
-    const calculateSubLane = (nodes: OntologyNode[], xPos: number, spacingY: number = 140) => {
+    const calculateColumn = (nodes: OntologyNode[], xPos: number, spacingY: number = 180) => {
       const startY = -((nodes.length - 1) * spacingY) / 2;
       nodes.forEach((node, idx) => {
         initialPos[node.id] = {
@@ -260,15 +254,16 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     };
 
-    calculateSubLane(leftPrimaryNodes, -920, 140);
-    calculateSubLane(leftSecondaryNodes, -520, 140);
-    calculateSubLane(centerLaneNodes, 0, 160);
-    calculateSubLane(rightLaneNodes, 650, 160);
+    calculateColumn(colPersons, -1100, 180);       // Col 1: Persons
+    calculateColumn(colOrgs, -550, 180);          // Col 2: Organizations
+    calculateColumn(colAccountsLocs, 0, 180);     // Col 3: Accounts & Locations
+    calculateColumn(colDocs, 550, 180);           // Col 4: Documents
+    calculateColumn(colEvents, 1100, 180);         // Col 5: Events / Courts
 
     setPositions(initialPos);
   }, [filteredNodes]);
 
-  // AUTO-FIT CAMERA VIEWBOX
+  // Dynamic Camera ViewBox Auto-Fit
   useEffect(() => {
     const keys = Object.keys(positions);
     if (keys.length === 0) return;
@@ -282,8 +277,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       if (p.y > maxY) maxY = p.y;
     });
 
-    const calcWidth = Math.max(2400, (maxX - minX) + 600);
-    const calcHeight = Math.max(1500, (maxY - minY) + 400);
+    const calcWidth = Math.max(2200, (maxX - minX) + 700);
+    const calcHeight = Math.max(1400, (maxY - minY) + 500);
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
@@ -448,7 +443,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setDraggedNodeId(null);
   };
 
-  // TOUCH GESTURE HANDLERS FOR MOBILE PINCH-ZOOM AND TOUCH PANNING
+  // TOUCH GESTURES FOR MOBILE PINCH ZOOM & PANNING
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const t1 = e.touches[0];
@@ -716,25 +711,39 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 </marker>
               </defs>
 
-              {/* 3-COLUMN LEGAL LANE BACKDROP HEADERS */}
+              {/* 5-COLUMN LEGAL PIPELINE HEADERS */}
               <g className="lane-headers" pointerEvents="none">
-                <g transform="translate(-720, -680)">
-                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#93c5fd" fontSize="17" fontWeight="900" letterSpacing="1px">
-                    👤 PALËT & SUBJEKTET
+                <g transform="translate(-1100, -780)">
+                  <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#2563eb" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#60a5fa" fontSize="16" fontWeight="900" letterSpacing="1px">
+                    👤 PERSONA
                   </text>
                 </g>
 
-                <g transform="translate(0, -680)">
-                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="17" fontWeight="900" letterSpacing="1px">
+                <g transform="translate(-550, -780)">
+                  <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#7c3aed" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#a78bfa" fontSize="16" fontWeight="900" letterSpacing="1px">
+                    🏢 INSTITUCIONE
+                  </text>
+                </g>
+
+                <g transform="translate(0, -780)">
+                  <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#059669" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#34d399" fontSize="16" fontWeight="900" letterSpacing="1px">
+                    💳 LLOGARI & LOKACIONE
+                  </text>
+                </g>
+
+                <g transform="translate(550, -780)">
+                  <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#4b5563" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="16" fontWeight="900" letterSpacing="1px">
                     📄 PROVAT & DOKUMENTET
                   </text>
                 </g>
 
-                <g transform="translate(650, -680)">
-                  <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                  <text x="0" y="6" textAnchor="middle" fill="#fca5a5" fontSize="17" fontWeight="900" letterSpacing="1px">
+                <g transform="translate(1100, -780)">
+                  <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#dc2626" strokeWidth="2" />
+                  <text x="0" y="6" textAnchor="middle" fill="#f87171" fontSize="16" fontWeight="900" letterSpacing="1px">
                     ⚖️ ORGANET & SEANCAT
                   </text>
                 </g>
@@ -772,7 +781,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   const albanianLabel = formatRelationText(edge.relation);
                   const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                  const badgeWidth = Math.max(110, labelDisplayText.length * 11);
+                  const badgeWidth = Math.max(120, labelDisplayText.length * 11);
 
                   return (
                     <g
@@ -827,7 +836,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 })}
               </g>
 
-              {/* HIGH-RESOLUTION GLASS-CARD STRUCTURED NODES */}
+              {/* HIGH-RESOLUTION EXECUTIVE GLASS CARDS */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = positions[node.id] || { x: 0, y: 0 };
@@ -840,8 +849,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
                   const isNodeDisabled = isFocusedMode && !isNodeConnected;
 
-                  const cardWidth = 260;
-                  const cardHeight = 72;
+                  const cardWidth = 280;
+                  const cardHeight = 84;
 
                   return (
                     <g
@@ -859,11 +868,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       {/* Active Halo Glow */}
                       {isSelected && (
                         <rect
-                          x={-cardWidth / 2 - 6}
-                          y={-cardHeight / 2 - 6}
-                          width={cardWidth + 12}
-                          height={cardHeight + 12}
-                          rx={20}
+                          x={-cardWidth / 2 - 8}
+                          y={-cardHeight / 2 - 8}
+                          width={cardWidth + 16}
+                          height={cardHeight + 16}
+                          rx={22}
                           fill="none"
                           stroke={config.border}
                           strokeWidth="4"
@@ -877,7 +886,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                         y={-cardHeight / 2}
                         width={cardWidth}
                         height={cardHeight}
-                        rx={16}
+                        rx={18}
                         fill="#0b0f19"
                         stroke={isSelected ? '#ffffff' : '#1e293b'}
                         strokeWidth={isSelected ? '3' : '2'}
@@ -888,28 +897,28 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       <rect
                         x={-cardWidth / 2}
                         y={-cardHeight / 2}
-                        width="8"
+                        width="10"
                         height={cardHeight}
-                        rx="4"
+                        rx="5"
                         fill={config.bg}
                       />
 
                       {/* Entity Icon Container */}
-                      <g transform={`translate(${-cardWidth / 2 + 30}, 0)`}>
-                        <circle r="18" fill={config.bg} />
-                        <foreignObject x={-10} y={-10} width={20} height={20} className="pointer-events-none">
+                      <g transform={`translate(${-cardWidth / 2 + 36}, 0)`}>
+                        <circle r="20" fill={config.bg} />
+                        <foreignObject x={-11} y={-11} width={22} height={22} className="pointer-events-none">
                           <div className="w-full h-full flex items-center justify-center text-white">
-                            <IconComponent className="w-4 h-4" />
+                            <IconComponent className="w-4.5 h-4.5" />
                           </div>
                         </foreignObject>
                       </g>
 
                       {/* Label Text */}
                       <text
-                        x={-cardWidth / 2 + 58}
-                        y={-6}
+                        x={-cardWidth / 2 + 68}
+                        y={-8}
                         fill="#ffffff"
-                        fontSize="14"
+                        fontSize="16"
                         fontWeight="800"
                         className="select-none tracking-tight pointer-events-none font-sans"
                       >
@@ -917,24 +926,24 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                       </text>
 
                       {/* Category Badge Pill */}
-                      <g transform={`translate(${-cardWidth / 2 + 58}, 16)`}>
+                      <g transform={`translate(${-cardWidth / 2 + 68}, 18)`}>
                         <rect
                           x="0"
-                          y="-10"
-                          width="110"
-                          height="18"
-                          rx="9"
+                          y="-11"
+                          width="120"
+                          height="20"
+                          rx="10"
                           fill={config.bg}
                           fillOpacity="0.25"
                           stroke={config.border}
-                          strokeWidth="0.8"
+                          strokeWidth="1"
                         />
                         <text
-                          x="55"
-                          y="2"
+                          x="60"
+                          y="3"
                           textAnchor="middle"
                           fill={config.border}
-                          fontSize="10"
+                          fontSize="11"
                           fontWeight="800"
                           className="select-none uppercase tracking-wider font-sans"
                         >
@@ -1139,7 +1148,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
       </div>
 
-      {/* IN-MODAL ENTITY CHAT DRAWER WITH DYNAMIC ROLE MANDATE */}
+      {/* IN-MODAL ENTITY CHAT DRAWER */}
       <AnimatePresence>
         {entityChatOpen && chatEntity && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-4">
