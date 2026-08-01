@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V24.0 (EXECUTIVE OPEN BOOK & 1-CLICK MOBILE PDF)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V25.0 (FULL FILE REPLACEMENT - EXECUTIVE OPEN BOOK & DYNAMIC VERIFICATION)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -600,11 +600,8 @@ export default function LawArticlePage() {
                 {/* Center Book Spine Crease Shadow */}
                 <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none hidden sm:block" />
 
-                {/* Article Header Inside Book */}
-                <div className="text-center pb-8 mb-8 border-b border-main/60 relative z-10">
-                  <span className="text-xs font-mono font-bold text-primary-start uppercase tracking-widest block mb-2">
-                    {article.law_title}
-                  </span>
+                {/* Article Header Inside Book (Clean, Non-Redundant Neni Only) */}
+                <div className="text-center pb-6 mb-8 border-b border-main/60 relative z-10">
                   <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-tight font-serif">
                     {(() => {
                       const cleanNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
@@ -614,16 +611,22 @@ export default function LawArticlePage() {
                   </h2>
                 </div>
 
-                {/* Article Body Text (Pure Albanian, Standard Serif Typographical Flow) */}
+                {/* Article Body Text */}
                 <div className="text-base sm:text-lg text-text-primary leading-relaxed font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
                   {article.text}
                 </div>
 
-                {/* Standardized Albanian Book Footer */}
-                <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs font-mono text-text-muted relative z-10">
-                  <span>Kodi Juridik i Republikës së Kosovës</span>
-                  <span>§</span>
-                  <span>Burim Zyrtar i Verifikuar</span>
+                {/* Dynamic Theme-Aware & Verification-Aware Book Footer */}
+                <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs sm:text-sm font-mono relative z-10">
+                  <span className="text-text-muted">Kodi Juridik i Republikës së Kosovës</span>
+                  <span className="text-text-muted">§</span>
+                  <span className={`font-bold flex items-center gap-1.5 ${
+                    sourceInfo?.confidence?.level === 'HIGH' || sourceInfo?.confidence?.level === 'MEDIUM' 
+                      ? 'text-emerald-500' 
+                      : 'text-rose-500'
+                  }`}>
+                    {sourceInfo?.confidence?.icon || '✅'} Burim Zyrtar i Verifikuar
+                  </span>
                 </div>
 
               </div>
