@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V38.0 (STAGGERED SUB-LANES & DYNAMIC CAMERA AUTO-FIT)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V39.0 (MOBILE PINCH-ZOOM & ENTERPRISE GLASS-CARDS)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -78,13 +78,13 @@ interface EvidenceGraphTabProps {
   caseTitle?: string;
 }
 
-const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; icon: LucideIcon }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#1d4ed8', border: '#60a5fa', icon: User },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#6d28d9', border: '#a78bfa', icon: Building2 },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#047857', border: '#34d399', icon: CreditCard },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#374151', border: '#9ca3af', icon: FileText },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#b45309', border: '#fbbf24', icon: MapPin },
-  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#b91c1c', border: '#f87171', icon: Calendar },
+const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; glow: string; icon: LucideIcon }> = {
+  PERSON: { albanianLabel: 'Persona', bg: '#2563eb', border: '#60a5fa', glow: 'rgba(37, 99, 235, 0.4)', icon: User },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', border: '#a78bfa', glow: 'rgba(124, 58, 237, 0.4)', icon: Building2 },
+  ACCOUNT: { albanianLabel: 'Llogari', bg: '#059669', border: '#34d399', glow: 'rgba(5, 150, 105, 0.4)', icon: CreditCard },
+  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#4b5563', border: '#9ca3af', glow: 'rgba(75, 85, 99, 0.4)', icon: FileText },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', border: '#fbbf24', glow: 'rgba(217, 119, 6, 0.4)', icon: MapPin },
+  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', glow: 'rgba(220, 38, 38, 0.4)', icon: Calendar },
 };
 
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
@@ -152,6 +152,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
 
+  // Touch Gesture Refs for Mobile Pinch Zoom
+  const touchDistRef = useRef<number | null>(null);
+
   const fetchGraphAndCaseDetails = async () => {
     setLoading(true);
     try {
@@ -205,7 +208,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
 
-  // EXTREME FOCUS MODE CALCULATION
   const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
     if (!selectedNode || !graphData?.edges) {
       return { connectedNodeIds: new Set<string>(), connectedEdgeIds: new Set<string>() };
@@ -224,7 +226,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
   }, [selectedNode, graphData?.edges]);
 
-  // STAGGERED MULTI-SUBLANE GRID DISTRIBUTION (Zero Overlaps)
+  // STAGGERED MULTI-SUBLANE GRID DISTRIBUTION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -258,10 +260,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     };
 
-    calculateSubLane(leftPrimaryNodes, -920, 140);     // Left Sub-lane A (Primary)
-    calculateSubLane(leftSecondaryNodes, -520, 140);   // Left Sub-lane B (Secondary)
-    calculateSubLane(centerLaneNodes, 0, 160);         // Center Lane (Documents)
-    calculateSubLane(rightLaneNodes, 650, 160);        // Right Lane (Courts/Events)
+    calculateSubLane(leftPrimaryNodes, -920, 140);
+    calculateSubLane(leftSecondaryNodes, -520, 140);
+    calculateSubLane(centerLaneNodes, 0, 160);
+    calculateSubLane(rightLaneNodes, 650, 160);
 
     setPositions(initialPos);
   }, [filteredNodes]);
@@ -446,6 +448,49 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setDraggedNodeId(null);
   };
 
+  // TOUCH GESTURE HANDLERS FOR MOBILE PINCH-ZOOM AND TOUCH PANNING
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      touchDistRef.current = dist;
+    } else if (e.touches.length === 1 && !draggedNodeId) {
+      setIsPanning(true);
+      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchDistRef.current !== null) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const newDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      
+      if (newDist > 0 && touchDistRef.current > 0) {
+        const zoomFactor = touchDistRef.current / newDist;
+        setViewBox((prev) => ({
+          x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
+          y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
+          width: Math.max(800, Math.min(6000, prev.width * zoomFactor)),
+          height: Math.max(500, Math.min(4000, prev.height * zoomFactor)),
+        }));
+      }
+      touchDistRef.current = newDist;
+    } else if (e.touches.length === 1 && isPanning) {
+      const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 2400);
+      const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 1500);
+      setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchDistRef.current = null;
+    setIsPanning(false);
+    setDraggedNodeId(null);
+  };
+
   const handleOpenEntityChat = (node: OntologyNode) => {
     setChatEntity(node);
     setEntityMessages([]);
@@ -557,7 +602,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0 h-12">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           
-          {/* Smart Clutter Reduction Toggle Switch */}
           <button
             onClick={() => setSimplifiedView(!simplifiedView)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm ${
@@ -656,6 +700,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
             >
               <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
@@ -671,7 +718,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
               {/* 3-COLUMN LEGAL LANE BACKDROP HEADERS */}
               <g className="lane-headers" pointerEvents="none">
-                {/* Lane 1 Header: Left */}
                 <g transform="translate(-720, -680)">
                   <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#93c5fd" fontSize="17" fontWeight="900" letterSpacing="1px">
@@ -679,7 +725,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </text>
                 </g>
 
-                {/* Lane 2 Header: Center */}
                 <g transform="translate(0, -680)">
                   <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="17" fontWeight="900" letterSpacing="1px">
@@ -687,7 +732,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </text>
                 </g>
 
-                {/* Lane 3 Header: Right */}
                 <g transform="translate(650, -680)">
                   <rect x="-160" y="-26" width="320" height="52" rx="26" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
                   <text x="0" y="6" textAnchor="middle" fill="#fca5a5" fontSize="17" fontWeight="900" letterSpacing="1px">
@@ -707,7 +751,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const isSelected = selectedEdge?.id === edge.id;
                   const isHovered = hoveredEdge?.id === edge.id;
 
-                  // Focus mode evaluation
                   const isFocusedMode = Boolean(selectedNode);
                   const isEdgeConnected = connectedEdgeIds.has(edge.id);
                   const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.65);
@@ -784,7 +827,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 })}
               </g>
 
-              {/* CARD-STYLE STRUCTURED GRID NODES */}
+              {/* HIGH-RESOLUTION GLASS-CARD STRUCTURED NODES */}
               <g className="nodes">
                 {filteredNodes.map((node) => {
                   const pos = positions[node.id] || { x: 0, y: 0 };
@@ -792,7 +835,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   const IconComponent = config.icon;
                   const isSelected = selectedNode?.id === node.id;
 
-                  // Focus mode evaluation
                   const isFocusedMode = Boolean(selectedNode);
                   const isNodeConnected = connectedNodeIds.has(node.id);
                   const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
@@ -823,7 +865,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           height={cardHeight + 12}
                           rx={20}
                           fill="none"
-                          stroke="#60a5fa"
+                          stroke={config.border}
                           strokeWidth="4"
                           className="animate-pulse"
                         />
@@ -906,7 +948,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
             </svg>
           )}
 
-          {/* FLOATING HOVER EVIDENCE TOOLTIP CARD (HOVER INTELLIGENCE) */}
+          {/* FLOATING HOVER EVIDENCE TOOLTIP CARD */}
           <AnimatePresence>
             {hoveredEdge && (
               <motion.div
@@ -1097,7 +1139,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
       </div>
 
-      {/* IN-MODAL ENTITY CHAT DRAWER WITH DYNAMIC ROLE MANDATE (DEFENDANT | PLAINTIFF | NEUTRAL) */}
+      {/* IN-MODAL ENTITY CHAT DRAWER WITH DYNAMIC ROLE MANDATE */}
       <AnimatePresence>
         {entityChatOpen && chatEntity && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-4">

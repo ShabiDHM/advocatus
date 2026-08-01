@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V27.0 (TRILINGUAL MONGO FALLBACK)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V28.0 (SMART CONTEXTUAL RETRIEVAL MAPPING)
 
 import os, time, logging, json
 from typing import List, Dict, Any, Sequence
@@ -39,7 +39,32 @@ def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) 
         except Exception:
             results = list(coll.find().limit(n_results))
 
-    return [{"text": r.get("text", ""), "source": r.get("law_title", "Ligji"), "chunk_id": str(r.get("_id"))} for r in results]
+    formatted_results = []
+    for r in results:
+        law_title = r.get("law_title", "Dokument Juridik")
+        article_num = str(r.get("article_number", ""))
+        is_article = r.get("is_article", False)
+        is_case_law = r.get("is_case_law", False)
+
+        # Smart Contextual Formatting to tell the LLM exactly what it is reading
+        if is_case_law:
+            source_tag = f"🔨 Praktika Gjyqësore (Aktgjykim): {law_title}"
+        elif is_article:
+            art_label = "Neni " if article_num != "0" else "Preambula"
+            art_suffix = article_num if article_num != "0" else ""
+            source_tag = f"⚖️ {law_title}, {art_label}{art_suffix}"
+        else:
+            # Academy or non-statutory manuals
+            section_label = article_num if article_num else "Seksioni"
+            source_tag = f"📚 Doktrina/Manuali ({law_title}), {section_label}"
+
+        formatted_results.append({
+            "text": r.get("text", ""), 
+            "source": source_tag, 
+            "chunk_id": str(r.get("_id"))
+        })
+
+    return formatted_results
 
 def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15, **kwargs) -> List[Dict[str, Any]]:
     """

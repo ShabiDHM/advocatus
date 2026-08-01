@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V93.0 (STRICT CONTRACT SIGNATORY VERIFICATION)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V94.0 (MULTI-SOURCE CITATION AWARENESS)
 
 import os
 import json
@@ -39,7 +39,7 @@ def build_dynamic_identity_header(
 ) -> str:
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
-    Forces literal extraction of contract signatories to eliminate entity hallucinations.
+    Forces literal extraction of contract signatories and STRICT MULTI-SOURCE CITAIONS.
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -52,6 +52,12 @@ MANDATI MULTILINGUAL DHE EMANIMI I SAKTË I PALËVE (SQ / EN / DE):
 1. Lexo dhe analizo me saktësi të plotë çdo eksponat (Shqip, Anglisht, Gjermanisht).
 2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXYRR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
 3. Mos supozo automatikisht se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse teksti i kontratës specifikon një kompani tjetër ose palë të tretë të nënshkruar me {opposing_name}. Trego saktësisht emrat e entiteteve që figurojnë në tekst!
+
+[RREGULLI I CITIMIT TË BURIMEVE (RAG SOURCE CITAION)]
+Ti do të marrësh fragmente nga Baza e Njohurive. Kushtoji rëndësi ikonave për të kuptuar çfarë lloj dokumenti po lexon dhe citoji saktë:
+- Nëse burimi ka ikonën ⚖️: Ky është LIGJ ZYRTAR STATUTOR. Citoje si: "Sipas Nenit X të Ligjit Y..."
+- Nëse burimi ka ikonën 📚: Ky është MANUAL / KOMENTAR AKADEMIK. Citoje si: "Sipas doktrinës / praktikës së Akademisë së Drejtësisë..."
+- Nëse burimi ka ikonën 🔨: Ky është AKTGJYKIM / PRAKTIKË GJYQËSORE. Citoje si: "Bazuar në praktikën gjyqësore në Aktgjykimin [Emri/Numri]..."
 
 RREGULL KRITIK SHFAJËSUES:
 ASNJËHERË mos thuaj apo aludo se {client_name} ka kryer veprime të paligjshme apo vjedhje.
@@ -172,7 +178,6 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
     """
     PHOENIX ENGINE: Generates real, structured summaries for Albanian, English, or German documents.
-    Replaces the previous stub to ensure all exhibits have accurate summaries.
     """
     if not text or not text.strip():
         return "Dokument pa përmbajtje tekstuale."
