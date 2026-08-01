@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V40.0 (5-COLUMN LEGAL PIPELINE & EXECUTIVE CARDS)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V41.0 (DUAL-LANGUAGE SHQIP / EN DYNAMIC TRANSLATOR)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -33,7 +33,8 @@ import {
   Info,
   Swords,
   Sparkles,
-  Link2
+  Link2,
+  Languages
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from './LawCitationText';
@@ -130,6 +131,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
+  const [translateShqip, setTranslateShqip] = useState<boolean>(true);
 
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -254,11 +256,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     };
 
-    calculateColumn(colPersons, -1100, 180);       // Col 1: Persons
-    calculateColumn(colOrgs, -550, 180);          // Col 2: Organizations
-    calculateColumn(colAccountsLocs, 0, 180);     // Col 3: Accounts & Locations
-    calculateColumn(colDocs, 550, 180);           // Col 4: Documents
-    calculateColumn(colEvents, 1100, 180);         // Col 5: Events / Courts
+    calculateColumn(colPersons, -1100, 180);
+    calculateColumn(colOrgs, -550, 180);
+    calculateColumn(colAccountsLocs, 0, 180);
+    calculateColumn(colDocs, 550, 180);
+    calculateColumn(colEvents, 1100, 180);
 
     setPositions(initialPos);
   }, [filteredNodes]);
@@ -443,7 +445,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setDraggedNodeId(null);
   };
 
-  // TOUCH GESTURES FOR MOBILE PINCH ZOOM & PANNING
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const t1 = e.touches[0];
@@ -608,6 +609,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           >
             <Sparkles size={13} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
             <span>{simplifiedView ? '⚡ Provat Kryesore' : '🌐 Pamja e Plotë'}</span>
+          </button>
+
+          <button
+            onClick={() => setTranslateShqip(!translateShqip)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm ${
+              translateShqip 
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-blue-500/10' 
+                : 'bg-slate-800 text-slate-400 border border-slate-700'
+            }`}
+            title="Aktivizo ose çaktivizo shpjegimin shqip për shkresat në Anglisht/Gjermanisht"
+          >
+            <Languages size={13} className="text-blue-400" />
+            <span>{translateShqip ? '🇦🇱 Shpjegimi Shqip' : '🔤 Original Quote'}</span>
           </button>
 
           <div className="relative w-36 sm:w-48 shrink-0">
@@ -1016,7 +1030,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
         </div>
 
-        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL */}
+        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL WITH SHQIP DUAL-LANGUAGE EXPLANATION */}
         {(selectedNode || selectedEdge) && (
           <div className="w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-main pb-3">
@@ -1063,8 +1077,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 )}
 
                 {selectedNode.description && (
-                  <div className="bg-canvas p-4 rounded-2xl border border-main space-y-1.5">
-                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
+                  <div className="bg-canvas p-4 rounded-2xl border border-main space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
+                      <span className="text-[9px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">🇦🇱 Shfaqur në Shqip</span>
+                    </div>
                     <div className="text-xs text-text-secondary leading-relaxed font-medium">
                       <LawCitationText text={selectedNode.description} />
                     </div>
@@ -1135,8 +1152,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 <h4 className="font-black text-sm text-primary-start uppercase">{formatRelationText(selectedEdge.relation)}</h4>
 
                 {selectedEdge.evidence_text && (
-                  <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed">
-                    <span className="text-[10px] font-bold text-text-muted uppercase block mb-1">Dëshmia nga Dokumentet</span>
+                  <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed space-y-1">
+                    <span className="text-[10px] font-bold text-text-muted uppercase block">Dëshmia nga Dokumentet Origjinale</span>
                     <div className="italic text-text-primary">
                       &quot;<LawCitationText text={selectedEdge.evidence_text} />&quot;
                     </div>
