@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V38.0 (ANTI-404 GRACEFUL FALLBACKS)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V41.0 (RESTORED 3-STEP VERIFICATION & SAFE ROUTER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -64,6 +64,25 @@ def _get_law_code_variations(raw_title: str) -> List[str]:
     
     return [v for v in variations if v]
 
+def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
+    """
+    SMART ROUTER: Maps AI concepts to official Kosovo Laws before searching.
+    """
+    title_lower = raw_title.lower()
+    
+    if any(k in title_lower for k in ["shoqëri", "tregtare", "besnikërisë", "konkurrencë", "lsht"]):
+        return "Ligji Nr. 06/L-016 për Shoqëritë Tregtare"
+    if any(k in title_lower for k in ["detyrim", "dëm", "pasurim", "kamat", "lmd", "përgjithshëm"]):
+        return "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve"
+    if any(k in title_lower for k in ["procedur", "kontestimore", "siguris", "padi", "lpk"]):
+        return "Ligji Nr. 03/L-006 për Procedurën Kontestimore"
+    if "punës" in title_lower:
+        return "Ligji Nr. 03/L-212 i Punës"
+    if "familjen" in title_lower:
+        return "Ligji Nr. 2004/32 për Familjen e Kosovës"
+
+    return raw_title
+
 def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, original_article: str) -> dict:
     confidence_level = metadata.get("confidence", {}).get("level", "HIGH")
     confidence_score = metadata.get("confidence", {}).get("score", 0.95)
@@ -87,7 +106,10 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
     }
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Dict[str, Any]]:
-    clean_title = raw_law_title.strip()
+    # Fix the title before querying
+    mapped_title = _normalize_hallucinated_title(raw_law_title, str(raw_article_num))
+    
+    clean_title = mapped_title.strip()
     clean_title = re.sub(r'^\s*[\(\[{(](.*?)[\)\]})]\s*$', r'\1', clean_title)
     clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
     clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
@@ -101,23 +123,30 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     
     metadata = {
         "original_law_title": raw_law_title,
+        "mapped_law_title": mapped_title,
         "article_number": raw_article_num,
         "confidence": {"level": "HIGH", "score": 0.95},
         "strategy_used": "exact_match",
+        "was_mapped": (mapped_title != raw_law_title),
         "multiple_matches": False
     }
 
-    # If it's an Academy file ("Pjesa X"), search by chunk_index
+    # ==============================================================
+    # VERIFICATION STEP 1: Academy & Manuals logic ("Pjesa X")
+    # ==============================================================
     if raw_article_num.startswith("Pjesa "):
         try:
             chunk_idx = int(raw_article_num.split()[-1]) - 1
             doc = db.legal_knowledge_base.find_one({"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}, "chunk_index": chunk_idx})
             if doc:
+                metadata["strategy_used"] = "academy_match"
                 return [doc], metadata
         except Exception:
             pass
 
-    # Standard statutory law search
+    # ==============================================================
+    # VERIFICATION STEP 2: Strict Exact Match (Title + Article)
+    # ==============================================================
     query = {
         "law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"},
         "article_number": {"$in": art_variants}
@@ -127,7 +156,10 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     if docs:
         return docs, metadata
 
-    # 1st Fallback: Search by just law_title and return the first 3 chunks found
+    # ==============================================================
+    # VERIFICATION STEP 3: Graceful Fallbacks (No DB Crashes)
+    # ==============================================================
+    # Fallback A: Search by just law_title
     query = {"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}}
     cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(3)
     docs = list(cursor)
@@ -136,18 +168,20 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         metadata["strategy_used"] = "fallback_general"
         return docs, metadata
 
-    # 2nd Fallback: Text search if law_title Regex entirely fails
-    text_cursor = db.legal_knowledge_base.find(
-        {"$text": {"$search": f"{clean_title} Neni {clean_art}"}}
-    ).limit(1)
-    
-    docs = list(text_cursor)
-    if docs:
-        metadata["confidence"] = {"level": "LOW", "score": 0.30}
-        metadata["strategy_used"] = "fallback_text_search"
-        return docs, metadata
+    # Fallback B: Safe text regex search
+    try:
+        safe_regex = re.escape(clean_title)[:40] 
+        text_cursor = db.legal_knowledge_base.find(
+            {"text": {"$regex": safe_regex, "$options": "i"}}
+        ).limit(1)
+        docs = list(text_cursor)
+        if docs:
+            metadata["confidence"] = {"level": "LOW", "score": 0.30}
+            metadata["strategy_used"] = "fallback_text_regex"
+            return docs, metadata
+    except Exception as e:
+        logger.warning(f"Regex text fallback skipped safely: {e}")
 
-    # Empty result
     return [], metadata
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
@@ -184,6 +218,7 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
 async def get_law_pdf(filename: str):
     clean_name = os.path.basename(filename)
     try:
+        # B2 CLOUD SEARCH IS RESTORED
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
         b2_response = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
@@ -196,6 +231,7 @@ async def get_law_pdf(filename: str):
     except Exception as e:
         logger.warning(f"B2 cloud search skipped: {e}")
 
+    # LOCAL SEARCH FALLBACK RESTORED
     found = find_pdf_by_number_pair(clean_name)
     if found: return FileResponse(found, media_type="application/pdf", filename=os.path.basename(found))
     raise HTTPException(status_code=404, detail=f"Dokumenti PDF '{clean_name}' nuk u gjet.")
@@ -216,28 +252,16 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        query = {"law_title": law_title}
-        law_num_match = re.search(r'\b(\d{2,4}[\/\-][L\d\-]+(?:\d+)?)\b', law_title, re.I)
-        if law_num_match:
-            query = {"law_title": {"$regex": re.escape(law_num_match.group(1)), "$options": "i"}}
+        mapped_title = _normalize_hallucinated_title(law_title, "")
         
+        query = {"law_title": {"$regex": f"^{re.escape(mapped_title)}$", "$options": "i"}}
         cursor = db.legal_knowledge_base.find(query, {"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1})
         docs = list(cursor)
-        
-        if not docs: 
-            cursor = db.legal_knowledge_base.find({"law_title": {"$regex": f"^{re.escape(law_title)}$", "$options": "i"}}, {"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1})
-            docs = list(cursor)
 
         if not docs:
-            # Graceful Fallback instead of 404
-            return {
-                "law_title": law_title,
-                "source": "E Panjohur",
-                "article_count": 0,
-                "articles": []
-            }
+            raise HTTPException(status_code=404, detail="Ligji nuk u gjet")
         
-        canonical_title = docs[0].get("law_title", law_title)
+        canonical_title = docs[0].get("law_title", mapped_title)
         source_filename = str(docs[0].get("source", "")).upper()
         is_academy = "AKADEMIA" in source_filename or "KOMMENTAR" in source_filename or "DORACAK" in source_filename
 
@@ -253,8 +277,8 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
+    except HTTPException: raise
     except Exception as e:
-        logger.error(f"Error in /by-title: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @router.get("/article")
@@ -269,39 +293,19 @@ async def get_law_article(
         
         docs, metadata = find_law_documents(db, law_title, article_number)
         
-        # PHOENIX PROTOCOL ANTI-404 GRACEFUL FALLBACK
-        # If document is missing entirely, we return a structural placeholder
         if not docs or not docs[0]: 
-            return {
-                "law_title": law_title,
-                "article_number": article_number,
-                "source": "Databaza Jo-Shtetërore (Dokument i pa indeksuar)",
-                "text": f"Ky dokument ose nen i saktë ({law_title}, Neni {article_number}) nuk është ende i indeksuar në bazën aktive të njohurive. Parimi dhe interpretimi ligjor zbatohet referuar praktikës juridike të theksuar nga Asistenti.",
-                "source_info": {
-                    "confidence": {
-                        "level": "LOW",
-                        "label": "Parim i Interpretuar",
-                        "icon": "⚠️",
-                        "color": "warning",
-                        "description": "Indeksi statik nuk e gjeti këtë faqe. Teksti lart është një interpretim.",
-                        "score": 0.1
-                    },
-                    "matched_law": law_title,
-                    "matched_article": article_number,
-                    "source_file": "",
-                    "verification_hint": "⚠️ Dokumenti mungon në databazë."
-                }
-            }
+            raise HTTPException(status_code=404, detail=f"Dokumenti ({law_title}, Neni {article_number}) nuk u gjet")
 
         source_info = _generate_source_info(docs[0], metadata, law_title, article_number)
 
         return {
-            "law_title": docs[0].get("law_title", law_title),
+            "law_title": docs[0].get("law_title", metadata["mapped_law_title"]),
             "article_number": docs[0].get("article_number", article_number),
             "source": docs[0].get("source", ""),
             "text": "\n\n".join([doc.get("text", "") for doc in docs if doc and doc.get("text")]),
             "source_info": source_info
         }
+    except HTTPException: raise
     except Exception as e: 
         logger.error(f"Article endpoint error: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -318,14 +322,7 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
         from app.core.db import get_db_instance
         db = get_db_instance()
         doc = db.legal_knowledge_base.find_one({"chunk_id": chunk_id})
-        
-        if not doc: 
-            return {
-                "law_title": "Chunk i Humbur",
-                "article_number": "",
-                "source": "E Panjohur",
-                "text": "Ky pasazh është larguar nga baza e njohurive."
-            }
+        if not doc: raise HTTPException(status_code=404, detail="Chunk not found")
             
         return {
             "law_title": str(doc.get("law_title", "Ligji")),
@@ -333,4 +330,5 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
             "source": str(doc.get("source", "")),
             "text": doc.get("text", "")
         }
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
