@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V36.0 (STRICT DOCUMENT BOUNDARY ISOLATION & ANTI-CONFUSION LOCK)
+# PHOENIX PROTOCOL - RAG SERVICE V37.0 (DYNAMIC PARTY ALIGNMENT, EXACT STATUTES & INTERACTIVE PILLS)
 
 import os
 import sys
@@ -22,10 +22,22 @@ LLM_TIMEOUT = 120
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
 
 PROTOKOLLI_MANDATOR = """
-**URDHËRA TË RREPTË FORMATIMI (NDIQINI ME PRECIZION):**
-1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR** (p.sh., "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 180").
-2. Për çdo ligj të cituar, DUHET të shtoni rreshtin: **RELEVANCA:** [Pse ky nen është thelbësor për këtë rast].
-3. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
+**URDHËRA TË RREPTË FORMATIMI DHE DOKTRINËS GJYQËSORE:**
+1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR TË NENIT** (p.sh., "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD), Neni 136 / Neni 141 / Neni 382 (Kamata 8%)").
+2. RREPTËSISHT MOS PËRZI PALËT: Rruaj pozicionin e klienteve. Veprimet e paautorizuara, përvetësimet ose regjistrimet paralele i atribuohen vetëm palës kundërshtare ose drejtorëve përgjegjës, kurrë shoqërisë së dëmtuar.
+3. CITIMET E SAKTA Procedurale dhe Materiale (Gjykata Komerciale e Kosovës):
+   - Prokura & Afati Prekluziv: LPK (Ligji Nr. 03/L-006) Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
+   - Refuzimi / Ndryshimi i Padisë: LPK Neni 256 par 1 & Neni 258.
+   - Këqyrja e Shkresave: LPK Neni 122.1 (JO Neni 113).
+   - Masa e Sigurisë / Ngrirja e Llogarive: LPK Neni 297, Neni 298, Neni 299 (Neni 299.1 pika a).
+   - Shkelja e Besnikërisë & Ndalimi i Konkurrencës: LSHT (Ligji Nr. 06/L-016) Neni 258 (par 1, 2, 3).
+   - Shpërblimi i Dëmit & Pasurimi i Pabazë: LMD (Ligji Nr. 04/L-077) Neni 136 & Neni 141, si dhe Neni 382 (Kamata vonesës 8% p.a.).
+
+4. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
+5. NE FUND TË PËRGJIGJES, DUHET TË SHTOSH RREPTËSISHT 3 PYETJE STRATEGJIKE TË INTERAKTIVE SIPAS FORMATIT:
+   [PILL: Pyetja e parë strategjike...]
+   [PILL: Pyetja e dytë procedurale...]
+   [PILL: Pyetja e tretë për prova...]
 """
 
 class AlbanianRAGService:
@@ -75,6 +87,7 @@ class AlbanianRAGService:
             r"\bLPK\b": "Ligji për Procedurën Kontestimore",
             r"\bLPA\b": "Ligji për Procedurën Administrative",
             r"\bKPC\b": "Kodi i Procedurës Civile",
+            r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
         }
         for abbr, expansion in abbreviations.items():
             cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
@@ -117,7 +130,7 @@ class AlbanianRAGService:
 
                 context += f"\n==================== DOKUMENTI INDIVIDUAL #{idx} ====================\n"
                 context += f"EMRI I SKEDARIT: {file_name}\n"
-                context += f"PËRMBAJTJA TIEKSTUALE TË KËTIJ SKEDARI:\n{text_content}\n"
+                context += f"PËRMBAJTJA TEKSTUALE TË KËTIJ SKEDARI:\n{text_content}\n"
                 context += f"=======================================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
@@ -151,9 +164,10 @@ class AlbanianRAGService:
 
         logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
 
+        # 100% Dynamic Name Extraction with Generic Fallbacks
         client_position = "DEFENDANT"
-        client_name = "Shaban Bala"
-        opposing_name = "Getting Competent ShPK / Raimier Gerger"
+        client_name = "Pala Kliente"
+        opposing_name = "Pala Kundërshtare"
         db_documents = []
 
         if case_id and self.db is not None:
@@ -161,10 +175,10 @@ class AlbanianRAGService:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
                 case_doc = self.db.cases.find_one({"_id": c_oid})
                 if case_doc:
-                    if case_doc.get("client_position"):
-                        client_position = str(case_doc["client_position"]).upper()
-                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
-                    opposing_name = case_doc.get("opposing_party") or opposing_name
+                    if case_doc.get("client_position") or case_doc.get("client_role"):
+                        client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
+                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or case_doc.get("title") or client_name
+                    opposing_name = case_doc.get("opposing_party") or case_doc.get("opponent") or opposing_name
 
                 # FETCH ALL UPLOADED CASE DOCUMENTS DIRECTLY FROM MONGO
                 doc_cursor = self.db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}})
@@ -198,8 +212,8 @@ class AlbanianRAGService:
         Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor".
 
         **RREGULLAT KRITIKE TË MOS-PËRZIJES SË DOKUMENTEVE (STRICT ISOLATION MANDATE):**
-        1. Çdo dokument në fashikull është me vete. MOS PËRZI faktet, sekretarët, avokatët apo procesverbalet e seancave (p.sh. "Seanca e par Get_com.pdf") me përmbajtjen e një kontrate origjinale (p.sh. "Contract - Rainer Gerke.pdf")!
-        2. Kur pyetesh për KONTRATËN ("Contract - Rainer Gerke.pdf"), lexo VETËM tekstin brenda bllokut që përket me atë skedar.
+        1. Çdo dokument në fashikull është me vete. MOS PËRZI faktet, sekretarët, avokatët apo procesverbalet e seancave me përmbajtjen e një kontrate origjinale!
+        2. Kur pyetesh për një kontratë apo skedar specifik, lexo VETËM tekstin brenda bllokut që përket me atë skedar.
         3. Identifiko me saktësi absolute palët nënshkruese që citohen EKSPLIÇITISHT në vetë atë kontratë (Party A vs Party B). Mos përmend përfaqësueset ligjore ose procesverbalet e gjykatës sikur janë nënshkrues të kontratës!
         
         {PROTOKOLLI_MANDATOR}
@@ -212,9 +226,9 @@ class AlbanianRAGService:
         **STRUKTURA E OBLIGUESHME E PËRGJIGJES:**
         ### 1. ANALIZA E FAKTEVE (Nga skedari përkatës)
 
-        ### 2. BAZA LIGJORE DHE RELEVANCA
+        ### 2. BAZA LIGJORE DHE RELEVANCA (LPK / LSHT / LMD 382)
 
-        ### 3. KONKLUZIONI STRATEGJIK
+        ### 3. KONKLUZIONI STRATEGJIK DHE VEPRIMET
 
         Fillo përgjigjen tani:
         """

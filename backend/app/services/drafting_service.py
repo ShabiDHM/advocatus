@@ -1,5 +1,5 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V32.0 (ISOLATED DOKUMENT BOUNDARIES & HIGH-PRECISION OCR INGESTION)
+# PHOENIX PROTOCOL - DRAFTING SERVICE V33.0 (FULLY DYNAMIC & UNBREAKABLE STATUTORY GROUNDING)
 
 import os
 import re
@@ -21,13 +21,13 @@ LEGAL_DOMAINS = {
     },
     "CORPORATE": {
         "keywords": ["shpk", "aksion", "biznes", "bord", "divident", "falimentim", "statut", "marrëveshje themelimi", "ortak", "partneritet"],
-        "law": "Ligji Nr. 06/L-016 për Shoqëritë Tregtare",
-        "context_note": "Fokus: Përgjegjësia e kufizuar, qeverisja korporative."
+        "law": "Ligji Nr. 06/L-016 për Shoqëritë Tregtare (LSHT)",
+        "context_note": "Fokus: Neni 258 (Detyra e besnikërisë & ndalimi i konkurrencës), qeverisja korporative."
     },
     "OBLIGATIONS": {
         "keywords": ["kontratë", "borxh", "dëm", "kredi", "faturë", "qira", "shitblerje", "marrëveshje", "përmbushje"],
         "law": "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)",
-        "context_note": "Fokus: Pacta sunt servanda, kompensimi i dëmit."
+        "context_note": "Fokus: Neni 136 (Shpërblimi i dëmit), Neni 141 (Pasurimi i pabazë), Neni 382 (Kamata ligjore 8%)."
     },
     "PROPERTY": {
         "keywords": ["pronë", "tokë", "banesë", "kadastër", "posedim", "hipotekë", "servitut", "shpronësim"],
@@ -62,8 +62,8 @@ def detect_legal_domain(text: str) -> Dict[str, str]:
     if scores[best_match] > 0:
         return LEGAL_DOMAINS[best_match]
     return {
-        "law": "Legjislacioni i Aplikueshëm në Kosovë",
-        "context_note": "Fokus: Zbatimi i përgjithshëm i ligjit dhe procedurës."
+        "law": "Ligji Nr. 03/L-006 për Procedurën Kontestimore (LPK) & LMD",
+        "context_note": "Fokus: Zbatimi i përgjithshëm i procedurës kontestimore dhe detyrimeve."
     }
 
 def sanitize_unresolved_placeholders(bracket_text: str) -> str:
@@ -113,14 +113,19 @@ async def stream_draft_generator(
     logger.info("Drafting initiated", user=user_id, type=draft_type)
     
     client_position = "DEFENDANT"
+    client_name = "Pala Kliente"
+    opposing_name = "Pala Kundërshtare"
     db_documents = []
     
     if case_id and db is not None:
         try:
             c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case_doc = db.cases.find_one({"_id": c_oid})
-            if case_doc and case_doc.get("client_position"):
-                client_position = str(case_doc["client_position"]).upper()
+            if case_doc:
+                if case_doc.get("client_position") or case_doc.get("client_role"):
+                    client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
+                client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or case_doc.get("title") or client_name
+                opposing_name = case_doc.get("opposing_party") or case_doc.get("opponent") or opposing_name
 
             # Direct Mongo Documents Fetch
             doc_cursor = db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}})
@@ -128,22 +133,28 @@ async def stream_draft_generator(
         except Exception as ex:
             logger.warning(f"Could not read case or documents for drafting: {ex}")
 
+    identity_header = llm_service.build_dynamic_identity_header(
+        client_name=client_name,
+        opposing_name=opposing_name,
+        position=client_position
+    )
+
     if client_position == "PLAINTIFF":
-        role_mandate = """
-        MANDATI ZYRTAR I HARTIMIT: SULM / PADITËS
-        - Harto këtë shkresë me ton rigorozisht sulmues dhe profesional për Paditësin.
-        - Vërteto bazën e kërkesëpadisë, detyrimin e palës tjetër, dëmin e shkaktuar dhe forcat e kërkesës sonë.
+        role_mandate = f"""
+        MANDATI ZYRTAR I HARTIMIT: SULM / PADITËS ({client_name})
+        - Harto këtë shkresë me ton rigorozisht sulmues dhe profesional për Paditësin ({client_name}).
+        - Vërteto bazën e kërkesëpadisë, detyrimin e palës kundërshtare ({opposing_name}), dëmin e shkaktuar dhe shto kamatën ligjore vonesës prej 8% në vit (LMD Neni 382).
         """
     elif client_position == "NEUTRAL":
-        role_mandate = """
+        role_mandate = f"""
         MANDATI ZYRTAR I HARTIMIT: OBJEKTIV / NEUTRAL
-        - Harto këtë shkresë me ton të paanshëm, objektiv dhe neutral.
+        - Harto këtë shkresë me ton të paanshëm, objektiv dhe neutral për palët {client_name} dhe {opposing_name}.
         """
     else:
-        role_mandate = """
-        MANDATI ZYRTAR I HARTIMIT: MBROJTJE / I PADITUR
-        - Harto këtë shkresë me ton rigorozisht mbrojtës dhe prapësues për të Paditurin.
-        - Shfrytëzo gabimet procedurale, parashkrimin e afateve, mungesën e provave dhe kërko rrëzimin ose hedhjen poshtë të padisë.
+        role_mandate = f"""
+        MANDATI ZYRTAR I HARTIMIT: MBROJTJE / I PADITUR ({client_name})
+        - Harto këtë shkresë me ton rigorozisht mbrojtës dhe prapësues për të Paditurin ({client_name}) kundër palës kundërshtare ({opposing_name}).
+        - Shfrytëzo gabimet procedurale (LPK Neni 91-93 për prokura dritëshkurtra, LPK Neni 256/258), mungesën e provave dhe kërko rrëzimin ose hedhjen poshtë të padisë.
         """
 
     domain_context = detect_legal_domain(user_prompt)
@@ -205,17 +216,24 @@ async def stream_draft_generator(
         laws_block = "Nuk u gjetën nene specifike në bazën ligjore."
 
     system_prompt = f"""
-ROLI: Avokat i Licencuar në Republikën e Kosovës.
+{identity_header}
+
+ROLI: Avokat i Licencuar në Republikën e Kosovës (Gjykata Komerciale ose Gjykata Kompetente).
 
 {role_mandate}
 
-UDHËZIME TË RREPTA JURIDIKE DHE AKURATESE TË PALËVE:
-1. Përdor dhe plotëso saktësisht strukturën e shabllonit të zgjedhur.
-2. RREGULLI KRITIK I KONTRATAVE: Cito me saktësi absolute palët nënshkruese të dhëna në [FAKTET DHE DOKUMENTET E RASTIT] (p.sh. INTEGRATION GmbH, Dr. Rainer Gerke, GIZ Kosovo, €51,500 EUR, TEB Bank).
+UDHËZIME TË RREPTA JURIDIKE DHE AKURATESË E PALËVE:
+1. Përdor dhe plotëso saktësisht strukturën e shabllonit të zgjedhur procedural.
+2. RREGULLI KRITIK I KONTRATAVE & PALËVE: Cito me saktësi absolute palët nënshkruese, emrat e entiteteve dhe shumat monetare të nxjerrura EKSKLUSIVISHT nga [FAKTET DHE DOKUMENTET E RASTIT].
 3. Mos përziej procesverbalet e seancave gjyqësore me preambulën e kontratave origjinale!
-4. CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]. Përdor titujt e plotë zyrtarë me numra ligjesh (p.sh. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve).
+4. CITO STATUTET E SAKTA TË KOSOVËS:
+   - Prokura: LPK Neni 91.3, 92, 93.3.
+   - Ndryshimi i Padisë / Kundërpadia: LPK Neni 256 / Neni 258.
+   - Masa e Sigurisë: LPK Neni 297, 298, 299 (299.1.a).
+   - Besnikëria & Ndalimi i Konkurrencës: LSHT Neni 258.
+   - Dëmi, Pasurimi i Pabazë & Kamata: LMD Neni 136, 141 & Neni 382 (Kamata 8%).
 
-Ofroni draftin direkt në format markdown të strukturuar sipas shabllonit, pa asnjë hyrje ose koment shtesë.
+Ofroni draftin direkt në format markdown të strukturuar sipas shabllonit zyrtar gjyqësor, pa asnjë hyrje ose koment shtesë.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
@@ -224,7 +242,7 @@ Udhëzim: {context_note}
 [MATERIALI LIGJOR NDIHMËS]
 {laws_block}
 
-[FAKTET DHE DOKUMENTET E RASTIT (ME BOUNDARIES TË TË IZOLUARA)]
+[FAKTET DHE DOKUMENTET E RASTIT (ME BOUNDARIES TË IZOLUARA)]
 {full_facts_context}
 """
 

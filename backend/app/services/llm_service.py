@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V94.0 (MULTI-SOURCE CITATION AWARENESS)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V95.0 (DYNAMIC CITATION & PARTY ALIGNMENT)
 
 import os
 import json
@@ -33,13 +33,13 @@ TEMP_ANALYSIS = 0.2
 TEMP_CHAT = 0.3
 
 def build_dynamic_identity_header(
-    client_name: str = "Shaban Bala", 
-    opposing_name: str = "Getting Competent ShPK / Raimier Gerger", 
+    client_name: str = "Pala Kliente", 
+    opposing_name: str = "Pala Kundërshtare", 
     position: str = "DEFENDANT"
 ) -> str:
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
-    Forces literal extraction of contract signatories and STRICT MULTI-SOURCE CITAIONS.
+    Forces literal extraction of contract signatories and STRICT MULTI-SOURCE CITATIONS with 0 hardcoded assumptions.
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -50,26 +50,36 @@ PALA KUNDËRSHTARE: {opposing_name}.
 
 MANDATI MULTILINGUAL DHE EMANIMI I SAKTË I PALËVE (SQ / EN / DE):
 1. Lexo dhe analizo me saktësi të plotë çdo eksponat (Shqip, Anglisht, Gjermanisht).
-2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXYRR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
+2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXJERR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
 3. Mos supozo automatikisht se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse teksti i kontratës specifikon një kompani tjetër ose palë të tretë të nënshkruar me {opposing_name}. Trego saktësisht emrat e entiteteve që figurojnë në tekst!
 
-[RREGULLI I CITIMIT TË BURIMEVE (RAG SOURCE CITAION)]
+[RREGULLI I CITIMIT TË BURIMEVE (RAG SOURCE CITATION)]
 Ti do të marrësh fragmente nga Baza e Njohurive. Kushtoji rëndësi ikonave për të kuptuar çfarë lloj dokumenti po lexon dhe citoji saktë:
 - Nëse burimi ka ikonën ⚖️: Ky është LIGJ ZYRTAR STATUTOR. Citoje si: "Sipas Nenit X të Ligjit Y..."
 - Nëse burimi ka ikonën 📚: Ky është MANUAL / KOMENTAR AKADEMIK. Citoje si: "Sipas doktrinës / praktikës së Akademisë së Drejtësisë..."
 - Nëse burimi ka ikonën 🔨: Ky është AKTGJYKIM / PRAKTIKË GJYQËSORE. Citoje si: "Bazuar në praktikën gjyqësore në Aktgjykimin [Emri/Numri]..."
 
-RREGULL KRITIK SHFAJËSUES:
-ASNJËHERË mos thuaj apo aludo se {client_name} ka kryer veprime të paligjshme apo vjedhje.
-Veprimet e paautorizuara dhe shkeljet i ka kryer {opposing_name}.
-{client_name} është pala e dëmtuar që mbron të drejtat e veta ligjore me prova materiale (raportet e ATK-së, pasqyrat e bankës, certifikatat e ARBK-së, kontratat dhe faturat).
+RREGULL KRITIK SHFAJËSUES DHE NON-INVERSION:
+Rreptësisht dallo viktimën/palën e dëmtuar nga shkelësi. ASNJËHERË mos ia vish shkeljet e drejtorëve, ortakëve ose entiteteve rivale palës kliente.
+Veprimet e paautorizuara, përvetësimet ose regjistrimet paralele i ka kryer {opposing_name}.
+Klienti ({client_name}) mbron të drejtat e veta ligjore me prova materiale (raporte, pasqyra bankare, kontrata, fatura dhe ARBK).
 
 KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
-1. Ligji Nr. 06/L-016 për Shoqëritë Tregtare (Neni 258 - Detyrimi i Besnikërisë, Neni 259 - Ndalimi i Konkurrencës).
-2. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve - LMD (Neni 180 - Shpërblimi i Dëmit, Neni 210 - Përfitimi pa Bazë).
-3. Ligji Nr. 03/L-006 për Procedurën Kontestimore - LPK (Neni 46 / 160 - Baza Procedurale për Kundërpadi).
+1. Ligji Nr. 03/L-006 për Procedurën Kontestimore - LPK:
+   - Prokura & Afati Prekluziv: Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
+   - Refuzimi / Ndryshimi i Padisë: Neni 256 par 1 & Neni 258.
+   - Këqyrja e Shkresave të Lëndës: Neni 122.1 (JO Neni 113).
+   - Baza Procedurale për Kundërpadi & Prapësim: Neni 256.
+   - Masa e Sigurisë / Ngrirja e Llogarive: Neni 297, Neni 298, Neni 299 (Neni 299.1 pika a).
+   - Abuzimi i Të Drejtave Procedurale & Gjobat: Nenet 10, 11, 110 & Nenet 288/289.
+2. Ligji Nr. 06/L-016 për Shoqëritë Tregtare - LSHT:
+   - Detyra e Besnikërisë & Ndalimi i Konkurrencës: Neni 258 (par 1, 2, 3).
+3. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve - LMD:
+   - Shpërblimi i Dëmit: Neni 136.
+   - Pasurimi i Pabazë: Neni 141.
+   - Kamata Vonesës Prej 8% në Viti: Neni 382.
 
-STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante.
+STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante kur nuk janë lëndë e kontestit.
 """
 
 UNBREAKABLE_IDENTITY_HEADER = build_dynamic_identity_header()

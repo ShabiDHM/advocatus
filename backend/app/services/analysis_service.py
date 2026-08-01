@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - UNIFIED ANALYSIS & WAR ROOM ENGINE V31.0 (PARALLEL SINGLE-PASS EXECUTION)
+# PHOENIX PROTOCOL - UNIFIED ANALYSIS & WAR ROOM ENGINE V32.0 (PARALLEL SINGLE-PASS DYNAMIC EXECUTION)
 
 import asyncio
 import structlog
@@ -96,7 +96,7 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
 async def cross_examine_case(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
     """
     PHOENIX ENGINE: Unified Single-Pass Master Case & War Room Analysis.
-    Generates primary analysis AND Dhoma e Luftës deep strategy in parallel.
+    Generates primary analysis AND Dhoma e Luftës deep strategy in parallel dynamically.
     """
     if not authorize_case_access(db, case_id, user_id): 
         return {"error": "Pa autorizim."}
@@ -105,9 +105,11 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid}) or {}
-    effective_position = (client_position or case.get("client_position") or "DEFENDANT").upper()
-    client_name = case.get("client_name") or case.get("client", {}).get("name") or "Shaban Bala"
-    opposing_name = case.get("opposing_party") or "Getting Competent ShPK / Raimier Gerger"
+    effective_position = (client_position or case.get("client_position") or case.get("client_role") or "DEFENDANT").upper()
+    
+    # Fully Dynamic Extraction of Names (0 Hardcoded Defaults)
+    client_name = case.get("client_name") or case.get("client", {}).get("name") or case.get("title") or "Pala Kliente"
+    opposing_name = case.get("opposing_party") or case.get("opponent") or "Pala Kundërshtare"
 
     # Fetch context with document boundary isolation
     context_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
@@ -121,53 +123,57 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     
     DETYRA: Analizë e thellë strategjike dhe gjyqësore e lëndës për DHOMËN E LUFTËS (WAR ROOM).
     
-    RREGULLAT KRITIKE TË PARANDALIMIT TË HALUCINIMEVE:
-    1. Çdo dokument në fashikull është me vete. MOS PËRZI procesverbalet e seancave (p.sh. "Seanca e par Get_com.pdf") me kontratat origjinale (p.sh. "Contract - Rainer Gerke.pdf")!
-    2. Kur analizon kontratat, cito saktësisht emrat e palëve nga PREAMBULA (p.sh., INTEGRATION GmbH vs Dr. Rainer Gerke).
-    3. Përshkruaj me precizion të gjitha vlerat monetare (p.sh. €51,500 EUR, €52,000 EUR) dhe projektet përkatëse (GIZ Kosovo).
-    
+    RREGULLAT KRITIKE TË PARANDALIMIT TË HALUCINIMEVE DHE MASA LIGJORE:
+    1. Çdo dokument në fashikull është me vete. MOS PËRZI procesverbalet e seancave me kontratat origjinale!
+    2. Kur analizon kontratat, cito saktësisht emrat e palëve nga PREAMBULA.
+    3. Përshkruaj me precizion të gjitha vlerat monetare dhe llogarit kamatën ligjore prej 8% në vit (LMD Neni 382) mbi çdo dëm ose mjet të shmangur.
+    4. MOS PERVERTO PALËT: Rreptësisht dallo Paditësin/Dëmtuarin nga i Padituri/Shkelësi. Mos ia vish shkeljet e drejtorëve apo ortakëve shoqërisë së dëmtuar!
+    5. CITIMET STATUTORE TË SAKTA:
+       - Prokura & Afati Prekluziv: LPK (Ligji Nr. 03/L-006) Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
+       - Refuzimi / Ndryshimi i Padisë: LPK Neni 256 par 1 & Neni 258.
+       - Këqyrja e Shkresave: LPK Neni 122.1 (JO Neni 113).
+       - Masa e Sigurisë / Ngrirja e Llogarive: LPK Neni 297, 298, 299 (299.1 pika a).
+       - Shkelja e Detyrës së Besnikërisë & Ndalimi i Konkurrencës: LSHT (Ligji Nr. 06/L-016) Neni 258 (par 1, 2, 3).
+       - Shpërblimi i Dëmit & Pasurimi i Pabazë: LMD (Ligji Nr. 04/L-077) Neni 136 & Neni 141.
+
     MANDATI KRITIK I PALËS:
     - KLIENTI YNË: {client_name} ({'I PADITUR / KUNDËRPADITËS' if effective_position == 'DEFENDANT' else 'PADITËS'})
     - PALA KUNDËRSHTARE: {opposing_name}
     
-    STRUKTURA E DETYRUESHME E PËRGJIGJES (JSON):
+    STRUKTURA E DETYRUESHME E PËRGJIGJES (JSON DINAMIK PA FORMULIME TË HARDKODUARA):
     Përgjigju VETËM si një objekt JSON me këtë strukturë të saktë:
     
     {{
-      "executive_summary": "### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)\\n[Shpjegimi i thjeshtë]\\n\\n### ⚖️ ANALIZA PROFESIONALE E AVOKATIT\\n[Analiza teknike procedurale]",
+      "executive_summary": "### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)\\n[Shpjegimi i thjeshtë i fakteve me gjuhë të thjeshtë]\\n\\n### ⚖️ ANALIZA PROFESIONALE E AVOKATIT\\n[Analiza teknike procedurale]",
       "legal_audit": {{
-          "burden_of_proof": "Shpjegimi se kush e mban barrën e provës dhe pse.",
+          "burden_of_proof": "Shpjegimi dinamik se kush e mban barrën e provës sipas faktikave të fashikullit.",
           "legal_basis": [
             {{
-              "title": "Ligji Nr. 06/L-016 për Shoqëritë Tregtare, Neni 258",
-              "article": "Detyrimi i Besnikërisë",
-              "relevance": "Arsyetimi pse ky nen është vendimtar"
+              "title": "Baza ligjore e identifikuar (p.sh. LSHT Neni 258 ose LMD Neni 136/141/382)",
+              "article": "Neni përkatës",
+              "relevance": "Arsyetimi pse ky nen është vendimtar për rastin"
             }}
           ]
       }},
       "strategic_recommendation": {{
-          "recommendation_text": "Analiza e thellë strategjike e mbrojtjes dhe kundërsulmit për këtë lëndë...",
+          "recommendation_text": "Analiza e thellë strategjike e mbrojtjes dhe kundërsulmit bazuar ekskluzivisht në faktet e dosjes...",
           "strengths": [
-             "Pika e fortë 1: Depozitimi i €1,200 nga klienti dhe Raporti 0.00 € i ATK-së",
-             "Pika e fortë 2: Shkelja e afatit prekluziv 7-ditor për prokurë (LPK Neni 98/99)"
+             "Pika e fortë e identifikuar nga dokumentet e rastit"
           ],
           "weaknesses": [
-             "Dobësia e kundërshtarit: Hapja e kompanisë konkurruese në ARBK më 18.06.2019",
-             "Rreziku procedural: Propozimi për ekspertizë financiare"
+             "Dobësia ose rreziku procedural nga provat e rastit"
           ],
           "key_arguments": [
-             "Mungesa e prokurës së vlefshme përfaqësuese për padinë kryesore",
-             "Shkelja e ndalimit të konkurrencës sipas Nenit 259 të LSHT-së"
+             "Argumenti ligjor procedural ose material nga fashikulli"
           ],
           "action_plan": [
-             "HAPAT PËR JU (Si Qytetar): Paraqitni Përgjigje në Padi me kërkesë për Hudhje të Padisë (LPK Neni 99 par. 3)",
-             "HAPAT PËR JU (Si Qytetar): Parashtroni Kundërpadi për kthimin e €52,000 me kamatë ligjore",
-             "HAPAT PËR AVOKATIN: Inspektoni dosjen për prokurën origjinale dhe dorëzoni pasqyrën e TEB Bankës"
+             "HAPAT PËR QYTETARIN: Veprimi praktik me terma të qartë",
+             "HAPAT PËR AVOKATIN: Veprimi procedural në gjykatë sipas LPK/LSHT/LMD"
           ],
-          "success_probability": "85%",
-          "risk_level": "LOW"
+          "success_probability": "75%",
+          "risk_level": "MEDIUM"
       }},
-      "missing_evidence": ["Prokura origjinale për përfaqësim", "Certifikata e ARBK-së për entitetin e dytë"]
+      "missing_evidence": ["Provat ose dokumentet shtesë që duhet të grumbullohen"]
     }}
     """
     
@@ -198,7 +204,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     primary_analysis = {
         "summary": raw_res.get("executive_summary") or "Përmbledhja ekzekutive u përpunua.",
         "client_position": effective_position,
-        "burden_of_proof": audit.get("burden_of_proof") or "Barra e provës bie mbi paditësin për të provuar pretendimet me autorizim të vlefshëm.",
+        "burden_of_proof": audit.get("burden_of_proof") or "Barra e provës përcaktohet sipas ligjit procedural kontestimor (LPK).",
         "legal_basis": audit.get("legal_basis", []), 
         "strategic_analysis": strat_analysis,
         "strengths": raw_rec.get("strengths") or [],
@@ -206,8 +212,8 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         "key_arguments": raw_rec.get("key_arguments") or [],
         "action_plan": raw_rec.get("action_plan") or [],
         "missing_evidence": raw_res.get("missing_evidence", []),
-        "success_probability": raw_rec.get("success_probability") or "85%",
-        "risk_level": raw_rec.get("risk_level") or "LOW"
+        "success_probability": raw_rec.get("success_probability") or "80%",
+        "risk_level": raw_rec.get("risk_level") or "MEDIUM"
     }
 
     deep_analysis = {
