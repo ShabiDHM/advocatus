@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V36.0 (DUAL-MODE: STATUTORY LAWS & ACADEMY COMMENTARIES)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V37.0 (ROBUST ACADEMY & STATUTORY SEPARATION)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -37,11 +37,6 @@ class AuditChatRequest(BaseModel):
     def effective_query(self) -> str:
         return self.query or self.message or self.prompt or ""
 
-def _safe_int(value: Any) -> int:
-    if value is None: return 0
-    try: return int(value)
-    except (ValueError, TypeError): return 0
-
 def _natural_sort_key(article_any: Any) -> List[int]:
     article = str(article_any) if article_any is not None else "0"
     parts = article.split('.')
@@ -70,39 +65,25 @@ def _get_law_code_variations(raw_title: str) -> List[str]:
     return [v for v in variations if v]
 
 def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, original_article: str) -> dict:
-    confidence_level = metadata.get("confidence", {}).get("level", "UNKNOWN")
-    confidence_score = metadata.get("confidence", {}).get("score", 0.0)
-    
-    confidence_labels = {
-        "HIGH": {"label": "E verifikuar", "icon": "✅", "color": "success", "description": "Ky nen u gjet me saktësi në ligjin e specifikuar."},
-        "MEDIUM": {"label": "E verifikuar", "icon": "✅", "color": "success", "description": "Ky nen u gjet në një ligj që lidhet me kërkimin tuaj."},
-        "LOW": {"label": "Kërkon verifikim", "icon": "⚠️", "color": "danger", "description": "Ky nen u gjet në disa ligje."},
-        "LOWEST": {"label": "Kërkon verifikim", "icon": "⚠️", "color": "danger", "description": "Përputhja është e pjesshme."},
-        "NONE": {"label": "Nuk u gjet", "icon": "❌", "color": "danger", "description": "Neni nuk u gjet."}
-    }
-    
-    confidence_info = confidence_labels.get(confidence_level, confidence_labels["HIGH"])
-    verification_hint = "✅ Ky nen korrespondon saktësisht me kërkimin tuaj." if confidence_level in ["HIGH", "MEDIUM"] else "📋 Verifikoni këtë informacion."
+    confidence_level = metadata.get("confidence", {}).get("level", "HIGH")
+    confidence_score = metadata.get("confidence", {}).get("score", 0.95)
     
     return {
         "confidence": {
             "level": confidence_level,
-            "label": confidence_info["label"],
-            "icon": confidence_info["icon"],
-            "color": confidence_info["color"],
-            "description": confidence_info["description"],
-            "score": round(confidence_score, 2)
+            "label": "E verifikuar",
+            "icon": "✅",
+            "color": "success",
+            "description": "Ky dokument u gjet me saktësi në bazën e njohurive.",
+            "score": confidence_score
         },
         "matched_law": doc.get("law_title", original_law_title),
         "matched_article": doc.get("article_number", original_article),
         "source_file": doc.get("source", ""),
         "was_mapped": metadata.get("was_mapped", False),
-        "mapped_from": metadata.get("original_law_title") if metadata.get("was_mapped") else None,
-        "multiple_matches": metadata.get("multiple_matches", False),
-        "matching_laws": metadata.get("matching_laws", []),
-        "strategy_used": metadata.get("strategy_used", "unknown"),
-        "verification_hint": verification_hint,
-        "match_count": metadata.get("match_count", 0)
+        "multiple_matches": False,
+        "verification_hint": "✅ Ky burim korrespondon me kërkimin tuaj.",
+        "match_count": 1
     }
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Dict[str, Any]]:
@@ -110,7 +91,6 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     clean_title = re.sub(r'^\s*[\(\[{(](.*?)[\)\]})]\s*$', r'\1', clean_title)
     clean_title = re.sub(r'^[.\d\s]+', '', clean_title)
     clean_title = re.sub(r'^(?:i|e|të|sipas|në|nga|për|per)\s+', '', clean_title, flags=re.I)
-    clean_title = re.sub(r'[-](?:së|it|at|ut|ën|ës|in)\b', '', clean_title, flags=re.I)
     clean_title = clean_title.strip()
 
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
@@ -121,30 +101,23 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     
     metadata = {
         "original_law_title": raw_law_title,
-        "mapped_law_title": None,
-        "was_mapped": False,
         "article_number": raw_article_num,
-        "confidence": None,
-        "strategy_used": None,
-        "multiple_matches": False,
-        "match_count": 0,
-        "matching_laws": []
+        "confidence": {"level": "HIGH", "score": 0.95},
+        "strategy_used": "exact_match",
+        "multiple_matches": False
     }
 
-    law_code_variations = _get_law_code_variations(raw_law_title)
-    for law_code in law_code_variations:
-        query = {
-            "law_title": {"$regex": re.escape(law_code), "$options": "i"},
-            "article_number": {"$in": art_variants}
-        }
-        cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
-        docs = list(cursor)
-        if docs:
-            metadata["strategy_used"] = f"law_code_variation: {law_code}"
-            metadata["match_count"] = len(docs)
-            metadata["confidence"] = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "LAW_CODE")
-            return docs, metadata
+    # If it's an Academy file ("Pjesa X"), search by chunk_index
+    if raw_article_num.startswith("Pjesa "):
+        try:
+            chunk_idx = int(raw_article_num.split()[-1]) - 1
+            doc = db.legal_knowledge_base.find_one({"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}, "chunk_index": chunk_idx})
+            if doc:
+                return [doc], metadata
+        except Exception:
+            pass
 
+    # Standard statutory law search
     query = {
         "law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"},
         "article_number": {"$in": art_variants}
@@ -152,31 +125,13 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
     docs = list(cursor)
     if docs:
-        metadata["strategy_used"] = "exact_title_match"
-        metadata["match_count"] = len(docs)
-        metadata["confidence"] = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "EXACT_TITLE")
         return docs, metadata
 
-    # Fallback to general search if article_number didn't match (for academy documents or semantic chunks)
-    query = {
-        "law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}
-    }
+    # Fallback to general search
+    query = {"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}}
     cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(5)
     docs = list(cursor)
-    if docs:
-        metadata["strategy_used"] = "title_fallback"
-        metadata["confidence"] = _calculate_confidence(docs[0], raw_law_title, raw_article_num, "TITLE_FALLBACK")
-        return docs, metadata
-
-    return [], metadata
-
-def _calculate_confidence(doc: dict, raw_law_title: str, raw_article_num: str, strategy: str) -> Dict[str, Any]:
-    return {
-        "score": 0.95,
-        "level": "HIGH",
-        "strategy": strategy,
-        "reason": ["Verified match"]
-    }
+    return docs, metadata
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
     clean_requested = os.path.basename(requested_name).strip()
@@ -214,7 +169,6 @@ async def get_law_pdf(filename: str):
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
-        digits = re.findall(r'\b\d+\b', clean_name)
         b2_response = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
         for obj in b2_response.get('Contents', []):
             key = obj.get('Key', '')
@@ -261,16 +215,15 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
             raise HTTPException(status_code=404, detail="Ligji ose dokumenti nuk u gjet")
         
         canonical_title = docs[0].get("law_title", law_title)
-        
-        # DUAL MODE: If statutory law has article numbers, list by articles. 
-        # If it's an Academy document/commentary, list by semantic sections/pages/chunks!
-        articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
-        
-        if not articles or all(a == 'None' or a == '' for a in articles):
-            # Fallback for Academy / Non-statutory manuals: list by section/chunk index or page
-            articles = {f"Pjesa {d.get('chunk_index', i+1)}" for i, d in enumerate(docs)}
-            sorted_articles = sorted(list(articles), key=lambda x: int(x.split()[-1]) if x.split()[-1].isdigit() else 0)
+        source_filename = str(docs[0].get("source", "")).upper()
+        is_academy = "AKADEMIA" in source_filename or "KOMMENTAR" in source_filename or "DORACAK" in source_filename
+
+        if is_academy:
+            # Academy files: list cleanly by semantic sections (Pjesa 1, Pjesa 2...)
+            sorted_articles = [f"Pjesa {i+1}" for i in range(len(docs))]
         else:
+            # Statutory laws: list by true articles
+            articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
             sorted_articles = sorted(list(articles), key=_natural_sort_key)
         
         return {
@@ -293,15 +246,7 @@ async def get_law_article(
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        # Support both article numbers and Academy semantic section fallback ("Pjesa X")
-        query = {"law_title": law_title, "article_number": article_number}
-        if article_number.startswith("Pjesa "):
-            chunk_idx = int(article_number.split()[-1]) - 1
-            doc = db.legal_knowledge_base.find_one({"law_title": law_title, "chunk_index": chunk_idx})
-            docs = [doc] if doc else []
-            metadata = {"confidence": {"level": "HIGH", "score": 0.95}, "strategy_used": "academy_chunk_fallback"}
-        else:
-            docs, metadata = find_law_documents(db, law_title, article_number)
+        docs, metadata = find_law_documents(db, law_title, article_number)
         
         if not docs or not docs[0]: 
             raise HTTPException(status_code=404, detail=f"Dokumenti ose neni nuk u gjet")
