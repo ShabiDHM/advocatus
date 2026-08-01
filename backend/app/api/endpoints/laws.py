@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V37.0 (ROBUST ACADEMY & STATUTORY SEPARATION)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V38.0 (ANTI-404 GRACEFUL FALLBACKS)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -127,11 +127,28 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     if docs:
         return docs, metadata
 
-    # Fallback to general search
+    # 1st Fallback: Search by just law_title and return the first 3 chunks found
     query = {"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}}
-    cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(5)
+    cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(3)
     docs = list(cursor)
-    return docs, metadata
+    if docs:
+        metadata["confidence"] = {"level": "MEDIUM", "score": 0.60}
+        metadata["strategy_used"] = "fallback_general"
+        return docs, metadata
+
+    # 2nd Fallback: Text search if law_title Regex entirely fails
+    text_cursor = db.legal_knowledge_base.find(
+        {"$text": {"$search": f"{clean_title} Neni {clean_art}"}}
+    ).limit(1)
+    
+    docs = list(text_cursor)
+    if docs:
+        metadata["confidence"] = {"level": "LOW", "score": 0.30}
+        metadata["strategy_used"] = "fallback_text_search"
+        return docs, metadata
+
+    # Empty result
+    return [], metadata
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
     clean_requested = os.path.basename(requested_name).strip()
@@ -212,17 +229,21 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
             docs = list(cursor)
 
         if not docs:
-            raise HTTPException(status_code=404, detail="Ligji ose dokumenti nuk u gjet")
+            # Graceful Fallback instead of 404
+            return {
+                "law_title": law_title,
+                "source": "E Panjohur",
+                "article_count": 0,
+                "articles": []
+            }
         
         canonical_title = docs[0].get("law_title", law_title)
         source_filename = str(docs[0].get("source", "")).upper()
         is_academy = "AKADEMIA" in source_filename or "KOMMENTAR" in source_filename or "DORACAK" in source_filename
 
         if is_academy:
-            # Academy files: list cleanly by semantic sections (Pjesa 1, Pjesa 2...)
             sorted_articles = [f"Pjesa {i+1}" for i in range(len(docs))]
         else:
-            # Statutory laws: list by true articles
             articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
             sorted_articles = sorted(list(articles), key=_natural_sort_key)
         
@@ -232,8 +253,8 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
-    except HTTPException: raise
     except Exception as e:
+        logger.error(f"Error in /by-title: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @router.get("/article")
@@ -248,8 +269,29 @@ async def get_law_article(
         
         docs, metadata = find_law_documents(db, law_title, article_number)
         
+        # PHOENIX PROTOCOL ANTI-404 GRACEFUL FALLBACK
+        # If document is missing entirely, we return a structural placeholder
         if not docs or not docs[0]: 
-            raise HTTPException(status_code=404, detail=f"Dokumenti ose neni nuk u gjet")
+            return {
+                "law_title": law_title,
+                "article_number": article_number,
+                "source": "Databaza Jo-Shtetërore (Dokument i pa indeksuar)",
+                "text": f"Ky dokument ose nen i saktë ({law_title}, Neni {article_number}) nuk është ende i indeksuar në bazën aktive të njohurive. Parimi dhe interpretimi ligjor zbatohet referuar praktikës juridike të theksuar nga Asistenti.",
+                "source_info": {
+                    "confidence": {
+                        "level": "LOW",
+                        "label": "Parim i Interpretuar",
+                        "icon": "⚠️",
+                        "color": "warning",
+                        "description": "Indeksi statik nuk e gjeti këtë faqe. Teksti lart është një interpretim.",
+                        "score": 0.1
+                    },
+                    "matched_law": law_title,
+                    "matched_article": article_number,
+                    "source_file": "",
+                    "verification_hint": "⚠️ Dokumenti mungon në databazë."
+                }
+            }
 
         source_info = _generate_source_info(docs[0], metadata, law_title, article_number)
 
@@ -260,7 +302,6 @@ async def get_law_article(
             "text": "\n\n".join([doc.get("text", "") for doc in docs if doc and doc.get("text")]),
             "source_info": source_info
         }
-    except HTTPException: raise
     except Exception as e: 
         logger.error(f"Article endpoint error: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -277,12 +318,19 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
         from app.core.db import get_db_instance
         db = get_db_instance()
         doc = db.legal_knowledge_base.find_one({"chunk_id": chunk_id})
-        if not doc: raise HTTPException(status_code=404, detail="Chunk not found")
+        
+        if not doc: 
+            return {
+                "law_title": "Chunk i Humbur",
+                "article_number": "",
+                "source": "E Panjohur",
+                "text": "Ky pasazh është larguar nga baza e njohurive."
+            }
+            
         return {
             "law_title": str(doc.get("law_title", "Ligji")),
             "article_number": str(doc.get("article_number", "")),
             "source": str(doc.get("source", "")),
             "text": doc.get("text", "")
         }
-    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
