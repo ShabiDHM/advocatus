@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V25.0 (FULL FILE REPLACEMENT - EXECUTIVE OPEN BOOK & DYNAMIC VERIFICATION)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V26.0 (STANDARDIZED TYPOGRAPHY & EXECUTIVE OPEN BOOK)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -134,7 +134,7 @@ const renderMarkdown = (text: string) => {
         if (trimmed.toUpperCase().includes('[NDARJA]')) return null;
         if (trimmed === '---') return null;
         return (
-            <p key={i} className="mb-4 text-base sm:text-lg text-text-primary leading-relaxed font-medium">
+            <p key={i} className="mb-4 text-[15px] sm:text-[16px] text-text-primary leading-[1.75] font-normal">
                 <LawCitationText text={trimmed} />
             </p>
         );
@@ -611,8 +611,8 @@ export default function LawArticlePage() {
                   </h2>
                 </div>
 
-                {/* Article Body Text */}
-                <div className="text-base sm:text-lg text-text-primary leading-relaxed font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
+                {/* Article Body Text (Standardized Readable Typography: 16px / 1.75 line-height) */}
+                <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.75] font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
                   {article.text}
                 </div>
 
