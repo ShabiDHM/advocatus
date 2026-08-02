@@ -1,16 +1,12 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V23.0 (DIRECT BACKBLAZE B2 STREAMING - ZERO 401 / CANNOT OPEN ERRORS)
+// RESTORED LAW OVERVIEW PAGE - DIRECT BACKBLAZE STREAM
 
 import { useEffect, useState, useMemo } from 'react';
-import ReactDOM from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { 
-  ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, 
-  GraduationCap, X, Minus, Maximize2, ExternalLink, Download, Loader 
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface LawOverviewData {
   law_title: string;
@@ -27,12 +23,8 @@ export default function LawOverviewPage() {
   const [data, setData] = useState<LawOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
-  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -58,67 +50,6 @@ export default function LawOverviewPage() {
     const raw = (data?.law_title || data?.source || lawTitle).toString().toUpperCase();
     return raw.includes("AKADEMIA") || raw.includes("CASE_LAW") || raw.includes("DORACAK") || raw.includes("UDHEZUES") || raw.includes("LËNDËSH") || raw.includes("LENDESH");
   }, [data?.law_title, data?.source, lawTitle]);
-
-  // Backblaze B2 PDF Stream Fetcher
-  useEffect(() => {
-    if (!isAcademicDoc || !data) return;
-
-    let isMounted = true;
-    setIsLoadingPdf(true);
-    const source = data.source || `${lawTitle}.pdf`;
-
-    // Direct Backblaze B2 URL handling vs API Proxy endpoint
-    if (source.startsWith('http://') || source.startsWith('https://')) {
-      if (isMounted) {
-        setPdfBlobUrl(source);
-        setIsLoadingPdf(false);
-      }
-    } else {
-      // Stream directly from Backblaze B2 via API proxy endpoint
-      const endpoint = `/laws/pdf/${encodeURIComponent(source)}`;
-
-      apiService.axiosInstance.get(endpoint, { responseType: 'blob' })
-        .then((res) => {
-          if (!isMounted) return;
-          const blob = new Blob([res.data], { type: 'application/pdf' });
-          const url = URL.createObjectURL(blob);
-          setPdfBlobUrl(url);
-        })
-        .catch((err) => {
-          console.error('Backblaze B2 PDF fetch error:', err);
-          // Fallback to direct Backblaze stream URL
-          const fallbackUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(source)}`;
-          if (isMounted) setPdfBlobUrl(fallbackUrl);
-        })
-        .finally(() => {
-          if (isMounted) setIsLoadingPdf(false);
-        });
-    }
-
-    return () => {
-      isMounted = false;
-      if (pdfBlobUrl && pdfBlobUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(pdfBlobUrl);
-      }
-    };
-  }, [isAcademicDoc, data, lawTitle]);
-
-  const handleOpenFullscreen = () => {
-    if (pdfBlobUrl) {
-      window.open(pdfBlobUrl, '_blank', 'noopener,noreferrer');
-    }
-  };
-
-  const handleDownloadPdf = () => {
-    if (!pdfBlobUrl) return;
-    const filename = data?.source || `${displayHeaderTitle}.pdf`;
-    const link = document.createElement('a');
-    link.href = pdfBlobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   if (loading) {
     return (
@@ -151,180 +82,43 @@ export default function LawOverviewPage() {
   if (!data) return null;
 
   const displayHeaderTitle = lawTitle || data.law_title;
+  const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
 
-  // DIRECT ACADEMY BACKBLAZE B2 PDF STREAM FOR ACADEMIC & UNODC DOCUMENTS
+  // DIRECT BACKBLAZE STREAM FOR ACADEMY DOCUMENTS
   if (isAcademicDoc) {
     return (
-      <>
-        {/* FULL PDF VIEWER FRAME */}
-        {!isPdfMinimized && (
-          <motion.div 
-              className="w-full min-h-screen pb-4 bg-canvas text-text-primary"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="max-w-[98vw] w-full mx-auto px-1 sm:px-4 pt-18 sm:pt-22">
-              
-              <div className="glass-panel p-2 sm:p-5 rounded-3xl border border-main bg-surface shadow-2xl flex flex-col gap-3">
-                
-                {/* Header with Minimize (-) and Close (X) Buttons */}
-                <div className="flex items-center justify-between border-b border-main pb-2 px-2 gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
-                      <GraduationCap size={20} />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[9px] sm:text-[10px] font-black text-primary-start uppercase tracking-wider block">
-                        AKADEMIA E DREJTËSISË & UNODC
-                      </span>
-                      <h1 className="text-xs sm:text-base font-black text-text-primary leading-tight truncate">
-                        {displayHeaderTitle}
-                      </h1>
-                    </div>
-                  </div>
-
-                  {/* Controls: Minimize (-) & Close (X) */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setIsPdfMinimized(true)}
-                      className="p-2.5 bg-canvas border border-main hover:bg-hover text-text-muted hover:text-primary-start rounded-2xl transition-all focus:outline-none cursor-pointer shadow-sm"
-                      title="Minimizo"
-                    >
-                      <Minus size={18} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => navigate(-1)}
-                      className="p-2.5 bg-canvas border border-main hover:bg-hover text-text-muted hover:text-danger-start rounded-2xl transition-all focus:outline-none cursor-pointer shadow-sm"
-                      title="Mbyll"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* PDF Stream View Container */}
-                <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative flex flex-col items-center justify-center">
-                  {isLoadingPdf ? (
-                    <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
-                      <Loader size={36} className="animate-spin text-primary-start" />
-                      <span className="text-xs font-mono uppercase tracking-widest">Duke ngarkuar dokumentin nga Backblaze...</span>
-                    </div>
-                  ) : isMobile ? (
-                    /* Mobile Responsive Presentation Interface */
-                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950/90">
-                      <div className="w-20 h-20 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center mb-5 shadow-lg shadow-primary-start/10">
-                        <GraduationCap className="w-10 h-10 text-primary-start" />
-                      </div>
-                      <span className="text-[10px] font-black text-primary-start uppercase tracking-widest mb-2 block">
-                        AKADEMIA E DREJTËSISË & UNODC
-                      </span>
-                      <h3 className="text-base sm:text-lg font-bold text-slate-100 max-w-md mb-2 break-words px-2">
-                        {displayHeaderTitle}
-                      </h3>
-                      <p className="text-xs text-slate-400 max-w-xs mb-8 px-2 leading-relaxed">
-                        Dokumenti është transmetuar me sukses nga Backblaze. Hapeni me lexuesin nativ PDF të shfletuesit tuaj.
-                      </p>
-
-                      <div className="w-full max-w-xs flex flex-col gap-3">
-                        <button
-                          onClick={handleOpenFullscreen}
-                          disabled={!pdfBlobUrl}
-                          className="btn-primary w-full py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm shadow-xl cursor-pointer hover-lift active:scale-95 transition-all disabled:opacity-50"
-                        >
-                          <ExternalLink size={18} />
-                          Hape në Ekran të Plotë
-                        </button>
-                        <button
-                          onClick={handleDownloadPdf}
-                          disabled={!pdfBlobUrl}
-                          className="w-full py-3.5 px-5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                        >
-                          <Download size={18} />
-                          Shkarko PDF
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Desktop Direct Embedded View with Authenticated Backblaze Blob */
-                    pdfBlobUrl && (
-                      <object
-                        data={pdfBlobUrl}
-                        type="application/pdf"
-                        className="w-full h-full border-none"
-                      >
-                        <iframe
-                          src={pdfBlobUrl}
-                          title={displayHeaderTitle}
-                          className="w-full h-full border-none"
-                        />
-                      </object>
-                    )
-                  )}
-                </div>
-
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* MINIMIZED FLOATING PILL */}
-        {isPdfMinimized && ReactDOM.createPortal(
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.9 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl text-white max-w-sm sm:max-w-md cursor-pointer hover:border-sky-500/50 hover:shadow-sky-500/10 transition-all group"
-              onClick={() => setIsPdfMinimized(false)}
+      <motion.div 
+        className="w-full min-h-screen pb-6 bg-canvas text-text-primary"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="max-w-[98vw] w-full mx-auto px-2 sm:px-4 pt-20 sm:pt-24">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <GraduationCap className="text-sky-400 w-5 h-5" />
-              </div>
-              
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-slate-100 truncate">{displayHeaderTitle}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-[10px] font-mono text-sky-400/90 font-medium uppercase tracking-wider">
-                    AKADEMIA E DREJTËSISË • I MINIMIZUAR
-                  </span>
-                </div>
-              </div>
+              <ArrowLeft size={16} />
+              <span>{t('general.back', 'Kthehu Mbrapa')}</span>
+            </button>
+            
+            <div className="flex items-center gap-2 overflow-hidden">
+              <GraduationCap className="w-4 h-4 text-primary-start shrink-0" />
+              <h1 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-xs sm:max-w-md">
+                {displayHeaderTitle}
+              </h1>
+            </div>
+          </div>
 
-              <div className="flex items-center gap-1 shrink-0 ml-2 border-l border-slate-700/60 pl-2">
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsPdfMinimized(false);
-                  }} 
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
-                  title="Zgjero Dokumentin"
-                >
-                  <Maximize2 size={16} />
-                </button>
-                
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(-1);
-                  }} 
-                  className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all"
-                  title="Mbyll"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </motion.div>
-          </AnimatePresence>,
-          document.body
-        )}
-      </>
+          <div className="w-full h-[85vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl">
+            <iframe
+              src={pdfStreamUrl}
+              title={displayHeaderTitle}
+              className="w-full h-full border-none"
+            />
+          </div>
+        </div>
+      </motion.div>
     );
   }
 
