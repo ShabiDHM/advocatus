@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V41.0 (RESTORED 3-STEP VERIFICATION & SAFE ROUTER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V42.0 (RESILIENT MULTI-TIER LAW RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -66,20 +66,26 @@ def _get_law_code_variations(raw_title: str) -> List[str]:
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     """
-    SMART ROUTER: Maps AI concepts to official Kosovo Laws before searching.
+    SMART ROUTER: Maps AI legal concepts or shorthand codes to official Kosovo Law designations.
     """
     title_lower = raw_title.lower()
     
-    if any(k in title_lower for k in ["shoqëri", "tregtare", "besnikërisë", "konkurrencë", "lsht"]):
-        return "Ligji Nr. 06/L-016 për Shoqëritë Tregtare"
+    if any(k in title_lower for k in ["penal", "krim", "vjedhj", "mashtrim", "uzurp", "kpk"]):
+        return "Kodi Penal"
+    if any(k in title_lower for k in ["shoqëri", "tregtar", "lsht", "biznes", "ortak"]):
+        return "Shoqëritë Tregtare"
     if any(k in title_lower for k in ["detyrim", "dëm", "pasurim", "kamat", "lmd", "përgjithshëm"]):
-        return "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve"
-    if any(k in title_lower for k in ["procedur", "kontestimore", "siguris", "padi", "lpk"]):
-        return "Ligji Nr. 03/L-006 për Procedurën Kontestimore"
-    if "punës" in title_lower:
-        return "Ligji Nr. 03/L-212 i Punës"
-    if "familjen" in title_lower:
-        return "Ligji Nr. 2004/32 për Familjen e Kosovës"
+        return "Marrëdhëniet e Detyrimeve"
+    if any(k in title_lower for k in ["procedur", "kontestim", "siguris", "padi", "lpk"]):
+        return "Procedurën Kontestimore"
+    if any(k in title_lower for k in ["punë", "kontratë pune", "puna"]):
+        return "Punës"
+    if any(k in title_lower for k in ["familj", "martes", "divorc"]):
+        return "Familjen"
+    if any(k in title_lower for k in ["ekzekutiv", "lpe"]):
+        return "Procedurën Ekzekutive"
+    if any(k in title_lower for k in ["administrativ", "lpa"]):
+        return "Procedurën Administrative"
 
     return raw_title
 
@@ -100,13 +106,12 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
         "matched_article": doc.get("article_number", original_article),
         "source_file": doc.get("source", ""),
         "was_mapped": metadata.get("was_mapped", False),
-        "multiple_matches": False,
-        "verification_hint": "✅ Ky burim korrespondon me kërkimin tuaj.",
+        "multiple_matches": metadata.get("multiple_matches", False),
+        "verification_hint": f"✅ Burimi: {metadata.get('strategy_used', 'exact_match')}",
         "match_count": 1
     }
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Dict[str, Any]]:
-    # Fix the title before querying
     mapped_title = _normalize_hallucinated_title(raw_law_title, str(raw_article_num))
     
     clean_title = mapped_title.strip()
@@ -132,12 +137,15 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     }
 
     # ==============================================================
-    # VERIFICATION STEP 1: Academy & Manuals logic ("Pjesa X")
+    # TIER 1: Academy & Manuals logic ("Pjesa X")
     # ==============================================================
-    if raw_article_num.startswith("Pjesa "):
+    if str(raw_article_num).startswith("Pjesa "):
         try:
             chunk_idx = int(raw_article_num.split()[-1]) - 1
-            doc = db.legal_knowledge_base.find_one({"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}, "chunk_index": chunk_idx})
+            doc = db.legal_knowledge_base.find_one({
+                "law_title": {"$regex": f"{re.escape(clean_title)}", "$options": "i"},
+                "chunk_index": chunk_idx
+            })
             if doc:
                 metadata["strategy_used"] = "academy_match"
                 return [doc], metadata
@@ -145,34 +153,96 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             pass
 
     # ==============================================================
-    # VERIFICATION STEP 2: Strict Exact Match (Title + Article)
+    # TIER 2: Match by Title Regex + Article Number
     # ==============================================================
-    query = {
-        "law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"},
-        "article_number": {"$in": art_variants}
-    }
-    cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1)
-    docs = list(cursor)
-    if docs:
-        return docs, metadata
+    if clean_title:
+        query = {
+            "law_title": {"$regex": re.escape(clean_title), "$options": "i"},
+            "article_number": {"$in": art_variants}
+        }
+        docs = list(db.legal_knowledge_base.find(query).sort("chunk_index", 1))
+        if docs:
+            return docs, metadata
+
+        # Try raw title prefix regex
+        raw_clean = re.escape(raw_law_title.strip()[:30])
+        if raw_clean:
+            query_raw = {
+                "law_title": {"$regex": raw_clean, "$options": "i"},
+                "article_number": {"$in": art_variants}
+            }
+            docs = list(db.legal_knowledge_base.find(query_raw).sort("chunk_index", 1))
+            if docs:
+                metadata["confidence"] = {"level": "HIGH", "score": 0.90}
+                return docs, metadata
 
     # ==============================================================
-    # VERIFICATION STEP 3: Graceful Fallbacks (No DB Crashes)
+    # TIER 3: Global Search across ALL Laws by Article Number + Relevance Rank
     # ==============================================================
-    # Fallback A: Search by just law_title
-    query = {"law_title": {"$regex": f"^{re.escape(clean_title)}$", "$options": "i"}}
-    cursor = db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(3)
-    docs = list(cursor)
-    if docs:
-        metadata["confidence"] = {"level": "MEDIUM", "score": 0.60}
-        metadata["strategy_used"] = "fallback_general"
-        return docs, metadata
+    if clean_art:
+        query_global_art = {"article_number": {"$in": art_variants}}
+        global_docs = list(db.legal_knowledge_base.find(query_global_art))
+        
+        if global_docs:
+            keywords = [w.lower() for w in re.findall(r'\w+', raw_law_title) if len(w) > 3]
+            scored_docs = []
+            for d in global_docs:
+                text_content = (str(d.get("law_title", "")) + " " + str(d.get("text", ""))).lower()
+                score = sum(1 for kw in keywords if kw in text_content)
+                scored_docs.append((score, d))
+            
+            scored_docs.sort(key=lambda x: x[0], reverse=True)
+            best_doc = scored_docs[0][1]
+            
+            matched_law = best_doc.get("law_title", "")
+            all_chunks = list(db.legal_knowledge_base.find({
+                "law_title": matched_law,
+                "article_number": {"$in": art_variants}
+            }).sort("chunk_index", 1))
+            
+            metadata["confidence"] = {"level": "MEDIUM", "score": 0.75}
+            metadata["strategy_used"] = "global_article_match"
+            return all_chunks if all_chunks else [best_doc], metadata
 
-    # Fallback B: Safe text regex search
+    # ==============================================================
+    # TIER 4: Semantic / Vector Store Search Fallback
+    # ==============================================================
     try:
-        safe_regex = re.escape(clean_title)[:40] 
+        search_query = f"{raw_law_title} Neni {raw_article_num}"
+        vector_results = vector_store_service.query_global_knowledge_base(search_query, n_results=3)
+        if vector_results and isinstance(vector_results, list) and len(vector_results) > 0:
+            top_res = vector_results[0]
+            if top_res:
+                doc_obj = {
+                    "law_title": top_res.get("law_title") or top_res.get("metadata", {}).get("law_title") or raw_law_title,
+                    "article_number": top_res.get("article_number") or top_res.get("metadata", {}).get("article_number") or raw_article_num,
+                    "text": top_res.get("text") or top_res.get("document", ""),
+                    "source": top_res.get("source") or top_res.get("metadata", {}).get("source", "")
+                }
+                metadata["confidence"] = {"level": "MEDIUM", "score": 0.65}
+                metadata["strategy_used"] = "vector_semantic_search"
+                return [doc_obj], metadata
+    except Exception as vec_err:
+        logger.warning(f"Vector search fallback skipped in laws endpoint: {vec_err}")
+
+    # ==============================================================
+    # TIER 5: Fallback - Search by just law_title
+    # ==============================================================
+    if clean_title:
+        query = {"law_title": {"$regex": re.escape(clean_title), "$options": "i"}}
+        docs = list(db.legal_knowledge_base.find(query).sort("chunk_index", 1).limit(3))
+        if docs:
+            metadata["confidence"] = {"level": "LOW", "score": 0.40}
+            metadata["strategy_used"] = "fallback_general_title"
+            return docs, metadata
+
+    # ==============================================================
+    # TIER 6: Safe Text Body Regex Fallback
+    # ==============================================================
+    try:
+        safe_regex = re.escape(clean_art if clean_art else raw_law_title[:30])
         text_cursor = db.legal_knowledge_base.find(
-            {"text": {"$regex": safe_regex, "$options": "i"}}
+            {"text": {"$regex": f"Neni\\s+{safe_regex}", "$options": "i"}}
         ).limit(1)
         docs = list(text_cursor)
         if docs:
@@ -218,7 +288,6 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
 async def get_law_pdf(filename: str):
     clean_name = os.path.basename(filename)
     try:
-        # B2 CLOUD SEARCH IS RESTORED
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
         b2_response = s3.list_objects_v2(Bucket=bucket, Prefix="laws/")
@@ -231,7 +300,6 @@ async def get_law_pdf(filename: str):
     except Exception as e:
         logger.warning(f"B2 cloud search skipped: {e}")
 
-    # LOCAL SEARCH FALLBACK RESTORED
     found = find_pdf_by_number_pair(clean_name)
     if found: return FileResponse(found, media_type="application/pdf", filename=os.path.basename(found))
     raise HTTPException(status_code=404, detail=f"Dokumenti PDF '{clean_name}' nuk u gjet.")
@@ -253,10 +321,18 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         db = get_db_instance()
         
         mapped_title = _normalize_hallucinated_title(law_title, "")
+        clean_mapped = re.escape(mapped_title.strip())
         
-        query = {"law_title": {"$regex": f"^{re.escape(mapped_title)}$", "$options": "i"}}
+        query = {"law_title": {"$regex": clean_mapped, "$options": "i"}}
         cursor = db.legal_knowledge_base.find(query, {"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1})
         docs = list(cursor)
+
+        if not docs:
+            words = [re.escape(w) for w in re.findall(r'\w+', law_title) if len(w) > 3]
+            if words:
+                keyword_regex = "|".join(words[:3])
+                query_kw = {"law_title": {"$regex": keyword_regex, "$options": "i"}}
+                docs = list(db.legal_knowledge_base.find(query_kw, {"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1}).limit(100))
 
         if not docs:
             raise HTTPException(status_code=404, detail="Ligji nuk u gjet")
@@ -294,7 +370,7 @@ async def get_law_article(
         docs, metadata = find_law_documents(db, law_title, article_number)
         
         if not docs or not docs[0]: 
-            raise HTTPException(status_code=404, detail=f"Dokumenti ({law_title}, Neni {article_number}) nuk u gjet")
+            raise HTTPException(status_code=404, detail=f"Dokumenti ({law_title}, Neni {article_number}) nuk u gjet në bazën e të dhënave.")
 
         source_info = _generate_source_info(docs[0], metadata, law_title, article_number)
 
