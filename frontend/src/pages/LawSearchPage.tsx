@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V12.0 (DUAL-TAB STATUTORY & ACADEMY SELECTOR)
+// PHOENIX PROTOCOL - LAW SEARCH V13.0 (BUILD FIX - ACTIVE TITLE ENRICHMENT & ZERO TS ERRORS)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -135,10 +135,51 @@ export default function LawSearchPage() {
             const mergedAcademy = new Set([...apiAcademy, ...DEFAULT_ACADEMY_MANUALS]);
             setAcademyTitles(Array.from(mergedAcademy));
           }
+
+          // Title Enrichment Loop
+          const allFetched = [...apiStatutes, ...apiAcademy];
+          if (allFetched.length > 0) {
+            const initialEnriched = new Map<string, string>();
+            const remainingTitles: string[] = [];
+
+            allFetched.forEach(title => {
+              const lower = title.toLowerCase().trim();
+              if (KNOWN_JUNK_MAP[lower]) {
+                initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
+              } else {
+                remainingTitles.push(title);
+              }
+            });
+            setEnrichedTitles(initialEnriched);
+
+            const bareTitles = remainingTitles.filter(isBareLawNumber);
+            if (bareTitles.length > 0) {
+              const enrichmentPromises = bareTitles.map(async (bareTitle) => {
+                try {
+                  const lawData = await apiService.getLawArticlesByTitle(bareTitle);
+                  if (lawData?.source) {
+                    const descriptive = extractDescriptiveFromSource(lawData.source);
+                    if (descriptive) return { bare: bareTitle, full: `${bareTitle} – ${descriptive}` };
+                  }
+                  if (lawData?.law_title && lawData.law_title !== bareTitle) {
+                    return { bare: bareTitle, full: lawData.law_title };
+                  }
+                  return { bare: bareTitle, full: bareTitle };
+                } catch (err) {
+                  return { bare: bareTitle, full: bareTitle };
+                }
+              });
+
+              const results = await Promise.all(enrichmentPromises);
+              const newMap = new Map(initialEnriched);
+              results.forEach(({ bare, full }) => newMap.set(bare, full));
+              setEnrichedTitles(newMap);
+            }
+          }
         }
       })
       .catch((err) => {
-        console.warn("[LawSearchPage] Using default Kosovo laws list fallback:", err);
+        console.warn("[LawSearchPage] Failed to fetch titles from API, using default Kosovo laws list fallback:", err);
       })
       .finally(() => setLoadingTitles(false));
   }, []);
@@ -430,7 +471,7 @@ export default function LawSearchPage() {
                 </button>
               </div>
 
-              {/* DUAL-TAB SWITCHER (LIGJET ZYRTARE vs UDHËZUESIT E AKADEMISË) */}
+              {/* DUAL-TAB SWITCHER */}
               <div className="flex border-b border-border-main bg-canvas p-2 gap-2 shrink-0">
                 <button
                   type="button"
