@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V7.0 (TITLE ENRICHMENT ACTIVE - ZERO TS WARNINGS)
+// PHOENIX PROTOCOL - LAW SEARCH V8.0 (SEARCHABLE LAW MODAL & ZERO OVERLAP)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -93,6 +93,8 @@ export default function LawSearchPage() {
   const [lawTitles, setLawTitles] = useState<string[]>(DEFAULT_LAW_TITLES);
   const [loadingTitles, setLoadingTitles] = useState(false);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
+  const [isLawPickerOpen, setIsLawPickerOpen] = useState(false);
+  const [lawSearchFilter, setLawSearchFilter] = useState('');
   
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
 
@@ -217,6 +219,12 @@ export default function LawSearchPage() {
 
   const displayLawTitles = lawTitles.length > 0 ? lawTitles : DEFAULT_LAW_TITLES;
 
+  const filteredPickerTitles = useMemo(() => {
+    if (!lawSearchFilter.trim()) return displayLawTitles;
+    const lowerFilter = lawSearchFilter.toLowerCase();
+    return displayLawTitles.filter(t => normalizeForDisplay(getDisplayTitle(t)).toLowerCase().includes(lowerFilter));
+  }, [displayLawTitles, lawSearchFilter, enrichedTitles]);
+
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
@@ -233,38 +241,42 @@ export default function LawSearchPage() {
         {/* Search Console Container */}
         <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 bg-surface rounded-3xl">
             
-            {/* 1. BULLETPROOF NATIVE OS LAW SELECTOR */}
-            <div className="relative flex items-center">
-              <Filter size={18} className="absolute left-5 text-primary-start pointer-events-none z-10" />
-              
-              <select
-                value={selectedLaw}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleLawSelect(e.target.value);
-                  }
-                }}
-                disabled={loadingTitles}
-                className="w-full pl-13 pr-12 py-5 bg-canvas border border-border-main hover:border-primary-start/50 rounded-2xl shadow-sm text-sm font-bold text-text-primary focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 appearance-none cursor-pointer transition-all disabled:opacity-50"
-              >
-                <option value="" className="bg-surface text-text-primary font-bold py-2">
-                  Zgjidh një ligj (Të gjitha ligjet)
-                </option>
-                {displayLawTitles.map((title, idx) => (
-                  <option key={idx} value={title} className="bg-surface text-text-primary py-2 font-medium">
-                    {normalizeForDisplay(getDisplayTitle(title))}
-                  </option>
-                ))}
-              </select>
+            {/* 1. POLISHED LAW SELECTOR BUTTON (ZERO ICON OVERLAP) */}
+            <button
+              type="button"
+              onClick={() => setIsLawPickerOpen(true)}
+              disabled={loadingTitles}
+              className="w-full flex items-center justify-between px-6 py-5 bg-canvas border border-border-main hover:border-primary-start/60 rounded-2xl shadow-sm text-sm font-bold text-text-primary transition-all group hover-lift cursor-pointer relative"
+            >
+              <div className="flex items-center gap-3 min-w-0 pr-4">
+                <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 border border-primary-start/20">
+                  <Filter size={18} />
+                </div>
+                <span className="truncate text-left font-bold text-sm text-text-primary">
+                  {selectedLaw ? normalizeForDisplay(getDisplayTitle(selectedLaw)) : "Zgjidh një ligj (Të gjitha ligjet)"}
+                </span>
+              </div>
 
-              <div className="absolute right-5 flex items-center gap-2 pointer-events-none z-10">
+              <div className="flex items-center gap-2 shrink-0">
+                {selectedLaw && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLaw('');
+                    }}
+                    className="p-1.5 hover:bg-hover rounded-lg text-text-muted hover:text-danger-start transition-colors"
+                    title="Hiq filtrin"
+                  >
+                    <X size={16} />
+                  </span>
+                )}
                 {loadingTitles ? (
                   <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
                 ) : (
-                  <ChevronDown size={18} className="text-text-muted" />
+                  <ChevronDown size={18} className="text-text-muted group-hover:text-primary-start transition-colors" />
                 )}
               </div>
-            </div>
+            </button>
 
             {/* 2. Primary Deep Search Input */}
             <div className="relative group">
@@ -395,6 +407,128 @@ export default function LawSearchPage() {
           <div className="h-32" />
         )}
       </div>
+
+      {/* SEARCHABLE LAW SELECTION MODAL */}
+      <AnimatePresence>
+        {isLawPickerOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-surface border border-border-main w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-5 sm:p-6 border-b border-border-main flex items-center justify-between bg-canvas shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20">
+                    <BookOpen size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin</h3>
+                    <p className="text-xs text-text-muted font-medium">Kërko ose zgjidh ligjin nga lista</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLawPickerOpen(false)}
+                  className="p-2 hover:bg-hover rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Search Filter Input */}
+              <div className="p-4 border-b border-border-main bg-surface shrink-0">
+                <div className="relative">
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  <input
+                    type="text"
+                    value={lawSearchFilter}
+                    onChange={(e) => setLawSearchFilter(e.target.value)}
+                    placeholder="Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..."
+                    className="w-full pl-11 pr-4 py-3 bg-canvas border border-border-main rounded-xl text-xs sm:text-sm font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start"
+                    autoFocus
+                  />
+                  {lawSearchFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setLawSearchFilter('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-1"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Scrollable Law List */}
+              <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-1.5 min-h-[250px] max-h-[50vh]">
+                {/* All Laws Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLaw('');
+                    setIsLawPickerOpen(false);
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    !selectedLaw ? 'bg-primary-start/10 text-primary-start border border-primary-start/30' : 'hover:bg-canvas text-text-primary border border-transparent'
+                  }`}
+                >
+                  <span className="truncate">Të gjitha ligjet (Të gjithë artikujt)</span>
+                  {!selectedLaw && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
+                </button>
+
+                <div className="my-2 border-t border-border-main/50" />
+
+                {filteredPickerTitles.length === 0 ? (
+                  <div className="p-8 text-center text-text-muted text-xs font-bold uppercase tracking-wider">
+                    Nuk u gjet asnjë ligj me këtë emër
+                  </div>
+                ) : (
+                  filteredPickerTitles.map((title, idx) => {
+                    const isSelected = selectedLaw === title;
+                    const displayTitle = normalizeForDisplay(getDisplayTitle(title));
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          handleLawSelect(title);
+                          setIsLawPickerOpen(false);
+                        }}
+                        className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all group cursor-pointer ${
+                          isSelected ? 'bg-primary-start/10 text-primary-start border border-primary-start/30' : 'hover:bg-canvas text-text-primary border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 pr-3">
+                          <Scale size={16} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
+                          <span className="truncate">{displayTitle}</span>
+                        </div>
+                        {isSelected && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-border-main bg-canvas flex justify-between items-center text-xs text-text-muted font-bold shrink-0">
+                <span>{filteredPickerTitles.length} Ligje të disponueshme</span>
+                <button
+                  type="button"
+                  onClick={() => setIsLawPickerOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-surface border border-border-main text-text-primary hover:bg-hover transition-colors cursor-pointer"
+                >
+                  Mbyll
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }
