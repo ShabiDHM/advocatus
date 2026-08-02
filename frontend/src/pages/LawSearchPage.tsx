@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V9.0 (EXECUTIVE THEME-AWARE LAW SELECTOR)
+// PHOENIX PROTOCOL - LAW SEARCH V10.0 (EXHAUSTIVE LAW REGISTRY & CLEAN MODAL FOOTER)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -35,7 +35,25 @@ const DEFAULT_LAW_TITLES = [
   "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
   "LIGJI NR. 03/L-006 PËR CONTESTIN PROCEDURAL",
   "LIGJI NR. 04/L-139 PËR PROCEDURËN EKZEKUTIVE",
-  "LIGJI NR. 05/L-031 PËR PROCEDURËN ADMINISTRATIVE"
+  "LIGJI NR. 05/L-031 PËR PROCEDURËN ADMINISTRATIVE",
+  "KODI CIVIL I REPUBLIKËS SË KOSOVËS",
+  "LIGJI NR. 03/L-154 PËR PRONËSINË DHE TË DREJTAT TJERA SENDE",
+  "LIGJI NR. 04/L-008 PËR KISHA DHE BASHKËSITË FETARE",
+  "LIGJI NR. 03/L-040 PËR VETËQEVERISJEN LOKALE",
+  "LIGJI NR. 03/L-149 PËR SHËRBIMIN CIVIL TË REPUBLIKËS SË KOSOVËS",
+  "LIGJI NR. 06/L-114 PËR ZYRTARET PUBLIKË",
+  "LIGJI NR. 05/L-010 PËR TATIMIN NË EDRAT E KORPORATAVE",
+  "LIGJI NR. 05/L-028 PËR TATIMIN NË EDRAT PERSONALE",
+  "LIGJI NR. 05/L-037 PËR TATIMIN NË VLERËN E SHTUAR",
+  "LIGJI NR. 04/L-042 PËR PROKURIMIN PUBLIK TË REPUBLIKËS SË KOSOVËS",
+  "LIGJI NR. 03/L-196 PËR PARANDALIMIN E CONFLIKTIT TË INTERESIT",
+  "LIGJI NR. 06/L-005 PËR NDËRKOMBËTARIZIMIN E BASHKËPUNIMIT GJYQËSOR",
+  "LIGJI NR. 03/L-229 PËR MBROJTJEN E KONSUMATORIT",
+  "LIGJI NR. 08/L-197 PËR ZYRËN SHTETËRORE PËR VERIFIKIMIN DHE KONFISKIMIN E PASURISË TË PALIGJSHME",
+  "LIGJI NR. 05/L-088 PËR RREGULLORËN E SHËRBIMEVE POSTARE",
+  "LIGJI NR. 04/L-045 PËR TREGTI ME PRODUKTE NAFTASH",
+  "UDHËZIMI ADMINISTRATIV NR. 01/2023 PËR AFATET DHE TARIFA GJYQËSORE",
+  "LIGJI NR. 05/L-064 PËR SIGURISË NË TRAFIKUN RUTOR"
 ];
 
 const KNOWN_JUNK_MAP: Record<string, string> = {
@@ -105,7 +123,9 @@ export default function LawSearchPage() {
         if (titles && titles.length > 0) {
           const filteredTitles = titles.filter(title => normalizeForDisplay(title).length >= 2);
           if (filteredTitles.length > 0) {
-            setLawTitles(filteredTitles);
+            // Combine API titles with DEFAULT_LAW_TITLES to show ALL laws
+            const mergedSet = new Set([...filteredTitles, ...DEFAULT_LAW_TITLES]);
+            setLawTitles(Array.from(mergedSet));
           }
 
           const initialEnriched = new Map<string, string>();
@@ -241,7 +261,7 @@ export default function LawSearchPage() {
         {/* Search Console Container */}
         <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 bg-surface rounded-3xl">
             
-            {/* 1. POLISHED LAW SELECTOR BUTTON (ZERO OVERLAP) */}
+            {/* 1. POLISHED LAW SELECTOR BUTTON */}
             <button
               type="button"
               onClick={() => setIsLawPickerOpen(true)}
@@ -408,7 +428,7 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* EXECUTIVE THEME-AWARE SEARCHABLE LAW SELECTION MODAL */}
+      {/* EXECUTIVE SEARCHABLE LAW SELECTION MODAL */}
       <AnimatePresence>
         {isLawPickerOpen && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-6">
@@ -521,13 +541,12 @@ export default function LawSearchPage() {
                 )}
               </div>
 
-              {/* Modal Footer */}
-              <div className="p-4 border-t border-border-main bg-surface flex justify-between items-center text-xs text-text-muted font-bold shrink-0">
-                <span>{filteredPickerTitles.length} Ligje të disponueshme</span>
+              {/* Modal Footer (Clean Right-Aligned Button, No Count String) */}
+              <div className="p-4 border-t border-border-main bg-surface flex justify-end items-center text-xs text-text-muted font-bold shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsLawPickerOpen(false)}
-                  className="px-5 py-2.5 rounded-xl bg-canvas border border-border-main text-text-primary hover:bg-hover transition-colors cursor-pointer shadow-xs font-bold"
+                  className="px-6 py-2.5 rounded-xl bg-canvas border border-border-main text-text-primary hover:bg-hover transition-colors cursor-pointer shadow-xs font-bold"
                 >
                   Mbyll
                 </button>
