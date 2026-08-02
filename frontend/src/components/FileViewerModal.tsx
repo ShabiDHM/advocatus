@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V10.0 (MOBILE-OPTIMIZED PDF FALLBACK & EXECUTIVE VIEW)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V11.0 (MINIMIZE WINDOW REFACTOR & HIGH-CONTRAST FLOATING PILL)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -8,7 +8,7 @@ import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, ZoomIn, ZoomOut, Maximize, Minus, FileText, Table as TableIcon, ExternalLink
+    Download, ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon, ExternalLink
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
@@ -52,8 +52,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
-  useLockBodyScroll(true);
+  // Release scroll lock when window is minimized
+  useLockBodyScroll(!isMinimized);
 
   // Detect mobile device to bypass flaky mobile PDF web workers & Android Chrome iframe traps
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
@@ -64,6 +66,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         (textContent && textContent.includes('# ')));
 
   useEffect(() => {
+    if (isMinimized) return;
     const el = containerRef.current;
     if (!el) return;
     const updateWidth = () => {
@@ -75,7 +78,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const observer = new ResizeObserver(updateWidth);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewerMode]);
+  }, [viewerMode, isMinimized]);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -149,6 +152,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     } catch (e) { 
         console.error("Download failed", e);
     } finally { setIsDownloading(false); }
+  };
+
+  const handleMinimizeAction = () => {
+    setIsMinimized(true);
+    if (onMinimize) {
+      onMinimize();
+    }
   };
 
   useEffect(() => {
@@ -371,6 +381,62 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
+  // RENDER MINIMIZED FLOATING PILL (Bypasses Main Modal Overlay Entirely)
+  if (isMinimized) {
+    return ReactDOM.createPortal(
+      <AnimatePresence>
+        <motion.div 
+          initial={{ opacity: 0, y: 30, scale: 0.9 }} 
+          animate={{ opacity: 1, y: 0, scale: 1 }} 
+          exit={{ opacity: 0, y: 30, scale: 0.9 }} 
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl text-white max-w-sm sm:max-w-md cursor-pointer hover:border-sky-500/50 hover:shadow-sky-500/10 transition-all group"
+          onClick={() => setIsMinimized(false)}
+        >
+          <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            {viewerMode === 'CSV' ? <TableIcon className="text-sky-400 w-5 h-5" /> : <FileText className="text-sky-400 w-5 h-5" />}
+          </div>
+          
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-slate-100 truncate">{documentData?.file_name || documentData?.title || 'Dokument'}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-[10px] font-mono text-sky-400/90 font-medium uppercase tracking-wider">
+                {isLegalDraft ? 'LEGAL DRAFT' : viewerMode} • I MINIMIZUAR
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0 ml-2 border-l border-slate-700/60 pl-2">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMinimized(false);
+              }} 
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
+              title="Zmadho Dokumentin"
+            >
+              <Maximize2 size={16} />
+            </button>
+            
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }} 
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all"
+              title="Mbyll"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </motion.div>
+      </AnimatePresence>,
+      document.body
+    );
+  }
+
+  // RENDER FULL DOCUMENT MODAL
   const modalUI = (
     <AnimatePresence>
       <motion.div 
@@ -425,15 +491,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 {isDownloading ? <Loader className="animate-spin" size={20} /> : <Download size={20} />}
               </button>
 
-              {onMinimize && (
-                <button 
-                  onClick={onMinimize} 
-                  className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
-                  title="Minimize"
-                >
-                  <Minus size={20} />
-                </button>
-              )}
+              <button 
+                onClick={handleMinimizeAction} 
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                title="Minimize"
+              >
+                <Minus size={20} />
+              </button>
 
               <button 
                 onClick={onClose} 
