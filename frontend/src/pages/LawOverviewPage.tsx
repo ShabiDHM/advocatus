@@ -1,12 +1,15 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V20.0 (OBJECT + IFRAME HYBRID PDF STREAM - ZERO 'OPEN' BUTTONS)
+// PHOENIX PROTOCOL - LAW OVERVIEW V21.0 (RESPONSIVE ACADEMY PDF STREAM - ZERO BROKEN EMBEDS)
 
 import { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, X, Minus, Maximize2 } from 'lucide-react';
+import { 
+  ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, 
+  GraduationCap, X, Minus, Maximize2, ExternalLink, Download 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LawOverviewData {
@@ -27,6 +30,7 @@ export default function LawOverviewPage() {
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
+  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -86,7 +90,7 @@ export default function LawOverviewPage() {
   const displayHeaderTitle = lawTitle || data.law_title;
   const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
 
-  // DIRECT EXPANDED B2 PDF STREAM FOR ACADEMY DOCUMENTS
+  // DIRECT ACADEMY PDF STREAM FOR DIPLOMATIC & ACADEMIC DOCUMENTS
   if (isAcademicDoc) {
     return (
       <>
@@ -139,19 +143,56 @@ export default function LawOverviewPage() {
                   </div>
                 </div>
 
-                {/* Instant PDF Object/Iframe Hybrid Stream (Zero 'Open' Buttons on Mobile & Desktop) */}
-                <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
-                  <object
-                    data={pdfStreamUrl}
-                    type="application/pdf"
-                    className="w-full h-full border-none"
-                  >
-                    <iframe
-                      src={pdfStreamUrl}
-                      title={displayHeaderTitle}
+                {/* PDF Stream View Container */}
+                <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative flex flex-col items-center justify-center">
+                  {isMobile ? (
+                    /* Mobile Responsive Presentation Interface */
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950/90">
+                      <div className="w-20 h-20 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center mb-5 shadow-lg shadow-primary-start/10">
+                        <GraduationCap className="w-10 h-10 text-primary-start" />
+                      </div>
+                      <span className="text-[10px] font-black text-primary-start uppercase tracking-widest mb-2 block">
+                        AKADEMIA E DREJTËSISË & UNODC
+                      </span>
+                      <h3 className="text-base sm:text-lg font-bold text-slate-100 max-w-md mb-2 break-words px-2">
+                        {displayHeaderTitle}
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-xs mb-8 px-2 leading-relaxed">
+                        Për përvojën më të mirë në celular, hapeni udhëzuesin me lexuesin nativ PDF të pajisjes suaj.
+                      </p>
+
+                      <div className="w-full max-w-xs flex flex-col gap-3">
+                        <button
+                          onClick={() => window.open(pdfStreamUrl, '_blank', 'noopener,noreferrer')}
+                          className="btn-primary w-full py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm shadow-xl cursor-pointer hover-lift active:scale-95 transition-all"
+                        >
+                          <ExternalLink size={18} />
+                          Hape në Ekran të Plotë
+                        </button>
+                        <a
+                          href={pdfStreamUrl}
+                          download={data?.source || `${displayHeaderTitle}.pdf`}
+                          className="w-full py-3.5 px-5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95"
+                        >
+                          <Download size={18} />
+                          Shkarko PDF
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Desktop Direct Embedded View */
+                    <object
+                      data={pdfStreamUrl}
+                      type="application/pdf"
                       className="w-full h-full border-none"
-                    />
-                  </object>
+                    >
+                      <iframe
+                        src={pdfStreamUrl}
+                        title={displayHeaderTitle}
+                        className="w-full h-full border-none"
+                      />
+                    </object>
+                  )}
                 </div>
 
               </div>
