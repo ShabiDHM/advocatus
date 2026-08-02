@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V12.0 (1-STEP DIRECT MOBILE & DESKTOP PDF VIEW)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V14.0 (1-STEP DIRECT CANVAS PDF STREAM)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -44,7 +44,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0); 
@@ -217,7 +217,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   }, [caseId, documentData?.id, directUrl, isAuth, t]);
 
   const renderContent = () => {
-    if (viewerMode === 'DOWNLOAD' || error) {
+    if (viewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-6 sm:p-8 bg-canvas">
             <AlertTriangle size={56} className="text-amber-500/70 mb-4 animate-pulse" />
@@ -241,7 +241,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 className="px-6 py-3 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm cursor-pointer"
                 style={{ minHeight: '44px' }}
               >
-                {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal')}
+                {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal', 'Shkarko Origjinalin')}
               </button>
             </div>
           </div>
@@ -249,7 +249,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
 
     if (viewerMode === 'PDF') {
-        // INSTANT 1-STEP DIRECT PDF STREAM FOR BOTH MOBILE AND DESKTOP
+        // DIRECT 1-STEP CANVAS STREAM FOR BOTH MOBILE AND DESKTOP (NO OBJECT TAG WRAPPER)
         return (
             <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
                 {isLoading && (
@@ -258,35 +258,50 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   </div>
                 )}
                 {fileSource && (
-                    <object
-                      data={fileSource}
-                      type="application/pdf"
-                      className="w-full h-full min-h-[75vh] rounded-xl shadow-2xl border border-main bg-slate-900"
+                    <PdfDocument 
+                      file={fileSource} 
+                      onLoadSuccess={({ numPages }) => { 
+                        setNumPages(numPages); 
+                        setIsLoading(false); 
+                      }} 
+                      onLoadError={(err) => {
+                        console.error("PDF Render Error:", err);
+                        setError("Nuk mund të ngarkohej pamja e PDF.");
+                        setViewerMode('DOWNLOAD');
+                        setIsLoading(false);
+                      }}
+                      loading={
+                        <div className="flex items-center justify-center p-12">
+                          <Loader className="animate-spin text-primary-start" size={32} />
+                        </div>
+                      }
+                      className="flex flex-col items-center w-full px-2 sm:px-0"
                     >
-                      <PdfDocument 
-                        file={fileSource} 
-                        onLoadSuccess={({ numPages }) => { 
-                          setNumPages(numPages); 
-                          setIsLoading(false); 
-                        }} 
-                        onLoadError={(err) => {
-                          console.error("PDF Render Error:", err);
-                          setError("Nuk mund të ngarkohej pamja e PDF.");
-                          setViewerMode('DOWNLOAD');
-                          setIsLoading(false);
-                        }}
-                        loading=""
-                      >
+                      {isMobile ? (
+                        /* Continuous scrollable pages for 1-step direct mobile viewing */
+                        numPages && Array.from(new Array(numPages), (_, index) => (
                           <Page 
-                            pageNumber={pageNumber} 
+                            key={`page_${index + 1}`}
+                            pageNumber={index + 1} 
                             width={containerWidth > 0 ? containerWidth : undefined} 
                             scale={scale} 
                             renderTextLayer={true}
                             renderAnnotationLayer={true}
-                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full" 
+                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white" 
                           />
-                      </PdfDocument>
-                    </object>
+                        ))
+                      ) : (
+                        /* Page-by-page rendering for desktop with toolbar pagination */
+                        <Page 
+                          pageNumber={pageNumber} 
+                          width={containerWidth > 0 ? containerWidth : undefined} 
+                          scale={scale} 
+                          renderTextLayer={true}
+                          renderAnnotationLayer={true}
+                          className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white" 
+                        />
+                      )}
+                    </PdfDocument>
                 )}
             </div>
         );
@@ -499,3 +514,4 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 };
 
 export default FileViewerModal;
+export { FileViewerModal };
