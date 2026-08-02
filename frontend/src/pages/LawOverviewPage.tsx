@@ -1,12 +1,13 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V15.0 (MINIMALIST X CLOSE BUTTON & CLEAN HEADER)
+// PHOENIX PROTOCOL - LAW OVERVIEW V17.0 (MINIMIZE & CLOSE CONTROLS WITH FLOATING PILL)
 
 import { useEffect, useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, X, Minus, Maximize2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface LawOverviewData {
   law_title: string;
@@ -23,6 +24,7 @@ export default function LawOverviewPage() {
   const [data, setData] = useState<LawOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
 
@@ -89,76 +91,147 @@ export default function LawOverviewPage() {
   // DIRECT EXPANDED B2 PDF STREAM FOR ACADEMY DOCUMENTS
   if (isAcademicDoc) {
     return (
-      <motion.div 
-          className="w-full min-h-screen pb-6 bg-canvas text-text-primary"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="max-w-[98vw] w-full mx-auto px-2 sm:px-4 pt-20 sm:pt-22">
-          
-          <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-main bg-surface shadow-2xl flex flex-col gap-4">
-            
-            {/* Header with Minimalist X Close Button */}
-            <div className="flex items-center justify-between border-b border-main pb-3 gap-3">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
-                  <GraduationCap size={22} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-black text-primary-start uppercase tracking-wider block mb-0.5">
-                    AKADEMIA E DREJTËSISË & UNODC
-                  </span>
-                  <h1 className="text-base sm:text-lg font-black text-text-primary leading-tight truncate">
-                    {displayHeaderTitle}
-                  </h1>
-                </div>
-              </div>
+      <>
+        {/* FULL PDF VIEWER FRAME (ONLY SHOWS WHEN NOT MINIMIZED) */}
+        {!isPdfMinimized && (
+          <motion.div 
+              className="w-full min-h-screen pb-4 bg-canvas text-text-primary"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="max-w-[98vw] w-full mx-auto px-1 sm:px-4 pt-18 sm:pt-22">
+              
+              <div className="glass-panel p-2 sm:p-5 rounded-3xl border border-main bg-surface shadow-2xl flex flex-col gap-3">
+                
+                {/* Header with Minimize (-) and Close (X) Buttons */}
+                <div className="flex items-center justify-between border-b border-main pb-2 px-2 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
+                      <GraduationCap size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] sm:text-[10px] font-black text-primary-start uppercase tracking-wider block">
+                        AKADEMIA E DREJTËSISË & UNODC
+                      </span>
+                      <h1 className="text-xs sm:text-base font-black text-text-primary leading-tight truncate">
+                        {displayHeaderTitle}
+                      </h1>
+                    </div>
+                  </div>
 
-              {/* Single Minimalist X Close Button */}
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="p-2.5 bg-canvas border border-main hover:bg-hover text-text-muted hover:text-danger-start rounded-2xl transition-all focus:outline-none cursor-pointer shrink-0 shadow-sm"
-                title="Mbyll"
-              >
-                <X size={20} />
-              </button>
+                  {/* Header Controls: Minimize (-) & Close (X) */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsPdfMinimized(true)}
+                      className="p-2.5 bg-canvas border border-main hover:bg-hover text-text-muted hover:text-primary-start rounded-2xl transition-all focus:outline-none cursor-pointer shadow-sm"
+                      title="Minimizo"
+                    >
+                      <Minus size={18} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(-1)}
+                      className="p-2.5 bg-canvas border border-main hover:bg-hover text-text-muted hover:text-danger-start rounded-2xl transition-all focus:outline-none cursor-pointer shadow-sm"
+                      title="Mbyll"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Instant PDF Stream Frame */}
+                {isMobile ? (
+                  <div className="flex flex-col items-center justify-center p-8 bg-canvas rounded-2xl text-center border border-main">
+                    <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
+                      <FileText size={32} className="text-primary-start" />
+                    </div>
+                    <h3 className="text-base font-bold text-text-primary mb-2 max-w-sm truncate">
+                      {displayHeaderTitle}
+                    </h3>
+                    <p className="text-xs text-text-muted mb-6 max-w-xs leading-relaxed">
+                      Përvojë optimale leximi në celular. Klikoni më poshtë për ta hapur direkt.
+                    </p>
+                    <a
+                      href={pdfStreamUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider shadow-lg w-full max-w-xs"
+                    >
+                      Hap PDF në Shfletues
+                    </a>
+                  </div>
+                ) : (
+                  <div className="w-full h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
+                    <iframe
+                      src={pdfStreamUrl}
+                      title={displayHeaderTitle}
+                      className="w-full h-full border-none"
+                    />
+                  </div>
+                )}
+
+              </div>
             </div>
+          </motion.div>
+        )}
 
-            {/* Mobile vs Desktop View */}
-            {isMobile ? (
-              <div className="flex flex-col items-center justify-center p-8 bg-canvas rounded-2xl text-center border border-main">
-                <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
-                  <FileText size={32} className="text-primary-start" />
+        {/* MINIMIZED FLOATING PILL (FLOATS IN BOTTOM RIGHT CORNER AT Z-[9999]) */}
+        {isPdfMinimized && ReactDOM.createPortal(
+          <AnimatePresence>
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl text-white max-w-sm sm:max-w-md cursor-pointer hover:border-sky-500/50 hover:shadow-sky-500/10 transition-all group"
+              onClick={() => setIsPdfMinimized(false)}
+            >
+              <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <GraduationCap className="text-sky-400 w-5 h-5" />
+              </div>
+              
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-100 truncate">{displayHeaderTitle}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[10px] font-mono text-sky-400/90 font-medium uppercase tracking-wider">
+                    AKADEMIA E DREJTËSISË • I MINIMIZUAR
+                  </span>
                 </div>
-                <h3 className="text-base font-bold text-text-primary mb-2 max-w-sm truncate">
-                  {displayHeaderTitle}
-                </h3>
-                <p className="text-xs text-text-muted mb-6 max-w-xs leading-relaxed">
-                  Përvojë optimale leximi në celular. Klikoni më poshtë për ta hapur direkt.
-                </p>
-                <a
-                  href={pdfStreamUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider shadow-lg w-full max-w-xs"
-                >
-                  Hap PDF në Shfletues
-                </a>
               </div>
-            ) : (
-              <div className="w-full h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
-                <iframe
-                  src={pdfStreamUrl}
-                  title={displayHeaderTitle}
-                  className="w-full h-full border-none"
-                />
-              </div>
-            )}
 
-          </div>
-        </div>
-      </motion.div>
+              <div className="flex items-center gap-1 shrink-0 ml-2 border-l border-slate-700/60 pl-2">
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsPdfMinimized(false);
+                  }} 
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
+                  title="Zgjero Dokumentin"
+                >
+                  <Maximize2 size={16} />
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(-1);
+                  }} 
+                  className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all"
+                  title="Mbyll"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </motion.div>
+          </AnimatePresence>,
+          document.body
+        )}
+      </>
     );
   }
 
