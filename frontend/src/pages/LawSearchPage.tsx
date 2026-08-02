@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V11.0 (EXACT 15 STATUTORY LAWS REGISTRY)
+// PHOENIX PROTOCOL - LAW SEARCH V12.0 (DUAL-TAB STATUTORY & ACADEMY SELECTOR)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft, Check } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft, Check, GraduationCap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,8 +25,8 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
-// Exact 15 Official Statutory Laws Present in data/laws/ks
-const DEFAULT_LAW_TITLES = [
+// 15 Official Statutory Laws Present in data/laws/ks
+const DEFAULT_STATUTORY_LAWS = [
   "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
   "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
   "KODI NR. 08/L-032 I PROCEDURËS PENALE",
@@ -42,6 +42,18 @@ const DEFAULT_LAW_TITLES = [
   "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
   "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
   "LIGJI NR. 03/L-212 I PUNËS"
+];
+
+// 13 Academy Judicial Commentaries & Guides
+const DEFAULT_ACADEMY_MANUALS = [
+  "AKADEMIA E DREJTËSISË - Praktika Gjyqësore e Kosovës (Case Law Kosovo)",
+  "AKADEMIA E DREJTËSISË - Konkluzionet për Unifikim të Praktikës Gjyqësore",
+  "AKADEMIA E DREJTËSISË - Komentari i Kodit Penal (Kosovo Commentary)",
+  "AKADEMIA E DREJTËSISË - Doracak dhe Udhëzues Praktik për Gjyqtarë",
+  "AKADEMIA E DREJTËSISË - Masat e Veçanta Hetimore (Special Investigative Measures)",
+  "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Drejtësinë Mjedisore",
+  "AKADEMIA E DREJTËSISË - Instituti Gjyqësor dhe Departamenti për Shërbime Ligjore",
+  "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Qasjen në Drejtësi"
 ];
 
 const KNOWN_JUNK_MAP: Record<string, string> = {
@@ -96,10 +108,13 @@ export default function LawSearchPage() {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   
-  const [lawTitles, setLawTitles] = useState<string[]>(DEFAULT_LAW_TITLES);
+  const [statuteTitles, setStatuteTitles] = useState<string[]>(DEFAULT_STATUTORY_LAWS);
+  const [academyTitles, setAcademyTitles] = useState<string[]>(DEFAULT_ACADEMY_MANUALS);
   const [loadingTitles, setLoadingTitles] = useState(false);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
+  
   const [isLawPickerOpen, setIsLawPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'statutes' | 'academy'>('statutes');
   const [lawSearchFilter, setLawSearchFilter] = useState('');
   
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
@@ -107,54 +122,23 @@ export default function LawSearchPage() {
   useEffect(() => {
     setLoadingTitles(true);
     apiService.getLawTitles()
-      .then(async (titles) => {
-        if (titles && titles.length > 0) {
-          const filteredTitles = titles.filter(title => normalizeForDisplay(title).length >= 2);
-          if (filteredTitles.length > 0) {
-            const mergedSet = new Set([...filteredTitles, ...DEFAULT_LAW_TITLES]);
-            setLawTitles(Array.from(mergedSet));
+      .then(async (res: any) => {
+        if (res) {
+          const apiStatutes = res.statutes || res.all_titles || [];
+          const apiAcademy = res.academic_manuals || [];
+
+          if (apiStatutes.length > 0) {
+            const mergedStatutes = new Set([...apiStatutes, ...DEFAULT_STATUTORY_LAWS]);
+            setStatuteTitles(Array.from(mergedStatutes));
           }
-
-          const initialEnriched = new Map<string, string>();
-          const remainingTitles: string[] = [];
-          
-          filteredTitles.forEach(title => {
-            const lower = title.toLowerCase().trim();
-            if (KNOWN_JUNK_MAP[lower]) {
-              initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
-            } else {
-              remainingTitles.push(title);
-            }
-          });
-          setEnrichedTitles(initialEnriched);
-          
-          const bareTitles = remainingTitles.filter(isBareLawNumber);
-          if (bareTitles.length > 0) {
-            const enrichmentPromises = bareTitles.map(async (bareTitle) => {
-              try {
-                const lawData = await apiService.getLawArticlesByTitle(bareTitle);
-                if (lawData?.source) {
-                  const descriptive = extractDescriptiveFromSource(lawData.source);
-                  if (descriptive) return { bare: bareTitle, full: `${bareTitle} – ${descriptive}` };
-                }
-                if (lawData?.law_title && lawData.law_title !== bareTitle) {
-                  return { bare: bareTitle, full: lawData.law_title };
-                }
-                return { bare: bareTitle, full: bareTitle };
-              } catch (err) {
-                return { bare: bareTitle, full: bareTitle };
-              }
-            });
-
-            const results = await Promise.all(enrichmentPromises);
-            const newMap = new Map(initialEnriched);
-            results.forEach(({ bare, full }) => newMap.set(bare, full));
-            setEnrichedTitles(newMap);
+          if (apiAcademy.length > 0) {
+            const mergedAcademy = new Set([...apiAcademy, ...DEFAULT_ACADEMY_MANUALS]);
+            setAcademyTitles(Array.from(mergedAcademy));
           }
         }
       })
       .catch((err) => {
-        console.warn("[LawSearchPage] Failed to fetch titles from API, using default Kosovo law titles:", err);
+        console.warn("[LawSearchPage] Using default Kosovo laws list fallback:", err);
       })
       .finally(() => setLoadingTitles(false));
   }, []);
@@ -224,13 +208,13 @@ export default function LawSearchPage() {
     return enrichedTitles.has(original) ? enrichedTitles.get(original)! : original;
   };
 
-  const displayLawTitles = lawTitles.length > 0 ? lawTitles : DEFAULT_LAW_TITLES;
+  const activePickerList = pickerTab === 'statutes' ? statuteTitles : academyTitles;
 
   const filteredPickerTitles = useMemo(() => {
-    if (!lawSearchFilter.trim()) return displayLawTitles;
+    if (!lawSearchFilter.trim()) return activePickerList;
     const lowerFilter = lawSearchFilter.toLowerCase();
-    return displayLawTitles.filter(t => normalizeForDisplay(getDisplayTitle(t)).toLowerCase().includes(lowerFilter));
-  }, [displayLawTitles, lawSearchFilter, enrichedTitles]);
+    return activePickerList.filter(t => normalizeForDisplay(getDisplayTitle(t)).toLowerCase().includes(lowerFilter));
+  }, [activePickerList, lawSearchFilter, enrichedTitles]);
 
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -260,7 +244,7 @@ export default function LawSearchPage() {
                   <Filter size={18} />
                 </div>
                 <span className="truncate text-left font-bold text-sm text-text-primary">
-                  {selectedLaw ? normalizeForDisplay(getDisplayTitle(selectedLaw)) : "Zgjidh një ligj (Të gjitha ligjet)"}
+                  {selectedLaw ? normalizeForDisplay(getDisplayTitle(selectedLaw)) : "Zgjidh një ligj apo udhëzues..."}
                 </span>
               </div>
 
@@ -415,7 +399,7 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* EXECUTIVE SEARCHABLE LAW SELECTION MODAL */}
+      {/* EXECUTIVE SEARCHABLE LAW SELECTION MODAL WITH DUAL TABS */}
       <AnimatePresence>
         {isLawPickerOpen && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-6">
@@ -433,8 +417,8 @@ export default function LawSearchPage() {
                     <BookOpen size={22} />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin</h3>
-                    <p className="text-xs text-text-muted font-medium">Kërko ose zgjidh ligjin nga baza zyrtare</p>
+                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin apo Udhëzuesin</h3>
+                    <p className="text-xs text-text-muted font-medium">Zgjidh nga Kodet Zyrtare ose Praktika e Akademisë</p>
                   </div>
                 </div>
                 <button
@@ -446,6 +430,35 @@ export default function LawSearchPage() {
                 </button>
               </div>
 
+              {/* DUAL-TAB SWITCHER (LIGJET ZYRTARE vs UDHËZUESIT E AKADEMISË) */}
+              <div className="flex border-b border-border-main bg-canvas p-2 gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPickerTab('statutes')}
+                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    pickerTab === 'statutes'
+                      ? 'bg-primary-start text-white shadow-md'
+                      : 'bg-surface text-text-muted hover:text-text-primary border border-border-main'
+                  }`}
+                >
+                  <Scale size={16} />
+                  <span>📜 Ligjet Zyrtare ({statuteTitles.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPickerTab('academy')}
+                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    pickerTab === 'academy'
+                      ? 'bg-primary-start text-white shadow-md'
+                      : 'bg-surface text-text-muted hover:text-text-primary border border-border-main'
+                  }`}
+                >
+                  <GraduationCap size={16} />
+                  <span>📚 Akademia ({academyTitles.length})</span>
+                </button>
+              </div>
+
               {/* Modal Search Filter Input */}
               <div className="p-4 border-b border-border-main bg-surface shrink-0">
                 <div className="relative">
@@ -454,7 +467,7 @@ export default function LawSearchPage() {
                     type="text"
                     value={lawSearchFilter}
                     onChange={(e) => setLawSearchFilter(e.target.value)}
-                    placeholder="Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..."
+                    placeholder={pickerTab === 'statutes' ? "Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..." : "Kërko udhëzuesin ose komentarin e Akademisë..."}
                     className="w-full pl-11 pr-10 py-3.5 bg-canvas border border-border-main rounded-xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all"
                     autoFocus
                   />
@@ -472,7 +485,7 @@ export default function LawSearchPage() {
 
               {/* Modal Scrollable Law List */}
               <div className="p-4 overflow-y-auto custom-scrollbar flex-1 space-y-2 bg-canvas min-h-[260px] max-h-[50vh]">
-                {/* All Laws Option */}
+                {/* All Option */}
                 <button
                   type="button"
                   onClick={() => {
@@ -486,8 +499,8 @@ export default function LawSearchPage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Scale size={18} className={!selectedLaw ? 'text-primary-start' : 'text-text-muted'} />
-                    <span className="truncate">Të gjitha ligjet (Të gjithë artikujt)</span>
+                    {pickerTab === 'statutes' ? <Scale size={18} className="text-primary-start" /> : <GraduationCap size={18} className="text-primary-start" />}
+                    <span className="truncate">{pickerTab === 'statutes' ? "Të gjitha ligjet zyrtare" : "Të gjithë udhëzuesit e Akademisë"}</span>
                   </div>
                   {!selectedLaw && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
                 </button>
@@ -496,7 +509,7 @@ export default function LawSearchPage() {
 
                 {filteredPickerTitles.length === 0 ? (
                   <div className="p-10 text-center text-text-muted text-xs font-bold uppercase tracking-wider bg-surface rounded-2xl border border-border-main">
-                    Nuk u gjet asnjë ligj me këtë emër
+                    Nuk u gjet asnjë dokument me këtë emër
                   </div>
                 ) : (
                   filteredPickerTitles.map((title, idx) => {
@@ -518,7 +531,11 @@ export default function LawSearchPage() {
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 pr-3">
-                          <Scale size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
+                          {pickerTab === 'statutes' ? (
+                            <Scale size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
+                          ) : (
+                            <GraduationCap size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
+                          )}
                           <span className="truncate leading-relaxed">{displayTitle}</span>
                         </div>
                         {isSelected && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
