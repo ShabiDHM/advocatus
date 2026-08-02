@@ -1,11 +1,11 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V7.0 (STANDARDIZED EXECUTIVE SIZE: MAX-W-7XL)
+// PHOENIX PROTOCOL - LAW OVERVIEW V8.0 (STRICT TITLE PRESERVATION & ARTICLE LINK GUARDRAIL)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, Search, Hash } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, Search, Hash, ShieldAlert } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface LawOverviewData {
@@ -24,7 +24,7 @@ export default function LawOverviewPage() {
   const [error, setError] = useState('');
   const [filterTerm, setFilterTerm] = useState('');
 
-  const lawTitle = searchParams.get('lawTitle');
+  const lawTitle = searchParams.get('lawTitle') || '';
 
   useEffect(() => {
     if (!lawTitle) {
@@ -32,14 +32,33 @@ export default function LawOverviewPage() {
       setLoading(false);
       return;
     }
+    setLoading(true);
+    setError('');
+
     apiService.getLawArticlesByTitle(lawTitle)
-      .then(setData)
+      .then((res) => {
+        setData(res);
+      })
       .catch((err) => {
         console.error('Law overview fetch error:', err);
         setError(err.message || t('lawOverview.fetchError', 'Dështoi ngarkimi i ligjit.'));
       })
       .finally(() => setLoading(false));
   }, [lawTitle, t]);
+
+  const isTitleMismatch = useMemo(() => {
+    if (!data?.law_title || !lawTitle) return false;
+    const reqClean = lawTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const fetchedClean = data.law_title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    const reqNum = lawTitle.match(/\d+[\/\-L\s]+\d+/i);
+    const fetchNum = data.law_title.match(/\d+[\/\-L\s]+\d+/i);
+
+    if (reqNum && fetchNum) {
+      return reqNum[0].replace(/[^0-9]/g, '') !== fetchNum[0].replace(/[^0-9]/g, '');
+    }
+    return !fetchedClean.includes(reqClean) && !reqClean.includes(fetchedClean);
+  }, [data?.law_title, lawTitle]);
 
   const filteredArticles = useMemo(() => {
     if (!data?.articles) return [];
@@ -72,7 +91,7 @@ export default function LawOverviewPage() {
           <p className="text-text-secondary text-sm mb-6">{error}</p>
           <button
             onClick={() => navigate('/laws/search')}
-            className="btn-primary flex items-center gap-2 hover-lift shadow-sm"
+            className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
           >
             <ArrowLeft size={16} />
             {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}
@@ -83,6 +102,8 @@ export default function LawOverviewPage() {
   }
 
   if (!data) return null;
+
+  const displayHeaderTitle = lawTitle || data.law_title;
 
   return (
     <motion.div 
@@ -97,13 +118,28 @@ export default function LawOverviewPage() {
         {/* Navigation Breadcrumb */}
         <button
           onClick={() => navigate(-1)}
-          className="group mb-6 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift"
+          className="group mb-6 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
         >
           <div className="p-2 rounded-xl bg-surface border border-main group-hover:border-primary-start transition-colors">
             <ArrowLeft size={16} className="text-primary-start" />
           </div>
           <span>{t('general.back', 'Kthehu Mbrapa')}</span>
         </button>
+
+        {/* Mismatch Warning Alert */}
+        {isTitleMismatch && (
+          <div className="mb-6 p-5 bg-rose-500/10 border-2 border-rose-500/40 rounded-2xl flex items-start gap-4 shadow-md text-rose-600 dark:text-rose-400">
+            <ShieldAlert size={28} className="shrink-0 mt-0.5 text-rose-500" />
+            <div className="flex flex-col gap-1">
+              <h4 className="text-sm font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                Kujdes: Mospërputhje e të dhënave të ligjit
+              </h4>
+              <p className="text-xs sm:text-sm font-medium leading-relaxed text-text-primary">
+                Keni kërkuar <strong className="underline">{lawTitle}</strong>, por baza e të dhënave ka kthyer përmbajtjen e <strong className="underline">{data.law_title}</strong>. Ju lutemi provoni përsëri nga biblioteka ligjore.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Overview Container */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface">
@@ -121,7 +157,7 @@ export default function LawOverviewPage() {
                 </div>
                 
                 <h1 className="text-2xl sm:text-4xl font-black text-text-primary leading-tight tracking-tight">
-                {data.law_title}
+                  {displayHeaderTitle}
                 </h1>
                 
                 <div className="flex flex-wrap items-center gap-3 border-t border-main/50 pt-5 mt-1">
@@ -172,12 +208,13 @@ export default function LawOverviewPage() {
                   const cleanArt = article.replace(/\.$/, '').trim();
                   const isPreamble = cleanArt === '0' || cleanArt.toLowerCase() === 'preambula' || cleanArt.toLowerCase() === 'hyrja';
                   const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+                  const targetLawTitle = displayHeaderTitle;
 
                   return (
                     <button
                       key={article}
-                      onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(data.law_title)}&articleNumber=${encodeURIComponent(article)}`)}
-                      className="flex items-center justify-center gap-2 px-3.5 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift active:scale-95"
+                      onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(targetLawTitle)}&articleNumber=${encodeURIComponent(article)}`)}
+                      className="flex items-center justify-center gap-2 px-3.5 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift active:scale-95 cursor-pointer"
                     >
                       <Hash size={12} className="text-primary-start/50 shrink-0" />
                       <span>{label}</span>
@@ -192,7 +229,7 @@ export default function LawOverviewPage() {
           <div className="bg-surface px-6 sm:px-10 py-5 flex justify-between items-center border-t border-main">
             <button
               onClick={() => navigate('/laws/search')}
-              className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift"
+              className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift cursor-pointer"
             >
               <ArrowLeft size={14} />
               {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}

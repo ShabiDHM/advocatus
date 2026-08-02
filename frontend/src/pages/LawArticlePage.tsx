@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V26.0 (STANDARDIZED TYPOGRAPHY & EXECUTIVE OPEN BOOK)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V29.0 (CLEAN TS & COMPLETE TITLE MISMATCH CHECK)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
   Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from '../components/LawCitationText';
@@ -32,6 +32,7 @@ interface SourceInfo {
   strategy_used: string;
   verification_hint: string;
   match_count: number;
+  title_mismatch?: boolean;
 }
 
 interface ArticleData {
@@ -41,6 +42,8 @@ interface ArticleData {
   text: string;
   chunk_id: string;
   source_info?: SourceInfo;
+  title_mismatch?: boolean;
+  requested_law_title?: string;
 }
 
 interface ChatMessage {
@@ -225,14 +228,73 @@ export default function LawArticlePage() {
           chunkId = generateFallbackChunkId(lawTitle, articleNumber);
         }
         
-        setSourceInfo(data.source_info || null);
+        // STRICT TITLE CROSS-VERIFICATION GUARDRAIL
+        const requestedLawClean = lawTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const fetchedLawClean = (data.law_title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        const reqNumMatch = lawTitle.match(/\d+[\/\-L\s]+\d+/i);
+        const fetchNumMatch = (data.law_title || '').match(/\d+[\/\-L\s]+\d+/i);
+
+        let titleMismatch = false;
+        if (reqNumMatch && fetchNumMatch) {
+          const reqNum = reqNumMatch[0].replace(/[^0-9]/g, '');
+          const fetchNum = fetchNumMatch[0].replace(/[^0-9]/g, '');
+          if (reqNum !== fetchNum) {
+            titleMismatch = true;
+          }
+        } else if (requestedLawClean && fetchedLawClean) {
+          if (!requestedLawClean.includes(fetchedLawClean) && !fetchedLawClean.includes(requestedLawClean)) {
+            titleMismatch = true;
+          }
+        }
+
+        let updatedSourceInfo: SourceInfo = data.source_info || {
+          confidence: {
+            level: 'HIGH',
+            label: 'E verifikuar',
+            icon: '✅',
+            color: 'text-emerald-500',
+            description: '',
+            score: 1.0,
+          },
+          matched_law: data.law_title,
+          matched_article: data.article_number || articleNumber,
+          source_file: data.source,
+          was_mapped: false,
+          mapped_from: null,
+          multiple_matches: false,
+          matching_laws: [],
+          strategy_used: 'exact',
+          verification_hint: '',
+          match_count: 1,
+        };
+
+        if (titleMismatch) {
+          updatedSourceInfo = {
+            ...updatedSourceInfo,
+            title_mismatch: true,
+            confidence: {
+              level: 'NONE',
+              label: 'MOSPËRPUTHJE E DETEKTUAR',
+              icon: '❌',
+              color: 'text-rose-500',
+              description: 'Ligji i ngarkuar nuk përputhet me ligjin e kërkuar',
+              score: 0.0,
+            },
+            verification_hint: `KUJDES: Keni kërkuar "${lawTitle}", por sistemi ka ngarkuar "${data.law_title}".`
+          };
+        }
+
+        setSourceInfo(updatedSourceInfo);
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
           source: data.source || `${lawTitle}.pdf`,
           text: normalizedText,
           chunk_id: chunkId,
-          source_info: data.source_info,
+          source_info: updatedSourceInfo,
+          title_mismatch: titleMismatch,
+          requested_law_title: lawTitle,
         });
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
@@ -402,10 +464,24 @@ export default function LawArticlePage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* STANDARDIZED EXECUTIVE MAX-W-7XL CONTAINER */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
           
+          {/* CRITICAL MISMATCH ALERT BANNER */}
+          {article.title_mismatch && (
+            <div className="mb-6 p-5 bg-rose-500/10 border-2 border-rose-500/40 rounded-2xl flex items-start gap-4 shadow-md text-rose-600 dark:text-rose-400">
+              <ShieldAlert size={28} className="shrink-0 mt-0.5 text-rose-500" />
+              <div className="flex flex-col gap-1">
+                <h4 className="text-sm font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                  Paralajmërim Sigurie: Mospërputhje e ligjit të kërkuar
+                </h4>
+                <p className="text-xs sm:text-sm font-medium leading-relaxed text-text-primary">
+                  Keni kërkuar ligjin <strong className="underline">{article.requested_law_title}</strong>, por baza e të dhënave ka ngarkuar <strong className="underline">{article.law_title}</strong>. Ju lutemi verifikoni kodin ose kthehuni te biblioteka ligjore.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             <button
               onClick={handleBackToLibrary}
@@ -535,53 +611,42 @@ export default function LawArticlePage() {
                   </div>
                 </div>
 
-                {/* EXACT MATCH SOURCE VERIFICATION CARD */}
                 {sourceInfo && (
-                  <div className="mt-2 p-4 rounded-2xl bg-surface border border-main shadow-sm font-mono text-xs text-text-primary">
-                    {/* Row 1: Status + Match Score */}
+                  <div className={`mt-2 p-4 rounded-2xl bg-surface border shadow-sm font-mono text-xs text-text-primary ${
+                    sourceInfo.title_mismatch ? 'border-rose-500/50 bg-rose-500/5' : 'border-main'
+                  }`}>
                     <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 border-b border-main/70 gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-base">{sourceInfo.confidence?.icon || '✅'}</span>
-                        <span className="font-black text-xs uppercase tracking-wider text-text-primary">
+                        <span className={`font-black text-xs uppercase tracking-wider ${
+                          sourceInfo.title_mismatch ? 'text-rose-500' : 'text-text-primary'
+                        }`}>
                           {sourceInfo.confidence?.label || 'E verifikuar'}
                         </span>
                       </div>
-                      {sourceInfo.confidence?.score !== undefined && sourceInfo.confidence.score > 0 && (
-                        <span className="text-xs font-mono font-black px-2.5 py-1 rounded-lg bg-canvas border border-main text-text-primary shadow-inner">
-                          {Math.round(sourceInfo.confidence.score * 100)}% përputhje
-                        </span>
-                      )}
+                      <span className={`text-xs font-mono font-black px-2.5 py-1 rounded-lg border shadow-inner ${
+                        sourceInfo.title_mismatch ? 'bg-rose-500/10 text-rose-500 border-rose-500/30' : 'bg-canvas border-main text-text-primary'
+                      }`}>
+                        {Math.round((sourceInfo.confidence?.score || 0) * 100)}% përputhje
+                      </span>
                     </div>
 
-                    {/* Row 2: Official Law Name */}
                     <div className="font-bold text-xs sm:text-sm text-text-primary leading-relaxed mb-1 font-sans">
                       {sourceInfo.matched_law || article.law_title}
                     </div>
 
-                    {/* Row 3: Article Number */}
                     <div className="text-xs font-bold text-primary-start mb-2">
                       Neni {sourceInfo.matched_article || article.article_number}
                     </div>
 
-                    {/* Row 4: Search Mapping (If Mapped) */}
-                    {sourceInfo.was_mapped && sourceInfo.mapped_from && (
-                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-2 flex items-center gap-1.5">
-                        <span>📌</span>
-                        <span>Kërkuar si: ({sourceInfo.mapped_from})</span>
-                      </div>
-                    )}
-
-                    {/* Multiple Matches Warning */}
-                    {sourceInfo.multiple_matches && sourceInfo.matching_laws?.length > 0 && (
-                      <div className="text-xs text-rose-600 dark:text-rose-400 font-medium mb-2 flex items-center gap-1.5">
-                        <span>⚠️</span>
-                        <span>Ky nen ekziston në {sourceInfo.matching_laws.length} ligje të ndryshme në bazë</span>
-                      </div>
-                    )}
-
-                    {/* Row 5: Verification Hint */}
-                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans">
-                      <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
+                    <div className={`text-xs font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans ${
+                      sourceInfo.title_mismatch ? 'text-rose-500 font-bold' : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {sourceInfo.title_mismatch ? (
+                        <ShieldAlert size={15} className="shrink-0 text-rose-500" />
+                      ) : (
+                        <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
+                      )}
                       <span>{sourceInfo.verification_hint || 'Ky nen korrespondon saktësisht me kërkimin.'}</span>
                     </div>
                   </div>
@@ -590,17 +655,12 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* EXECUTIVE OPEN BOOK READING SURFACE */}
             <div className="bg-canvas/50 px-2 sm:px-10 py-12 flex justify-center">
               <div className="w-full max-w-[95ch] bg-surface border border-main rounded-2xl sm:rounded-r-3xl sm:rounded-l-lg shadow-2xl p-8 sm:p-16 relative overflow-hidden transition-all duration-300">
                 
-                {/* Realistic Hardcover Left Spine Binding Effect */}
                 <div className="absolute top-0 bottom-0 left-0 w-4 bg-gradient-to-r from-black/20 via-primary-start/1 to-transparent pointer-events-none border-r border-main/40 hidden sm:block" />
-
-                {/* Center Book Spine Crease Shadow */}
                 <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none hidden sm:block" />
 
-                {/* Article Header Inside Book (Clean, Non-Redundant Neni Only) */}
                 <div className="text-center pb-6 mb-8 border-b border-main/60 relative z-10">
                   <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-tight font-serif">
                     {(() => {
@@ -611,21 +671,17 @@ export default function LawArticlePage() {
                   </h2>
                 </div>
 
-                {/* Article Body Text (Standardized Readable Typography: 16px / 1.75 line-height) */}
                 <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.75] font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
                   {article.text}
                 </div>
 
-                {/* Dynamic Theme-Aware & Verification-Aware Book Footer */}
                 <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs sm:text-sm font-mono relative z-10">
                   <span className="text-text-muted">Kodi Juridik i Republikës së Kosovës</span>
                   <span className="text-text-muted">§</span>
                   <span className={`font-bold flex items-center gap-1.5 ${
-                    sourceInfo?.confidence?.level === 'HIGH' || sourceInfo?.confidence?.level === 'MEDIUM' 
-                      ? 'text-emerald-500' 
-                      : 'text-rose-500'
+                    article.title_mismatch ? 'text-rose-500' : 'text-emerald-500'
                   }`}>
-                    {sourceInfo?.confidence?.icon || '✅'} Burim Zyrtar i Verifikuar
+                    {article.title_mismatch ? '❌ Mospërputhje e Ligjit' : '✅ Burim Zyrtar i Verifikuar'}
                   </span>
                 </div>
 
@@ -690,7 +746,6 @@ export default function LawArticlePage() {
               )}
             </AnimatePresence>
 
-            {/* UNIFIED NEUTRAL CHAT BUBBLES */}
             <AnimatePresence>
               {chatVisible && (
                 <motion.div
@@ -852,9 +907,9 @@ export default function LawArticlePage() {
         </div>
       </div>
 
-      {/* PDF DOCUMENT FULLSCREEN MODAL (STANDARDIZED: 95VW x 92VH) */}
+      {/* PDF DOCUMENT FULLSCREEN MODAL */}
       <AnimatePresence>
-        {showPdfModal && pdfUrl && !isMobile && (
+        {showPdfModal && !isPdfMinimized && pdfUrl && !isMobile && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4">
             <motion.div 
               initial={{ scale: 0.98, opacity: 0, y: 10 }} 
@@ -924,15 +979,16 @@ export default function LawArticlePage() {
         )}
       </AnimatePresence>
 
+      {/* MINIMIZED FLOATING WIDGET */}
       <AnimatePresence>
         {showPdfModal && isPdfMinimized && article && (
           <motion.div
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3 p-3.5 bg-surface border border-main rounded-2xl shadow-2xl backdrop-blur-md max-w-md"
+            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3 p-3.5 bg-slate-900/95 text-white border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl max-w-md"
           >
-            <div className="p-2.5 bg-primary-start/15 text-primary-start rounded-xl shrink-0 border border-primary-start/20">
+            <div className="p-2.5 bg-sky-500/15 text-sky-400 rounded-xl shrink-0 border border-sky-500/30">
               <FileText size={18} />
             </div>
             
@@ -940,11 +996,11 @@ export default function LawArticlePage() {
               className="min-w-0 flex-1 cursor-pointer" 
               onClick={() => setIsPdfMinimized(false)}
             >
-              <p className="text-xs font-black text-text-primary uppercase truncate tracking-tight">
+              <p className="text-xs font-bold text-slate-100 truncate tracking-tight">
                 {article.law_title}
               </p>
-              <p className="text-[10px] text-text-muted font-mono truncate">
-                {article.source}
+              <p className="text-[10px] text-sky-400/90 font-mono truncate">
+                {article.source} • I MINIMIZUAR
               </p>
             </div>
 
@@ -952,19 +1008,19 @@ export default function LawArticlePage() {
               <button
                 type="button"
                 onClick={() => setIsPdfMinimized(false)}
-                className="p-2 bg-canvas hover:bg-hover border border-main text-primary-start rounded-xl transition-all focus:outline-none shadow-sm"
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
                 title="Zgjero (Full Screen)"
               >
-                <Maximize2 size={14} />
+                <Maximize2 size={16} />
               </button>
 
               <button
                 type="button"
                 onClick={() => { setShowPdfModal(false); setIsPdfMinimized(false); }}
-                className="p-2 bg-canvas hover:bg-hover border border-main text-text-muted hover:text-danger-start rounded-xl transition-all focus:outline-none shadow-sm"
+                className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
                 title="Mbyll"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             </div>
           </motion.div>
