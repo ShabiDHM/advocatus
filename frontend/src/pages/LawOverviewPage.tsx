@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V18.0 (1-STEP UNIFORM STREAMING - ZERO MOBILE BUTTON CARDS)
+// PHOENIX PROTOCOL - LAW OVERVIEW V19.0 (UNIVERSAL MOBILE PDF ENGINE & ZERO 'OPEN' BUTTONS)
 
 import { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -27,6 +27,8 @@ export default function LawOverviewPage() {
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
+
+  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -85,12 +87,17 @@ export default function LawOverviewPage() {
 
   const displayHeaderTitle = lawTitle || data.law_title;
   const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
+  
+  // Universal Mobile PDF Stream URL (Bypasses Android Chrome iframe 'Open' button restriction)
+  const pdfIframeSrc = isMobile 
+    ? `https://docs.google.com/gview?url=${encodeURIComponent(pdfStreamUrl)}&embedded=true` 
+    : pdfStreamUrl;
 
   // DIRECT EXPANDED B2 PDF STREAM FOR ACADEMY DOCUMENTS
   if (isAcademicDoc) {
     return (
       <>
-        {/* FULL PDF VIEWER FRAME (ONLY SHOWS WHEN NOT MINIMIZED) */}
+        {/* FULL PDF VIEWER FRAME */}
         {!isPdfMinimized && (
           <motion.div 
               className="w-full min-h-screen pb-4 bg-canvas text-text-primary"
@@ -142,7 +149,7 @@ export default function LawOverviewPage() {
                 {/* Instant PDF Stream Frame on Mobile & Desktop */}
                 <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
                   <iframe
-                    src={pdfStreamUrl}
+                    src={pdfIframeSrc}
                     title={displayHeaderTitle}
                     className="w-full h-full border-none"
                   />
