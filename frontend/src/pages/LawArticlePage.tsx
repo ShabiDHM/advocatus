@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V31.0 (DIRECT BACKBLAZE B2 STREAM FOR ACADEMY DOCS)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V33.0 (CLEAN IMPORTS & ZERO TS WARNINGS)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
   Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert, GraduationCap, Eye
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert, GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from '../components/LawCitationText';
@@ -59,33 +59,59 @@ const normalizeText = (raw: string, _articleNum?: string): string => {
 
   let cleaned = raw;
 
+  // 1. Strip OCR page markers & headers
   cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
   cleaned = cleaned.replace(/GAZETA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/FLETORJA\s+ZYRTARE\s+E\s+REPUBLIKËS\s+SË\s+SHQIPËRISË.*?(?=\n|$)/gi, '');
   cleaned = cleaned.replace(/==Start of OCR for page \d+==/gi, '');
   cleaned = cleaned.replace(/==End of OCR for page \d+==/gi, '');
   cleaned = cleaned.replace(/==Screenshot for page \d+==/gi, '');
+  cleaned = cleaned.replace(/^\s*\d{1,3}\s*$/gm, '');
 
+  // 2. Remove redundant "Neni X" at start of text if header already displays Neni X
+  const cleanNumStr = (_articleNum || '').replace(/\.$/, '').trim();
+  if (cleanNumStr) {
+    const redundantNeniRegex = new RegExp(`^\\s*(?:Neni|NENI)\\s+${cleanNumStr}\\b[:\\.\\-]*\\s*`, 'i');
+    cleaned = cleaned.replace(redundantNeniRegex, '');
+  }
+
+  // 3. UNWRAP MID-SENTENCE HARD LINE BREAKS
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
-  
+
   for (let i = 0; i < lines.length; i++) {
     const currentLine = lines[i].trim();
     if (!currentLine) {
-      mergedLines.push(currentLine);
+      mergedLines.push('');
       continue;
     }
 
-    if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] === currentLine) {
-      continue;
+    if (mergedLines.length > 0 && mergedLines[mergedLines.length - 1] !== '') {
+      const lastIdx = mergedLines.length - 1;
+      const previousLine = mergedLines[lastIdx];
+      
+      const endsWithPunctuation = /[.:;?!]$/.test(previousLine);
+      const isNumberedItem = /^\d+\.|\(\d+\)|^[a-z]\)/i.test(currentLine);
+
+      if (!endsWithPunctuation && !isNumberedItem) {
+        mergedLines[lastIdx] = previousLine + ' ' + currentLine;
+      } else {
+        mergedLines.push(currentLine);
+      }
+    } else {
+      mergedLines.push(currentLine);
     }
-    
-    mergedLines.push(currentLine);
   }
-  
+
   cleaned = mergedLines.join('\n');
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
-  return cleaned;
+
+  // 4. Format clean continuous paragraphs
+  const paragraphs = cleaned.split(/\n\n+/);
+  return paragraphs
+    .map(p => p.replace(/\s+/g, ' ').trim())
+    .filter(p => p.length > 0)
+    .join('\n\n');
 };
 
 const renderMarkdown = (text: string) => {
@@ -112,10 +138,10 @@ const generateFallbackChunkId = (lawTitle: string, articleNumber: string): strin
 };
 
 const SUGGESTED_QUESTIONS = [
-  'Cilët janë autorët dhe qëllimi i këtij udhëzuesi?',
-  'Cilat janë lëndët kryesore të trajtuara në këtë punim?',
-  'Si zbatohet ky udhëzues në praktikën gjyqësore të Kosovës?',
-  'A ka konkluzione ose precedente kryesore të përfshira?',
+  'Cilat janë detyrimet kryesore sipas këtij neni?',
+  'Çfarë ndodh nëse shkelet ky nen?',
+  'A ka ndonjë afat kohor që duhet respektuar?',
+  'Si mund ta zbatoj këtë nen në praktikë?',
 ];
 
 export default function LawArticlePage() {
@@ -429,80 +455,6 @@ export default function LawArticlePage() {
 
   const rawArtNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
 
-  // FOR ACADEMIC DOCUMENTS: DIRECT STREAM BACKBLAZE B2 PDF READER VIEW
-  if (isAcademicDoc && pdfUrl) {
-    return (
-      <motion.div
-        className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
-          <div className="glass-panel p-6 sm:p-8 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
-            
-            <div className="flex flex-wrap items-center justify-between mb-6 gap-4 border-b border-main pb-4">
-              <button
-                onClick={handleBackToLibrary}
-                className="group flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
-              >
-                <div className="p-2 rounded-xl bg-canvas border border-main group-hover:border-primary-start transition-colors">
-                  <ArrowLeft size={16} className="text-primary-start" />
-                </div>
-                <span>Biblioteka Ligjore</span>
-              </button>
-
-              <div className="flex items-center gap-3">
-                <a
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary px-5 py-2.5 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider shadow-md hover-lift cursor-pointer"
-                >
-                  <Eye size={16} />
-                  <span>Hap PDF në Tab të Ri</span>
-                  <ExternalLink size={14} />
-                </a>
-
-                <a
-                  href={pdfUrl}
-                  download
-                  className="px-4 py-2.5 rounded-xl bg-canvas border border-main hover:bg-hover text-text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
-                >
-                  <Download size={16} />
-                  <span className="hidden sm:inline">Shkarko PDF</span>
-                </a>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 text-xs font-black uppercase text-primary-start tracking-wider mb-1">
-                <GraduationCap size={16} />
-                <span>AKADEMIA E DREJTËSISË & UNODC — DOKUMENT ZYRTAR</span>
-              </div>
-              <h1 className="text-lg sm:text-xl font-black text-text-primary leading-tight">
-                {article.law_title}
-              </h1>
-              <p className="text-xs text-text-muted font-mono mt-1">
-                Burimi: {article.source}
-              </p>
-            </div>
-
-            {/* Embedded Direct Backblaze B2 PDF Reader */}
-            <div className="w-full h-[75vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-inner relative">
-              <iframe
-                src={pdfUrl}
-                title={article.law_title}
-                className="w-full h-full border-none"
-              />
-            </div>
-
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // STANDARD STATUTORY ARTICLE VIEW
   return (
     <motion.div
       className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
@@ -602,8 +554,10 @@ export default function LawArticlePage() {
               <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                    <BookOpen size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">{t('lawArticle.lawTitle', 'LIGJI')}</span>
+                    {isAcademicDoc ? <GraduationCap size={14} /> : <BookOpen size={14} />}
+                    <span className="text-[10px] font-black uppercase tracking-wider">
+                      {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : t('lawArticle.lawTitle', 'LIGJI')}
+                    </span>
                   </div>
 
                   <button
@@ -1017,7 +971,7 @@ export default function LawArticlePage() {
                 <iframe 
                   src={pdfUrl} 
                   title={article.law_title} 
-                  className="w-full h-full border-none rounded-2xl"
+                  className="w-full h-full border-none"
                 />
               </div>
             </motion.div>

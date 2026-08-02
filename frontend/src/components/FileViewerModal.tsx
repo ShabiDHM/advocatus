@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V11.0 (MINIMIZE WINDOW REFACTOR & HIGH-CONTRAST FLOATING PILL)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V12.0 (1-STEP DIRECT MOBILE & DESKTOP PDF VIEW)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -57,7 +57,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   // Release scroll lock when window is minimized
   useLockBodyScroll(!isMinimized);
 
-  // Detect mobile device to bypass flaky mobile PDF web workers & Android Chrome iframe traps
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const isLegalDraft = (documentData?.category === 'DRAFT' || 
@@ -226,12 +225,12 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {documentData?.file_name || documentData?.title || t('pdfViewer.previewNotAvailable')}
             </h3>
             <p className="text-xs text-text-muted mb-6 max-w-sm">
-              Shfletuesi celular kërkon hapjen e dokumentit në një skedë të re për ta shfaqur pa gabime.
+              Shfletuesi kërkon hapjen e dokumentit në një skedë të re për ta shfaqur pa gabime.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button 
                 onClick={handleOpenInNewTab} 
-                className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm shadow-lg"
+                className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm shadow-lg cursor-pointer"
                 style={{ minHeight: '44px' }}
               >
                 <ExternalLink size={18} /> Hap Dokumentin
@@ -239,7 +238,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button 
                 onClick={handleDownloadOriginal} 
                 disabled={isDownloading} 
-                className="px-6 py-3 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm"
+                className="px-6 py-3 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm cursor-pointer"
                 style={{ minHeight: '44px' }}
               >
                 {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal')}
@@ -250,72 +249,44 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
 
     if (viewerMode === 'PDF') {
-        // ON MOBILE DEVICES: Render clean executive action view to prevent Android Chrome iframe/pdf fallback bug
-        if (isMobile) {
-            return (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 sm:p-8 bg-canvas">
-                    <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
-                        <FileText size={32} className="text-primary-start" />
-                    </div>
-                    <h3 className="text-base sm:text-lg font-bold text-text-primary mb-2 max-w-sm truncate">
-                      {documentData?.file_name || documentData?.title || 'Dokument PDF'}
-                    </h3>
-                    <p className="text-xs text-text-muted mb-6 max-w-xs">
-                      Përvojë optimale në pajisjet celulare. Klikoni më poshtë për ta hapur direkt ose shkarkuar.
-                    </p>
-                    <div className="flex flex-col gap-3 w-full max-w-xs">
-                      <button 
-                        onClick={handleOpenInNewTab} 
-                        className="btn-primary px-6 py-3.5 rounded-xl flex items-center justify-center gap-2 font-medium transition-all text-sm shadow-lg"
-                        style={{ minHeight: '48px' }}
-                      >
-                        <ExternalLink size={18} /> Hap PDF në Shfletues
-                      </button>
-                      <button 
-                        onClick={handleDownloadOriginal} 
-                        disabled={isDownloading} 
-                        className="px-6 py-3.5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-sm"
-                        style={{ minHeight: '48px' }}
-                      >
-                        {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal')}
-                      </button>
-                    </div>
-                </div>
-            );
-        }
-
-        // ON DESKTOP: Render canvas PDF viewer
+        // INSTANT 1-STEP DIRECT PDF STREAM FOR BOTH MOBILE AND DESKTOP
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-canvas/60 backdrop-blur-xs z-10">
                     <Loader className="animate-spin text-primary-start" size={36} />
                   </div>
                 )}
                 {fileSource && (
-                    <PdfDocument 
-                      file={fileSource} 
-                      onLoadSuccess={({ numPages }) => { 
-                        setNumPages(numPages); 
-                        setIsLoading(false); 
-                      }} 
-                      onLoadError={(err) => {
-                        console.error("PDF Render Error:", err);
-                        setError("Nuk mund të ngarkohej pamja e PDF.");
-                        setViewerMode('DOWNLOAD');
-                        setIsLoading(false);
-                      }}
-                      loading=""
+                    <object
+                      data={fileSource}
+                      type="application/pdf"
+                      className="w-full h-full min-h-[75vh] rounded-xl shadow-2xl border border-main bg-slate-900"
                     >
-                        <Page 
-                          pageNumber={pageNumber} 
-                          width={containerWidth > 0 ? containerWidth : undefined} 
-                          scale={scale} 
-                          renderTextLayer={true}
-                          renderAnnotationLayer={true}
-                          className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full" 
-                        />
-                    </PdfDocument>
+                      <PdfDocument 
+                        file={fileSource} 
+                        onLoadSuccess={({ numPages }) => { 
+                          setNumPages(numPages); 
+                          setIsLoading(false); 
+                        }} 
+                        onLoadError={(err) => {
+                          console.error("PDF Render Error:", err);
+                          setError("Nuk mund të ngarkohej pamja e PDF.");
+                          setViewerMode('DOWNLOAD');
+                          setIsLoading(false);
+                        }}
+                        loading=""
+                      >
+                          <Page 
+                            pageNumber={pageNumber} 
+                            width={containerWidth > 0 ? containerWidth : undefined} 
+                            scale={scale} 
+                            renderTextLayer={true}
+                            renderAnnotationLayer={true}
+                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full" 
+                          />
+                      </PdfDocument>
+                    </object>
                 )}
             </div>
         );
@@ -381,7 +352,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // RENDER MINIMIZED FLOATING PILL (Bypasses Main Modal Overlay Entirely)
+  // RENDER MINIMIZED FLOATING PILL
   if (isMinimized) {
     return ReactDOM.createPortal(
       <AnimatePresence>
@@ -409,22 +380,24 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
           <div className="flex items-center gap-1 shrink-0 ml-2 border-l border-slate-700/60 pl-2">
             <button 
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsMinimized(false);
               }} 
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
               title="Zmadho Dokumentin"
             >
               <Maximize2 size={16} />
             </button>
             
             <button 
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }} 
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all"
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
               title="Mbyll"
             >
               <X size={16} />
@@ -446,7 +419,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-2 sm:p-4" 
         onClick={onClose}
       >
-        {/* STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH */}
         <motion.div 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
@@ -468,15 +440,15 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             <div className="flex items-center gap-2">
               {!isMobile && viewerMode === 'PDF' && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
-                      <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary" title="Zoom Out"><ZoomOut size={16} /></button>
-                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary" title="Reset Zoom"><Maximize size={16} /></button>
-                      <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary" title="Zoom In"><ZoomIn size={16} /></button>
+                      <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
+                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Reset Zoom"><Maximize size={16} /></button>
+                      <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom In"><ZoomIn size={16} /></button>
                   </div>
               )}
 
               <button 
                 onClick={handleOpenInNewTab} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Hape ne tab te ri"
               >
                 <ExternalLink size={18} />
@@ -485,7 +457,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button 
                 onClick={handleDownloadOriginal} 
                 disabled={isDownloading} 
-                className="flex items-center justify-center w-10 h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Download"
               >
                 {isDownloading ? <Loader className="animate-spin" size={20} /> : <Download size={20} />}
@@ -493,7 +465,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
               <button 
                 onClick={handleMinimizeAction} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Minimize"
               >
                 <Minus size={20} />
@@ -501,7 +473,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
               <button 
                 onClick={onClose} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none"
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Close"
               >
                 <X size={22} />
@@ -513,9 +485,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
           {!isMobile && viewerMode === 'PDF' && numPages && numPages > 1 && (
             <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-surface px-5 py-2 rounded-full border border-main flex items-center gap-4 backdrop-blur-xl z-[100] shadow-xl">
-              <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30"><ChevronLeft size={20} /></button>
+              <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30 cursor-pointer"><ChevronLeft size={20} /></button>
               <span className="text-xs font-bold text-text-primary font-mono select-none">{pageNumber} / {numPages}</span>
-              <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30"><ChevronRight size={20} /></button>
+              <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30 cursor-pointer"><ChevronRight size={20} /></button>
             </footer>
           )}
         </motion.div>
