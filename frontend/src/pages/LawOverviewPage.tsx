@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V17.0 (MINIMIZE & CLOSE CONTROLS WITH FLOATING PILL)
+// PHOENIX PROTOCOL - LAW OVERVIEW V18.0 (1-STEP UNIFORM STREAMING - ZERO MOBILE BUTTON CARDS)
 
 import { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -27,8 +27,6 @@ export default function LawOverviewPage() {
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
-
-  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -141,43 +139,21 @@ export default function LawOverviewPage() {
                   </div>
                 </div>
 
-                {/* Instant PDF Stream Frame */}
-                {isMobile ? (
-                  <div className="flex flex-col items-center justify-center p-8 bg-canvas rounded-2xl text-center border border-main">
-                    <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
-                      <FileText size={32} className="text-primary-start" />
-                    </div>
-                    <h3 className="text-base font-bold text-text-primary mb-2 max-w-sm truncate">
-                      {displayHeaderTitle}
-                    </h3>
-                    <p className="text-xs text-text-muted mb-6 max-w-xs leading-relaxed">
-                      Përvojë optimale leximi në celular. Klikoni më poshtë për ta hapur direkt.
-                    </p>
-                    <a
-                      href={pdfStreamUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider shadow-lg w-full max-w-xs"
-                    >
-                      Hap PDF në Shfletues
-                    </a>
-                  </div>
-                ) : (
-                  <div className="w-full h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
-                    <iframe
-                      src={pdfStreamUrl}
-                      title={displayHeaderTitle}
-                      className="w-full h-full border-none"
-                    />
-                  </div>
-                )}
+                {/* Instant PDF Stream Frame on Mobile & Desktop */}
+                <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
+                  <iframe
+                    src={pdfStreamUrl}
+                    title={displayHeaderTitle}
+                    className="w-full h-full border-none"
+                  />
+                </div>
 
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* MINIMIZED FLOATING PILL (FLOATS IN BOTTOM RIGHT CORNER AT Z-[9999]) */}
+        {/* MINIMIZED FLOATING PILL */}
         {isPdfMinimized && ReactDOM.createPortal(
           <AnimatePresence>
             <motion.div
