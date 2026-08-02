@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V10.0 (EXHAUSTIVE LAW REGISTRY & CLEAN MODAL FOOTER)
+// PHOENIX PROTOCOL - LAW SEARCH V11.0 (EXACT 15 STATUTORY LAWS REGISTRY)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,35 +25,23 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
+// Exact 15 Official Statutory Laws Present in data/laws/ks
 const DEFAULT_LAW_TITLES = [
-  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+  "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
   "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
   "KODI NR. 08/L-032 I PROCEDURËS PENALE",
+  "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
+  "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
   "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
-  "LIGJI NR. 03/L-212 I PUNËS",
-  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+  "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
+  "LIGJI NR. 04/L-161 PËR SIGURINË DHE SHËNDETIN NË PUNË",
+  "LIGJI NR. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
   "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
-  "LIGJI NR. 03/L-006 PËR CONTESTIN PROCEDURAL",
-  "LIGJI NR. 04/L-139 PËR PROCEDURËN EKZEKUTIVE",
-  "LIGJI NR. 05/L-031 PËR PROCEDURËN ADMINISTRATIVE",
-  "KODI CIVIL I REPUBLIKËS SË KOSOVËS",
-  "LIGJI NR. 03/L-154 PËR PRONËSINË DHE TË DREJTAT TJERA SENDE",
-  "LIGJI NR. 04/L-008 PËR KISHA DHE BASHKËSITË FETARE",
-  "LIGJI NR. 03/L-040 PËR VETËQEVERISJEN LOKALE",
-  "LIGJI NR. 03/L-149 PËR SHËRBIMIN CIVIL TË REPUBLIKËS SË KOSOVËS",
-  "LIGJI NR. 06/L-114 PËR ZYRTARET PUBLIKË",
-  "LIGJI NR. 05/L-010 PËR TATIMIN NË EDRAT E KORPORATAVE",
-  "LIGJI NR. 05/L-028 PËR TATIMIN NË EDRAT PERSONALE",
-  "LIGJI NR. 05/L-037 PËR TATIMIN NË VLERËN E SHTUAR",
-  "LIGJI NR. 04/L-042 PËR PROKURIMIN PUBLIK TË REPUBLIKËS SË KOSOVËS",
-  "LIGJI NR. 03/L-196 PËR PARANDALIMIN E CONFLIKTIT TË INTERESIT",
-  "LIGJI NR. 06/L-005 PËR NDËRKOMBËTARIZIMIN E BASHKËPUNIMIT GJYQËSOR",
-  "LIGJI NR. 03/L-229 PËR MBROJTJEN E KONSUMATORIT",
-  "LIGJI NR. 08/L-197 PËR ZYRËN SHTETËRORE PËR VERIFIKIMIN DHE KONFISKIMIN E PASURISË TË PALIGJSHME",
-  "LIGJI NR. 05/L-088 PËR RREGULLORËN E SHËRBIMEVE POSTARE",
-  "LIGJI NR. 04/L-045 PËR TREGTI ME PRODUKTE NAFTASH",
-  "UDHËZIMI ADMINISTRATIV NR. 01/2023 PËR AFATET DHE TARIFA GJYQËSORE",
-  "LIGJI NR. 05/L-064 PËR SIGURISË NË TRAFIKUN RUTOR"
+  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+  "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
+  "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
+  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+  "LIGJI NR. 03/L-212 I PUNËS"
 ];
 
 const KNOWN_JUNK_MAP: Record<string, string> = {
@@ -123,7 +111,6 @@ export default function LawSearchPage() {
         if (titles && titles.length > 0) {
           const filteredTitles = titles.filter(title => normalizeForDisplay(title).length >= 2);
           if (filteredTitles.length > 0) {
-            // Combine API titles with DEFAULT_LAW_TITLES to show ALL laws
             const mergedSet = new Set([...filteredTitles, ...DEFAULT_LAW_TITLES]);
             setLawTitles(Array.from(mergedSet));
           }
@@ -541,7 +528,7 @@ export default function LawSearchPage() {
                 )}
               </div>
 
-              {/* Modal Footer (Clean Right-Aligned Button, No Count String) */}
+              {/* Modal Footer */}
               <div className="p-4 border-t border-border-main bg-surface flex justify-end items-center text-xs text-text-muted font-bold shrink-0">
                 <button
                   type="button"

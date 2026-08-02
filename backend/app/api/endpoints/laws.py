@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V46.0 (MULTI-STAGE INTELLIGENT RETRIEVAL ENGINE)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V47.0 (STATUTORY & ACADEMY DUAL-LAYER CONFIGURATION)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -20,40 +20,43 @@ except ImportError:
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Laws"])
 
-# Explicit Catalog of Official Kosovo Laws & Codes
+# Explicit Catalog of the 15 Official Kosovo Statutory Laws in Database
 OFFICIAL_KOSOVO_LAWS = {
     "kushtetuta": "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
     "kodi penal": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
     "kpk": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
+    "06/l-074": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
     "procedurës penale": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "procedura penale": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "kpp": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
+    "08/l-032": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "drejtësisë për të mitur": "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
     "të mitur": "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
-    "marrëdhëniet e detyrimeve": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
-    "lmd": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
-    "detyrimeve": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+    "06/l-006": "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
     "procedurën kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
     "procedura kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "lpk": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "03/l-006": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "marrëdhëniet e detyrimeve": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+    "detyrimeve": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+    "04/l-077": "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
     "procedurën përmbarimore": "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
-    "procedura përmbarimore": "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
-    "shoqëritë tregtare": "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
-    "lsht": "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
-    "ligji i punës": "LIGJI NR. 03/L-212 I PUNËS",
-    "punës": "LIGJI NR. 03/L-212 I PUNËS",
-    "puna": "LIGJI NR. 03/L-212 I PUNËS",
-    "familjen": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
-    "ligji për familjen": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
-    "kisha": "LIGJI NR. 04/L-008 PËR KISHA DHE BASHKËSITË FETARE",
-    "bashkësitë fetare": "LIGJI NR. 04/L-008 PËR KISHA DHE BASHKËSITË FETARE",
-    "mbrojtjen e të dhënave personale": "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
-    "të dhënave personale": "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
-    "mbrojtjen e fëmijës": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
-    "fëmijës": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
+    "04/l-139": "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
     "sigurinë dhe shëndetin në punë": "LIGJI NR. 04/L-161 PËR SIGURINË DHE SHËNDETIN NË PUNË",
-    "tatimin në të ardhurat e korporatave": "LIGJI Nr. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
-    "administrimin e procedurave tatimore": "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE"
+    "04/l-161": "LIGJI NR. 04/L-161 PËR SIGURINË DHE SHËNDETIN NË PUNË",
+    "tatimin në të ardhurat e korporatave": "LIGJI NR. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
+    "05/l-029": "LIGJI NR. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
+    "shoqëritë tregtare": "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
+    "06/l-016": "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
+    "mbrojtjen e të dhënave personale": "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+    "06/l-082": "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+    "mbrojtjen e fëmijës": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
+    "06/l-084": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
+    "administrimin e procedurave tatimore": "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
+    "08/l-257": "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
+    "familjen": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+    "2004/32": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+    "ligji i punës": "LIGJI NR. 03/L-212 I PUNËS",
+    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS"
 }
 
 class LawExplainRequest(BaseModel):
@@ -92,8 +95,6 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
             return official_title
 
     # Strict contextual matching
-    if "kisha" in title_lower or "fetar" in title_lower:
-        return "LIGJI NR. 04/L-008 PËR KISHA DHE BASHKËSITË FETARE"
     if "penal" in title_lower and "procedur" in title_lower:
         return "KODI NR. 08/L-032 I PROCEDURËS PENALE"
     if "penal" in title_lower:
@@ -112,6 +113,67 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
         return "LIGJI NR. 03/L-212 I PUNËS"
 
     return raw_title
+
+def build_strict_law_query(raw_title: str) -> dict:
+    """
+    Builds a strict MongoDB query using Law Numbers (06/L-074) and Distinctive Subject Keywords.
+    Prevents cross-law matching.
+    """
+    title = raw_title.strip()
+    num_match = re.search(r'(\d{2,4})[\/\-L\s_]+(\d{2,3})', title, re.IGNORECASE)
+    
+    conditions = []
+    
+    # 1. Official Law Number Match (e.g. 06 and 074, or 2004 and 32)
+    if num_match:
+        part1, part2 = num_match.group(1), num_match.group(2)
+        num_pattern = f"{part1}.*{part2}"
+        conditions.append({
+            "$or": [
+                {"law_title": {"$regex": num_pattern, "$options": "i"}},
+                {"source": {"$regex": num_pattern, "$options": "i"}}
+            ]
+        })
+
+    # 2. Distinctive Key Terms Match
+    lower = title.lower()
+    subject_pattern = None
+    if "penal" in lower and "procedur" in lower:
+        subject_pattern = "procedur.*penal|penal.*procedur"
+    elif "penal" in lower:
+        subject_pattern = "kodi.*penal|penal"
+    elif "familj" in lower:
+        subject_pattern = "familj"
+    elif "mitur" in lower:
+        subject_pattern = "mitur"
+    elif "detyrim" in lower:
+        subject_pattern = "detyrim"
+    elif "kontestim" in lower:
+        subject_pattern = "kontestim"
+    elif "përmbarim" in lower or "permbarim" in lower:
+        subject_pattern = "përmbarim|permbarim"
+    elif "punë" in lower or "puna" in lower:
+        subject_pattern = "pun"
+    elif "tregtar" in lower or "shoqëri" in lower:
+        subject_pattern = "tregtar|shoqëri"
+
+    if subject_pattern:
+        conditions.append({
+            "$or": [
+                {"law_title": {"$regex": subject_pattern, "$options": "i"}},
+                {"source": {"$regex": subject_pattern, "$options": "i"}}
+            ]
+        })
+
+    if conditions:
+        return {"$and": conditions}
+
+    # 3. Exact Escaped String Fallback
+    clean_mapped = re.escape(title)
+    return {"$or": [
+        {"law_title": {"$regex": clean_mapped, "$options": "i"}},
+        {"source": {"$regex": clean_mapped, "$options": "i"}}
+    ]}
 
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
     """
@@ -290,7 +352,9 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     return [], None, metadata
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
-    clean_requested = os.path.basename(requested_name).strip()
+    clean_requested = os.path.basename(requested_name).strip().lower()
+    digits = re.findall(r'\b\d+\b', clean_requested)
+    
     current_file = os.path.abspath(__file__)
     endpoints_dir = os.path.dirname(current_file)
     api_dir = os.path.dirname(endpoints_dir)
@@ -307,16 +371,23 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
         "data/laws"
     ]
 
-    digits = re.findall(r'\b\d+\b', clean_requested)
     for search_dir in search_dirs:
         if not os.path.exists(search_dir): continue
         for root, _, files in os.walk(search_dir):
             for f in files:
                 if not f.lower().endswith('.pdf'): continue
-                if f.lower() == clean_requested.lower(): return os.path.join(root, f)
+                f_lower = f.lower()
+                
+                # 1. Exact match
+                if f_lower == clean_requested: 
+                    return os.path.join(root, f)
+                
+                # 2. Match by law digits
                 if len(digits) >= 2:
                     primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
-                    if primary_nums and all(num in f for num in primary_nums): return os.path.join(root, f)
+                    if primary_nums and all(num in f_lower for num in primary_nums): 
+                        return os.path.join(root, f)
+
     return None
 
 @router.get("/pdf/{filename}")
