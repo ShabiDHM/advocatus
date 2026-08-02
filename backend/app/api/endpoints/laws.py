@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V47.0 (STATUTORY & ACADEMY DUAL-LAYER CONFIGURATION)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V48.0 (ACADEMY CASE LAW & STATUTORY DUAL-RETRIEVAL)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -20,7 +20,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Laws"])
 
-# Explicit Catalog of the 15 Official Kosovo Statutory Laws in Database
 OFFICIAL_KOSOVO_LAWS = {
     "kushtetuta": "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
     "kodi penal": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
@@ -56,7 +55,9 @@ OFFICIAL_KOSOVO_LAWS = {
     "familjen": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
     "2004/32": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
     "ligji i punës": "LIGJI NR. 03/L-212 I PUNËS",
-    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS"
+    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS",
+    "armët e zjarrit": "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf",
+    "case law kosovo": "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf"
 }
 
 class LawExplainRequest(BaseModel):
@@ -83,18 +84,18 @@ def _natural_sort_key(article_any: Any) -> List[int]:
 
 def _is_academic_file(filename_or_title: str) -> bool:
     text = str(filename_or_title).upper()
-    academic_keywords = ["AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", "CASE_LAW", "PRAKTIKË", "INSTITUTI"]
+    academic_keywords = ["AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH"]
     return any(k in text for k in academic_keywords)
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     title_lower = raw_title.lower().strip()
     
-    # Direct dictionary mapping
     for key, official_title in OFFICIAL_KOSOVO_LAWS.items():
         if key in title_lower or title_lower == key:
             return official_title
 
-    # Strict contextual matching
+    if "armët" in title_lower or "zjarrit" in title_lower or "case law" in title_lower:
+        return "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf"
     if "penal" in title_lower and "procedur" in title_lower:
         return "KODI NR. 08/L-032 I PROCEDURËS PENALE"
     if "penal" in title_lower:
@@ -114,87 +115,49 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
 
     return raw_title
 
-def build_strict_law_query(raw_title: str) -> dict:
-    """
-    Builds a strict MongoDB query using Law Numbers (06/L-074) and Distinctive Subject Keywords.
-    Prevents cross-law matching.
-    """
-    title = raw_title.strip()
-    num_match = re.search(r'(\d{2,4})[\/\-L\s_]+(\d{2,3})', title, re.IGNORECASE)
-    
-    conditions = []
-    
-    # 1. Official Law Number Match (e.g. 06 and 074, or 2004 and 32)
-    if num_match:
-        part1, part2 = num_match.group(1), num_match.group(2)
-        num_pattern = f"{part1}.*{part2}"
-        conditions.append({
-            "$or": [
-                {"law_title": {"$regex": num_pattern, "$options": "i"}},
-                {"source": {"$regex": num_pattern, "$options": "i"}}
-            ]
-        })
-
-    # 2. Distinctive Key Terms Match
-    lower = title.lower()
-    subject_pattern = None
-    if "penal" in lower and "procedur" in lower:
-        subject_pattern = "procedur.*penal|penal.*procedur"
-    elif "penal" in lower:
-        subject_pattern = "kodi.*penal|penal"
-    elif "familj" in lower:
-        subject_pattern = "familj"
-    elif "mitur" in lower:
-        subject_pattern = "mitur"
-    elif "detyrim" in lower:
-        subject_pattern = "detyrim"
-    elif "kontestim" in lower:
-        subject_pattern = "kontestim"
-    elif "përmbarim" in lower or "permbarim" in lower:
-        subject_pattern = "përmbarim|permbarim"
-    elif "punë" in lower or "puna" in lower:
-        subject_pattern = "pun"
-    elif "tregtar" in lower or "shoqëri" in lower:
-        subject_pattern = "tregtar|shoqëri"
-
-    if subject_pattern:
-        conditions.append({
-            "$or": [
-                {"law_title": {"$regex": subject_pattern, "$options": "i"}},
-                {"source": {"$regex": subject_pattern, "$options": "i"}}
-            ]
-        })
-
-    if conditions:
-        return {"$and": conditions}
-
-    # 3. Exact Escaped String Fallback
-    clean_mapped = re.escape(title)
-    return {"$or": [
-        {"law_title": {"$regex": clean_mapped, "$options": "i"}},
-        {"source": {"$regex": clean_mapped, "$options": "i"}}
-    ]}
-
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
     """
-    Multi-Stage Intelligent Retrieval Engine for MongoDB Atlas.
-    Matches documents accurately using AND queries on Subject Keywords & Numbers.
+    Multi-Stage Intelligent Retrieval Engine.
+    Handles Statutory Laws & Academic Commentary Manuals.
     """
     title = raw_title.strip()
     if not title:
         return []
 
     projection = fields if fields else None
-    stop_words = {"ligji", "kodi", "për", "per", "dhe", "i", "e", "të", "te", "së", "se", "nr", "nr.", "republikës", "republikes", "kosovës", "kosoves"}
+    stop_words = {"ligji", "kodi", "për", "per", "dhe", "i", "e", "të", "te", "së", "se", "nr", "nr.", "republikës", "republikes", "kosovës", "kosoves", "web", "pdf"}
     
     words = [re.escape(w) for w in re.findall(r'\w+', title) if len(w) >= 3 and w.lower() not in stop_words]
     digits = re.findall(r'\b\d+\b', title)
 
-    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law"
+    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH"
+    is_acad = _is_academic_file(title)
 
-    # ==============================================================
-    # STAGE 1: Subject Keywords AND Query
-    # ==============================================================
+    # STAGE 1: ACADEMIC SPECIFIC MATCH
+    if is_acad:
+        acad_conditions = []
+        for w in words:
+            if w.lower() not in ["akademia", "drejt", "drejtësisë"]:
+                acad_conditions.append({
+                    "$or": [
+                        {"law_title": {"$regex": w, "$options": "i"}},
+                        {"source": {"$regex": w, "$options": "i"}}
+                    ]
+                })
+        if acad_conditions:
+            docs = list(db.legal_knowledge_base.find({"$and": acad_conditions}, projection).limit(100))
+            if docs: return docs
+
+        # General Academic Fallback
+        docs = list(db.legal_knowledge_base.find({
+            "$or": [
+                {"source": {"$regex": "AKADEMIA|Case_Law|Udhezues", "$options": "i"}},
+                {"law_title": {"$regex": "AKADEMIA|Case_Law|Udhezues", "$options": "i"}}
+            ]
+        }, projection).limit(100))
+        if docs: return docs
+
+    # STAGE 2: STATUTORY KEYWORD & NUMBER MATCH
     if words:
         word_conditions = []
         for w in words:
@@ -204,8 +167,6 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
                     {"source": {"$regex": w, "$options": "i"}}
                 ]
             })
-        
-        # Exclude academic commentaries if looking for base statute
         word_conditions.append({"source": {"$not": {"$regex": academic_regex, "$options": "i"}}})
 
         if digits:
@@ -220,47 +181,18 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
                     ]
                 })
 
-        query_stage1 = {"$and": word_conditions}
-        docs = list(db.legal_knowledge_base.find(query_stage1, projection).limit(100))
-        if docs:
-            return docs
+        docs = list(db.legal_knowledge_base.find({"$and": word_conditions}, projection).limit(100))
+        if docs: return docs
 
-    # ==============================================================
-    # STAGE 2: Subject-Only Key Terms AND Query
-    # ==============================================================
-    subject_words = [w for w in words if not w.isdigit()]
-    if subject_words:
-        subject_conditions = []
-        for w in subject_words:
-            subject_conditions.append({
-                "$or": [
-                    {"law_title": {"$regex": w, "$options": "i"}},
-                    {"source": {"$regex": w, "$options": "i"}}
-                ]
-            })
-        subject_conditions.append({"source": {"$not": {"$regex": academic_regex, "$options": "i"}}})
-        
-        query_stage2 = {"$and": subject_conditions}
-        docs = list(db.legal_knowledge_base.find(query_stage2, projection).limit(100))
-        if docs:
-            return docs
-
-    # ==============================================================
-    # STAGE 3: Exact Escaped String Match
-    # ==============================================================
+    # STAGE 3: EXACT STRING FALLBACK
     clean_escaped = re.escape(title)
-    query_stage3 = {
-        "$and": [
-            {"$or": [
-                {"law_title": {"$regex": clean_escaped, "$options": "i"}},
-                {"source": {"$regex": clean_escaped, "$options": "i"}}
-            ]},
-            {"source": {"$not": {"$regex": academic_regex, "$options": "i"}}}
+    docs = list(db.legal_knowledge_base.find({
+        "$or": [
+            {"law_title": {"$regex": clean_escaped, "$options": "i"}},
+            {"source": {"$regex": clean_escaped, "$options": "i"}}
         ]
-    }
-    docs = list(db.legal_knowledge_base.find(query_stage3, projection).limit(100))
-    if docs:
-        return docs
+    }, projection).limit(100))
+    if docs: return docs
 
     return []
 
@@ -285,15 +217,11 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
         "source_file": doc.get("source", ""),
         "was_mapped": metadata.get("was_mapped", False),
         "is_official_statute": not is_academic,
-        "verification_hint": f"✅ Ligji Zyrtar: {law_name}",
+        "verification_hint": f"✅ Ligji Zyrtar: {law_name}" if not is_academic else f"📚 Akademia e Drejtësisë: {law_name}",
         "match_count": 1
     }
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Optional[dict], Dict[str, Any]]:
-    """
-    Returns: (statutory_docs, academic_commentary_doc, metadata)
-    Guarantees strict separation between Official Laws and Academy manuals.
-    """
     mapped_title = _normalize_hallucinated_title(raw_law_title, str(raw_article_num))
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     
@@ -310,17 +238,15 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         "was_mapped": (mapped_title != raw_law_title)
     }
 
-    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law"
+    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH"
 
-    # Find statutory base documents using Multi-Stage Intelligent Retrieval
     candidate_docs = find_documents_by_title(db, mapped_title if mapped_title else raw_law_title)
     
     if candidate_docs:
         matched_title = candidate_docs[0].get("law_title") or mapped_title
         statute_docs = list(db.legal_knowledge_base.find({
             "law_title": matched_title,
-            "article_number": {"$in": art_variants},
-            "source": {"$not": {"$regex": academic_regex, "$options": "i"}}
+            "article_number": {"$in": art_variants}
         }).sort("chunk_index", 1))
 
         if statute_docs:
@@ -378,11 +304,9 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
                 if not f.lower().endswith('.pdf'): continue
                 f_lower = f.lower()
                 
-                # 1. Exact match
                 if f_lower == clean_requested: 
                     return os.path.join(root, f)
                 
-                # 2. Match by law digits
                 if len(digits) >= 2:
                     primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
                     if primary_nums and all(num in f_lower for num in primary_nums): 

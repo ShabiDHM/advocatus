@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V13.0 (BUILD FIX - ACTIVE TITLE ENRICHMENT & ZERO TS ERRORS)
+// PHOENIX PROTOCOL - LAW SEARCH V14.0 (EXACT ACADEMY & STATUTORY FILE REGISTRY)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,6 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
-// 15 Official Statutory Laws Present in data/laws/ks
 const DEFAULT_STATUTORY_LAWS = [
   "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
   "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
@@ -44,15 +43,15 @@ const DEFAULT_STATUTORY_LAWS = [
   "LIGJI NR. 03/L-212 I PUNËS"
 ];
 
-// 13 Academy Judicial Commentaries & Guides
 const DEFAULT_ACADEMY_MANUALS = [
-  "AKADEMIA E DREJTËSISË - Praktika Gjyqësore e Kosovës (Case Law Kosovo)",
+  "PËRMBLEDHJE LËNDËSH NGA PRAKTIKA GJYQËSORE LIDHUR ME ARMËT E ZJARRIT (Case Law Kosovo)",
   "AKADEMIA E DREJTËSISË - Konkluzionet për Unifikim të Praktikës Gjyqësore",
   "AKADEMIA E DREJTËSISË - Komentari i Kodit Penal (Kosovo Commentary)",
   "AKADEMIA E DREJTËSISË - Doracak dhe Udhëzues Praktik për Gjyqtarë",
   "AKADEMIA E DREJTËSISË - Masat e Veçanta Hetimore (Special Investigative Measures)",
   "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Drejtësinë Mjedisore",
-  "AKADEMIA E DREJTËSISË - Instituti Gjyqësor dhe Departamenti për Shërbime Ligjore",
+  "AKADEMIA E DREJTËSISË - Departamenti për Shërbime Ligjore dhe të Përgjithshme",
+  "AKADEMIA E DREJTËSISË - Instituti Gjyqësor i Kosovës",
   "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Qasjen në Drejtësi"
 ];
 
@@ -136,7 +135,6 @@ export default function LawSearchPage() {
             setAcademyTitles(Array.from(mergedAcademy));
           }
 
-          // Title Enrichment Loop
           const allFetched = [...apiStatutes, ...apiAcademy];
           if (allFetched.length > 0) {
             const initialEnriched = new Map<string, string>();
@@ -261,7 +259,6 @@ export default function LawSearchPage() {
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
         
-        {/* Navigation - Back Button */}
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/30 border border-border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm mb-6 group w-fit cursor-pointer"
@@ -270,10 +267,8 @@ export default function LawSearchPage() {
           <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('general.back', 'Kthehu')}</span>
         </button>
 
-        {/* Search Console Container */}
         <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 bg-surface rounded-3xl">
             
-            {/* 1. POLISHED LAW SELECTOR BUTTON */}
             <button
               type="button"
               onClick={() => setIsLawPickerOpen(true)}
@@ -310,7 +305,6 @@ export default function LawSearchPage() {
               </div>
             </button>
 
-            {/* 2. Primary Deep Search Input */}
             <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                   <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-text-muted group-focus-within:text-primary-start'}`} />
@@ -335,7 +329,6 @@ export default function LawSearchPage() {
             </div>
         </div>
 
-        {/* Results / Loading States */}
         {loading && (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -347,7 +340,6 @@ export default function LawSearchPage() {
           </div>
         )}
 
-        {/* Error State */}
         <AnimatePresence>
         {error && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel border border-danger-start/30 bg-danger-start/5 p-6 rounded-2xl flex items-start gap-4 shadow-sm mb-8">
@@ -357,7 +349,6 @@ export default function LawSearchPage() {
         )}
         </AnimatePresence>
 
-        {/* Empty Search Results */}
         {!loading && hasSearched && groupedResults.length === 0 && query.trim() !== '' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel p-16 rounded-[2rem] text-center border border-border-main shadow-sm flex flex-col items-center">
             <div className="w-20 h-20 bg-canvas rounded-full flex items-center justify-center mb-6">
@@ -369,7 +360,6 @@ export default function LawSearchPage() {
           </motion.div>
         )}
 
-        {/* Full Search Results Grid */}
         {!loading && groupedResults.length > 0 && (
           <div className="space-y-6">
             <p className="text-[11px] text-text-muted font-black uppercase tracking-widest ml-2">
@@ -440,7 +430,6 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* EXECUTIVE SEARCHABLE LAW SELECTION MODAL WITH DUAL TABS */}
       <AnimatePresence>
         {isLawPickerOpen && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-6">
@@ -451,7 +440,6 @@ export default function LawSearchPage() {
               transition={{ duration: 0.2 }}
               className="bg-canvas border border-border-main w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-text-primary"
             >
-              {/* Modal Header */}
               <div className="p-5 sm:p-6 border-b border-border-main flex items-center justify-between bg-surface shrink-0">
                 <div className="flex items-center gap-3.5">
                   <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
@@ -471,7 +459,6 @@ export default function LawSearchPage() {
                 </button>
               </div>
 
-              {/* DUAL-TAB SWITCHER */}
               <div className="flex border-b border-border-main bg-canvas p-2 gap-2 shrink-0">
                 <button
                   type="button"
@@ -500,7 +487,6 @@ export default function LawSearchPage() {
                 </button>
               </div>
 
-              {/* Modal Search Filter Input */}
               <div className="p-4 border-b border-border-main bg-surface shrink-0">
                 <div className="relative">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start pointer-events-none" />
@@ -524,9 +510,7 @@ export default function LawSearchPage() {
                 </div>
               </div>
 
-              {/* Modal Scrollable Law List */}
               <div className="p-4 overflow-y-auto custom-scrollbar flex-1 space-y-2 bg-canvas min-h-[260px] max-h-[50vh]">
-                {/* All Option */}
                 <button
                   type="button"
                   onClick={() => {
@@ -586,7 +570,6 @@ export default function LawSearchPage() {
                 )}
               </div>
 
-              {/* Modal Footer */}
               <div className="p-4 border-t border-border-main bg-surface flex justify-end items-center text-xs text-text-muted font-bold shrink-0">
                 <button
                   type="button"
