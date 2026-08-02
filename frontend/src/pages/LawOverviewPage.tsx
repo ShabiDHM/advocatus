@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V13.0 (CLEAN TS IMPORTS & DIRECT B2 STREAMING)
+// PHOENIX PROTOCOL - LAW OVERVIEW V14.0 (EXPANDED 98VW CONTAINER & MOBILE-OPTIMIZED PDF READER)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -25,6 +25,8 @@ export default function LawOverviewPage() {
   const [error, setError] = useState('');
 
   const lawTitle = searchParams.get('lawTitle') || '';
+
+  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -84,19 +86,20 @@ export default function LawOverviewPage() {
   const displayHeaderTitle = lawTitle || data.law_title;
   const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
 
-  // DIRECT STREAM VIEW FOR ACADEMY DOCUMENTS
+  // DIRECT EXPANDED B2 PDF STREAM FOR ACADEMY DOCUMENTS
   if (isAcademicDoc) {
     return (
       <motion.div 
-          className="w-full min-h-screen pb-16 bg-canvas text-text-primary"
+          className="w-full min-h-screen pb-8 bg-canvas text-text-primary"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
       >
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
+        {/* EXPANDED CONTAINER: MAX-W-[98VW] */}
+        <div className="max-w-[98vw] w-full mx-auto px-2 sm:px-4 pt-20 sm:pt-24">
           
           <button
             onClick={() => navigate(-1)}
-            className="group mb-6 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
+            className="group mb-4 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
           >
             <div className="p-2 rounded-xl bg-surface border border-main group-hover:border-primary-start transition-colors">
               <ArrowLeft size={16} className="text-primary-start" />
@@ -104,30 +107,30 @@ export default function LawOverviewPage() {
             <span>{t('general.back', 'Kthehu Mbrapa')}</span>
           </button>
 
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-main bg-surface shadow-sm flex flex-col gap-6">
+          <div className="glass-panel p-4 sm:p-6 rounded-3xl border border-main bg-surface shadow-2xl flex flex-col gap-4">
             
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-main pb-6 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-main pb-4 gap-3">
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="p-3 bg-primary-start/10 text-primary-start rounded-2xl border border-primary-start/20 shrink-0">
-                  <GraduationCap size={28} />
+                <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
+                  <GraduationCap size={24} />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] font-black text-primary-start uppercase tracking-wider block mb-1">
+                  <span className="text-[10px] font-black text-primary-start uppercase tracking-wider block mb-0.5">
                     AKADEMIA E DREJTËSISË & UNODC
                   </span>
-                  <h1 className="text-lg sm:text-2xl font-black text-text-primary leading-tight truncate">
+                  <h1 className="text-base sm:text-xl font-black text-text-primary leading-tight truncate">
                     {displayHeaderTitle}
                   </h1>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                 <a
                   href={pdfStreamUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-primary px-5 py-3 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider shadow-md hover-lift cursor-pointer"
+                  className="btn-primary px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider shadow-md hover-lift cursor-pointer"
                 >
                   <Eye size={16} />
                   <span>Hap PDF në Tab të Ri</span>
@@ -137,7 +140,7 @@ export default function LawOverviewPage() {
                 <a
                   href={pdfStreamUrl}
                   download
-                  className="px-4 py-3 rounded-xl bg-canvas border border-main hover:bg-hover text-text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-canvas border border-main hover:bg-hover text-text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <Download size={16} />
                   <span className="hidden sm:inline">Shkarko PDF</span>
@@ -145,14 +148,45 @@ export default function LawOverviewPage() {
               </div>
             </div>
 
-            {/* Embedded Direct Backblaze B2 PDF Stream */}
-            <div className="w-full h-[80vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-inner relative">
-              <iframe
-                src={pdfStreamUrl}
-                title={displayHeaderTitle}
-                className="w-full h-full border-none"
-              />
-            </div>
+            {/* Mobile vs Desktop View */}
+            {isMobile ? (
+              <div className="flex flex-col items-center justify-center p-8 bg-canvas rounded-2xl text-center border border-main">
+                <div className="w-16 h-16 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4">
+                  <FileText size={32} className="text-primary-start" />
+                </div>
+                <h3 className="text-base font-bold text-text-primary mb-2 max-w-sm truncate">
+                  {displayHeaderTitle}
+                </h3>
+                <p className="text-xs text-text-muted mb-6 max-w-xs leading-relaxed">
+                  Përvojë optimale leximi në celular. Klikoni më poshtë për ta hapur direkt në shfletues ose shkarkuar.
+                </p>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <a
+                    href={pdfStreamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider shadow-lg"
+                  >
+                    <Eye size={18} /> Hap PDF në Shfletues <ExternalLink size={16} />
+                  </a>
+                  <a
+                    href={pdfStreamUrl}
+                    download
+                    className="py-3.5 px-6 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider"
+                  >
+                    <Download size={18} /> Shkarko PDF
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-[86vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
+                <iframe
+                  src={pdfStreamUrl}
+                  title={displayHeaderTitle}
+                  className="w-full h-full border-none"
+                />
+              </div>
+            )}
 
           </div>
         </div>
