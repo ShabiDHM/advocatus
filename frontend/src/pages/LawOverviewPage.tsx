@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V10.0 (ACADEMY CLEAN LABELS & ZERO 'NENI PJESA' ARTIFACTS)
+// PHOENIX PROTOCOL - LAW OVERVIEW V11.0 (CLEAN ACADEMY CASE LABELS & ZERO 'NENI PJESA' ARTIFACTS)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -21,14 +21,16 @@ function formatArticleLabel(rawArticle: string, isAcademic: boolean): string {
   const lower = cleanArt.toLowerCase();
   
   if (lower === '0' || lower.includes('preambula') || lower.includes('hyrja')) {
-    return 'Preambula / Hyrje';
+    return 'Hyrje & Metodologjia';
   }
 
   if (isAcademic) {
-    if (cleanArt.toLowerCase().startsWith('pjesa')) return cleanArt;
     if (cleanArt.toLowerCase().startsWith('lënda') || cleanArt.toLowerCase().startsWith('lenda')) return cleanArt;
+    if (cleanArt.toLowerCase().startsWith('pjesa')) return cleanArt;
     if (cleanArt.toLowerCase().startsWith('kreu')) return cleanArt;
-    return `Pjesa ${cleanArt}`;
+    if (cleanArt.toLowerCase().includes('statistik')) return 'Të Dhëna Statistikore';
+    if (cleanArt.toLowerCase().includes('konkluzion')) return 'Konkluzione';
+    return cleanArt;
   }
 
   return `Neni ${cleanArt}`;
@@ -172,7 +174,7 @@ export default function LawOverviewPage() {
                     <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
                         {isAcademicDoc ? <GraduationCap size={14} /> : <Scale size={14} />}
                         <span className="text-[10px] font-black uppercase tracking-wider">
-                        {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË & UNODC' : t('lawOverview.lawTitle', 'KODI LIGJOR')}
+                        {isAcademicDoc ? 'AKADEMIA E DREJTËSISË & UNODC — 25 LËNDË TË PRAKTIKËS GJYQËSORE' : t('lawOverview.lawTitle', 'KODI LIGJOR')}
                         </span>
                     </div>
                 </div>
@@ -191,7 +193,7 @@ export default function LawOverviewPage() {
                     <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
                         <FileText size={15} className="text-primary-start" />
                         <span className="text-xs font-bold uppercase tracking-wider truncate">
-                        {data.article_count} {isAcademicDoc ? 'Pjesë / Lëndë të Trajtuara' : t('lawOverview.articles', 'Nene Gjithsej')}
+                        {data.article_count} {isAcademicDoc ? 'Lëndë & Seksione' : t('lawOverview.articles', 'Nene Gjithsej')}
                         </span>
                     </div>
                 </div>
@@ -202,14 +204,14 @@ export default function LawOverviewPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                   <BookOpen size={16} className="text-primary-start" />
-                  {isAcademicDoc ? 'Pjesët dhe Lëndët e Praktikës Gjyqësore' : t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
+                  {isAcademicDoc ? '25 Lëndët dhe Seksionet e Praktikës Gjyqësore' : t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
               </h2>
 
               <div className="relative w-full sm:w-64 h-10">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                 <input
                   type="text"
-                  placeholder={isAcademicDoc ? "Filtro pjesën / lëndën..." : "Filtro nenin..."}
+                  placeholder={isAcademicDoc ? "Filtro lëndën..." : "Filtro nenin..."}
                   value={filterTerm}
                   onChange={(e) => setFilterTerm(e.target.value)}
                   className="w-full h-10 pl-9 pr-3 bg-surface border border-main rounded-xl text-xs font-semibold text-text-primary placeholder:text-text-muted focus:border-primary-start focus:ring-1 focus:ring-primary-start focus:outline-none transition-all"
@@ -219,10 +221,10 @@ export default function LawOverviewPage() {
             
             {filteredArticles.length === 0 ? (
               <div className="text-center py-12 text-text-muted italic text-xs font-semibold">
-                Nuk u gjet asnjë nen apo pjesë për këtë kërkim.
+                Nuk u gjet asnjë nen apo lëndë për këtë kërkim.
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredArticles.map((article) => {
                   const label = formatArticleLabel(article, isAcademicDoc);
                   const targetLawTitle = displayHeaderTitle;
@@ -231,9 +233,9 @@ export default function LawOverviewPage() {
                     <button
                       key={article}
                       onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(targetLawTitle)}&articleNumber=${encodeURIComponent(article)}`)}
-                      className="flex items-center justify-center gap-2 px-3.5 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift active:scale-95 cursor-pointer"
+                      className="flex items-center justify-start gap-3 px-4 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift active:scale-95 cursor-pointer text-left"
                     >
-                      {isAcademicDoc ? <GraduationCap size={14} className="text-primary-start/70 shrink-0" /> : <Hash size={12} className="text-primary-start/50 shrink-0" />}
+                      {isAcademicDoc ? <GraduationCap size={16} className="text-primary-start/80 shrink-0" /> : <Hash size={14} className="text-primary-start/50 shrink-0" />}
                       <span className="truncate">{label}</span>
                     </button>
                   );

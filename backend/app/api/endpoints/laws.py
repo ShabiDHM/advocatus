@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V48.0 (ACADEMY CASE LAW & STATUTORY DUAL-RETRIEVAL)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V49.0 (CASE-LEVEL STRUCTURED RETRIEVAL ENGINE)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -79,12 +79,12 @@ class AuditChatRequest(BaseModel):
 
 def _natural_sort_key(article_any: Any) -> List[int]:
     article = str(article_any) if article_any is not None else "0"
-    parts = article.split('.')
-    return [int(p) for p in parts if p.isdigit()]
+    parts = re.findall(r'\d+', article)
+    return [int(p) for p in parts] if parts else [0]
 
 def _is_academic_file(filename_or_title: str) -> bool:
     text = str(filename_or_title).upper()
-    academic_keywords = ["AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH"]
+    academic_keywords = ["AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH", "LENDESH"]
     return any(k in text for k in academic_keywords)
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
@@ -116,10 +116,6 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     return raw_title
 
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
-    """
-    Multi-Stage Intelligent Retrieval Engine.
-    Handles Statutory Laws & Academic Commentary Manuals.
-    """
     title = raw_title.strip()
     if not title:
         return []
@@ -130,10 +126,9 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
     words = [re.escape(w) for w in re.findall(r'\w+', title) if len(w) >= 3 and w.lower() not in stop_words]
     digits = re.findall(r'\b\d+\b', title)
 
-    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH"
+    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH|LENDESH"
     is_acad = _is_academic_file(title)
 
-    # STAGE 1: ACADEMIC SPECIFIC MATCH
     if is_acad:
         acad_conditions = []
         for w in words:
@@ -148,7 +143,6 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
             docs = list(db.legal_knowledge_base.find({"$and": acad_conditions}, projection).limit(100))
             if docs: return docs
 
-        # General Academic Fallback
         docs = list(db.legal_knowledge_base.find({
             "$or": [
                 {"source": {"$regex": "AKADEMIA|Case_Law|Udhezues", "$options": "i"}},
@@ -157,7 +151,6 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
         }, projection).limit(100))
         if docs: return docs
 
-    # STAGE 2: STATUTORY KEYWORD & NUMBER MATCH
     if words:
         word_conditions = []
         for w in words:
@@ -184,7 +177,6 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
         docs = list(db.legal_knowledge_base.find({"$and": word_conditions}, projection).limit(100))
         if docs: return docs
 
-    # STAGE 3: EXACT STRING FALLBACK
     clean_escaped = re.escape(title)
     docs = list(db.legal_knowledge_base.find({
         "$or": [
@@ -223,8 +215,35 @@ def _generate_source_info(doc: dict, metadata: dict, original_law_title: str, or
 
 def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[List[dict], Optional[dict], Dict[str, Any]]:
     mapped_title = _normalize_hallucinated_title(raw_law_title, str(raw_article_num))
+    is_academic = _is_academic_file(raw_law_title) or _is_academic_file(mapped_title)
+    
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     
+    # If Academic Case Law Query e.g. "Lënda 1" or "Lënda Nr. 1"
+    if is_academic:
+        case_num_match = re.search(r'\d+', clean_art)
+        if case_num_match:
+            case_num = case_num_match.group(0)
+            # Find chunks mentioning "LËNDA NR. X" or "LËNDA X"
+            case_regex = f"LËNDA\\s+(?:NR\\.\\s*)?{case_num}\\b"
+            case_docs = list(db.legal_knowledge_base.find({
+                "$or": [
+                    {"text": {"$regex": case_regex, "$options": "i"}},
+                    {"article_number": {"$regex": f"{case_num}\\b", "$options": "i"}}
+                ],
+                "source": {"$regex": "AKADEMIA|Case_Law", "$options": "i"}
+            }).sort("chunk_index", 1).limit(10))
+
+            if case_docs:
+                return case_docs, None, {
+                    "original_law_title": raw_law_title,
+                    "mapped_law_title": mapped_title,
+                    "article_number": f"Lënda Nr. {case_num}",
+                    "confidence": {"level": "HIGH", "score": 0.98},
+                    "strategy_used": "academic_case_number_match",
+                    "was_mapped": False
+                }
+
     art_variants: List[Any] = [clean_art, f"{clean_art}.", f"Neni {clean_art}", f"NENI {clean_art}", f"{clean_art} ", f" {clean_art}"]
     if clean_art.isdigit():
         art_variants.append(int(clean_art))
@@ -238,7 +257,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
         "was_mapped": (mapped_title != raw_law_title)
     }
 
-    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH"
+    academic_regex = "AKADEMIA|Doracak|Udhezues|Udhëzues|Commentary|Case_Law|LËNDËSH|LENDESH"
 
     candidate_docs = find_documents_by_title(db, mapped_title if mapped_title else raw_law_title)
     
@@ -256,26 +275,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
             })
             return statute_docs, academic_doc, metadata
 
-    # Vector store fallback
-    try:
-        search_query = f"{mapped_title if mapped_title else raw_law_title} Neni {raw_article_num}"
-        vector_results = vector_store_service.query_global_knowledge_base(search_query, n_results=3)
-        if vector_results and isinstance(vector_results, list) and len(vector_results) > 0:
-            top_res = vector_results[0]
-            if top_res:
-                doc_obj = {
-                    "law_title": top_res.get("law_title") or top_res.get("metadata", {}).get("law_title") or raw_law_title,
-                    "article_number": top_res.get("article_number") or top_res.get("metadata", {}).get("article_number") or raw_article_num,
-                    "text": top_res.get("text") or top_res.get("document", ""),
-                    "source": top_res.get("source") or top_res.get("metadata", {}).get("source", "")
-                }
-                metadata["confidence"] = {"level": "HIGH", "score": 0.90}
-                metadata["strategy_used"] = "vector_semantic_search"
-                return [doc_obj], None, metadata
-    except Exception as vec_err:
-        logger.warning(f"Vector search fallback skipped: {vec_err}")
-
-    return [], None, metadata
+    return candidate_docs[:3] if candidate_docs else ([], None, metadata)
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
     clean_requested = os.path.basename(requested_name).strip().lower()
@@ -364,20 +364,28 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         db = get_db_instance()
         
         mapped_title = _normalize_hallucinated_title(law_title, "")
+        is_academy = _is_academic_file(law_title) or _is_academic_file(mapped_title)
+
         docs = find_documents_by_title(
             db, 
             mapped_title if mapped_title else law_title, 
-            fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1}
+            fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "text": 1}
         )
 
         if not docs:
             raise HTTPException(status_code=404, detail=f"Ligji '{law_title}' nuk u gjet në bazën e të dhënave.")
         
         canonical_title = docs[0].get("law_title", mapped_title if mapped_title else law_title)
-        is_academy = _is_academic_file(docs[0].get("source", "")) or _is_academic_file(canonical_title)
 
         if is_academy:
-            sorted_articles = [f"Pjesa {i+1}" for i in range(len(docs))]
+            # Structure into clean Case Sections: Hyrje, Legjislacioni, Lënda 1 .. Lënda 25, Statistikat, Konkluzione
+            sorted_articles = [
+                "Hyrje & Metodologjia",
+                "Legjislacioni Relevant for Armët e Zjarrir",
+                *[f"Lënda Nr. {i+1}" for i in range(25)],
+                "Të Dhëna Statistikore",
+                "Konkluzione"
+            ]
         else:
             articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
             sorted_articles = sorted(list(articles), key=_natural_sort_key)
