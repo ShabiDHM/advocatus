@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V8.0 (SEARCHABLE LAW MODAL & ZERO OVERLAP)
+// PHOENIX PROTOCOL - LAW SEARCH V9.0 (EXECUTIVE THEME-AWARE LAW SELECTOR)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -241,14 +241,14 @@ export default function LawSearchPage() {
         {/* Search Console Container */}
         <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 bg-surface rounded-3xl">
             
-            {/* 1. POLISHED LAW SELECTOR BUTTON (ZERO ICON OVERLAP) */}
+            {/* 1. POLISHED LAW SELECTOR BUTTON (ZERO OVERLAP) */}
             <button
               type="button"
               onClick={() => setIsLawPickerOpen(true)}
               disabled={loadingTitles}
               className="w-full flex items-center justify-between px-6 py-5 bg-canvas border border-border-main hover:border-primary-start/60 rounded-2xl shadow-sm text-sm font-bold text-text-primary transition-all group hover-lift cursor-pointer relative"
             >
-              <div className="flex items-center gap-3 min-w-0 pr-4">
+              <div className="flex items-center gap-3.5 min-w-0 pr-4">
                 <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl shrink-0 border border-primary-start/20">
                   <Filter size={18} />
                 </div>
@@ -408,31 +408,32 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* SEARCHABLE LAW SELECTION MODAL */}
+      {/* EXECUTIVE THEME-AWARE SEARCHABLE LAW SELECTION MODAL */}
       <AnimatePresence>
         {isLawPickerOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-6">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-surface border border-border-main w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ duration: 0.2 }}
+              className="bg-canvas border border-border-main w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-text-primary"
             >
               {/* Modal Header */}
-              <div className="p-5 sm:p-6 border-b border-border-main flex items-center justify-between bg-canvas shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20">
-                    <BookOpen size={20} />
+              <div className="p-5 sm:p-6 border-b border-border-main flex items-center justify-between bg-surface shrink-0">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
+                    <BookOpen size={22} />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin</h3>
-                    <p className="text-xs text-text-muted font-medium">Kërko ose zgjidh ligjin nga lista</p>
+                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin</h3>
+                    <p className="text-xs text-text-muted font-medium">Kërko ose zgjidh ligjin nga baza zyrtare</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsLawPickerOpen(false)}
-                  className="p-2 hover:bg-hover rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                  className="p-2.5 hover:bg-hover rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer border border-transparent hover:border-border-main"
                 >
                   <X size={20} />
                 </button>
@@ -441,20 +442,20 @@ export default function LawSearchPage() {
               {/* Modal Search Filter Input */}
               <div className="p-4 border-b border-border-main bg-surface shrink-0">
                 <div className="relative">
-                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start pointer-events-none" />
                   <input
                     type="text"
                     value={lawSearchFilter}
                     onChange={(e) => setLawSearchFilter(e.target.value)}
                     placeholder="Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..."
-                    className="w-full pl-11 pr-4 py-3 bg-canvas border border-border-main rounded-xl text-xs sm:text-sm font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start"
+                    className="w-full pl-11 pr-10 py-3.5 bg-canvas border border-border-main rounded-xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all"
                     autoFocus
                   />
                   {lawSearchFilter && (
                     <button
                       type="button"
                       onClick={() => setLawSearchFilter('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-1 rounded-lg"
                     >
                       <X size={16} />
                     </button>
@@ -463,7 +464,7 @@ export default function LawSearchPage() {
               </div>
 
               {/* Modal Scrollable Law List */}
-              <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-1.5 min-h-[250px] max-h-[50vh]">
+              <div className="p-4 overflow-y-auto custom-scrollbar flex-1 space-y-2 bg-canvas min-h-[260px] max-h-[50vh]">
                 {/* All Laws Option */}
                 <button
                   type="button"
@@ -471,18 +472,23 @@ export default function LawSearchPage() {
                     setSelectedLaw('');
                     setIsLawPickerOpen(false);
                   }}
-                  className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    !selectedLaw ? 'bg-primary-start/10 text-primary-start border border-primary-start/30' : 'hover:bg-canvas text-text-primary border border-transparent'
+                  className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer ${
+                    !selectedLaw 
+                      ? 'bg-primary-start/15 text-primary-start border-2 border-primary-start/40' 
+                      : 'bg-surface hover:bg-hover text-text-primary border border-border-main hover:border-primary-start/40'
                   }`}
                 >
-                  <span className="truncate">Të gjitha ligjet (Të gjithë artikujt)</span>
+                  <div className="flex items-center gap-3">
+                    <Scale size={18} className={!selectedLaw ? 'text-primary-start' : 'text-text-muted'} />
+                    <span className="truncate">Të gjitha ligjet (Të gjithë artikujt)</span>
+                  </div>
                   {!selectedLaw && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
                 </button>
 
-                <div className="my-2 border-t border-border-main/50" />
+                <div className="my-3 border-t border-border-main/60" />
 
                 {filteredPickerTitles.length === 0 ? (
-                  <div className="p-8 text-center text-text-muted text-xs font-bold uppercase tracking-wider">
+                  <div className="p-10 text-center text-text-muted text-xs font-bold uppercase tracking-wider bg-surface rounded-2xl border border-border-main">
                     Nuk u gjet asnjë ligj me këtë emër
                   </div>
                 ) : (
@@ -498,13 +504,15 @@ export default function LawSearchPage() {
                           handleLawSelect(title);
                           setIsLawPickerOpen(false);
                         }}
-                        className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all group cursor-pointer ${
-                          isSelected ? 'bg-primary-start/10 text-primary-start border border-primary-start/30' : 'hover:bg-canvas text-text-primary border border-transparent'
+                        className={`w-full text-left p-4 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold transition-all group shadow-xs cursor-pointer ${
+                          isSelected 
+                            ? 'bg-primary-start/15 text-primary-start border-2 border-primary-start/40' 
+                            : 'bg-surface hover:bg-hover text-text-primary border border-border-main hover:border-primary-start/40'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 pr-3">
-                          <Scale size={16} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
-                          <span className="truncate">{displayTitle}</span>
+                          <Scale size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
+                          <span className="truncate leading-relaxed">{displayTitle}</span>
                         </div>
                         {isSelected && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
                       </button>
@@ -514,12 +522,12 @@ export default function LawSearchPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 border-t border-border-main bg-canvas flex justify-between items-center text-xs text-text-muted font-bold shrink-0">
+              <div className="p-4 border-t border-border-main bg-surface flex justify-between items-center text-xs text-text-muted font-bold shrink-0">
                 <span>{filteredPickerTitles.length} Ligje të disponueshme</span>
                 <button
                   type="button"
                   onClick={() => setIsLawPickerOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-surface border border-border-main text-text-primary hover:bg-hover transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-canvas border border-border-main text-text-primary hover:bg-hover transition-colors cursor-pointer shadow-xs font-bold"
                 >
                   Mbyll
                 </button>
