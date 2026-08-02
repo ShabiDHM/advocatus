@@ -1,11 +1,14 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// RESTORED LAW OVERVIEW PAGE - DIRECT BACKBLAZE STREAM
+// PHOENIX PROTOCOL - LAW OVERVIEW V24.0 (RESPONSIVE DUAL MOBILE & DESKTOP PDF STREAMING)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap } from 'lucide-react';
+import { 
+  ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, 
+  GraduationCap, ExternalLink, Download 
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface LawOverviewData {
@@ -25,6 +28,7 @@ export default function LawOverviewPage() {
   const [error, setError] = useState('');
 
   const lawTitle = searchParams.get('lawTitle') || '';
+  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -110,12 +114,49 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
-          <div className="w-full h-[85vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl">
-            <iframe
-              src={pdfStreamUrl}
-              title={displayHeaderTitle}
-              className="w-full h-full border-none"
-            />
+          <div className="w-full h-[85vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl flex flex-col items-center justify-center">
+            {isMobile ? (
+              /* Mobile optimized view (bypasses Android Chrome's unsupported iframe PDF rendering) */
+              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950/95">
+                <div className="w-20 h-20 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center mb-5 shadow-lg shadow-primary-start/10">
+                  <GraduationCap className="w-10 h-10 text-primary-start" />
+                </div>
+                <span className="text-[10px] font-black text-primary-start uppercase tracking-widest mb-2 block">
+                  AKADEMIA E DREJTËSISË & UNODC
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-100 max-w-md mb-2 break-words px-2">
+                  {displayHeaderTitle}
+                </h3>
+                <p className="text-xs text-slate-400 max-w-xs mb-8 px-2 leading-relaxed">
+                  Shfletuesit e celularëve kërkojnë hapjen e PDF-ve në ekran të plotë për lexim optimal.
+                </p>
+
+                <div className="w-full max-w-xs flex flex-col gap-3">
+                  <button
+                    onClick={() => window.open(pdfStreamUrl, '_blank', 'noopener,noreferrer')}
+                    className="btn-primary w-full py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm shadow-xl cursor-pointer hover-lift active:scale-95 transition-all"
+                  >
+                    <ExternalLink size={18} />
+                    Hape Udhëzuesin në Ekran të Plotë
+                  </button>
+                  <a
+                    href={pdfStreamUrl}
+                    download={data?.source || `${displayHeaderTitle}.pdf`}
+                    className="w-full py-3.5 px-5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer text-center active:scale-95"
+                  >
+                    <Download size={18} />
+                    Shkarko PDF
+                  </a>
+                </div>
+              </div>
+            ) : (
+              /* Desktop PDF iframe */
+              <iframe
+                src={pdfStreamUrl}
+                title={displayHeaderTitle}
+                className="w-full h-full border-none"
+              />
+            )}
           </div>
         </div>
       </motion.div>
