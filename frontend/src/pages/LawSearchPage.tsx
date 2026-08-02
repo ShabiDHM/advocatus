@@ -1,7 +1,8 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V4.3 (TYPESCRIPT CLEANUP FIXED)
+// PHOENIX PROTOCOL - LAW SEARCH V5.0 (PORTAL DROPDOWN REFACTOR - ZERO CONTAINER CLIPPING)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -54,7 +55,6 @@ function isBareLawNumber(title: string): boolean {
   return true;
 }
 
-// FIXED: Proper cleanup return type (void)
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const debouncedCallback = useCallback((...args: Parameters<T>) => {
@@ -82,9 +82,61 @@ export default function LawSearchPage() {
   const [loadingTitles, setLoadingTitles] = useState(true);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
   const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
+
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownContainerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate dropdown viewport position
+  const updateDropdownPosition = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  };
+
+  const toggleDropdown = () => {
+    if (!dropdownOpen) {
+      updateDropdownPosition();
+    }
+    setDropdownOpen(!dropdownOpen);
+  };
+
+  // Close dropdown on outside click or scroll
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        dropdownContainerRef.current && !dropdownContainerRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      if (dropdownOpen) {
+        updateDropdownPosition();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [dropdownOpen]);
 
   useEffect(() => {
     apiService.getLawTitles()
@@ -208,88 +260,64 @@ export default function LawSearchPage() {
         {/* Navigation - Back Button Styled as Pill */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/30 border border-border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm mb-6 group w-fit"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/30 border border-border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm mb-6 group w-fit cursor-pointer"
         >
           <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
           <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('general.back', 'Kthehu')}</span>
         </button>
 
-        {/* Removed "Hulumtim Ligjor" header and icon */}
-
-        {/* The Executive Search Console - increased padding and margins */}
-        <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 relative isolate z-40">
+        {/* The Executive Search Console (Overflow Visible, Removed Isolation Barrier) */}
+        <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 relative z-10 overflow-visible">
             
-            {/* 1. Dropdown Filter Area */}
-            <div className="relative z-[60]">
+            {/* 1. Dropdown Filter Button */}
+            <div className="relative" ref={dropdownContainerRef}>
                 <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full flex items-center justify-between px-6 py-5 rounded-xl border border-border-main bg-surface text-left transition-all hover:border-primary-start/50 group hover-lift shadow-sm"
-                disabled={loadingTitles || enrichingTitles.size > 0}
+                  ref={buttonRef}
+                  type="button"
+                  onClick={toggleDropdown}
+                  className="w-full flex items-center justify-between px-6 py-5 rounded-xl border border-border-main bg-surface text-left transition-all hover:border-primary-start/50 group hover-lift shadow-sm cursor-pointer"
+                  disabled={loadingTitles || enrichingTitles.size > 0}
                 >
-                <div className="flex items-center gap-3">
-                    <Filter size={16} className="text-primary-start" />
-                    <span className="text-sm font-bold text-text-primary">
-                        {selectedLaw ? normalizeForDisplay(selectedLaw) : t('lawSearch.selectLaw', 'Shfleto ligje specifike...')}
-                    </span>
-                </div>
-                {loadingTitles || enrichingTitles.size > 0 ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
-                ) : (
-                    <ChevronDown size={18} className={`text-text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-                )}
+                  <div className="flex items-center gap-3">
+                      <Filter size={16} className="text-primary-start" />
+                      <span className="text-sm font-bold text-text-primary">
+                          {selectedLaw ? normalizeForDisplay(selectedLaw) : t('lawSearch.selectLaw', 'Zgjidh një ligj')}
+                      </span>
+                  </div>
+                  {loadingTitles || enrichingTitles.size > 0 ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
+                  ) : (
+                      <ChevronDown size={18} className={`text-text-muted transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  )}
                 </button>
-
-                {/* Dropdown Menu */}
-                <AnimatePresence>
-                {dropdownOpen && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-[100] mt-2 w-full glass-panel border border-border-main rounded-xl shadow-sm max-h-72 overflow-y-auto custom-scrollbar py-2"
-                    >
-                    {loadingTitles ? (
-                        <div className="p-6 text-center text-text-muted font-bold text-xs uppercase tracking-widest">{t('general.loading', 'Duke ngarkuar...')}</div>
-                    ) : (
-                        lawTitles.map(title => (
-                        <button
-                            key={title}
-                            onClick={() => handleLawSelect(title)}
-                            className="w-full text-left px-5 py-3 hover:bg-surface/50 text-sm font-medium text-text-primary hover:text-primary-start transition-colors border-b border-border-main/50 last:border-0 flex items-center justify-between"
-                        >
-                            <span className="truncate pr-4">{normalizeForDisplay(getDisplayTitle(title))}</span>
-                            {enrichingTitles.has(title) && <Loader2 className="shrink-0 h-3 w-3 animate-spin text-primary-start" />}
-                        </button>
-                        ))
-                    )}
-                    </motion.div>
-                )}
-                </AnimatePresence>
             </div>
 
             {/* 2. Primary Deep Search Input */}
             <div className="relative group z-0">
                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-text-muted group-focus-within:text-primary-start'}`} />
+                  <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-text-muted group-focus-within:text-primary-start'}`} />
                 </div>
                 <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('lawSearch.placeholder', 'Kërko nene, fjalë kyçe, koncepte juridike...')}
-                className="w-full pl-14 pr-14 py-6 bg-surface border border-border-main rounded-xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
-                autoFocus
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t('lawSearch.placeholder', 'Kërko nene, fjalë kyçe, koncepte juridike...')}
+                  className="w-full pl-14 pr-14 py-6 bg-surface border border-border-main rounded-xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
+                  autoFocus
                 />
                 {query && (
-                <button
-                    onClick={handleClear}
-                    className="absolute inset-y-0 right-0 pr-5 flex items-center text-text-muted hover:text-danger-start transition-colors"
-                >
-                    <X className="h-5 w-5" />
-                </button>
+                  <button
+                      type="button"
+                      onClick={handleClear}
+                      className="absolute inset-y-0 right-0 pr-5 flex items-center text-text-muted hover:text-danger-start transition-colors cursor-pointer"
+                  >
+                      <X className="h-5 w-5" />
+                  </button>
                 )}
             </div>
         </div>
 
-        {/* Results / Loading States (unchanged) */}
+        {/* Results / Loading States */}
         {loading && (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -390,11 +418,47 @@ export default function LawSearchPage() {
           </div>
         )}
 
-        {/* Initial Empty State - COMPLETELY REMOVED (no icon, no text) */}
         {!loading && !error && rawResults.length === 0 && query.trim() === '' && (
           <div className="h-32" />
         )}
       </div>
+
+      {/* PORTAL FLOATING DROPDOWN POPUP MENU (Z-[9999] DIRECT BODY PORTAL) */}
+      {dropdownOpen && dropdownPos && ReactDOM.createPortal(
+        <AnimatePresence>
+          <motion.div 
+              initial={{ opacity: 0, y: -6, scale: 0.98 }} 
+              animate={{ opacity: 1, y: 0, scale: 1 }} 
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              style={{
+                position: 'fixed',
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
+                width: `${dropdownPos.width}px`,
+              }}
+              className="z-[9999] bg-surface dark:bg-slate-900 border border-border-main rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scrollbar py-2 backdrop-blur-xl"
+          >
+            {loadingTitles ? (
+                <div className="p-6 text-center text-text-muted font-bold text-xs uppercase tracking-widest">{t('general.loading', 'Duke ngarkuar...')}</div>
+            ) : (
+                lawTitles.map(title => (
+                <button
+                    key={title}
+                    type="button"
+                    onClick={() => handleLawSelect(title)}
+                    className="w-full text-left px-5 py-3 hover:bg-hover text-sm font-medium text-text-primary hover:text-primary-start transition-colors border-b border-border-main/50 last:border-0 flex items-center justify-between cursor-pointer"
+                >
+                    <span className="truncate pr-4">{normalizeForDisplay(getDisplayTitle(title))}</span>
+                    {enrichingTitles.has(title) && <Loader2 className="shrink-0 h-3 w-3 animate-spin text-primary-start" />}
+                </button>
+                ))
+            )}
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
     </motion.div>
   );
 }
