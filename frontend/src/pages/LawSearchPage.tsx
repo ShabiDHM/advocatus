@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V14.0 (EXACT ACADEMY & STATUTORY FILE REGISTRY)
+// PHOENIX PROTOCOL - LAW SEARCH V15.0 (SMOOTH SPA NAVIGATION & ACADEMY REGISTRY)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -240,7 +240,7 @@ export default function LawSearchPage() {
   const handleLawSelect = (lawTitle: string) => {
     if (!lawTitle) return;
     setSelectedLaw(lawTitle);
-    window.location.href = `/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`;
+    navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
   };
 
   const getDisplayTitle = (original: string): string => {
