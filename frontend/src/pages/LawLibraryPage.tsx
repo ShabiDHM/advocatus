@@ -1,14 +1,13 @@
 // FILE: src/pages/LawLibraryPage.tsx
-// PHOENIX PROTOCOL - LAW LIBRARY V5.0 (PORTAL-BASED FLOATING DROPDOWN MENU)
+// PHOENIX PROTOCOL - LAW LIBRARY V6.0 (NATIVE OS PICKER - ZERO CONTAINER CLIPPING)
 
-import { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
   Search, AlertCircle, Loader2, BookOpen, Scale, ArrowRight, 
-  Link as LinkIcon, ArrowLeft, Filter, ChevronDown, Check, X 
+  Link as LinkIcon, ArrowLeft, Filter, ChevronDown, X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,14 +20,16 @@ interface LawResult {
 }
 
 const DEFAULT_LAWS = [
-  "Kodi Penal i Republikës së Kosovës",
-  "Kodi i Procedurës Penale",
-  "Kodi Civil i Republikës së Kosovës",
-  "Ligji për Marrëdhëniet e Detyrimeve",
-  "Ligji për Familjen i Kosovës",
-  "Ligji i Punës",
-  "Ligji për Mbrojtjen e të Dhënave Personale",
-  "Ligji për Shoqëritë Tregtare"
+  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+  "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
+  "KODI NR. 08/L-032 I PROCEDURËS PENALE",
+  "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+  "LIGJI NR. 03/L-212 I PUNËS",
+  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+  "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
+  "LIGJI NR. 03/L-006 PËR CONTESTIN PROCEDURAL",
+  "LIGJI NR. 04/L-139 PËR PROCEDURËN EKZEKUTIVE",
+  "LIGJI NR. 05/L-031 PËR PROCEDURËN ADMINISTRATIVE"
 ];
 
 export default function LawLibraryPage() {
@@ -37,77 +38,35 @@ export default function LawLibraryPage() {
   
   const [query, setQuery] = useState('');
   const [selectedLaw, setSelectedLaw] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [availableLaws, setAvailableLaws] = useState<string[]>(DEFAULT_LAWS);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const [results, setResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const dropdownContainerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  // Measure button bounds for portal positioning
-  const updateDropdownPosition = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPos({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  };
-
-  const toggleDropdown = () => {
-    if (!isDropdownOpen) {
-      updateDropdownPosition();
-    }
-    setIsDropdownOpen(!isDropdownOpen);
-  };
-
-  // Close dropdown on outside click or scroll
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        dropdownContainerRef.current && !dropdownContainerRef.current.contains(target) &&
-        buttonRef.current && !buttonRef.current.contains(target)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    const handleScrollOrResize = () => {
-      if (isDropdownOpen) {
-        updateDropdownPosition();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    window.addEventListener('resize', handleScrollOrResize);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      window.removeEventListener('resize', handleScrollOrResize);
-    };
-  }, [isDropdownOpen]);
-
-  // Fetch registered laws list on mount
+  // Fetch registered laws list on mount with safe array validation
   useEffect(() => {
     const fetchLawsList = async () => {
       try {
-        const response = await apiService.axiosInstance.get<string[]>('/laws/list');
-        if (response.data && response.data.length > 0) {
-          setAvailableLaws(response.data);
+        const response = await apiService.axiosInstance.get('/laws/list');
+        let fetched: string[] = [];
+        
+        if (Array.isArray(response.data)) {
+          fetched = response.data;
+        } else if (response.data && Array.isArray(response.data.laws)) {
+          fetched = response.data.laws;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          fetched = response.data.data;
+        }
+
+        if (fetched.length > 0) {
+          setAvailableLaws(fetched);
         }
       } catch (err) {
-        // Fallback to DEFAULT_LAWS
+        console.warn("[LawLibrary] Using default Kosovo laws list fallback");
       }
     };
+
     if (isAuthenticated) {
       fetchLawsList();
     }
@@ -210,38 +169,42 @@ export default function LawLibraryPage() {
           
           <div className="flex flex-col gap-4">
             
-            {/* 1. SELECT LAW DROPDOWN BUTTON */}
-            <div className="relative" ref={dropdownContainerRef}>
-              <button
-                ref={buttonRef}
-                type="button"
-                onClick={toggleDropdown}
+            {/* 1. NATIVE BULLETPROOF LAW SELECTOR (Zgjidh një ligj) */}
+            <div className="relative flex items-center">
+              <Filter size={18} className="absolute left-4 text-primary-start pointer-events-none z-10" />
+              
+              <select
+                value={selectedLaw}
+                onChange={(e) => setSelectedLaw(e.target.value)}
                 disabled={!isAuthenticated}
-                className="w-full flex items-center justify-between px-5 py-4 bg-canvas border border-main hover:border-primary-start/60 rounded-2xl shadow-sm text-xs sm:text-sm font-bold text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary-start/20 disabled:opacity-50 cursor-pointer"
+                className="w-full pl-12 pr-12 py-4 bg-canvas border border-main hover:border-primary-start/60 rounded-2xl shadow-sm text-xs sm:text-sm font-bold text-text-primary focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 appearance-none cursor-pointer transition-all disabled:opacity-50"
               >
-                <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <Filter size={18} className="text-primary-start shrink-0" />
-                  <span className="truncate">
-                    {selectedLaw ? selectedLaw : "Zgjidh një ligj"}
-                  </span>
-                </div>
+                <option value="" className="bg-surface text-text-primary font-bold py-2">
+                  Zgjidh një ligj (Të gjitha ligjet)
+                </option>
+                {availableLaws.map((lawName, idx) => (
+                  <option key={idx} value={lawName} className="bg-surface text-text-primary py-2 font-medium">
+                    {lawName}
+                  </option>
+                ))}
+              </select>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {selectedLaw && (
-                    <span 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLaw('');
-                      }}
-                      className="p-1 hover:bg-hover rounded-lg text-text-muted hover:text-danger-start transition-colors"
-                      title="Hiq filtrin"
-                    >
-                      <X size={16} />
-                    </span>
-                  )}
-                  <ChevronDown size={18} className={`text-text-muted transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
+              <div className="absolute right-4 flex items-center gap-2 pointer-events-none z-10">
+                {selectedLaw && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLaw('');
+                    }}
+                    className="pointer-events-auto p-1 hover:bg-hover rounded-lg text-text-muted hover:text-danger-start transition-colors"
+                    title="Hiq filtrin"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <ChevronDown size={18} className="text-text-muted" />
+              </div>
             </div>
 
             {/* 2. HIGH-FIDELITY SEARCH BAR */}
@@ -352,63 +315,6 @@ export default function LawLibraryPage() {
           )}
         </div>
       </div>
-
-      {/* PORTAL FLOATING DROPDOWN POPUP MENU (Z-[9999] DIRECT BODY PORTAL) */}
-      {isDropdownOpen && dropdownPos && ReactDOM.createPortal(
-        <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.12 }}
-            style={{
-              position: 'fixed',
-              top: `${dropdownPos.top}px`,
-              left: `${dropdownPos.left}px`,
-              width: `${dropdownPos.width}px`,
-            }}
-            className="z-[9999] bg-surface border border-main rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scrollbar p-2 space-y-1 backdrop-blur-xl"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedLaw('');
-                setIsDropdownOpen(false);
-              }}
-              className={`w-full text-left px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
-                !selectedLaw ? 'bg-primary-start/10 text-primary-start' : 'hover:bg-hover text-text-primary'
-              }`}
-            >
-              <span>Të gjitha ligjet (Të gjithë artikujt)</span>
-              {!selectedLaw && <Check size={16} className="text-primary-start" />}
-            </button>
-
-            <div className="my-1 border-t border-main/60" />
-
-            {availableLaws.map((lawName, idx) => {
-              const isSelected = selectedLaw === lawName;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setSelectedLaw(lawName);
-                    setIsDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors truncate ${
-                    isSelected ? 'bg-primary-start/10 text-primary-start' : 'hover:bg-hover text-text-primary'
-                  }`}
-                >
-                  <span className="truncate pr-2">{lawName}</span>
-                  {isSelected && <Check size={16} className="text-primary-start shrink-0" />}
-                </button>
-              );
-            })}
-          </motion.div>
-        </AnimatePresence>,
-        document.body
-      )}
-
     </motion.div>
   );
 }
