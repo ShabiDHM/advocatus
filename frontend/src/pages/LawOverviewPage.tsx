@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V21.0 (RESPONSIVE ACADEMY PDF STREAM - ZERO BROKEN EMBEDS)
+// PHOENIX PROTOCOL - LAW OVERVIEW V23.0 (DIRECT BACKBLAZE B2 STREAMING - ZERO 401 / CANNOT OPEN ERRORS)
 
 import { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -8,7 +8,7 @@ import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, 
-  GraduationCap, X, Minus, Maximize2, ExternalLink, Download 
+  GraduationCap, X, Minus, Maximize2, ExternalLink, Download, Loader 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,6 +28,8 @@ export default function LawOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
@@ -56,6 +58,67 @@ export default function LawOverviewPage() {
     const raw = (data?.law_title || data?.source || lawTitle).toString().toUpperCase();
     return raw.includes("AKADEMIA") || raw.includes("CASE_LAW") || raw.includes("DORACAK") || raw.includes("UDHEZUES") || raw.includes("LËNDËSH") || raw.includes("LENDESH");
   }, [data?.law_title, data?.source, lawTitle]);
+
+  // Backblaze B2 PDF Stream Fetcher
+  useEffect(() => {
+    if (!isAcademicDoc || !data) return;
+
+    let isMounted = true;
+    setIsLoadingPdf(true);
+    const source = data.source || `${lawTitle}.pdf`;
+
+    // Direct Backblaze B2 URL handling vs API Proxy endpoint
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      if (isMounted) {
+        setPdfBlobUrl(source);
+        setIsLoadingPdf(false);
+      }
+    } else {
+      // Stream directly from Backblaze B2 via API proxy endpoint
+      const endpoint = `/laws/pdf/${encodeURIComponent(source)}`;
+
+      apiService.axiosInstance.get(endpoint, { responseType: 'blob' })
+        .then((res) => {
+          if (!isMounted) return;
+          const blob = new Blob([res.data], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          setPdfBlobUrl(url);
+        })
+        .catch((err) => {
+          console.error('Backblaze B2 PDF fetch error:', err);
+          // Fallback to direct Backblaze stream URL
+          const fallbackUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(source)}`;
+          if (isMounted) setPdfBlobUrl(fallbackUrl);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingPdf(false);
+        });
+    }
+
+    return () => {
+      isMounted = false;
+      if (pdfBlobUrl && pdfBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [isAcademicDoc, data, lawTitle]);
+
+  const handleOpenFullscreen = () => {
+    if (pdfBlobUrl) {
+      window.open(pdfBlobUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!pdfBlobUrl) return;
+    const filename = data?.source || `${displayHeaderTitle}.pdf`;
+    const link = document.createElement('a');
+    link.href = pdfBlobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (loading) {
     return (
@@ -88,9 +151,8 @@ export default function LawOverviewPage() {
   if (!data) return null;
 
   const displayHeaderTitle = lawTitle || data.law_title;
-  const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
 
-  // DIRECT ACADEMY PDF STREAM FOR DIPLOMATIC & ACADEMIC DOCUMENTS
+  // DIRECT ACADEMY BACKBLAZE B2 PDF STREAM FOR ACADEMIC & UNODC DOCUMENTS
   if (isAcademicDoc) {
     return (
       <>
@@ -145,7 +207,12 @@ export default function LawOverviewPage() {
 
                 {/* PDF Stream View Container */}
                 <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative flex flex-col items-center justify-center">
-                  {isMobile ? (
+                  {isLoadingPdf ? (
+                    <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
+                      <Loader size={36} className="animate-spin text-primary-start" />
+                      <span className="text-xs font-mono uppercase tracking-widest">Duke ngarkuar dokumentin nga Backblaze...</span>
+                    </div>
+                  ) : isMobile ? (
                     /* Mobile Responsive Presentation Interface */
                     <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950/90">
                       <div className="w-20 h-20 rounded-2xl bg-primary-start/15 border border-primary-start/30 flex items-center justify-center mb-5 shadow-lg shadow-primary-start/10">
@@ -158,40 +225,43 @@ export default function LawOverviewPage() {
                         {displayHeaderTitle}
                       </h3>
                       <p className="text-xs text-slate-400 max-w-xs mb-8 px-2 leading-relaxed">
-                        Për përvojën më të mirë në celular, hapeni udhëzuesin me lexuesin nativ PDF të pajisjes suaj.
+                        Dokumenti është transmetuar me sukses nga Backblaze. Hapeni me lexuesin nativ PDF të shfletuesit tuaj.
                       </p>
 
                       <div className="w-full max-w-xs flex flex-col gap-3">
                         <button
-                          onClick={() => window.open(pdfStreamUrl, '_blank', 'noopener,noreferrer')}
-                          className="btn-primary w-full py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm shadow-xl cursor-pointer hover-lift active:scale-95 transition-all"
+                          onClick={handleOpenFullscreen}
+                          disabled={!pdfBlobUrl}
+                          className="btn-primary w-full py-3.5 px-5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs sm:text-sm shadow-xl cursor-pointer hover-lift active:scale-95 transition-all disabled:opacity-50"
                         >
                           <ExternalLink size={18} />
                           Hape në Ekran të Plotë
                         </button>
-                        <a
-                          href={pdfStreamUrl}
-                          download={data?.source || `${displayHeaderTitle}.pdf`}
-                          className="w-full py-3.5 px-5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95"
+                        <button
+                          onClick={handleDownloadPdf}
+                          disabled={!pdfBlobUrl}
+                          className="w-full py-3.5 px-5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-bold text-xs sm:text-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                         >
                           <Download size={18} />
                           Shkarko PDF
-                        </a>
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    /* Desktop Direct Embedded View */
-                    <object
-                      data={pdfStreamUrl}
-                      type="application/pdf"
-                      className="w-full h-full border-none"
-                    >
-                      <iframe
-                        src={pdfStreamUrl}
-                        title={displayHeaderTitle}
+                    /* Desktop Direct Embedded View with Authenticated Backblaze Blob */
+                    pdfBlobUrl && (
+                      <object
+                        data={pdfBlobUrl}
+                        type="application/pdf"
                         className="w-full h-full border-none"
-                      />
-                    </object>
+                      >
+                        <iframe
+                          src={pdfBlobUrl}
+                          title={displayHeaderTitle}
+                          className="w-full h-full border-none"
+                        />
+                      </object>
+                    )
                   )}
                 </div>
 
