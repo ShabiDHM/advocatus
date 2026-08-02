@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V15.0 (SMOOTH SPA NAVIGATION & ACADEMY REGISTRY)
+// PHOENIX PROTOCOL - LAW SEARCH V17.0 (STATUTORY LAWS ONLY - 0 TS ERRORS)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft, Check, GraduationCap } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,18 +41,6 @@ const DEFAULT_STATUTORY_LAWS = [
   "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
   "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
   "LIGJI NR. 03/L-212 I PUNËS"
-];
-
-const DEFAULT_ACADEMY_MANUALS = [
-  "PËRMBLEDHJE LËNDËSH NGA PRAKTIKA GJYQËSORE LIDHUR ME ARMËT E ZJARRIT (Case Law Kosovo)",
-  "AKADEMIA E DREJTËSISË - Konkluzionet për Unifikim të Praktikës Gjyqësore",
-  "AKADEMIA E DREJTËSISË - Komentari i Kodit Penal (Kosovo Commentary)",
-  "AKADEMIA E DREJTËSISË - Doracak dhe Udhëzues Praktik për Gjyqtarë",
-  "AKADEMIA E DREJTËSISË - Masat e Veçanta Hetimore (Special Investigative Measures)",
-  "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Drejtësinë Mjedisore",
-  "AKADEMIA E DREJTËSISË - Departamenti për Shërbime Ligjore dhe të Përgjithshme",
-  "AKADEMIA E DREJTËSISË - Instituti Gjyqësor i Kosovës",
-  "AKADEMIA E DREJTËSISË - Udhëzues Praktik mbi Qasjen në Drejtësi"
 ];
 
 const KNOWN_JUNK_MAP: Record<string, string> = {
@@ -108,12 +96,10 @@ export default function LawSearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   
   const [statuteTitles, setStatuteTitles] = useState<string[]>(DEFAULT_STATUTORY_LAWS);
-  const [academyTitles, setAcademyTitles] = useState<string[]>(DEFAULT_ACADEMY_MANUALS);
   const [loadingTitles, setLoadingTitles] = useState(false);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
   
   const [isLawPickerOpen, setIsLawPickerOpen] = useState(false);
-  const [pickerTab, setPickerTab] = useState<'statutes' | 'academy'>('statutes');
   const [lawSearchFilter, setLawSearchFilter] = useState('');
   
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
@@ -124,23 +110,17 @@ export default function LawSearchPage() {
       .then(async (res: any) => {
         if (res) {
           const apiStatutes = res.statutes || res.all_titles || [];
-          const apiAcademy = res.academic_manuals || [];
 
           if (apiStatutes.length > 0) {
             const mergedStatutes = new Set([...apiStatutes, ...DEFAULT_STATUTORY_LAWS]);
             setStatuteTitles(Array.from(mergedStatutes));
           }
-          if (apiAcademy.length > 0) {
-            const mergedAcademy = new Set([...apiAcademy, ...DEFAULT_ACADEMY_MANUALS]);
-            setAcademyTitles(Array.from(mergedAcademy));
-          }
 
-          const allFetched = [...apiStatutes, ...apiAcademy];
-          if (allFetched.length > 0) {
+          if (apiStatutes.length > 0) {
             const initialEnriched = new Map<string, string>();
             const remainingTitles: string[] = [];
 
-            allFetched.forEach(title => {
+            apiStatutes.forEach((title: string) => {
               const lower = title.toLowerCase().trim();
               if (KNOWN_JUNK_MAP[lower]) {
                 initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
@@ -247,13 +227,11 @@ export default function LawSearchPage() {
     return enrichedTitles.has(original) ? enrichedTitles.get(original)! : original;
   };
 
-  const activePickerList = pickerTab === 'statutes' ? statuteTitles : academyTitles;
-
   const filteredPickerTitles = useMemo(() => {
-    if (!lawSearchFilter.trim()) return activePickerList;
+    if (!lawSearchFilter.trim()) return statuteTitles;
     const lowerFilter = lawSearchFilter.toLowerCase();
-    return activePickerList.filter(t => normalizeForDisplay(getDisplayTitle(t)).toLowerCase().includes(lowerFilter));
-  }, [activePickerList, lawSearchFilter, enrichedTitles]);
+    return statuteTitles.filter(t => normalizeForDisplay(getDisplayTitle(t)).toLowerCase().includes(lowerFilter));
+  }, [statuteTitles, lawSearchFilter, enrichedTitles]);
 
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -280,7 +258,7 @@ export default function LawSearchPage() {
                   <Filter size={18} />
                 </div>
                 <span className="truncate text-left font-bold text-sm text-text-primary">
-                  {selectedLaw ? normalizeForDisplay(getDisplayTitle(selectedLaw)) : "Zgjidh një ligj apo udhëzues..."}
+                  {selectedLaw ? normalizeForDisplay(getDisplayTitle(selectedLaw)) : "Zgjidh ligjin zyrtar..."}
                 </span>
               </div>
 
@@ -443,11 +421,11 @@ export default function LawSearchPage() {
               <div className="p-5 sm:p-6 border-b border-border-main flex items-center justify-between bg-surface shrink-0">
                 <div className="flex items-center gap-3.5">
                   <div className="p-2.5 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
-                    <BookOpen size={22} />
+                    <Scale size={22} />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin apo Udhëzuesin</h3>
-                    <p className="text-xs text-text-muted font-medium">Zgjidh nga Kodet Zyrtare ose Praktika e Akademisë</p>
+                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">Zgjidh Ligjin Zyrtar</h3>
+                    <p className="text-xs text-text-muted font-medium">Kodet Zyrtare të Republikës së Kosovës</p>
                   </div>
                 </div>
                 <button
@@ -459,34 +437,6 @@ export default function LawSearchPage() {
                 </button>
               </div>
 
-              <div className="flex border-b border-border-main bg-canvas p-2 gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPickerTab('statutes')}
-                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    pickerTab === 'statutes'
-                      ? 'bg-primary-start text-white shadow-md'
-                      : 'bg-surface text-text-muted hover:text-text-primary border border-border-main'
-                  }`}
-                >
-                  <Scale size={16} />
-                  <span>📜 Ligjet Zyrtare ({statuteTitles.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPickerTab('academy')}
-                  className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    pickerTab === 'academy'
-                      ? 'bg-primary-start text-white shadow-md'
-                      : 'bg-surface text-text-muted hover:text-text-primary border border-border-main'
-                  }`}
-                >
-                  <GraduationCap size={16} />
-                  <span>📚 Akademia ({academyTitles.length})</span>
-                </button>
-              </div>
-
               <div className="p-4 border-b border-border-main bg-surface shrink-0">
                 <div className="relative">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start pointer-events-none" />
@@ -494,7 +444,7 @@ export default function LawSearchPage() {
                     type="text"
                     value={lawSearchFilter}
                     onChange={(e) => setLawSearchFilter(e.target.value)}
-                    placeholder={pickerTab === 'statutes' ? "Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..." : "Kërko udhëzuesin ose komentarin e Akademisë..."}
+                    placeholder="Kërko emrin e ligjit (p.sh. Penal, Civil, Familjen)..."
                     className="w-full pl-11 pr-10 py-3.5 bg-canvas border border-border-main rounded-xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all"
                     autoFocus
                   />
@@ -524,8 +474,8 @@ export default function LawSearchPage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {pickerTab === 'statutes' ? <Scale size={18} className="text-primary-start" /> : <GraduationCap size={18} className="text-primary-start" />}
-                    <span className="truncate">{pickerTab === 'statutes' ? "Të gjitha ligjet zyrtare" : "Të gjithë udhëzuesit e Akademisë"}</span>
+                    <Scale size={18} className="text-primary-start" />
+                    <span className="truncate">Të gjitha ligjet zyrtare ({statuteTitles.length})</span>
                   </div>
                   {!selectedLaw && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
                 </button>
@@ -534,7 +484,7 @@ export default function LawSearchPage() {
 
                 {filteredPickerTitles.length === 0 ? (
                   <div className="p-10 text-center text-text-muted text-xs font-bold uppercase tracking-wider bg-surface rounded-2xl border border-border-main">
-                    Nuk u gjet asnjë dokument me këtë emër
+                    Nuk u gjet asnjë ligj me këtë emër
                   </div>
                 ) : (
                   filteredPickerTitles.map((title, idx) => {
@@ -556,11 +506,7 @@ export default function LawSearchPage() {
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 pr-3">
-                          {pickerTab === 'statutes' ? (
-                            <Scale size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
-                          ) : (
-                            <GraduationCap size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
-                          )}
+                          <Scale size={18} className={`shrink-0 ${isSelected ? 'text-primary-start' : 'text-text-muted group-hover:text-primary-start'}`} />
                           <span className="truncate leading-relaxed">{displayTitle}</span>
                         </div>
                         {isSelected && <Check size={18} className="text-primary-start shrink-0 ml-2" />}
