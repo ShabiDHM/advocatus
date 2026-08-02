@@ -1,11 +1,14 @@
 // FILE: src/pages/LawLibraryPage.tsx
-// PHOENIX PROTOCOL - LAW LIBRARY V3.1 (STANDARDIZED EXECUTIVE SIZE: MAX-W-7XL)
+// PHOENIX PROTOCOL - LAW LIBRARY V4.1 (CLEAN TS IMPORTS & OVERFLOW-VISIBLE DROPDOWN)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, AlertCircle, Loader2, BookOpen, Scale, ArrowRight, Link as LinkIcon } from 'lucide-react';
+import { 
+  Search, AlertCircle, Loader2, BookOpen, Scale, ArrowRight, 
+  Link as LinkIcon, ArrowLeft, Filter, ChevronDown, Check, X 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LawResult {
@@ -16,14 +19,59 @@ interface LawResult {
   text?: string;
 }
 
+const DEFAULT_LAWS = [
+  "Kodi Penal i Republikës së Kosovës",
+  "Kodi i Procedurës Penale",
+  "Kodi Civil i Republikës së Kosovës",
+  "Ligji për Marrëdhëniet e Detyrimeve",
+  "Ligji për Familjen i Kosovës",
+  "Ligji i Punës",
+  "Ligji për Mbrojtjen e të Dhënave Personale",
+  "Ligji për Shoqëritë Tregtare"
+];
+
 export default function LawLibraryPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   
   const [query, setQuery] = useState('');
+  const [selectedLaw, setSelectedLaw] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [availableLaws, setAvailableLaws] = useState<string[]>(DEFAULT_LAWS);
+  
   const [results, setResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch registered laws list on mount
+  useEffect(() => {
+    const fetchLawsList = async () => {
+      try {
+        const response = await apiService.axiosInstance.get<string[]>('/laws/list');
+        if (response.data && response.data.length > 0) {
+          setAvailableLaws(response.data);
+        }
+      } catch (err) {
+        // Fallback to DEFAULT_LAWS if API call is unconfigured
+      }
+    };
+    if (isAuthenticated) {
+      fetchLawsList();
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -32,7 +80,7 @@ export default function LawLibraryPage() {
   }, [isAuthenticated, isLoading, navigate]);
 
   const handleSearch = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() && !selectedLaw) return;
     if (!isAuthenticated) {
         setError("Duhet të jeni i identifikuar për të përdorur këtë veçori.");
         return;
@@ -42,9 +90,11 @@ export default function LawLibraryPage() {
     setError('');
     
     try {
-      const response = await apiService.axiosInstance.get<LawResult[]>('/laws/search', {
-        params: { q: query }
-      });
+      const params: any = {};
+      if (query.trim()) params.q = query.trim();
+      if (selectedLaw) params.law_title = selectedLaw;
+
+      const response = await apiService.axiosInstance.get<LawResult[]>('/laws/search', { params });
       setResults(response.data);
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -75,6 +125,17 @@ export default function LawLibraryPage() {
       {/* STANDARDIZED EXECUTIVE MAX-W-7XL CONTAINER */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         
+        {/* Back Navigation Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="group inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-surface border border-main text-text-primary hover:border-primary-start/60 transition-all shadow-sm text-xs font-black uppercase tracking-wider hover-lift"
+          >
+            <ArrowLeft size={16} className="text-primary-start" />
+            <span>Kthehu</span>
+          </button>
+        </div>
+
         {/* Executive Page Header */}
         <header className="mb-8 sm:mb-10 flex flex-col gap-3">
           <div className="flex items-center gap-4">
@@ -104,29 +165,121 @@ export default function LawLibraryPage() {
             </div>
         )}
 
-        {/* High-Fidelity Search Bar */}
-        <div className="relative mb-10 group">
-          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-            <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-primary-start/60 group-focus-within:text-primary-start'}`} />
+        {/* SEARCH & FILTER CARD CONTAINER (OVERFLOW-VISIBLE FOR DROPDOWN POPUP) */}
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-main bg-surface shadow-sm mb-10 overflow-visible">
+          
+          <div className="flex flex-col gap-4">
+            
+            {/* 1. SELECT LAW DROPDOWN (Zgjidh një ligj) */}
+            <div className="relative z-30 overflow-visible" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                disabled={!isAuthenticated}
+                className="w-full flex items-center justify-between px-5 py-4 bg-canvas border border-main hover:border-primary-start/60 rounded-2xl shadow-sm text-xs sm:text-sm font-bold text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary-start/20 disabled:opacity-50 cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0 pr-2">
+                  <Filter size={18} className="text-primary-start shrink-0" />
+                  <span className="truncate">
+                    {selectedLaw ? selectedLaw : "Zgjidh një ligj"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {selectedLaw && (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLaw('');
+                      }}
+                      className="p-1 hover:bg-hover rounded-lg text-text-muted hover:text-danger-start transition-colors"
+                      title="Hiq filtrin"
+                    >
+                      <X size={16} />
+                    </span>
+                  )}
+                  <ChevronDown size={18} className={`text-text-muted transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {/* FLOATING DROPDOWN POPUP (STACKED ON TOP WITH Z-50 & SHADOW-2XL) */}
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 right-0 top-full mt-2 z-50 bg-surface border border-main rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scrollbar p-2 space-y-1"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedLaw('');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
+                        !selectedLaw ? 'bg-primary-start/10 text-primary-start' : 'hover:bg-hover text-text-primary'
+                      }`}
+                    >
+                      <span>Të gjitha ligjet (Të gjithë artikujt)</span>
+                      {!selectedLaw && <Check size={16} className="text-primary-start" />}
+                    </button>
+
+                    <div className="my-1 border-t border-main/60" />
+
+                    {availableLaws.map((lawName, idx) => {
+                      const isSelected = selectedLaw === lawName;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLaw(lawName);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between transition-colors truncate ${
+                            isSelected ? 'bg-primary-start/10 text-primary-start' : 'hover:bg-hover text-text-primary'
+                          }`}
+                        >
+                          <span className="truncate pr-2">{lawName}</span>
+                          {isSelected && <Check size={16} className="text-primary-start shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 2. HIGH-FIDELITY SEARCH BAR (Kërko nene, fjalë kyçe...) */}
+            <div className="relative z-10 group">
+              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-primary-start/60 group-focus-within:text-primary-start'}`} />
+              </div>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Kërko nene, fjalë kyçe, koncepte juridike..."
+                disabled={!isAuthenticated}
+                className="w-full pl-13 pr-36 py-4 bg-canvas border border-main rounded-2xl shadow-sm text-sm sm:text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div className="absolute inset-y-0 right-2.5 flex items-center">
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  disabled={loading || !isAuthenticated || (!query.trim() && !selectedLaw)}
+                  className="h-10 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-30 transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : 'KËRKO'}
+                </button>
+              </div>
+            </div>
+
           </div>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Kërkoni nene, fjalë kyçe apo rregullore ligjore (p.sh. Kodi Civil, Neni 45)..."
-            disabled={!isAuthenticated}
-            className="w-full pl-13 pr-36 py-4 bg-surface border border-main rounded-2xl shadow-sm text-sm sm:text-base text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <div className="absolute inset-y-0 right-2.5 flex items-center">
-            <button
-              onClick={handleSearch}
-              disabled={loading || !isAuthenticated || !query.trim()}
-              className="h-10 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider disabled:opacity-30 transition-all shadow-sm flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : 'KËRKO'}
-            </button>
-          </div>
+
         </div>
 
         {/* Error State */}
@@ -141,57 +294,68 @@ export default function LawLibraryPage() {
 
         {/* Search Results Grid */}
         <div className="space-y-4">
-          {results.map((r, index) => (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04 }}
-                key={r.chunk_id}
-            >
-                <Link
-                  to={`/laws/${r.chunk_id}`}
-                  className="glass-panel p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover-lift border border-main hover:border-primary-start/60 rounded-2xl bg-surface"
-                >
-                  <div className="flex flex-col gap-2 flex-1 min-w-0">
-                      
-                      <div className="flex flex-wrap items-center gap-2">
-                          <span className="bg-primary-start/10 text-primary-start border border-primary-start/20 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                              <Scale size={12} /> Referencë Ligjore
-                          </span>
-                          {r.article_number && (
-                              <span className="bg-canvas text-text-primary border border-main px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">
-                                  Neni {r.article_number}
-                              </span>
-                          )}
-                      </div>
+          {results.map((r, index) => {
+            const articleNum = r.article_number || '1';
+            const articleUrl = `/laws/article?lawTitle=${encodeURIComponent(r.law_title)}&articleNumber=${encodeURIComponent(articleNum)}`;
 
-                      <h2 className="text-base sm:text-lg font-black text-text-primary group-hover:text-primary-start transition-colors truncate">
-                          {r.law_title}
-                      </h2>
-                      
-                      {r.source && (
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <LinkIcon size={12} className="text-text-muted" />
-                            <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider truncate max-w-xl">
-                                {r.source}
+            return (
+              <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.04 }}
+                  key={r.chunk_id || index}
+              >
+                  <Link
+                    to={articleUrl}
+                    className="glass-panel p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover-lift border border-main hover:border-primary-start/60 rounded-2xl bg-surface"
+                  >
+                    <div className="flex flex-col gap-2 flex-1 min-w-0">
+                        
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="bg-primary-start/10 text-primary-start border border-primary-start/20 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                <Scale size={12} /> Referencë Ligjore
                             </span>
+                            {r.article_number && (
+                                <span className="bg-canvas text-text-primary border border-main px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">
+                                    Neni {r.article_number}
+                                </span>
+                            )}
                         </div>
-                      )}
-                  </div>
 
-                  <div className="hidden sm:flex w-10 h-10 rounded-xl bg-canvas border border-main items-center justify-center text-text-muted group-hover:text-white group-hover:bg-primary-start group-hover:border-primary-start transition-all shrink-0">
-                      <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </Link>
-            </motion.div>
-          ))}
+                        <h2 className="text-base sm:text-lg font-black text-text-primary group-hover:text-primary-start transition-colors truncate">
+                            {r.law_title}
+                        </h2>
+
+                        {r.text && (
+                          <p className="text-xs sm:text-sm text-text-secondary line-clamp-2 leading-relaxed">
+                            {r.text}
+                          </p>
+                        )}
+                        
+                        {r.source && (
+                          <div className="flex items-center gap-2 mt-0.5">
+                              <LinkIcon size={12} className="text-text-muted" />
+                              <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider truncate max-w-xl">
+                                  {r.source}
+                              </span>
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="hidden sm:flex w-10 h-10 rounded-xl bg-canvas border border-main items-center justify-center text-text-muted group-hover:text-white group-hover:bg-primary-start group-hover:border-primary-start transition-all shrink-0">
+                        <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </Link>
+              </motion.div>
+            );
+          })}
           
           {/* Empty State */}
-          {results.length === 0 && query && !loading && !error && (
+          {results.length === 0 && (query || selectedLaw) && !loading && !error && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-16 text-center">
                   <Search size={48} className="text-text-muted/60 mb-4" strokeWidth={1.5} />
                   <p className="text-text-primary font-black text-base uppercase tracking-wider">Nuk u gjetën të dhëna</p>
-                  <p className="text-text-muted text-xs mt-1 font-medium max-w-md">Nuk ka asnjë rezultat për termat &quot;{query}&quot;. Provoni fjalë kyçe të tjera ligjore.</p>
+                  <p className="text-text-muted text-xs mt-1 font-medium max-w-md">Nuk ka asnjë rezultat për kërkimin tuaj. Provoni fjalë kyçe të tjera ose hiqni filtrin e ligjit.</p>
               </motion.div>
           )}
         </div>
