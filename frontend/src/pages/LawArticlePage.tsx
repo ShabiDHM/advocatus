@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V30.0 (ACADEMY COVER & STRUCTURED CASE LAW RENDERING)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V31.0 (DIRECT BACKBLAZE B2 STREAM FOR ACADEMY DOCS)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
   Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert, GraduationCap, Award
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert, GraduationCap, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from '../components/LawCitationText';
@@ -65,7 +65,6 @@ const normalizeText = (raw: string, _articleNum?: string): string => {
   cleaned = cleaned.replace(/==Start of OCR for page \d+==/gi, '');
   cleaned = cleaned.replace(/==End of OCR for page \d+==/gi, '');
   cleaned = cleaned.replace(/==Screenshot for page \d+==/gi, '');
-  cleaned = cleaned.replace(/(?:KODI|LIGJI|UDHËZIMI|UDHËZIM)\s+Nr\.\s*[\d\/L\-]+\s+[A-ZËÇSHQËWXYZ\s\-]+(?=\n|$)/gi, '');
 
   const lines = cleaned.split('\n');
   const mergedLines: string[] = [];
@@ -429,8 +428,81 @@ export default function LawArticlePage() {
   }
 
   const rawArtNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
-  const isPreambleCover = rawArtNum === '0' || rawArtNum.toLowerCase().includes('pjesa 1') || rawArtNum.toLowerCase().includes('pjesa1') || rawArtNum.toLowerCase() === 'preambula' || rawArtNum.toLowerCase() === 'hyrja';
 
+  // FOR ACADEMIC DOCUMENTS: DIRECT STREAM BACKBLAZE B2 PDF READER VIEW
+  if (isAcademicDoc && pdfUrl) {
+    return (
+      <motion.div
+        className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
+          <div className="glass-panel p-6 sm:p-8 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
+            
+            <div className="flex flex-wrap items-center justify-between mb-6 gap-4 border-b border-main pb-4">
+              <button
+                onClick={handleBackToLibrary}
+                className="group flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
+              >
+                <div className="p-2 rounded-xl bg-canvas border border-main group-hover:border-primary-start transition-colors">
+                  <ArrowLeft size={16} className="text-primary-start" />
+                </div>
+                <span>Biblioteka Ligjore</span>
+              </button>
+
+              <div className="flex items-center gap-3">
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary px-5 py-2.5 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wider shadow-md hover-lift cursor-pointer"
+                >
+                  <Eye size={16} />
+                  <span>Hap PDF në Tab të Ri</span>
+                  <ExternalLink size={14} />
+                </a>
+
+                <a
+                  href={pdfUrl}
+                  download
+                  className="px-4 py-2.5 rounded-xl bg-canvas border border-main hover:bg-hover text-text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Download size={16} />
+                  <span className="hidden sm:inline">Shkarko PDF</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex items-center gap-2 text-xs font-black uppercase text-primary-start tracking-wider mb-1">
+                <GraduationCap size={16} />
+                <span>AKADEMIA E DREJTËSISË & UNODC — DOKUMENT ZYRTAR</span>
+              </div>
+              <h1 className="text-lg sm:text-xl font-black text-text-primary leading-tight">
+                {article.law_title}
+              </h1>
+              <p className="text-xs text-text-muted font-mono mt-1">
+                Burimi: {article.source}
+              </p>
+            </div>
+
+            {/* Embedded Direct Backblaze B2 PDF Reader */}
+            <div className="w-full h-[75vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-inner relative">
+              <iframe
+                src={pdfUrl}
+                title={article.law_title}
+                className="w-full h-full border-none"
+              />
+            </div>
+
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // STANDARD STATUTORY ARTICLE VIEW
   return (
     <motion.div
       className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
@@ -473,10 +545,10 @@ export default function LawArticlePage() {
                   type="button"
                   onClick={() => navigateToArticleNum(prevArticleNum)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-canvas border border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none cursor-pointer"
-                  title="Pjesa / Neni i Mëparshëm"
+                  title="Neni i Mëparshëm"
                 >
                   <ChevronLeft size={14} className="text-primary-start" />
-                  <span className="hidden sm:inline">{prevArticleNum === '0' ? 'Preambula' : `${isAcademicDoc ? 'Pjesa' : 'Neni'} ${prevArticleNum}`}</span>
+                  <span className="hidden sm:inline">{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
                 </button>
               )}
 
@@ -484,7 +556,7 @@ export default function LawArticlePage() {
                 <Search size={12} className="absolute left-3 text-text-muted pointer-events-none" />
                 <input
                   type="text"
-                  placeholder={isAcademicDoc ? "Kërko pjesën..." : "Kërko nenin..."}
+                  placeholder="Kërko nenin..."
                   value={jumpInput}
                   onChange={(e) => setJumpInput(e.target.value)}
                   className="w-28 sm:w-32 h-9 pl-8 pr-2 bg-canvas border border-main rounded-xl text-xs font-bold text-text-primary focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 focus:outline-none"
@@ -496,9 +568,9 @@ export default function LawArticlePage() {
                   type="button"
                   onClick={() => navigateToArticleNum(nextArticleNum)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-canvas border border-main hover:border-primary-start/60 text-text-primary transition-all hover-lift shadow-sm focus:outline-none cursor-pointer"
-                  title="Pjesa / Neni i Ardhshëm"
+                  title="Neni i Ardhshëm"
                 >
-                  <span className="hidden sm:inline">{`${isAcademicDoc ? 'Pjesa' : 'Neni'} ${nextArticleNum}`}</span>
+                  <span className="hidden sm:inline">{`Neni ${nextArticleNum}`}</span>
                   <ChevronRight size={14} className="text-primary-start" />
                 </button>
               )}
@@ -511,7 +583,7 @@ export default function LawArticlePage() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover-lift bg-primary-start hover:bg-primary-start/90 text-white cursor-pointer"
               >
                 {isSummarizing ? <Loader2 size={14} className="animate-spin" /> : <BrainCircuit size={14} />}
-                {isSummarizing ? t('lawArticle.analyzing', 'Duke Analizuar...') : (isAcademicDoc ? 'Analiza e Akademisë' : t('lawArticle.auditBtn', 'Auditimi Ligjor'))}
+                {isSummarizing ? t('lawArticle.analyzing', 'Duke Analizuar...') : t('lawArticle.auditBtn', 'Auditimi Ligjor')}
               </button>
             ) : (
               <button
@@ -530,10 +602,8 @@ export default function LawArticlePage() {
               <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                    {isAcademicDoc ? <GraduationCap size={14} /> : <BookOpen size={14} />}
-                    <span className="text-[10px] font-black uppercase tracking-wider">
-                      {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : t('lawArticle.lawTitle', 'LIGJI')}
-                    </span>
+                    <BookOpen size={14} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">{t('lawArticle.lawTitle', 'LIGJI')}</span>
                   </div>
 
                   <button
@@ -550,20 +620,15 @@ export default function LawArticlePage() {
                   </button>
                 </div>
 
-                <h1 className="text-xl sm:text-2xl font-black text-text-primary leading-tight tracking-tight">
-                  {isAcademicDoc ? 'PËRMBLEDHJE LËNDËSH TË PËRZGJEDHURA NGA PRAKTIKA GJYQËSORE' : article.law_title}
-                </h1>
+                <h1 className="text-xl sm:text-2xl font-black text-text-primary leading-tight tracking-tight">{article.law_title}</h1>
                 <div className="flex items-center justify-between border-t border-main/50 pt-4 mt-1">
                   <div className="flex items-center gap-3">
-                    {isAcademicDoc ? <GraduationCap size={20} className="text-primary-start" /> : <Scale size={20} className="text-primary-start" />}
+                    <Scale size={20} className="text-primary-start" />
                     <p className="text-base font-black text-primary-start uppercase tracking-wider">
                       {(() => {
-                        if (isPreambleCover) return 'Pjesa Hyrëse / Përmbajtja';
-                        if (isAcademicDoc) {
-                          if (rawArtNum.toLowerCase().startsWith('pjesa')) return rawArtNum;
-                          return `Pjesa ${rawArtNum}`;
-                        }
-                        return `${t('lawArticle.article', 'Neni')} ${rawArtNum}`;
+                        const cleanNum = rawArtNum;
+                        const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
+                        return isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${cleanNum}`;
                       })()}
                     </p>
                   </div>
@@ -574,7 +639,7 @@ export default function LawArticlePage() {
                         type="button"
                         onClick={() => navigateToArticleNum(prevArticleNum)}
                         className="p-2 rounded-lg bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start transition-colors cursor-pointer"
-                        title="Pjesa e Mëparshme"
+                        title="Neni i Mëparshëm"
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -584,7 +649,7 @@ export default function LawArticlePage() {
                         type="button"
                         onClick={() => navigateToArticleNum(nextArticleNum)}
                         className="p-2 rounded-lg bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start transition-colors cursor-pointer"
-                        title="Pjesa e Ardhshme"
+                        title="Neni i Ardhshëm"
                       >
                         <ChevronRight size={16} />
                       </button>
@@ -598,11 +663,11 @@ export default function LawArticlePage() {
                   }`}>
                     <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 border-b border-main/70 gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{sourceInfo.confidence?.icon || (isAcademicDoc ? '📚' : '✅')}</span>
+                        <span className="text-base">{sourceInfo.confidence?.icon || '✅'}</span>
                         <span className={`font-black text-xs uppercase tracking-wider ${
                           sourceInfo.title_mismatch ? 'text-rose-500' : 'text-text-primary'
                         }`}>
-                          {sourceInfo.confidence?.label || (isAcademicDoc ? 'Udhëzues i Praktikës Gjyqësore' : 'E verifikuar')}
+                          {sourceInfo.confidence?.label || 'E verifikuar'}
                         </span>
                       </div>
                       <span className={`text-xs font-mono font-black px-2.5 py-1 rounded-lg border shadow-inner ${
@@ -617,7 +682,7 @@ export default function LawArticlePage() {
                     </div>
 
                     <div className="text-xs font-bold text-primary-start mb-2">
-                      {isAcademicDoc ? `Pjesa / Seksioni: ${sourceInfo.matched_article || article.article_number}` : `Neni ${sourceInfo.matched_article || article.article_number}`}
+                      Neni {sourceInfo.matched_article || article.article_number}
                     </div>
 
                     <div className={`text-xs font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans ${
@@ -628,7 +693,7 @@ export default function LawArticlePage() {
                       ) : (
                         <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
                       )}
-                      <span>{sourceInfo.verification_hint || (isAcademicDoc ? '📚 Botim Zyrtar nga Akademia e Drejtësisë' : 'Ky nen korrespondon saktësisht me kërkimin.')}</span>
+                      <span>{sourceInfo.verification_hint || 'Ky nen korrespondon saktësisht me kërkimin.'}</span>
                     </div>
                   </div>
                 )}
@@ -636,78 +701,33 @@ export default function LawArticlePage() {
               </div>
             </div>
 
-            {/* EXECUTIVE READING SURFACE */}
             <div className="bg-canvas/50 px-2 sm:px-10 py-12 flex justify-center">
               <div className="w-full max-w-[95ch] bg-surface border border-main rounded-2xl sm:rounded-r-3xl sm:rounded-l-lg shadow-2xl p-8 sm:p-16 relative overflow-hidden transition-all duration-300">
                 
                 <div className="absolute top-0 bottom-0 left-0 w-4 bg-gradient-to-r from-black/20 via-primary-start/1 to-transparent pointer-events-none border-r border-main/40 hidden sm:block" />
                 <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none hidden sm:block" />
 
-                {/* If Page 1 of Academic Manual, render Clean Executive Manual Card */}
-                {isAcademicDoc && isPreambleCover ? (
-                  <div className="flex flex-col gap-6 relative z-10 text-text-primary">
-                    <div className="p-8 rounded-3xl bg-primary-start/10 border border-primary-start/30 text-center flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-2xl bg-primary-start text-white flex items-center justify-center mb-4 shadow-md">
-                        <Award size={32} />
-                      </div>
-                      <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-text-primary mb-2 font-serif">
-                        PËRMBLEDHJE LËNDËSH TË PËRZGJEDHURA NGA PRAKTIKA GJYQËSORE LIDHUR ME ARMËT E ZJARRIT
-                      </h2>
-                      <p className="text-xs sm:text-sm font-bold text-primary-start uppercase tracking-wider mb-4 font-mono">
-                        E Drejta Penale dhe Praktika Gjyqësore në Kosovë (2020 – 2024)
-                      </p>
-                      <div className="flex flex-wrap justify-center items-center gap-3 text-xs text-text-muted border-t border-primary-start/20 pt-4 w-full">
-                        <span><strong>Autorët:</strong> Agim Maliqi & Afrim Shala (Gjyqtarë të Gjykatës Supreme të Kosovës)</span>
-                        <span>•</span>
-                        <span><strong>Mbështetur nga:</strong> UNODC & BE</span>
-                      </div>
-                    </div>
+                <div className="text-center pb-6 mb-8 border-b border-main/60 relative z-10">
+                  <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-tight font-serif">
+                    {(() => {
+                      const cleanNum = rawArtNum;
+                      const isPreamble = cleanNum === '0' || cleanNum.toLowerCase() === 'preambula' || cleanNum.toLowerCase() === 'hyrja';
+                      return isPreamble ? 'Preambula' : `Neni ${cleanNum}`;
+                    })()}
+                  </h2>
+                </div>
 
-                    <div className="p-6 rounded-2xl bg-canvas border border-main text-xs sm:text-sm leading-relaxed space-y-3 font-serif">
-                      <h3 className="text-sm font-black uppercase text-primary-start tracking-wider font-sans flex items-center gap-2">
-                        <BookOpen size={16} /> Struktura e Botimit
-                      </h3>
-                      <p>Kjo përmbledhje analizon në mënyrë të hollësishme 25 lëndë kryesore penale nga praktika gjyqësore e Kosovës për periudhën 2020-2024. Përfshin analizën e Gjykatës Themelore, Gjykatës së Apelit dhe Gjykatës Supreme të Kosovës.</p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 pt-4 border-t border-main/50">
-                      <button
-                        type="button"
-                        onClick={() => navigateToArticleNum('2')}
-                        className="w-full py-4 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white font-black uppercase tracking-wider text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
-                      >
-                        <span>Shfleto Lëndët e Praktikës Gjyqësore</span>
-                        <ChevronRight size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-center pb-6 mb-8 border-b border-main/60 relative z-10">
-                      <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-tight font-serif">
-                        {(() => {
-                          if (isAcademicDoc) {
-                            if (rawArtNum.toLowerCase().startsWith('pjesa')) return rawArtNum;
-                            return `Pjesa ${rawArtNum}`;
-                          }
-                          return `Neni ${rawArtNum}`;
-                        })()}
-                      </h2>
-                    </div>
-
-                    <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.75] font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
-                      {article.text}
-                    </div>
-                  </>
-                )}
+                <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.75] font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
+                  {article.text}
+                </div>
 
                 <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs sm:text-sm font-mono relative z-10">
-                  <span className="text-text-muted">{isAcademicDoc ? 'Akademia e Drejtësisë e Kosovës' : 'Kodi Juridik i Republikës së Kosovës'}</span>
+                  <span className="text-text-muted">Kodi Juridik i Republikës së Kosovës</span>
                   <span className="text-text-muted">§</span>
                   <span className={`font-bold flex items-center gap-1.5 ${
                     article.title_mismatch ? 'text-rose-500' : 'text-emerald-500'
                   }`}>
-                    {article.title_mismatch ? '❌ Mospërputhje e Ligjit' : (isAcademicDoc ? '📚 Praktikë Gjyqësore e Verifikuar' : '✅ Burim Zyrtar i Verifikuar')}
+                    {article.title_mismatch ? '❌ Mospërputhje e Ligjit' : '✅ Burim Zyrtar i Verifikuar'}
                   </span>
                 </div>
 
@@ -730,7 +750,7 @@ export default function LawArticlePage() {
                           <BrainCircuit size={20} />
                         </div>
                         <h3 className="text-base font-black text-text-primary uppercase tracking-wider">
-                          {isAcademicDoc ? 'Konkluzioni i Praktikës Gjyqësore' : 'Interpretimi Ligjor'}
+                          Interpretimi Ligjor
                         </h3>
                       </div>
 
@@ -788,10 +808,10 @@ export default function LawArticlePage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
-                          {isAcademicDoc ? 'Pyet për këtë Lëndë / Praktikë' : t('lawArticle.auditorTitle', 'Bisedë me Auditorin')}
+                          {t('lawArticle.auditorTitle', 'Bisedë me Auditorin')}
                         </h3>
                         <p className="text-xs text-text-muted">
-                          {isAcademicDoc ? 'Bazuar në udhëzuesin e Akademisë së Drejtësisë' : t('lawArticle.auditorSubtitle', 'Bazuar në tekstin e ligjit')}
+                          {t('lawArticle.auditorSubtitle', 'Bazuar në tekstin e ligjit')}
                         </p>
                       </div>
                     </div>
@@ -870,7 +890,7 @@ export default function LawArticlePage() {
                         value={inputQuery}
                         onChange={(e) => setInputQuery(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuery(); } }}
-                        placeholder={isAcademicDoc ? "Bëj një pyetje për këtë lëndë ose udhëzues..." : t('lawArticle.chatPlaceholder', 'Bëj një pyetje për këtë nen...')}
+                        placeholder={t('lawArticle.chatPlaceholder', 'Bëj një pyetje për këtë nen...')}
                         rows={2}
                         className="flex-1 p-3 bg-surface border border-main rounded-xl text-xs sm:text-sm resize-none text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
                         disabled={isAuditing}
@@ -905,7 +925,7 @@ export default function LawArticlePage() {
                     className="flex items-center gap-2 px-3.5 py-1.5 bg-canvas hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
                   >
                     <ChevronLeft size={14} />
-                    <span>{prevArticleNum === '0' ? 'Preambula' : `${isAcademicDoc ? 'Pjesa' : 'Neni'} ${prevArticleNum}`}</span>
+                    <span>{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
                   </button>
                 )}
 
@@ -915,7 +935,7 @@ export default function LawArticlePage() {
                     onClick={() => navigateToArticleNum(nextArticleNum)}
                     className="flex items-center gap-2 px-3.5 py-1.5 bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 rounded-xl text-xs font-bold text-primary-start transition-all shadow-sm uppercase tracking-wider cursor-pointer"
                   >
-                    <span>{`${isAcademicDoc ? 'Pjesa' : 'Neni'} ${nextArticleNum}`}</span>
+                    <span>{`Neni ${nextArticleNum}`}</span>
                     <ChevronRight size={14} />
                   </button>
                 )}
@@ -996,7 +1016,7 @@ export default function LawArticlePage() {
               <div className="flex-1 w-full h-full bg-slate-900 relative p-4">
                 <iframe 
                   src={pdfUrl} 
-                  title={article.source} 
+                  title={article.law_title} 
                   className="w-full h-full border-none rounded-2xl"
                 />
               </div>
