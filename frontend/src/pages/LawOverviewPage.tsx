@@ -1,11 +1,11 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V8.0 (STRICT TITLE PRESERVATION & ARTICLE LINK GUARDRAIL)
+// PHOENIX PROTOCOL - LAW OVERVIEW V10.0 (ACADEMY CLEAN LABELS & ZERO 'NENI PJESA' ARTIFACTS)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, Search, Hash, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, Search, Hash, ShieldAlert, GraduationCap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface LawOverviewData {
@@ -13,6 +13,25 @@ interface LawOverviewData {
   source: string;
   article_count: number;
   articles: string[];
+  is_official_statute?: boolean;
+}
+
+function formatArticleLabel(rawArticle: string, isAcademic: boolean): string {
+  const cleanArt = rawArticle.replace(/\.$/, '').trim();
+  const lower = cleanArt.toLowerCase();
+  
+  if (lower === '0' || lower.includes('preambula') || lower.includes('hyrja')) {
+    return 'Preambula / Hyrje';
+  }
+
+  if (isAcademic) {
+    if (cleanArt.toLowerCase().startsWith('pjesa')) return cleanArt;
+    if (cleanArt.toLowerCase().startsWith('lënda') || cleanArt.toLowerCase().startsWith('lenda')) return cleanArt;
+    if (cleanArt.toLowerCase().startsWith('kreu')) return cleanArt;
+    return `Pjesa ${cleanArt}`;
+  }
+
+  return `Neni ${cleanArt}`;
 }
 
 export default function LawOverviewPage() {
@@ -36,7 +55,7 @@ export default function LawOverviewPage() {
     setError('');
 
     apiService.getLawArticlesByTitle(lawTitle)
-      .then((res) => {
+      .then((res: any) => {
         setData(res);
       })
       .catch((err) => {
@@ -46,8 +65,15 @@ export default function LawOverviewPage() {
       .finally(() => setLoading(false));
   }, [lawTitle, t]);
 
+  const isAcademicDoc = useMemo(() => {
+    const raw = (data?.law_title || data?.source || lawTitle).toString().toUpperCase();
+    return raw.includes("AKADEMIA") || raw.includes("CASE_LAW") || raw.includes("DORACAK") || raw.includes("UDHEZUES") || raw.includes("LËNDËSH") || raw.includes("LENDESH");
+  }, [data?.law_title, data?.source, lawTitle]);
+
   const isTitleMismatch = useMemo(() => {
     if (!data?.law_title || !lawTitle) return false;
+    if (isAcademicDoc) return false;
+    
     const reqClean = lawTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
     const fetchedClean = data.law_title.toLowerCase().replace(/[^a-z0-9]/g, '');
     
@@ -58,7 +84,7 @@ export default function LawOverviewPage() {
       return reqNum[0].replace(/[^0-9]/g, '') !== fetchNum[0].replace(/[^0-9]/g, '');
     }
     return !fetchedClean.includes(reqClean) && !reqClean.includes(fetchedClean);
-  }, [data?.law_title, lawTitle]);
+  }, [data?.law_title, lawTitle, isAcademicDoc]);
 
   const filteredArticles = useMemo(() => {
     if (!data?.articles) return [];
@@ -66,12 +92,10 @@ export default function LawOverviewPage() {
 
     const term = filterTerm.toLowerCase().trim();
     return data.articles.filter(article => {
-      const cleanArt = article.replace(/\.$/, '').trim();
-      const isPreamble = cleanArt === '0' || cleanArt.toLowerCase().includes('preambula') || cleanArt.toLowerCase().includes('hyrja');
-      const label = isPreamble ? 'preambula hyrja' : `neni ${cleanArt}`;
-      return label.includes(term) || cleanArt.includes(term);
+      const formatted = formatArticleLabel(article, isAcademicDoc).toLowerCase();
+      return formatted.includes(term) || article.toLowerCase().includes(term);
     });
-  }, [data?.articles, filterTerm]);
+  }, [data?.articles, filterTerm, isAcademicDoc]);
 
   if (loading) {
     return (
@@ -103,7 +127,9 @@ export default function LawOverviewPage() {
 
   if (!data) return null;
 
-  const displayHeaderTitle = lawTitle || data.law_title;
+  const displayHeaderTitle = isAcademicDoc 
+    ? "PËRMBLEDHJE LËNDËSH TË PËRZGJEDHURA NGA PRAKTIKA GJYQËSORE (AKADEMIA E DREJTËSISË)" 
+    : (lawTitle || data.law_title);
 
   return (
     <motion.div 
@@ -112,10 +138,8 @@ export default function LawOverviewPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
     >
-      {/* STANDARDIZED EXECUTIVE MAX-W-7XL CONTAINER */}
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         
-        {/* Navigation Breadcrumb */}
         <button
           onClick={() => navigate(-1)}
           className="group mb-6 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
@@ -126,7 +150,6 @@ export default function LawOverviewPage() {
           <span>{t('general.back', 'Kthehu Mbrapa')}</span>
         </button>
 
-        {/* Mismatch Warning Alert */}
         {isTitleMismatch && (
           <div className="mb-6 p-5 bg-rose-500/10 border-2 border-rose-500/40 rounded-2xl flex items-start gap-4 shadow-md text-rose-600 dark:text-rose-400">
             <ShieldAlert size={28} className="shrink-0 mt-0.5 text-rose-500" />
@@ -141,22 +164,20 @@ export default function LawOverviewPage() {
           </div>
         )}
 
-        {/* Overview Container */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface">
           
-          {/* Executive Header */}
           <div className="bg-canvas px-6 sm:px-10 py-8 border-b border-main relative overflow-hidden">
             <div className="relative z-10 flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                        <Scale size={14} />
+                        {isAcademicDoc ? <GraduationCap size={14} /> : <Scale size={14} />}
                         <span className="text-[10px] font-black uppercase tracking-wider">
-                        {t('lawOverview.lawTitle', 'KODI LIGJOR')}
+                        {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË & UNODC' : t('lawOverview.lawTitle', 'KODI LIGJOR')}
                         </span>
                     </div>
                 </div>
                 
-                <h1 className="text-2xl sm:text-4xl font-black text-text-primary leading-tight tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-black text-text-primary leading-tight tracking-tight">
                   {displayHeaderTitle}
                 </h1>
                 
@@ -170,27 +191,25 @@ export default function LawOverviewPage() {
                     <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
                         <FileText size={15} className="text-primary-start" />
                         <span className="text-xs font-bold uppercase tracking-wider truncate">
-                        {data.article_count} {t('lawOverview.articles', 'Nene Gjithsej')}
+                        {data.article_count} {isAcademicDoc ? 'Pjesë / Lëndë të Trajtuara' : t('lawOverview.articles', 'Nene Gjithsej')}
                         </span>
                     </div>
                 </div>
             </div>
           </div>
 
-          {/* Table of Contents Grid & Filter Bar */}
           <div className="bg-canvas/40 px-6 sm:px-10 py-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                   <BookOpen size={16} className="text-primary-start" />
-                  {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
+                  {isAcademicDoc ? 'Pjesët dhe Lëndët e Praktikës Gjyqësore' : t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
               </h2>
 
-              {/* Real-time Filter Input */}
               <div className="relative w-full sm:w-64 h-10">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                 <input
                   type="text"
-                  placeholder="Filtro nenin..."
+                  placeholder={isAcademicDoc ? "Filtro pjesën / lëndën..." : "Filtro nenin..."}
                   value={filterTerm}
                   onChange={(e) => setFilterTerm(e.target.value)}
                   className="w-full h-10 pl-9 pr-3 bg-surface border border-main rounded-xl text-xs font-semibold text-text-primary placeholder:text-text-muted focus:border-primary-start focus:ring-1 focus:ring-primary-start focus:outline-none transition-all"
@@ -200,14 +219,12 @@ export default function LawOverviewPage() {
             
             {filteredArticles.length === 0 ? (
               <div className="text-center py-12 text-text-muted italic text-xs font-semibold">
-                Nuk u gjet asnjë nen për këtë kërkim.
+                Nuk u gjet asnjë nen apo pjesë për këtë kërkim.
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {filteredArticles.map((article) => {
-                  const cleanArt = article.replace(/\.$/, '').trim();
-                  const isPreamble = cleanArt === '0' || cleanArt.toLowerCase() === 'preambula' || cleanArt.toLowerCase() === 'hyrja';
-                  const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+                  const label = formatArticleLabel(article, isAcademicDoc);
                   const targetLawTitle = displayHeaderTitle;
 
                   return (
@@ -216,8 +233,8 @@ export default function LawOverviewPage() {
                       onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(targetLawTitle)}&articleNumber=${encodeURIComponent(article)}`)}
                       className="flex items-center justify-center gap-2 px-3.5 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover:shadow-sm hover-lift active:scale-95 cursor-pointer"
                     >
-                      <Hash size={12} className="text-primary-start/50 shrink-0" />
-                      <span>{label}</span>
+                      {isAcademicDoc ? <GraduationCap size={14} className="text-primary-start/70 shrink-0" /> : <Hash size={12} className="text-primary-start/50 shrink-0" />}
+                      <span className="truncate">{label}</span>
                     </button>
                   );
                 })}
@@ -225,7 +242,6 @@ export default function LawOverviewPage() {
             )}
           </div>
 
-          {/* Footer Actions */}
           <div className="bg-surface px-6 sm:px-10 py-5 flex justify-between items-center border-t border-main">
             <button
               onClick={() => navigate('/laws/search')}
