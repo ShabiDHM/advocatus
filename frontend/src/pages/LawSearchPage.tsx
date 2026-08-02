@@ -1,8 +1,7 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V5.0 (PORTAL DROPDOWN REFACTOR - ZERO CONTAINER CLIPPING)
+// PHOENIX PROTOCOL - LAW SEARCH V7.0 (TITLE ENRICHMENT ACTIVE - ZERO TS WARNINGS)
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2, Scale, Filter, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -25,6 +24,19 @@ interface ArticleGroup {
   chunkCount: number;
   chunkIds: string[];
 }
+
+const DEFAULT_LAW_TITLES = [
+  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+  "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
+  "KODI NR. 08/L-032 I PROCEDURËS PENALE",
+  "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+  "LIGJI NR. 03/L-212 I PUNËS",
+  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+  "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
+  "LIGJI NR. 03/L-006 PËR CONTESTIN PROCEDURAL",
+  "LIGJI NR. 04/L-139 PËR PROCEDURËN EKZEKUTIVE",
+  "LIGJI NR. 05/L-031 PËR PROCEDURËN ADMINISTRATIVE"
+];
 
 const KNOWN_JUNK_MAP: Record<string, string> = {
   'kodi lid': 'LIGJI NR. 06/L-082 – PËR MBROJTJEN E TË DHËNAVE PERSONALE'
@@ -78,113 +90,63 @@ export default function LawSearchPage() {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   
-  const [lawTitles, setLawTitles] = useState<string[]>([]);
-  const [loadingTitles, setLoadingTitles] = useState(true);
+  const [lawTitles, setLawTitles] = useState<string[]>(DEFAULT_LAW_TITLES);
+  const [loadingTitles, setLoadingTitles] = useState(false);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
-  const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
-
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const dropdownContainerRef = useRef<HTMLDivElement>(null);
-
-  // Calculate dropdown viewport position
-  const updateDropdownPosition = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPos({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  };
-
-  const toggleDropdown = () => {
-    if (!dropdownOpen) {
-      updateDropdownPosition();
-    }
-    setDropdownOpen(!dropdownOpen);
-  };
-
-  // Close dropdown on outside click or scroll
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        dropdownContainerRef.current && !dropdownContainerRef.current.contains(target) &&
-        buttonRef.current && !buttonRef.current.contains(target)
-      ) {
-        setDropdownOpen(false);
-      }
-    };
-
-    const handleScrollOrResize = () => {
-      if (dropdownOpen) {
-        updateDropdownPosition();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    window.addEventListener('resize', handleScrollOrResize);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      window.removeEventListener('resize', handleScrollOrResize);
-    };
-  }, [dropdownOpen]);
 
   useEffect(() => {
+    setLoadingTitles(true);
     apiService.getLawTitles()
       .then(async (titles) => {
-        const filteredTitles = titles.filter(title => normalizeForDisplay(title).length >= 2);
-        setLawTitles(filteredTitles);
-        
-        const initialEnriched = new Map<string, string>();
-        const remainingTitles: string[] = [];
-        
-        filteredTitles.forEach(title => {
-          const lower = title.toLowerCase().trim();
-          if (KNOWN_JUNK_MAP[lower]) {
-            initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
-          } else {
-            remainingTitles.push(title);
+        if (titles && titles.length > 0) {
+          const filteredTitles = titles.filter(title => normalizeForDisplay(title).length >= 2);
+          if (filteredTitles.length > 0) {
+            setLawTitles(filteredTitles);
           }
-        });
-        setEnrichedTitles(initialEnriched);
-        
-        const bareTitles = remainingTitles.filter(isBareLawNumber);
-        if (bareTitles.length === 0) return;
 
-        setEnrichingTitles(new Set(bareTitles));
-        
-        const enrichmentPromises = bareTitles.map(async (bareTitle) => {
-          try {
-            const lawData = await apiService.getLawArticlesByTitle(bareTitle);
-            if (lawData?.source) {
-              const descriptive = extractDescriptiveFromSource(lawData.source);
-              if (descriptive) return { bare: bareTitle, full: `${bareTitle} – ${descriptive}` };
+          const initialEnriched = new Map<string, string>();
+          const remainingTitles: string[] = [];
+          
+          filteredTitles.forEach(title => {
+            const lower = title.toLowerCase().trim();
+            if (KNOWN_JUNK_MAP[lower]) {
+              initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
+            } else {
+              remainingTitles.push(title);
             }
-            if (lawData?.law_title && lawData.law_title !== bareTitle) {
-              return { bare: bareTitle, full: lawData.law_title };
-            }
-            return { bare: bareTitle, full: bareTitle };
-          } catch (err) {
-            return { bare: bareTitle, full: bareTitle };
+          });
+          setEnrichedTitles(initialEnriched);
+          
+          const bareTitles = remainingTitles.filter(isBareLawNumber);
+          if (bareTitles.length > 0) {
+            const enrichmentPromises = bareTitles.map(async (bareTitle) => {
+              try {
+                const lawData = await apiService.getLawArticlesByTitle(bareTitle);
+                if (lawData?.source) {
+                  const descriptive = extractDescriptiveFromSource(lawData.source);
+                  if (descriptive) return { bare: bareTitle, full: `${bareTitle} – ${descriptive}` };
+                }
+                if (lawData?.law_title && lawData.law_title !== bareTitle) {
+                  return { bare: bareTitle, full: lawData.law_title };
+                }
+                return { bare: bareTitle, full: bareTitle };
+              } catch (err) {
+                return { bare: bareTitle, full: bareTitle };
+              }
+            });
+
+            const results = await Promise.all(enrichmentPromises);
+            const newMap = new Map(initialEnriched);
+            results.forEach(({ bare, full }) => newMap.set(bare, full));
+            setEnrichedTitles(newMap);
           }
-        });
-
-        const results = await Promise.all(enrichmentPromises);
-        const newMap = new Map(initialEnriched);
-        results.forEach(({ bare, full }) => newMap.set(bare, full));
-        setEnrichedTitles(newMap);
-        setEnrichingTitles(new Set());
+        }
       })
-      .catch(() => setLoadingTitles(false))
+      .catch((err) => {
+        console.warn("[LawSearchPage] Failed to fetch titles from API, using default Kosovo law titles:", err);
+      })
       .finally(() => setLoadingTitles(false));
   }, []);
 
@@ -244,8 +206,8 @@ export default function LawSearchPage() {
   };
 
   const handleLawSelect = (lawTitle: string) => {
+    if (!lawTitle) return;
     setSelectedLaw(lawTitle);
-    setDropdownOpen(false);
     window.location.href = `/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`;
   };
 
@@ -253,11 +215,13 @@ export default function LawSearchPage() {
     return enrichedTitles.has(original) ? enrichedTitles.get(original)! : original;
   };
 
+  const displayLawTitles = lawTitles.length > 0 ? lawTitles : DEFAULT_LAW_TITLES;
+
   return (
-    <motion.div className="w-full min-h-screen pb-16 bg-canvas" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-5xl mx-auto px-6 sm:px-8 pt-32">
         
-        {/* Navigation - Back Button Styled as Pill */}
+        {/* Navigation - Back Button */}
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface/30 border border-border-main text-text-secondary hover:text-text-primary transition-colors hover-lift shadow-sm mb-6 group w-fit cursor-pointer"
@@ -266,34 +230,44 @@ export default function LawSearchPage() {
           <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('general.back', 'Kthehu')}</span>
         </button>
 
-        {/* The Executive Search Console (Overflow Visible, Removed Isolation Barrier) */}
-        <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 relative z-10 overflow-visible">
+        {/* Search Console Container */}
+        <div className="glass-panel p-8 sm:p-10 mb-16 shadow-sm border border-border-main flex flex-col gap-6 bg-surface rounded-3xl">
             
-            {/* 1. Dropdown Filter Button */}
-            <div className="relative" ref={dropdownContainerRef}>
-                <button
-                  ref={buttonRef}
-                  type="button"
-                  onClick={toggleDropdown}
-                  className="w-full flex items-center justify-between px-6 py-5 rounded-xl border border-border-main bg-surface text-left transition-all hover:border-primary-start/50 group hover-lift shadow-sm cursor-pointer"
-                  disabled={loadingTitles || enrichingTitles.size > 0}
-                >
-                  <div className="flex items-center gap-3">
-                      <Filter size={16} className="text-primary-start" />
-                      <span className="text-sm font-bold text-text-primary">
-                          {selectedLaw ? normalizeForDisplay(selectedLaw) : t('lawSearch.selectLaw', 'Zgjidh një ligj')}
-                      </span>
-                  </div>
-                  {loadingTitles || enrichingTitles.size > 0 ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
-                  ) : (
-                      <ChevronDown size={18} className={`text-text-muted transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
-                  )}
-                </button>
+            {/* 1. BULLETPROOF NATIVE OS LAW SELECTOR */}
+            <div className="relative flex items-center">
+              <Filter size={18} className="absolute left-5 text-primary-start pointer-events-none z-10" />
+              
+              <select
+                value={selectedLaw}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleLawSelect(e.target.value);
+                  }
+                }}
+                disabled={loadingTitles}
+                className="w-full pl-13 pr-12 py-5 bg-canvas border border-border-main hover:border-primary-start/50 rounded-2xl shadow-sm text-sm font-bold text-text-primary focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 appearance-none cursor-pointer transition-all disabled:opacity-50"
+              >
+                <option value="" className="bg-surface text-text-primary font-bold py-2">
+                  Zgjidh një ligj (Të gjitha ligjet)
+                </option>
+                {displayLawTitles.map((title, idx) => (
+                  <option key={idx} value={title} className="bg-surface text-text-primary py-2 font-medium">
+                    {normalizeForDisplay(getDisplayTitle(title))}
+                  </option>
+                ))}
+              </select>
+
+              <div className="absolute right-5 flex items-center gap-2 pointer-events-none z-10">
+                {loadingTitles ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
+                ) : (
+                  <ChevronDown size={18} className="text-text-muted" />
+                )}
+              </div>
             </div>
 
             {/* 2. Primary Deep Search Input */}
-            <div className="relative group z-0">
+            <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                   <Search className={`h-5 w-5 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-text-muted group-focus-within:text-primary-start'}`} />
                 </div>
@@ -302,7 +276,7 @@ export default function LawSearchPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t('lawSearch.placeholder', 'Kërko nene, fjalë kyçe, koncepte juridike...')}
-                  className="w-full pl-14 pr-14 py-6 bg-surface border border-border-main rounded-xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
+                  className="w-full pl-14 pr-14 py-6 bg-canvas border border-border-main rounded-2xl shadow-sm text-base font-medium text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all"
                   autoFocus
                 />
                 {query && (
@@ -383,7 +357,6 @@ export default function LawSearchPage() {
                             {article.preview}
                         </p>
                         
-                        {/* Bottom Footer UI Elements */}
                         <div className="flex items-center justify-between gap-4 mt-4 pt-6 border-t border-border-main">
                             <div className="flex items-center gap-3 text-xs flex-wrap">
                                 <span className="px-3 py-1.5 bg-canvas border border-border-main rounded-lg text-text-muted font-bold">
@@ -422,43 +395,6 @@ export default function LawSearchPage() {
           <div className="h-32" />
         )}
       </div>
-
-      {/* PORTAL FLOATING DROPDOWN POPUP MENU (Z-[9999] DIRECT BODY PORTAL) */}
-      {dropdownOpen && dropdownPos && ReactDOM.createPortal(
-        <AnimatePresence>
-          <motion.div 
-              initial={{ opacity: 0, y: -6, scale: 0.98 }} 
-              animate={{ opacity: 1, y: 0, scale: 1 }} 
-              exit={{ opacity: 0, y: -6, scale: 0.98 }}
-              transition={{ duration: 0.12 }}
-              style={{
-                position: 'fixed',
-                top: `${dropdownPos.top}px`,
-                left: `${dropdownPos.left}px`,
-                width: `${dropdownPos.width}px`,
-              }}
-              className="z-[9999] bg-surface dark:bg-slate-900 border border-border-main rounded-2xl shadow-2xl max-h-72 overflow-y-auto custom-scrollbar py-2 backdrop-blur-xl"
-          >
-            {loadingTitles ? (
-                <div className="p-6 text-center text-text-muted font-bold text-xs uppercase tracking-widest">{t('general.loading', 'Duke ngarkuar...')}</div>
-            ) : (
-                lawTitles.map(title => (
-                <button
-                    key={title}
-                    type="button"
-                    onClick={() => handleLawSelect(title)}
-                    className="w-full text-left px-5 py-3 hover:bg-hover text-sm font-medium text-text-primary hover:text-primary-start transition-colors border-b border-border-main/50 last:border-0 flex items-center justify-between cursor-pointer"
-                >
-                    <span className="truncate pr-4">{normalizeForDisplay(getDisplayTitle(title))}</span>
-                    {enrichingTitles.has(title) && <Loader2 className="shrink-0 h-3 w-3 animate-spin text-primary-start" />}
-                </button>
-                ))
-            )}
-          </motion.div>
-        </AnimatePresence>,
-        document.body
-      )}
-
     </motion.div>
   );
 }
