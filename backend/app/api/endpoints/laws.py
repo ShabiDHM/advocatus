@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V49.0 (CASE-LEVEL STRUCTURED RETRIEVAL ENGINE)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V50.0 (INLINE STREAM CONTENT-DISPOSITION)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -219,12 +219,10 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> tuple[Li
     
     clean_art = str(raw_article_num).replace('Neni', '').replace('neni', '').replace('.', '').strip()
     
-    # If Academic Case Law Query e.g. "Lënda 1" or "Lënda Nr. 1"
     if is_academic:
         case_num_match = re.search(r'\d+', clean_art)
         if case_num_match:
             case_num = case_num_match.group(0)
-            # Find chunks mentioning "LËNDA NR. X" or "LËNDA X"
             case_regex = f"LËNDA\\s+(?:NR\\.\\s*)?{case_num}\\b"
             case_docs = list(db.legal_knowledge_base.find({
                 "$or": [
@@ -331,7 +329,13 @@ async def get_law_pdf(filename: str):
         logger.warning(f"B2 cloud search skipped: {e}")
 
     found = find_pdf_by_number_pair(clean_name)
-    if found: return FileResponse(found, media_type="application/pdf", filename=os.path.basename(found))
+    if found:
+        return FileResponse(
+            found, 
+            media_type="application/pdf", 
+            filename=os.path.basename(found),
+            headers={"Content-Disposition": f"inline; filename=\"{clean_name}\""}
+        )
     raise HTTPException(status_code=404, detail=f"Dokumenti PDF '{clean_name}' nuk u gjet.")
 
 @router.get("/titles")
@@ -378,10 +382,9 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         canonical_title = docs[0].get("law_title", mapped_title if mapped_title else law_title)
 
         if is_academy:
-            # Structure into clean Case Sections: Hyrje, Legjislacioni, Lënda 1 .. Lënda 25, Statistikat, Konkluzione
             sorted_articles = [
                 "Hyrje & Metodologjia",
-                "Legjislacioni Relevant for Armët e Zjarrir",
+                "Legjislacioni Relevant",
                 *[f"Lënda Nr. {i+1}" for i in range(25)],
                 "Të Dhëna Statistikore",
                 "Konkluzione"

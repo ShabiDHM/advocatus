@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V19.0 (UNIVERSAL MOBILE PDF ENGINE & ZERO 'OPEN' BUTTONS)
+// PHOENIX PROTOCOL - LAW OVERVIEW V20.0 (OBJECT + IFRAME HYBRID PDF STREAM - ZERO 'OPEN' BUTTONS)
 
 import { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -27,8 +27,6 @@ export default function LawOverviewPage() {
   const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
-
-  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -87,11 +85,6 @@ export default function LawOverviewPage() {
 
   const displayHeaderTitle = lawTitle || data.law_title;
   const pdfStreamUrl = `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source || `${lawTitle}.pdf`)}`;
-  
-  // Universal Mobile PDF Stream URL (Bypasses Android Chrome iframe 'Open' button restriction)
-  const pdfIframeSrc = isMobile 
-    ? `https://docs.google.com/gview?url=${encodeURIComponent(pdfStreamUrl)}&embedded=true` 
-    : pdfStreamUrl;
 
   // DIRECT EXPANDED B2 PDF STREAM FOR ACADEMY DOCUMENTS
   if (isAcademicDoc) {
@@ -124,7 +117,7 @@ export default function LawOverviewPage() {
                     </div>
                   </div>
 
-                  {/* Header Controls: Minimize (-) & Close (X) */}
+                  {/* Controls: Minimize (-) & Close (X) */}
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
@@ -146,13 +139,19 @@ export default function LawOverviewPage() {
                   </div>
                 </div>
 
-                {/* Instant PDF Stream Frame on Mobile & Desktop */}
+                {/* Instant PDF Object/Iframe Hybrid Stream (Zero 'Open' Buttons on Mobile & Desktop) */}
                 <div className="w-full h-[82vh] sm:h-[88vh] rounded-2xl overflow-hidden border border-main bg-slate-900 shadow-2xl relative">
-                  <iframe
-                    src={pdfIframeSrc}
-                    title={displayHeaderTitle}
+                  <object
+                    data={pdfStreamUrl}
+                    type="application/pdf"
                     className="w-full h-full border-none"
-                  />
+                  >
+                    <iframe
+                      src={pdfStreamUrl}
+                      title={displayHeaderTitle}
+                      className="w-full h-full border-none"
+                    />
+                  </object>
                 </div>
 
               </div>
