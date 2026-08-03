@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V54.0 (FULL GESTURE INTERACTIVITY & PRISTINE ARCHITECTURE)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V55.0 (SMOOTH MOUSE WHEEL ZOOM & PRISTINE GESTURES)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -159,6 +159,28 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     if (caseId) fetchGraphAndCaseDetails();
   }, [caseId]);
 
+  // NON-PASSIVE MOUSE WHEEL ZOOM LISTENER
+  useEffect(() => {
+    if (loading) return;
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
+      setViewBox((prev) => ({
+        x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
+        y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
+        width: Math.round(Math.max(600, Math.min(6000, prev.width * zoomFactor))),
+        height: Math.round(Math.max(350, Math.min(3500, prev.height * zoomFactor))),
+      }));
+    };
+
+    svgEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => svgEl.removeEventListener('wheel', handleWheel);
+  }, [loading]);
+
   useEffect(() => {
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entityMessages, isSending]);
@@ -260,20 +282,20 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const handleZoomIn = () => {
     const zoomFactor = 0.82;
     setViewBox((prev) => ({
-      x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-      y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-      width: prev.width * zoomFactor,
-      height: prev.height * zoomFactor,
+      x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
+      y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
+      width: Math.round(prev.width * zoomFactor),
+      height: Math.round(prev.height * zoomFactor),
     }));
   };
 
   const handleZoomOut = () => {
     const zoomFactor = 1.18;
     setViewBox((prev) => ({
-      x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-      y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-      width: prev.width * zoomFactor,
-      height: prev.height * zoomFactor,
+      x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
+      y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
+      width: Math.round(prev.width * zoomFactor),
+      height: Math.round(prev.height * zoomFactor),
     }));
   };
 
@@ -405,10 +427,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       if (newDist > 0 && touchDistRef.current > 0) {
         const zoomFactor = touchDistRef.current / newDist;
         setViewBox((prev) => ({
-          x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-          y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-          width: Math.max(800, Math.min(6000, prev.width * zoomFactor)),
-          height: Math.max(500, Math.min(4000, prev.height * zoomFactor)),
+          x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
+          y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
+          width: Math.round(Math.max(600, Math.min(6000, prev.width * zoomFactor))),
+          height: Math.round(Math.max(350, Math.min(4000, prev.height * zoomFactor))),
         }));
       }
       touchDistRef.current = newDist;
@@ -643,7 +665,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* DESKTOP SVG CANVAS WITH FULL MOUSE & TOUCH GESTURE LISTENERS */}
+        {/* DESKTOP SVG CANVAS WITH MOUSE WHEEL & GESTURE ZOOM LISTENERS */}
         {(!isMobile || mobileTab === 'graph') && (
           <div className="flex-1 h-full w-full relative">
             {loading ? (
