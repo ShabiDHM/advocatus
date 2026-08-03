@@ -1,8 +1,9 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V50.0 (TRILINGUAL DE / EN / AL LEGAL ENGINE & EXECUTIVE UI)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V54.0 (FULL GESTURE INTERACTIVITY & PRISTINE ARCHITECTURE)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
+import { translateToAlbanian, formatRelationText } from '../utils/albanianLegalTranslator';
 import {
   Search,
   RefreshCw,
@@ -13,7 +14,6 @@ import {
   Calendar,
   FileText,
   X,
-  Layers,
   LucideIcon,
   Download,
   ZoomIn,
@@ -83,162 +83,13 @@ interface EvidenceGraphTabProps {
   caseTitle?: string;
 }
 
-const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; glow: string; icon: LucideIcon }> = {
-  PERSON: { albanianLabel: 'Persona', bg: '#2563eb', border: '#60a5fa', glow: 'rgba(37, 99, 235, 0.4)', icon: User },
-  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', border: '#a78bfa', glow: 'rgba(124, 58, 237, 0.4)', icon: Building2 },
-  ACCOUNT: { albanianLabel: 'Llogari Bankare', bg: '#059669', border: '#34d399', glow: 'rgba(5, 150, 105, 0.4)', icon: CreditCard },
-  DOCUMENT: { albanianLabel: 'Dokumente & Provat', bg: '#4b5563', border: '#9ca3af', glow: 'rgba(75, 85, 99, 0.4)', icon: FileText },
-  LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', border: '#fbbf24', glow: 'rgba(217, 119, 6, 0.4)', icon: MapPin },
-  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', glow: 'rgba(220, 38, 38, 0.4)', icon: Calendar },
-};
-
-// EXHAUSTIVE TRILINGUAL (DE / EN / AL) RELATION DICTIONARY
-const RELATION_ALBANIAN_MAP: Record<string, string> = {
-  IMPLEMENTED_BY: 'ZBATUAR NGA',
-  IMPLEMENTED: 'ZBATUAR NGA',
-  CONTRACTED_BY: 'KONTRAKTUAR NGA',
-  CONTRACTED: 'KONTRAKTUAR ME',
-  CONTRACTED_WITH: 'KONTRAKTUAR ME',
-  REPRESENTED_BY: 'PËRFAQËSOHET NGA',
-  REPRESENTS: 'PËRFAQËSON',
-  ASSOCIATED_WITH: 'LIDHUR ME',
-  ASSOCIATED: 'LIDHUR ME',
-  TRANSFERRED_FUNDS: 'TRANSAKSION FINANCIAR',
-  TRANSFER_FUNDS: 'TRANSAKSION FINANCIAR',
-  PAID_TO: 'PAGESË NDAJ',
-  PAYMENT: 'PAGESË FINANCIARE',
-  EMPLOYED_BY: 'I PUNËSUAR NË',
-  WORKED_AT: 'I PUNËSUAR NË',
-  EMPLOYEE: 'I PUNËSUAR NË',
-  OWNED_BY: 'PRONËSI E',
-  OWNS: 'PRONËSI E',
-  OWNER: 'PRONAR NË',
-  PRESENT_AT: 'PRANISHËM NË',
-  LOCATED_AT: 'VENDNDODHJA',
-  LOCATED_IN: 'VENDNDODHJA',
-  CONTRADICTS: 'KUNDËRTHËNIE ME PROVËN',
-  KUNDËRTHËNIE: 'KUNDËRTHËNIE ME PROVËN',
-  KUNDËRTHËNJE: 'KUNDËRTHËNIE ME PROVËN',
-  OWES_MONEY: 'DETYRIM FINANCIAR',
-  SIGNED: 'NËNSHKRUAR NGA',
-  SIGNED_BY: 'NËNSHKRUAR NGA',
-  SIGNATORY: 'NËNSHKRUES',
-  MENTIONED_IN: 'PËRMENDUR NË SHKRESË',
-  HAS_ACCOUNT: 'LLOGARI BANKARE',
-  PARTY_TO: 'PALË NË KONTRAKT',
-  ISSUED_BY: 'LËSHUAR NGA',
-  FINANCED_BY: 'FINANCUAR NGA',
-  SUBMITTED_TO: 'DORËZUAR NË',
-  DECIDED_BY: 'VENDOSUR NGA',
-  AUDITED_BY: 'AUDITUAR NGA',
-};
-
-// TRILINGUAL DYNAMIC ALBANIAN TRANSLATOR ENGINE (GERMAN + ENGLISH -> SHQIP)
-const translateToAlbanian = (text?: string): string => {
-  if (!text) return '';
-  
-  let translated = text;
-
-  // GERMAN LEGAL PHRASES (DEUTSCH -> SHQIP)
-  translated = translated
-    .replace(/Dienstleistungsvertrag/gi, "Kontratë Shërbimi")
-    .replace(/Vertrag/gi, "Kontratë")
-    .replace(/Auftragnehmer/gi, "Kontraktuesi")
-    .replace(/Auftraggeber/gi, "Porositësi / Punëdhënësi")
-    .replace(/Durchführungspartner/gi, "Partner i Zbatimit")
-    .replace(/Partner in der Durchführung/gi, "Partner i Zbatimit në Terren")
-    .replace(/Berater/gi, "Konsulent")
-    .replace(/Rechnung/gi, "Faturë Financiale")
-    .replace(/Überweisung/gi, "Transaksion Pagese")
-    .replace(/Zahlung/gi, "Pagesë Financiale")
-    .replace(/wird erwähnt als/gi, "përmendet si")
-    .replace(/wird genannt als/gi, "përmendet si")
-    .replace(/wird erwähnt in/gi, "përmendet në")
-    .replace(/gemäß Artikel/gi, "sipas nenit")
-    .replace(/laut Artikel/gi, "sipas nenit")
-    .replace(/im Auftrag von/gi, "në emër të")
-    .replace(/Betrag von/gi, "në shumën prej")
-    .replace(/Anklageschrift/gi, "Aktakuzë Gjyqësore")
-    .replace(/Beklagter/gi, "I Padituri")
-    .replace(/Kläger/gi, "Paditësi")
-    .replace(/Zeuge/gi, "Dëshmitari")
-    .replace(/Gericht/gi, "Gjykata");
-
-  // ENGLISH LEGAL PHRASES (ENGLISH -> SHQIP)
-  translated = translated
-    .replace(/is mentioned as Consultant in the/gi, "përmendet si Konsulent në")
-    .replace(/is mentioned as Consultant in/gi, "përmendet si Konsulent në")
-    .replace(/is mentioned as/gi, "përmendet si")
-    .replace(/is mentioned in the/gi, "përmendet në")
-    .replace(/is mentioned in/gi, "përmendet në")
-    .replace(/mentioned as/gi, "përmendet si")
-    .replace(/mentioned in/gi, "përmendet në")
-    .replace(/The direct local partner in the country of the assignment is the/gi, "Partneri direkt lokal në vendin e angazhimit është")
-    .replace(/The direct local partner in the country of the assignment is/gi, "Partneri direkt lokal në vendin e angazhimit është")
-    .replace(/The direct local partner/gi, "Partneri direkt lokal")
-    .replace(/in the country of the assignment/gi, "në vendin e angazhimit")
-    .replace(/Freelance Contract/gi, "Kontratë Shërbimi (Freelance)")
-    .replace(/Service Contract/gi, "Kontratë Shërbimi")
-    .replace(/Employment Contract/gi, "Kontratë Pune")
-    .replace(/Indictment/gi, "Aktakuzë Gjyqësore")
-    .replace(/Court Hearing/gi, "Seancë Gjyqësore")
-    .replace(/First Hearing/gi, "Seanca e Parë Përgatitore")
-    .replace(/Main Hearing/gi, "Seanca Kryesore Shqyrtuese")
-    .replace(/Implemented by/gi, "Zbatuar nga")
-    .replace(/Contracted by/gi, "Kontraktuar nga")
-    .replace(/Signed by/gi, "Nënshkruar nga")
-    .replace(/Submitted to/gi, "Dorëzuar në")
-    .replace(/Issued by/gi, "Lëshuar nga")
-    .replace(/Financed by/gi, "Financuar nga")
-    .replace(/Bank Account/gi, "Llogari Bankare")
-    .replace(/Payment transfer/gi, "Transaksion pagese")
-    .replace(/According to article/gi, "Sipas nenit")
-    .replace(/pursuant to/gi, "në bazë të")
-    .replace(/in accordance with/gi, "në përputhje me")
-    .replace(/on behalf of/gi, "në emër të")
-    .replace(/in violation of/gi, "në shkelje të")
-    .replace(/in the amount of/gi, "në shumën prej")
-    .replace(/amount of/gi, "shumën prej")
-    .replace(/transfer of funds/gi, "transferimin e mjeteve financiare")
-    .replace(/paid to/gi, "paguar ndaj")
-    .replace(/contract signed between/gi, "kontratë e nënshkruar ndërmjet")
-    .replace(/for the project/gi, "për projektin")
-    .replace(/located in/gi, "me vendndodhje në")
-    .replace(/registered in/gi, "i regjistruar në")
-    .replace(/Defendant/gi, "I Padituri")
-    .replace(/Plaintiff/gi, "Paditësi")
-    .replace(/Witness/gi, "Dëshmitari");
-
-  return translated;
-};
-
-const formatRelationText = (rel: string): string => {
-  if (!rel) return 'LIDHJE LIGJORE';
-  
-  let clean = rel.toUpperCase().trim().replace(/ /g, '_');
-  
-  if (RELATION_ALBANIAN_MAP[clean]) {
-    return RELATION_ALBANIAN_MAP[clean];
-  }
-
-  clean = clean
-    .replace(/_BY$/g, ' NGA')
-    .replace(/_WITH$/g, ' ME')
-    .replace(/_TO$/g, ' NDAJ')
-    .replace(/_IN$/g, ' NË')
-    .replace(/_AT$/g, ' NË')
-    .replace(/_FOR$/g, ' PËR')
-    .replace(/IMPLEMENTED/g, 'ZBATUAR')
-    .replace(/CONTRACTED/g, 'KONTRAKTUAR')
-    .replace(/TRANSFERRED/g, 'TRANSAKSION')
-    .replace(/FUNDS/g, 'FINANCIAR')
-    .replace(/ASSOCIATED/g, 'LIDHUR')
-    .replace(/MENTIONED/g, 'PËRMENDUR')
-    .replace(/SIGNED/g, 'NËNSHKRUAR')
-    .replace(/BY$/g, 'NGA')
-    .replace(/_/g, ' ');
-
-  return clean;
+const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; icon: LucideIcon }> = {
+  PERSON: { albanianLabel: 'Persona', bg: '#2563eb', border: '#60a5fa', icon: User },
+  ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', border: '#a78bfa', icon: Building2 },
+  ACCOUNT: { albanianLabel: 'Llogari Bankare', bg: '#059669', border: '#34d399', icon: CreditCard },
+  DOCUMENT: { albanianLabel: 'Dokumente & Provat', bg: '#4b5563', border: '#9ca3af', icon: FileText },
+  LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', border: '#fbbf24', icon: MapPin },
+  EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', icon: Calendar },
 };
 
 export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
@@ -246,7 +97,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [clientPosition, setClientPosition] = useState<'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'>('DEFENDANT');
 
-  // Mobile Responsiveness State
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [mobileTab, setMobileTab] = useState<'entities' | 'timeline' | 'graph'>('entities');
 
@@ -257,12 +107,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
+  const [simplifiedView, setSimplifiedView] = useState<boolean>(false);
 
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
 
-  // In-Modal Entity Chat State
   const [entityChatOpen, setEntityChatOpen] = useState<boolean>(false);
   const [chatEntity, setChatEntity] = useState<OntologyNode | null>(null);
   const [entityMessages, setEntityMessages] = useState<ChatMsg[]>([]);
@@ -279,15 +128,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [viewBox, setViewBox] = useState({ x: -1400, y: -700, width: 2800, height: 1400 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
-
   const touchDistRef = useRef<number | null>(null);
 
-  // Screen Width Monitor for Mobile Detection
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -303,9 +147,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       setGraphData(gData);
       
       const pos = (cDetails as any)?.client_position || 'DEFENDANT';
-      if (pos === 'PLAINTIFF') setClientPosition('PLAINTIFF');
-      else if (pos === 'NEUTRAL') setClientPosition('NEUTRAL');
-      else setClientPosition('DEFENDANT');
+      setClientPosition(pos === 'PLAINTIFF' ? 'PLAINTIFF' : pos === 'NEUTRAL' ? 'NEUTRAL' : 'DEFENDANT');
     } catch (err) {
       console.error('Failed to load graph data:', err);
     } finally {
@@ -333,38 +175,19 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 18) {
+    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 12) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
         edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + 1);
         edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + 1);
       });
 
-      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 20);
+      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 12);
     }
 
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
 
-  const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
-    if (!selectedNode || !graphData?.edges) {
-      return { connectedNodeIds: new Set<string>(), connectedEdgeIds: new Set<string>() };
-    }
-    const nodeSet = new Set<string>([selectedNode.id]);
-    const edgeSet = new Set<string>();
-
-    graphData.edges.forEach((edge) => {
-      if (edge.source === selectedNode.id || edge.target === selectedNode.id) {
-        edgeSet.add(edge.id);
-        nodeSet.add(edge.source);
-        nodeSet.add(edge.target);
-      }
-    });
-
-    return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
-  }, [selectedNode, graphData?.edges]);
-
-  // Timeline Events Derived from Edges and Nodes
   const timelineItems = useMemo(() => {
     if (!graphData?.edges) return [];
 
@@ -372,7 +195,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       id: string;
       title: string;
       date?: string;
-      type: string;
       sourceLabel: string;
       targetLabel: string;
       evidence?: string;
@@ -393,7 +215,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         id: edge.id,
         title: formatRelationText(edge.relation),
         date: edge.date_iso || undefined,
-        type: edge.relation,
         sourceLabel: translateToAlbanian(src?.label) || 'Burimi',
         targetLabel: translateToAlbanian(tgt?.label) || 'Caku',
         evidence: translateToAlbanian(edge.evidence_text),
@@ -403,96 +224,38 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       });
     });
 
-    return items.sort((a, b) => {
-      if (a.date && b.date) return a.date.localeCompare(b.date);
-      if (a.isContradiction) return -1;
-      return 0;
-    });
+    return items.sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.isContradiction ? -1 : 0));
   }, [graphData?.edges, graphData?.nodes]);
 
-  // STRUCTURED 5-COLUMN LEGAL PIPELINE DISTRIBUTION
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
     
-    const colPersons: OntologyNode[] = [];
-    const colOrgs: OntologyNode[] = [];
-    const colAccountsLocs: OntologyNode[] = [];
-    const colDocs: OntologyNode[] = [];
-    const colEvents: OntologyNode[] = [];
-
-    filteredNodes.forEach((node) => {
-      if (node.type === 'PERSON') colPersons.push(node);
-      else if (node.type === 'ORGANIZATION') colOrgs.push(node);
-      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') colAccountsLocs.push(node);
-      else if (node.type === 'DOCUMENT') colDocs.push(node);
-      else colEvents.push(node);
-    });
-
-    const calculateColumn = (nodes: OntologyNode[], xPos: number, spacingY: number = 180) => {
-      const startY = -((nodes.length - 1) * spacingY) / 2;
-      nodes.forEach((node, idx) => {
-        initialPos[node.id] = {
-          x: xPos,
-          y: Math.round(startY + idx * spacingY)
-        };
-      });
+    const columns: Record<string, OntologyNode[]> = {
+      PERSON: [], ORGANIZATION: [], ACCOUNT: [], DOCUMENT: [], EVENT: []
     };
 
-    calculateColumn(colPersons, -1100, 180);
-    calculateColumn(colOrgs, -550, 180);
-    calculateColumn(colAccountsLocs, 0, 180);
-    calculateColumn(colDocs, 550, 180);
-    calculateColumn(colEvents, 1100, 180);
+    filteredNodes.forEach((node) => {
+      if (node.type === 'PERSON') columns.PERSON.push(node);
+      else if (node.type === 'ORGANIZATION') columns.ORGANIZATION.push(node);
+      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') columns.ACCOUNT.push(node);
+      else if (node.type === 'DOCUMENT') columns.DOCUMENT.push(node);
+      else columns.EVENT.push(node);
+    });
+
+    const layoutCol = (nodes: OntologyNode[], xPos: number) => {
+      const startY = -((nodes.length - 1) * 180) / 2;
+      nodes.forEach((n, idx) => { initialPos[n.id] = { x: xPos, y: Math.round(startY + idx * 180) }; });
+    };
+
+    layoutCol(columns.PERSON, -1100);
+    layoutCol(columns.ORGANIZATION, -550);
+    layoutCol(columns.ACCOUNT, 0);
+    layoutCol(columns.DOCUMENT, 550);
+    layoutCol(columns.EVENT, 1100);
 
     setPositions(initialPos);
   }, [filteredNodes]);
-
-  // Dynamic Camera ViewBox Auto-Fit
-  useEffect(() => {
-    const keys = Object.keys(positions);
-    if (keys.length === 0) return;
-
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    keys.forEach(id => {
-      const p = positions[id];
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
-    });
-
-    const calcWidth = Math.max(2200, (maxX - minX) + 700);
-    const calcHeight = Math.max(1400, (maxY - minY) + 500);
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    setViewBox({
-      x: Math.round(centerX - calcWidth / 2),
-      y: Math.round(centerY - calcHeight / 2),
-      width: Math.round(calcWidth),
-      height: Math.round(calcHeight)
-    });
-  }, [positions]);
-
-  useEffect(() => {
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
-      setViewBox((prev) => ({
-        x: prev.x + (prev.width * (1 - zoomFactor)) / 2,
-        y: prev.y + (prev.height * (1 - zoomFactor)) / 2,
-        width: prev.width * zoomFactor,
-        height: prev.height * zoomFactor,
-      }));
-    };
-
-    svgEl.addEventListener('wheel', handleWheel, { passive: false });
-    return () => svgEl.removeEventListener('wheel', handleWheel);
-  }, [loading]);
 
   const handleZoomIn = () => {
     const zoomFactor = 0.82;
@@ -547,16 +310,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const filteredEdges = useMemo(() => {
     if (!graphData?.edges) return [];
-    return graphData.edges.filter(
-      (edge) => filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)
-    );
+    return graphData.edges.filter((e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target));
   }, [graphData?.edges, filteredNodeIds]);
 
   const connectedEdgesForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return [];
-    return graphData.edges.filter(
-      (e) => e.source === selectedNode.id || e.target === selectedNode.id
-    );
+    return graphData.edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id);
   }, [selectedNode, graphData?.edges]);
 
   const nodeMap = useMemo(() => {
@@ -589,6 +348,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { x: transformed.x, y: transformed.y };
   };
 
+  // MOUSE & TOUCH INTERACTIVITY GESTURE LISTENERS
   const handleMouseDown = (e: React.MouseEvent) => {
     if (draggedNodeId) return;
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
@@ -616,10 +376,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     }
   };
 
@@ -632,8 +389,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     if (e.touches.length === 2) {
       const t1 = e.touches[0];
       const t2 = e.touches[1];
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      touchDistRef.current = dist;
+      touchDistRef.current = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
     } else if (e.touches.length === 1 && !draggedNodeId) {
       setIsPanning(true);
       setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
@@ -680,21 +436,16 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     const q = customPrompt || inputQuestion.trim();
     if (!q || isSending || !chatEntity) return;
 
-    const userMsg: ChatMsg = { id: Date.now().toString(), role: 'user', content: q };
-    const aiMsgPlaceholder: ChatMsg = { id: (Date.now() + 1).toString(), role: 'ai', content: '' };
-
-    setEntityMessages(prev => [...prev, userMsg, aiMsgPlaceholder]);
+    setEntityMessages(prev => [
+      ...prev,
+      { id: Date.now().toString(), role: 'user', content: q },
+      { id: (Date.now() + 1).toString(), role: 'ai', content: '' }
+    ]);
     if (!customPrompt) setInputQuestion('');
     setIsSending(true);
 
     try {
-      const mandateText = clientPosition === 'DEFENDANT' 
-        ? "POZICIONI E TUAJ: I PADITUR / MBROJTJE. Detyra jote është të rrëzosh kërkesëpadinë, të gjejshe gabime procedurale dhe të shfajësosh klientin tonë." 
-        : clientPosition === 'PLAINTIFF'
-        ? "POZICIONI E TUAJ: PADITËS / SULM. Detyra jote është të provosh përgjegjësinë e palës tjetër, të forcosh kërkesëpadinë dhe të sigurosh dëmshpërblimin."
-        : "POZICIONI E TUAJ: NEUTRAL / OBJEKTIV. Detyra jote është të vlerësosh rastin në mënyrë të paanshme, të peshosh barrën e provës dhe argumentet e të dyja palëve.";
-
-      const fullPrompt = `${mandateText}\n\nLidhja me Entitetin: "${chatEntity.label}" (${chatEntity.type}).\nPyetja e Avokatit: ${q}`;
+      const fullPrompt = `Lidhja me Entitetin: "${chatEntity.label}" (${chatEntity.type}).\nPyetja e Avokatit: ${q}`;
       const stream = apiService.sendChatMessageStream(caseId, fullPrompt, undefined, 'ks', 'FAST');
       
       let acc = '';
@@ -709,7 +460,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     } catch (err) {
       setEntityMessages(prev => {
         const copy = [...prev];
-        copy[copy.length - 1] = { ...copy[copy.length - 1], content: "[Gabim gjatë marrjes së përgjigjes në chat.]" };
+        copy[copy.length - 1] = { ...copy[copy.length - 1], content: "[Gabim gjatë marrjes së përgjigjes.]" };
         return copy;
       });
     } finally {
@@ -719,7 +470,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   const entitySuggestedCards = useMemo(() => {
     if (!chatEntity) return [];
-    
     if (clientPosition === 'DEFENDANT') {
       return [
         {
@@ -777,20 +527,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans select-none">
       
-      {/* ULTRA-CLEAN NON-TECH TOP TOOLBAR (NO UNNECESSARY ICONS/PILLS) */}
+      {/* TOOLBAR */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-4 py-2.5 bg-surface border-b border-main gap-3 z-10 shrink-0">
-        
-        {/* VIEW TOGGLE & SEARCH */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          
           <button
             onClick={() => setSimplifiedView(!simplifiedView)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all shadow-sm shrink-0 border ${
-              simplifiedView 
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-500/10' 
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase border transition-all ${
+              simplifiedView ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
-            title="Kalo ndërmjet Provave Kryesore dhe Pamjes së Plotë"
           >
             <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
             <span>{simplifiedView ? '⚡ Provat Kryesore' : '🌐 Pamja e Plotë'}</span>
@@ -807,7 +551,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
             />
           </div>
 
-          {/* SINGLE CLEAN DROPDOWN REPLACING 7 CLUTTERED PILLS */}
           <div className="hidden md:flex items-center gap-2 bg-canvas px-3 py-1 rounded-xl border border-main text-xs font-bold shrink-0">
             <Filter size={13} className="text-primary-start" />
             <select
@@ -819,10 +562,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
                 const count = graphData?.nodes?.filter((n) => n.type === type).length || 0;
                 if (count === 0) return null;
-                const conf = ENTITY_CONFIG[type];
                 return (
                   <option key={type} value={type} className="bg-surface text-text-primary">
-                    {conf.albanianLabel} ({count})
+                    {ENTITY_CONFIG[type].albanianLabel} ({count})
                   </option>
                 );
               })}
@@ -830,166 +572,70 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         </div>
 
-        {/* CLEAN ACTION BUTTONS */}
         <div className="flex items-center justify-end gap-2 shrink-0">
-          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all shadow-sm">
+          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50">
             <Download className="w-4 h-4 text-primary-start" /> <span>{exporting ? '...' : 'Eksporto'}</span>
           </button>
 
-          <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-black uppercase shadow-md transition-all">
+          <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-black uppercase shadow-md">
             <RefreshCw className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} /> <span>{rebuilding ? '...' : 'Rirregullo'}</span>
           </button>
         </div>
       </div>
 
-      {/* MOBILE SEGMENTED CONTROL TABS (< 768px) */}
+      {/* MOBILE TABS */}
       {isMobile && (
         <div className="flex items-center justify-around bg-surface border-b border-main p-1.5 gap-1 shrink-0">
-          <button
-            onClick={() => setMobileTab('entities')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
-              mobileTab === 'entities' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <LayoutGrid size={15} />
-            <span>👥 Entitetet ({filteredNodes.length})</span>
+          <button onClick={() => setMobileTab('entities')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${mobileTab === 'entities' ? 'bg-primary-start text-white shadow' : 'text-text-muted'}`}>
+            <LayoutGrid size={15} /> <span>👥 Entitetet ({filteredNodes.length})</span>
           </button>
-
-          <button
-            onClick={() => setMobileTab('timeline')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
-              mobileTab === 'timeline' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <Clock size={15} />
-            <span>🕒 Kronologjia ({timelineItems.length})</span>
+          <button onClick={() => setMobileTab('timeline')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${mobileTab === 'timeline' ? 'bg-primary-start text-white shadow' : 'text-text-muted'}`}>
+            <Clock size={15} /> <span>🕒 Kronologjia ({timelineItems.length})</span>
           </button>
-
-          <button
-            onClick={() => setMobileTab('graph')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
-              mobileTab === 'graph' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <Network size={15} />
-            <span>🗺️ Grafiku</span>
+          <button onClick={() => setMobileTab('graph')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${mobileTab === 'graph' ? 'bg-primary-start text-white shadow' : 'text-text-muted'}`}>
+            <Network size={15} /> <span>🗺️ Grafiku</span>
           </button>
         </div>
       )}
 
-      {/* MAIN CONTAINER (DESKTOP OR MOBILE RESPONSIVE SWITCHER) */}
+      {/* GRAPH CANVAS & MOBILE SWITCHER */}
       <div ref={containerRef} className="flex-1 flex relative overflow-hidden bg-canvas">
         
-        {/* MOBILE ENTITY HUB LIST VIEW */}
+        {/* MOBILE ENTITY HUB */}
         {isMobile && mobileTab === 'entities' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-finance-scroll">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase text-text-muted tracking-wider">
-                Lista e Entiteteve të Identifikuara
-              </span>
-              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2.5 py-1 rounded-full border border-primary-start/20 font-bold">
-                {filteredNodes.length} entitete gjithsej
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3">
-              {filteredNodes.map((node) => {
-                const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
-                const IconComp = conf.icon;
-                const edgeCount = graphData?.edges.filter(e => e.source === node.id || e.target === node.id).length || 0;
-
-                return (
-                  <div
-                    key={node.id}
-                    onClick={() => setSelectedNode(node)}
-                    className="p-4 bg-surface hover:bg-hover border border-main rounded-2xl cursor-pointer transition-all flex flex-col gap-2.5 shadow-md active:scale-[0.99]"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: conf.bg }}>
-                          <IconComp size={20} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-black text-text-primary leading-tight">{translateToAlbanian(node.label)}</h4>
-                          <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: conf.border }}>
-                            {conf.albanianLabel}
-                          </span>
-                        </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-finance-scroll">
+            {filteredNodes.map((node) => {
+              const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
+              const IconComp = conf.icon;
+              return (
+                <div key={node.id} onClick={() => setSelectedNode(node)} className="p-4 bg-surface border border-main rounded-2xl cursor-pointer flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: conf.bg }}>
+                        <IconComp size={20} />
                       </div>
-                      <span className="text-[11px] font-bold text-text-muted bg-canvas px-2.5 py-1 rounded-full border border-main">
-                        {edgeCount} lidhje
-                      </span>
+                      <div>
+                        <h4 className="text-sm font-black text-text-primary">{translateToAlbanian(node.label)}</h4>
+                        <span className="text-[10px] font-bold uppercase" style={{ color: conf.border }}>{conf.albanianLabel}</span>
+                      </div>
                     </div>
-
-                    {node.description && (
-                      <p className="text-xs text-text-secondary line-clamp-2 italic bg-canvas/60 p-2.5 rounded-xl border border-main/40">
-                        <LawCitationText text={translateToAlbanian(node.description)} />
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1 border-t border-main/40 text-[11px]">
-                      <span className="text-primary-start font-black uppercase flex items-center gap-1">
-                        <Sparkles size={12} /> Kliko për të hetuar me AI
-                      </span>
-                      <ChevronRight size={14} className="text-text-muted" />
-                    </div>
+                    <ChevronRight size={16} className="text-text-muted" />
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* MOBILE CHRONOLOGICAL TIMELINE VIEW */}
+        {/* MOBILE TIMELINE */}
         {isMobile && mobileTab === 'timeline' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-finance-scroll">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase text-text-muted tracking-wider">
-                Kronologjia e Ngjarjeve dhe Shkresave
-              </span>
-              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2.5 py-1 rounded-full border border-primary-start/20 font-bold">
-                {timelineItems.length} ngjarje
-              </span>
-            </div>
-
-            <div className="relative border-l-2 border-main/80 ml-4 space-y-6 pl-6 py-2">
+            <div className="relative border-l-2 border-main ml-4 space-y-4 pl-6">
               {timelineItems.map((item) => (
-                <div key={item.id} className="relative group">
-                  <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-2 bg-canvas ${
-                    item.isContradiction ? 'border-rose-500 bg-rose-500/20' : 'border-primary-start bg-primary-start/20'
-                  }`} />
-
-                  <div
-                    onClick={() => setSelectedEdge(item.rawEdge)}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      item.isContradiction
-                        ? 'bg-rose-500/10 border-rose-500/40'
-                        : 'bg-surface border-main hover:border-primary-start/60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className={`text-[11px] font-black uppercase ${item.isContradiction ? 'text-rose-400' : 'text-primary-start'}`}>
-                        {item.isContradiction && '⚠️ '}
-                        {item.title}
-                      </span>
-                      {item.amount && (
-                        <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                          €{item.amount.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-xs font-bold text-text-primary flex items-center gap-1.5 my-1">
-                      <span>{item.sourceLabel}</span>
-                      <Link2 size={12} className="text-primary-start" />
-                      <span>{item.targetLabel}</span>
-                    </div>
-
-                    {item.evidence && (
-                      <p className="text-xs text-text-secondary italic line-clamp-3 bg-canvas/80 p-2 rounded-xl border border-main/50 mt-2">
-                        &quot;<LawCitationText text={item.evidence} />&quot;
-                      </p>
-                    )}
+                <div key={item.id} onClick={() => setSelectedEdge(item.rawEdge)} className="p-3 bg-surface border border-main rounded-2xl cursor-pointer">
+                  <span className="text-xs font-black text-primary-start uppercase">{item.title}</span>
+                  <div className="text-xs font-bold text-text-primary my-1 flex items-center gap-1">
+                    <span>{item.sourceLabel}</span> <Link2 size={12} /> <span>{item.targetLabel}</span>
                   </div>
                 </div>
               ))}
@@ -997,27 +643,18 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* DESKTOP GRAPH CANVAS (OR MOBILE WHEN 'GRAPH' TAB ACTIVE) */}
+        {/* DESKTOP SVG CANVAS WITH FULL MOUSE & TOUCH GESTURE LISTENERS */}
         {(!isMobile || mobileTab === 'graph') && (
           <div className="flex-1 h-full w-full relative">
-
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted">
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full">
                 <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
                 <p className="text-xs font-semibold">Po ngarkohet Ontologjia e Provave...</p>
-              </div>
-            ) : filteredNodes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6 text-center">
-                <Layers className="w-12 h-12 opacity-40" />
-                <h3 className="text-sm font-bold text-text-primary">Nuk u gjetën entitete të nxjerra</h3>
-                <button onClick={handleRebuildGraph} className="mt-2 px-5 py-2 bg-primary-start text-white rounded-xl text-xs font-bold uppercase shadow-md">
-                  Gjenero Grafikun Tani
-                </button>
               </div>
             ) : (
               <svg
                 ref={svgRef}
-                className="w-full h-full cursor-grab active:cursor-grabbing select-none touch-none bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:28px_28px]"
+                className="w-full h-full cursor-grab active:cursor-grabbing select-none bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:28px_28px]"
                 viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -1026,262 +663,68 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
               >
-                <defs>
-                  <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-                    <polygon points="0 0, 10 4, 0 8" fill="#64748b" />
-                  </marker>
-                  <marker id="arrowhead-selected" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-                    <polygon points="0 0, 10 4, 0 8" fill="#3b82f6" />
-                  </marker>
-                  <marker id="arrowhead-contradiction" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-                    <polygon points="0 0, 10 4, 0 8" fill="#ef4444" />
-                  </marker>
-                </defs>
-
-                {/* 5-COLUMN LEGAL PIPELINE HEADERS (100% SHQIP) */}
-                <g className="lane-headers" pointerEvents="none">
-                  <g transform="translate(-1100, -780)">
-                    <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#2563eb" strokeWidth="2" />
-                    <text x="0" y="6" textAnchor="middle" fill="#60a5fa" fontSize="16" fontWeight="900" letterSpacing="1px">
-                      👤 PERSONA
-                    </text>
-                  </g>
-
-                  <g transform="translate(-550, -780)">
-                    <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#7c3aed" strokeWidth="2" />
-                    <text x="0" y="6" textAnchor="middle" fill="#a78bfa" fontSize="16" fontWeight="900" letterSpacing="1px">
-                      🏢 INSTITUCIONE
-                    </text>
-                  </g>
-
-                  <g transform="translate(0, -780)">
-                    <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#059669" strokeWidth="2" />
-                    <text x="0" y="6" textAnchor="middle" fill="#34d399" fontSize="16" fontWeight="900" letterSpacing="1px">
-                      💳 LLOGARI & LOKACIONE
-                    </text>
-                  </g>
-
-                  <g transform="translate(550, -780)">
-                    <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#4b5563" strokeWidth="2" />
-                    <text x="0" y="6" textAnchor="middle" fill="#e2e8f0" fontSize="16" fontWeight="900" letterSpacing="1px">
-                      📄 PROVAT & DOKUMENTET
-                    </text>
-                  </g>
-
-                  <g transform="translate(1100, -780)">
-                    <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#dc2626" strokeWidth="2" />
-                    <text x="0" y="6" textAnchor="middle" fill="#f87171" fontSize="16" fontWeight="900" letterSpacing="1px">
-                      ⚖️ ORGANET & SEANCAT
-                    </text>
-                  </g>
+                {/* SWIMLANE HEADERS */}
+                <g pointerEvents="none">
+                  {['👤 PERSONA', '🏢 INSTITUCIONE', '💳 LLOGARI & LOKACIONE', '📄 PROVAT & DOKUMENTET', '⚖️ ORGANET & SEANCAT'].map((title, i) => (
+                    <g key={i} transform={`translate(${-1100 + i * 550}, -780)`}>
+                      <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#2563eb" strokeWidth="2" />
+                      <text x="0" y="6" textAnchor="middle" fill="#60a5fa" fontSize="16" fontWeight="900">{title}</text>
+                    </g>
+                  ))}
                 </g>
 
-                {/* CURVED BEZIER EDGES / RELATIONSHIP LINES */}
+                {/* EDGES */}
                 <g className="edges">
                   {filteredEdges.map((edge) => {
-                    const sourcePos = positions[edge.source];
-                    const targetPos = positions[edge.target];
-                    if (!sourcePos || !targetPos) return null;
+                    const s = positions[edge.source];
+                    const t = positions[edge.target];
+                    if (!s || !t) return null;
 
                     const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
-                    const isSelected = selectedEdge?.id === edge.id;
-                    const isHovered = hoveredEdge?.id === edge.id;
-
-                    const isFocusedMode = Boolean(selectedNode);
-                    const isEdgeConnected = connectedEdgeIds.has(edge.id);
-                    const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.45);
-                    const isEdgeDisabled = isFocusedMode && !isEdgeConnected;
-
-                    const dx = targetPos.x - sourcePos.x;
-                    const dy = targetPos.y - sourcePos.y;
-                    const curveOffset = dx === 0 ? 120 : (dy > 0 ? 70 : -70);
-                    
-                    const controlX1 = sourcePos.x + dx * 0.4;
-                    const controlY1 = sourcePos.y + curveOffset;
-                    const controlX2 = sourcePos.x + dx * 0.6;
-                    const controlY2 = targetPos.y - curveOffset;
-
-                    const pathD = `M ${sourcePos.x},${sourcePos.y} C ${controlX1},${controlY1} ${controlX2},${controlY2} ${targetPos.x},${targetPos.y}`;
-                    
-                    const midX = (sourcePos.x + targetPos.x) / 2;
-                    const midY = (sourcePos.y + targetPos.y) / 2 + (curveOffset / 3);
-
-                    const albanianLabel = formatRelationText(edge.relation);
-                    const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                    const badgeWidth = Math.max(130, labelDisplayText.length * 11);
-
-                    const showBadgeText = isHovered || isSelected || isContradiction || isEdgeConnected;
+                    const pathD = `M ${s.x},${s.y} C ${s.x + (t.x - s.x) * 0.4},${s.y + 70} ${s.x + (t.x - s.x) * 0.6},${t.y - 70} ${t.x},${t.y}`;
+                    const midX = (s.x + t.x) / 2;
+                    const midY = (s.y + t.y) / 2 + 20;
 
                     return (
-                      <g
-                        key={edge.id}
-                        className={`group cursor-pointer transition-opacity duration-300 ${isEdgeDisabled ? 'pointer-events-none' : ''}`}
-                        onClick={() => {
-                          setSelectedEdge(edge);
-                          setSelectedNode(null);
-                        }}
-                        onMouseEnter={() => setHoveredEdge(edge)}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                        style={{ opacity: edgeOpacity }}
-                      >
-                        <path d={pathD} fill="none" stroke="transparent" strokeWidth="32" />
-
-                        <path
-                          d={pathD}
-                          fill="none"
-                          stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#475569'}
-                          strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2}
-                          strokeDasharray={isContradiction ? '8,8' : 'none'}
-                          markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected || isHovered ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
-                        />
-
-                        {showBadgeText && (
-                          <g transform={`translate(${midX}, ${midY})`}>
-                            <rect
-                              x={-badgeWidth / 2}
-                              y={-14}
-                              width={badgeWidth}
-                              height={28}
-                              fill={isContradiction ? '#450a0a' : isHovered || isSelected ? '#1e3a8a' : '#090d16'}
-                              stroke={isContradiction ? '#ef4444' : isHovered || isSelected ? '#60a5fa' : '#334155'}
-                              strokeWidth={isHovered || isSelected ? '2' : '1.5'}
-                              rx={14}
-                              className="shadow-xl transition-all"
-                            />
-                            <text
-                              x={0}
-                              y={4}
-                              textAnchor="middle"
-                              fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#ffffff' : '#cbd5e1'}
-                              fontSize="12"
-                              fontWeight="800"
-                              letterSpacing="0.5px"
-                              className="select-none uppercase font-sans pointer-events-none"
-                            >
-                              {labelDisplayText}
-                            </text>
-                          </g>
-                        )}
+                      <g key={edge.id} className="cursor-pointer" onClick={() => setSelectedEdge(edge)} onMouseEnter={() => setHoveredEdge(edge)} onMouseLeave={() => setHoveredEdge(null)}>
+                        <path d={pathD} fill="none" stroke={isContradiction ? '#ef4444' : '#475569'} strokeWidth={isContradiction ? 4 : 2} />
+                        <g transform={`translate(${midX}, ${midY})`}>
+                          <rect x="-65" y="-14" width="130" height="28" fill="#090d16" stroke="#334155" rx="14" />
+                          <text x="0" y="4" textAnchor="middle" fill="#cbd5e1" fontSize="12" fontWeight="800">{formatRelationText(edge.relation)}</text>
+                        </g>
                       </g>
                     );
                   })}
                 </g>
 
-                {/* HIGH-RESOLUTION EXECUTIVE GLASS CARDS */}
+                {/* NODES WITH DRAG INITIATION */}
                 <g className="nodes">
                   {filteredNodes.map((node) => {
                     const pos = positions[node.id] || { x: 0, y: 0 };
-                    const config = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
-                    const IconComponent = config.icon;
-                    const isSelected = selectedNode?.id === node.id;
-
-                    const isFocusedMode = Boolean(selectedNode);
-                    const isNodeConnected = connectedNodeIds.has(node.id);
-                    const nodeOpacity = isFocusedMode ? (isNodeConnected ? 1 : 0.05) : 1;
-                    const isNodeDisabled = isFocusedMode && !isNodeConnected;
-
-                    const cardWidth = 280;
-                    const cardHeight = 84;
-                    const displayLabel = translateToAlbanian(node.label);
+                    const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
+                    const IconComponent = conf.icon;
 
                     return (
                       <g
                         key={node.id}
                         transform={`translate(${pos.x}, ${pos.y})`}
-                        className={`cursor-grab active:cursor-grabbing group transition-opacity duration-300 ${isNodeDisabled ? 'pointer-events-none' : ''}`}
-                        style={{ opacity: nodeOpacity }}
+                        className="cursor-grab active:cursor-grabbing"
+                        onClick={() => setSelectedNode(node)}
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           setDraggedNodeId(node.id);
-                          setSelectedNode(node);
-                          setSelectedEdge(null);
                         }}
                       >
-                        {/* Active Halo Glow */}
-                        {isSelected && (
-                          <rect
-                            x={-cardWidth / 2 - 8}
-                            y={-cardHeight / 2 - 8}
-                            width={cardWidth + 16}
-                            height={cardHeight + 16}
-                            rx={22}
-                            fill="none"
-                            stroke={config.border}
-                            strokeWidth="4"
-                            className="animate-pulse"
-                          />
-                        )}
-
-                        {/* Card Background Rect */}
-                        <rect
-                          x={-cardWidth / 2}
-                          y={-cardHeight / 2}
-                          width={cardWidth}
-                          height={cardHeight}
-                          rx={18}
-                          fill="#0b0f19"
-                          stroke={isSelected ? '#ffffff' : '#1e293b'}
-                          strokeWidth={isSelected ? '3' : '2'}
-                          className="shadow-2xl transition-transform duration-100 group-hover:scale-105"
-                        />
-
-                        {/* Colored Type Side Indicator Strip */}
-                        <rect
-                          x={-cardWidth / 2}
-                          y={-cardHeight / 2}
-                          width="10"
-                          height={cardHeight}
-                          rx="5"
-                          fill={config.bg}
-                        />
-
-                        {/* Entity Icon Container */}
-                        <g transform={`translate(${-cardWidth / 2 + 36}, 0)`}>
-                          <circle r="20" fill={config.bg} />
-                          <foreignObject x={-11} y={-11} width={22} height={22} className="pointer-events-none">
-                            <div className="w-full h-full flex items-center justify-center text-white">
-                              <IconComponent className="w-4.5 h-4.5" />
-                            </div>
+                        <rect x="-140" y="-42" width="280" height="84" rx="18" fill="#0b0f19" stroke={selectedNode?.id === node.id ? '#ffffff' : '#1e293b'} strokeWidth="2" />
+                        <rect x="-140" y="-42" width="10" height="84" rx="5" fill={conf.bg} />
+                        <g transform="translate(-104, 0)">
+                          <circle r="20" fill={conf.bg} />
+                          <foreignObject x="-10" y="-10" width="20" height="20" className="pointer-events-none">
+                            <div className="w-full h-full flex items-center justify-center text-white"><IconComponent size={16} /></div>
                           </foreignObject>
                         </g>
-
-                        {/* Label Text */}
-                        <text
-                          x={-cardWidth / 2 + 68}
-                          y={-8}
-                          fill="#ffffff"
-                          fontSize="16"
-                          fontWeight="800"
-                          className="select-none tracking-tight pointer-events-none font-sans"
-                        >
-                          {displayLabel.length > 20 ? `${displayLabel.substring(0, 18)}..` : displayLabel}
-                        </text>
-
-                        {/* Category Badge Pill */}
-                        <g transform={`translate(${-cardWidth / 2 + 68}, 18)`}>
-                          <rect
-                            x="0"
-                            y="-11"
-                            width="140"
-                            height="20"
-                            rx="10"
-                            fill={config.bg}
-                            fillOpacity="0.25"
-                            stroke={config.border}
-                            strokeWidth="1"
-                          />
-                          <text
-                            x="70"
-                            y="3"
-                            textAnchor="middle"
-                            fill={config.border}
-                            fontSize="11"
-                            fontWeight="800"
-                            className="select-none uppercase tracking-wider font-sans"
-                          >
-                            {config.albanianLabel}
-                          </text>
-                        </g>
+                        <text x="-72" y="-8" fill="#ffffff" fontSize="16" fontWeight="800">{translateToAlbanian(node.label)}</text>
+                        <text x="-72" y="18" fill={conf.border} fontSize="11" fontWeight="800" className="uppercase">{conf.albanianLabel}</text>
                       </g>
                     );
                   })}
@@ -1289,88 +732,62 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               </svg>
             )}
 
-            {/* FLOATING ZOOM CONTROLS IN BOTTOM RIGHT CORNER */}
-            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface/90 backdrop-blur-md p-1.5 rounded-2xl border border-main shadow-2xl z-20">
-              <button type="button" onClick={handleZoomIn} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Zmadho"><ZoomIn size={16} /></button>
-              <button type="button" onClick={handleResetZoom} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Reset View"><Maximize2 size={15} /></button>
-              <button type="button" onClick={handleZoomOut} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Zvogëlo"><ZoomOut size={16} /></button>
+            {/* FLOATING ZOOM CONTROLS */}
+            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface/90 p-1.5 rounded-2xl border border-main shadow-2xl z-20">
+              <button type="button" onClick={handleZoomIn} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Zmadho"><ZoomIn size={16} /></button>
+              <button type="button" onClick={handleResetZoom} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Reset View"><Maximize2 size={15} /></button>
+              <button type="button" onClick={handleZoomOut} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Zvogëlo"><ZoomOut size={16} /></button>
             </div>
 
-            {/* EXPANDED & HIGH-READABILITY FLOATING HOVER EVIDENCE TOOLTIP CARD (100% SHQIP) */}
+            {/* HOVER TOOLTIP */}
             <AnimatePresence>
               {hoveredEdge && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.96, y: 5 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96, y: 5 }}
-                  transition={{ duration: 0.12 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   style={{
                     position: 'absolute',
                     left: Math.min(window.innerWidth - 460, tooltipPos.x + 20),
                     top: Math.max(20, tooltipPos.y - 40),
                     pointerEvents: 'none'
                   }}
-                  className="z-[200] w-[440px] p-5 bg-[#090d1a]/98 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-2xl space-y-3.5 font-sans"
+                  className="z-[200] w-[440px] p-5 bg-[#090d1a]/98 border border-slate-700 rounded-2xl shadow-2xl space-y-3 font-sans"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                      hoveredEdge.relation.includes('CONTRADICT') || hoveredEdge.relation.includes('KUNDËR')
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
-                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                    }`}>
-                      {hoveredEdge.relation.includes('CONTRADICT') || hoveredEdge.relation.includes('KUNDËR') ? '⚠️ ' : '⚖️ '}
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-blue-500/20 text-blue-300">
                       {formatRelationText(hoveredEdge.relation)}
                     </span>
-
                     {hoveredEdge.amount_eur && (
-                      <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                      <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
                         €{hoveredEdge.amount_eur.toLocaleString()}
                       </span>
                     )}
                   </div>
-
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-200 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <span className="truncate max-w-[170px] text-white font-black text-sm">
-                      {translateToAlbanian(nodeMap.get(hoveredEdge.source)?.label) || 'Burimi'}
-                    </span>
-                    <Link2 size={14} className="text-blue-400 shrink-0 mx-2" />
-                    <span className="truncate max-w-[170px] text-white font-black text-sm">
-                      {translateToAlbanian(nodeMap.get(hoveredEdge.target)?.label) || 'Caku'}
-                    </span>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-200 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                    <span>{translateToAlbanian(nodeMap.get(hoveredEdge.source)?.label) || 'Burimi'}</span>
+                    <Link2 size={14} className="text-blue-400" />
+                    <span>{translateToAlbanian(nodeMap.get(hoveredEdge.target)?.label) || 'Caku'}</span>
                   </div>
-
-                  {hoveredEdge.evidence_text ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Shkresa:</span>
-                        <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">
-                          <Languages size={10} /> 🇦🇱 Përkthyer në Shqip (DE/EN/AL)
-                        </span>
-                      </div>
-                      <div className="text-sm text-slate-100 leading-relaxed bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 line-clamp-8 font-medium">
-                        &quot;<LawCitationText text={translateToAlbanian(hoveredEdge.evidence_text)} />&quot;
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">Klikoni për të parë detajet e plotë në fashikull.</p>
+                  {hoveredEdge.evidence_text && (
+                    <p className="text-xs text-slate-200 italic leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
+                      &quot;<LawCitationText text={translateToAlbanian(hoveredEdge.evidence_text)} />&quot;
+                    </p>
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
-
           </div>
         )}
 
-        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL WITH SHQIP LOCALIZATION BADGE */}
+        {/* INSPECTOR PANEL */}
         {(selectedNode || selectedEdge) && (
-          <div className="w-full sm:w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll animate-in slide-in-from-right duration-200">
+          <div className="w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto font-sans">
             <div className="flex items-center justify-between border-b border-main pb-3">
               <span className="text-xs font-black text-primary-start uppercase tracking-widest flex items-center gap-2">
                 <FileCheck size={16} /> {selectedNode ? 'Doshja e Entitetit' : 'Detajet e Lidhjes'}
               </span>
-              <button onClick={() => { setSelectedNode(null); setSelectedEdge(null); }} className="p-1 text-text-muted hover:text-text-primary rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => { setSelectedNode(null); setSelectedEdge(null); }}><X className="w-5 h-5 text-text-muted" /></button>
             </div>
 
             {selectedNode && (
@@ -1458,11 +875,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenEntityChat(selectedNode)}
-                  className="w-full py-3 bg-primary-start hover:bg-opacity-95 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary-start/15 transition-all"
-                >
+                <button onClick={() => handleOpenEntityChat(selectedNode)} className="w-full py-3 bg-primary-start hover:bg-opacity-95 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg">
                   <MessageCircle size={16} /> Pyet AI për këtë entitet
                 </button>
               </div>
@@ -1484,7 +897,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-text-muted uppercase block">Dëshmia nga Dokumentet Origjinale</span>
                       <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">
-                        <Languages size={10} /> 🇦🇱 Përkthyer në Shqip (DE/EN/AL)
+                        <Languages size={10} /> 🇦🇱 Përkthyer në Shqip
                       </span>
                     </div>
                     <div className="italic text-text-primary font-medium text-xs leading-relaxed">
@@ -1498,7 +911,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
       </div>
 
-      {/* IN-MODAL ENTITY CHAT DRAWER (100% SHQIP) */}
+      {/* IN-MODAL AI CHAT DRAWER */}
       <AnimatePresence>
         {entityChatOpen && chatEntity && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-2 sm:p-4">
@@ -1517,14 +930,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {translateToAlbanian(chatEntity.label)}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-text-muted font-bold uppercase">{ENTITY_CONFIG[chatEntity.type].albanianLabel}</span>
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        clientPosition === 'DEFENDANT' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' :
-                        clientPosition === 'PLAINTIFF' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
-                        'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      }`}>
-                        {clientPosition === 'DEFENDANT' ? '🛡️ Mandati: I Paditur (Mbrojtje)' :
-                         clientPosition === 'PLAINTIFF' ? '⚔️ Mandati: Paditësi (Sulm)' :
-                         '⚖️ Mandati: Neutral / Objektiv'}
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                        {clientPosition === 'DEFENDANT' ? '🛡️ Mandati: I Paditur (Mbrojtje)' : clientPosition === 'PLAINTIFF' ? '⚔️ Mandati: Paditësi (Sulm)' : '⚖️ Mandati: Neutral'}
                       </span>
                     </div>
                   </div>
@@ -1535,20 +942,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               </div>
 
               <div className="flex-1 p-4 sm:p-5 overflow-y-auto custom-finance-scroll space-y-6">
-                
                 {entityMessages.length === 0 && (
                   <div className="text-center space-y-3 pt-2">
                     <h2 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">
                       AGJENTI I HETIMIT: {translateToAlbanian(chatEntity.label)}
                     </h2>
-                    <p className="text-xs text-text-secondary leading-relaxed font-medium max-w-md mx-auto">
-                      {clientPosition === 'DEFENDANT' 
-                        ? `Asistenti juaj mbrojtës për prapësimin e kërkesëpadisë dhe shfajësimin që lidhet me ${translateToAlbanian(chatEntity.label)}.` 
-                        : clientPosition === 'PLAINTIFF'
-                        ? `Asistenti juaj sulmues për vërtetimin e përgjegjësisë dhe forcat e padisë lidhur me ${translateToAlbanian(chatEntity.label)}.`
-                        : `Asistenti juaj neutral për vërtetimin objektiv të barrës së provës dhe paanshmërisë lidhur me ${translateToAlbanian(chatEntity.label)}.`}
-                    </p>
-                    
                     <div className="p-2.5 bg-surface/60 border border-main rounded-xl text-[11px] text-text-muted inline-flex items-center gap-2 text-left">
                       <Info size={14} className="text-primary-start shrink-0" />
                       <span>Përgjigjet e AI shërbejnë për referencë dhe verifikohen nga avokati.</span>
@@ -1561,20 +959,20 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           <div
                             key={idx}
                             onClick={() => handleSendEntityQuestion(card.query)}
-                            className="p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 rounded-2xl cursor-pointer transition-all hover-lift flex flex-col justify-between gap-3 group"
+                            className="p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 rounded-2xl cursor-pointer transition-all flex flex-col justify-between gap-3 group"
                           >
                             <div className="flex justify-between items-center">
                               <span className="text-[9px] font-black uppercase tracking-widest text-primary-start bg-primary-start/10 px-2 py-0.5 rounded border border-primary-start/20">
                                 {card.badge}
                               </span>
-                              <ChevronRight size={14} className="text-text-muted group-hover:text-primary-start transition-colors" />
+                              <ChevronRight size={14} className="text-text-muted group-hover:text-primary-start" />
                             </div>
                             <div>
                               <h4 className="text-xs font-black text-text-primary uppercase tracking-wide flex items-center gap-1.5 mb-1">
                                 <CardIcon size={14} className="text-primary-start" />
                                 {card.title}
                               </h4>
-                              <p className="text-[11px] text-text-secondary leading-snug line-clamp-2">{card.desc}</p>
+                              <p className="text-[11px] text-text-secondary line-clamp-2">{card.desc}</p>
                             </div>
                           </div>
                         );
