@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V48.0 (100% ALBANIAN DYNAMIC TRANSLATOR & EXECUTIVE UI)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V50.0 (TRILINGUAL DE / EN / AL LEGAL ENGINE & EXECUTIVE UI)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -37,7 +37,8 @@ import {
   Clock,
   LayoutGrid,
   Network,
-  Filter
+  Filter,
+  Languages
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from './LawCitationText';
@@ -91,7 +92,7 @@ const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; bor
   EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', glow: 'rgba(220, 38, 38, 0.4)', icon: Calendar },
 };
 
-// EXHAUSTIVE ALBANIAN LEGAL RELATION DICTIONARY FOR KOSOVO
+// EXHAUSTIVE TRILINGUAL (DE / EN / AL) RELATION DICTIONARY
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
   IMPLEMENTED_BY: 'ZBATUAR NGA',
   IMPLEMENTED: 'ZBATUAR NGA',
@@ -132,14 +133,46 @@ const RELATION_ALBANIAN_MAP: Record<string, string> = {
   AUDITED_BY: 'AUDITUAR NGA',
 };
 
-// DYNAMIC ALBANIAN TRANSLATOR FOR EXTRACTED AI TEXTS & LABELS
+// TRILINGUAL DYNAMIC ALBANIAN TRANSLATOR ENGINE (GERMAN + ENGLISH -> SHQIP)
 const translateToAlbanian = (text?: string): string => {
   if (!text) return '';
   
   let translated = text;
 
-  // Common AI extracted legal phrases translated directly to Shqip
+  // GERMAN LEGAL PHRASES (DEUTSCH -> SHQIP)
   translated = translated
+    .replace(/Dienstleistungsvertrag/gi, "Kontratë Shërbimi")
+    .replace(/Vertrag/gi, "Kontratë")
+    .replace(/Auftragnehmer/gi, "Kontraktuesi")
+    .replace(/Auftraggeber/gi, "Porositësi / Punëdhënësi")
+    .replace(/Durchführungspartner/gi, "Partner i Zbatimit")
+    .replace(/Partner in der Durchführung/gi, "Partner i Zbatimit në Terren")
+    .replace(/Berater/gi, "Konsulent")
+    .replace(/Rechnung/gi, "Faturë Financiale")
+    .replace(/Überweisung/gi, "Transaksion Pagese")
+    .replace(/Zahlung/gi, "Pagesë Financiale")
+    .replace(/wird erwähnt als/gi, "përmendet si")
+    .replace(/wird genannt als/gi, "përmendet si")
+    .replace(/wird erwähnt in/gi, "përmendet në")
+    .replace(/gemäß Artikel/gi, "sipas nenit")
+    .replace(/laut Artikel/gi, "sipas nenit")
+    .replace(/im Auftrag von/gi, "në emër të")
+    .replace(/Betrag von/gi, "në shumën prej")
+    .replace(/Anklageschrift/gi, "Aktakuzë Gjyqësore")
+    .replace(/Beklagter/gi, "I Padituri")
+    .replace(/Kläger/gi, "Paditësi")
+    .replace(/Zeuge/gi, "Dëshmitari")
+    .replace(/Gericht/gi, "Gjykata");
+
+  // ENGLISH LEGAL PHRASES (ENGLISH -> SHQIP)
+  translated = translated
+    .replace(/is mentioned as Consultant in the/gi, "përmendet si Konsulent në")
+    .replace(/is mentioned as Consultant in/gi, "përmendet si Konsulent në")
+    .replace(/is mentioned as/gi, "përmendet si")
+    .replace(/is mentioned in the/gi, "përmendet në")
+    .replace(/is mentioned in/gi, "përmendet në")
+    .replace(/mentioned as/gi, "përmendet si")
+    .replace(/mentioned in/gi, "përmendet në")
     .replace(/The direct local partner in the country of the assignment is the/gi, "Partneri direkt lokal në vendin e angazhimit është")
     .replace(/The direct local partner in the country of the assignment is/gi, "Partneri direkt lokal në vendin e angazhimit është")
     .replace(/The direct local partner/gi, "Partneri direkt lokal")
@@ -160,6 +193,18 @@ const translateToAlbanian = (text?: string): string => {
     .replace(/Bank Account/gi, "Llogari Bankare")
     .replace(/Payment transfer/gi, "Transaksion pagese")
     .replace(/According to article/gi, "Sipas nenit")
+    .replace(/pursuant to/gi, "në bazë të")
+    .replace(/in accordance with/gi, "në përputhje me")
+    .replace(/on behalf of/gi, "në emër të")
+    .replace(/in violation of/gi, "në shkelje të")
+    .replace(/in the amount of/gi, "në shumën prej")
+    .replace(/amount of/gi, "shumën prej")
+    .replace(/transfer of funds/gi, "transferimin e mjeteve financiare")
+    .replace(/paid to/gi, "paguar ndaj")
+    .replace(/contract signed between/gi, "kontratë e nënshkruar ndërmjet")
+    .replace(/for the project/gi, "për projektin")
+    .replace(/located in/gi, "me vendndodhje në")
+    .replace(/registered in/gi, "i regjistruar në")
     .replace(/Defendant/gi, "I Padituri")
     .replace(/Plaintiff/gi, "Paditësi")
     .replace(/Witness/gi, "Dëshmitari");
@@ -1296,7 +1341,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   {hoveredEdge.evidence_text ? (
                     <div className="space-y-1.5">
-                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Shkresa:</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Shkresa:</span>
+                        <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">
+                          <Languages size={10} /> 🇦🇱 Përkthyer në Shqip (DE/EN/AL)
+                        </span>
+                      </div>
                       <div className="text-sm text-slate-100 leading-relaxed bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 line-clamp-8 font-medium">
                         &quot;<LawCitationText text={translateToAlbanian(hoveredEdge.evidence_text)} />&quot;
                       </div>
@@ -1311,7 +1361,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL WITH SHQIP DUAL-LANGUAGE EXPLANATION */}
+        {/* EXECUTIVE INTELLIGENCE DOSSIER INSPECTOR PANEL WITH SHQIP LOCALIZATION BADGE */}
         {(selectedNode || selectedEdge) && (
           <div className="w-full sm:w-96 bg-surface border-l border-main p-5 flex flex-col gap-4 z-20 shadow-2xl shrink-0 overflow-y-auto custom-finance-scroll animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-main pb-3">
@@ -1430,9 +1480,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 <h4 className="font-black text-sm text-primary-start uppercase">{formatRelationText(selectedEdge.relation)}</h4>
 
                 {selectedEdge.evidence_text && (
-                  <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed space-y-1">
-                    <span className="text-[10px] font-bold text-text-muted uppercase block">Dëshmia nga Dokumentet Origjinale</span>
-                    <div className="italic text-text-primary">
+                  <div className="bg-surface p-3.5 rounded-xl border border-main text-xs text-text-secondary leading-relaxed space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-text-muted uppercase block">Dëshmia nga Dokumentet Origjinale</span>
+                      <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1">
+                        <Languages size={10} /> 🇦🇱 Përkthyer në Shqip (DE/EN/AL)
+                      </span>
+                    </div>
+                    <div className="italic text-text-primary font-medium text-xs leading-relaxed">
                       &quot;<LawCitationText text={translateToAlbanian(selectedEdge.evidence_text)} />&quot;
                     </div>
                   </div>
