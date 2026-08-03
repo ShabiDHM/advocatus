@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V55.0 (SMOOTH MOUSE WHEEL ZOOM & PRISTINE GESTURES)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V56.0 (THEME-AWARE DARK DROPDOWN & INSTINCTIVE TOGGLE DISTINCTION)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -173,7 +173,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
         y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
         width: Math.round(Math.max(600, Math.min(6000, prev.width * zoomFactor))),
-        height: Math.round(Math.max(350, Math.min(3500, prev.height * zoomFactor))),
+        height: Math.round(Math.max(350, Math.min(4000, prev.height * zoomFactor))),
       }));
     };
 
@@ -197,14 +197,15 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 12) {
+    // If "Provat Kryesore" is active, isolate top 6 core connected entities
+    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 6) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
         edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + 1);
         edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + 1);
       });
 
-      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 12);
+      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 6);
     }
 
     return base;
@@ -554,8 +555,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <button
             onClick={() => setSimplifiedView(!simplifiedView)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase border transition-all ${
-              simplifiedView ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase border transition-all shadow-sm ${
+              simplifiedView ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
           >
             <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
@@ -573,19 +574,22 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
             />
           </div>
 
-          <div className="hidden md:flex items-center gap-2 bg-canvas px-3 py-1 rounded-xl border border-main text-xs font-bold shrink-0">
+          {/* THEME-AWARE DARK DROPDOWN MENU */}
+          <div className="hidden md:flex items-center gap-2 bg-[#0d1322] px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs font-bold shrink-0 shadow-lg">
             <Filter size={13} className="text-primary-start" />
             <select
               value={activeFilter}
               onChange={(e) => setActiveFilter(e.target.value)}
-              className="bg-transparent text-text-primary focus:outline-none cursor-pointer uppercase font-bold text-xs"
+              className="bg-[#0d1322] text-white focus:outline-none cursor-pointer uppercase font-bold text-xs"
             >
-              <option value="ALL" className="bg-surface text-text-primary">Gjithë Entitetet ({graphData?.nodes?.length || 0})</option>
+              <option value="ALL" className="bg-[#0d1322] text-white">
+                Gjithë Entitetet ({filteredNodes.length})
+              </option>
               {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
                 const count = graphData?.nodes?.filter((n) => n.type === type).length || 0;
                 if (count === 0) return null;
                 return (
-                  <option key={type} value={type} className="bg-surface text-text-primary">
+                  <option key={type} value={type} className="bg-[#0d1322] text-white">
                     {ENTITY_CONFIG[type].albanianLabel} ({count})
                   </option>
                 );
