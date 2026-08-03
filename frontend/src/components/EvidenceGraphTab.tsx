@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V44.0 (TYPO FIX & READABILITY ENHANCED)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V45.0 (100% SHQIP KOSOVO MARKET & SIMPLIFIED EXECUTIVE UI)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -34,7 +34,6 @@ import {
   Swords,
   Sparkles,
   Link2,
-  Languages,
   Clock,
   LayoutGrid,
   Network
@@ -85,40 +84,61 @@ interface EvidenceGraphTabProps {
 const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; border: string; glow: string; icon: LucideIcon }> = {
   PERSON: { albanianLabel: 'Persona', bg: '#2563eb', border: '#60a5fa', glow: 'rgba(37, 99, 235, 0.4)', icon: User },
   ORGANIZATION: { albanianLabel: 'Institucione', bg: '#7c3aed', border: '#a78bfa', glow: 'rgba(124, 58, 237, 0.4)', icon: Building2 },
-  ACCOUNT: { albanianLabel: 'Llogari', bg: '#059669', border: '#34d399', glow: 'rgba(5, 150, 105, 0.4)', icon: CreditCard },
-  DOCUMENT: { albanianLabel: 'Dokumente', bg: '#4b5563', border: '#9ca3af', glow: 'rgba(75, 85, 99, 0.4)', icon: FileText },
+  ACCOUNT: { albanianLabel: 'Llogari Bankare', bg: '#059669', border: '#34d399', glow: 'rgba(5, 150, 105, 0.4)', icon: CreditCard },
+  DOCUMENT: { albanianLabel: 'Dokumente & Provat', bg: '#4b5563', border: '#9ca3af', glow: 'rgba(75, 85, 99, 0.4)', icon: FileText },
   LOCATION: { albanianLabel: 'Lokacione', bg: '#d97706', border: '#fbbf24', glow: 'rgba(217, 119, 6, 0.4)', icon: MapPin },
   EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', glow: 'rgba(220, 38, 38, 0.4)', icon: Calendar },
 };
 
+// 100% COMPREHENSIVE ALBANIAN LEGAL RELATION MAPPER FOR KOSOVO MARKET
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
   REPRESENTED_BY: 'PËRFAQËSOHET NGA',
   REPRESENTS: 'PËRFAQËSON',
   ASSOCIATED_WITH: 'LIDHUR ME',
-  TRANSFERRED_FUNDS: 'TRANSAKSION',
-  EMPLOYED_BY: 'PUNËSUAR NË',
+  TRANSFERRED_FUNDS: 'TRANSAKSION FINANCIAR',
+  TRANSFER_FUNDS: 'TRANSAKSION FINANCIAR',
+  PAID_TO: 'PAGESË NDAJ',
+  PAYMENT: 'PAGESË FINANCIARE',
+  EMPLOYED_BY: 'I PUNËSUAR NË',
+  WORKED_AT: 'I PUNËSUAR NË',
+  EMPLOYEE: 'I PUNËSUAR NË',
   OWNED_BY: 'PRONËSI E',
   OWNS: 'PRONËSI E',
+  OWNER: 'PRONAR NË',
   PRESENT_AT: 'PRANISHËM NË',
-  LOCATED_AT: 'LOKACIONI',
-  LOCATED_IN: 'LOKACIONI',
-  CONTRADICTS: 'KUNDËRTHËNIE',
-  KUNDËRTHËNIE: 'KUNDËRTHËNIE',
-  KUNDËRTHËNJE: 'KUNDËRTHËNIE',
-  OWES_MONEY: 'DETYRIM',
-  SIGNED: 'NËNSHKRUAR',
-  MENTIONED_IN: 'PËRMENDUR NË',
+  LOCATED_AT: 'VENDNDODHJA',
+  LOCATED_IN: 'VENDNDODHJA',
+  CONTRADICTS: 'KUNDËRTHËNIE ME PROVËN',
+  KUNDËRTHËNIE: 'KUNDËRTHËNIE ME PROVËN',
+  KUNDËRTHËNJE: 'KUNDËRTHËNIE ME PROVËN',
+  OWES_MONEY: 'DETYRIM FINANCIAR',
+  SIGNED: 'NËNSHKRUAR NGA',
+  SIGNATORY: 'NËNSHKRUES',
+  MENTIONED_IN: 'PËRMENDUR NË SHKRESË',
   HAS_ACCOUNT: 'LLOGARI BANKARE',
-  WORKED_AT: 'PUNËSUAR NË',
-  PARTY_TO: 'PALË NË',
+  PARTY_TO: 'PALË NË KONTRAKT',
   ISSUED_BY: 'LËSHUAR NGA',
-  FINANCED_BY: 'FINANCUAR NGA'
+  FINANCED_BY: 'FINANCUAR NGA',
+  SUBMITTED_TO: 'DORËZUAR NË',
+  CONTRACTED_WITH: 'KONTRAKTUAR ME',
+  DECIDED_BY: 'VENDOSUR NGA',
+  AUDITED_BY: 'AUDITUAR NGA'
 };
 
 const formatRelationText = (rel: string): string => {
-  if (!rel) return '';
+  if (!rel) return 'LIDHJE LIGJORE';
   const clean = rel.toUpperCase().trim().replace(/ /g, '_');
-  return RELATION_ALBANIAN_MAP[clean] || clean.replace(/_/g, ' ');
+  if (RELATION_ALBANIAN_MAP[clean]) {
+    return RELATION_ALBANIAN_MAP[clean];
+  }
+  // Fallback translation cleanup
+  return clean
+    .replace(/_/g, ' ')
+    .replace(/TRANSFERRED/g, 'TRANSAKSION')
+    .replace(/FUNDS/g, 'FINANCIAR')
+    .replace(/ASSOCIATED/g, 'LIDHUR')
+    .replace(/MENTIONED/g, 'PËRMENDUR')
+    .replace(/SIGNED/g, 'NËNSHKRUAR');
 };
 
 export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
@@ -128,7 +148,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
   // Mobile Responsiveness State
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [mobileTab, setMobileTab] = useState<'timeline' | 'entities' | 'graph'>('entities');
+  const [mobileTab, setMobileTab] = useState<'entities' | 'timeline' | 'graph'>('entities');
 
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
@@ -138,7 +158,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
-  const [translateShqip, setTranslateShqip] = useState<boolean>(true);
 
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [exporting, setExporting] = useState<boolean>(false);
@@ -658,51 +677,41 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans select-none">
       
-      {/* CONTROL & FILTER TOOLBAR */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-3 py-2 bg-surface border-b border-main gap-2 z-10 shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+      {/* STREAMLINED NON-TECH FRIENDLY TOP TOOLBAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-4 py-2.5 bg-surface border-b border-main gap-3 z-10 shrink-0">
+        
+        {/* VIEW MODE TOGGLE & SEARCH */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
           
           <button
             onClick={() => setSimplifiedView(!simplifiedView)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm shrink-0 ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all shadow-sm shrink-0 border ${
               simplifiedView 
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-amber-500/10' 
-                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-500/10' 
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
-            title="Shtyp për të ndërruar ndërmjet pamjes së thjeshtuar me provat kryesore dhe pamjes së plotë"
+            title="Shtyp për të kaluar te provat kryesore ose pamja e plotë"
           >
-            <Sparkles size={13} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
+            <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
             <span>{simplifiedView ? '⚡ Provat Kryesore' : '🌐 Pamja e Plotë'}</span>
           </button>
 
-          <button
-            onClick={() => setTranslateShqip(!translateShqip)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition-all shadow-sm shrink-0 ${
-              translateShqip 
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-blue-500/10' 
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}
-            title="Aktivizo ose çaktivizo shpjegimin shqip për shkresat në Anglisht/Gjermanisht"
-          >
-            <Languages size={13} className="text-blue-400" />
-            <span className="hidden sm:inline">{translateShqip ? '🇦🇱 Shpjegimi Shqip' : '🔤 Original Quote'}</span>
-          </button>
-
-          <div className="relative w-36 sm:w-48 shrink-0">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
+          <div className="relative w-44 sm:w-60 shrink-0">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-text-muted" />
             <input
               type="text"
-              placeholder="Kërko entitetin..."
+              placeholder="Kërko person, dokument, llogari..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-2 py-1 text-[11px] text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+              className="w-full bg-canvas border border-main rounded-xl pl-9 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
             />
           </div>
 
-          <div className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar">
+          {/* CATEGORY FILTER PILLS */}
+          <div className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveFilter('ALL')}
-              className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all whitespace-nowrap ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase transition-all whitespace-nowrap ${
                 activeFilter === 'ALL' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
               }`}
             >
@@ -717,7 +726,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 <button
                   key={type}
                   onClick={() => setActiveFilter(type)}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase transition-all whitespace-nowrap ${
                     activeFilter === type
                       ? 'bg-surface text-text-primary border border-main shadow-sm'
                       : 'text-text-muted hover:text-text-primary'
@@ -732,19 +741,20 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0">
-          <div className="flex items-center gap-0.5 bg-canvas p-0.5 rounded-lg border border-main">
-            <button type="button" onClick={handleZoomIn} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zmadho"><ZoomIn size={14} /></button>
-            <button type="button" onClick={handleResetZoom} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Reset"><Maximize2 size={13} /></button>
-            <button type="button" onClick={handleZoomOut} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zvogëlo"><ZoomOut size={14} /></button>
+        {/* ACTION BUTTONS (EXPORT & REBUILD) */}
+        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-0.5 bg-canvas p-0.5 rounded-xl border border-main">
+            <button type="button" onClick={handleZoomIn} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zmadho"><ZoomIn size={15} /></button>
+            <button type="button" onClick={handleResetZoom} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Reset"><Maximize2 size={14} /></button>
+            <button type="button" onClick={handleZoomOut} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zvogëlo"><ZoomOut size={15} /></button>
           </div>
 
-          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1 px-2.5 py-1 bg-surface hover:bg-hover border border-main text-text-primary rounded-lg text-[10px] font-bold uppercase disabled:opacity-50">
-            <Download className="w-3.5 h-3.5 text-primary-start" /> <span className="hidden sm:inline">{exporting ? '...' : 'Eksporto'}</span>
+          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all">
+            <Download className="w-4 h-4 text-primary-start" /> <span>{exporting ? 'Po eksportohet...' : 'Eksporto'}</span>
           </button>
 
-          <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1 px-3 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-[10px] font-bold uppercase shadow-sm">
-            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Rirregullo</span>
+          <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-black uppercase shadow-md transition-all">
+            <RefreshCw className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} /> <span>{rebuilding ? '...' : 'Rirregullo'}</span>
           </button>
         </div>
       </div>
@@ -754,31 +764,31 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         <div className="flex items-center justify-around bg-surface border-b border-main p-1.5 gap-1 shrink-0">
           <button
             onClick={() => setMobileTab('entities')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
               mobileTab === 'entities' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <LayoutGrid size={14} />
+            <LayoutGrid size={15} />
             <span>👥 Entitetet ({filteredNodes.length})</span>
           </button>
 
           <button
             onClick={() => setMobileTab('timeline')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
               mobileTab === 'timeline' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Clock size={14} />
+            <Clock size={15} />
             <span>🕒 Kronologjia ({timelineItems.length})</span>
           </button>
 
           <button
             onClick={() => setMobileTab('graph')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
               mobileTab === 'graph' ? 'bg-primary-start text-white shadow' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Network size={14} />
+            <Network size={15} />
             <span>🗺️ Grafiku</span>
           </button>
         </div>
@@ -794,8 +804,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               <span className="text-xs font-black uppercase text-text-muted tracking-wider">
                 Lista e Entiteteve të Identifikuara
               </span>
-              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2 py-0.5 rounded border border-primary-start/20">
-                {filteredNodes.length} entitete
+              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2.5 py-1 rounded-full border border-primary-start/20 font-bold">
+                {filteredNodes.length} entitete gjithsej
               </span>
             </div>
 
@@ -829,14 +839,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     </div>
 
                     {node.description && (
-                      <p className="text-xs text-text-secondary line-clamp-2 italic bg-canvas/60 p-2 rounded-xl border border-main/40">
+                      <p className="text-xs text-text-secondary line-clamp-2 italic bg-canvas/60 p-2.5 rounded-xl border border-main/40">
                         <LawCitationText text={node.description} />
                       </p>
                     )}
 
                     <div className="flex items-center justify-between pt-1 border-t border-main/40 text-[11px]">
                       <span className="text-primary-start font-black uppercase flex items-center gap-1">
-                        <Sparkles size={12} /> Kliko për detajet & AI Chat
+                        <Sparkles size={12} /> Kliko për të hetuar me AI
                       </span>
                       <ChevronRight size={14} className="text-text-muted" />
                     </div>
@@ -854,7 +864,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               <span className="text-xs font-black uppercase text-text-muted tracking-wider">
                 Kronologjia e Ngjarjeve dhe Shkresave
               </span>
-              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2 py-0.5 rounded border border-primary-start/20">
+              <span className="text-[10px] font-mono text-primary-start bg-primary-start/10 px-2.5 py-1 rounded-full border border-primary-start/20 font-bold">
                 {timelineItems.length} ngjarje
               </span>
             </div>
@@ -945,7 +955,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   </marker>
                 </defs>
 
-                {/* 5-COLUMN LEGAL PIPELINE HEADERS */}
+                {/* 5-COLUMN LEGAL PIPELINE HEADERS (100% SHQIP) */}
                 <g className="lane-headers" pointerEvents="none">
                   <g transform="translate(-1100, -780)">
                     <rect x="-140" y="-26" width="280" height="52" rx="26" fill="#0f172a" stroke="#2563eb" strokeWidth="2" />
@@ -1015,7 +1025,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                     const albanianLabel = formatRelationText(edge.relation);
                     const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
-                    const badgeWidth = Math.max(120, labelDisplayText.length * 11);
+                    const badgeWidth = Math.max(130, labelDisplayText.length * 11);
 
                     return (
                       <g
@@ -1060,7 +1070,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                             fontSize="12"
                             fontWeight="800"
                             letterSpacing="0.5px"
-                            className="select-none uppercase font-mono pointer-events-none"
+                            className="select-none uppercase font-sans pointer-events-none"
                           >
                             {labelDisplayText}
                           </text>
@@ -1164,7 +1174,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           <rect
                             x="0"
                             y="-11"
-                            width="120"
+                            width="130"
                             height="20"
                             rx="10"
                             fill={config.bg}
@@ -1173,7 +1183,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                             strokeWidth="1"
                           />
                           <text
-                            x="60"
+                            x="65"
                             y="3"
                             textAnchor="middle"
                             fill={config.border}
@@ -1191,7 +1201,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               </svg>
             )}
 
-            {/* EXPANDED & HIGH-READABILITY FLOATING HOVER EVIDENCE TOOLTIP CARD */}
+            {/* EXPANDED & HIGH-READABILITY FLOATING HOVER EVIDENCE TOOLTIP CARD (100% SHQIP) */}
             <AnimatePresence>
               {hoveredEdge && (
                 <motion.div
@@ -1236,7 +1246,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   {hoveredEdge.evidence_text ? (
                     <div className="space-y-1.5">
-                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Dokumenti:</span>
+                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Shkresa:</span>
                       <div className="text-sm text-slate-100 leading-relaxed bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 line-clamp-8 font-medium">
                         &quot;<LawCitationText text={hoveredEdge.evidence_text} />&quot;
                       </div>
@@ -1299,10 +1309,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                 {selectedNode.description && (
                   <div className="bg-canvas p-4 rounded-2xl border border-main space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
-                      <span className="text-[9px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">🇦🇱 Shfaqur në Shqip</span>
-                    </div>
+                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
                     <div className="text-xs text-text-secondary leading-relaxed font-medium">
                       <LawCitationText text={selectedNode.description} />
                     </div>
@@ -1386,7 +1393,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
       </div>
 
-      {/* IN-MODAL ENTITY CHAT DRAWER */}
+      {/* IN-MODAL ENTITY CHAT DRAWER (100% SHQIP) */}
       <AnimatePresence>
         {entityChatOpen && chatEntity && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-end p-2 sm:p-4">
