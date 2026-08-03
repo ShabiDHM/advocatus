@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V46.0 (ULTRA-CLEAN KOSOVO EXECUTIVE UI & 100% ALBANIAN)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V48.0 (100% ALBANIAN DYNAMIC TRANSLATOR & EXECUTIVE UI)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -132,18 +132,50 @@ const RELATION_ALBANIAN_MAP: Record<string, string> = {
   AUDITED_BY: 'AUDITUAR NGA',
 };
 
+// DYNAMIC ALBANIAN TRANSLATOR FOR EXTRACTED AI TEXTS & LABELS
+const translateToAlbanian = (text?: string): string => {
+  if (!text) return '';
+  
+  let translated = text;
+
+  // Common AI extracted legal phrases translated directly to Shqip
+  translated = translated
+    .replace(/The direct local partner in the country of the assignment is the/gi, "Partneri direkt lokal në vendin e angazhimit është")
+    .replace(/The direct local partner in the country of the assignment is/gi, "Partneri direkt lokal në vendin e angazhimit është")
+    .replace(/The direct local partner/gi, "Partneri direkt lokal")
+    .replace(/in the country of the assignment/gi, "në vendin e angazhimit")
+    .replace(/Freelance Contract/gi, "Kontratë Shërbimi (Freelance)")
+    .replace(/Service Contract/gi, "Kontratë Shërbimi")
+    .replace(/Employment Contract/gi, "Kontratë Pune")
+    .replace(/Indictment/gi, "Aktakuzë Gjyqësore")
+    .replace(/Court Hearing/gi, "Seancë Gjyqësore")
+    .replace(/First Hearing/gi, "Seanca e Parë Përgatitore")
+    .replace(/Main Hearing/gi, "Seanca Kryesore Shqyrtuese")
+    .replace(/Implemented by/gi, "Zbatuar nga")
+    .replace(/Contracted by/gi, "Kontraktuar nga")
+    .replace(/Signed by/gi, "Nënshkruar nga")
+    .replace(/Submitted to/gi, "Dorëzuar në")
+    .replace(/Issued by/gi, "Lëshuar nga")
+    .replace(/Financed by/gi, "Financuar nga")
+    .replace(/Bank Account/gi, "Llogari Bankare")
+    .replace(/Payment transfer/gi, "Transaksion pagese")
+    .replace(/According to article/gi, "Sipas nenit")
+    .replace(/Defendant/gi, "I Padituri")
+    .replace(/Plaintiff/gi, "Paditësi")
+    .replace(/Witness/gi, "Dëshmitari");
+
+  return translated;
+};
+
 const formatRelationText = (rel: string): string => {
   if (!rel) return 'LIDHJE LIGJORE';
   
-  // Clean raw string
   let clean = rel.toUpperCase().trim().replace(/ /g, '_');
   
-  // Exact dictionary match check
   if (RELATION_ALBANIAN_MAP[clean]) {
     return RELATION_ALBANIAN_MAP[clean];
   }
 
-  // Regex fallback scrubber for English leaks (e.g. "NËNSHKRUAR BY", "CONTRACTED BY")
   clean = clean
     .replace(/_BY$/g, ' NGA')
     .replace(/_WITH$/g, ' ME')
@@ -317,9 +349,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         title: formatRelationText(edge.relation),
         date: edge.date_iso || undefined,
         type: edge.relation,
-        sourceLabel: src?.label || 'Burimi',
-        targetLabel: tgt?.label || 'Caku',
-        evidence: edge.evidence_text,
+        sourceLabel: translateToAlbanian(src?.label) || 'Burimi',
+        targetLabel: translateToAlbanian(tgt?.label) || 'Caku',
+        evidence: translateToAlbanian(edge.evidence_text),
         amount: edge.amount_eur,
         isContradiction,
         rawEdge: edge
@@ -833,7 +865,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           <IconComp size={20} />
                         </div>
                         <div>
-                          <h4 className="text-sm font-black text-text-primary leading-tight">{node.label}</h4>
+                          <h4 className="text-sm font-black text-text-primary leading-tight">{translateToAlbanian(node.label)}</h4>
                           <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: conf.border }}>
                             {conf.albanianLabel}
                           </span>
@@ -846,7 +878,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                     {node.description && (
                       <p className="text-xs text-text-secondary line-clamp-2 italic bg-canvas/60 p-2.5 rounded-xl border border-main/40">
-                        <LawCitationText text={node.description} />
+                        <LawCitationText text={translateToAlbanian(node.description)} />
                       </p>
                     )}
 
@@ -1033,7 +1065,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
                     const badgeWidth = Math.max(130, labelDisplayText.length * 11);
 
-                    // SHOW TEXT BADGE ONLY ON HOVER, SELECTION, OR CONTRADICTIONS TO PREVENT OVERLAP NOISE
                     const showBadgeText = isHovered || isSelected || isContradiction || isEdgeConnected;
 
                     return (
@@ -1106,6 +1137,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                     const cardWidth = 280;
                     const cardHeight = 84;
+                    const displayLabel = translateToAlbanian(node.label);
 
                     return (
                       <g
@@ -1177,7 +1209,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           fontWeight="800"
                           className="select-none tracking-tight pointer-events-none font-sans"
                         >
-                          {node.label.length > 20 ? `${node.label.substring(0, 18)}..` : node.label}
+                          {displayLabel.length > 20 ? `${displayLabel.substring(0, 18)}..` : displayLabel}
                         </text>
 
                         {/* Category Badge Pill */}
@@ -1254,11 +1286,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                   <div className="flex items-center justify-between text-xs font-bold text-slate-200 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                     <span className="truncate max-w-[170px] text-white font-black text-sm">
-                      {nodeMap.get(hoveredEdge.source)?.label || 'Burimi'}
+                      {translateToAlbanian(nodeMap.get(hoveredEdge.source)?.label) || 'Burimi'}
                     </span>
                     <Link2 size={14} className="text-blue-400 shrink-0 mx-2" />
                     <span className="truncate max-w-[170px] text-white font-black text-sm">
-                      {nodeMap.get(hoveredEdge.target)?.label || 'Caku'}
+                      {translateToAlbanian(nodeMap.get(hoveredEdge.target)?.label) || 'Caku'}
                     </span>
                   </div>
 
@@ -1266,7 +1298,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <div className="space-y-1.5">
                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Shkresa:</span>
                       <div className="text-sm text-slate-100 leading-relaxed bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 line-clamp-8 font-medium">
-                        &quot;<LawCitationText text={hoveredEdge.evidence_text} />&quot;
+                        &quot;<LawCitationText text={translateToAlbanian(hoveredEdge.evidence_text)} />&quot;
                       </div>
                     </div>
                   ) : (
@@ -1298,7 +1330,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     {React.createElement(ENTITY_CONFIG[selectedNode.type].icon, { className: 'w-6 h-6 text-white' })}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-black text-base text-text-primary leading-snug">{selectedNode.label}</h4>
+                    <h4 className="font-black text-base text-text-primary leading-snug">{translateToAlbanian(selectedNode.label)}</h4>
                     <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase text-white tracking-wider" style={{ backgroundColor: ENTITY_CONFIG[selectedNode.type].bg }}>
                       {ENTITY_CONFIG[selectedNode.type].albanianLabel}
                     </span>
@@ -1329,7 +1361,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   <div className="bg-canvas p-4 rounded-2xl border border-main space-y-2">
                     <span className="text-[10px] font-black text-text-muted uppercase tracking-widest block">Roli / Përshkrimi i Plotë</span>
                     <div className="text-xs text-text-secondary leading-relaxed font-medium">
-                      <LawCitationText text={selectedNode.description} />
+                      <LawCitationText text={translateToAlbanian(selectedNode.description)} />
                     </div>
                   </div>
                 )}
@@ -1361,13 +1393,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                             </span>
                             {otherNode && (
                               <span className="text-text-primary truncate max-w-[120px] font-bold">
-                                {otherNode.label}
+                                {translateToAlbanian(otherNode.label)}
                               </span>
                             )}
                           </div>
                           {e.evidence_text && (
                             <div className="text-[11px] text-text-secondary italic line-clamp-2 mt-1">
-                              &quot;<LawCitationText text={e.evidence_text} />&quot;
+                              &quot;<LawCitationText text={translateToAlbanian(e.evidence_text)} />&quot;
                             </div>
                           )}
                         </div>
@@ -1401,7 +1433,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   <div className="bg-surface p-3 rounded-xl border border-main text-xs text-text-secondary leading-relaxed space-y-1">
                     <span className="text-[10px] font-bold text-text-muted uppercase block">Dëshmia nga Dokumentet Origjinale</span>
                     <div className="italic text-text-primary">
-                      &quot;<LawCitationText text={selectedEdge.evidence_text} />&quot;
+                      &quot;<LawCitationText text={translateToAlbanian(selectedEdge.evidence_text)} />&quot;
                     </div>
                   </div>
                 )}
@@ -1427,11 +1459,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <Bot size={20} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {chatEntity.label}</h3>
+                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight">Hetimi AI: {translateToAlbanian(chatEntity.label)}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-text-muted font-bold uppercase">{ENTITY_CONFIG[chatEntity.type].albanianLabel}</span>
                       <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        clientPosition === 'DEFENDANT' ? 'bg-indigo500/15 text-indigo-400 border border-indigo-500/30' :
+                        clientPosition === 'DEFENDANT' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' :
                         clientPosition === 'PLAINTIFF' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
                         'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       }`}>
@@ -1452,14 +1484,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 {entityMessages.length === 0 && (
                   <div className="text-center space-y-3 pt-2">
                     <h2 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">
-                      AGJENTI I HETIMIT: {chatEntity.label}
+                      AGJENTI I HETIMIT: {translateToAlbanian(chatEntity.label)}
                     </h2>
                     <p className="text-xs text-text-secondary leading-relaxed font-medium max-w-md mx-auto">
                       {clientPosition === 'DEFENDANT' 
-                        ? `Asistenti juaj mbrojtës për prapësimin e kërkesëpadisë dhe shfajësimin që lidhet me ${chatEntity.label}.` 
+                        ? `Asistenti juaj mbrojtës për prapësimin e kërkesëpadisë dhe shfajësimin që lidhet me ${translateToAlbanian(chatEntity.label)}.` 
                         : clientPosition === 'PLAINTIFF'
-                        ? `Asistenti juaj sulmues për vërtetimin e përgjegjësisë dhe forcat e padisë lidhur me ${chatEntity.label}.`
-                        : `Asistenti juaj neutral për vërtetimin objektiv të barrës së provës dhe paanshmërisë lidhur me ${chatEntity.label}.`}
+                        ? `Asistenti juaj sulmues për vërtetimin e përgjegjësisë dhe forcat e padisë lidhur me ${translateToAlbanian(chatEntity.label)}.`
+                        : `Asistenti juaj neutral për vërtetimin objektiv të barrës së provës dhe paanshmërisë lidhur me ${translateToAlbanian(chatEntity.label)}.`}
                     </p>
                     
                     <div className="p-2.5 bg-surface/60 border border-main rounded-xl text-[11px] text-text-muted inline-flex items-center gap-2 text-left">
@@ -1515,7 +1547,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     value={inputQuestion}
                     onChange={(e) => setInputQuestion(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendEntityQuestion()}
-                    placeholder={`Bëj një pyetje për ${chatEntity.label}...`}
+                    placeholder={`Bëj një pyetje për ${translateToAlbanian(chatEntity.label)}...`}
                     className="flex-1 h-11 px-4 bg-canvas border border-main rounded-xl text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
                   />
                   <button
