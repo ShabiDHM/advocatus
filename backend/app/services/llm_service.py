@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V95.0 (DYNAMIC CITATION & PARTY ALIGNMENT)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V96.0 (TRILINGUAL 100% ALBANIAN MANDATE & ONTOLOGY EXTRACTOR)
 
 import os
 import json
@@ -40,6 +40,7 @@ def build_dynamic_identity_header(
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
     Forces literal extraction of contract signatories and STRICT MULTI-SOURCE CITATIONS with 0 hardcoded assumptions.
+    ENFORCES 100% ALBANIAN OUTPUT FOR ALL TRILINGUAL EXHIBITS (DE / EN / SQ).
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -52,6 +53,7 @@ MANDATI MULTILINGUAL DHE EMANIMI I SAKTË I PALËVE (SQ / EN / DE):
 1. Lexo dhe analizo me saktësi të plotë çdo eksponat (Shqip, Anglisht, Gjermanisht).
 2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXJERR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
 3. Mos supozo automatikisht se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse teksti i kontratës specifikon një kompani tjetër ose palë të tretë të nënshkruar me {opposing_name}. Trego saktësisht emrat e entiteteve që figurojnë në tekst!
+4. RREGULLI UNIFORM I GJUHËS SHQIPE (100% ALBANIAN RULE): Përgjigju, përkthe dhe gjenero TË GJITHA daljet, përmbledhjet, analizat, entitetet, grafikët dhe dëshmitë VETËM në Gjuhën Shqipe Zyrtare (Kosovë), pa marrë parasysh nëse dokumenti burimor është në Gjermanisht, Anglisht, apo Shqip. Nuk lejohen fjalitë ose frazat në Anglisht/Gjermanisht në daljet e tua!
 
 [RREGULLI I CITIMIT TË BURIMEVE (RAG SOURCE CITATION)]
 Ti do të marrësh fragmente nga Baza e Njohurive. Kushtoji rëndësi ikonave për të kuptuar çfarë lloj dokumenti po lexon dhe citoji saktë:
@@ -187,18 +189,20 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
     """
-    PHOENIX ENGINE: Generates real, structured summaries for Albanian, English, or German documents.
+    PHOENIX ENGINE: Generates real, structured summaries in 100% ALBANIAN for Albanian, English, or German documents.
     """
     if not text or not text.strip():
         return "Dokument pa përmbajtje tekstuale."
     try:
         client = _get_async_client()
         system_prompt = """
-        Detyra: Ti je një asistent ligjor shumëgjuhësh (Shqip, Anglisht, Gjermanisht).
-        Analizo tekstin e këtij dokumenti ligjor ose financiar dhe përpiqet të bësh një përmbledhje të qartë, të saktë dhe të strukturuar në gjuhën shqipe.
+        Detyra: Ti je një asistent ligjor shumëgjuhësh (Shqip, Anglisht, Gjermanisht) për Gjykatat e Kosovës.
+        Analizo tekstin e këtij dokumenti ligjor ose financiar dhe përpiqesh të bësh një përmbledhje të qartë, të saktë dhe të strukturuar VETËM NË GJUHËN SHQIPE (KOSOVË).
+        
+        RREGULLI KRITIK I GJUHËS: Të gjitha fjalitë, rolet, termat dhe përmbledhjet DUHET TË JENË 100% NË SHQIP, pa marrë parasysh nëse dokumenti burimor është në Gjermanisht apo Anglisht.
         
         Përmbledhja duhet të përfshijë:
-        1. Llojin e dokumentit (Kontratë, Faturë, Vendim, Shkresë, etj.)
+        1. Llojin e dokumentit (Kontratë Shërbimi, Faturë, Aktakuzë, Shkresë, Vendim, etj.)
         2. Palët e saktësisht të emëruara në nënshkrim dhe datat kryesore.
         3. Shumat monetare, obligimet ose fushëveprimin e marrëveshjes.
         4. Fakti më i rëndësishëm ligjor ose financiar.
@@ -217,6 +221,84 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
         logger.error(f"Error in process_large_document_async: {e}")
         return text[:500]
 
+async def extract_case_graph_ontology(context: str) -> Dict[str, Any]:
+    """
+    PHOENIX ENGINE: Robust, trilingual-aware graph extractor.
+    Enforces 100% Albanian (Shqip - Kosovo Jurisdiction) output for all node labels,
+    entity descriptions, relationship types, and evidence citations, regardless of whether 
+    the source document is in German, English, or Albanian.
+    """
+    key = _get_api_key()
+    if not key:
+        return {"nodes": [], "edges": []}
+    
+    client = _get_async_client()
+    identity_header = build_dynamic_identity_header()
+    
+    system_prompt = f"""
+    {identity_header}
+    DETYRA KRITIK E DOKUMENTIT SHUMËGJUHËS (DE / EN / SQ):
+    Ti je një Konstruktor i Ontologjisë Ligjore për Gjykatat e Kosovës.
+    Analizo të gjitha dokumentet e bashkangjitura (përfshirë ato në Gjermanisht, Anglisht, apo Shqip) dhe nxirr Grafikun e Provave.
+
+    RREGULLI I DETYRUESHËM I GJUHËS SHQIPE (100% ALBANIAN RULE):
+    TË GJITHA fushate nxjerra ("label", "description", "relation", "evidence_text") DUHET TË PËRKTHENEN DHE TË SHKRUHEN SAKTËSISHT NË GJUHËN SHQIPE ZYRTARE (Terminologjia Ligjore e Kosovës).
+    Nuk lejohet asnjë fjalë ose fjali në Anglisht apo Gjermanisht në fushat e JSON.
+    Shembuj të përkthimit të detyrueshëm:
+    - "is mentioned as Consultant" -> "përmendet si Konsulent"
+    - "Freelance Contract" -> "Kontratë Shërbimi"
+    - "Auftragnehmer" -> "Kontraktuesi"
+    - "The direct local partner" -> "Partneri direkt lokal"
+
+    LLOJET E ENTITETEVE ("type"):
+    - "PERSON": Individë fizikë.
+    - "ORGANIZATION": Kompani, OJQ, Gjykatë, Banka (GIZ, LLC, Sh.p.k., GmbH, etj.).
+    - "ACCOUNT": Llogari bankare ose mjete financiare.
+    - "LOCATION": Shtete, qytete, adresa.
+    - "DOCUMENT": Kontrata, faturat, aktakuzat, shkresat.
+    - "EVENT": Seanca gjyqësore, afatet, takimet.
+
+    LLOJET E LIDHJEVE ("relation" - SHQIP KRISTAL):
+    "PËRFAQËSOHET NGA", "ZBATUAR NGA", "KONTRAKTUAR ME", "I PUNËSUAR NË", "PRONËSI E", "TRANSAKSION FINANCIAR", "DETYRIM FINANCIAR", "PËRMENDUR NË SHKRESË", "NËNSHKRUAR NGA", "KUNDËRTHËNIE ME PROVËN".
+
+    KTHO VETËM FORMATIN JSON:
+    {{
+      "nodes": [
+        {{
+          "id": "node_1",
+          "label": "Emri i entitetit në Shqip",
+          "type": "ORGANIZATION",
+          "description": "Përshkrimi i saktë i rolit në Shqip..."
+        }}
+      ],
+      "edges": [
+        {{
+          "id": "edge_1",
+          "source": "node_1",
+          "target": "node_2",
+          "relation": "ZBATUAR NGA",
+          "amount_eur": 12500.0,
+          "evidence_text": "Dëshmia e plotë e përkthyer në Shqip..."
+        }}
+      ]
+    }}
+    """
+    
+    try:
+        res = await client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"TEKSTI I PLOTË I RASTIT DHE DOKUMENTEVE:\n{context[:12000]}"}
+            ],
+            temperature=0.1
+        )
+        content = res.choices[0].message.content or "{}"
+        return clean_and_parse_json(content)
+    except Exception as e:
+        logger.error(f"Failed to extract ontology graph in Albanian: {e}")
+        return {"nodes": [], "edges": []}
+
 def forensic_interrogation(question: str, context_lines: List[str]) -> str:
     key = _get_api_key()
     if not key:
@@ -227,7 +309,7 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         Ti je një Auditor dhe Hetues Financiar Forenzik me eksperiencë në tregun e Kosovës.
         DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare apo dokumenteve financiare.
         TONI: Analitik, skeptik, i bazuar rigorozisht në shifra konkrete.
-        GJUHA: SHQIP.
+        GJUHA: SHQIP ZYRTARE (100%). Përkthe çdo dokument nga Gjermanishtja/Anglishtja në Shqip.
         """
         user_content = f"TRANSAKSIONET / PROVAT E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
         return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
@@ -244,10 +326,11 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     system_prompt = f"""
     {identity_header}
     Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit (përfshirë dokumentet në Shqip, Anglisht, Gjermanisht) dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
+    TË GJITHA SHQIP: Përkthe çdo informacion nga Gjermanishtja/Anglishtja në Shqip.
 
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
-      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive...",
+      "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive në Shqip...",
       "weakness_attacks": [
          "Sulm specifik i bazuar në dobësitë...",
          "Sulm tjetër..."
@@ -281,10 +364,11 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     system_prompt = f"""
     {identity_header}
     Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit dhe të gjitha dokumentet e bashkangjitura (Shqip/Anglisht/Gjermanisht).
+    TË GJITHA PERSHKRIMET DUHET TË JENË 100% NË GJUHËN SHQIPE.
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "timeline": [
-        {{"date": "Data e ngjarjes", "event": "Përshkrimi i saktë"}}
+        {{"date": "Data e ngjarjes", "event": "Përshkrimi i saktë në Shqip"}}
       ]
     }}
     """
@@ -312,14 +396,16 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     system_prompt = f"""
     {identity_header}
     Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta midis deklaratave dhe dokumenteve (Shqip/Anglisht/Gjermanisht).
+    GJUHA: Të gjitha fushat e JSON ("claim", "evidence", "impact") DUHET TË JENË 100% NË GJUHËN SHQIPE.
+
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "contradictions": [
         {{
           "severity": "CRITICAL",
-          "claim": "Deklarata kontradiktore",
-          "evidence": "Fakti që mospërputhet",
-          "impact": "Shpjegimi ligjor"
+          "claim": "Deklarata kontradiktore në Shqip",
+          "evidence": "Fakti që mospërputhet në Shqip",
+          "impact": "Shpjegimi ligjor në Shqip"
         }}
       ]
     }}
@@ -344,7 +430,7 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
     if not key:
         return {}
     try:
-        content = _call_llm(custom_prompt or "Analizo këtë rast ligjor.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
+        content = _call_llm(custom_prompt or "Analizo këtë rast ligjor në Shqip.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"❌ analyze_case_integrity failed: {e}")
@@ -356,10 +442,10 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
         return {"category": "Shpenzime", "amount": 0.0, "date": None, "description": "AI parsing disabled"}
     try:
         system_prompt = """
-        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës (Shqip, Anglisht, apo Gjermanisht) dhe nxirr JSON.
+        Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës (Shqip, Anglisht, apo Gjermanisht) dhe nxirr JSON në Shqip.
         Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
         {
-          "category": "Kategoria e shpenzimit",
+          "category": "Kategoria e shpenzimit në Shqip",
           "amount": 12.50,
           "date": "YYYY-MM-DD",
           "description": "Emri i tregtarit"
