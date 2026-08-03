@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V45.0 (100% SHQIP KOSOVO MARKET & SIMPLIFIED EXECUTIVE UI)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V46.0 (ULTRA-CLEAN KOSOVO EXECUTIVE UI & 100% ALBANIAN)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -36,7 +36,8 @@ import {
   Link2,
   Clock,
   LayoutGrid,
-  Network
+  Network,
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from './LawCitationText';
@@ -90,11 +91,17 @@ const ENTITY_CONFIG: Record<EntityType, { albanianLabel: string; bg: string; bor
   EVENT: { albanianLabel: 'Ngjarje / Seanca', bg: '#dc2626', border: '#f87171', glow: 'rgba(220, 38, 38, 0.4)', icon: Calendar },
 };
 
-// 100% COMPREHENSIVE ALBANIAN LEGAL RELATION MAPPER FOR KOSOVO MARKET
+// EXHAUSTIVE ALBANIAN LEGAL RELATION DICTIONARY FOR KOSOVO
 const RELATION_ALBANIAN_MAP: Record<string, string> = {
+  IMPLEMENTED_BY: 'ZBATUAR NGA',
+  IMPLEMENTED: 'ZBATUAR NGA',
+  CONTRACTED_BY: 'KONTRAKTUAR NGA',
+  CONTRACTED: 'KONTRAKTUAR ME',
+  CONTRACTED_WITH: 'KONTRAKTUAR ME',
   REPRESENTED_BY: 'PËRFAQËSOHET NGA',
   REPRESENTS: 'PËRFAQËSON',
   ASSOCIATED_WITH: 'LIDHUR ME',
+  ASSOCIATED: 'LIDHUR ME',
   TRANSFERRED_FUNDS: 'TRANSAKSION FINANCIAR',
   TRANSFER_FUNDS: 'TRANSAKSION FINANCIAR',
   PAID_TO: 'PAGESË NDAJ',
@@ -113,6 +120,7 @@ const RELATION_ALBANIAN_MAP: Record<string, string> = {
   KUNDËRTHËNJE: 'KUNDËRTHËNIE ME PROVËN',
   OWES_MONEY: 'DETYRIM FINANCIAR',
   SIGNED: 'NËNSHKRUAR NGA',
+  SIGNED_BY: 'NËNSHKRUAR NGA',
   SIGNATORY: 'NËNSHKRUES',
   MENTIONED_IN: 'PËRMENDUR NË SHKRESË',
   HAS_ACCOUNT: 'LLOGARI BANKARE',
@@ -120,25 +128,40 @@ const RELATION_ALBANIAN_MAP: Record<string, string> = {
   ISSUED_BY: 'LËSHUAR NGA',
   FINANCED_BY: 'FINANCUAR NGA',
   SUBMITTED_TO: 'DORËZUAR NË',
-  CONTRACTED_WITH: 'KONTRAKTUAR ME',
   DECIDED_BY: 'VENDOSUR NGA',
-  AUDITED_BY: 'AUDITUAR NGA'
+  AUDITED_BY: 'AUDITUAR NGA',
 };
 
 const formatRelationText = (rel: string): string => {
   if (!rel) return 'LIDHJE LIGJORE';
-  const clean = rel.toUpperCase().trim().replace(/ /g, '_');
+  
+  // Clean raw string
+  let clean = rel.toUpperCase().trim().replace(/ /g, '_');
+  
+  // Exact dictionary match check
   if (RELATION_ALBANIAN_MAP[clean]) {
     return RELATION_ALBANIAN_MAP[clean];
   }
-  // Fallback translation cleanup
-  return clean
-    .replace(/_/g, ' ')
+
+  // Regex fallback scrubber for English leaks (e.g. "NËNSHKRUAR BY", "CONTRACTED BY")
+  clean = clean
+    .replace(/_BY$/g, ' NGA')
+    .replace(/_WITH$/g, ' ME')
+    .replace(/_TO$/g, ' NDAJ')
+    .replace(/_IN$/g, ' NË')
+    .replace(/_AT$/g, ' NË')
+    .replace(/_FOR$/g, ' PËR')
+    .replace(/IMPLEMENTED/g, 'ZBATUAR')
+    .replace(/CONTRACTED/g, 'KONTRAKTUAR')
     .replace(/TRANSFERRED/g, 'TRANSAKSION')
     .replace(/FUNDS/g, 'FINANCIAR')
     .replace(/ASSOCIATED/g, 'LIDHUR')
     .replace(/MENTIONED/g, 'PËRMENDUR')
-    .replace(/SIGNED/g, 'NËNSHKRUAR');
+    .replace(/SIGNED/g, 'NËNSHKRUAR')
+    .replace(/BY$/g, 'NGA')
+    .replace(/_/g, ' ');
+
+  return clean;
 };
 
 export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) => {
@@ -677,11 +700,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans select-none">
       
-      {/* STREAMLINED NON-TECH FRIENDLY TOP TOOLBAR */}
+      {/* ULTRA-CLEAN NON-TECH TOP TOOLBAR (NO UNNECESSARY ICONS/PILLS) */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-4 py-2.5 bg-surface border-b border-main gap-3 z-10 shrink-0">
         
-        {/* VIEW MODE TOGGLE & SEARCH */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+        {/* VIEW TOGGLE & SEARCH */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           
           <button
             onClick={() => setSimplifiedView(!simplifiedView)}
@@ -690,67 +713,50 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-500/10' 
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
-            title="Shtyp për të kaluar te provat kryesore ose pamja e plotë"
+            title="Kalo ndërmjet Provave Kryesore dhe Pamjes së Plotë"
           >
             <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
             <span>{simplifiedView ? '⚡ Provat Kryesore' : '🌐 Pamja e Plotë'}</span>
           </button>
 
-          <div className="relative w-44 sm:w-60 shrink-0">
+          <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-text-muted" />
             <input
               type="text"
-              placeholder="Kërko person, dokument, llogari..."
+              placeholder="Kërko entitetin ose fjalën kyçe..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-canvas border border-main rounded-xl pl-9 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
             />
           </div>
 
-          {/* CATEGORY FILTER PILLS */}
-          <div className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setActiveFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase transition-all whitespace-nowrap ${
-                activeFilter === 'ALL' ? 'bg-primary-start text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
-              }`}
+          {/* SINGLE CLEAN DROPDOWN REPLACING 7 CLUTTERED PILLS */}
+          <div className="hidden md:flex items-center gap-2 bg-canvas px-3 py-1 rounded-xl border border-main text-xs font-bold shrink-0">
+            <Filter size={13} className="text-primary-start" />
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              className="bg-transparent text-text-primary focus:outline-none cursor-pointer uppercase font-bold text-xs"
             >
-              Gjithë ({graphData?.nodes?.length || 0})
-            </button>
-
-            {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
-              const count = graphData?.nodes?.filter((n) => n.type === type).length || 0;
-              if (count === 0) return null;
-              const conf = ENTITY_CONFIG[type];
-              return (
-                <button
-                  key={type}
-                  onClick={() => setActiveFilter(type)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase transition-all whitespace-nowrap ${
-                    activeFilter === type
-                      ? 'bg-surface text-text-primary border border-main shadow-sm'
-                      : 'text-text-muted hover:text-text-primary'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: conf.bg }} />
-                  <span>{conf.albanianLabel}</span>
-                  <span className="font-mono text-text-secondary">({count})</span>
-                </button>
-              );
-            })}
+              <option value="ALL" className="bg-surface text-text-primary">Gjithë Entitetet ({graphData?.nodes?.length || 0})</option>
+              {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
+                const count = graphData?.nodes?.filter((n) => n.type === type).length || 0;
+                if (count === 0) return null;
+                const conf = ENTITY_CONFIG[type];
+                return (
+                  <option key={type} value={type} className="bg-surface text-text-primary">
+                    {conf.albanianLabel} ({count})
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
 
-        {/* ACTION BUTTONS (EXPORT & REBUILD) */}
-        <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-          <div className="hidden sm:flex items-center gap-0.5 bg-canvas p-0.5 rounded-xl border border-main">
-            <button type="button" onClick={handleZoomIn} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zmadho"><ZoomIn size={15} /></button>
-            <button type="button" onClick={handleResetZoom} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Reset"><Maximize2 size={14} /></button>
-            <button type="button" onClick={handleZoomOut} className="p-1.5 text-text-muted hover:text-text-primary rounded" title="Zvogëlo"><ZoomOut size={15} /></button>
-          </div>
-
-          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all">
-            <Download className="w-4 h-4 text-primary-start" /> <span>{exporting ? 'Po eksportohet...' : 'Eksporto'}</span>
+        {/* CLEAN ACTION BUTTONS */}
+        <div className="flex items-center justify-end gap-2 shrink-0">
+          <button onClick={handleExportCourtReport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all shadow-sm">
+            <Download className="w-4 h-4 text-primary-start" /> <span>{exporting ? '...' : 'Eksporto'}</span>
           </button>
 
           <button onClick={handleRebuildGraph} disabled={rebuilding} className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-black uppercase shadow-md transition-all">
@@ -1006,7 +1012,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                     const isFocusedMode = Boolean(selectedNode);
                     const isEdgeConnected = connectedEdgeIds.has(edge.id);
-                    const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.65);
+                    const edgeOpacity = isFocusedMode ? (isEdgeConnected ? 1 : 0.05) : (isHovered || isSelected || isContradiction ? 1 : 0.45);
                     const isEdgeDisabled = isFocusedMode && !isEdgeConnected;
 
                     const dx = targetPos.x - sourcePos.x;
@@ -1027,6 +1033,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     const labelDisplayText = edge.amount_eur ? `€${edge.amount_eur.toLocaleString()}` : albanianLabel;
                     const badgeWidth = Math.max(130, labelDisplayText.length * 11);
 
+                    // SHOW TEXT BADGE ONLY ON HOVER, SELECTION, OR CONTRADICTIONS TO PREVENT OVERLAP NOISE
+                    const showBadgeText = isHovered || isSelected || isContradiction || isEdgeConnected;
+
                     return (
                       <g
                         key={edge.id}
@@ -1045,36 +1054,38 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           d={pathD}
                           fill="none"
                           stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#475569'}
-                          strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2.5}
+                          strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2}
                           strokeDasharray={isContradiction ? '8,8' : 'none'}
                           markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected || isHovered ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
                         />
 
-                        <g transform={`translate(${midX}, ${midY})`}>
-                          <rect
-                            x={-badgeWidth / 2}
-                            y={-14}
-                            width={badgeWidth}
-                            height={28}
-                            fill={isContradiction ? '#450a0a' : isHovered || isSelected ? '#1e3a8a' : '#090d16'}
-                            stroke={isContradiction ? '#ef4444' : isHovered || isSelected ? '#60a5fa' : '#334155'}
-                            strokeWidth={isHovered || isSelected ? '2' : '1.5'}
-                            rx={14}
-                            className="shadow-xl transition-all"
-                          />
-                          <text
-                            x={0}
-                            y={4}
-                            textAnchor="middle"
-                            fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#ffffff' : '#cbd5e1'}
-                            fontSize="12"
-                            fontWeight="800"
-                            letterSpacing="0.5px"
-                            className="select-none uppercase font-sans pointer-events-none"
-                          >
-                            {labelDisplayText}
-                          </text>
-                        </g>
+                        {showBadgeText && (
+                          <g transform={`translate(${midX}, ${midY})`}>
+                            <rect
+                              x={-badgeWidth / 2}
+                              y={-14}
+                              width={badgeWidth}
+                              height={28}
+                              fill={isContradiction ? '#450a0a' : isHovered || isSelected ? '#1e3a8a' : '#090d16'}
+                              stroke={isContradiction ? '#ef4444' : isHovered || isSelected ? '#60a5fa' : '#334155'}
+                              strokeWidth={isHovered || isSelected ? '2' : '1.5'}
+                              rx={14}
+                              className="shadow-xl transition-all"
+                            />
+                            <text
+                              x={0}
+                              y={4}
+                              textAnchor="middle"
+                              fill={isContradiction ? '#fca5a5' : isSelected || isHovered ? '#ffffff' : '#cbd5e1'}
+                              fontSize="12"
+                              fontWeight="800"
+                              letterSpacing="0.5px"
+                              className="select-none uppercase font-sans pointer-events-none"
+                            >
+                              {labelDisplayText}
+                            </text>
+                          </g>
+                        )}
                       </g>
                     );
                   })}
@@ -1174,7 +1185,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           <rect
                             x="0"
                             y="-11"
-                            width="130"
+                            width="140"
                             height="20"
                             rx="10"
                             fill={config.bg}
@@ -1183,7 +1194,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                             strokeWidth="1"
                           />
                           <text
-                            x="65"
+                            x="70"
                             y="3"
                             textAnchor="middle"
                             fill={config.border}
@@ -1200,6 +1211,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                 </g>
               </svg>
             )}
+
+            {/* FLOATING ZOOM CONTROLS IN BOTTOM RIGHT CORNER */}
+            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface/90 backdrop-blur-md p-1.5 rounded-2xl border border-main shadow-2xl z-20">
+              <button type="button" onClick={handleZoomIn} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Zmadho"><ZoomIn size={16} /></button>
+              <button type="button" onClick={handleResetZoom} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Reset View"><Maximize2 size={15} /></button>
+              <button type="button" onClick={handleZoomOut} className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-canvas" title="Zvogëlo"><ZoomOut size={16} /></button>
+            </div>
 
             {/* EXPANDED & HIGH-READABILITY FLOATING HOVER EVIDENCE TOOLTIP CARD (100% SHQIP) */}
             <AnimatePresence>
@@ -1413,7 +1431,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-text-muted font-bold uppercase">{ENTITY_CONFIG[chatEntity.type].albanianLabel}</span>
                       <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        clientPosition === 'DEFENDANT' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' :
+                        clientPosition === 'DEFENDANT' ? 'bg-indigo500/15 text-indigo-400 border border-indigo-500/30' :
                         clientPosition === 'PLAINTIFF' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
                         'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                       }`}>
