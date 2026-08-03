@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V42.0 (MOBILE-RESPONSIVE & FOCUS ISOLATED)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V44.0 (TYPO FIX & READABILITY ENHANCED)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -1191,24 +1191,24 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               </svg>
             )}
 
-            {/* FLOATING HOVER EVIDENCE TOOLTIP CARD */}
+            {/* EXPANDED & HIGH-READABILITY FLOATING HOVER EVIDENCE TOOLTIP CARD */}
             <AnimatePresence>
               {hoveredEdge && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
+                  initial={{ opacity: 0, scale: 0.96, y: 5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 5 }}
+                  transition={{ duration: 0.12 }}
                   style={{
                     position: 'absolute',
-                    left: Math.min(window.innerWidth - 380, tooltipPos.x + 20),
+                    left: Math.min(window.innerWidth - 460, tooltipPos.x + 20),
                     top: Math.max(20, tooltipPos.y - 40),
                     pointerEvents: 'none'
                   }}
-                  className="z-[200] w-80 p-4 bg-[#090d1a]/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl space-y-2.5 font-sans"
+                  className="z-[200] w-[440px] p-5 bg-[#090d1a]/98 border border-slate-700/90 rounded-2xl shadow-2xl backdrop-blur-2xl space-y-3.5 font-sans"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
                       hoveredEdge.relation.includes('CONTRADICT') || hoveredEdge.relation.includes('KUNDËR')
                         ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
                         : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
@@ -1218,31 +1218,31 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     </span>
 
                     {hoveredEdge.amount_eur && (
-                      <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
                         €{hoveredEdge.amount_eur.toLocaleString()}
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">
-                    <span className="truncate max-w-[110px] text-white">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-200 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <span className="truncate max-w-[170px] text-white font-black text-sm">
                       {nodeMap.get(hoveredEdge.source)?.label || 'Burimi'}
                     </span>
-                    <Link2 size={12} className="text-blue-400 shrink-0 mx-1" />
-                    <span className="truncate max-w-[110px] text-white">
+                    <Link2 size={14} className="text-blue-400 shrink-0 mx-2" />
+                    <span className="truncate max-w-[170px] text-white font-black text-sm">
                       {nodeMap.get(hoveredEdge.target)?.label || 'Caku'}
                     </span>
                   </div>
 
                   {hoveredEdge.evidence_text ? (
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia nga Dokumenti:</span>
-                      <p className="text-xs text-slate-200 italic leading-relaxed bg-slate-950/80 p-2.5 rounded-xl border border-slate-800/60 line-clamp-4">
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia e Plotë nga Dokumenti:</span>
+                      <div className="text-sm text-slate-100 leading-relaxed bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 line-clamp-8 font-medium">
                         &quot;<LawCitationText text={hoveredEdge.evidence_text} />&quot;
-                      </p>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 italic">Klikoni për të parë detajet e plotë në fashikull.</p>
+                    <p className="text-xs text-slate-400 italic">Klikoni për të parë detajet e plotë në fashikull.</p>
                   )}
                 </motion.div>
               )}
