@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V37.0 (BULK DELETE SUPPORT & TRILINGUAL FASHIKULL INTEGRATION)
+# PHOENIX PROTOCOL - CASES ROUTER V38.0 (100% ALBANIAN GRAPH ENGINE & TRILINGUAL TRANSLATOR)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -26,7 +26,7 @@ from ...services import (
     spreadsheet_service,
     llm_service
 )
-from ...services.graph_service import graph_service
+from ...services.graph_service import graph_service, normalize_text_to_albanian
 
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
@@ -84,7 +84,7 @@ class ChatHistoryUpdate(BaseModel):
 class UpdateCasePositionRequest(BaseModel):
     client_position: str
 
-# --- PUBLIC CLIENT PORTAL ENDPOINTS (NO AUTH REQUIRED) ---
+# --- PUBLIC CLIENT PORTAL ENDPOINTS ---
 
 @router.get("/public/{case_id}/timeline")
 async def get_public_case_timeline(
@@ -273,6 +273,84 @@ async def delete_case(
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# --- ONTOLOGY GRAPH ENDPOINTS (100% ALBANIAN TRANSLATOR & MONGODB SYNC) ---
+
+@router.get("/{case_id}/graph")
+async def get_case_graph_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    case = db.cases.find_one({"_id": case_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
+
+    raw_graph = case.get("graph_data")
+    if not raw_graph or not raw_graph.get("nodes"):
+        # Attempt graph_service fallback
+        raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
+
+    # Force 100% Shqip translation on all retrieved graph fields
+    nodes = raw_graph.get("nodes", [])
+    edges = raw_graph.get("edges") or raw_graph.get("links") or []
+
+    translated_nodes = []
+    for n in nodes:
+        translated_nodes.append({
+            "id": n.get("id"),
+            "label": normalize_text_to_albanian(n.get("label") or n.get("name") or "Entitet"),
+            "type": n.get("type") or n.get("group") or "PERSON",
+            "description": normalize_text_to_albanian(n.get("description", ""))
+        })
+
+    translated_edges = []
+    for e in edges:
+        translated_edges.append({
+            "id": e.get("id") or f"{e.get('source')}_{e.get('target')}",
+            "source": e.get("source"),
+            "target": e.get("target"),
+            "relation": normalize_text_to_albanian(e.get("relation") or e.get("label") or "LIDHJE_LIGJORE"),
+            "amount_eur": e.get("amount_eur"),
+            "evidence_text": normalize_text_to_albanian(e.get("evidence_text", ""))
+        })
+
+    return {
+        "case_id": case_id,
+        "nodes": translated_nodes,
+        "edges": translated_edges,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+@router.post("/{case_id}/graph/rebuild")
+@router.post("/{case_id}/rebuild-graph")
+async def rebuild_case_graph_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
+    
+    # Re-extract graph using 100% Albanian Mandate
+    new_graph = await llm_service.extract_case_graph_ontology(context)
+    
+    if new_graph and new_graph.get("nodes"):
+        await asyncio.to_thread(
+            db.cases.update_one,
+            {"_id": case_oid},
+            {"$set": {"graph_data": new_graph, "updated_at": datetime.now(timezone.utc)}}
+        )
+
+    return {
+        "status": "success",
+        "case_id": case_id,
+        "nodes": new_graph.get("nodes", []),
+        "edges": new_graph.get("edges", [])
+    }
+
+# --- DOCUMENT ENDPOINTS ---
+
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
     case_id: str,
@@ -321,7 +399,7 @@ async def upload_document_for_case(
 
     return DocumentOut.model_validate(doc)
 
-# --- BULK DELETE ENDPOINT (POST & DELETE METHODS) ---
+# --- BULK DELETE ENDPOINTS ---
 
 @router.post("/{case_id}/documents/bulk-delete")
 @router.delete("/{case_id}/documents/bulk-delete")
