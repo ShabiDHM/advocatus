@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V38.0 (100% ALBANIAN GRAPH ENGINE & TRILINGUAL TRANSLATOR)
+# PHOENIX PROTOCOL - CASES ROUTER V41.0 (GDPR CASCADE DELETE GUARANTEE & GRAPH PURGE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -273,7 +273,7 @@ async def delete_case(
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# --- ONTOLOGY GRAPH ENDPOINTS (100% ALBANIAN TRANSLATOR & MONGODB SYNC) ---
+# --- ONTOLOGY GRAPH ENDPOINTS (WITH CASCADING DELETION GUARANTEE) ---
 
 @router.get("/{case_id}/graph")
 async def get_case_graph_endpoint(
@@ -282,16 +282,31 @@ async def get_case_graph_endpoint(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
+    
+    # GUARANTEE: Check active document count for this case
+    active_docs_count = db.documents.count_documents({
+        "case_id": case_oid, 
+        "status": {"$ne": "DELETED"}
+    })
+    
+    if active_docs_count == 0:
+        # Instantly purge stored graph_data if no documents exist
+        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": ""}})
+        return {
+            "case_id": case_id,
+            "nodes": [],
+            "edges": [],
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
     case = db.cases.find_one({"_id": case_oid})
     if not case:
         raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
 
     raw_graph = case.get("graph_data")
     if not raw_graph or not raw_graph.get("nodes"):
-        # Attempt graph_service fallback
         raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
 
-    # Force 100% Shqip translation on all retrieved graph fields
     nodes = raw_graph.get("nodes", [])
     edges = raw_graph.get("edges") or raw_graph.get("links") or []
 
@@ -330,10 +345,24 @@ async def rebuild_case_graph_endpoint(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
-    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
     
-    # Re-extract graph using 100% Albanian Mandate
-    new_graph = await llm_service.extract_case_graph_ontology(context)
+    docs_cursor = list(db.documents.find({"case_id": case_oid, "status": {"$ne": "DELETED"}}))
+    if len(docs_cursor) == 0:
+        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": ""}})
+        return {"status": "success", "case_id": case_id, "nodes": [], "edges": []}
+
+    doc_text_blocks = []
+    for doc in docs_cursor:
+        doc_name = doc.get("file_name", "Dokument")
+        txt = doc.get("extracted_text") or doc.get("text_content") or doc.get("summary") or ""
+        if txt.strip():
+            doc_text_blocks.append(f"=== DOKUMENTI: {doc_name} ===\n{txt}")
+
+    master_context = "\n\n".join(doc_text_blocks)
+    if not master_context.strip():
+        master_context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
+
+    new_graph = await llm_service.extract_case_graph_ontology(master_context)
     
     if new_graph and new_graph.get("nodes"):
         await asyncio.to_thread(
@@ -349,7 +378,7 @@ async def rebuild_case_graph_endpoint(
         "edges": new_graph.get("edges", [])
     }
 
-# --- DOCUMENT ENDPOINTS ---
+# --- DOCUMENT ENDPOINTS WITH CASCADING GRAPH PURGE ---
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
@@ -399,7 +428,7 @@ async def upload_document_for_case(
 
     return DocumentOut.model_validate(doc)
 
-# --- BULK DELETE ENDPOINTS ---
+# --- BULK DELETE ENDPOINTS WITH AUTOMATIC GRAPH PURGE ---
 
 @router.post("/{case_id}/documents/bulk-delete")
 @router.delete("/{case_id}/documents/bulk-delete")
@@ -432,17 +461,20 @@ async def bulk_delete_documents_endpoint(
         owner=current_user
     )
     
-    for doc_id_str in doc_ids:
+    remaining_docs = db.documents.count_documents({"case_id": case_oid, "status": {"$ne": "DELETED"}})
+    if remaining_docs == 0:
+        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}})
         try:
-            await asyncio.to_thread(graph_service.delete_node, doc_id_str)
+            await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
         except Exception as e:
-            logger.warning(f"Failed to remove graph node for {doc_id_str}: {e}")
+            logger.warning(f"Failed to clear case graph nodes: {e}")
 
     return {
         "status": "success",
         "deleted_count": result.get("deleted_count", len(doc_ids)),
         "deleted_finding_ids": result.get("deleted_finding_ids", []),
-        "deleted_document_ids": doc_ids
+        "deleted_document_ids": doc_ids,
+        "remaining_documents": remaining_docs
     }
 
 @router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse)
@@ -462,6 +494,7 @@ async def delete_document(
     if str(doc.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Document does not belong to this case.")
         
+    case_oid = validate_object_id(case_id)
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents,
         db=db,
@@ -470,10 +503,13 @@ async def delete_document(
         owner=current_user
     )
     if result.get("deleted_count", 0) > 0:
-        try:
-            await asyncio.to_thread(graph_service.delete_node, doc_id)
-        except Exception as e:
-            logger.warning(f"Failed to remove graph node: {e}")
+        remaining_docs = db.documents.count_documents({"case_id": case_oid, "status": {"$ne": "DELETED"}})
+        if remaining_docs == 0:
+            db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}})
+            try:
+                await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
+            except Exception as e:
+                logger.warning(f"Failed to clear case graph nodes: {e}")
             
         return DeletedDocumentResponse(
             documentId=doc_id,
@@ -503,6 +539,8 @@ async def get_document_preview(
             "Cache-Control": "no-cache"
         }
     )
+
+# --- ANALYSIS ENDPOINTS ---
 
 @router.post("/{case_id}/analyze")
 async def run_textual_case_analysis(
