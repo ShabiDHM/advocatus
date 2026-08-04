@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V58.0 (REAL-TIME TOOLTIP TRACKING & CAMERA AUTO-ZOOM)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V59.0 (28PX HIT-BOX, FOCUS DIMMING & CAMERA RE-FIT)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -103,7 +103,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<OntologyEdge | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
+  const [tooltipPos, setTooltipPos] = useState<{ x: 100; y: 100 }>({ x: 100, y: 100 });
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -197,6 +197,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
+    // When Provat Kryesore mode is ON, restrict to top 4 core entities
     if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 4) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
@@ -209,6 +210,38 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
+
+  // CONNECTED NODES AND EDGES CALCULATION FOR FOCUS ISOLATION DIMMING
+  const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
+    const activeNode = selectedNode;
+    const activeEdge = hoveredEdge || selectedEdge;
+
+    if (!activeNode && !activeEdge) {
+      return { connectedNodeIds: new Set<string>(), connectedEdgeIds: new Set<string>() };
+    }
+
+    const nodeSet = new Set<string>();
+    const edgeSet = new Set<string>();
+
+    if (activeNode) {
+      nodeSet.add(activeNode.id);
+      graphData?.edges.forEach((e) => {
+        if (e.source === activeNode.id || e.target === activeNode.id) {
+          edgeSet.add(e.id);
+          nodeSet.add(e.source);
+          nodeSet.add(e.target);
+        }
+      });
+    }
+
+    if (activeEdge) {
+      edgeSet.add(activeEdge.id);
+      nodeSet.add(activeEdge.source);
+      nodeSet.add(activeEdge.target);
+    }
+
+    return { connectedNodeIds: nodeSet, connectedEdgeIds: edgeSet };
+  }, [selectedNode, hoveredEdge, selectedEdge, graphData?.edges]);
 
   const timelineItems = useMemo(() => {
     if (!graphData?.edges) return [];
@@ -249,7 +282,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return items.sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.isContradiction ? -1 : 0));
   }, [graphData?.edges, graphData?.nodes]);
 
-  // COLUMN LAYOUT AND CAMERA AUTO-FIT
+  // COLUMN LAYOUT AND DYNAMIC CAMERA AUTO-FIT
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -279,7 +312,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     setPositions(initialPos);
 
-    // Dynamic Camera ViewBox Auto-Fit
+    // Auto-fit camera viewBox tightly around visible nodes
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     Object.values(initialPos).forEach(p => {
       if (p.x < minX) minX = p.x;
@@ -579,6 +612,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
   }, [chatEntity, clientPosition]);
 
+  // Is Focus Isolation Mode Active?
+  const isFocusMode = selectedNode !== null || hoveredEdge !== null || selectedEdge !== null;
+
   return (
     <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans select-none">
       
@@ -705,7 +741,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* DESKTOP SVG CANVAS WITH REAL-TIME MOUSE TRACKING & WHEEL ZOOM */}
+        {/* DESKTOP SVG CANVAS WITH REAL-TIME MOUSE TRACKING & FOCUS DIMMING */}
         {(!isMobile || mobileTab === 'graph') && (
           <div className="flex-1 h-full w-full relative">
             {loading ? (
@@ -735,7 +771,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   ))}
                 </g>
 
-                {/* EDGES */}
+                {/* EDGES WITH 28PX HIT-AREA & FOCUS DIMMING */}
                 <g className="edges">
                   {filteredEdges.map((edge) => {
                     const s = positions[edge.source];
@@ -743,47 +779,72 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     if (!s || !t) return null;
 
                     const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
+                    const isSelected = selectedEdge?.id === edge.id;
+                    const isHovered = hoveredEdge?.id === edge.id;
+
+                    const isEdgeConnected = connectedEdgeIds.has(edge.id);
+                    const edgeOpacity = isFocusMode ? (isEdgeConnected ? 1.0 : 0.05) : (isHovered || isSelected || isContradiction ? 1.0 : 0.6);
+
                     const pathD = `M ${s.x},${s.y} C ${s.x + (t.x - s.x) * 0.4},${s.y + 70} ${s.x + (t.x - s.x) * 0.6},${t.y - 70} ${t.x},${t.y}`;
                     const midX = (s.x + t.x) / 2;
                     const midY = (s.y + t.y) / 2 + 20;
 
                     return (
-                      <g
-                        key={edge.id}
-                        className="cursor-pointer"
-                        onClick={() => setSelectedEdge(edge)}
-                        onMouseEnter={() => setHoveredEdge(edge)}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                      >
-                        <path d={pathD} fill="none" stroke={isContradiction ? '#ef4444' : '#475569'} strokeWidth={isContradiction ? 4 : 2} />
-                        <g transform={`translate(${midX}, ${midY})`}>
-                          <rect x="-65" y="-14" width="130" height="28" fill="#090d16" stroke="#334155" rx="14" />
-                          <text x="0" y="4" textAnchor="middle" fill="#cbd5e1" fontSize="12" fontWeight="800">{formatRelationText(edge.relation)}</text>
+                      <g key={edge.id} style={{ opacity: edgeOpacity }} className="transition-opacity duration-200">
+                        {/* INVISIBLE 28PX HIT AREA FOR INSTANT EFFORTLESS HOVER */}
+                        <path
+                          d={pathD}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth="28"
+                          className="cursor-pointer"
+                          onClick={() => { setSelectedEdge(edge); setSelectedNode(null); }}
+                          onMouseEnter={() => setHoveredEdge(edge)}
+                          onMouseLeave={() => setHoveredEdge(null)}
+                        />
+
+                        {/* VISIBLE STYLED BEZIER PATH */}
+                        <path
+                          d={pathD}
+                          fill="none"
+                          stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#3b82f6' : '#475569'}
+                          strokeWidth={isContradiction || isSelected || isHovered ? 4.5 : 2}
+                          strokeDasharray={isContradiction ? '8,8' : 'none'}
+                          className="pointer-events-none"
+                        />
+
+                        <g transform={`translate(${midX}, ${midY})`} className="pointer-events-none">
+                          <rect x="-65" y="-14" width="130" height="28" fill="#090d16" stroke={isSelected || isHovered ? '#60a5fa' : '#334155'} strokeWidth={isSelected || isHovered ? 2 : 1} rx="14" />
+                          <text x="0" y="4" textAnchor="middle" fill={isSelected || isHovered ? '#ffffff' : '#cbd5e1'} fontSize="12" fontWeight="800">{formatRelationText(edge.relation)}</text>
                         </g>
                       </g>
                     );
                   })}
                 </g>
 
-                {/* NODES WITH DRAG INITIATION */}
+                {/* NODES WITH FOCUS DIMMING & DRAG INITIATION */}
                 <g className="nodes">
                   {filteredNodes.map((node) => {
                     const pos = positions[node.id] || { x: 0, y: 0 };
                     const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
                     const IconComponent = conf.icon;
 
+                    const isNodeConnected = connectedNodeIds.has(node.id);
+                    const nodeOpacity = isFocusMode ? (isNodeConnected ? 1.0 : 0.05) : 1.0;
+
                     return (
                       <g
                         key={node.id}
                         transform={`translate(${pos.x}, ${pos.y})`}
-                        className="cursor-grab active:cursor-grabbing"
+                        className="cursor-grab active:cursor-grabbing transition-opacity duration-200"
+                        style={{ opacity: nodeOpacity }}
                         onClick={() => setSelectedNode(node)}
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           setDraggedNodeId(node.id);
                         }}
                       >
-                        <rect x="-140" y="-42" width="280" height="84" rx="18" fill="#0b0f19" stroke={selectedNode?.id === node.id ? '#ffffff' : '#1e293b'} strokeWidth="2" />
+                        <rect x="-140" y="-42" width="280" height="84" rx="18" fill="#0b0f19" stroke={selectedNode?.id === node.id ? '#ffffff' : '#1e293b'} strokeWidth={selectedNode?.id === node.id ? '3' : '2'} />
                         <rect x="-140" y="-42" width="10" height="84" rx="5" fill={conf.bg} />
                         <g transform="translate(-104, 0)">
                           <circle r="20" fill={conf.bg} />
