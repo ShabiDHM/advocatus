@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V59.0 (28PX HIT-BOX, FOCUS DIMMING & CAMERA RE-FIT)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V60.0 (TS TYPE FIX & VERCEL BUILD GUARANTEE)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -103,7 +103,9 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<OntologyEdge | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: 100; y: 100 }>({ x: 100, y: 100 });
+  
+  // FIX: Explicitly typed as { x: number; y: number }
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -197,7 +199,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    // When Provat Kryesore mode is ON, restrict to top 4 core entities
     if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 4) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
@@ -211,7 +212,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
 
-  // CONNECTED NODES AND EDGES CALCULATION FOR FOCUS ISOLATION DIMMING
   const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
     const activeNode = selectedNode;
     const activeEdge = hoveredEdge || selectedEdge;
@@ -282,7 +282,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return items.sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.isContradiction ? -1 : 0));
   }, [graphData?.edges, graphData?.nodes]);
 
-  // COLUMN LAYOUT AND DYNAMIC CAMERA AUTO-FIT
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -312,7 +311,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     setPositions(initialPos);
 
-    // Auto-fit camera viewBox tightly around visible nodes
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     Object.values(initialPos).forEach(p => {
       if (p.x < minX) minX = p.x;
@@ -425,7 +423,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { x: transformed.x, y: transformed.y };
   };
 
-  // MOUSE & TOUCH INTERACTIVITY GESTURE LISTENERS
   const handleMouseDown = (e: React.MouseEvent) => {
     if (draggedNodeId) return;
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
@@ -612,7 +609,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
   }, [chatEntity, clientPosition]);
 
-  // Is Focus Isolation Mode Active?
   const isFocusMode = selectedNode !== null || hoveredEdge !== null || selectedEdge !== null;
 
   return (
@@ -642,7 +638,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
             />
           </div>
 
-          {/* THEME-AWARE OPAQUE DARK DROPDOWN MENU */}
           <div className="hidden md:flex items-center gap-2 bg-[#0d1322] px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs font-bold shrink-0 shadow-lg">
             <Filter size={13} className="text-primary-start" />
             <select
@@ -741,7 +736,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* DESKTOP SVG CANVAS WITH REAL-TIME MOUSE TRACKING & FOCUS DIMMING */}
+        {/* DESKTOP SVG CANVAS */}
         {(!isMobile || mobileTab === 'graph') && (
           <div className="flex-1 h-full w-full relative">
             {loading ? (
@@ -791,7 +786,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
                     return (
                       <g key={edge.id} style={{ opacity: edgeOpacity }} className="transition-opacity duration-200">
-                        {/* INVISIBLE 28PX HIT AREA FOR INSTANT EFFORTLESS HOVER */}
                         <path
                           d={pathD}
                           fill="none"
@@ -803,7 +797,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                           onMouseLeave={() => setHoveredEdge(null)}
                         />
 
-                        {/* VISIBLE STYLED BEZIER PATH */}
                         <path
                           d={pathD}
                           fill="none"
