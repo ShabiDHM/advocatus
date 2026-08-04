@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V57.0 (100% OPAQUE HIGH-CONTRAST TOOLTIP & DISTINCT PROVAT FILTER)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V58.0 (REAL-TIME TOOLTIP TRACKING & CAMERA AUTO-ZOOM)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -103,7 +103,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<OntologyEdge | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
 
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -197,7 +197,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    // If "Provat Kryesore" mode is ON, slice down to top 4 core entities
     if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 4) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach(e => {
@@ -250,6 +249,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return items.sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.isContradiction ? -1 : 0));
   }, [graphData?.edges, graphData?.nodes]);
 
+  // COLUMN LAYOUT AND CAMERA AUTO-FIT
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
@@ -278,6 +278,27 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     layoutCol(columns.EVENT, 1100);
 
     setPositions(initialPos);
+
+    // Dynamic Camera ViewBox Auto-Fit
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    Object.values(initialPos).forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    });
+
+    const calcWidth = Math.max(1600, (maxX - minX) + 700);
+    const calcHeight = Math.max(1100, (maxY - minY) + 500);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    setViewBox({
+      x: Math.round(centerX - calcWidth / 2),
+      y: Math.round(centerY - calcHeight / 2),
+      width: Math.round(calcWidth),
+      height: Math.round(calcHeight)
+    });
   }, [filteredNodes]);
 
   const handleZoomIn = () => {
@@ -371,6 +392,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return { x: transformed.x, y: transformed.y };
   };
 
+  // MOUSE & TOUCH INTERACTIVITY GESTURE LISTENERS
   const handleMouseDown = (e: React.MouseEvent) => {
     if (draggedNodeId) return;
     if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
@@ -380,6 +402,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setTooltipPos({
+        x: Math.round(e.clientX - rect.left),
+        y: Math.round(e.clientY - rect.top)
+      });
+    }
+
     if (draggedNodeId) {
       const point = getSVGPoint(e.clientX, e.clientY);
       setPositions(prev => ({
@@ -394,11 +424,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       const dy = (e.clientY - startPoint.y) * (viewBox.height / 1500);
       setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
       setStartPoint({ x: e.clientX, y: e.clientY });
-    }
-
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     }
   };
 
@@ -419,6 +444,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (containerRef.current && e.touches.length > 0) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setTooltipPos({
+        x: Math.round(e.touches[0].clientX - rect.left),
+        y: Math.round(e.touches[0].clientY - rect.top)
+      });
+    }
+
     if (e.touches.length === 2 && touchDistRef.current !== null) {
       const t1 = e.touches[0];
       const t2 = e.touches[1];
@@ -624,7 +657,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       )}
 
       {/* GRAPH CANVAS & MOBILE SWITCHER */}
-      <div ref={containerRef} className="flex-1 flex relative overflow-hidden bg-canvas">
+      <div
+        ref={containerRef}
+        className="flex-1 flex relative overflow-hidden bg-canvas"
+        onMouseMove={handleMouseMove}
+      >
         
         {/* MOBILE ENTITY HUB */}
         {isMobile && mobileTab === 'entities' && (
@@ -668,7 +705,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
           </div>
         )}
 
-        {/* DESKTOP SVG CANVAS WITH MOUSE WHEEL & GESTURE ZOOM LISTENERS */}
+        {/* DESKTOP SVG CANVAS WITH REAL-TIME MOUSE TRACKING & WHEEL ZOOM */}
         {(!isMobile || mobileTab === 'graph') && (
           <div className="flex-1 h-full w-full relative">
             {loading ? (
@@ -711,7 +748,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                     const midY = (s.y + t.y) / 2 + 20;
 
                     return (
-                      <g key={edge.id} className="cursor-pointer" onClick={() => setSelectedEdge(edge)} onMouseEnter={() => setHoveredEdge(edge)} onMouseLeave={() => setHoveredEdge(null)}>
+                      <g
+                        key={edge.id}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedEdge(edge)}
+                        onMouseEnter={() => setHoveredEdge(edge)}
+                        onMouseLeave={() => setHoveredEdge(null)}
+                      >
                         <path d={pathD} fill="none" stroke={isContradiction ? '#ef4444' : '#475569'} strokeWidth={isContradiction ? 4 : 2} />
                         <g transform={`translate(${midX}, ${midY})`}>
                           <rect x="-65" y="-14" width="130" height="28" fill="#090d16" stroke="#334155" rx="14" />
@@ -764,20 +807,21 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
               <button type="button" onClick={handleZoomOut} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Zvogëlo"><ZoomOut size={16} /></button>
             </div>
 
-            {/* 100% OPAQUE HIGH-CONTRAST THEME-AWARE HOVER TOOLTIP */}
+            {/* 100% OPAQUE HIGH-CONTRAST TOOLTIP AT CURSOR POSITION */}
             <AnimatePresence>
               {hoveredEdge && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.1 }}
                   style={{
                     position: 'absolute',
-                    left: Math.min(window.innerWidth - 460, tooltipPos.x + 20),
+                    left: Math.min(window.innerWidth - 480, tooltipPos.x + 20),
                     top: Math.max(20, tooltipPos.y - 40),
                     pointerEvents: 'none'
                   }}
-                  className="z-[200] w-[440px] p-5 bg-[#0a0f1d] border-2 border-blue-500/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] space-y-3.5 font-sans"
+                  className="z-[999] w-[440px] p-5 bg-[#0a0f1d] border-2 border-blue-500/70 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] space-y-3.5 font-sans"
                 >
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/40">
@@ -799,7 +843,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
                   {hoveredEdge.evidence_text && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Dëshmia nga Shkresa:</span>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Dëshmia nga Shkresa:</span>
                         <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1">
                           <Languages size={10} /> 🇦🇱 Përkthyer në Shqip
                         </span>
