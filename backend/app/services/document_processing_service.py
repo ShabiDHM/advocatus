@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V22.0 (CLEAN EXPORT & MASTER TIMEOUT ENGINE)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V23.0 (EMBEDDING FIX & WORD DOC SUPPORT)
 
 import os
 import tempfile
@@ -56,10 +56,9 @@ async def orchestrate_document_processing_mongo(
 ):
     """
     MASTER HYDRA ORCHESTRATOR:
-    Executes high-definition OCR, text persistence, and RAG chunking with a 40s hard timeout.
-    Guarantees status always transitions to READY without hanging.
+    Executes high-definition text extraction, RAG vector embeddings, and preview rendering for PDF & Word docs.
     """
-    logger.info(f"⚡ [Orchestrator V22.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V23.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -84,7 +83,7 @@ async def orchestrate_document_processing_mongo(
 
     temp_original_file_path = ""
     try:
-        suffix = os.path.splitext(doc_name)[1]
+        suffix = os.path.splitext(doc_name)[1] or ".pdf"
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
         os.close(temp_file_descriptor) 
         
@@ -94,8 +93,8 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'): 
             file_stream.close()
 
-        # Step 1: Text Extraction (30s Timeout Cap)
-        logger.info("⚡ [Orchestrator] Step 1/3: Running HD Text Extraction...")
+        # Step 1: Text Extraction (PDF & Word Docs)
+        logger.info("⚡ [Orchestrator] Step 1/3: Running Text Extraction...")
         try:
             raw_text = await asyncio.wait_for(
                 asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", "")),
@@ -109,7 +108,6 @@ async def orchestrate_document_processing_mongo(
             raw_text = f"Dokument i ngarkuar: {doc_name}."
 
         sterilized_text = llm_service.sterilize_legal_text(raw_text)
-        is_albanian = AlbanianLanguageDetector.detect_language(sterilized_text)
 
         # Step 2: Parallel Analytical Sub-Tasks
         async def task_summary():
@@ -120,9 +118,10 @@ async def orchestrate_document_processing_mongo(
 
         async def task_embeddings():
             try:
+                # Fixed: Removed invalid 'is_albanian' parameter
                 enriched_chunks = await asyncio.to_thread(
                     EnhancedDocumentProcessor.process_document, 
-                    text_content=raw_text, document_metadata={'file_name': doc_name}, is_albanian=is_albanian
+                    text_content=raw_text, document_metadata={'file_name': doc_name}
                 )
                 chunks_to_store = [c.content for c in enriched_chunks] if enriched_chunks else [raw_text[i:i+1500] for i in range(0, len(raw_text), 1200)]
                 metadatas_to_store = [c.metadata for c in enriched_chunks] if enriched_chunks else [{"page": 1, "source": doc_name} for _ in chunks_to_store]
@@ -132,6 +131,7 @@ async def orchestrate_document_processing_mongo(
                     user_id=user_id, document_id=document_id_str, case_id=case_id_str, 
                     file_name=doc_name, chunks=chunks_to_store, metadatas=metadatas_to_store
                 )
+                logger.info(f"✅ Embeddings & Graph chunks created for {doc_name}")
             except Exception as e:
                 logger.warning(f"Embeddings skipped: {e}")
 
@@ -145,15 +145,17 @@ async def orchestrate_document_processing_mongo(
             try:
                 pdf_path = await asyncio.to_thread(conversion_service.convert_to_pdf, temp_original_file_path)
                 key = await asyncio.to_thread(storage_service.upload_document_preview, pdf_path, user_id, case_id_str, document_id_str)
-                if pdf_path and os.path.exists(pdf_path): os.remove(pdf_path)
+                if pdf_path and os.path.exists(pdf_path) and pdf_path != temp_original_file_path:
+                    os.remove(pdf_path)
                 return key
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Preview conversion error for {doc_name}: {e}")
                 return ""
 
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(task_summary(), task_embeddings(), task_storage(), task_preview(), return_exceptions=True),
-                timeout=30.0
+                timeout=35.0
             )
             final_summary = results[0] if isinstance(results[0], str) else raw_text[:500]
             text_key = results[2] if isinstance(results[2], str) else ""
@@ -164,7 +166,7 @@ async def orchestrate_document_processing_mongo(
             text_key = ""
             preview_storage_key = ""
 
-        # PERSIST EXTRACTED TEXT DIRECTLY ON MONGO DOCUMENT
+        # PERSIST EXTRACTED TEXT & SUMMARY ON MONGO DOCUMENT
         await asyncio.to_thread(
             db.documents.update_one,
             {"_id": doc_id},
@@ -180,11 +182,11 @@ async def orchestrate_document_processing_mongo(
             }
         )
 
-        logger.info(f"✅ [Orchestrator V22.0] SUCCESS: Document {document_id_str} is 100% Finalized!")
+        logger.info(f"✅ [Orchestrator V23.0] SUCCESS: Document {document_id_str} is 100% Finalized!")
         await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
 
     except Exception as e:
-        logger.error(f"❌ [Orchestrator V22.0] Error on doc {document_id_str}: {e}")
+        logger.error(f"❌ [Orchestrator V23.0] Error on doc {document_id_str}: {e}")
         await asyncio.to_thread(
             db.documents.update_one, 
             {"_id": doc_id}, 
