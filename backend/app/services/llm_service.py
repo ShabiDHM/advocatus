@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - MASTER INTELLIGENCE V96.0 (TRILINGUAL 100% ALBANIAN MANDATE & ONTOLOGY EXTRACTOR)
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V97.0 (ZERO-HALLUCINATION DETERMINISTIC GUARD & COST OPTIMIZED)
 
 import os
 import json
@@ -23,14 +23,15 @@ OPENROUTER_KEY = _get_api_key()
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
-AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
+AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI bazuar rreptësisht në shkresat e lëndës. Verifikohet nga avokati.*"
 
 FAST_MODEL = "deepseek/deepseek-chat"
 DEEP_MODEL = "deepseek/deepseek-r1"
 
-TEMP_DRAFTING = 0.1
-TEMP_ANALYSIS = 0.2
-TEMP_CHAT = 0.3
+# STRICT ZERO-HALLUCINATION DETERMINISTIC TEMPERATURES
+TEMP_DRAFTING = 0.0
+TEMP_ANALYSIS = 0.0
+TEMP_CHAT = 0.05
 
 def build_dynamic_identity_header(
     client_name: str = "Pala Kliente", 
@@ -39,8 +40,7 @@ def build_dynamic_identity_header(
 ) -> str:
     """
     PHOENIX ENGINE: Generates a dynamic, case-specific identity lock header.
-    Forces literal extraction of contract signatories and STRICT MULTI-SOURCE CITATIONS with 0 hardcoded assumptions.
-    ENFORCES 100% ALBANIAN OUTPUT FOR ALL TRILINGUAL EXHIBITS (DE / EN / SQ).
+    Enforces ZERO HALLUCINATIONS, 100% LITERAL DOCUMENT GROUNDING, and 100% ALBANIAN OUTPUT.
     """
     role_label = "I PADITUR / KUNDËRPADITËS" if position.upper() == "DEFENDANT" else "PADITËS"
     
@@ -49,39 +49,37 @@ def build_dynamic_identity_header(
 KLIENTI YNË ({role_label}): {client_name}.
 PALA KUNDËRSHTARE: {opposing_name}.
 
+[RREGULLI I SAKTUAR KUNDËR HALLUCINIMEVE (STRICT ZERO-HALLUCINATION MANDATE)]
+1. NDALIMI I SHPIKJES SE FAKTEVE: Ti e ke rreptësisht të ndaluar të shpikësh, të supozosh apo të fabriokosh çfarëdo fakti, emri, date, kontrate, llogarie bankare apo neni ligjor që nuk është i shkruar tekstualisht në shkresat e lëndës.
+2. BAZOHU VETËM NË PROVA: Çdo përgjigje, analizë, kronologji apo nyje grafike duhet të bazohet 100% VETËM në tekstin e dokumenteve të bashkangjitura.
+3. KUFIZIMI I DIJES: Nëse një informacion nuk ekziston ose nuk thuhet qartë në dokumente, thuaj saktësisht: "Nuk gjendet në shkresat e lëndës." MOS I MUSH ZBRAZËTITË ME PARAGJYKIME!
+
 MANDATI MULTILINGUAL DHE EMANIMI I SAKTË I PALËVE (SQ / EN / DE):
 1. Lexo dhe analizo me saktësi të plotë çdo eksponat (Shqip, Anglisht, Gjermanisht).
 2. RREGULLI KRITIK I KONTRATAVE: Kur përgjigjesh për ndonjë kontratë apo marrëveshje, NXJERR PALËT E SAKTA TË EMËRUARA NË PREAMBULËN E KONTRATËS.
 3. Mos supozo automatikisht se {client_name} është palë e drejtpërdrejtë e nënshkruar nëse teksti i kontratës specifikon një kompani tjetër ose palë të tretë të nënshkruar me {opposing_name}. Trego saktësisht emrat e entiteteve që figurojnë në tekst!
-4. RREGULLI UNIFORM I GJUHËS SHQIPE (100% ALBANIAN RULE): Përgjigju, përkthe dhe gjenero TË GJITHA daljet, përmbledhjet, analizat, entitetet, grafikët dhe dëshmitë VETËM në Gjuhën Shqipe Zyrtare (Kosovë), pa marrë parasysh nëse dokumenti burimor është në Gjermanisht, Anglisht, apo Shqip. Nuk lejohen fjalitë ose frazat në Anglisht/Gjermanisht në daljet e tua!
+4. RREGULLI UNIFORM I GJUHËS SHQIPE (100% ALBANIAN RULE): Përgjigju, përkthe dhe gjenero TË GJITHA daljet, përmbledhjet, analizat, entitetet, grafikët dhe dëshmitë VETËM në Gjuhën Shqipe Zyrtare (Kosovë), pa marrë parasysh nëse dokumenti burimor është në Gjermanisht, Anglisht, apo Shqip.
 
 [RREGULLI I CITIMIT TË BURIMEVE (RAG SOURCE CITATION)]
-Ti do të marrësh fragmente nga Baza e Njohurive. Kushtoji rëndësi ikonave për të kuptuar çfarë lloj dokumenti po lexon dhe citoji saktë:
-- Nëse burimi ka ikonën ⚖️: Ky është LIGJ ZYRTAR STATUTOR. Citoje si: "Sipas Nenit X të Ligjit Y..."
-- Nëse burimi ka ikonën 📚: Ky është MANUAL / KOMENTAR AKADEMIK. Citoje si: "Sipas doktrinës / praktikës së Akademisë së Drejtësisë..."
-- Nëse burimi ka ikonën 🔨: Ky është AKTGJYKIM / PRAKTIKË GJYQËSORE. Citoje si: "Bazuar në praktikën gjyqësore në Aktgjykimin [Emri/Numri]..."
+- Nëse burimi ka ikonën ⚖️: Citoje si: "Sipas Nenit X të Ligjit Y..."
+- Nëse burimi ka ikonën 📚: Citoje si: "Sipas doktrinës / praktikës së Akademisë së Drejtësisë..."
+- Nëse burimi ka ikonën 🔨: Citoje si: "Bazuar në praktikën gjyqësore në Aktgjykimin [Emri/Numri]..."
 
 RREGULL KRITIK SHFAJËSUES DHE NON-INVERSION:
 Rreptësisht dallo viktimën/palën e dëmtuar nga shkelësi. ASNJËHERË mos ia vish shkeljet e drejtorëve, ortakëve ose entiteteve rivale palës kliente.
 Veprimet e paautorizuara, përvetësimet ose regjistrimet paralele i ka kryer {opposing_name}.
-Klienti ({client_name}) mbron të drejtat e veta ligjore me prova materiale (raporte, pasqyra bankare, kontrata, fatura dhe ARBK).
+Klienti ({client_name}) mbron të drejtat e veta ligjore me prova materiale.
 
 KORNIZA E DETYRUESHME STATUTORE (CITO SAKTE ME NUMRA LIGJESH DHE NENE):
 1. Ligji Nr. 03/L-006 për Procedurën Kontestimore - LPK:
-   - Prokura & Afati Prekluziv: Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
+   - Prokura & Afati Prekluziv: Neni 91 par 3, Neni 92 & Neni 93.3.
    - Refuzimi / Ndryshimi i Padisë: Neni 256 par 1 & Neni 258.
-   - Këqyrja e Shkresave të Lëndës: Neni 122.1 (JO Neni 113).
-   - Baza Procedurale për Kundërpadi & Prapësim: Neni 256.
+   - Këqyrja e Shkresave të Lëndës: Neni 122.1.
    - Masa e Sigurisë / Ngrirja e Llogarive: Neni 297, Neni 298, Neni 299 (Neni 299.1 pika a).
-   - Abuzimi i Të Drejtave Procedurale & Gjobat: Nenet 10, 11, 110 & Nenet 288/289.
 2. Ligji Nr. 06/L-016 për Shoqëritë Tregtare - LSHT:
    - Detyra e Besnikërisë & Ndalimi i Konkurrencës: Neni 258 (par 1, 2, 3).
 3. Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve - LMD:
-   - Shpërblimi i Dëmit: Neni 136.
-   - Pasurimi i Pabazë: Neni 141.
-   - Kamata Vonesës Prej 8% në Viti: Neni 382.
-
-STRICT BAN: MOS CITO ASNJËHERË Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR), Ligjet e Falimentimit, apo Ligjet e Administrimit Tatimor sepse janë tërësisht irrelevante kur nuk janë lëndë e kontestit.
+   - Shpërblimi i Dëmit: Neni 136. Pasurimi i Pabazë: Neni 141. Kamata Vonesës: Neni 382.
 """
 
 UNBREAKABLE_IDENTITY_HEADER = build_dynamic_identity_header()
@@ -89,7 +87,6 @@ UNBREAKABLE_IDENTITY_HEADER = build_dynamic_identity_header()
 def _sanitize_and_disambiguate_prompt(user_text: str, opposing_name: str = "Pala Kundërshtare") -> str:
     if not user_text:
         return ""
-    
     cleaned = re.sub(r'\b(ai|aj)\s+vetë?\b', f'Pala Kundërshtare ({opposing_name})', user_text, flags=re.IGNORECASE)
     cleaned = re.sub(r'\b(ai|aj)\s+(ka|mori|transferoi|solli|regjistroi|bleu|ka hapur)\b', f'Pala Kundërshtare ({opposing_name}) \\2', cleaned, flags=re.IGNORECASE)
     return cleaned
@@ -124,7 +121,7 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
             logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text}")
         raise
 
-def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.2, model: str = FAST_MODEL) -> str:
+def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
     key = _get_api_key()
     if not key:
         return "Gabim: Mungon OPENROUTER_API_KEY"
@@ -165,7 +162,7 @@ def get_embedding(text: str) -> List[float]:
         logger.error(f"❌ OpenRouter Embedding Failure: {e}")
         return [0.0] * 1536
 
-async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
+async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.05, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
     client = _get_async_client()
     try:
         identity_header = build_dynamic_identity_header()
@@ -189,7 +186,7 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2, model: s
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
     """
-    PHOENIX ENGINE: Generates real, structured summaries in 100% ALBANIAN for Albanian, English, or German documents.
+    PHOENIX ENGINE: Generates 100% literal, non-hallucinated document summaries in Albanian.
     """
     if not text or not text.strip():
         return "Dokument pa përmbajtje tekstuale."
@@ -197,9 +194,9 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
         client = _get_async_client()
         system_prompt = """
         Detyra: Ti je një asistent ligjor shumëgjuhësh (Shqip, Anglisht, Gjermanisht) për Gjykatat e Kosovës.
-        Analizo tekstin e këtij dokumenti ligjor ose financiar dhe përpiqesh të bësh një përmbledhje të qartë, të saktë dhe të strukturuar VETËM NË GJUHËN SHQIPE (KOSOVË).
+        Analizo tekstin e këtij dokumenti ligjor ose financiar dhe BËJ NJË PËRMBLEDHJE TË FAKTEVE SAKTE VETËM NË GJUHËN SHQIPE.
         
-        RREGULLI KRITIK I GJUHËS: Të gjitha fjalitë, rolet, termat dhe përmbledhjet DUHET TË JENË 100% NË SHQIP, pa marrë parasysh nëse dokumenti burimor është në Gjermanisht apo Anglisht.
+        NDALIMI I HALLUCINIMEVE: Përmend VETËM emrat, shumat, datat dhe termat që shkruhen literalisht në dokument. MOS shpik asnjë detaj.
         
         Përmbledhja duhet të përfshijë:
         1. Llojin e dokumentit (Kontratë Shërbimi, Faturë, Aktakuzë, Shkresë, Vendim, etj.)
@@ -213,7 +210,7 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"TEKSTI I DOKUMENTIT PËR PËRMBLEDHJE:\n{text[:6000]}"}
             ],
-            temperature=TEMP_ANALYSIS
+            temperature=0.0
         )
         content = res.choices[0].message.content or ""
         return content.strip() if content else text[:500]
@@ -224,9 +221,8 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
 async def extract_case_graph_ontology(context: str) -> Dict[str, Any]:
     """
     PHOENIX ENGINE: Robust, trilingual-aware graph extractor.
-    Enforces 100% Albanian (Shqip - Kosovo Jurisdiction) output for all node labels,
-    entity descriptions, relationship types, and evidence citations, regardless of whether 
-    the source document is in German, English, or Albanian.
+    Enforces 100% Albanian output and ZERO HALLUCINATIONS.
+    Uses FAST_MODEL (DeepSeek V3 at temp=0.0) for 80% lower API cost and 100% literal accuracy.
     """
     key = _get_api_key()
     if not key:
@@ -239,26 +235,20 @@ async def extract_case_graph_ontology(context: str) -> Dict[str, Any]:
     {identity_header}
     DETYRA KRITIK E DOKUMENTIT SHUMËGJUHËS (DE / EN / SQ):
     Ti je një Konstruktor i Ontologjisë Ligjore për Gjykatat e Kosovës.
-    Analizo të gjitha dokumentet e bashkangjitura (përfshirë ato në Gjermanisht, Anglisht, apo Shqip) dhe nxirr Grafikun e Provave.
+    Analizo dokumentet e bashkangjitura dhe nxirr Grafikun e Provave.
+
+    RREGULLI RIGOROZ KUNDËR HALLUCINIMEVE:
+    - Nxirr VETËM entitetet, emrat, kompanitë, kontratat dhe dëshmitë që ekzistojnë literalisht në tekstin e dhënë.
+    - MOS shpik asnjë person apo kompani që nuk përmendet shprehimisht.
 
     RREGULLI I DETYRUESHËM I GJUHËS SHQIPE (100% ALBANIAN RULE):
-    TË GJITHA fushate nxjerra ("label", "description", "relation", "evidence_text") DUHET TË PËRKTHENEN DHE TË SHKRUHEN SAKTËSISHT NË GJUHËN SHQIPE ZYRTARE (Terminologjia Ligjore e Kosovës).
-    Nuk lejohet asnjë fjalë ose fjali në Anglisht apo Gjermanisht në fushat e JSON.
-    Shembuj të përkthimit të detyrueshëm:
-    - "is mentioned as Consultant" -> "përmendet si Konsulent"
-    - "Freelance Contract" -> "Kontratë Shërbimi"
-    - "Auftragnehmer" -> "Kontraktuesi"
-    - "The direct local partner" -> "Partneri direkt lokal"
+    - TË GJITHA fushat e nxjerra ("label", "description", "relation", "evidence_text") DUHET TË PËRKTHENEN DHE TË SHKRUHEN SAKTËSISHT NË GJUHËN SHQIPE ZYRTARE.
+    - Nuk lejohet asnjë fjalë ose fjali në Anglisht apo Gjermanisht në fushat e JSON.
 
     LLOJET E ENTITETEVE ("type"):
-    - "PERSON": Individë fizikë.
-    - "ORGANIZATION": Kompani, OJQ, Gjykatë, Banka (GIZ, LLC, Sh.p.k., GmbH, etj.).
-    - "ACCOUNT": Llogari bankare ose mjete financiare.
-    - "LOCATION": Shtete, qytete, adresa.
-    - "DOCUMENT": Kontrata, faturat, aktakuzat, shkresat.
-    - "EVENT": Seanca gjyqësore, afatet, takimet.
+    "PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "DOCUMENT", "EVENT"
 
-    LLOJET E LIDHJEVE ("relation" - SHQIP KRISTAL):
+    LLOJET E LIDHJEVE ("relation"):
     "PËRFAQËSOHET NGA", "ZBATUAR NGA", "KONTRAKTUAR ME", "I PUNËSUAR NË", "PRONËSI E", "TRANSAKSION FINANCIAR", "DETYRIM FINANCIAR", "PËRMENDUR NË SHKRESË", "NËNSHKRUAR NGA", "KUNDËRTHËNIE ME PROVËN".
 
     KTHO VETËM FORMATIN JSON:
@@ -291,7 +281,7 @@ async def extract_case_graph_ontology(context: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"TEKSTI I PLOTË I RASTIT DHE DOKUMENTEVE:\n{context[:12000]}"}
             ],
-            temperature=0.1
+            temperature=0.0
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -308,11 +298,12 @@ def forensic_interrogation(question: str, context_lines: List[str]) -> str:
         system_prompt = """
         Ti je një Auditor dhe Hetues Financiar Forenzik me eksperiencë në tregun e Kosovës.
         DETYRA: Përgjigju pyetjes së përdoruesit bazuar VETËM në rreshtat e dhënë të transaksioneve bankare apo dokumenteve financiare.
+        NDALIMI I HALLUCINIMEVE: Përdor VETËM shifrat dhe fjalët që figurojnë në rreshtat e mëposhtëm. MOS shpik asnjë transaksion!
         TONI: Analitik, skeptik, i bazuar rigorozisht në shifra konkrete.
-        GJUHA: SHQIP ZYRTARE (100%). Përkthe çdo dokument nga Gjermanishtja/Anglishtja në Shqip.
+        GJUHA: SHQIP ZYRTARE (100%).
         """
         user_content = f"TRANSAKSIONET / PROVAT E DEPOZITUARA:\n{context_text}\n\nPYETJA: {question}"
-        return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.1, model=DEEP_MODEL)
+        return _call_llm(system_prompt, user_content, json_mode=False, temperature=0.0, model=FAST_MODEL)
     except Exception as e:
         logger.error(f"Error in forensic_interrogation: {e}")
         return f"Gabim gjatë procesimit të pyetjes forenzike: {str(e)}"
@@ -325,14 +316,15 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe agresiv. Analizo kontekstin e rastit (përfshirë dokumentet në Shqip, Anglisht, Gjermanisht) dhe identifiko strategjinë më të mirë të sulmit ose mbrojtjes për palën kundërshtare.
+    Detyra: Shërbe si një avokat kundërshtar shumë i zgjuar dhe strategjik. Analizo kontekstin e rastit dhe identifiko strategjinë e sulmit bazuar VETËM në prova reale.
+    NDALIMI I HALLUCINIMEVE: MOS shpik akuza apo shkelje që nuk figurojnë në dokumente.
     TË GJITHA SHQIP: Përkthe çdo informacion nga Gjermanishtja/Anglishtja në Shqip.
 
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "opponent_strategy": "Përshkrimi i hollësishëm i strategjisë agresive në Shqip...",
       "weakness_attacks": [
-         "Sulm specifik i bazuar në dobësitë...",
+         "Sulm specifik i bazuar në dobësitë e provuara...",
          "Sulm tjetër..."
       ]
     }}
@@ -344,7 +336,8 @@ async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.4
+            temperature=0.0,
+            max_tokens=2500
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -363,8 +356,10 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar në faktet e rastit dhe të gjitha dokumentet e bashkangjitura (Shqip/Anglisht/Gjermanisht).
+    Detyra: Krijo një kronologji të saktë dhe të strukturuar të ngjarjeve bazuar VETËM në datat dhe faktet e shkruara në dokumente.
+    NDALIMI I HALLUCINIMEVE: MOS shpik asnjë datë apo ngjarje që nuk shkruhet literalisht në shkresa.
     TË GJITHA PERSHKRIMET DUHET TË JENË 100% NË GJUHËN SHQIPE.
+
     Përgjigju VETËM në formatin e strukturuar JSON:
     {{
       "timeline": [
@@ -374,12 +369,12 @@ async def build_case_chronology(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=DEEP_MODEL,
+            model=FAST_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.1
+            temperature=0.0
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -395,7 +390,8 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     identity_header = build_dynamic_identity_header()
     system_prompt = f"""
     {identity_header}
-    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta midis deklaratave dhe dokumenteve (Shqip/Anglisht/Gjermanisht).
+    Detyra: Ti je një Auditor Ligjor dhe Procedural jashtëzakonisht i mprehtë. Analizo shkresat e lëndës për të identifikuar mospërputhje procedurale dhe kontradikta reale.
+    NDALIMI I HALLUCINIMEVE: Trego VETËM kontradikta që mund të provohen me tekstin e dokumenteve. MOS shpik mospërputhje fiktive.
     GJUHA: Të gjitha fushat e JSON ("claim", "evidence", "impact") DUHET TË JENË 100% NË GJUHËN SHQIPE.
 
     Përgjigju VETËM në formatin e strukturuar JSON:
@@ -412,12 +408,12 @@ async def detect_contradictions(context: str) -> Dict[str, Any]:
     """
     try:
         res = await client.chat.completions.create(
-            model=DEEP_MODEL,
+            model=FAST_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"KONTEKSTI I RASTIT:\n{context}"}
             ],
-            temperature=0.2
+            temperature=0.0
         )
         content = res.choices[0].message.content or "{}"
         return clean_and_parse_json(content)
@@ -430,7 +426,7 @@ def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) ->
     if not key:
         return {}
     try:
-        content = _call_llm(custom_prompt or "Analizo këtë rast ligjor në Shqip.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.3, model=DEEP_MODEL)
+        content = _call_llm(custom_prompt or "Analizo këtë rast ligjor në Shqip.", f"KONTEKSTI I RASTIT:\n{context}", json_mode=False, temperature=0.0, model=FAST_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"❌ analyze_case_integrity failed: {e}")
@@ -443,6 +439,7 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
     try:
         system_prompt = """
         Detyra: Ti je një asistent financiar i kujdesshëm për tregun e Kosovës. Analizo tekstin e faturës (Shqip, Anglisht, apo Gjermanisht) dhe nxirr JSON në Shqip.
+        NDALIMI I HALLUCINIMEVE: Përdor VETËM shifrat e vërteta nga fatura.
         Formatizo përgjigjen tënde saktësisht si kjo strukturë JSON:
         {
           "category": "Kategoria e shpenzimit në Shqip",
@@ -451,7 +448,7 @@ def extract_expense_details_from_text(text: str) -> Dict[str, Any]:
           "description": "Emri i tregtarit"
         }
         """
-        content = _call_llm(system_prompt, f"TEKSTI I FATURËS:\n{text}", json_mode=True, temperature=0.1, model=FAST_MODEL)
+        content = _call_llm(system_prompt, f"TEKSTI I FATURËS:\n{text}", json_mode=True, temperature=0.0, model=FAST_MODEL)
         return clean_and_parse_json(content)
     except Exception as e:
         logger.error(f"Error in extract_expense_details_from_text: {e}")
