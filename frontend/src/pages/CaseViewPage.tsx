@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V44.0 (ADMIN-ONLY FEATURE GATE FOR ANALIZA, FINANCAT & ONTOLOGJIA)
+// PHOENIX PROTOCOL - CASE VIEW V46.0 (TYPO FIX & STRICT MASTER EMAIL ADMIN GATE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -287,7 +287,7 @@ const CaseHeader: React.FC<{
   onClearAnalysis: () => void;
   isAnalyzing: boolean;
   isPro: boolean;
-  isAdmin: boolean; // FEATURE GATE FLAG
+  isAdmin: boolean;
   selectedDocumentIds: string[];
   onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({
@@ -388,7 +388,7 @@ const CaseHeader: React.FC<{
         </div>
       </div>
 
-      {/* ADMIN-ONLY ACTION BUTTONS ROW (HIDDEN FOR NON-ADMIN USERS) */}
+      {/* STRICT MASTER ADMIN-ONLY ACTION BUTTONS ROW (HIDDEN FOR ALL OTHER USERS) */}
       {isAdmin && (
         <div className="grid grid-cols-3 gap-1.5 sm:gap-3 animate-in fade-in duration-200">
           
@@ -501,12 +501,13 @@ const CaseViewPage: React.FC = () => {
 
   const isPro = true;
 
-  // ADMIN ROLE CHECK
+  // STRICT MASTER EMAIL ADMIN GATE: ONLY SHABANBALA@GMAIL.COM OR SUPER_ADMIN
   const isAdmin = useMemo(() => {
     if (!user) return false;
-    const roleStr = (user.role || (user as any).user_type || '').toString().toUpperCase();
-    const emailStr = (user.email || '').toString().toLowerCase();
-    return roleStr === 'ADMIN' || (user as any).is_admin === true || emailStr.includes('admin') || emailStr.includes('shabanbala');
+    const emailStr = (user.email || '').toString().toLowerCase().trim();
+    const roleStr = (user.role || (user as any).user_type || '').toString().toUpperCase().trim();
+    
+    return emailStr === 'shabanbala@gmail.com' || roleStr === 'SUPER_ADMIN';
   }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -792,7 +793,7 @@ const CaseViewPage: React.FC = () => {
     <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
         
-        {/* HERO EXECUTIVE HEADER WITH ADMIN FEATURE GATE */}
+        {/* HERO EXECUTIVE HEADER WITH STRICT MASTER ADMIN FEATURE GATE */}
         <CaseHeader
           caseDetails={caseData.details}
           documents={liveDocuments}
