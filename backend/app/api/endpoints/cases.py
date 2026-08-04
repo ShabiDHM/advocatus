@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V41.0 (GDPR CASCADE DELETE GUARANTEE & GRAPH PURGE)
+# PHOENIX PROTOCOL - CASES ROUTER V42.0 (GHOST GRAPH PURGE & DUAL-FORMAT ID MATCHING)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -273,7 +273,7 @@ async def delete_case(
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# --- ONTOLOGY GRAPH ENDPOINTS (WITH CASCADING DELETION GUARANTEE) ---
+# --- ONTOLOGY GRAPH ENDPOINTS (WITH DUAL-FORMAT ID MATCHING & GHOST GRAPH PURGE) ---
 
 @router.get("/{case_id}/graph")
 async def get_case_graph_endpoint(
@@ -283,15 +283,23 @@ async def get_case_graph_endpoint(
 ):
     case_oid = validate_object_id(case_id)
     
-    # GUARANTEE: Check active document count for this case
+    # GUARANTEE: Check active documents matching String OR ObjectId case_id
     active_docs_count = db.documents.count_documents({
-        "case_id": case_oid, 
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
         "status": {"$ne": "DELETED"}
     })
     
     if active_docs_count == 0:
-        # Instantly purge stored graph_data if no documents exist
-        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": ""}})
+        # Instantly purge ghost graph from MongoDB
+        db.cases.update_one(
+            {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
+            {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+        )
+        try:
+            await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
+        except Exception:
+            pass
+
         return {
             "case_id": case_id,
             "nodes": [],
@@ -299,7 +307,7 @@ async def get_case_graph_endpoint(
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-    case = db.cases.find_one({"_id": case_oid})
+    case = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
     if not case:
         raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
 
@@ -346,9 +354,20 @@ async def rebuild_case_graph_endpoint(
 ):
     case_oid = validate_object_id(case_id)
     
-    docs_cursor = list(db.documents.find({"case_id": case_oid, "status": {"$ne": "DELETED"}}))
+    docs_cursor = list(db.documents.find({
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "status": {"$ne": "DELETED"}
+    }))
+    
     if len(docs_cursor) == 0:
-        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": ""}})
+        db.cases.update_one(
+            {"$or": [{"_id": case_oid}, {"_id": case_id}]},
+            {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+        )
+        try:
+            await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
+        except Exception:
+            pass
         return {"status": "success", "case_id": case_id, "nodes": [], "edges": []}
 
     doc_text_blocks = []
@@ -367,7 +386,7 @@ async def rebuild_case_graph_endpoint(
     if new_graph and new_graph.get("nodes"):
         await asyncio.to_thread(
             db.cases.update_one,
-            {"_id": case_oid},
+            {"$or": [{"_id": case_oid}, {"_id": case_id}]},
             {"$set": {"graph_data": new_graph, "updated_at": datetime.now(timezone.utc)}}
         )
 
@@ -378,7 +397,7 @@ async def rebuild_case_graph_endpoint(
         "edges": new_graph.get("edges", [])
     }
 
-# --- DOCUMENT ENDPOINTS WITH CASCADING GRAPH PURGE ---
+# --- DOCUMENT ENDPOINTS WITH AUTOMATIC GHOST GRAPH PURGE ---
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
@@ -388,7 +407,10 @@ async def get_documents_for_case(
 ):
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
-    cursor = db.documents.find({"case_id": case_oid, "owner_id": user_oid})
+    cursor = db.documents.find({
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "owner_id": user_oid
+    })
     docs = list(cursor)
     return [DocumentOut.model_validate(d) for d in docs]
 
@@ -428,7 +450,7 @@ async def upload_document_for_case(
 
     return DocumentOut.model_validate(doc)
 
-# --- BULK DELETE ENDPOINTS WITH AUTOMATIC GRAPH PURGE ---
+# --- BULK DELETE ENDPOINTS WITH AUTOMATIC GHOST GRAPH PURGE ---
 
 @router.post("/{case_id}/documents/bulk-delete")
 @router.delete("/{case_id}/documents/bulk-delete")
@@ -447,7 +469,11 @@ async def bulk_delete_documents_endpoint(
         doc_ids = body.document_ids or body.documentIds or []
     
     if not doc_ids:
-        docs = list(db.documents.find({"case_id": case_oid, "owner_id": user_oid, "status": {"$ne": "DELETED"}}))
+        docs = list(db.documents.find({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "owner_id": user_oid, 
+            "status": {"$ne": "DELETED"}
+        }))
         doc_ids = [str(d["_id"]) for d in docs]
 
     if not doc_ids:
@@ -461,9 +487,16 @@ async def bulk_delete_documents_endpoint(
         owner=current_user
     )
     
-    remaining_docs = db.documents.count_documents({"case_id": case_oid, "status": {"$ne": "DELETED"}})
+    remaining_docs = db.documents.count_documents({
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}], 
+        "status": {"$ne": "DELETED"}
+    })
+    
     if remaining_docs == 0:
-        db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}})
+        db.cases.update_one(
+            {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
+            {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+        )
         try:
             await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
         except Exception as e:
@@ -503,9 +536,15 @@ async def delete_document(
         owner=current_user
     )
     if result.get("deleted_count", 0) > 0:
-        remaining_docs = db.documents.count_documents({"case_id": case_oid, "status": {"$ne": "DELETED"}})
+        remaining_docs = db.documents.count_documents({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}], 
+            "status": {"$ne": "DELETED"}
+        })
         if remaining_docs == 0:
-            db.cases.update_one({"_id": case_oid}, {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}})
+            db.cases.update_one(
+                {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
+                {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+            )
             try:
                 await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
             except Exception as e:
