@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V51.0 (EXHAUSTIVE KOSOVO ACRONYM & ALIAS RESOLVER)
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V52.0 ("LIGJI PËRKATËS" GENERIC PHRASE & ARTICLE NUMBER RESOLVER)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
@@ -22,6 +22,18 @@ router = APIRouter(tags=["Laws"])
 
 # EXHAUSTIVE KOSOVO STATUTORY ACRONYM AND ALIAS DICTIONARY
 OFFICIAL_KOSOVO_LAWS = {
+    # Generic & Relative AI Phrases ("Ligji Përkatës")
+    "ligji përkatës": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligji perkates": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligjin përkatës": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligjin perkates": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligji i përgjithshëm": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligji i pergjithshem": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligji i procedurës kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "ligji per proceduren kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "procedurën kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    "procedura kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+
     # Acronyms & Short Names
     "lsht": "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
     "lpk": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
@@ -32,13 +44,7 @@ OFFICIAL_KOSOVO_LAWS = {
     "kpp": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "kushtetuta": "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
     
-    # Generic AI AI Generated & Hallucinated Titles
-    "ligji i përgjithshëm": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "ligji i pergjithshem": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "ligji i procedurës kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "ligji per proceduren kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "procedurën kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-    "procedura kontestimore": "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+    # Official Full Statute Titles
     "kodi penal": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
     "procedurës penale": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "procedura penale": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
@@ -59,7 +65,7 @@ OFFICIAL_KOSOVO_LAWS = {
     "ligji i punës": "LIGJI NR. 03/L-212 I PUNËS",
     "ligji i punes": "LIGJI NR. 03/L-212 I PUNËS",
 
-    # Official Statute Numbering
+    # Number Codes
     "06/l-074": "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
     "08/l-032": "KODI NR. 08/L-032 I PROCEDURËS PENALE",
     "06/l-006": "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
@@ -107,8 +113,21 @@ def _is_academic_file(filename_or_title: str) -> bool:
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     title_lower = raw_title.lower().strip()
-    
-    # Direct dictionary alias check
+    art_clean = re.sub(r'[^\d]', '', article.strip())
+    art_num = int(art_clean) if art_clean.isdigit() else 0
+
+    # 1. SPECIAL KOSOVO ARTICLE NUMBER RESOLVER FOR GENERIC "LIGJI PËRKATËS" / "LIGJI I PËRGJITHSHËM"
+    if "përkatës" in title_lower or "perkates" in title_lower or "përgjithshëm" in title_lower or "pergjithshem" in title_lower or not title_lower:
+        if art_num in [297, 298, 299, 256, 258, 91, 92, 93, 110, 122]:
+            return "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE"
+        elif art_num in [136, 141, 330, 382, 376, 100, 150]:
+            return "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE"
+        elif art_num in [258, 259, 260, 250]:
+            return "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE"
+        elif art_num in [307, 308, 100, 200]:
+            return "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS"
+
+    # 2. Direct dictionary alias check
     if OFFICIAL_KOSOVO_LAWS.get(title_lower):
         return OFFICIAL_KOSOVO_LAWS[title_lower]
 
@@ -116,7 +135,7 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
         if key in title_lower or title_lower == key:
             return official_title
 
-    # Fallback Law Number Pattern Extractor (e.g., 06/L-016, 03/L-006)
+    # 3. Fallback Law Number Pattern Extractor (e.g., 06/L-016, 03/L-006)
     law_code_match = re.search(r'\d{2,4}/l-\d{3}|\d{4}/\d{2}', title_lower)
     if law_code_match:
         code = law_code_match.group(0)
@@ -137,7 +156,7 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
         return "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE"
     if "detyrim" in title_lower or "lmd" in title_lower:
         return "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE"
-    if "kontestim" in title_lower or "lpk" in title_lower or "përgjithshëm" in title_lower:
+    if "kontestim" in title_lower or "lpk" in title_lower:
         return "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE"
     if "punë" in title_lower or "puna" in title_lower:
         return "LIGJI NR. 03/L-212 I PUNËS"
