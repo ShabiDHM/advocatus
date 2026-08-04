@@ -1,7 +1,5 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V7.7 (SAAS TRANSCRIPT UPGRADE)
-# 1. FIX: Upgraded I18N_STRINGS['prompt_persona'] to generate dual-track forensic reports: a plain-language Citizen's Guide, and a technical audit brief.
-# 2. FIX: Mandates the injection of a copy-pasteable drafting prompt (wrapped in codeblocks) inside the action plan.
+# PHOENIX PROTOCOL - FORENSIC ENGINE V8.0 (UNIFIED MASTER VECTOR STORE INTEGRATION)
 
 import pandas as pd
 import io
@@ -102,7 +100,7 @@ Rrethoje prompt-in saktësisht me backticks (p.sh. `Gjenero një kundërshtim...
         'err_column': "Mungon kolona 'Shuma'/'Amount' apo çifti i kolonave 'Hyrje' dhe 'Dalje'.",
         'err_fail': "Analiza dështoi.",
         'txt_no_desc': "Pa Përshkrim",
-        'msg_no_data': "Nuk u gjetën të dhëna."
+        'msg_no_data': "Nuk u gjetën të dhëna të mjaftueshme financiare."
     },
     'en': {
         'prompt_persona': """
@@ -186,6 +184,89 @@ def _is_weekend(date_str: str) -> bool:
             except: continue
     except: pass
     return False
+
+# --- UNIFIED MASTER VECTOR STORE INTEGRATION ---
+
+async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database, user_id: Optional[str] = None, filename: str = "Tabela Financiale"):
+    """
+    PHOENIX ENGINE: UNIFIES SPREADSHEET VECTOR EMBEDDINGS INTO THE MASTER 'user_vectors' COLLECTION.
+    Guarantees Socratic Chat, Deep Strategy, and Forensic Interrogation query 100% unified knowledge.
+    """
+    try:
+        user_oid = ObjectId(user_id) if user_id and ObjectId.is_valid(user_id) else None
+        case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+
+        # 1. Register or find document in db.documents
+        doc_record = await asyncio.to_thread(
+            db.documents.find_one,
+            {"case_id": case_oid, "file_name": filename, "status": {"$ne": "DELETED"}}
+        )
+        
+        if not doc_record and user_oid:
+            doc_id = ObjectId()
+            doc_record = {
+                "_id": doc_id,
+                "owner_id": user_oid,
+                "case_id": case_oid,
+                "file_name": filename,
+                "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "status": "READY",
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+            await asyncio.to_thread(db.documents.insert_one, doc_record)
+        
+        doc_id_str = str(doc_record.get("_id")) if doc_record else str(ObjectId())
+
+        # 2. Build vector chunk records for master user_vectors collection
+        master_vectors = []
+        financial_vectors = []
+
+        for r in records:
+            semantic_text = f"DOKUMENTI: {filename}. Data: {r['date']}. Shuma: {r['amount']} EUR. Përshkrimi: {r['description']}."
+            embedding = await asyncio.to_thread(llm_service.get_embedding, semantic_text)
+            
+            if embedding and len(embedding) == 1536:
+                # Master unified vector record (user_vectors)
+                master_vectors.append({
+                    "user_id": str(user_id) if user_id else "",
+                    "owner_id": user_oid,
+                    "case_id": str(case_id),
+                    "document_id": doc_id_str,
+                    "file_name": filename,
+                    "chunk": semantic_text,
+                    "text": semantic_text,
+                    "embedding": embedding,
+                    "source_type": "FORENSIC_EXCEL",
+                    "created_at": datetime.now(timezone.utc)
+                })
+
+                # Legacy compatibility record (financial_vectors)
+                financial_vectors.append({
+                    "case_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id,
+                    "content": semantic_text,
+                    "embedding": embedding
+                })
+
+        if master_vectors:
+            # Purge existing Excel chunks for this file in user_vectors
+            await asyncio.to_thread(
+                db.user_vectors.delete_many, 
+                {"case_id": str(case_id), "file_name": filename}
+            )
+            # Insert into unified master vector store
+            await asyncio.to_thread(db.user_vectors.insert_many, master_vectors)
+            logger.info(f"✅ Unified {len(master_vectors)} spreadsheet vectors into 'user_vectors' master store!")
+
+        if financial_vectors:
+            await asyncio.to_thread(
+                db.financial_vectors.delete_many, 
+                {"case_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id}
+            )
+            await asyncio.to_thread(db.financial_vectors.insert_many, financial_vectors)
+
+    except Exception as e:
+        logger.error(f"❌ Unified vector store insertion error: {e}")
 
 # --- CORE LOGIC ---
 
@@ -288,7 +369,7 @@ async def _generate_unified_strategic_memo(case_id: str, stats: Dict, top_anomal
     response = await asyncio.to_thread(getattr(llm_service, "_call_llm"), system_prompt, user_content, False, 0.1)
     return response or get_text('err_fail', lang)
 
-async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db: Database, lang: str = 'sq') -> Dict[str, Any]:
+async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db: Database, user_id: Optional[str] = None, lang: str = 'sq') -> Dict[str, Any]:
     try:
         df = pd.read_csv(io.BytesIO(content)) if filename.lower().endswith('.csv') else pd.read_excel(io.BytesIO(content))
     except Exception as e:
@@ -296,7 +377,6 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     
     df.columns = [str(c).lower().strip() for c in df.columns]
     
-    # Smart column parsing
     col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c), None)
     col_hyrje = next((c for c in df.columns if 'hyrje' in c or 'credit' in c or 'inflow' in c), None)
     col_dalje = next((c for c in df.columns if 'dalje' in c or 'debit' in c or 'outflow' in c), None)
@@ -308,7 +388,6 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     no_desc_txt = get_text('txt_no_desc', lang)
     
     for idx, row in df.fillna('').iterrows():
-        # Retrieve or compute transactional amount
         if col_amount:
             try: 
                 amount = Decimal(str(row[col_amount]).replace('€', '').replace(',', '').strip())
@@ -358,7 +437,9 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     ]
     
     executive_summary = await _generate_unified_strategic_memo(case_id, stats_for_llm, top_anomalies_for_llm, lang)
-    await _vectorize_and_store(records, case_id, db)
+    
+    # UNIFIED VECTOR STORE INJECTION (user_vectors)
+    await _vectorize_and_store(records, case_id, db, user_id=user_id, filename=filename)
     
     return {
         "executive_summary": executive_summary, 
@@ -366,11 +447,11 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     }
 
 # --- PUBLIC FUNCTIONS ---
-async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, db: Database, lang: str = 'sq') -> Dict[str, Any]:
-    return await _run_unified_analysis(content, filename, case_id, db, lang)
+async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, db: Database, user_id: Optional[str] = None, lang: str = 'sq') -> Dict[str, Any]:
+    return await _run_unified_analysis(content, filename, case_id, db, user_id=user_id, lang=lang)
 
 async def forensic_analyze_spreadsheet(content: bytes, filename: str, case_id: str, db: Database, analyst_id: Optional[str] = None, lang: str = 'sq') -> Dict[str, Any]:
-    report = await _run_unified_analysis(content, filename, case_id, db, lang)
+    report = await _run_unified_analysis(content, filename, case_id, db, user_id=analyst_id, lang=lang)
     report["forensic_metadata"] = { 
         "evidence_hash": generate_evidence_hash(content),
         "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -380,25 +461,27 @@ async def forensic_analyze_spreadsheet(content: bytes, filename: str, case_id: s
 
 async def ask_financial_question(case_id: str, question: str, db: Database, lang: str = 'sq') -> Dict[str, Any]:
     q_vector = await asyncio.to_thread(llm_service.get_embedding, question)
-    rows = await asyncio.to_thread(list, db.financial_vectors.find({"case_id": ObjectId(case_id)}))
-    scored_rows = sorted([(np.dot(q_vector, row.get("embedding", [])), row) for row in rows if row.get("embedding")], key=lambda x: x[0], reverse=True)
-    context_lines = [row["content"] for _, row in scored_rows[:15]]
+    
+    # Query unified user_vectors master store
+    rows = await asyncio.to_thread(
+        list, 
+        db.user_vectors.find({"case_id": str(case_id)})
+    )
+    if not rows:
+        rows = await asyncio.to_thread(list, db.financial_vectors.find({"case_id": ObjectId(case_id)}))
+
+    scored_rows = sorted(
+        [(np.dot(q_vector, row.get("embedding", [])), row) for row in rows if row.get("embedding")], 
+        key=lambda x: x[0], 
+        reverse=True
+    )
+    context_lines = [row.get("chunk") or row.get("content", "") for _, row in scored_rows[:15]]
     
     if not context_lines: 
         return {"answer": get_text('msg_no_data', lang)}
     
     answer = await asyncio.to_thread(llm_service.forensic_interrogation, question, context_lines)
     return { "answer": answer, "supporting_evidence_count": len(context_lines) }
-
-async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database):
-    vectors = []
-    for r in records:
-        semantic_text = f"Data: {r['date']}. Shuma: {r['amount']} EUR. Përshkrimi: {r['description']}."
-        embedding = await asyncio.to_thread(llm_service.get_embedding, semantic_text)
-        vectors.append({"case_id": ObjectId(case_id), "content": semantic_text, "embedding": embedding})
-    if vectors:
-        await asyncio.to_thread(db.financial_vectors.delete_many, {"case_id": ObjectId(case_id)})
-        await asyncio.to_thread(db.financial_vectors.insert_many, vectors)
 
 async def forensic_interrogate_evidence(case_id: str, question: str, db: Database, lang: str = 'sq') -> Dict[str, Any]:
     return await ask_financial_question(case_id, question, db, lang)
