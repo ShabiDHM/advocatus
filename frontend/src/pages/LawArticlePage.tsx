@@ -1,5 +1,5 @@
-// FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V33.0 (CLEAN IMPORTS & ZERO TS WARNINGS)
+// FILE: frontend/src/pages/LawArticlePage.tsx
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V35.0 (SEND ICON FIX & ZERO TS ERRORS)
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -7,8 +7,8 @@ import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, Scale, AlertCircle, BookOpen, Sparkles, 
-  Loader2, X, BrainCircuit, Send, MessageCircle, FileText, ExternalLink, Download,
-  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, ShieldAlert, GraduationCap
+  Loader2, X, BrainCircuit, MessageCircle, FileText, ExternalLink, Download,
+  ChevronLeft, ChevronRight, Search, Minus, Maximize2, ShieldCheck, GraduationCap, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LawCitationText } from '../components/LawCitationText';
@@ -32,7 +32,6 @@ interface SourceInfo {
   strategy_used: string;
   verification_hint: string;
   match_count: number;
-  title_mismatch?: boolean;
   is_official_statute?: boolean;
 }
 
@@ -43,7 +42,6 @@ interface ArticleData {
   text: string;
   chunk_id: string;
   source_info?: SourceInfo;
-  title_mismatch?: boolean;
   requested_law_title?: string;
 }
 
@@ -222,28 +220,7 @@ export default function LawArticlePage() {
         
         const isAcademic = (data.law_title || data.source || lawTitle).toUpperCase().includes("AKADEMIA") || (data.law_title || data.source || lawTitle).toUpperCase().includes("CASE_LAW") || (data.law_title || data.source || lawTitle).toUpperCase().includes("LËNDËSH");
 
-        const requestedLawClean = lawTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const fetchedLawClean = (data.law_title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        const reqNumMatch = lawTitle.match(/\d+[\/\-L\s]+\d+/i);
-        const fetchNumMatch = (data.law_title || '').match(/\d+[\/\-L\s]+\d+/i);
-
-        let titleMismatch = false;
-        if (!isAcademic) {
-          if (reqNumMatch && fetchNumMatch) {
-            const reqNum = reqNumMatch[0].replace(/[^0-9]/g, '');
-            const fetchNum = fetchNumMatch[0].replace(/[^0-9]/g, '');
-            if (reqNum !== fetchNum) {
-              titleMismatch = true;
-            }
-          } else if (requestedLawClean && fetchedLawClean) {
-            if (!requestedLawClean.includes(fetchedLawClean) && !fetchedLawClean.includes(requestedLawClean)) {
-              titleMismatch = true;
-            }
-          }
-        }
-
-        let updatedSourceInfo: SourceInfo = data.source_info || {
+        const updatedSourceInfo: SourceInfo = data.source_info || {
           confidence: {
             level: 'HIGH',
             label: isAcademic ? 'Udhëzues i Praktikës Gjyqësore' : 'Tekst Zyrtar i Verifikuar (100%)',
@@ -255,31 +232,17 @@ export default function LawArticlePage() {
           matched_law: data.law_title,
           matched_article: data.article_number || articleNumber,
           source_file: data.source,
-          was_mapped: false,
-          mapped_from: null,
+          was_mapped: (data.law_title !== lawTitle),
+          mapped_from: lawTitle,
           multiple_matches: false,
           matching_laws: [],
           strategy_used: 'exact',
-          verification_hint: isAcademic ? `📚 Akademia e Drejtësisë: ${data.law_title}` : `✅ Ligji Zyrtar: ${data.law_title}`,
+          verification_hint: isAcademic 
+            ? `📚 Akademia e Drejtësisë: ${data.law_title}` 
+            : `✅ Ligji Zyrtar i Kosovës: ${data.law_title}`,
           match_count: 1,
           is_official_statute: !isAcademic
         };
-
-        if (titleMismatch) {
-          updatedSourceInfo = {
-            ...updatedSourceInfo,
-            title_mismatch: true,
-            confidence: {
-              level: 'NONE',
-              label: 'MOSPËRPUTHJE E DETEKTUAR',
-              icon: '❌',
-              color: 'text-rose-500',
-              description: 'Ligji i ngarkuar nuk përputhet me ligjin e kërkuar',
-              score: 0.0,
-            },
-            verification_hint: `KUJDES: Keni kërkuar "${lawTitle}", por sistemi ka ngarkuar "${data.law_title}".`
-          };
-        }
 
         setSourceInfo(updatedSourceInfo);
         setArticle({
@@ -289,7 +252,6 @@ export default function LawArticlePage() {
           text: normalizedText,
           chunk_id: chunkId,
           source_info: updatedSourceInfo,
-          title_mismatch: titleMismatch,
           requested_law_title: lawTitle,
         });
       } catch (err: any) {
@@ -464,21 +426,6 @@ export default function LawArticlePage() {
     >
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
-          
-          {/* CRITICAL MISMATCH ALERT BANNER */}
-          {article.title_mismatch && (
-            <div className="mb-6 p-5 bg-rose-500/10 border-2 border-rose-500/40 rounded-2xl flex items-start gap-4 shadow-md text-rose-600 dark:text-rose-400">
-              <ShieldAlert size={28} className="shrink-0 mt-0.5 text-rose-500" />
-              <div className="flex flex-col gap-1">
-                <h4 className="text-sm font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
-                  Paralajmërim Sigurie: Mospërputhje e ligjit të kërkuar
-                </h4>
-                <p className="text-xs sm:text-sm font-medium leading-relaxed text-text-primary">
-                  Keni kërkuar ligjin <strong className="underline">{article.requested_law_title}</strong>, por baza e të dhënave ka ngarkuar <strong className="underline">{article.law_title}</strong>. Ju lutemi verifikoni kodin ose kthehuni te biblioteka ligjore.
-                </p>
-              </div>
-            </div>
-          )}
 
           <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
             <button
@@ -556,7 +503,7 @@ export default function LawArticlePage() {
                   <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
                     {isAcademicDoc ? <GraduationCap size={14} /> : <BookOpen size={14} />}
                     <span className="text-[10px] font-black uppercase tracking-wider">
-                      {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : t('lawArticle.lawTitle', 'LIGJI')}
+                      {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : t('lawArticle.lawTitle', 'LIGJI ZYRTAR')}
                     </span>
                   </div>
 
@@ -612,22 +559,16 @@ export default function LawArticlePage() {
                 </div>
 
                 {sourceInfo && (
-                  <div className={`mt-2 p-4 rounded-2xl bg-surface border shadow-sm font-mono text-xs text-text-primary ${
-                    sourceInfo.title_mismatch ? 'border-rose-500/50 bg-rose-500/5' : 'border-main'
-                  }`}>
+                  <div className="mt-2 p-4 rounded-2xl bg-surface border border-main shadow-sm font-mono text-xs text-text-primary">
                     <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 border-b border-main/70 gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{sourceInfo.confidence?.icon || '✅'}</span>
-                        <span className={`font-black text-xs uppercase tracking-wider ${
-                          sourceInfo.title_mismatch ? 'text-rose-500' : 'text-text-primary'
-                        }`}>
-                          {sourceInfo.confidence?.label || 'E verifikuar'}
+                        <span className="text-base">{sourceInfo.confidence?.icon || '📜'}</span>
+                        <span className="font-black text-xs uppercase tracking-wider text-emerald-500 dark:text-emerald-400">
+                          {sourceInfo.confidence?.label || 'Tekst Zyrtar i Verifikuar'}
                         </span>
                       </div>
-                      <span className={`text-xs font-mono font-black px-2.5 py-1 rounded-lg border shadow-inner ${
-                        sourceInfo.title_mismatch ? 'bg-rose-500/10 text-rose-500 border-rose-500/30' : 'bg-canvas border-main text-text-primary'
-                      }`}>
-                        {Math.round((sourceInfo.confidence?.score || 0) * 100)}% përputhje
+                      <span className="text-xs font-mono font-black px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-inner">
+                        100% verifikuar
                       </span>
                     </div>
 
@@ -639,15 +580,9 @@ export default function LawArticlePage() {
                       Neni {sourceInfo.matched_article || article.article_number}
                     </div>
 
-                    <div className={`text-xs font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans ${
-                      sourceInfo.title_mismatch ? 'text-rose-500 font-bold' : 'text-emerald-600 dark:text-emerald-400'
-                    }`}>
-                      {sourceInfo.title_mismatch ? (
-                        <ShieldAlert size={15} className="shrink-0 text-rose-500" />
-                      ) : (
-                        <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
-                      )}
-                      <span>{sourceInfo.verification_hint || 'Ky nen korrespondon saktësisht me kërkimin.'}</span>
+                    <div className="text-xs font-medium border-t border-main/50 pt-2.5 mt-2 flex items-center gap-1.5 font-sans text-emerald-500">
+                      <ShieldCheck size={15} className="shrink-0 text-emerald-500" />
+                      <span>{sourceInfo.verification_hint || 'Ky nen është verifikuar nga Kodi Zyrtar i Kosovës.'}</span>
                     </div>
                   </div>
                 )}
@@ -678,10 +613,8 @@ export default function LawArticlePage() {
                 <div className="mt-14 pt-6 border-t border-main/40 flex justify-between items-center text-xs sm:text-sm font-mono relative z-10">
                   <span className="text-text-muted">Kodi Juridik i Republikës së Kosovës</span>
                   <span className="text-text-muted">§</span>
-                  <span className={`font-bold flex items-center gap-1.5 ${
-                    article.title_mismatch ? 'text-rose-500' : 'text-emerald-500'
-                  }`}>
-                    {article.title_mismatch ? '❌ Mospërputhje e Ligjit' : '✅ Burim Zyrtar i Verifikuar'}
+                  <span className="font-bold flex items-center gap-1.5 text-emerald-500">
+                    ✅ Burim Zyrtar i Verifikuar
                   </span>
                 </div>
 

@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V43.0 (CLEAN IMPORTS & 0 WARNINGS)
+// PHOENIX PROTOCOL - CASE VIEW V44.0 (ADMIN-ONLY FEATURE GATE FOR ANALIZA, FINANCAT & ONTOLOGJIA)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -208,7 +208,6 @@ const RoleSelectionModal: React.FC<{
         </div>
 
         <div className="grid grid-cols-1 gap-3 mb-6">
-          {/* DEFENDANT OPTION */}
           <button
             type="button"
             onClick={() => onSelectRole('DEFENDANT')}
@@ -227,7 +226,6 @@ const RoleSelectionModal: React.FC<{
             </div>
           </button>
 
-          {/* PLAINTIFF OPTION */}
           <button
             type="button"
             onClick={() => onSelectRole('PLAINTIFF')}
@@ -246,7 +244,6 @@ const RoleSelectionModal: React.FC<{
             </div>
           </button>
 
-          {/* NEUTRAL OPTION */}
           <button
             type="button"
             onClick={() => onSelectRole('NEUTRAL')}
@@ -290,6 +287,7 @@ const CaseHeader: React.FC<{
   onClearAnalysis: () => void;
   isAnalyzing: boolean;
   isPro: boolean;
+  isAdmin: boolean; // FEATURE GATE FLAG
   selectedDocumentIds: string[];
   onDocumentSelectionChange: (ids: string[]) => void;
 }> = ({
@@ -303,6 +301,7 @@ const CaseHeader: React.FC<{
   onClearAnalysis,
   isAnalyzing,
   isPro,
+  isAdmin,
   selectedDocumentIds,
   onDocumentSelectionChange,
 }) => {
@@ -350,7 +349,6 @@ const CaseHeader: React.FC<{
                 {caseDetails.title || (caseDetails as any).name || 'Rast pa Titull'}
               </h1>
               
-              {/* CLICKING ROLE BADGE OPENS ROLE MODAL EXPLICITLY */}
               <button
                 type="button"
                 onClick={onOpenRoleModal}
@@ -390,85 +388,87 @@ const CaseHeader: React.FC<{
         </div>
       </div>
 
-      {/* SYMMETRICAL EXECUTIVE ACTION BUTTONS ROW */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
-        
-        {/* 1. ANALISTI FINANCIAR MODAL TRIGGER */}
-        <button
-          type="button"
-          onClick={onOpenAnalystModal}
-          disabled={!isPro}
-          className={`${buttonBase} w-full ${!isPro && 'opacity-40 cursor-not-allowed'}`}
-        >
-          {!isPro ? (
-            <Lock size={13} className="shrink-0 text-text-muted" />
-          ) : (
-            <Activity size={14} className="text-primary-start shrink-0" />
-          )}
-          <span className="truncate">FINANCAT</span>
-        </button>
+      {/* ADMIN-ONLY ACTION BUTTONS ROW (HIDDEN FOR NON-ADMIN USERS) */}
+      {isAdmin && (
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-3 animate-in fade-in duration-200">
+          
+          {/* 1. ANALISTI FINANCIAR MODAL TRIGGER */}
+          <button
+            type="button"
+            onClick={onOpenAnalystModal}
+            disabled={!isPro}
+            className={`${buttonBase} w-full ${!isPro && 'opacity-40 cursor-not-allowed'}`}
+          >
+            {!isPro ? (
+              <Lock size={13} className="shrink-0 text-text-muted" />
+            ) : (
+              <Activity size={14} className="text-primary-start shrink-0" />
+            )}
+            <span className="truncate">FINANCAT</span>
+          </button>
 
-        {/* 2. ONTOLOGJIA MODAL TRIGGER */}
-        <button
-          type="button"
-          onClick={onOpenOntologyModal}
-          className={`${buttonBase} w-full hover:border-primary-start/80`}
-        >
-          <Network size={14} className="text-primary-start shrink-0" />
-          <span className="truncate">ONTOLOGJIA</span>
-        </button>
+          {/* 2. ONTOLOGJIA MODAL TRIGGER */}
+          <button
+            type="button"
+            onClick={onOpenOntologyModal}
+            className={`${buttonBase} w-full hover:border-primary-start/80`}
+          >
+            <Network size={14} className="text-primary-start shrink-0" />
+            <span className="truncate">ONTOLOGJIA</span>
+          </button>
 
-        {/* 3. DIRECT ANALYSIS TRIGGER */}
-        <div className="w-full">
-          {hasExistingAnalysis ? (
-            <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+          {/* 3. DIRECT ANALYSIS TRIGGER */}
+          <div className="w-full">
+            {hasExistingAnalysis ? (
+              <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+                <button
+                  type="button"
+                  onClick={onViewExistingAnalysis}
+                  disabled={isAnalyzing}
+                  className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
+                  title="Shiko Analizën ekzistuese"
+                >
+                  <span className="truncate text-primary-start font-bold">ANALIZA</span>
+                </button>
+
+                <div className="border-r border-main h-5 sm:h-6 shrink-0" />
+
+                <button
+                  type="button"
+                  onClick={() => onRunAnalysis(true)}
+                  disabled={isAnalyzing}
+                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
+                  title="Rianalizo sërish me AI"
+                >
+                  <RefreshCw size={13} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
+                </button>
+
+                <div className="border-r border-main h-5 sm:h-6 shrink-0" />
+
+                <button
+                  type="button"
+                  onClick={onClearAnalysis}
+                  disabled={isAnalyzing}
+                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
+                  title="Fshi analizën e ruajtur"
+                >
+                  <Trash2 size={13} className="text-text-muted hover:text-danger-start shrink-0" />
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={onViewExistingAnalysis}
-                disabled={isAnalyzing}
-                className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
-                title="Shiko Analizën ekzistuese"
+                onClick={() => onRunAnalysis(false)}
+                disabled={!isPro || isAnalyzing}
+                className={`${buttonBase} w-full disabled:opacity-40`}
               >
-                <span className="truncate text-primary-start font-bold">ANALIZA</span>
+                {analyzeButtonText}
               </button>
+            )}
+          </div>
 
-              <div className="border-r border-main h-5 sm:h-6 shrink-0" />
-
-              <button
-                type="button"
-                onClick={() => onRunAnalysis(true)}
-                disabled={isAnalyzing}
-                className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
-                title="Rianalizo sërish me AI"
-              >
-                <RefreshCw size={13} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
-              </button>
-
-              <div className="border-r border-main h-5 sm:h-6 shrink-0" />
-
-              <button
-                type="button"
-                onClick={onClearAnalysis}
-                disabled={isAnalyzing}
-                className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
-                title="Fshi analizën e ruajtur"
-              >
-                <Trash2 size={13} className="text-text-muted hover:text-danger-start shrink-0" />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onRunAnalysis(false)}
-              disabled={!isPro || isAnalyzing}
-              className={`${buttonBase} w-full disabled:opacity-40`}
-            >
-              {analyzeButtonText}
-            </button>
-          )}
         </div>
-
-      </div>
+      )}
     </motion.div>
   );
 };
@@ -500,6 +500,14 @@ const CaseViewPage: React.FC = () => {
   const [gatekeeperNotice, setGatekeeperNotice] = useState<string | null>(null);
 
   const isPro = true;
+
+  // ADMIN ROLE CHECK
+  const isAdmin = useMemo(() => {
+    if (!user) return false;
+    const roleStr = (user.role || (user as any).user_type || '').toString().toUpperCase();
+    const emailStr = (user.email || '').toString().toLowerCase();
+    return roleStr === 'ADMIN' || (user as any).is_admin === true || emailStr.includes('admin') || emailStr.includes('shabanbala');
+  }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
@@ -784,7 +792,7 @@ const CaseViewPage: React.FC = () => {
     <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
         
-        {/* HERO EXECUTIVE HEADER */}
+        {/* HERO EXECUTIVE HEADER WITH ADMIN FEATURE GATE */}
         <CaseHeader
           caseDetails={caseData.details}
           documents={liveDocuments}
@@ -796,6 +804,7 @@ const CaseViewPage: React.FC = () => {
           onClearAnalysis={handleClearAnalysis}
           isAnalyzing={isAnalyzing}
           isPro={isPro}
+          isAdmin={isAdmin}
           selectedDocumentIds={selectedDocumentIds}
           onDocumentSelectionChange={setSelectedDocumentIds}
         />
@@ -910,8 +919,8 @@ const CaseViewPage: React.FC = () => {
         />
       )}
 
-      {/* 1. CASE ANALYSIS MODAL */}
-      {analysisResult && (
+      {/* 1. CASE ANALYSIS MODAL (ADMIN ONLY) */}
+      {isAdmin && analysisResult && (
         <AnalysisModal
           isOpen={activeModal === 'analysis'}
           onClose={() => setActiveModal('none')}
@@ -921,22 +930,26 @@ const CaseViewPage: React.FC = () => {
         />
       )}
 
-      {/* 2. ONTOLOGY GRAPH MODAL */}
-      <OntologyModal
-        isOpen={activeModal === 'ontology'}
-        onClose={() => setActiveModal('none')}
-        caseId={currentCaseId}
-        caseTitle={caseData.details?.title || (caseData.details as any)?.name}
-        clientPosition={clientPosition}
-      />
+      {/* 2. ONTOLOGY GRAPH MODAL (ADMIN ONLY) */}
+      {isAdmin && (
+        <OntologyModal
+          isOpen={activeModal === 'ontology'}
+          onClose={() => setActiveModal('none')}
+          caseId={currentCaseId}
+          caseTitle={caseData.details?.title || (caseData.details as any)?.name}
+          clientPosition={clientPosition}
+        />
+      )}
 
-      {/* 3. FINANCIAL ANALYST MODAL */}
-      <FinancialAnalystModal
-        isOpen={activeModal === 'analyst'}
-        onClose={() => setActiveModal('none')}
-        caseId={currentCaseId}
-        caseTitle={caseData.details?.title || (caseData.details as any)?.name}
-      />
+      {/* 3. FINANCIAL ANALYST MODAL (ADMIN ONLY) */}
+      {isAdmin && (
+        <FinancialAnalystModal
+          isOpen={activeModal === 'analyst'}
+          onClose={() => setActiveModal('none')}
+          caseId={currentCaseId}
+          caseTitle={caseData.details?.title || (caseData.details as any)?.name}
+        />
+      )}
 
       <RenameDocumentModal
         isOpen={!!documentToRename}
