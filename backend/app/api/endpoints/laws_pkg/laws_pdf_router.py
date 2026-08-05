@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V53.0 (DIRECT FASTAPI STREAMING - ZERO CORS ERROR)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V54.0 (LAWS/KS PREFIX SUPPORT & QUIET B2 STREAMING)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -42,53 +42,66 @@ async def get_law_pdf(filename: str):
     except Exception as db_err:
         logger.warning(f"DB source resolution skipped: {db_err}")
 
-    # 3. Direct B2 Cloud Storage Stream (No CORS Redirect)
+    # 3. Direct B2 Cloud Storage Search (including laws/ks/ prefix)
     try:
+        s3 = storage_service.get_s3_client()
+        bucket = storage_service.B2_BUCKET_NAME
+        
+        # Test candidate B2 keys (prioritizing laws/ks/ and academic/)
         candidate_keys = [
-            clean_name_pdf,
-            f"academic/{clean_name_pdf}",
+            f"laws/ks/{clean_name_pdf}",
             f"laws/{clean_name_pdf}",
+            f"academic/{clean_name_pdf}",
             f"case_law/{clean_name_pdf}",
-            clean_name_pdf.replace(" ", "_"),
-            f"academic/{clean_name_pdf.replace(' ', '_')}"
+            clean_name_pdf,
+            f"laws/ks/{clean_name_pdf.replace(' ', '_')}",
+            f"academic/{clean_name_pdf.replace(' ', '_')}",
+            clean_name_pdf.replace(" ", "_")
         ]
         
         for key in candidate_keys:
-            stream = storage_service.get_file_stream(key)
-            if stream:
-                return StreamingResponse(
-                    stream,
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'inline; filename="{clean_name_pdf}"',
-                        "Cache-Control": "no-cache"
-                    }
-                )
+            try:
+                # Quiet check if key exists before opening stream
+                s3.head_object(Bucket=bucket, Key=key)
+                stream = storage_service.get_file_stream(key)
+                if stream:
+                    return StreamingResponse(
+                        stream,
+                        media_type="application/pdf",
+                        headers={
+                            "Content-Disposition": f'inline; filename="{clean_name_pdf}"',
+                            "Cache-Control": "no-cache"
+                        }
+                    )
+            except Exception:
+                continue
 
-        # B2 Bucket Keyword Search Fallback
-        s3 = storage_service.get_s3_client()
-        bucket = storage_service.B2_BUCKET_NAME
-        for prefix in ["academic/", "laws/", "case_law/", ""]:
-            b2_response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-            for obj in b2_response.get('Contents', []):
-                key = obj.get('Key', '')
-                b2_file_lower = os.path.basename(key).lower()
-                
-                if target_keywords and all(kw in b2_file_lower for kw in target_keywords if kw not in ["web", "pdf"]):
-                    stream = storage_service.get_file_stream(key)
-                    if stream:
-                        return StreamingResponse(
-                            stream,
-                            media_type="application/pdf",
-                            headers={
-                                "Content-Disposition": f'inline; filename="{os.path.basename(key)}"',
-                                "Cache-Control": "no-cache"
-                            }
-                        )
+        # B2 Prefix Search Fallback across laws/ks/, academic/, laws/
+        for prefix in ["laws/ks/", "academic/", "laws/", "case_law/", ""]:
+            try:
+                b2_response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+                for obj in b2_response.get('Contents', []):
+                    key = obj.get('Key', '')
+                    b2_file_lower = os.path.basename(key).lower()
+                    
+                    if target_keywords and all(kw in b2_file_lower for kw in target_keywords if kw not in ["web", "pdf"]):
+                        stream = storage_service.get_file_stream(key)
+                        if stream:
+                            return StreamingResponse(
+                                stream,
+                                media_type="application/pdf",
+                                headers={
+                                    "Content-Disposition": f'inline; filename="{os.path.basename(key)}"',
+                                    "Cache-Control": "no-cache"
+                                }
+                            )
+            except Exception:
+                continue
+
     except Exception as e:
         logger.warning(f"B2 cloud search skipped: {e}")
 
-    # 4. Local Filesystem Search Fallback
+    # 4. Local Filesystem Search Fallback (data/laws/ks)
     found = find_pdf_by_number_pair(clean_name_pdf) or find_pdf_by_number_pair(raw_name)
     if found:
         return FileResponse(
