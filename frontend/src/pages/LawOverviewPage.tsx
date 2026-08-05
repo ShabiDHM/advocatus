@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V26.0 (MULTI-CATEGORY PDF STREAMING & ACADEMIC SUPPORT)
+// PHOENIX PROTOCOL - LAW OVERVIEW V27.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { LawPdfModal } from '../components/law/LawPdfModal';
+import FileViewerModal from '../components/FileViewerModal';
 
 interface LawOverviewData {
   law_title: string;
@@ -27,7 +27,6 @@ export default function LawOverviewPage() {
   const [error, setError] = useState('');
   
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
 
@@ -127,10 +126,7 @@ export default function LawOverviewPage() {
                 {pdfUrl && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowPdfModal(true);
-                      setIsPdfMinimized(false);
-                    }}
+                    onClick={() => setShowPdfModal(true)}
                     className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
                   >
                     <FileText size={14} />
@@ -207,22 +203,18 @@ export default function LawOverviewPage() {
         </div>
       </div>
 
-      <LawPdfModal
-        showPdfModal={showPdfModal}
-        isPdfMinimized={isPdfMinimized}
-        pdfUrl={pdfUrl}
-        article={{
-          law_title: displayHeaderTitle,
-          source: data.source,
-          text: '',
-          chunk_id: '',
-        }}
-        onCloseModal={() => {
-          setShowPdfModal(false);
-          setIsPdfMinimized(false);
-        }}
-        onMinimizeModal={setIsPdfMinimized}
-      />
+      {showPdfModal && pdfUrl && (
+        <FileViewerModal
+          documentData={{
+            file_name: data.source || displayHeaderTitle,
+            mime_type: 'application/pdf',
+          }}
+          directUrl={pdfUrl}
+          isAuth={true}
+          onClose={() => setShowPdfModal(false)}
+          t={t}
+        />
+      )}
     </motion.div>
   );
 }

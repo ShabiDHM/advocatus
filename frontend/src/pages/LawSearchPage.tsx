@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V22.1 (DIRECT BACKBLAZE PDF STREAMING FOR ACADEMIC & CASE LAW)
+// PHOENIX PROTOCOL - LAW SEARCH V23.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import { Search, X, Scale, ArrowLeft, ChevronDown, Check, ShieldCheck, BookOpen,
 import { useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LawPdfModal } from '../components/law/LawPdfModal';
+import FileViewerModal from '../components/FileViewerModal';
 
 const DEFAULT_STATUTORY_LAWS = [
   "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
@@ -50,7 +50,6 @@ export default function LawSearchPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPdfFilename, setSelectedPdfFilename] = useState<string | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +95,7 @@ export default function LawSearchPage() {
   const handleSelectLaw = (lawTitle: string) => {
     setIsOpen(false);
 
-    // IF ACADEMIC OR COURT DECISION: DIRECT B2 STREAM IN PDF MODAL (IMAGE 3)
+    // IF ACADEMIC OR COURT DECISION: OPEN CANVAS PDF ENGINE (FileViewerModal)
     if (
       activeTab === 'academic' ||
       activeTab === 'caselaw' ||
@@ -105,7 +104,6 @@ export default function LawSearchPage() {
     ) {
       setSelectedPdfFilename(lawTitle);
       setShowPdfModal(true);
-      setIsPdfMinimized(false);
     } else {
       // OFFICIAL STATUTES: NAVIGATE TO TABLE OF CONTENTS
       navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
@@ -193,7 +191,7 @@ export default function LawSearchPage() {
               </div>
               <span className="truncate text-left font-bold text-sm sm:text-base text-text-primary">
                 {activeTab === 'academic'
-                  ? 'Zgjidh udhëzuesin nga Akademia e Drejtësisë (Stream Direct)...'
+                  ? 'Zgjidh udhëzuesin nga Akademia e Drejtësisë...'
                   : activeTab === 'caselaw'
                   ? 'Zgjidh aktgjykimin apo praktikën gjyqësore...'
                   : 'Zgjidh ligjin zyrtar nga lista...'}
@@ -267,22 +265,19 @@ export default function LawSearchPage() {
 
       </div>
 
-      <LawPdfModal
-        showPdfModal={showPdfModal}
-        isPdfMinimized={isPdfMinimized}
-        pdfUrl={pdfUrl}
-        article={{
-          law_title: selectedPdfFilename || 'Udhëzues Akademik',
-          source: selectedPdfFilename || 'Akademia e Drejtësisë.pdf',
-          text: '',
-          chunk_id: '',
-        }}
-        onCloseModal={() => {
-          setShowPdfModal(false);
-          setIsPdfMinimized(false);
-        }}
-        onMinimizeModal={setIsPdfMinimized}
-      />
+      {/* UNIFIED CANVAS PDF ENGINE (FileViewerModal) */}
+      {showPdfModal && pdfUrl && (
+        <FileViewerModal
+          documentData={{
+            file_name: selectedPdfFilename || 'Udhëzues Akademik',
+            mime_type: 'application/pdf',
+          }}
+          directUrl={pdfUrl}
+          isAuth={true}
+          onClose={() => setShowPdfModal(false)}
+          t={t}
+        />
+      )}
     </motion.div>
   );
 }

@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V36.2 (DECOUPLED & MODULARIZED ATOMIC ARCHITECTURE)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V37.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -13,7 +13,7 @@ import { normalizeText, generateFallbackChunkId } from '../utils/lawArticleHelpe
 import { LawArticleHeader } from '../components/law/LawArticleHeader';
 import { LawArticleContent } from '../components/law/LawArticleContent';
 import { LawArticleAuditorPanel } from '../components/law/LawArticleAuditorPanel';
-import { LawPdfModal } from '../components/law/LawPdfModal';
+import FileViewerModal from '../components/FileViewerModal';
 
 export default function LawArticlePage() {
   const [searchParams] = useSearchParams();
@@ -26,7 +26,6 @@ export default function LawArticlePage() {
   const [error, setError] = useState('');
 
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -47,9 +46,6 @@ export default function LawArticlePage() {
 
   const lawTitle = searchParams.get('lawTitle');
   const articleNumber = searchParams.get('articleNumber');
-
-  const isMobile =
-    typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const isAcademicDoc = useMemo(() => {
     const raw = (article?.law_title || article?.source || lawTitle || '').toString().toUpperCase();
@@ -249,16 +245,6 @@ export default function LawArticlePage() {
 
   const pdfUrl = article?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(article.source)}` : null;
 
-  const handleOpenPdf = () => {
-    if (!pdfUrl) return;
-    if (isMobile) {
-      window.open(pdfUrl, '_blank');
-    } else {
-      setShowPdfModal(true);
-      setIsPdfMinimized(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20 bg-canvas">
@@ -290,7 +276,7 @@ export default function LawArticlePage() {
 
   return (
     <motion.div
-      className="w-full min-h-screen pt-24 pb-12 bg-canvas flex flex-col text-text-primary"
+      className="w-full min-h-screen pt-24 pb-12 bg-canvas text-text-primary"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -324,7 +310,7 @@ export default function LawArticlePage() {
             prevArticleNum={prevArticleNum}
             nextArticleNum={nextArticleNum}
             onNavigateToArticle={navigateToArticleNum}
-            onOpenPdf={handleOpenPdf}
+            onOpenPdf={() => setShowPdfModal(true)}
             t={t}
           />
 
@@ -395,17 +381,18 @@ export default function LawArticlePage() {
         </div>
       </div>
 
-      <LawPdfModal
-        showPdfModal={showPdfModal}
-        isPdfMinimized={isPdfMinimized}
-        pdfUrl={pdfUrl}
-        article={article}
-        onCloseModal={() => {
-          setShowPdfModal(false);
-          setIsPdfMinimized(false);
-        }}
-        onMinimizeModal={setIsPdfMinimized}
-      />
+      {showPdfModal && pdfUrl && (
+        <FileViewerModal
+          documentData={{
+            file_name: article.source || article.law_title,
+            mime_type: 'application/pdf',
+          }}
+          directUrl={pdfUrl}
+          isAuth={true}
+          onClose={() => setShowPdfModal(false)}
+          t={t}
+        />
+      )}
     </motion.div>
   );
 }
