@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V23.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
+// PHOENIX PROTOCOL - LAW SEARCH V24.0 (GUARANTEED PDF MIME-TYPE & HYPHEN NEUTRALITY)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -95,17 +95,17 @@ export default function LawSearchPage() {
   const handleSelectLaw = (lawTitle: string) => {
     setIsOpen(false);
 
-    // IF ACADEMIC OR COURT DECISION: OPEN CANVAS PDF ENGINE (FileViewerModal)
     if (
       activeTab === 'academic' ||
       activeTab === 'caselaw' ||
       lawTitle.toUpperCase().includes('AKADEMIA') ||
       lawTitle.toLowerCase().endsWith('.pdf')
     ) {
-      setSelectedPdfFilename(lawTitle);
+      // Format clean filename with .pdf suffix
+      const pdfName = lawTitle.toLowerCase().endsWith('.pdf') ? lawTitle : `${lawTitle}.pdf`;
+      setSelectedPdfFilename(pdfName);
       setShowPdfModal(true);
     } else {
-      // OFFICIAL STATUTES: NAVIGATE TO TABLE OF CONTENTS
       navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
     }
   };
@@ -269,7 +269,7 @@ export default function LawSearchPage() {
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{
-            file_name: selectedPdfFilename || 'Udhëzues Akademik',
+            file_name: selectedPdfFilename?.endsWith('.pdf') ? selectedPdfFilename : `${selectedPdfFilename}.pdf`,
             mime_type: 'application/pdf',
           }}
           directUrl={pdfUrl}
