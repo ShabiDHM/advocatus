@@ -1,12 +1,13 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V25.0 (STATUTORY CODES ONLY - 100% STABLE)
+// PHOENIX PROTOCOL - LAW OVERVIEW V26.0 (MULTI-CATEGORY PDF STREAMING & ACADEMIC SUPPORT)
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { LawPdfModal } from '../components/law/LawPdfModal';
 
 interface LawOverviewData {
   law_title: string;
@@ -20,11 +21,28 @@ export default function LawOverviewPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  
   const [data, setData] = useState<LawOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
+
+  const isAcademicDoc = useMemo(() => {
+    if (!data) return false;
+    const raw = (data.law_title || data.source || lawTitle).toUpperCase();
+    return (
+      raw.includes('AKADEMIA') ||
+      raw.includes('CASE_LAW') ||
+      raw.includes('DORACAK') ||
+      raw.includes('UDHEZUES') ||
+      raw.includes('LËNDËSH') ||
+      data.is_official_statute === false
+    );
+  }, [data, lawTitle]);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -35,16 +53,17 @@ export default function LawOverviewPage() {
     setLoading(true);
     setError('');
 
-    apiService.getLawArticlesByTitle(lawTitle)
-      .then((res: any) => {
-        setData(res);
-      })
+    apiService
+      .getLawArticlesByTitle(lawTitle)
+      .then((res: any) => setData(res))
       .catch((err) => {
         console.error('Law overview fetch error:', err);
         setError(err.message || t('lawOverview.fetchError', 'Dështoi ngarkimi i ligjit.'));
       })
       .finally(() => setLoading(false));
   }, [lawTitle, t]);
+
+  const pdfUrl = data?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source)}` : null;
 
   if (loading) {
     return (
@@ -55,13 +74,13 @@ export default function LawOverviewPage() {
     );
   }
 
-  if (error) {
+  if (error || !data) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-3xl flex flex-col items-center text-center shadow-sm">
           <AlertCircle className="text-danger-start w-16 h-16 mb-4" />
           <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
-          <p className="text-text-secondary text-sm mb-6">{error}</p>
+          <p className="text-text-secondary text-sm mb-6">{error || 'Të dhënat nuk u gjetën.'}</p>
           <button
             onClick={() => navigate('/laws/search')}
             className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
@@ -74,19 +93,16 @@ export default function LawOverviewPage() {
     );
   }
 
-  if (!data) return null;
-
   const displayHeaderTitle = lawTitle || data.law_title;
 
   return (
-    <motion.div 
-        className="w-full min-h-screen pb-16 bg-canvas text-text-primary"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+    <motion.div
+      className="w-full min-h-screen pb-16 bg-canvas text-text-primary"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
-        
         <button
           onClick={() => navigate('/laws/search')}
           className="group mb-6 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
@@ -98,36 +114,50 @@ export default function LawOverviewPage() {
         </button>
 
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface">
-          
           <div className="bg-canvas px-6 sm:px-10 py-8 border-b border-main relative overflow-hidden">
             <div className="relative z-10 flex flex-col gap-5">
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                        <Scale size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">
-                          KODI LIGJOR ZYRTAR
-                        </span>
-                    </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
+                  {isAcademicDoc ? <GraduationCap size={14} /> : <Scale size={14} />}
+                  <span className="text-[10px] font-black uppercase tracking-wider">
+                    {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : 'KODI LIGJOR ZYRTAR'}
+                  </span>
                 </div>
-                
-                <h1 className="text-2xl sm:text-4xl font-black text-text-primary leading-tight tracking-tight">
-                  {displayHeaderTitle}
-                </h1>
-                
-                <div className="flex flex-wrap items-center gap-3 border-t border-main/50 pt-5 mt-1">
-                    <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
-                        <Calendar size={15} className="text-primary-start" />
-                        <span className="text-xs font-bold uppercase tracking-wider truncate max-w-[250px]">
-                        {t('lawOverview.source', 'Burimi')}: {data.source}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
-                        <FileText size={15} className="text-primary-start" />
-                        <span className="text-xs font-bold uppercase tracking-wider truncate">
-                        {data.article_count} {t('lawOverview.articles', 'Nene Gjithsej')}
-                        </span>
-                    </div>
+
+                {pdfUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPdfModal(true);
+                      setIsPdfMinimized(false);
+                    }}
+                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
+                  >
+                    <FileText size={14} />
+                    <span>Shiko PDF të Plotë</span>
+                    <ExternalLink size={12} />
+                  </button>
+                )}
+              </div>
+
+              <h1 className="text-2xl sm:text-4xl font-black text-text-primary leading-tight tracking-tight">
+                {displayHeaderTitle}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-3 border-t border-main/50 pt-5 mt-1">
+                <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
+                  <Calendar size={15} className="text-primary-start" />
+                  <span className="text-xs font-bold uppercase tracking-wider truncate max-w-[250px]">
+                    {t('lawOverview.source', 'Burimi')}: {data.source}
+                  </span>
                 </div>
+                <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3.5 py-1.5 rounded-xl">
+                  <FileText size={15} className="text-primary-start" />
+                  <span className="text-xs font-bold uppercase tracking-wider truncate">
+                    {data.article_count} {t('lawOverview.articles', 'Seksione / Nene Gjithsej')}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -135,23 +165,30 @@ export default function LawOverviewPage() {
             <div className="mb-6">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <BookOpen size={16} className="text-primary-start" />
-                {t('lawOverview.tableOfContents', 'Përmbajtja e Ligjit (Nenet)')}
+                {t('lawOverview.tableOfContents', 'Përmbajtja e Dokumentit')}
               </h2>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {data.articles.map((article) => {
                 const cleanArt = article.replace(/\.$/, '').trim();
-                const isPreamble = cleanArt === '0' || cleanArt.toLowerCase().includes('preambula') || cleanArt.toLowerCase().includes('hyrja');
-                const label = isPreamble ? 'Preambula' : `Neni ${cleanArt}`;
+                const isPreamble =
+                  cleanArt === '0' || cleanArt.toLowerCase().includes('preambula') || cleanArt.toLowerCase().includes('hyrja');
+                const label = isPreamble ? 'Preambula' : article.startsWith('Lënda') ? article : `Neni ${cleanArt}`;
 
                 return (
                   <button
                     key={article}
-                    onClick={() => navigate(`/laws/article?lawTitle=${encodeURIComponent(displayHeaderTitle)}&articleNumber=${encodeURIComponent(article)}`)}
+                    onClick={() =>
+                      navigate(
+                        `/laws/article?lawTitle=${encodeURIComponent(displayHeaderTitle)}&articleNumber=${encodeURIComponent(
+                          article
+                        )}`
+                      )
+                    }
                     className="flex items-center justify-center gap-2 px-3.5 py-3.5 bg-surface border border-main rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start hover:border-primary-start hover-lift active:scale-95 cursor-pointer shadow-xs"
                   >
-                    <span>{label}</span>
+                    <span className="truncate">{label}</span>
                   </button>
                 );
               })}
@@ -167,9 +204,25 @@ export default function LawOverviewPage() {
               {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}
             </button>
           </div>
-
         </div>
       </div>
+
+      <LawPdfModal
+        showPdfModal={showPdfModal}
+        isPdfMinimized={isPdfMinimized}
+        pdfUrl={pdfUrl}
+        article={{
+          law_title: displayHeaderTitle,
+          source: data.source,
+          text: '',
+          chunk_id: '',
+        }}
+        onCloseModal={() => {
+          setShowPdfModal(false);
+          setIsPdfMinimized(false);
+        }}
+        onMinimizeModal={setIsPdfMinimized}
+      />
     </motion.div>
   );
 }
