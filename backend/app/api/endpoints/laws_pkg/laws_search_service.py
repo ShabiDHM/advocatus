@@ -4,6 +4,10 @@ import os
 from typing import List, Optional, Tuple, Dict, Any
 from app.api.endpoints.laws_pkg.laws_dictionary import _is_academic_file, _normalize_hallucinated_title
 
+def _strip_alpha(s: str) -> str:
+    clean = re.sub(r'\.pdf$', '', s.strip(), flags=re.IGNORECASE)
+    return re.sub(r'[^a-zA-Z0-9]', '', clean).lower()
+
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
     title = raw_title.strip()
     if not title:
@@ -163,12 +167,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> Tuple[Li
     return candidate_docs[:3] if candidate_docs else ([], None, metadata)
 
 def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
-    clean_requested = os.path.basename(requested_name).strip().lower()
-    if not clean_requested.endswith('.pdf'):
-        clean_requested += '.pdf'
-
-    keywords = [w.lower() for w in re.findall(r'\w+', clean_requested) if len(w) >= 3]
-    digits = re.findall(r'\b\d+\b', clean_requested)
+    target_clean = _strip_alpha(requested_name)
     
     current_file = os.path.abspath(__file__)
     endpoints_dir = os.path.dirname(current_file)
@@ -195,19 +194,7 @@ def find_pdf_by_number_pair(requested_name: str) -> Optional[str]:
         for root, _, files in os.walk(search_dir):
             for f in files:
                 if not f.lower().endswith('.pdf'): continue
-                f_lower = f.lower()
-                
-                # Exact or Underscore-space match
-                if f_lower == clean_requested or f_lower.replace("_", " ") == clean_requested.replace("_", " "): 
+                if _strip_alpha(f) == target_clean:
                     return os.path.join(root, f)
-                
-                # Keyword match
-                if keywords and all(kw in f_lower for kw in keywords if kw not in ["web", "pdf"]):
-                    return os.path.join(root, f)
-
-                if len(digits) >= 2:
-                    primary_nums = [d for d in digits if len(d) >= 2 or d != '0']
-                    if primary_nums and all(num in f_lower for num in primary_nums): 
-                        return os.path.join(root, f)
 
     return None
