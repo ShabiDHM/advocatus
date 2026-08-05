@@ -1,5 +1,5 @@
 // FILE: src/components/law/LawPdfModal.tsx
-// PHOENIX PROTOCOL - LAW PDF MODAL V4.0 (MEMORY BLOB STREAMING - IDENTICAL TO DOCUMENT PANEL)
+// PHOENIX PROTOCOL - LAW PDF MODAL V5.0 (DIRECT FASTAPI BLOB & FALLBACK IFRAME)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,25 +25,25 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
 }) => {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [isLoadingBlob, setIsLoadingBlob] = useState<boolean>(false);
-  const [blobError, setBlobError] = useState<string | null>(null);
+  const [useFallbackIframe, setUseFallbackIframe] = useState<boolean>(false);
 
-  // FETCH PDF BINARY INTO MEMORY BLOB (EXACT DOCUMENT PANEL ENGINE)
   useEffect(() => {
     if (!showPdfModal || !pdfUrl) {
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
         setBlobUrl(null);
       }
+      setUseFallbackIframe(false);
       return;
     }
 
     let isMounted = true;
     setIsLoadingBlob(true);
-    setBlobError(null);
+    setUseFallbackIframe(false);
 
     fetch(pdfUrl)
       .then((res) => {
-        if (!res.ok) throw new Error('Dështoi ngarkimi i dokumentit PDF.');
+        if (!res.ok) throw new Error('Failed to stream PDF blob');
         return res.blob();
       })
       .then((blob) => {
@@ -55,7 +55,8 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
         }
       })
       .catch((err) => {
-        if (isMounted) setBlobError(err.message || 'Gabim gjatë leximit të PDF.');
+        console.warn('Blob stream fallback triggered:', err);
+        if (isMounted) setUseFallbackIframe(true);
       })
       .finally(() => {
         if (isMounted) setIsLoadingBlob(false);
@@ -69,7 +70,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
   return (
     <>
       <AnimatePresence>
-        {showPdfModal && !isPdfMinimized && (
+        {showPdfModal && !isPdfMinimized && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-1 sm:p-4">
             <motion.div
               initial={{ scale: 0.98, opacity: 0, y: 10 }}
@@ -89,7 +90,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                       {article.law_title}
                     </h3>
                     <p className="text-[10px] sm:text-xs text-text-muted font-mono truncate">
-                      {article.source} • LEXUESI ZYRTAR
+                      {article.source} • SHIKIM ZYRTAR
                     </p>
                   </div>
                 </div>
@@ -115,26 +116,28 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                 </div>
               </div>
 
-              {/* PDF CANVAS / IFRAME SURFACE */}
+              {/* PDF STREAM SURFACE */}
               <div className="flex-1 w-full h-full bg-slate-900 relative p-1 sm:p-4 flex items-center justify-center">
                 {isLoadingBlob && (
                   <div className="flex flex-col items-center justify-center gap-3 text-slate-300">
                     <Loader2 size={32} className="animate-spin text-primary-start" />
                     <span className="text-xs font-bold uppercase tracking-wider">
-                      Duke përgatitur shikimin e PDF...
+                      Duke ngarkuar dokumentin PDF...
                     </span>
                   </div>
                 )}
 
-                {blobError && (
-                  <div className="text-center p-6 text-rose-400 font-bold text-xs uppercase tracking-wider">
-                    {blobError}
-                  </div>
-                )}
-
-                {!isLoadingBlob && !blobError && blobUrl && (
+                {!isLoadingBlob && blobUrl && (
                   <iframe
                     src={`${blobUrl}#toolbar=0&navpanes=0`}
+                    title={article.law_title}
+                    className="w-full h-full border-none rounded-xl"
+                  />
+                )}
+
+                {!isLoadingBlob && useFallbackIframe && (
+                  <iframe
+                    src={pdfUrl}
                     title={article.law_title}
                     className="w-full h-full border-none rounded-xl"
                   />
@@ -145,7 +148,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
         )}
       </AnimatePresence>
 
-      {/* MINIMIZED FLOATING CONTROLLER */}
+      {/* MINIMIZED CONTROLLER */}
       <AnimatePresence>
         {showPdfModal && isPdfMinimized && (
           <motion.div
