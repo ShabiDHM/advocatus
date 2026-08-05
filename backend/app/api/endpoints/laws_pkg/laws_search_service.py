@@ -2,11 +2,7 @@
 import re
 import os
 from typing import List, Optional, Tuple, Dict, Any
-from app.api.endpoints.laws_pkg.laws_dictionary import _is_academic_file, _normalize_hallucinated_title
-
-def _strip_alpha(s: str) -> str:
-    clean = re.sub(r'\.pdf$', '', s.strip(), flags=re.IGNORECASE)
-    return re.sub(r'[^a-zA-Z0-9]', '', clean).lower()
+from app.api.endpoints.laws_pkg.laws_dictionary import _is_academic_file, _normalize_hallucinated_title, _strip_alpha
 
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
     title = raw_title.strip()

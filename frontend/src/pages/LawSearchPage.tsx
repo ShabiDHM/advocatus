@@ -1,57 +1,37 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V25.0 (EXACT ACADEMIC & STATUTE FILENAMES MATCHING)
+// PHOENIX PROTOCOL - LAW SEARCH V31.0 (CLEAN 0 ACADEMIC & 0 CASALAW INITIALIZATION)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, Scale, ArrowLeft, ChevronDown, Check, ShieldCheck, BookOpen, GraduationCap, Gavel } from 'lucide-react';
+import { Search, X, Scale, ArrowLeft, ChevronDown, Check, ShieldCheck, GraduationCap, Gavel } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
 
-// EXACT STATUTORY FILENAMES FROM YOUR DIRECTORY
-const EXACT_STATUTORY_FILES = [
-  "KUSHTETUTA_E_REPUBLIKËS_SË_KOSOVËS.pdf",
-  "KODI_NR._06_L-074_KODI_PENAL_I_REPUBLIKËS_SË_KOSOVËS.pdf",
-  "KODI_NR._08_L-032_I_PROCEDURËS_PENALE.pdf",
-  "KODI_NR._06_L-006_I_DREJTËSISË_PËR_TË_MITUR.pdf",
-  "LIGJI_NR._03_L-006_PËR_PROCEDURËN_KONTESTIMORE.pdf",
-  "LIGJI_NR._04_L-077_PËR_MARRËDHËNIET_E_DETYRIMEVE.pdf",
-  "LIGJI_NR._04_L-139_PËR_PROCEDURËN_PËRMBARIMORE.pdf",
-  "LIGJI_NR._04_L-161_PËR_SIGURINË_DHE_SHËNDETIN_NË_PUNË.pdf",
-  "LIGJI_Nr._05_L-029_PËR_TATIMIN_NË_TË_ARDHURAT_E_KORPORATAVE.pdf",
-  "LIGJI_NR._06_L-016__PËR_SHOQËRITË_TREGTARE.pdf",
-  "LIGJI_NR._06_L-082__PËR_MBROJTJEN_E_TË_DHËNAVE_PERSONALE.pdf",
-  "LIGJI_NR._06_L-084______PËR_MBROJTJEN_E_FËMIJËS.pdf",
-  "LIGJI_NR._08_L-257_PËR_ADMINISTRIMIN_E_PROCEDURAVE_TATIMORE.pdf",
-  "LIGJI_NR._2004_32_LIGJI_PËR_FAMILJEN_I_KOSOVËS.pdf",
-  "LIGJI__NR._03_L-212_I_PUNËS.pdf",
-  "Udhëzues-Praktik-mbi-Qasjen-në-Drejtësi-ALB03.pdf"
+const OFFICIAL_STATUTORY_LAWS = [
+  "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
+  "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
+  "KODI NR. 08/L-032 I PROCEDURËS PENALE",
+  "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
+  "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
+  "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
+  "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
+  "LIGJI NR. 04/L-161 PËR SIGURINË DHE SHËNDETIN NË PUNË",
+  "LIGJI NR. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
+  "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
+  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
+  "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
+  "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
+  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
+  "LIGJI NR. 03/L-212 I PUNËS"
 ];
 
-// EXACT ACADEMIC FILENAMES FROM YOUR DIRECTORY
-const EXACT_ACADEMIC_FILES = [
-  "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf",
-  "AKADEMIA_E_DREJT_2025_departamenti-per-sherbime-ligjore-dhe-te-pergjithshme.pdf",
-  "AKADEMIA_E_DREJT_2025_document_5518127434628652358.pdf",
-  "AKADEMIA_E_DREJT_2025_doracak-dhe-udhezues.pdf",
-  "AKADEMIA_E_DREJT_2025_Drejtesia_Mjedisore_Shq_.pdf",
-  "AKADEMIA_E_DREJT_2025_InstitutiGjyqesor.pdf",
-  "AKADEMIA_E_DREJT_2025_konkluzionet-per-unfikim-te-praktikes-gjyqesore.pdf",
-  "AKADEMIA_E_DREJT_2025_Kosovo_Commentary_2024_ALB_web.pdf",
-  "AKADEMIA_E_DREJT_2025_KS_Special_investigative_measures_web.pdf",
-  "AKADEMIA_E_DREJT_2025_ligji.pdf",
-  "AKADEMIA_E_DREJT_2025_RedirectToLocalizedContent.pdf",
-  "AKADEMIA_E_DREJT_2025_rregulloret.pdf"
-];
+// INITIALIZED TO 0 FOR CLEAN FUTURE INGESTION
+const DEFAULT_ACADEMIC_LAWS: string[] = [];
 
-function formatDisplayTitle(filename: string): string {
-  return filename
-    .replace(/\.pdf$/i, '')
-    .replace(/_/g, ' ')
-    .replace(/-/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function normalizeForDisplay(title: string): string {
+  return title.trim().replace(/\s+/g, ' ');
 }
 
 export default function LawSearchPage() {
@@ -60,8 +40,9 @@ export default function LawSearchPage() {
   
   const [activeTab, setActiveTab] = useState<'statutes' | 'academic' | 'caselaw'>('statutes');
   const [filterQuery, setFilterQuery] = useState('');
-  const [statuteTitles, setStatuteTitles] = useState<string[]>(EXACT_STATUTORY_FILES);
-  const [academicTitles, setAcademicTitles] = useState<string[]>(EXACT_ACADEMIC_FILES);
+  const [statuteTitles, setStatuteTitles] = useState<string[]>(OFFICIAL_STATUTORY_LAWS);
+  const [academicTitles, setAcademicTitles] = useState<string[]>(DEFAULT_ACADEMIC_LAWS);
+  const [caselawTitles, setCaselawTitles] = useState<string[]>([]);
   
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPdfFilename, setSelectedPdfFilename] = useState<string | null>(null);
@@ -74,15 +55,18 @@ export default function LawSearchPage() {
       .then((res: any) => {
         if (res) {
           if (res.statutes && res.statutes.length > 0) {
-            setStatuteTitles(Array.from(new Set([...res.statutes, ...EXACT_STATUTORY_FILES])));
+            setStatuteTitles(Array.from(new Set([...res.statutes, ...OFFICIAL_STATUTORY_LAWS])));
           }
-          if (res.academic_manuals && res.academic_manuals.length > 0) {
-            setAcademicTitles(Array.from(new Set([...res.academic_manuals, ...EXACT_ACADEMIC_FILES])));
+          if (res.academic_manuals && Array.isArray(res.academic_manuals)) {
+            setAcademicTitles(res.academic_manuals);
+          }
+          if (res.case_law && Array.isArray(res.case_law)) {
+            setCaselawTitles(res.case_law);
           }
         }
       })
       .catch((err) => {
-        console.warn("[LawSearchPage] Using default Kosovo files fallback:", err);
+        console.warn("[LawSearchPage] Using default Kosovo statutes fallback:", err);
       });
   }, []);
 
@@ -98,34 +82,24 @@ export default function LawSearchPage() {
 
   const activeList = useMemo(() => {
     if (activeTab === 'academic') return academicTitles;
-    if (activeTab === 'caselaw') return academicTitles;
+    if (activeTab === 'caselaw') return caselawTitles;
     return statuteTitles;
-  }, [activeTab, statuteTitles, academicTitles]);
+  }, [activeTab, statuteTitles, academicTitles, caselawTitles]);
 
   const filteredTitles = useMemo(() => {
     if (!filterQuery.trim()) return activeList;
     const lower = filterQuery.toLowerCase();
-    return activeList.filter(file => {
-      const display = formatDisplayTitle(file).toLowerCase();
-      return file.toLowerCase().includes(lower) || display.includes(lower);
-    });
+    return activeList.filter(title => normalizeForDisplay(title).toLowerCase().includes(lower));
   }, [activeList, filterQuery]);
 
-  const handleSelectLaw = (lawFileOrTitle: string) => {
+  const handleSelectLaw = (lawTitle: string) => {
     setIsOpen(false);
 
-    // IF ACADEMIC OR COURT DECISION: DIRECT B2 CANVAS PDF ENGINE (FileViewerModal)
-    if (
-      activeTab === 'academic' ||
-      activeTab === 'caselaw' ||
-      lawFileOrTitle.toUpperCase().includes('AKADEMIA') ||
-      lawFileOrTitle.toLowerCase().endsWith('.pdf')
-    ) {
-      setSelectedPdfFilename(lawFileOrTitle);
+    if (activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
+      setSelectedPdfFilename(lawTitle);
       setShowPdfModal(true);
     } else {
-      // OFFICIAL STATUTES: NAVIGATE TO TABLE OF CONTENTS
-      navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawFileOrTitle)}`);
+      navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
     }
   };
 
@@ -135,6 +109,7 @@ export default function LawSearchPage() {
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-8 pt-28">
         
+        {/* Navigation & Header */}
         <div className="flex flex-col gap-4 mb-6">
           <button
             onClick={() => navigate(-1)}
@@ -151,17 +126,17 @@ export default function LawSearchPage() {
                 <span className="text-[10px] font-black uppercase tracking-widest">VERIFIKIM ZYRTAR (100%)</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-text-primary tracking-tight">
-                Zgjidh Ligjin ose Udhëzuesin
+                Zgjidh Materialin Ligjor
               </h1>
             </div>
             
             <div className="px-4 py-2 bg-primary-start/10 border border-primary-start/20 rounded-xl text-primary-start font-mono text-xs font-bold">
-              {activeList.length} {activeTab === 'statutes' ? 'Kodet Zyrtare' : 'Udhëzues & Materiale'}
+              {activeList.length} {activeTab === 'statutes' ? 'Kodet Zyrtare' : activeTab === 'academic' ? 'Udhëzues' : 'Aktgjykime'}
             </div>
           </div>
         </div>
 
-        {/* CATEGORY SWITCHER TABS */}
+        {/* ALL 3 CATEGORY SWITCHER TABS */}
         <div className="flex items-center gap-2 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm overflow-x-auto">
           <button
             type="button"
@@ -182,7 +157,7 @@ export default function LawSearchPage() {
             }`}
           >
             <GraduationCap size={15} />
-            <span>Akademia 2025 ({academicTitles.length})</span>
+            <span>Akademia e Drejtësisë ({academicTitles.length})</span>
           </button>
 
           <button
@@ -193,7 +168,7 @@ export default function LawSearchPage() {
             }`}
           >
             <Gavel size={15} />
-            <span>Aktgjykimet</span>
+            <span>Aktgjykimet ({caselawTitles.length})</span>
           </button>
         </div>
 
@@ -253,21 +228,23 @@ export default function LawSearchPage() {
                 <div className="max-h-80 overflow-y-auto custom-scrollbar space-y-1 pr-1">
                   {filteredTitles.length === 0 ? (
                     <div className="p-6 text-center text-xs text-text-muted font-bold">
-                      Nuk u gjet asnjë material me këtë emër
+                      Nuk u gjet asnjë material në këtë kategori
                     </div>
                   ) : (
-                    filteredTitles.map((lawFile, idx) => {
-                      const displayTitle = formatDisplayTitle(lawFile);
+                    filteredTitles.map((lawTitle, idx) => {
+                      const displayTitle = normalizeForDisplay(lawTitle);
                       return (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => handleSelectLaw(lawFile)}
+                          onClick={() => handleSelectLaw(lawTitle)}
                           className="w-full text-left p-3.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-bold text-text-primary hover:bg-hover hover:text-primary-start transition-all cursor-pointer group"
                         >
                           <div className="flex items-center gap-3 min-w-0 pr-3">
                             {activeTab === 'academic' ? (
-                              <BookOpen size={16} className="text-text-muted group-hover:text-primary-start shrink-0 transition-colors" />
+                              <GraduationCap size={16} className="text-text-muted group-hover:text-primary-start shrink-0 transition-colors" />
+                            ) : activeTab === 'caselaw' ? (
+                              <Gavel size={16} className="text-text-muted group-hover:text-primary-start shrink-0 transition-colors" />
                             ) : (
                               <Scale size={16} className="text-text-muted group-hover:text-primary-start shrink-0 transition-colors" />
                             )}
@@ -291,7 +268,7 @@ export default function LawSearchPage() {
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{
-            file_name: selectedPdfFilename || 'Udhëzues Akademik.pdf',
+            file_name: selectedPdfFilename || 'Material Ligjor.pdf',
             mime_type: 'application/pdf',
           }}
           directUrl={pdfUrl}

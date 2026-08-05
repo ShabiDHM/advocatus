@@ -1,4 +1,6 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V59.0 (STRICT STATUTORY TITLES ONLY)
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Set
 import logging
@@ -19,17 +21,15 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         all_titles = db.legal_knowledge_base.distinct("law_title")
         
         statute_titles = []
-        academic_titles = []
         for t in sorted([t for t in all_titles if t]):
-            if _is_academic_file(t):
-                academic_titles.append(t)
-            else:
+            if not _is_academic_file(t):
                 statute_titles.append(t)
                 
         return {
             "statutes": statute_titles,
-            "academic_manuals": academic_titles,
-            "all_titles": statute_titles + academic_titles
+            "academic_manuals": [],  # STRICTLY 0 ACADEMIC FILES
+            "case_law": [],         # READY FOR FUTURE COURT DECISIONS
+            "all_titles": statute_titles
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
@@ -41,7 +41,6 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         db = get_db_instance()
         
         mapped_title = _normalize_hallucinated_title(law_title, "")
-        is_academy = _is_academic_file(law_title) or _is_academic_file(mapped_title)
 
         docs = find_documents_by_title(
             db, 
@@ -54,22 +53,13 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         
         canonical_title = docs[0].get("law_title", mapped_title if mapped_title else law_title)
 
-        if is_academy:
-            sorted_articles = [
-                "Hyrje & Metodologjia",
-                "Legjislacioni Relevant",
-                *[f"Lënda Nr. {i+1}" for i in range(25)],
-                "Të Dhëna Statistikore",
-                "Konkluzione"
-            ]
-        else:
-            articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
-            sorted_articles = sorted(list(articles), key=_natural_sort_key)
+        articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
+        sorted_articles = sorted(list(articles), key=_natural_sort_key)
         
         return {
             "law_title": canonical_title,
             "source": str(docs[0].get("source", "")),
-            "is_official_statute": not is_academy,
+            "is_official_statute": True,
             "article_count": len(sorted_articles),
             "articles": sorted_articles
         }
@@ -102,13 +92,6 @@ async def get_law_article(
             "text": "\n\n".join([doc.get("text", "") for doc in statute_docs if doc and doc.get("text")]),
             "source_info": source_info
         }
-
-        if academic_doc and academic_doc.get("text"):
-            response_data["academic_commentary"] = {
-                "source": academic_doc.get("source", "Akademia e Drejtësisë"),
-                "text": academic_doc.get("text", ""),
-                "title": "Udhëzues & Praktikë Gjyqësore (Akademia e Drejtësisë)"
-            }
 
         return response_data
     except HTTPException: raise

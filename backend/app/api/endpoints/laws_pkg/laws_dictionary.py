@@ -1,6 +1,27 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_dictionary.py
+# PHOENIX PROTOCOL - LAWS DICTIONARY V4.0 (STRICT STATUTORY CODES & STRIP ALPHA HELPER)
+
 import re
 from typing import List, Any
+
+def _strip_alpha(s: str) -> str:
+    """Removes all spaces, hyphens, underscores, and .pdf extension for 100% exact matching."""
+    clean = re.sub(r'\.pdf$', '', s.strip(), flags=re.IGNORECASE)
+    return re.sub(r'[^a-zA-Z0-9]', '', clean).lower()
+
+def _natural_sort_key(article_any: Any) -> List[int]:
+    article = str(article_any) if article_any is not None else "0"
+    parts = re.findall(r'\d+', article)
+    return [int(p) for p in parts] if parts else [0]
+
+def _is_academic_file(filename_or_title: str) -> bool:
+    text = str(filename_or_title).upper()
+    academic_keywords = [
+        "AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", 
+        "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH", "LENDESH",
+        "AKTGJYKMET", "AKTGJYKMET_", "VENDIM", "VENDIMET"
+    ]
+    return any(k in text for k in academic_keywords)
 
 OFFICIAL_KOSOVO_LAWS = {
     # Generic & Relative AI Phrases ("Ligji Përkatës")
@@ -60,24 +81,8 @@ OFFICIAL_KOSOVO_LAWS = {
     "06/l-084": "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
     "08/l-257": "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
     "2004/32": "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
-    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS",
-    "armët e zjarrit": "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf",
-    "case law kosovo": "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf"
+    "03/l-212": "LIGJI NR. 03/L-212 I PUNËS"
 }
-
-def _natural_sort_key(article_any: Any) -> List[int]:
-    article = str(article_any) if article_any is not None else "0"
-    parts = re.findall(r'\d+', article)
-    return [int(p) for p in parts] if parts else [0]
-
-def _is_academic_file(filename_or_title: str) -> bool:
-    text = str(filename_or_title).upper()
-    academic_keywords = [
-        "AKADEMIA", "DORACAK", "UDHEZUES", "UDHËZUES", "COMMENTARY", 
-        "CASE_LAW", "PRAKTIKË", "INSTITUTI", "LËNDËSH", "LENDESH",
-        "AKTGJYKMET", "AKTGJYKMET_", "VENDIM", "VENDIMET"
-    ]
-    return any(k in text for k in academic_keywords)
 
 def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
     title_lower = raw_title.lower().strip()
@@ -107,8 +112,6 @@ def _normalize_hallucinated_title(raw_title: str, article: str) -> str:
         if OFFICIAL_KOSOVO_LAWS.get(code):
             return OFFICIAL_KOSOVO_LAWS[code]
 
-    if "armët" in title_lower or "zjarrit" in title_lower or "case law" in title_lower:
-        return "AKADEMIA_E_DREJT_2025_Case_Law_Kosovo_web.pdf"
     if "penal" in title_lower and "procedur" in title_lower:
         return "KODI NR. 08/L-032 I PROCEDURËS PENALE"
     if "penal" in title_lower:
