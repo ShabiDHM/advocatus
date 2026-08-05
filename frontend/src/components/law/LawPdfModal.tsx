@@ -1,9 +1,9 @@
 // FILE: src/components/law/LawPdfModal.tsx
-// PHOENIX PROTOCOL - LAW PDF MODAL V2.0 (VIEW-ONLY MODE - DOWNLOAD BUTTON REMOVED)
+// PHOENIX PROTOCOL - LAW PDF MODAL V4.0 (MEMORY BLOB STREAMING - IDENTICAL TO DOCUMENT PANEL)
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Minus, X, Maximize2 } from 'lucide-react';
+import { FileText, Minus, X, Maximize2, Loader2 } from 'lucide-react';
 import { ArticleData } from './lawArticleTypes';
 
 interface LawPdfModalProps {
@@ -23,43 +23,83 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
   onCloseModal,
   onMinimizeModal,
 }) => {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoadingBlob, setIsLoadingBlob] = useState<boolean>(false);
+  const [blobError, setBlobError] = useState<string | null>(null);
+
+  // FETCH PDF BINARY INTO MEMORY BLOB (EXACT DOCUMENT PANEL ENGINE)
+  useEffect(() => {
+    if (!showPdfModal || !pdfUrl) {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        setBlobUrl(null);
+      }
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingBlob(true);
+    setBlobError(null);
+
+    fetch(pdfUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error('Dështoi ngarkimi i dokumentit PDF.');
+        return res.blob();
+      })
+      .then((blob) => {
+        if (isMounted) {
+          const createdBlobUrl = URL.createObjectURL(
+            new Blob([blob], { type: 'application/pdf' })
+          );
+          setBlobUrl(createdBlobUrl);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) setBlobError(err.message || 'Gabim gjatë leximit të PDF.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBlob(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [showPdfModal, pdfUrl]);
+
   return (
     <>
-      {/* FULLSCREEN VIEW-ONLY PDF MODAL */}
       <AnimatePresence>
-        {showPdfModal && !isPdfMinimized && pdfUrl && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4">
+        {showPdfModal && !isPdfMinimized && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-1 sm:p-4">
             <motion.div
               initial={{ scale: 0.98, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.98, opacity: 0, y: 10 }}
               transition={{ duration: 0.2 }}
-              className="glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl border border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
+              className="glass-panel w-full sm:w-[95vw] max-w-7xl h-[95vh] sm:h-[92vh] rounded-2xl sm:rounded-3xl border border-main flex flex-col overflow-hidden shadow-2xl bg-canvas"
             >
-              {/* MODAL HEADER - STRICT VIEW-ONLY CONTROLS */}
-              <div className="px-5 py-4 bg-surface border-b border-main flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-3 min-w-0">
+              {/* MODAL HEADER */}
+              <div className="px-4 sm:px-5 py-3 sm:py-4 bg-surface border-b border-main flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
                   <div className="p-2 bg-primary-start/10 text-primary-start rounded-xl border border-primary-start/20 shrink-0">
                     <FileText size={18} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">
+                    <h3 className="text-xs sm:text-sm font-black text-text-primary uppercase tracking-tight truncate">
                       {article.law_title}
                     </h3>
-                    <p className="text-xs text-text-muted font-mono truncate">
-                      {article.source} • SHIKIM ZYRTAR
+                    <p className="text-[10px] sm:text-xs text-text-muted font-mono truncate">
+                      {article.source} • LEXUESI ZYRTAR
                     </p>
                   </div>
                 </div>
 
-                {/* HEADER ACTIONS: MINIMIZE AND CLOSE ONLY */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => onMinimizeModal(true)}
                     className="p-2 bg-surface border border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none cursor-pointer"
                     title="Minimizo"
-                    aria-label="Minimizo"
                   >
                     <Minus size={18} />
                   </button>
@@ -69,16 +109,36 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                     onClick={onCloseModal}
                     className="p-2 bg-surface border border-main hover:bg-hover text-text-primary rounded-xl transition-all focus:outline-none cursor-pointer"
                     title="Mbyll"
-                    aria-label="Mbyll"
                   >
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
-              {/* PDF EMBEDDED IFRAME SURFACE */}
-              <div className="flex-1 w-full h-full bg-slate-900 relative p-4">
-                <iframe src={pdfUrl} title={article.law_title} className="w-full h-full border-none" />
+              {/* PDF CANVAS / IFRAME SURFACE */}
+              <div className="flex-1 w-full h-full bg-slate-900 relative p-1 sm:p-4 flex items-center justify-center">
+                {isLoadingBlob && (
+                  <div className="flex flex-col items-center justify-center gap-3 text-slate-300">
+                    <Loader2 size={32} className="animate-spin text-primary-start" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Duke përgatitur shikimin e PDF...
+                    </span>
+                  </div>
+                )}
+
+                {blobError && (
+                  <div className="text-center p-6 text-rose-400 font-bold text-xs uppercase tracking-wider">
+                    {blobError}
+                  </div>
+                )}
+
+                {!isLoadingBlob && !blobError && blobUrl && (
+                  <iframe
+                    src={`${blobUrl}#toolbar=0&navpanes=0`}
+                    title={article.law_title}
+                    className="w-full h-full border-none rounded-xl"
+                  />
+                )}
               </div>
             </motion.div>
           </div>
@@ -92,7 +152,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-6 right-6 z-[250] flex items-center gap-3 p-3.5 bg-slate-900/95 text-white border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl max-w-md"
+            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[250] flex items-center gap-3 p-3 sm:p-3.5 bg-slate-900/95 text-white border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl max-w-sm sm:max-w-md"
           >
             <div className="p-2.5 bg-sky-500/15 text-sky-400 rounded-xl shrink-0 border border-sky-500/30">
               <FileText size={18} />
@@ -108,7 +168,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                 type="button"
                 onClick={() => onMinimizeModal(false)}
                 className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none cursor-pointer"
-                title="Zgjero (Full Screen)"
+                title="Zgjero"
               >
                 <Maximize2 size={16} />
               </button>
