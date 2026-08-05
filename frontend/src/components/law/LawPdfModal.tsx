@@ -1,7 +1,7 @@
 // FILE: src/components/law/LawPdfModal.tsx
-// PHOENIX PROTOCOL - LAW PDF MODAL V5.0 (DIRECT FASTAPI BLOB & FALLBACK IFRAME)
+// PHOENIX PROTOCOL - LAW PDF MODAL V7.0 (CLEAN MOBILE BLOB STREAM & AUTOMATIC FALLBACK)
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Minus, X, Maximize2, Loader2 } from 'lucide-react';
 import { ArticleData } from './lawArticleTypes';
@@ -27,6 +27,14 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
   const [isLoadingBlob, setIsLoadingBlob] = useState<boolean>(false);
   const [useFallbackIframe, setUseFallbackIframe] = useState<boolean>(false);
 
+  const isMobile = useMemo(() => {
+    return (
+      typeof window !== 'undefined' &&
+      (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768)
+    );
+  }, []);
+
+  // AUTH-ENABLED MEMORY BLOB STREAMING
   useEffect(() => {
     if (!showPdfModal || !pdfUrl) {
       if (blobUrl) {
@@ -41,9 +49,20 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
     setIsLoadingBlob(true);
     setUseFallbackIframe(false);
 
-    fetch(pdfUrl)
+    // Retrieve active user authentication token
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('auth_token');
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token.replace(/^"|"$/g, '')}`;
+    }
+
+    fetch(pdfUrl, { headers, credentials: 'include' })
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to stream PDF blob');
+        if (!res.ok) throw new Error('Auth or Stream Failure');
         return res.blob();
       })
       .then((blob) => {
@@ -55,8 +74,10 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
         }
       })
       .catch((err) => {
-        console.warn('Blob stream fallback triggered:', err);
-        if (isMounted) setUseFallbackIframe(true);
+        console.warn('[LawPdfModal] Blob stream fallback triggered:', err);
+        if (isMounted) {
+          setUseFallbackIframe(true);
+        }
       })
       .finally(() => {
         if (isMounted) setIsLoadingBlob(false);
@@ -67,8 +88,22 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
     };
   }, [showPdfModal, pdfUrl]);
 
+  // RESOLVE FALLBACK IFRAME URL FOR MOBILE VS DESKTOP
+  const fallbackSrc = useMemo(() => {
+    if (!pdfUrl) return '';
+    const absolutePdfUrl = pdfUrl.startsWith('http')
+      ? pdfUrl
+      : `${window.location.origin}${pdfUrl}`;
+
+    if (isMobile) {
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(absolutePdfUrl)}&embedded=true`;
+    }
+    return pdfUrl;
+  }, [pdfUrl, isMobile]);
+
   return (
     <>
+      {/* FULLSCREEN VIEW-ONLY PDF MODAL */}
       <AnimatePresence>
         {showPdfModal && !isPdfMinimized && pdfUrl && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-1 sm:p-4">
@@ -116,7 +151,7 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                 </div>
               </div>
 
-              {/* PDF STREAM SURFACE */}
+              {/* PDF CANVAS / IFRAME SURFACE */}
               <div className="flex-1 w-full h-full bg-slate-900 relative p-1 sm:p-4 flex items-center justify-center">
                 {isLoadingBlob && (
                   <div className="flex flex-col items-center justify-center gap-3 text-slate-300">
@@ -135,9 +170,9 @@ export const LawPdfModal: React.FC<LawPdfModalProps> = ({
                   />
                 )}
 
-                {!isLoadingBlob && useFallbackIframe && (
+                {!isLoadingBlob && (useFallbackIframe || !blobUrl) && (
                   <iframe
-                    src={pdfUrl}
+                    src={fallbackSrc}
                     title={article.law_title}
                     className="w-full h-full border-none rounded-xl"
                   />
