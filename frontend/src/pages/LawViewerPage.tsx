@@ -1,5 +1,5 @@
 // FILE: src/pages/LawViewerPage.tsx
-// PHOENIX PROTOCOL - LAW VIEWER V7.0 (ACADEMIC STREAMING & PDF MODAL INTEGRATION)
+// PHOENIX PROTOCOL - LAW VIEWER V8.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Calendar, Scale, AlertCircle, BookOpen, GraduationCap, FileText, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { LawPdfModal } from '../components/law/LawPdfModal';
+import FileViewerModal from '../components/FileViewerModal';
 
 interface LawData {
   law_title: string;
@@ -24,9 +24,7 @@ export default function LawViewerPage() {
   const [law, setLaw] = useState<LawData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [isPdfMinimized, setIsPdfMinimized] = useState(false);
 
   useEffect(() => {
     if (!chunkId) {
@@ -76,7 +74,7 @@ export default function LawViewerPage() {
           <p className="text-text-secondary text-sm mb-6">{error || 'Ligji nuk u gjet.'}</p>
           <button
             onClick={() => navigate('/laws/search')}
-            className="btn-primary flex items-center gap-2 hover-lift shadow-sm"
+            className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
           >
             <ArrowLeft size={16} />
             {t('lawViewer.backToSearch', 'Kthehu te kërkimi')}
@@ -120,10 +118,7 @@ export default function LawViewerPage() {
                 {pdfUrl && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowPdfModal(true);
-                      setIsPdfMinimized(false);
-                    }}
+                    onClick={() => setShowPdfModal(true)}
                     className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
                   >
                     <FileText size={14} />
@@ -185,22 +180,18 @@ export default function LawViewerPage() {
         </div>
       </div>
 
-      <LawPdfModal
-        showPdfModal={showPdfModal}
-        isPdfMinimized={isPdfMinimized}
-        pdfUrl={pdfUrl}
-        article={{
-          law_title: law.law_title,
-          source: law.source,
-          text: law.text,
-          chunk_id: chunkId || '',
-        }}
-        onCloseModal={() => {
-          setShowPdfModal(false);
-          setIsPdfMinimized(false);
-        }}
-        onMinimizeModal={setIsPdfMinimized}
-      />
+      {showPdfModal && pdfUrl && (
+        <FileViewerModal
+          documentData={{
+            file_name: law.source || law.law_title,
+            mime_type: 'application/pdf',
+          }}
+          directUrl={pdfUrl}
+          isAuth={true}
+          onClose={() => setShowPdfModal(false)}
+          t={t}
+        />
+      )}
     </motion.div>
   );
 }
