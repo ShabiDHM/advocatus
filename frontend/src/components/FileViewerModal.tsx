@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V15.0 (HIGH-CONTRAST PAGE PILL, PAGE JUMP & INITIAL PAGE AUTO-SCROLL)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V16.0 (HEADER CONTROLS STRICTLY MINIMIZE & CLOSE ONLY)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -8,7 +8,7 @@ import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon, ExternalLink
+    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
@@ -27,7 +27,7 @@ interface FileViewerModalProps {
   t: TFunction; 
   directUrl?: string | null; 
   isAuth?: boolean;
-  initialPage?: number; // ✅ AUTO-JUMP TO EXACT PAGE NUMBER
+  initialPage?: number;
 }
 
 type ViewerMode = 'PDF' | 'TEXT' | 'IMAGE' | 'CSV' | 'DOWNLOAD';
@@ -55,7 +55,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
   // Sync initialPage when passed
@@ -119,50 +118,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           setViewerMode(mode);
       }
       setIsLoading(false);
-  };
-
-  const handleOpenInNewTab = () => {
-    if (fileSource && typeof fileSource === 'string') {
-        window.open(fileSource, '_blank');
-    } else if (directUrl) {
-        window.open(directUrl, '_blank');
-    } else {
-        handleDownloadOriginal();
-    }
-  };
-
-  const handleDownloadOriginal = async () => {
-    setIsDownloading(true);
-    try {
-      let blob: Blob;
-      let filename = documentData?.file_name || documentData?.title || 'dokument.pdf';
-
-      if (directUrl) {
-          if (directUrl.startsWith('blob:')) {
-              const res = await fetch(directUrl);
-              blob = await res.blob();
-          } else if (isAuth) {
-              const res = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
-              blob = res.data;
-          } else {
-              const res = await fetch(directUrl);
-              blob = await res.blob();
-          }
-      } else if (caseId && documentData?.id) {
-          blob = await apiService.getOriginalDocument(caseId, documentData.id);
-      } else { throw new Error("No source"); }
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (e) { 
-        console.error("Download failed", e);
-    } finally { setIsDownloading(false); }
   };
 
   const handleMinimizeAction = () => {
@@ -255,25 +210,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {documentData?.file_name || documentData?.title || t('pdfViewer.previewNotAvailable')}
             </h3>
             <p className="text-xs text-text-muted mb-6 max-w-sm">
-              Shfletuesi kërkon hapjen e dokumentit në një skedë të re për ta shfaqur pa gabime.
+              Pamja e dokumentit nuk mund të ngarkohej direkt.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button 
-                onClick={handleOpenInNewTab} 
-                className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm shadow-lg cursor-pointer"
-                style={{ minHeight: '44px' }}
-              >
-                <ExternalLink size={18} /> Hap Dokumentin
-              </button>
-              <button 
-                onClick={handleDownloadOriginal} 
-                disabled={isDownloading} 
-                className="px-6 py-3 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary flex items-center justify-center gap-2 font-medium transition-all text-xs sm:text-sm cursor-pointer"
-                style={{ minHeight: '44px' }}
-              >
-                {isDownloading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />} {t('pdfViewer.downloadOriginal', 'Shkarko Origjinalin')}
-              </button>
-            </div>
           </div>
         );
     }
@@ -492,27 +430,11 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   </div>
               )}
 
-              <button 
-                onClick={handleOpenInNewTab} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
-                title="Hape ne tab te ri"
-              >
-                <ExternalLink size={18} />
-              </button>
-              
-              <button 
-                onClick={handleDownloadOriginal} 
-                disabled={isDownloading} 
-                className="flex items-center justify-center w-10 h-10 text-primary-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
-                title="Download"
-              >
-                {isDownloading ? <Loader className="animate-spin" size={20} /> : <Download size={20} />}
-              </button>
-
+              {/* STRICTLY MINIMIZE & CLOSE ICONS ONLY */}
               <button 
                 onClick={handleMinimizeAction} 
                 className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
-                title="Minimize"
+                title="Minimizo"
               >
                 <Minus size={20} />
               </button>
@@ -520,7 +442,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button 
                 onClick={onClose} 
                 className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
-                title="Close"
+                title="Mbyll"
               >
                 <X size={22} />
               </button>
