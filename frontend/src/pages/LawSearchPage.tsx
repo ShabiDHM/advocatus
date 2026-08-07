@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V31.0 (CLEAN 0 ACADEMIC & 0 CASALAW INITIALIZATION)
+// PHOENIX PROTOCOL - LAW SEARCH V36.0 (CLEAN TYPESCRIPT COMMENTS)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,6 @@ const OFFICIAL_STATUTORY_LAWS = [
   "LIGJI NR. 03/L-212 I PUNËS"
 ];
 
-// INITIALIZED TO 0 FOR CLEAN FUTURE INGESTION
 const DEFAULT_ACADEMIC_LAWS: string[] = [];
 
 function normalizeForDisplay(title: string): string {
@@ -46,6 +45,7 @@ export default function LawSearchPage() {
   
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPdfFilename, setSelectedPdfFilename] = useState<string | null>(null);
+  const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
   const [showPdfModal, setShowPdfModal] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -92,18 +92,54 @@ export default function LawSearchPage() {
     return activeList.filter(title => normalizeForDisplay(title).toLowerCase().includes(lower));
   }, [activeList, filterQuery]);
 
-  const handleSelectLaw = (lawTitle: string) => {
+  const handleSelectLaw = async (lawTitle: string) => {
     setIsOpen(false);
 
     if (activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
       setSelectedPdfFilename(lawTitle);
+
+      // Query starting page for this case or document
+      try {
+        const res = await apiService.axiosInstance.get('/laws/case-page', { params: { law_title: lawTitle } });
+        if (res.data && res.data.page) {
+          setInitialPageNumber(res.data.page);
+        } else {
+          setInitialPageNumber(1);
+        }
+      } catch {
+        setInitialPageNumber(1);
+      }
+
       setShowPdfModal(true);
     } else {
       navigate(`/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`);
     }
   };
 
-  const pdfUrl = selectedPdfFilename ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(selectedPdfFilename)}` : null;
+  const pdfUrl = useMemo(() => {
+    if (!selectedPdfFilename) return null;
+    
+    const nameWithPdf = selectedPdfFilename.toLowerCase().endsWith('.pdf') 
+      ? selectedPdfFilename 
+      : `${selectedPdfFilename}.pdf`;
+
+    const encoded = encodeURIComponent(nameWithPdf);
+
+    if (activeTab === 'academic') {
+      return `${API_V1_URL}/laws/academia/pdf/${encoded}`;
+    }
+    if (activeTab === 'caselaw') {
+      return `${API_V1_URL}/laws/caselaw/pdf/${encoded}`;
+    }
+    return `${API_V1_URL}/laws/pdf/${encoded}`;
+  }, [selectedPdfFilename, activeTab]);
+
+  const modalFilename = useMemo(() => {
+    if (!selectedPdfFilename) return 'DokumentLigjor.pdf';
+    return selectedPdfFilename.toLowerCase().endsWith('.pdf')
+      ? selectedPdfFilename
+      : `${selectedPdfFilename}.pdf`;
+  }, [selectedPdfFilename]);
 
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -140,7 +176,7 @@ export default function LawSearchPage() {
         <div className="flex items-center gap-2 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm overflow-x-auto">
           <button
             type="button"
-            onClick={() => { setActiveTab('statutes'); setIsOpen(false); }}
+            onClick={() => { setActiveTab('statutes'); setIsOpen(false); setFilterQuery(''); }}
             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
@@ -151,7 +187,7 @@ export default function LawSearchPage() {
 
           <button
             type="button"
-            onClick={() => { setActiveTab('academic'); setIsOpen(false); }}
+            onClick={() => { setActiveTab('academic'); setIsOpen(false); setFilterQuery(''); }}
             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
               activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
@@ -162,7 +198,7 @@ export default function LawSearchPage() {
 
           <button
             type="button"
-            onClick={() => { setActiveTab('caselaw'); setIsOpen(false); }}
+            onClick={() => { setActiveTab('caselaw'); setIsOpen(false); setFilterQuery(''); }}
             className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
@@ -264,15 +300,16 @@ export default function LawSearchPage() {
 
       </div>
 
-      {/* UNIFIED CANVAS PDF ENGINE (FileViewerModal) */}
+      {/* UNIFIED CANVAS PDF ENGINE WITH EXACT STARTING PAGE JUMP */}
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{
-            file_name: selectedPdfFilename || 'Material Ligjor.pdf',
+            file_name: modalFilename,
             mime_type: 'application/pdf',
           }}
           directUrl={pdfUrl}
           isAuth={true}
+          initialPage={initialPageNumber}
           onClose={() => setShowPdfModal(false)}
           t={t}
         />

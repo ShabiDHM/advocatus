@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V14.0 (1-STEP DIRECT CANVAS PDF STREAM)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V15.0 (HIGH-CONTRAST PAGE PILL, PAGE JUMP & INITIAL PAGE AUTO-SCROLL)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -27,6 +27,7 @@ interface FileViewerModalProps {
   t: TFunction; 
   directUrl?: string | null; 
   isAuth?: boolean;
+  initialPage?: number; // ✅ AUTO-JUMP TO EXACT PAGE NUMBER
 }
 
 type ViewerMode = 'PDF' | 'TEXT' | 'IMAGE' | 'CSV' | 'DOWNLOAD';
@@ -38,7 +39,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   onMinimize, 
   t, 
   directUrl, 
-  isAuth = false 
+  isAuth = false,
+  initialPage = 1
 }) => {
   const [fileSource, setFileSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -46,13 +48,23 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
+  const [pageNumber, setPageNumber] = useState(initialPage || 1);
+  const [jumpInput, setJumpInput] = useState<string>(String(initialPage || 1));
+  const [isEditingPage, setIsEditingPage] = useState(false);
   const [scale, setScale] = useState(1.0); 
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+
+  // Sync initialPage when passed
+  useEffect(() => {
+    if (initialPage && initialPage > 0) {
+      setPageNumber(initialPage);
+      setJumpInput(String(initialPage));
+    }
+  }, [initialPage]);
 
   // Release scroll lock when window is minimized
   useLockBodyScroll(!isMinimized);
@@ -160,6 +172,24 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
+  const handlePageChange = (newPage: number) => {
+    if (!numPages) return;
+    const clamped = Math.max(1, Math.min(numPages, newPage));
+    setPageNumber(clamped);
+    setJumpInput(String(clamped));
+  };
+
+  const handlePageJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsEditingPage(false);
+    const parsed = parseInt(jumpInput, 10);
+    if (!isNaN(parsed) && numPages) {
+      handlePageChange(parsed);
+    } else {
+      setJumpInput(String(pageNumber));
+    }
+  };
+
   useEffect(() => {
     setError(null);
     setIsLoading(true);
@@ -249,9 +279,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
 
     if (viewerMode === 'PDF') {
-        // DIRECT 1-STEP CANVAS STREAM FOR BOTH MOBILE AND DESKTOP (NO OBJECT TAG WRAPPER)
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
                 {isLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-canvas/60 backdrop-blur-xs z-10">
                     <Loader className="animate-spin text-primary-start" size={36} />
@@ -263,6 +292,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       onLoadSuccess={({ numPages }) => { 
                         setNumPages(numPages); 
                         setIsLoading(false); 
+                        if (initialPage && initialPage > 0 && initialPage <= numPages) {
+                          setPageNumber(initialPage);
+                          setJumpInput(String(initialPage));
+                        }
                       }} 
                       onLoadError={(err) => {
                         console.error("PDF Render Error:", err);
@@ -278,7 +311,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       className="flex flex-col items-center w-full px-2 sm:px-0"
                     >
                       {isMobile ? (
-                        /* Continuous scrollable pages for 1-step direct mobile viewing */
                         numPages && Array.from(new Array(numPages), (_, index) => (
                           <Page 
                             key={`page_${index + 1}`}
@@ -291,7 +323,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           />
                         ))
                       ) : (
-                        /* Page-by-page rendering for desktop with toolbar pagination */
                         <Page 
                           pageNumber={pageNumber} 
                           width={containerWidth > 0 ? containerWidth : undefined} 
@@ -498,11 +529,51 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
           <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
+          {/* HIGH-CONTRAST DARK GLASSMORPHIC PAGE INDICATOR CONTROL BAR */}
           {!isMobile && viewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-surface px-5 py-2 rounded-full border border-main flex items-center gap-4 backdrop-blur-xl z-[100] shadow-xl">
-              <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30 cursor-pointer"><ChevronLeft size={20} /></button>
-              <span className="text-xs font-bold text-text-primary font-mono select-none">{pageNumber} / {numPages}</span>
-              <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="w-11 h-11 flex items-center justify-center text-text-primary disabled:opacity-30 cursor-pointer"><ChevronRight size={20} /></button>
+            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-5 py-2.5 rounded-full border border-slate-700/80 flex items-center gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
+              <button 
+                type="button"
+                onClick={() => handlePageChange(pageNumber - 1)} 
+                disabled={pageNumber <= 1} 
+                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
+                title="Faqja e mëparshme"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              
+              {isEditingPage ? (
+                <form onSubmit={handlePageJumpSubmit} className="flex items-center">
+                  <input
+                    type="number"
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value)}
+                    onBlur={handlePageJumpSubmit}
+                    className="w-14 bg-slate-800 text-white font-mono font-bold text-xs text-center border border-sky-500 rounded-md py-1 focus:outline-none"
+                    autoFocus
+                  />
+                  <span className="text-xs font-mono text-slate-400 ml-1">/ {numPages}</span>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingPage(true)}
+                  className="px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-xs font-bold text-sky-400 font-mono tracking-wider border border-slate-700/60 hover:border-sky-500/50 transition-all cursor-pointer"
+                  title="Kliko për të kërcyer në faqe"
+                >
+                  Faqja {pageNumber} <span className="text-slate-400 font-normal">/ {numPages}</span>
+                </button>
+              )}
+
+              <button 
+                type="button"
+                onClick={() => handlePageChange(pageNumber + 1)} 
+                disabled={pageNumber >= numPages} 
+                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
+                title="Faqja tjetër"
+              >
+                <ChevronRight size={20} />
+              </button>
             </footer>
           )}
         </motion.div>
