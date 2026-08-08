@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V68.0 (STRICT THREE-TAB DISCOVERY & CASE STARTING PAGE ENDPOINT)
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V69.0 (EXPLICIT PAGE_NUMBER RETENTION FOR SMART JUMPING)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Set, List
@@ -43,7 +43,6 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
         db = get_db_instance()
         clean_title = law_title.strip()
 
-        # Find earliest page number stored in MongoDB for this title
         doc = db.legal_knowledge_base.find_one(
             {"$or": [
                 {"law_title": clean_title},
@@ -52,12 +51,17 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
             ]},
             sort=[("page", 1)]
         )
-        if doc and doc.get("page"):
-            return {"page": int(doc.get("page")), "law_title": clean_title}
-        return {"page": 1, "law_title": clean_title}
+        if doc:
+            raw_page = doc.get("page") or doc.get("page_number") or 1
+            try:
+                page_val = int(raw_page)
+            except Exception:
+                page_val = 1
+            return {"page": page_val, "page_number": page_val, "law_title": clean_title}
+        return {"page": 1, "page_number": 1, "law_title": clean_title}
     except Exception as e:
         logger.warning(f"Error fetching starting page: {e}")
-        return {"page": 1, "law_title": law_title}
+        return {"page": 1, "page_number": 1, "law_title": law_title}
 
 
 @router.get("/titles")
@@ -66,7 +70,6 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        # 1. TAB 2: ACADEMIA - Query ONLY actual PDF filenames (source + b2_academic)
         academic_db_sources = db.legal_knowledge_base.distinct("source", {"category": "academic"})
         b2_academic = _get_b2_filenames("academic/")
         
@@ -76,7 +79,6 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         ])
         clean_academic = sorted(list(raw_academic_sources))
 
-        # 2. TAB 3: CASELAW - Query ONLY category='caselaw' distinct titles
         caselaw_db_titles = db.legal_knowledge_base.distinct("law_title", {"category": "caselaw"})
         caselaw_db_sources = db.legal_knowledge_base.distinct("source", {"category": "caselaw"})
         b2_caselaw = _get_b2_filenames("case_law/")
@@ -84,7 +86,6 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         raw_caselaw = set([t.strip() for t in (caselaw_db_titles + caselaw_db_sources + b2_caselaw) if t and t.strip()])
         clean_caselaw = sorted(list(raw_caselaw))
 
-        # 3. TAB 1: STATUTES - Query non-academic, non-caselaw items
         all_titles = db.legal_knowledge_base.distinct("law_title", {"category": {"$nin": ["academic", "caselaw"]}})
         all_sources = db.legal_knowledge_base.distinct("source", {"category": {"$nin": ["academic", "caselaw"]}})
         raw_statutes = [t.strip() for t in (all_titles + all_sources) if t and t.strip() and not t.lower().endswith('.pdf')]
@@ -112,7 +113,7 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         docs = find_documents_by_title(
             db, 
             mapped_title if mapped_title else law_title, 
-            fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "text": 1}
+            fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "page_number": 1, "text": 1}
         )
 
         if not docs:
@@ -123,9 +124,17 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
         
+        raw_page = docs[0].get("page") or docs[0].get("page_number") or 1
+        try:
+            page_val = int(raw_page)
+        except Exception:
+            page_val = 1
+
         return {
             "law_title": canonical_title,
             "source": str(docs[0].get("source", "")),
+            "page": page_val,
+            "page_number": page_val,
             "is_official_statute": True,
             "article_count": len(sorted_articles),
             "articles": sorted_articles
@@ -147,7 +156,6 @@ async def get_law_article(
         
         clean_law_title = law_title.strip()
 
-        # --- SMART RECOVERY FOR HALLUCINATED TITLES (e.g. "Neni 258", "Neni 423") ---
         if clean_law_title.lower().startswith("neni") or clean_law_title == article_number:
             fallback_doc = db.legal_knowledge_base.find_one({
                 "article_number": str(article_number),
@@ -159,7 +167,6 @@ async def get_law_article(
 
         statute_docs, academic_doc, metadata = find_law_documents(db, clean_law_title, article_number)
         
-        # Fallback query if find_law_documents missed
         if not statute_docs or not statute_docs[0]:
             fallback_docs = list(db.legal_knowledge_base.find({
                 "article_number": str(article_number),
@@ -174,10 +181,19 @@ async def get_law_article(
         primary_doc = statute_docs[0]
         source_info = _generate_source_info(primary_doc, metadata if 'metadata' in locals() else {}, clean_law_title, article_number)
 
+        # ⚡ CRITICAL FIX: Extract exact page number from MongoDB chunk so frontend jumps to Neni 423
+        raw_page = primary_doc.get("page") or primary_doc.get("page_number") or 1
+        try:
+            page_val = int(raw_page)
+        except Exception:
+            page_val = 1
+
         response_data = {
             "law_title": primary_doc.get("law_title", clean_law_title),
             "article_number": primary_doc.get("article_number", article_number),
             "source": primary_doc.get("source", ""),
+            "page": page_val,
+            "page_number": page_val,
             "text": "\n\n".join([doc.get("text", "") for doc in statute_docs if doc and doc.get("text")]),
             "source_info": source_info
         }
@@ -204,10 +220,18 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
         doc = db.legal_knowledge_base.find_one({"chunk_id": chunk_id})
         if not doc: raise HTTPException(status_code=404, detail="Chunk not found")
             
+        raw_page = doc.get("page") or doc.get("page_number") or 1
+        try:
+            page_val = int(raw_page)
+        except Exception:
+            page_val = 1
+
         return {
             "law_title": str(doc.get("law_title", "Ligji")),
             "article_number": str(doc.get("article_number", "")),
             "source": str(doc.get("source", "")),
+            "page": page_val,
+            "page_number": page_val,
             "text": doc.get("text", "")
         }
     except HTTPException: raise

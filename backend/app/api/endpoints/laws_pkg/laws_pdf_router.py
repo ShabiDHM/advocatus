@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V67.0 (UNICODE NFC NORMALIZATION FOR ALBANIAN DIACRITICS)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V68.0 (HIGH-PERFORMANCE CONTENT-LENGTH B2 STREAMING)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -21,10 +21,7 @@ WORKSPACE_ROOT = os.path.dirname(BACKEND_DIR)
 
 
 def _normalize_title_str(name: str) -> str:
-    """Normalizes titles/filenames for text-based matching (handles Unicode NFC/NFD for Albanian ë/ç)."""
-    # 1. Unicode NFC Normalization (unifies e¨ diaeresis with precomposed ë)
     nfc_name = unicodedata.normalize('NFC', name)
-    
     clean = re.sub(r'\.pdf$', '', nfc_name, flags=re.IGNORECASE).strip().lower()
     clean = clean.replace('sh', 'z')
     clean = re.sub(r'[\-_.:,;()\[\]"\'\/\\]', ' ', clean)
@@ -74,7 +71,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     # --- STEP 2: PREPARE TARGET FILENAMES ---
     clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
     normalized_target = _normalize_title_str(raw_basename)
-    digit_target = _strip_alpha(raw_basename)
 
     # --- STEP 3: ABSOLUTE LOCAL DISK SEARCH (0ms INSTANT LATENCY) ---
     search_dirs = [
@@ -91,7 +87,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         if os.path.exists(prefix_dir):
             files = os.listdir(prefix_dir)
             
-            # Pass A: Exact / Normalized Match with NFC Normalization
             for f in files:
                 if not f.lower().endswith('.pdf'):
                     continue
@@ -103,10 +98,13 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                     return FileResponse(
                         full_path,
                         media_type="application/pdf",
-                        headers={"Content-Disposition": f'inline; filename="{f_nfc}"'}
+                        headers={
+                            "Content-Disposition": f'inline; filename="{f_nfc}"',
+                            "Cache-Control": "public, max-age=86400",
+                            "Accept-Ranges": "bytes"
+                        }
                     )
 
-            # Pass B: Substring Match
             for f in files:
                 if not f.lower().endswith('.pdf'):
                     continue
@@ -118,10 +116,14 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                     return FileResponse(
                         full_path,
                         media_type="application/pdf",
-                        headers={"Content-Disposition": f'inline; filename="{f_nfc}"'}
+                        headers={
+                            "Content-Disposition": f'inline; filename="{f_nfc}"',
+                            "Cache-Control": "public, max-age=86400",
+                            "Accept-Ranges": "bytes"
+                        }
                     )
 
-    # --- STEP 4: BACKBLAZE B2 STREAMING ---
+    # --- STEP 4: BACKBLAZE B2 STREAMING WITH CONTENT-LENGTH & ACCEPT-RANGES ---
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
@@ -143,16 +145,21 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                         (normalized_target and norm_b2 == normalized_target) or
                         (normalized_target and norm_b2 in normalized_target)):
                         
-                        stream = storage_service.get_file_stream(key)
+                        stream, content_length = storage_service.get_file_stream_with_meta(key)
                         if stream:
                             logger.info(f"☁️ Cloud B2 stream -> {key}")
+                            headers = {
+                                "Content-Disposition": f'inline; filename="{b2_nfc}"',
+                                "Cache-Control": "public, max-age=86400",
+                                "Accept-Ranges": "bytes"
+                            }
+                            if content_length > 0:
+                                headers["Content-Length"] = str(content_length)
+
                             return StreamingResponse(
                                 stream,
                                 media_type="application/pdf",
-                                headers={
-                                    "Content-Disposition": f'inline; filename="{b2_nfc}"',
-                                    "Cache-Control": "public, max-age=86400"
-                                }
+                                headers=headers
                             )
             except Exception:
                 continue
@@ -164,7 +171,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
 
 @router.get("/pdf/{filename:path}")
 async def get_law_pdf(filename: str):
-    """General Statutory PDF Streamer."""
     res = _stream_from_b2_or_local(filename, ["laws/ks/", "academic/", "case_law/", "laws/", ""])
     if res:
         return res
@@ -173,7 +179,6 @@ async def get_law_pdf(filename: str):
 
 @router.get("/academia/pdf/{filename:path}")
 async def get_academia_pdf(filename: str):
-    """Dedicated Streamer for Akademia e Drejtësisë PDFs."""
     res = _stream_from_b2_or_local(filename, ["academic/", "academic_manuals/", ""])
     if res:
         return res
@@ -182,7 +187,6 @@ async def get_academia_pdf(filename: str):
 
 @router.get("/caselaw/pdf/{filename:path}")
 async def get_caselaw_pdf(filename: str):
-    """Dedicated Streamer for Court Decisions / Aktgjykimet PDFs."""
     res = _stream_from_b2_or_local(filename, ["case_law/", "jurisprudence/", "decisions/", ""])
     if res:
         return res
