@@ -1,4 +1,6 @@
 # FILE: app/api/endpoints/cases/document_router.py
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V3.0 (FIXED ARCHIVED STATUS PYDANTIC VALIDATION)
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
 from fastapi.responses import StreamingResponse
@@ -10,8 +12,10 @@ import logging
 import io
 
 from app.services import document_service, storage_service, pdf_service
+from app.services.archive_service import ArchiveService
 from app.services.graph_service import graph_service
 from app.models.document import DocumentOut
+from app.models.archive import ArchiveItemOut
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_user, get_db, get_sync_redis
 from app.api.endpoints.cases.cases_helpers import validate_object_id, DeletedDocumentResponse, BulkDeleteDocumentsRequest
@@ -27,9 +31,12 @@ async def get_documents_for_case(
 ):
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
+    
+    # Filter out both DELETED and ARCHIVED documents from active case documents list
     cursor = db.documents.find({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": user_oid
+        "owner_id": user_oid,
+        "status": {"$nin": ["DELETED", "ARCHIVED"]}
     })
     docs = list(cursor)
     return [DocumentOut.model_validate(d) for d in docs]
@@ -70,6 +77,30 @@ async def upload_document_for_case(
 
     return DocumentOut.model_validate(doc)
 
+# --- SINGLE DOCUMENT ARCHIVE ENDPOINT ---
+
+@router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)
+async def archive_case_document_endpoint(
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    validate_object_id(case_id)
+    validate_object_id(doc_id)
+    
+    service = ArchiveService(db)
+    archive_item = await asyncio.to_thread(
+        service.archive_document,
+        db=db,
+        case_id=case_id,
+        doc_id=doc_id,
+        owner=current_user
+    )
+    if not archive_item:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose dështoi arkivimi.")
+    return archive_item
+
 @router.post("/{case_id}/documents/bulk-delete")
 @router.delete("/{case_id}/documents/bulk-delete")
 async def bulk_delete_documents_endpoint(
@@ -90,7 +121,7 @@ async def bulk_delete_documents_endpoint(
         docs = list(db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "owner_id": user_oid, 
-            "status": {"$ne": "DELETED"}
+            "status": {"$nin": ["DELETED", "ARCHIVED"]}
         }))
         doc_ids = [str(d["_id"]) for d in docs]
 
@@ -107,7 +138,7 @@ async def bulk_delete_documents_endpoint(
     
     remaining_docs = db.documents.count_documents({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}], 
-        "status": {"$ne": "DELETED"}
+        "status": {"$nin": ["DELETED", "ARCHIVED"]}
     })
     
     if remaining_docs == 0:
@@ -156,7 +187,7 @@ async def delete_document(
     if result.get("deleted_count", 0) > 0:
         remaining_docs = db.documents.count_documents({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}], 
-            "status": {"$ne": "DELETED"}
+            "status": {"$nin": ["DELETED", "ARCHIVED"]}
         })
         if remaining_docs == 0:
             db.cases.update_one(

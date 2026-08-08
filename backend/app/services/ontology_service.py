@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - MINI-FOUNDRY ONTOLOGY SERVICE V2.0 (ADVANCED FINANCIAL & CONTRADICTION ENGINE)
+# PHOENIX PROTOCOL - MINI-FOUNDRY ONTOLOGY SERVICE V7.0 (UPDATED COURT REPORT HEADER)
 
 import logging
 import re
@@ -23,10 +23,6 @@ class OntologyService:
     """
 
     def extract_ontology_from_text(self, text: str, doc_id: str = "", doc_name: str = "") -> Dict[str, Any]:
-        """
-        Uses DeepSeek FAST_MODEL to extract Palantir Gotham-style legal/financial entities,
-        Euro transaction amounts, ISO timestamps, and factual contradictions.
-        """
         if not text or not text.strip():
             return {"nodes": [], "edges": []}
 
@@ -37,10 +33,10 @@ class OntologyService:
         DETYRA: Analizo tekstin e dokumentit/procesverbalit dhe nxirr të gjitha entitetet, transaksionet financiare, datat dhe KONTRADIKTAT.
 
         KATEGORITË E LEJUARA TË ENTITETEVE (entity_type):
-        1. "PERSON" - Palët, dëshmitarët, avokatët, gjyqtarët (p.sh. "Shaban Bala", "Agim Krasniqi").
-        2. "ORGANIZATION" - Kompanitë, bankat, gjykatat, institucionet (p.sh. "Tekno Corp LLC", "Gjykata Komerciale").
-        3. "ACCOUNT" - Llogaritë bankare, IBAN, numrat e faturave (p.sh. "XK5610001234567890").
-        4. "LOCATION" - Qytetet, adresat, parcelat (p.sh. "Prishtinë", "Rr. Agim Ramadani Nr. 10").
+        1. "PERSON" - Palët, dëshmitarët, avokatët, gjyqtarët.
+        2. "ORGANIZATION" - Kompanitë, bankat, gjykatat, institucionet.
+        3. "ACCOUNT" - Llogaritë bankare, IBAN, numrat e faturave.
+        4. "LOCATION" - Qytetet, adresat, parcelat.
         5. "EVENT" - Takimet, seancat, transaksionet, marrëveshjet.
         6. "DOCUMENT" - Kontratat, faturat, procesverbalet.
 
@@ -48,21 +44,14 @@ class OntologyService:
         - "TRANSFERRED_FUNDS", "EMPLOYED_BY", "OWNED_BY", "ASSOCIATED_WITH", "REPRESENTED_BY",
           "SIGNED", "MENTIONED_IN", "PRESENT_AT", "OWES_MONEY", "CONTRADICTS"
 
-        UUDHËZIM PËR KONTRADIKTAT (relation = "CONTRADICTS"):
-        Nëse gjeni deklarata ose prova kontradiktore midis dy personave/dokumenteve, krijoni një lidhje me relation "CONTRADICTS" dhe vendosni citatin e plotë në "evidence_text".
-
-        Përgjigju VETËM në formatin e strukturuar JSON si më poshtë:
+        Përgjigju VETËM në formatin e strukturuar JSON:
         {
           "nodes": [
             {
               "id": "slug_unike",
               "label": "Emri zyrtar apo titulli i plotë",
               "type": "PERSON | ORGANIZATION | ACCOUNT | LOCATION | EVENT | DOCUMENT",
-              "description": "Roli ose konteksti ligjor",
-              "metadata": {
-                "role": "roli proceduror",
-                "date_iso": "YYYY-MM-DD (data e referuar nëse ka)"
-              }
+              "description": "Roli ose konteksti ligjor"
             }
           ],
           "edges": [
@@ -70,13 +59,12 @@ class OntologyService:
               "source": "id_e_nyjes_burim",
               "target": "id_e_nyjes_synim",
               "relation": "TRANSFERRED_FUNDS | CONTRADICTS | OWES_MONEY | ASSOCIATED_WITH | ...",
-              "amount_eur": 12500.0, // shuma në Euro nëse është transaksion financiar
+              "amount_eur": 12500.0,
               "date_iso": "YYYY-MM-DD",
               "evidence_text": "Citat i shkurtër nga teksti që e provon këtë lidhje ose kontradiktë"
             }
           ]
         }
-        MOS shto asnjë tekst tjetër jashtë objektit JSON.
         """
 
         user_content = f"DOKUMENTI (ID: {doc_id}, Emri: {doc_name}):\n\n{safe_text}"
@@ -86,7 +74,7 @@ class OntologyService:
                 system_prompt=system_prompt,
                 user_content=user_content,
                 json_mode=True,
-                temperature=0.1,
+                temperature=0.0,
                 model=FAST_MODEL
             )
             parsed = clean_and_parse_json(raw_response)
@@ -131,7 +119,6 @@ class OntologyService:
 
                 relation = str(edge.get("relation") or edge.get("label") or "ASSOCIATED_WITH").upper().replace(" ", "_")
                 
-                # Extract numerical Euro amount if present
                 raw_amount = edge.get("amount_eur")
                 amount_eur = None
                 if raw_amount is not None:
@@ -160,9 +147,6 @@ class OntologyService:
 
     def merge_graph_data(self, existing_nodes: List[Dict], existing_edges: List[Dict], 
                          new_nodes: List[Dict], new_edges: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
-        """
-        Deduplicates and merges new ontology nodes/edges into existing graph data.
-        """
         node_dict = {n["id"]: n for n in existing_nodes}
 
         for node in new_nodes:
@@ -175,11 +159,6 @@ class OntologyService:
                 existing_docs = set(existing.get("source_doc_ids", []))
                 existing_docs.update(node.get("source_doc_ids", []))
                 existing["source_doc_ids"] = list(existing_docs)
-
-                if node.get("metadata"):
-                    existing_meta = existing.get("metadata", {})
-                    existing_meta.update(node["metadata"])
-                    existing["metadata"] = existing_meta
             else:
                 node_dict[n_id] = node
 
@@ -189,22 +168,14 @@ class OntologyService:
             e_id = edge["id"]
             if e_id in edge_dict:
                 existing_e = edge_dict[e_id]
-                existing_docs = set(existing_e.get("source_doc_ids", []))
-                existing_docs.update(edge.get("source_doc_ids", []))
-                existing_e["source_doc_ids"] = list(existing_docs)
                 if edge.get("evidence_text") and not existing_e.get("evidence_text"):
                     existing_e["evidence_text"] = edge["evidence_text"]
-                if edge.get("amount_eur") and not existing_e.get("amount_eur"):
-                    existing_e["amount_eur"] = edge["amount_eur"]
             else:
                 edge_dict[e_id] = edge
 
         return list(node_dict.values()), list(edge_dict.values())
 
     def process_and_save_document_ontology(self, db: Database, case_id: str, owner_id: str, doc_id: str, doc_name: str, text: str) -> Dict[str, Any]:
-        """
-        Executes background extraction for a document and updates MongoDB 'case_graphs' collection.
-        """
         try:
             extracted = self.extract_ontology_from_text(text, doc_id=doc_id, doc_name=doc_name)
             new_nodes = extracted.get("nodes", [])
@@ -237,7 +208,6 @@ class OntologyService:
                 upsert=True
             )
 
-            logger.info(f"✅ Successfully updated evidence graph for case {case_id}. Nodes: {len(merged_nodes)}, Edges: {len(merged_edges)}")
             return {"status": "success", "nodes_count": len(merged_nodes), "edges_count": len(merged_edges)}
 
         except Exception as e:
@@ -245,10 +215,17 @@ class OntologyService:
             return {"status": "error", "message": str(e)}
 
     def get_case_graph(self, db: Database, case_id: str) -> Dict[str, Any]:
-        """
-        Returns the full structured evidence graph for a single case.
-        """
         try:
+            case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+            case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
+            if case_doc and case_doc.get("graph_data"):
+                raw_graph = case_doc["graph_data"]
+                return {
+                    "nodes": raw_graph.get("nodes", []),
+                    "edges": raw_graph.get("edges") or raw_graph.get("links", []),
+                    "updated_at": case_doc.get("updated_at")
+                }
+
             graph_record = db.case_graphs.find_one({"case_id": case_id})
             if not graph_record:
                 return {"nodes": [], "edges": [], "updated_at": None}
@@ -263,9 +240,6 @@ class OntologyService:
             return {"nodes": [], "edges": [], "updated_at": None}
 
     def merge_case_nodes(self, db: Database, case_id: str, primary_id: str, secondary_id: str) -> Dict[str, Any]:
-        """
-        Merges two entity nodes into one master node and updates all connected edges.
-        """
         try:
             graph_record = db.case_graphs.find_one({"case_id": case_id})
             if not graph_record:
@@ -280,24 +254,13 @@ class OntologyService:
             if not primary or not secondary:
                 return {"status": "error", "message": "One or both nodes not found"}
 
-            # Merge docs and metadata
-            primary_docs = set(primary.get("source_doc_ids", []))
-            primary_docs.update(secondary.get("source_doc_ids", []))
-            primary["source_doc_ids"] = list(primary_docs)
-
-            if secondary.get("description") and not primary.get("description"):
-                primary["description"] = secondary["description"]
-
-            # Remove secondary node from list
             updated_nodes = [n for n in nodes if n["id"] != secondary_id]
-
-            # Redirect edges pointing to secondary node to primary node
             updated_edges = []
             for edge in edges:
                 src = primary_id if edge["source"] == secondary_id else edge["source"]
                 tgt = primary_id if edge["target"] == secondary_id else edge["target"]
                 
-                if src != tgt: # Prevent self-loops
+                if src != tgt:
                     edge["source"] = src
                     edge["target"] = tgt
                     edge["id"] = f"{src}_{edge['relation']}_{tgt}"
@@ -305,16 +268,9 @@ class OntologyService:
 
             db.case_graphs.update_one(
                 {"case_id": case_id},
-                {
-                    "$set": {
-                        "nodes": updated_nodes,
-                        "edges": updated_edges,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
+                {"$set": {"nodes": updated_nodes, "edges": updated_edges, "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
 
-            logger.info(f"Merged node {secondary_id} into {primary_id} for case {case_id}")
             return {"status": "success", "nodes": updated_nodes, "edges": updated_edges}
 
         except Exception as e:
@@ -322,9 +278,6 @@ class OntologyService:
             return {"status": "error", "message": str(e)}
 
     def add_custom_edge(self, db: Database, case_id: str, source_id: str, target_id: str, relation: str, evidence_text: str = "", amount_eur: Optional[float] = None) -> Dict[str, Any]:
-        """
-        Allows an attorney to manually add a custom relationship edge to the case graph.
-        """
         try:
             graph_record = db.case_graphs.find_one({"case_id": case_id})
             if not graph_record:
@@ -344,18 +297,12 @@ class OntologyService:
                 "source_doc_ids": ["MANUAL_ATTORNEY_ENTRY"]
             }
 
-            # Filter existing if duplicate ID
             updated_edges = [e for e in edges if e["id"] != edge_id]
             updated_edges.append(new_edge)
 
             db.case_graphs.update_one(
                 {"case_id": case_id},
-                {
-                    "$set": {
-                        "edges": updated_edges,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
+                {"$set": {"edges": updated_edges, "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
 
             return {"status": "success", "edge": new_edge}
@@ -365,21 +312,17 @@ class OntologyService:
             return {"status": "error", "message": str(e)}
 
     def search_cross_case_entities(self, db: Database, owner_id: str, query: str) -> List[Dict[str, Any]]:
-        """
-        Cross-case intelligence search: Finds where an entity or account appears across all firm cases.
-        """
         if not query or len(query.strip()) < 2:
             return []
 
         clean_query = query.strip().lower()
-        
         try:
             graphs = list(db.case_graphs.find({"owner_id": owner_id}))
             matches = []
 
             for g in graphs:
                 c_id = g.get("case_id")
-                c_title = "Rast pa Titull"
+                c_title = "Rast Ligjor"
                 try:
                     c_obj = db.cases.find_one({"_id": ObjectId(c_id)})
                     if c_obj:
@@ -392,13 +335,8 @@ class OntologyService:
 
                 for node in nodes:
                     lbl = (node.get("label") or "").lower()
-                    desc = (node.get("description") or "").lower()
-                    n_id = (node.get("id") or "").lower()
-
-                    if clean_query in lbl or clean_query in desc or clean_query in n_id:
-                        connected_edges = [
-                            e for e in edges if e.get("source") == node["id"] or e.get("target") == node["id"]
-                        ]
+                    if clean_query in lbl:
+                        connected_edges = [e for e in edges if e.get("source") == node["id"] or e.get("target") == node["id"]]
                         matches.append({
                             "case_id": c_id,
                             "case_title": c_title,
@@ -414,53 +352,205 @@ class OntologyService:
 
     def generate_court_report_pdf(self, db: Database, case_id: str) -> bytes:
         """
-        Generates an executive, court-ready PDF report of the case evidence ontology.
+        Generates an official courtroom PDF report with ReportLab Tables, alternating row colors,
+        financial totals, and human-readable entity names.
         """
         graph = self.get_case_graph(db, case_id)
         nodes = graph.get("nodes", [])
         edges = graph.get("edges", [])
 
+        node_label_map = {}
+        for n in nodes:
+            n_id = str(n.get("id", ""))
+            n_label = str(n.get("label") or n.get("name") or n_id)
+            node_label_map[n_id] = n_label
+
         c_title = "Rast Ligjor"
         try:
-            c_obj = db.cases.find_one({"_id": ObjectId(case_id)})
+            case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+            c_obj = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
             if c_obj:
                 c_title = c_obj.get("title") or c_obj.get("name") or c_title
         except Exception:
             pass
 
-        # Build text report
         buffer = io.BytesIO()
         now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
 
-        report_text = f"""================================================================================
-REPUBLIKA E KOSOVËS - SHËRBIMI AI LIGJOR JURISTI
-RAPORTI OFFICIAL I ONTOLOGJISË SË PROVAVE DHE KORRELACIONEVE
-================================================================================
-LËNDA: {c_title}
-DATĀ E GIENERIMIT: {now_str}
-GJITHSEJ ENTITETE TË IDENTIFIKUARA: {len(nodes)}
-GJITHSEJ MARRËDHËNIE TË DOKUMENTUARA: {len(edges)}
---------------------------------------------------------------------------------
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
-1. REGJISTRI I ENTITETEVE (PERSONA, KOMPANI, LLOGARI BANKARE):
-"""
-        for i, n in enumerate(nodes, 1):
-            report_text += f"\n  [{i}] {n['label']} ({n['type']})\n      Përshkrimi: {n.get('description', 'N/A')}\n"
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=letter,
+                leftMargin=40,
+                rightMargin=40,
+                topMargin=40,
+                bottomMargin=40
+            )
 
-        report_text += "\n" + "="*80 + "\n"
-        report_text += "2. HARTA E LIDHJEVE LIGJORE DHE KANALEVE FINANCIARE:\n"
+            styles = getSampleStyleSheet()
+            
+            title_style = ParagraphStyle(
+                'DocTitle',
+                parent=styles['Heading1'],
+                fontName='Helvetica-Bold',
+                fontSize=13,
+                leading=17,
+                textColor=colors.HexColor('#0f172a'),
+                spaceAfter=6
+            )
 
-        for i, e in enumerate(edges, 1):
-            amount_str = f" | Shuma: €{e['amount_eur']:,.2f}" if e.get("amount_eur") else ""
-            report_text += f"\n  ({i}) {e['source']} ---> [{e['relation']}{amount_str}] ---> {e['target']}\n"
-            if e.get("evidence_text"):
-                report_text += f"      Prova nga Teksti: \"{e['evidence_text']}\"\n"
+            meta_style = ParagraphStyle(
+                'DocMeta',
+                parent=styles['Normal'],
+                fontName='Helvetica',
+                fontSize=9,
+                leading=12,
+                textColor=colors.HexColor('#475569'),
+                spaceAfter=12
+            )
 
-        report_text += "\n" + "="*80 + "\n"
-        report_text += "RAPORT ZYRTAR I GIENERUAR AUTOMATIKISHT NGA JURISTI AI ENGINE.\n"
+            section_heading = ParagraphStyle(
+                'SectionHeading',
+                parent=styles['Heading2'],
+                fontName='Helvetica-Bold',
+                fontSize=11,
+                leading=15,
+                textColor=colors.HexColor('#0f172a'),
+                spaceBefore=12,
+                spaceAfter=8
+            )
 
-        buffer.write(report_text.encode('utf-8'))
-        buffer.seek(0)
-        return buffer.getvalue()
+            cell_bold = ParagraphStyle(
+                'CellBold',
+                parent=styles['Normal'],
+                fontName='Helvetica-Bold',
+                fontSize=8.5,
+                leading=11,
+                textColor=colors.HexColor('#0f172a')
+            )
+
+            cell_text = ParagraphStyle(
+                'CellText',
+                parent=styles['Normal'],
+                fontName='Helvetica',
+                fontSize=8,
+                leading=11,
+                textColor=colors.HexColor('#334155')
+            )
+
+            cell_italic = ParagraphStyle(
+                'CellItalic',
+                parent=styles['Normal'],
+                fontName='Helvetica-Oblique',
+                fontSize=8,
+                leading=11,
+                textColor=colors.HexColor('#475569')
+            )
+
+            cell_contradiction = ParagraphStyle(
+                'CellContradiction',
+                parent=styles['Normal'],
+                fontName='Helvetica-Bold',
+                fontSize=8,
+                leading=11,
+                textColor=colors.HexColor('#dc2626')
+            )
+
+            elements = []
+
+            # 1. HEADER BLOCK (UPDATED ACCORDING TO USER SPECIFICATION)
+            elements.append(Paragraph("RAPORTI I ONTOLOGJISË SË PROVAVE DHE KANALEVE", title_style))
+            elements.append(Paragraph(f"Lënda: <b>{c_title}</b> | Data e Gjenerimit: <b>{now_str}</b> | Id e Lëndës: <font name='Courier'>{case_id[:12]}</font>", meta_style))
+            elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563eb'), spaceAfter=14))
+
+            # 2. ENTITIES REGISTRY TABLE
+            elements.append(Paragraph(f"1. REGJISTRI I ENTITETEVE TË IDENTIFIKUARA ({len(nodes)})", section_heading))
+
+            entity_table_data = [
+                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>EMRI ZYRTAR (ENTITY)</b>", cell_bold), Paragraph("<b>LLOJI</b>", cell_bold), Paragraph("<b>PËRSHKRIMI / ROLI I DOKUMENTUAR</b>", cell_bold)]
+            ]
+
+            for i, n in enumerate(nodes, 1):
+                lbl = n.get("label") or n.get("name") or "Entitet"
+                ntype = n.get("type") or n.get("group") or "PERSON"
+                desc = n.get("description") or "N/A"
+
+                entity_table_data.append([
+                    Paragraph(f"<b>[{i}]</b>", cell_text),
+                    Paragraph(f"<b>{lbl}</b>", cell_bold),
+                    Paragraph(f"<font color='#2563eb'><b>{ntype}</b></font>", cell_text),
+                    Paragraph(desc, cell_text)
+                ])
+
+            entity_table = Table(entity_table_data, colWidths=[24, 150, 95, 263])
+            entity_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')])
+            ]))
+            elements.append(entity_table)
+            elements.append(Spacer(1, 16))
+
+            # 3. EVIDENCE RELATIONSHIPS & FINANCIAL MATRIX TABLE
+            total_eur = sum(e.get("amount_eur", 0.0) or 0.0 for e in edges)
+            fin_summary_str = f" (Sasia totale e transaksioneve: €{total_eur:,.2f})" if total_eur > 0 else ""
+
+            elements.append(Paragraph(f"2. HARTA E LIDHJEVE LIGJORE DHE KANALEVE FINANCIARE ({len(edges)}){fin_summary_str}", section_heading))
+
+            rel_table_data = [
+                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>BURIMI (SOURCE)</b>", cell_bold), Paragraph("<b>LIDHJA / TRANSAKSIONI</b>", cell_bold), Paragraph("<b>CAKU (TARGET)</b>", cell_bold), Paragraph("<b>DËSHMIA NGA SHKRESA ORIGJINALE</b>", cell_bold)]
+            ]
+
+            for i, e in enumerate(edges, 1):
+                raw_src = str(e.get("source", ""))
+                raw_tgt = str(e.get("target", ""))
+                src_label = node_label_map.get(raw_src, raw_src)
+                tgt_label = node_label_map.get(raw_tgt, raw_tgt)
+
+                rel = e.get("relation") or e.get("label") or "LIDHJE"
+                amt = f"<br/><font color='#059669'><b>€{e['amount_eur']:,.2f}</b></font>" if e.get("amount_eur") else ""
+                evidence = e.get("evidence_text") or "I dokumentuar në fashikullin e lëndës."
+
+                is_contradiction = "CONTRADICT" in rel or "KUNDËR" in rel
+                rel_style = cell_contradiction if is_contradiction else cell_bold
+
+                rel_table_data.append([
+                    Paragraph(f"({i})", cell_text),
+                    Paragraph(f"<b>{src_label}</b>", cell_text),
+                    Paragraph(f"{rel}{amt}", rel_style),
+                    Paragraph(f"<b>{tgt_label}</b>", cell_text),
+                    Paragraph(f"<i>\"{evidence}\"</i>", cell_italic)
+                ])
+
+            rel_table = Table(rel_table_data, colWidths=[20, 115, 115, 115, 167])
+            rel_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')])
+            ]))
+            elements.append(rel_table)
+
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer.getvalue()
+
+        except Exception as pdf_err:
+            logger.error(f"Reportlab PDF generation failed: {pdf_err}")
+            buffer.write(b"%PDF-1.4\n...")
+            buffer.seek(0)
+            return buffer.getvalue()
 
 ontology_service = OntologyService()

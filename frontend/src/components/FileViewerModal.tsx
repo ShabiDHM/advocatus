@@ -1,10 +1,10 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V16.0 (HEADER CONTROLS STRICTLY MINIMIZE & CLOSE ONLY)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V18.0 (INSTANT HTTP RANGE PDF STREAMING & 0S DELAY)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
@@ -56,8 +56,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Sync initialPage when passed
   useEffect(() => {
     if (initialPage && initialPage > 0) {
       setPageNumber(initialPage);
@@ -65,7 +65,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   }, [initialPage]);
 
-  // Release scroll lock when window is minimized
   useLockBodyScroll(!isMinimized);
 
   const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
@@ -88,7 +87,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const observer = new ResizeObserver(updateWidth);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewerMode, isMinimized]);
+  }, [viewerMode, isMinimized, isFullscreen]);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -112,12 +111,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               setTextContent(text);
               setViewerMode('TEXT');
           }
+          setIsLoading(false);
       } else { 
           const url = URL.createObjectURL(blob);
           setFileSource(url);
           setViewerMode(mode);
+          setIsLoading(false);
       }
-      setIsLoading(false);
   };
 
   const handleMinimizeAction = () => {
@@ -145,6 +145,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
+  // INSTANT PDF STREAMING LOADER
   useEffect(() => {
     setError(null);
     setIsLoading(true);
@@ -153,12 +154,31 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadContent = async () => {
         try {
-            if (directUrl && directUrl.startsWith('blob:')) {
-                if (targetMode === 'PDF') {
-                    setFileSource(directUrl);
+            // OPTIMIZATION: Instant HTTP Range Stream for PDFs (0s Delay)
+            if (targetMode === 'PDF') {
+                let pdfStreamUrl = directUrl;
+                if (!pdfStreamUrl && caseId && documentData?.id) {
+                    pdfStreamUrl = `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
+                }
+
+                if (pdfStreamUrl) {
+                    // Pass Auth token header config to react-pdf or use direct stream URL
+                    const token = apiService.getToken();
+                    if (token && !pdfStreamUrl.startsWith('blob:')) {
+                        setFileSource({
+                            url: pdfStreamUrl,
+                            httpHeaders: { 'Authorization': `Bearer ${token}` },
+                            withCredentials: true
+                        });
+                    } else {
+                        setFileSource(pdfStreamUrl);
+                    }
                     setIsLoading(false);
                     return;
                 }
+            }
+
+            if (directUrl && directUrl.startsWith('blob:')) {
                 const response = await fetch(directUrl);
                 if (!response.ok) throw new Error("Blob fetch failed");
                 const blob = await response.blob();
@@ -166,11 +186,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 return;
             }
 
-            if (targetMode === 'PDF' && directUrl && !isAuth) {
-                setFileSource(directUrl);
-                setIsLoading(false);
-                return; 
-            }
             if (directUrl) {
                 if (isAuth) {
                     const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
@@ -400,14 +415,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-2 sm:p-4" 
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" 
         onClick={onClose}
       >
         <motion.div 
           initial={{ scale: 0.98, opacity: 0, y: 10 }} 
           animate={{ scale: 1, opacity: 1, y: 0 }} 
           transition={{ duration: 0.2 }}
-          className="glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden" 
+          className={
+            isFullscreen 
+              ? "fixed inset-0 w-screen h-screen rounded-none z-[9999] bg-canvas flex flex-col overflow-hidden border-0" 
+              : "glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden"
+          } 
           onClick={e => e.stopPropagation()}
         >
           <header className="flex items-center justify-between p-4 border-b border-main bg-surface shrink-0">
@@ -425,13 +444,30 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {!isMobile && viewerMode === 'PDF' && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
-                      <button onClick={() => setScale(1.0)} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Reset Zoom"><Maximize size={16} /></button>
+                      <button 
+                        type="button"
+                        onClick={() => setIsFullscreen(!isFullscreen)} 
+                        className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer transition-colors" 
+                        title={isFullscreen ? "Restauro Madhësinë" : "Ekrani i Plotë (Fullscreen)"}
+                      >
+                        {isFullscreen ? <Maximize2 size={16} /> : <Maximize size={16} />}
+                      </button>
                       <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom In"><ZoomIn size={16} /></button>
                   </div>
               )}
 
-              {/* STRICTLY MINIMIZE & CLOSE ICONS ONLY */}
+              {/* FULLSCREEN EXPAND TOGGLE BUTTON */}
               <button 
+                type="button"
+                onClick={() => setIsFullscreen(!isFullscreen)} 
+                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
+                title={isFullscreen ? "Restauro Madhësinë" : "Ekrani i Plotë"}
+              >
+                {isFullscreen ? <Maximize2 size={18} /> : <Maximize size={18} />}
+              </button>
+
+              <button 
+                type="button"
                 onClick={handleMinimizeAction} 
                 className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Minimizo"
@@ -440,6 +476,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               </button>
 
               <button 
+                type="button"
                 onClick={onClose} 
                 className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Mbyll"

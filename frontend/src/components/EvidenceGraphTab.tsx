@@ -1,5 +1,5 @@
 // FILE: src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V61.1 (DECOUPLED & MODULARIZED ATOMIC ARCHITECTURE)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V65.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -54,7 +54,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [viewBox, setViewBox] = useState({ x: -1400, y: -700, width: 2800, height: 1400 });
+  const [viewBox, setViewBox] = useState({ x: -500, y: -300, width: 1000, height: 600 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
   const touchDistRef = useRef<number | null>(null);
@@ -99,8 +99,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       setViewBox((prev) => ({
         x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
         y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
-        width: Math.round(Math.max(600, Math.min(6000, prev.width * zoomFactor))),
-        height: Math.round(Math.max(350, Math.min(4000, prev.height * zoomFactor))),
+        width: Math.round(Math.max(400, Math.min(5000, prev.width * zoomFactor))),
+        height: Math.round(Math.max(250, Math.min(3500, prev.height * zoomFactor))),
       }));
     };
 
@@ -206,28 +206,36 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   useEffect(() => {
     if (filteredNodes.length === 0) return;
     const initialPos: Record<string, { x: number; y: number }> = {};
-    const columns: Record<string, OntologyNode[]> = {
-      PERSON: [], ORGANIZATION: [], ACCOUNT: [], DOCUMENT: [], EVENT: []
-    };
+    
+    const colKeys = ['PERSON', 'ORGANIZATION', 'ACCOUNT', 'DOCUMENT', 'EVENT'];
+    const activeColumns: Record<string, OntologyNode[]> = {};
 
     filteredNodes.forEach((node) => {
-      if (node.type === 'PERSON') columns.PERSON.push(node);
-      else if (node.type === 'ORGANIZATION') columns.ORGANIZATION.push(node);
-      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') columns.ACCOUNT.push(node);
-      else if (node.type === 'DOCUMENT') columns.DOCUMENT.push(node);
-      else columns.EVENT.push(node);
+      let key = 'EVENT';
+      if (node.type === 'PERSON') key = 'PERSON';
+      else if (node.type === 'ORGANIZATION') key = 'ORGANIZATION';
+      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') key = 'ACCOUNT';
+      else if (node.type === 'DOCUMENT') key = 'DOCUMENT';
+
+      if (!activeColumns[key]) activeColumns[key] = [];
+      activeColumns[key].push(node);
     });
 
-    const layoutCol = (nodes: OntologyNode[], xPos: number) => {
-      const startY = -((nodes.length - 1) * 180) / 2;
-      nodes.forEach((n, idx) => { initialPos[n.id] = { x: xPos, y: Math.round(startY + idx * 180) }; });
-    };
+    const presentKeys = colKeys.filter(k => activeColumns[k] && activeColumns[k].length > 0);
+    const numActiveCols = presentKeys.length;
 
-    layoutCol(columns.PERSON, -1100);
-    layoutCol(columns.ORGANIZATION, -550);
-    layoutCol(columns.ACCOUNT, 0);
-    layoutCol(columns.DOCUMENT, 550);
-    layoutCol(columns.EVENT, 1100);
+    const colSpacing = numActiveCols <= 2 ? 800 : numActiveCols === 3 ? 650 : 500;
+    const startX = -((numActiveCols - 1) * colSpacing) / 2;
+
+    presentKeys.forEach((key, colIdx) => {
+      const nodesInCol = activeColumns[key];
+      const xPos = Math.round(startX + colIdx * colSpacing);
+      const startY = -((nodesInCol.length - 1) * 160) / 2;
+
+      nodesInCol.forEach((n, idx) => {
+        initialPos[n.id] = { x: xPos, y: Math.round(startY + idx * 160) };
+      });
+    });
 
     setPositions(initialPos);
 
@@ -239,16 +247,20 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       if (p.y > maxY) maxY = p.y;
     });
 
-    const calcWidth = Math.max(1600, maxX - minX + 700);
-    const calcHeight = Math.max(1100, maxY - minY + 500);
+    const cardW = 240;
+    const cardH = 62;
+
+    const contentW = Math.round((maxX - minX) + cardW + 280);
+    const contentH = Math.round((maxY - minY) + cardH + 220);
+
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
     setViewBox({
-      x: Math.round(centerX - calcWidth / 2),
-      y: Math.round(centerY - calcHeight / 2),
-      width: Math.round(calcWidth),
-      height: Math.round(calcHeight),
+      x: Math.round(centerX - contentW / 2),
+      y: Math.round(centerY - contentH / 2),
+      width: Math.max(600, contentW),
+      height: Math.max(400, contentH),
     });
   }, [filteredNodes]);
 
@@ -271,9 +283,11 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const handleExportCourtReport = async () => {
     setExporting(true);
     try {
-      await apiService.downloadCourtGraphReport(caseId);
-    } catch {
-      alert('Dështoi eksporti i raportit gjyqësor.');
+      const result = await apiService.downloadCourtGraphReport(caseId);
+      alert(`✅ ${result?.message || 'Raporti PDF i Ontologjisë u ruajt me sukses në Arkivin e Lëndës!'}`);
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Dështoi ruajtja e raportit në arkiv.');
     } finally {
       setExporting(false);
     }
@@ -367,7 +381,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       if (newDist > 0 && touchDistRef.current > 0) {
         const zoomFactor = touchDistRef.current / newDist;
-        setViewBox((prev) => ({ ...prev, x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2), y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2), width: Math.round(Math.max(600, Math.min(6000, prev.width * zoomFactor))), height: Math.round(Math.max(350, Math.min(4000, prev.height * zoomFactor))) }));
+        setViewBox((prev) => ({ ...prev, x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2), y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2), width: Math.round(Math.max(500, Math.min(6000, prev.width * zoomFactor))), height: Math.round(Math.max(300, Math.min(4000, prev.height * zoomFactor))) }));
       }
       touchDistRef.current = newDist;
     } else if (e.touches.length === 1 && isPanning) {

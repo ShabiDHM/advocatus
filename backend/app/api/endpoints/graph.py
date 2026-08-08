@@ -1,16 +1,18 @@
 # FILE: backend/app/api/endpoints/graph.py
-# PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH ENDPOINTS V2.5 (USER_VECTORS COLLECTION MATCHED)
+# PHOENIX PROTOCOL - MINI-FOUNDRY EVIDENCE GRAPH ENDPOINTS V4.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE)
 
 import logging
 from typing import List, Dict, Any, Optional, Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, status, Response
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field
 from pymongo.database import Database
 from bson import ObjectId
 from bson.errors import InvalidId
 import pypdf
 import io
+import asyncio
+from datetime import datetime, timezone
 
 from app.models.user import UserInDB
 from app.services.ontology_service import ontology_service
@@ -105,7 +107,6 @@ def _rebuild_case_graph_background(case_id: str, owner_id: str, db_instance: Dat
             doc_name = doc.get("file_name") or doc.get("title") or "Dokument"
             doc_oid = ObjectId(doc_id)
             
-            # STEP 1: FETCH OCR VECTOR CHUNKS FROM MONGODB 'user_vectors'
             chunks = list(db_instance.user_vectors.find({
                 "$or": [
                     {"document_id": doc_id},
@@ -123,11 +124,9 @@ def _rebuild_case_graph_background(case_id: str, owner_id: str, db_instance: Dat
                 text_content = "\n\n".join(chunk_texts).strip()
                 logger.info(f"✅ [user_vectors Chunks Found] Retrieved {len(chunks)} chunks ({len(text_content)} chars) for doc {doc_id}")
 
-            # STEP 2: FALLBACK TO DOCUMENT RECORD FIELDS IF CHUNKS NOT FOUND
             if not text_content or len(text_content.strip()) < 100:
                 text_content = doc.get("extracted_text") or doc.get("ocr_text") or doc.get("text_content") or ""
 
-            # STEP 3: FALLBACK TO PYPDF STORAGE RE-DOWNLOAD IF STILL SMALL
             if not text_content or len(text_content.strip()) < 100:
                 storage_key = doc.get("storage_key") or doc.get("preview_storage_key")
                 if storage_key:
@@ -142,7 +141,6 @@ def _rebuild_case_graph_background(case_id: str, owner_id: str, db_instance: Dat
                         logger.error(f"❌ Storage fetch failed for doc {doc_id}: {err}")
 
             if text_content and len(text_content.strip()) > 30:
-                # Update document record with full text
                 db_instance.documents.update_one(
                     {"_id": doc_oid},
                     {"$set": {"text_content": text_content, "extracted_text": text_content}}
@@ -282,20 +280,60 @@ async def create_custom_edge(
     return result
 
 
+# --- SAVE PDF REPORT TO CASE ARCHIVE ENDPOINT ---
+
+@router.post("/{case_id}/graph/export")
 @router.get("/{case_id}/graph/export")
-async def download_courtroom_graph_report(
+async def archive_courtroom_graph_report(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    validate_object_id(case_id)
+    c_oid = validate_object_id(case_id)
     if not verify_case_ownership(db, case_id, str(current_user.id)):
         raise HTTPException(status_code=403, detail="Nuk keni leje të qaseni në këtë rast.")
 
-    report_bytes = ontology_service.generate_court_report_pdf(db=db, case_id=case_id)
-    filename = f"Raporti_i_Ontologjise_Gjyqesore_{case_id[:8]}.txt"
-    return Response(
-        content=report_bytes,
-        media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    case_obj = db.cases.find_one({"_id": c_oid})
+    c_title = case_obj.get("title") or case_obj.get("name") or "Rast Ligjor" if case_obj else "Rast Ligjor"
+
+    # 1. Generate Official PDF Report Bytes
+    pdf_bytes = ontology_service.generate_court_report_pdf(db=db, case_id=case_id)
+    filename = f"Raporti_i_Ontologjise_Gjyqesore_{case_id[:8]}.pdf"
+    
+    # 2. Upload PDF to Backblaze B2 Storage
+    storage_key = await asyncio.to_thread(
+        storage_service.upload_bytes_as_file,
+        io.BytesIO(pdf_bytes),
+        filename,
+        str(current_user.id),
+        case_id,
+        "application/pdf"
+    )
+
+    # 3. Create Archive Record in db.archives
+    archive_item = {
+        "owner_id": ObjectId(current_user.id),
+        "case_id": c_oid,
+        "title": f"Raporti i Ontologjisë — {c_title}",
+        "category": "RAPORTE",
+        "storage_key": storage_key,
+        "file_name": filename,
+        "mime_type": "application/pdf",
+        "is_shared": False,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    res = await asyncio.to_thread(db.archives.insert_one, archive_item)
+    archive_id_str = str(res.inserted_id)
+
+    return JSONResponse(
+        content={
+            "status": "success",
+            "message": "Raporti PDF i Ontologjisë u ruajt me sukses në Arkivin e Lëndës.",
+            "archive_id": archive_id_str,
+            "file_name": filename,
+            "title": f"Raporti i Ontologjisë — {c_title}"
+        },
+        status_code=status.HTTP_201_CREATED
     )

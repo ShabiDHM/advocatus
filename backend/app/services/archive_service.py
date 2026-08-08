@@ -1,8 +1,5 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V3.2 (PRESIGNED URLS)
-# 1. NEW: Added 'get_presigned_url' for Direct Storage Access (Instant Loading).
-# 2. PRESERVED: 'get_file_stream' kept for backward compatibility/internal use.
-# 3. FIXED: Filename encoding in S3 signatures.
+# PHOENIX PROTOCOL - ARCHIVE SERVICE V7.0 (GUARANTEED USER_ID & OWNER_ID BACKWARD COMPATIBILITY)
 
 import os
 import logging
@@ -38,8 +35,10 @@ class ArchiveService:
             raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
 
     def create_folder(self, user_id: str, title: str, parent_id: Optional[str] = None, case_id: Optional[str] = None) -> ArchiveItemInDB:
+        user_oid = self._to_oid(user_id)
         folder_data: Dict[str, Any] = {
-            "user_id": self._to_oid(user_id), 
+            "user_id": user_oid, 
+            "owner_id": user_oid,
             "title": title, 
             "item_type": "FOLDER", 
             "file_type": "FOLDER", 
@@ -84,8 +83,10 @@ class ArchiveService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
+        user_oid = self._to_oid(user_id)
         doc_data: Dict[str, Any] = {
-            "user_id": self._to_oid(user_id), 
+            "user_id": user_oid, 
+            "owner_id": user_oid,
             "title": title or final_filename, 
             "item_type": "FILE", 
             "file_type": file_ext,
@@ -103,29 +104,115 @@ class ArchiveService:
         doc_data["id"] = result.inserted_id
         return ArchiveItemInDB.model_validate(doc_data)
 
+    def archive_document(self, db: Database, case_id: str, doc_id: str, owner: Any) -> Optional[ArchiveItemInDB]:
+        try:
+            user_id = str(owner.id) if hasattr(owner, 'id') else str(owner)
+            user_oid = self._to_oid(user_id)
+            doc_oid = self._to_oid(doc_id)
+            case_oid = self._to_oid(case_id)
+
+            doc = self.db.documents.find_one({"_id": doc_oid})
+            if not doc:
+                return None
+
+            storage_key = doc.get("storage_key") or doc.get("preview_storage_key")
+            filename = doc.get("file_name", "dokument.pdf")
+
+            timestamp = int(datetime.now().timestamp())
+            dest_key = f"archive/{user_id}/{timestamp}_{filename}"
+
+            if storage_key:
+                try:
+                    s3_client = get_s3_client()
+                    copy_source = {'Bucket': self.bucket, 'Key': storage_key}
+                    s3_client.copy(copy_source, self.bucket, dest_key)
+                except Exception as err:
+                    logger.warning(f"S3 Copy fallback: {err}")
+                    dest_key = storage_key
+
+            doc_data: Dict[str, Any] = {
+                "user_id": user_oid,
+                "owner_id": user_oid,
+                "case_id": case_oid,
+                "title": filename,
+                "item_type": "FILE",
+                "file_type": "PDF",
+                "category": "CASE_FILE",
+                "storage_key": dest_key,
+                "file_size": doc.get("file_size", 0),
+                "created_at": datetime.now(timezone.utc),
+                "description": "Archived from Case Documents",
+                "is_shared": False
+            }
+
+            res = self.db.archives.insert_one(doc_data)
+            doc_data["id"] = res.inserted_id
+
+            # Update document status in db.documents
+            self.db.documents.update_one({"_id": doc_oid}, {"$set": {"status": "ARCHIVED"}})
+
+            return ArchiveItemInDB.model_validate(doc_data)
+        except Exception as e:
+            logger.error(f"❌ Error in archive_document: {e}")
+            return None
+
     def get_archive_items(self, user_id: str, category: Optional[str] = None, case_id: Optional[str] = None, parent_id: Optional[str] = None) -> List[ArchiveItemInDB]:
-        query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
+        """
+        PHOENIX FIX: Populates missing user_id / owner_id on old records to prevent Pydantic validation crashes.
+        """
+        user_oid = self._to_oid(user_id)
+        
+        query: Dict[str, Any] = {
+            "$or": [{"user_id": user_oid}, {"owner_id": user_oid}, {"user_id": user_id}]
+        }
+        
         if parent_id and parent_id.strip() and parent_id != "null": 
-            query["parent_id"] = self._to_oid(parent_id)
-        else:
-            if not category or category == "ALL": query["parent_id"] = None
-        if category and category != "ALL": query["category"] = category
-        if case_id and case_id.strip() and case_id != "null": query["case_id"] = self._to_oid(case_id)
+            p_oid = self._to_oid(parent_id) if ObjectId.is_valid(parent_id) else parent_id
+            query["parent_id"] = {"$in": [parent_id, p_oid]}
+
+        if category and category != "ALL": 
+            query["category"] = category
+
+        if case_id and case_id.strip() and case_id != "null": 
+            c_oid = self._to_oid(case_id) if ObjectId.is_valid(case_id) else case_id
+            query["$or"] = [
+                {"case_id": case_id, "user_id": user_oid},
+                {"case_id": c_oid, "user_id": user_oid},
+                {"case_id": case_id, "owner_id": user_oid},
+                {"case_id": c_oid, "owner_id": user_oid}
+            ]
         
         cursor = self.db.archives.find(query).sort([("item_type", -1), ("created_at", -1)])
         items = []
         for doc in cursor:
             doc["id"] = doc["_id"]
+            
+            # GUARANTEE BOTH USER_ID AND OWNER_ID ARE POPULATED BEFORE PYDANTIC VALIDATION
+            if not doc.get("user_id") and doc.get("owner_id"):
+                doc["user_id"] = doc["owner_id"]
+            if not doc.get("owner_id") and doc.get("user_id"):
+                doc["owner_id"] = doc["user_id"]
+
+            # SAFE CONVERSION TO OBJECTID
+            if doc.get("case_id") and isinstance(doc["case_id"], str) and ObjectId.is_valid(doc["case_id"]):
+                doc["case_id"] = ObjectId(doc["case_id"])
+            if doc.get("user_id") and isinstance(doc["user_id"], str) and ObjectId.is_valid(doc["user_id"]):
+                doc["user_id"] = ObjectId(doc["user_id"])
+            if doc.get("owner_id") and isinstance(doc["owner_id"], str) and ObjectId.is_valid(doc["owner_id"]):
+                doc["owner_id"] = ObjectId(doc["owner_id"])
+            if doc.get("parent_id") and isinstance(doc["parent_id"], str) and ObjectId.is_valid(doc["parent_id"]):
+                doc["parent_id"] = ObjectId(doc["parent_id"])
+
             items.append(ArchiveItemInDB.model_validate(doc))
         return items
 
     def delete_archive_item(self, user_id: str, item_id: str):
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
-        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        item = self.db.archives.find_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
         if not item: raise HTTPException(status_code=404, detail="Item not found")
         if item.get("item_type") == "FOLDER":
-            children = self.db.archives.find({"parent_id": oid_item, "user_id": oid_user})
+            children = self.db.archives.find({"parent_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
             for child in children: self.delete_archive_item(user_id, str(child["_id"]))
         if item.get("item_type") == "FILE" and item.get("storage_key"):
             try: get_s3_client().delete_object(Bucket=self.bucket, Key=item["storage_key"])
@@ -135,15 +222,14 @@ class ArchiveService:
     def rename_item(self, user_id: str, item_id: str, new_title: str) -> None:
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
-        self.db.archives.update_one({"_id": oid_item, "user_id": oid_user}, {"$set": {"title": new_title}})
+        self.db.archives.update_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]}, {"$set": {"title": new_title}})
 
     def share_item(self, user_id: str, item_id: str, is_shared: bool) -> ArchiveItemInDB:
-        """Toggles sharing status for a single item."""
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
         
         result = self.db.archives.find_one_and_update(
-            {"_id": oid_item, "user_id": oid_user},
+            {"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]},
             {"$set": {"is_shared": is_shared}},
             return_document=True
         )
@@ -154,12 +240,11 @@ class ArchiveService:
         return ArchiveItemInDB.model_validate(result)
 
     def share_case_items(self, user_id: str, case_id: str, is_shared: bool) -> int:
-        """Toggles sharing status for all items in a case."""
         oid_user = self._to_oid(user_id)
         oid_case = self._to_oid(case_id)
         
         result = self.db.archives.update_many(
-            {"case_id": oid_case, "user_id": oid_user},
+            {"$or": [{"case_id": oid_case}, {"case_id": case_id}], "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]},
             {"$set": {"is_shared": is_shared}}
         )
         return result.modified_count
@@ -176,8 +261,10 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
             
         file_ext = final_filename.split('.')[-1].upper() if '.' in final_filename else "PDF"
+        user_oid = self._to_oid(user_id)
         doc_data: Dict[str, Any] = {
-            "user_id": self._to_oid(user_id),
+            "user_id": user_oid,
+            "owner_id": user_oid,
             "title": title,
             "item_type": "FILE",
             "file_type": file_ext,
@@ -196,20 +283,14 @@ class ArchiveService:
         return ArchiveItemInDB.model_validate(doc_data)
     
     async def archive_existing_document(self, user_id: str, case_id: str, source_key: str, filename: str, category: str = "CASE_FILE", original_doc_id: Optional[str] = None) -> ArchiveItemInDB:
-        """
-        PHOENIX FIX: Perform HeadObject on SOURCE key to prevent 404 race conditions 
-        and eventual consistency issues on S3-Compatible Storage.
-        """
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
         dest_key = f"archive/{user_id}/{timestamp}_{filename}"
         
         try:
-            # 1. Check if source exists and get its size BEFORE copying
             source_meta = s3_client.head_object(Bucket=self.bucket, Key=source_key)
             file_size = source_meta.get('ContentLength', 0)
             
-            # 2. Perform the Copy
             copy_source = {'Bucket': self.bucket, 'Key': source_key}
             s3_client.copy(copy_source, self.bucket, dest_key)
             logger.info(f"✅ S3 Archive Copy Successful: {source_key} -> {dest_key}")
@@ -219,8 +300,10 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail=f"Failed to archive document: {str(e)}")
 
         file_ext = filename.split('.')[-1].upper() if '.' in filename else "FILE"
+        user_oid = self._to_oid(user_id)
         doc_data: Dict[str, Any] = {
-            "user_id": self._to_oid(user_id),
+            "user_id": user_oid,
+            "owner_id": user_oid,
             "case_id": self._to_oid(case_id),
             "title": filename,
             "item_type": "FILE",
@@ -242,15 +325,10 @@ class ArchiveService:
         return ArchiveItemInDB.model_validate(doc_data)
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str, int]:
-        """
-        Retrieves the file stream from S3 for a given archive item.
-        Returns: (file_stream, filename, file_size)
-        """
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
 
-        # 1. Fetch metadata
-        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        item = self.db.archives.find_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
         
         if not item:
             raise HTTPException(status_code=404, detail="Archive item not found or access denied")
@@ -262,11 +340,9 @@ class ArchiveService:
         if not storage_key:
              raise HTTPException(status_code=404, detail="File storage key missing")
 
-        # 2. Fetch from S3
         s3_client = get_s3_client()
         try:
             response = s3_client.get_object(Bucket=self.bucket, Key=storage_key)
-            # Use ContentLength from S3 if available, otherwise DB
             file_size = response.get('ContentLength', item.get("file_size", 0))
             return response['Body'], item.get("title", "download"), file_size
         except Exception as e:
@@ -274,14 +350,10 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail="Failed to retrieve file content")
 
     def get_presigned_url(self, user_id: str, item_id: str, disposition: str = "inline") -> str:
-        """
-        Generates a direct S3 Presigned URL for instant client-side rendering.
-        Supports Range Requests automatically.
-        """
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
         
-        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        item = self.db.archives.find_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
         if not item: raise HTTPException(status_code=404, detail="Item not found")
         
         storage_key = item.get("storage_key")
@@ -298,7 +370,6 @@ class ArchiveService:
             'ResponseContentDisposition': f"{disposition}; filename*=UTF-8''{safe_filename}"
         }
         
-        # Determine content type for header (helps browser render PDF instead of download)
         if filename.lower().endswith(".pdf"):
             params['ResponseContentType'] = "application/pdf"
             
@@ -306,7 +377,7 @@ class ArchiveService:
             url = s3_client.generate_presigned_url(
                 'get_object',
                 Params=params,
-                ExpiresIn=3600 # 1 hour link
+                ExpiresIn=3600
             )
             return url
         except Exception as e:

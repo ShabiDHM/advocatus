@@ -1,3 +1,6 @@
+# FILE: backend/app/models/document.py
+# PHOENIX PROTOCOL - DOCUMENT MODELS V3.0 (ADDED ARCHIVED STATUS TO ENUM)
+
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, List, Any
 from datetime import datetime
@@ -9,6 +12,7 @@ class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
     FAILED = "FAILED"
+    ARCHIVED = "ARCHIVED"
 
 class DocumentBase(BaseModel):
     file_name: str

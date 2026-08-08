@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V28.4 (ADDED SOURCE_INFO TO LAWARTICLE)
+// PHOENIX PROTOCOL - API SERVICE V30.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE FIX)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,9 +17,6 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// ============================================================
-// UPDATED: LawArticle Interface with source_info
-// ============================================================
 export interface SourceInfo {
   confidence: {
     level: 'HIGH' | 'MEDIUM' | 'LOW' | 'LOWEST' | 'UNKNOWN' | 'NONE';
@@ -47,7 +44,7 @@ export interface LawArticle {
   source: string;
   text: string;
   chunk_id?: string;
-  source_info?: SourceInfo;  // ✅ NEW: Source tracking and confidence data
+  source_info?: SourceInfo;
 }
 
 interface LoginResponse { access_token: string; }
@@ -227,16 +224,10 @@ class ApiService {
         return response.data;
     }
 
-    public async downloadCourtGraphReport(caseId: string): Promise<void> {
-        const response = await this.axiosInstance.get(`/cases/${caseId}/graph/export`, { responseType: 'blob' });
-        const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/plain;charset=utf-8' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Raporti_i_Ontologjise_${caseId.slice(-6)}.txt`);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
-        window.URL.revokeObjectURL(url);
+    // ========== SAVE OFFICIAL PDF GRAPH REPORT TO CASE ARCHIVE ==========
+    public async downloadCourtGraphReport(caseId: string): Promise<any> {
+        const response = await this.axiosInstance.post(`/cases/${caseId}/graph/export`);
+        return response.data;
     }
 
     // ========== PASSWORD RESET METHODS ==========
