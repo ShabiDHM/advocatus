@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V28.0 (EXECUTIVE VERTICAL CENTERING FOR LANDSCAPE SLIDES)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V29.0 (NATURAL MOBILE FLOW & PERFECT A4 LAYOUT)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -98,7 +98,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const updateWidth = () => {
       if (!el) {
         if (typeof window !== 'undefined') {
-          const fallback = window.innerWidth < 640 ? window.innerWidth - 24 : 800;
+          const fallback = window.innerWidth < 640 ? window.innerWidth - 16 : 800;
           setContainerWidth(fallback);
         }
         return;
@@ -274,10 +274,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
         const effectiveWidth = containerWidth > 0 
           ? containerWidth 
-          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 16, 800) : 360);
+          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 12, 800) : 360);
 
         return (
-            <div className="flex flex-col items-center justify-center min-h-full w-full bg-canvas/20 overflow-x-hidden overflow-y-auto py-6 sm:py-10 pb-32 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
                 <style>{`
                   .react-pdf__Page__textLayer {
                     text-align: left !important;
@@ -349,7 +349,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
                         </div>
                       }
-                      className="flex flex-col items-center justify-center my-auto w-full px-1 sm:px-0 text-left max-w-full overflow-hidden"
+                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full overflow-hidden"
                     >
                       <Page 
                         pageNumber={pageNumber} 
@@ -357,7 +357,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         scale={scale} 
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
-                        className="shadow-2xl my-auto rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                        className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left my-1" 
                       />
                     </PdfDocument>
                 )}

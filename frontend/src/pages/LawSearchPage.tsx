@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V37.0 (RESPONSIVE TOUCH-SCROLLING TABS & PRECISE PAGE TARGETING)
+// PHOENIX PROTOCOL - LAW SEARCH V38.0 (GRID 3-COLUMN MOBILE TABS WITH ZERO SCROLLING)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -171,39 +171,39 @@ export default function LawSearchPage() {
           </div>
         </div>
 
-        {/* RESPONSIVE TOUCH-SCROLLING CATEGORY TABS (NO OVERFLOW ON MOBILE) */}
-        <div className="flex items-center gap-2 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm overflow-x-auto no-scrollbar scroll-smooth">
+        {/* ⚡ PERFECT 3-COLUMN EQUAL GRID TABS (ZERO HORIZONTAL SCROLLING ON MOBILE) */}
+        <div className="grid grid-cols-3 w-full gap-1.5 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
             onClick={() => { setActiveTab('statutes'); setIsOpen(false); setFilterQuery(''); }}
-            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`w-full py-2.5 px-1 sm:px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Scale size={15} />
-            <span>Kodet Zyrtare ({statuteTitles.length})</span>
+            <Scale size={14} className="shrink-0 hidden xs:inline" />
+            <span className="truncate">Kodet ({statuteTitles.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab('academic'); setIsOpen(false); setFilterQuery(''); }}
-            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`w-full py-2.5 px-1 sm:px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <GraduationCap size={15} />
-            <span>Akademia e Drejtësisë ({academicTitles.length})</span>
+            <GraduationCap size={14} className="shrink-0 hidden xs:inline" />
+            <span className="truncate">Akademia ({academicTitles.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab('caselaw'); setIsOpen(false); setFilterQuery(''); }}
-            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`w-full py-2.5 px-1 sm:px-4 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Gavel size={15} />
-            <span>Aktgjykimet ({caselawTitles.length})</span>
+            <Gavel size={14} className="shrink-0 hidden xs:inline" />
+            <span className="truncate">Aktgjykimet ({caselawTitles.length})</span>
           </button>
         </div>
 
