@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V36.0 (CLEAN TYPESCRIPT COMMENTS)
+// PHOENIX PROTOCOL - LAW SEARCH V37.0 (RESPONSIVE TOUCH-SCROLLING TABS & PRECISE PAGE TARGETING)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -98,7 +98,6 @@ export default function LawSearchPage() {
     if (activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf')) {
       setSelectedPdfFilename(lawTitle);
 
-      // Query starting page for this case or document
       try {
         const res = await apiService.axiosInstance.get('/laws/case-page', { params: { law_title: lawTitle } });
         if (res.data && res.data.page) {
@@ -172,12 +171,12 @@ export default function LawSearchPage() {
           </div>
         </div>
 
-        {/* ALL 3 CATEGORY SWITCHER TABS */}
-        <div className="flex items-center gap-2 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm overflow-x-auto">
+        {/* RESPONSIVE TOUCH-SCROLLING CATEGORY TABS (NO OVERFLOW ON MOBILE) */}
+        <div className="flex items-center gap-2 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm overflow-x-auto no-scrollbar scroll-smooth">
           <button
             type="button"
             onClick={() => { setActiveTab('statutes'); setIsOpen(false); setFilterQuery(''); }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -188,7 +187,7 @@ export default function LawSearchPage() {
           <button
             type="button"
             onClick={() => { setActiveTab('academic'); setIsOpen(false); setFilterQuery(''); }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -199,7 +198,7 @@ export default function LawSearchPage() {
           <button
             type="button"
             onClick={() => { setActiveTab('caselaw'); setIsOpen(false); setFilterQuery(''); }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            className={`shrink-0 sm:flex-1 py-2.5 px-3.5 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >

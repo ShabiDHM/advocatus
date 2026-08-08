@@ -1,9 +1,13 @@
 // FILE: src/utils/lawArticleHelpers.ts
+// PHOENIX PROTOCOL - LAW ARTICLE HELPERS V38.0 (UNICODE WHITESPACE COLLAPSE FIX)
 
 export const normalizeText = (raw: string, _articleNum?: string): string => {
   if (!raw) return '';
 
   let cleaned = raw;
+
+  // 1. Convert all non-breaking spaces and Unicode wide spaces to standard ASCII spaces
+  cleaned = cleaned.replace(/[\u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ');
 
   // Strip OCR page markers & headers
   cleaned = cleaned.replace(/---\s*\[?FAQJA\s+\d+\]?\s*---/gi, '');
@@ -26,7 +30,7 @@ export const normalizeText = (raw: string, _articleNum?: string): string => {
   const mergedLines: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const currentLine = lines[i].trim();
+    const currentLine = lines[i].replace(/[ \t]{2,}/g, ' ').trim();
     if (!currentLine) {
       mergedLines.push('');
       continue;
@@ -51,9 +55,10 @@ export const normalizeText = (raw: string, _articleNum?: string): string => {
   cleaned = mergedLines.join('\n');
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
+  // 2. Collapse all multiple spaces inside paragraphs
   const paragraphs = cleaned.split(/\n\n+/);
   return paragraphs
-    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .map((p) => p.replace(/[\s\u00A0]+/g, ' ').trim())
     .filter((p) => p.length > 0)
     .join('\n\n');
 };
