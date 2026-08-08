@@ -1,4 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - CASE VIEW PAGE V39.0 (RESILIENT CHAT STREAMING & STRICT FINALLY CLEANUP)
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
@@ -213,35 +215,55 @@ const CaseViewPage: React.FC = () => {
     if (!caseId) return;
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
+    
     setChatMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
 
     try {
       let acc = '';
-      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas in lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
-      const stream = apiService.sendChatMessageStream(caseId, enrichedText, documentIds, jurisdiction, reasoning, mode === 'document' ? domain : undefined);
+      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
+      
+      const stream = apiService.sendChatMessageStream(
+        caseId, 
+        enrichedText, 
+        documentIds, 
+        jurisdiction, 
+        reasoning, 
+        mode === 'document' ? domain : 'automatic'
+      );
 
       for await (const chunk of stream) {
         acc += chunk;
         setChatMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { ...updated[updated.length - 1], content: acc };
+          if (updated.length > 0) {
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: acc };
+          }
           return updated;
         });
       }
+
       setChatMessages((prev) => {
         const finalMessages = [...prev];
         persistChatHistory(finalMessages);
         return finalMessages;
       });
-    } catch {
+    } catch (err: any) {
+      console.error("[Chat Stream Error]:", err);
+      const errorDetail = err?.message || 'Nuk u arrit komunikimi me shërbimin AI.';
       setChatMessages((prev) => {
         const withError = [...prev];
-        withError[withError.length - 1] = { ...withError[withError.length - 1], content: '[Gabim Teknik]' };
+        if (withError.length > 0) {
+          withError[withError.length - 1] = { 
+            ...withError[withError.length - 1], 
+            content: `[Gabim Teknik] ${errorDetail}` 
+          };
+        }
         persistChatHistory(withError);
         return withError;
       });
     } finally {
+      // ⚡ STRICT FINALLY CLEANUP: Always turns off thinking state
       setIsSendingMessage(false);
     }
   };

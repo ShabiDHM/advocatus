@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V30.0 (DECOUPLED & MODULARIZED ARCHITECTURE)
+// PHOENIX PROTOCOL - CHAT PANEL V31.0 (RESILIENT STREAM FILTER & ERROR BUBBLE RENDERING)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -125,7 +125,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
 
           {safeMessages
-            .filter((m) => m && typeof m.content === 'string' && m.content.trim() !== '')
+            .filter((m) => m && typeof m.content === 'string' && (m.content.trim() !== '' || isSendingMessage))
             .map((msg, idx) => {
               const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
               const autoLinkedText = autoLinkLegalCitations(cleanText);
@@ -152,12 +152,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
                     }`}
                   >
-                    <MessageCopyButton text={msg.content} />
+                    {msg.content && <MessageCopyButton text={msg.content} />}
 
                     <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                        {autoLinkedText}
-                      </ReactMarkdown>
+                      {msg.content ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {autoLinkedText}
+                        </ReactMarkdown>
+                      ) : (
+                        <div className="flex items-center gap-2 text-primary-start font-semibold">
+                          <span>{t('chat.thinking', 'Analizimi')}</span>
+                          <ThinkingDots />
+                        </div>
+                      )}
                     </div>
 
                     {msg.role === 'ai' &&
@@ -188,6 +195,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     {msg.role === 'ai' &&
                       activeContextId !== 'general' &&
                       typeof msg.content === 'string' &&
+                      msg.content.trim() !== '' &&
                       !msg.content.startsWith('[Gabim Teknik') && (
                         <FeedbackButtons
                           messageIndex={idx}
@@ -196,13 +204,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           disabled={feedbackGiven.has(idx)}
                         />
                       )}
+
                     {msg.role === 'ai' &&
                       typeof msg.content === 'string' &&
                       msg.content.startsWith('[Gabim Teknik') && (
                         <button
                           type="button"
                           onClick={handleRetry}
-                          className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none"
+                          className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
                         >
                           <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
                         </button>
@@ -211,6 +220,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </motion.div>
               );
             })}
+
           {showThinking && (
             <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 animate-pulse">
               <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm">
@@ -249,7 +259,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <button
               type="submit"
               disabled={!input.trim() || isSendingMessage}
-              className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift"
+              className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift cursor-pointer"
             >
               <Send size={15} className="ml-0.5" />
             </button>

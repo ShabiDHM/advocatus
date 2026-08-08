@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V30.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE FIX)
+// PHOENIX PROTOCOL - API SERVICE V31.0 (RESILIENT CHAT STREAMING & ABORT-TIMEOUT SAFEGUARD)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -495,27 +495,64 @@ class ApiService {
 
     public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> { await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, { message_index: messageIndex, feedback: feedback }); }
     
-    public async *sendChatMessageStream(caseId: string, message: string, documentIds?: string[], jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST', domain: string = 'automatic'): AsyncGenerator<string, void, unknown> { 
+    public async *sendChatMessageStream(caseId: string, message: string, documentIds?: string[], jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'DEEP', domain?: string): AsyncGenerator<string, void, unknown> { 
         let token = tokenManager.get(); 
         if (!token) { await this.refreshToken(); token = tokenManager.get(); } 
         const url = `${API_V1_URL}/chat/case/${caseId}`; 
-        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_ids: documentIds || null, jurisdiction: jurisdiction || 'ks', mode, domain }) }); 
-        
-        if (!response.ok) {
-            let errorMsg = "Biseda dështoi.";
-            try {
-                const errJson = await response.json();
-                if (errJson?.detail) errorMsg = errJson.detail;
-            } catch {
-                if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj në Juristi.tech për të vazhduar.";
-            }
-            throw new Error(errorMsg);
-        }
 
-        if (!response.body) return; 
-        const reader = response.body.getReader(); 
-        const decoder = new TextDecoder(); 
-        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); } 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s network timeout safeguard
+
+        try {
+            const response = await fetch(url, { 
+                method: 'POST', 
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}) 
+                }, 
+                body: JSON.stringify({ 
+                    message, 
+                    document_ids: documentIds || null, 
+                    jurisdiction: jurisdiction || 'ks', 
+                    mode: mode || 'DEEP', 
+                    domain: domain || 'automatic' 
+                }),
+                signal: controller.signal
+            }); 
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                let errorMsg = "Biseda dështoi.";
+                try {
+                    const errJson = await response.json();
+                    if (errJson?.detail) errorMsg = errJson.detail;
+                } catch {
+                    if (response.status === 402) errorMsg = "Abonimi juaj ka skaduar. Ju lutem renovoni planin tuaj në Juristi.tech për të vazhduar.";
+                }
+                throw new Error(errorMsg);
+            }
+
+            if (!response.body) throw new Error("Përgjigjja e serverit është e zbrazët."); 
+
+            const reader = response.body.getReader(); 
+            const decoder = new TextDecoder(); 
+            try { 
+                while (true) { 
+                    const { done, value } = await reader.read(); 
+                    if (done) break; 
+                    yield decoder.decode(value, { stream: true }); 
+                } 
+            } finally { 
+                reader.releaseLock(); 
+            }
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') {
+                throw new Error("Koha e përgjigjes së shërbimit AI skadoi (Timeout). Ju lutem klikoni 'Riprovo'.");
+            }
+            throw err;
+        }
     }
 
     public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> { 

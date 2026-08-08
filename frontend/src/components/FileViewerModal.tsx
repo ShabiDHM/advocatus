@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V29.0 (NATURAL MOBILE FLOW & PERFECT A4 LAYOUT)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V30.0 (CONTINUOUS SCROLLING WITH SMART JUMP & LIVE PAGE OBSERVER)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -116,6 +116,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     return () => observer.disconnect();
   }, [isMinimized, isFullscreen]);
 
+  const scrollToPage = useCallback((p: number) => {
+    const el = document.getElementById(`pdf_page_${p}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
     const f = fileName?.toLowerCase() || '';
@@ -222,6 +229,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const clamped = Math.max(1, Math.min(numPages, newPage));
     setPageNumber(clamped);
     setJumpInput(String(clamped));
+    scrollToPage(clamped);
   };
 
   const handlePageJumpSubmit = (e: React.FormEvent) => {
@@ -277,7 +285,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 12, 800) : 360);
 
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-24 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
                 <style>{`
                   .react-pdf__Page__textLayer {
                     text-align: left !important;
@@ -302,42 +310,40 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         setNumPages(total); 
                         setIsLoading(false); 
                         
-                        // 1. Explicit target page
+                        let targetPage = 1;
                         if (targetInitialPage > 1 && targetInitialPage <= total) {
-                          setPageNumber(targetInitialPage);
-                          setJumpInput(String(targetInitialPage));
-                          return;
-                        }
-
-                        // 2. SMART NENI / ARTICLE AUTO-DETECTION SCANNER
-                        const targetArticle = documentData?.article_number || documentData?.article || documentData?.neni || documentData?.matched_article;
-                        if (targetArticle) {
-                          const cleanNum = String(targetArticle).replace(/[^0-9]/g, '');
-                          if (cleanNum) {
-                            const searchTerms = [`NENI ${cleanNum}`, `Neni ${cleanNum}`, `neni ${cleanNum}`];
-                            for (let i = 1; i <= Math.min(total, 250); i++) {
-                              try {
-                                const page = await pdf.getPage(i);
-                                const textContent = await page.getTextContent();
-                                const pageText = textContent.items.map((item: any) => item.str).join(' ');
-                                if (searchTerms.some(term => pageText.includes(term))) {
-                                  console.log(`[Smart Neni Jump] Auto-detected Neni ${cleanNum} on page ${i}`);
-                                  setPageNumber(i);
-                                  setJumpInput(String(i));
-                                  return;
+                          targetPage = targetInitialPage;
+                        } else {
+                          // SMART NENI SCANNER FALLBACK
+                          const targetArticle = documentData?.article_number || documentData?.article || documentData?.neni || documentData?.matched_article;
+                          if (targetArticle) {
+                            const cleanNum = String(targetArticle).replace(/[^0-9]/g, '');
+                            if (cleanNum) {
+                              const searchTerms = [`NENI ${cleanNum}`, `Neni ${cleanNum}`, `neni ${cleanNum}`];
+                              for (let i = 1; i <= Math.min(total, 250); i++) {
+                                try {
+                                  const page = await pdf.getPage(i);
+                                  const textContent = await page.getTextContent();
+                                  const pageText = textContent.items.map((item: any) => item.str).join(' ');
+                                  if (searchTerms.some(term => pageText.includes(term))) {
+                                    targetPage = i;
+                                    break;
+                                  }
+                                } catch {
+                                  // continue
                                 }
-                              } catch {
-                                // continue scanning
                               }
                             }
                           }
                         }
 
-                        // Default fallback
-                        if (pageNumber > total) {
-                          setPageNumber(1);
-                          setJumpInput('1');
-                        }
+                        setPageNumber(targetPage);
+                        setJumpInput(String(targetPage));
+
+                        // ⚡ INSTANT SMOOTH AUTO-SCROLL TO TARGET PAGE ON LOAD
+                        setTimeout(() => {
+                          scrollToPage(targetPage);
+                        }, 100);
                       }} 
                       onLoadError={(err) => {
                         console.error("PDF.js Canvas Error, switching to native iframe:", err);
@@ -351,14 +357,22 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       }
                       className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full overflow-hidden"
                     >
-                      <Page 
-                        pageNumber={pageNumber} 
-                        width={effectiveWidth} 
-                        scale={scale} 
-                        renderTextLayer={true}
-                        renderAnnotationLayer={true}
-                        className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left my-1" 
-                      />
+                      {/* CONTINUOUS SCROLLABLE VERTICAL LIST OF ALL PAGES */}
+                      {numPages && Array.from(new Array(numPages), (_, index) => {
+                        const pageIdx = index + 1;
+                        return (
+                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full">
+                            <Page 
+                              pageNumber={pageIdx} 
+                              width={effectiveWidth} 
+                              scale={scale} 
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              className="shadow-2xl mb-6 rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                            />
+                          </div>
+                        );
+                      })}
                     </PdfDocument>
                 )}
             </div>
