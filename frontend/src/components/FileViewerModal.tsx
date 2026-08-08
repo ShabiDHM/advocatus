@@ -1,7 +1,7 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V22.1 (FIXED UNUSED ISAUTH TYPE WARNING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V23.0 (SMART NENI / ARTICLE AUTO-JUMPING & PRECISE PAGE TARGETING)
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService } from '../services/api';
@@ -49,8 +49,22 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(initialPage || 1);
-  const [jumpInput, setJumpInput] = useState<string>(String(initialPage || 1));
+
+  // Compute explicit initial target page from all possible property names
+  const targetInitialPage = useMemo(() => {
+    const candidate = initialPage || 
+                      documentData?.initialPage || 
+                      documentData?.page_number || 
+                      documentData?.pageNumber ||
+                      documentData?.page || 
+                      documentData?.chunk_page || 
+                      documentData?.target_page || 1;
+    const parsed = parseInt(String(candidate), 10);
+    return !isNaN(parsed) && parsed > 0 ? parsed : 1;
+  }, [initialPage, documentData]);
+
+  const [pageNumber, setPageNumber] = useState<number>(targetInitialPage);
+  const [jumpInput, setJumpInput] = useState<string>(String(targetInitialPage));
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [scale, setScale] = useState(1.0); 
   const [containerWidth, setContainerWidth] = useState<number>(0); 
@@ -61,11 +75,11 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [useNativeIframe, setUseNativeIframe] = useState(false);
 
   useEffect(() => {
-    if (initialPage && initialPage > 0) {
-      setPageNumber(initialPage);
-      setJumpInput(String(initialPage));
+    if (targetInitialPage > 0) {
+      setPageNumber(targetInitialPage);
+      setJumpInput(String(targetInitialPage));
     }
-  }, [initialPage]);
+  }, [targetInitialPage]);
 
   useLockBodyScroll(!isMinimized);
 
@@ -137,7 +151,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadData = async () => {
       try {
-        // CASE 1: Memory Blob URL already present (e.g. freshly uploaded or in-memory)
         if (activeUrl && activeUrl.startsWith('blob:')) {
           if (targetMode === 'PDF' || targetMode === 'IMAGE') {
             setFileSource(activeUrl);
@@ -150,21 +163,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           return;
         }
 
-        // CASE 2: Case Document Fetch via apiService Axios Pipeline
         if (caseId && documentData?.id) {
           const blob = await apiService.getPreviewDocument(caseId, documentData.id);
           await processBlob(blob, targetMode);
           return;
         }
 
-        // CASE 3: Archive Document Fetch
         if (documentData?.id && !caseId) {
           const blob = await apiService.getArchiveFileBlob(documentData.id);
           await processBlob(blob, targetMode);
           return;
         }
 
-        // CASE 4: Direct HTTP URL
         if (activeUrl) {
           const blob = await apiService.fetchImageBlob(activeUrl);
           await processBlob(blob, targetMode);
@@ -183,7 +193,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     loadData();
 
     return () => {
-      // Cleanup Object URLs when modal unmounts or changes
       if (fileSource && fileSource.startsWith('blob:') && fileSource !== directUrl) {
         URL.revokeObjectURL(fileSource);
       }
@@ -244,7 +253,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           return (
             <div className="w-full h-full bg-canvas p-2">
               <iframe 
-                src={`${fileSource}#toolbar=1`} 
+                src={`${fileSource}#page=${pageNumber}&toolbar=1`} 
                 title={documentData?.file_name || 'PDF Preview'} 
                 className="w-full h-full rounded-2xl border border-main bg-white shadow-inner"
               />
@@ -257,12 +266,46 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 {fileSource && (
                     <PdfDocument 
                       file={fileSource} 
-                      onLoadSuccess={({ numPages }) => { 
-                        setNumPages(numPages); 
+                      onLoadSuccess={async (pdf) => { 
+                        const total = pdf.numPages;
+                        setNumPages(total); 
                         setIsLoading(false); 
-                        if (initialPage && initialPage > 0 && initialPage <= numPages) {
-                          setPageNumber(initialPage);
-                          setJumpInput(String(initialPage));
+                        
+                        // 1. Explicit target page
+                        if (targetInitialPage > 1 && targetInitialPage <= total) {
+                          setPageNumber(targetInitialPage);
+                          setJumpInput(String(targetInitialPage));
+                          return;
+                        }
+
+                        // 2. SMART NENI / ARTICLE AUTO-DETECTION SCANNER
+                        const targetArticle = documentData?.article_number || documentData?.article || documentData?.neni || documentData?.matched_article;
+                        if (targetArticle) {
+                          const cleanNum = String(targetArticle).replace(/[^0-9]/g, '');
+                          if (cleanNum) {
+                            const searchTerms = [`NENI ${cleanNum}`, `Neni ${cleanNum}`, `neni ${cleanNum}`];
+                            for (let i = 1; i <= Math.min(total, 250); i++) {
+                              try {
+                                const page = await pdf.getPage(i);
+                                const textContent = await page.getTextContent();
+                                const pageText = textContent.items.map((item: any) => item.str).join(' ');
+                                if (searchTerms.some(term => pageText.includes(term))) {
+                                  console.log(`[Smart Neni Jump] Auto-detected Neni ${cleanNum} on page ${i}`);
+                                  setPageNumber(i);
+                                  setJumpInput(String(i));
+                                  return;
+                                }
+                              } catch {
+                                // continue scanning
+                              }
+                            }
+                          }
+                        }
+
+                        // Default fallback
+                        if (pageNumber > total) {
+                          setPageNumber(1);
+                          setJumpInput('1');
                         }
                       }} 
                       onLoadError={(err) => {
