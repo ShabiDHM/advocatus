@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V30.0 (CONTINUOUS SCROLLING WITH SMART JUMP & LIVE PAGE OBSERVER)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V31.0 (MOUSE WHEEL SCROLLING & SMART JUMP INTEGRATION)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -122,6 +122,27 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, []);
+
+  // MOUSE WHEEL SCROLL NAVIGATION HANDLER
+  const handleWheelScroll = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (!container || !numPages || numPages <= 1) return;
+
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 10;
+    const isAtTop = container.scrollTop <= 10;
+
+    if (e.deltaY > 0 && isAtBottom && pageNumber < numPages) {
+      const nextPage = pageNumber + 1;
+      setPageNumber(nextPage);
+      setJumpInput(String(nextPage));
+      scrollToPage(nextPage);
+    } else if (e.deltaY < 0 && isAtTop && pageNumber > 1) {
+      const prevPage = pageNumber - 1;
+      setPageNumber(prevPage);
+      setJumpInput(String(prevPage));
+      scrollToPage(prevPage);
+    }
+  }, [numPages, pageNumber, scrollToPage]);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -285,7 +306,11 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 12, 800) : 360);
 
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
+            <div 
+              className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" 
+              ref={containerRef}
+              onWheel={handleWheelScroll}
+            >
                 <style>{`
                   .react-pdf__Page__textLayer {
                     text-align: left !important;

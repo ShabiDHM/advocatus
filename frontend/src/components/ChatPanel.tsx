@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V31.0 (RESILIENT STREAM FILTER & ERROR BUBBLE RENDERING)
+// PHOENIX PROTOCOL - CHAT PANEL V32.0 (SINGLE SOKRATI THINKING BUBBLE & CLEAN ICON LAYOUT)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -104,8 +104,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const safeMessages = Array.isArray(messages) ? messages : [];
-  const lastMessage = safeMessages[safeMessages.length - 1];
-  const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content?.trim());
+
+  // Filter out empty placeholder AI messages while sending so duplicate brain icons never show
+  const displayMessages = safeMessages.filter(
+    (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
+  );
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
@@ -120,115 +123,107 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col justify-start">
         <AnimatePresence initial={false}>
-          {safeMessages.length === 0 && !isSendingMessage && (
+          {displayMessages.length === 0 && !isSendingMessage && (
             <CommandPaletteGrid userSalutation={userSalutation} clientPosition={clientPosition} onSendMessage={sendMessage} />
           )}
 
-          {safeMessages
-            .filter((m) => m && typeof m.content === 'string' && (m.content.trim() !== '' || isSendingMessage))
-            .map((msg, idx) => {
-              const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
-              const autoLinkedText = autoLinkLegalCitations(cleanText);
+          {displayMessages.map((msg, idx) => {
+            const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
+            const autoLinkedText = autoLinkLegalCitations(cleanText);
 
-              return (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+            return (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
+                    msg.role === 'ai'
+                      ? 'bg-primary-start text-white border-primary-start'
+                      : 'bg-surface border-main text-text-secondary'
+                  }`}
                 >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
-                      msg.role === 'ai'
-                        ? 'bg-primary-start text-white border-primary-start'
-                        : 'bg-surface border-main text-text-secondary'
-                    }`}
-                  >
-                    {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
+                  {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
+                </div>
+
+                <div
+                  className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+                    msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                  }`}
+                >
+                  {msg.content && <MessageCopyButton text={msg.content} />}
+
+                  <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {autoLinkedText}
+                    </ReactMarkdown>
                   </div>
 
-                  <div
-                    className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
-                      msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
-                    }`}
-                  >
-                    {msg.content && <MessageCopyButton text={msg.content} />}
-
-                    <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
-                      {msg.content ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                          {autoLinkedText}
-                        </ReactMarkdown>
-                      ) : (
-                        <div className="flex items-center gap-2 text-primary-start font-semibold">
-                          <span>{t('chat.thinking', 'Analizimi')}</span>
-                          <ThinkingDots />
+                  {msg.role === 'ai' &&
+                    idx === displayMessages.length - 1 &&
+                    !isSendingMessage &&
+                    suggestedQuestions.length > 0 && (
+                      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
+                          <Sparkles size={11} className="text-primary-start animate-pulse" />{' '}
+                          {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
+                        </span>
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                          {suggestedQuestions.map((q, qIdx) => (
+                            <button
+                              key={qIdx}
+                              type="button"
+                              onClick={() => sendMessage(q)}
+                              className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5"
+                            >
+                              <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
+                              {q}
+                            </button>
+                          ))}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
-                    {msg.role === 'ai' &&
-                      idx === safeMessages.length - 1 &&
-                      !isSendingMessage &&
-                      suggestedQuestions.length > 0 && (
-                        <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
-                          <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
-                            <Sparkles size={11} className="text-primary-start animate-pulse" />{' '}
-                            {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
-                          </span>
-                          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                            {suggestedQuestions.map((q, qIdx) => (
-                              <button
-                                key={qIdx}
-                                type="button"
-                                onClick={() => sendMessage(q)}
-                                className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5"
-                              >
-                                <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
-                                {q}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  {msg.role === 'ai' &&
+                    activeContextId !== 'general' &&
+                    typeof msg.content === 'string' &&
+                    msg.content.trim() !== '' &&
+                    !msg.content.startsWith('[Gabim Teknik') && (
+                      <FeedbackButtons
+                        messageIndex={idx}
+                        caseId={activeContextId}
+                        onFeedback={(i) => handleFeedback(i)}
+                        disabled={feedbackGiven.has(idx)}
+                      />
+                    )}
 
-                    {msg.role === 'ai' &&
-                      activeContextId !== 'general' &&
-                      typeof msg.content === 'string' &&
-                      msg.content.trim() !== '' &&
-                      !msg.content.startsWith('[Gabim Teknik') && (
-                        <FeedbackButtons
-                          messageIndex={idx}
-                          caseId={activeContextId}
-                          onFeedback={(i) => handleFeedback(i)}
-                          disabled={feedbackGiven.has(idx)}
-                        />
-                      )}
+                  {msg.role === 'ai' &&
+                    typeof msg.content === 'string' &&
+                    msg.content.startsWith('[Gabim Teknik') && (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
+                      >
+                        <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
+                      </button>
+                    )}
+                </div>
+              </motion.div>
+            );
+          })}
 
-                    {msg.role === 'ai' &&
-                      typeof msg.content === 'string' &&
-                      msg.content.startsWith('[Gabim Teknik') && (
-                        <button
-                          type="button"
-                          onClick={handleRetry}
-                          className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
-                        >
-                          <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
-                        </button>
-                      )}
-                  </div>
-                </motion.div>
-              );
-            })}
-
-          {showThinking && (
-            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 animate-pulse">
-              <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm">
-                <BrainCircuit size={16} />
+          {/* SINGLE ELEGANT THINKING BUBBLE */}
+          {isSendingMessage && (
+            <motion.div key="thinking" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
+                <BrainCircuit size={16} className="animate-pulse" />
               </div>
               <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
-                <span className="text-xs font-semibold text-primary-start uppercase tracking-wide">
-                  {t('chat.thinking', 'Analizimi')}
+                <span className="text-xs font-bold text-primary-start tracking-wide">
+                  Sokrati duke menduar
                 </span>
                 <ThinkingDots />
               </div>

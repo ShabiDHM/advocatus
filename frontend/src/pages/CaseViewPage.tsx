@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V39.0 (RESILIENT CHAT STREAMING & STRICT FINALLY CLEANUP)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V41.0 (FIXED DOCUMENT TITLE TYPE CHECK)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -138,6 +138,50 @@ const CaseViewPage: React.FC = () => {
   const handleDocumentUploaded = (newDoc: Document) => setLiveDocuments((p) => [sanitizeDocument(newDoc), ...p]);
   const handleDocumentDeleted = (res: DeletedDocumentResponse) => setLiveDocuments((p) => p.filter((d) => String(d.id) !== String(res.documentId)));
 
+  const handleViewOriginal = useCallback((doc: Document) => {
+    setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`);
+    setViewingDocument(doc);
+    setMinimizedDocument(null);
+  }, [caseId]);
+
+  // ⚡ INSTANT EVIDENCE CITATION PREVIEW CLICK LISTENER
+  useEffect(() => {
+    const handleOpenDocPreview = (e: any) => {
+      const { fileName, href } = e.detail || {};
+      if (!fileName && !href) return;
+
+      const cleanSearch = (fileName || href || '').toString().toLowerCase().trim().replace(/^[\(\[\s"']+|[\)\]\s"']+$|\.pdf$/gi, '');
+      if (!cleanSearch) return;
+
+      const matchedDoc = liveDocuments.find((doc) => {
+        const docName = (doc.file_name || (doc as any).title || '').toLowerCase();
+        const docId = String(doc.id).toLowerCase();
+        return (
+          docName.includes(cleanSearch) || 
+          cleanSearch.includes(docName.replace(/\.pdf$/i, '')) || 
+          (href && href.includes(docId))
+        );
+      });
+
+      if (matchedDoc) {
+        handleViewOriginal(matchedDoc);
+      } else if (liveDocuments.length > 0) {
+        // Fallback: match by partial word
+        const fuzzyMatch = liveDocuments.find((d) => {
+          const words = cleanSearch.split(/\s+/).filter((w: string) => w.length > 3);
+          const name = (d.file_name || (d as any).title || '').toLowerCase();
+          return words.some((w: string) => name.includes(w));
+        });
+        if (fuzzyMatch) {
+          handleViewOriginal(fuzzyMatch);
+        }
+      }
+    };
+
+    window.addEventListener('open_document_preview', handleOpenDocPreview);
+    return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
+  }, [liveDocuments, handleViewOriginal]);
+
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
@@ -263,15 +307,8 @@ const CaseViewPage: React.FC = () => {
         return withError;
       });
     } finally {
-      // ⚡ STRICT FINALLY CLEANUP: Always turns off thinking state
       setIsSendingMessage(false);
     }
-  };
-
-  const handleViewOriginal = (doc: Document) => {
-    setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`);
-    setViewingDocument(doc);
-    setMinimizedDocument(null);
   };
 
   const handleRenameAction = async (newName: string) => {
