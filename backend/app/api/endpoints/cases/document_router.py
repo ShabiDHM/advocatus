@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V8.0 (INSTANT LOCAL SSD DISK-CACHED STREAMING)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V9.0 (PRISTINE UN-WATERMARKED INSTANT UPLOAD)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -12,7 +12,7 @@ import logging
 import io
 import os
 
-from app.services import document_service, storage_service, pdf_service
+from app.services import document_service, storage_service
 from app.services.archive_service import ArchiveService
 from app.services.graph_service import graph_service
 from app.models.document import DocumentOut
@@ -50,17 +50,22 @@ async def upload_document_for_case(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    pdf_bytes, filename = await pdf_service.pdf_service.process_and_brand_pdf(file, case_id)
+    # ⚡ 1. Read raw pristine PDF bytes directly (0ms - No watermarks, no modifications)
+    pdf_bytes = await file.read()
+    filename = file.filename or "document.pdf"
+    content_type = file.content_type or "application/pdf"
+
+    # 2. Upload pristine bytes to storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
         filename,
         str(current_user.id),
         case_id,
-        "application/pdf"
+        content_type
     )
 
-    # Immediately populate local SSD disk cache for 0ms previews
+    # 3. Immediately populate local SSD disk cache for instant 0ms previews
     try:
         cache_file_name = key.replace('/', '_')
         cache_file_path = os.path.join(document_service.CACHE_DIR, cache_file_name)
@@ -75,7 +80,7 @@ async def upload_document_for_case(
         case_id=case_id,
         file_name=filename,
         storage_key=key,
-        mime_type="application/pdf"
+        mime_type=content_type
     )
 
     from app.services.document_processing_service import orchestrate_document_processing_mongo
@@ -220,8 +225,7 @@ async def get_document_preview(
     db: Database = Depends(get_db)
 ):
     """
-    PHOENIX FAST PREVIEW: Checks local SSD disk cache first. If present, returns
-    instant FileResponse (0.001s latency). Otherwise, falls back to B2 stream.
+    PHOENIX FAST PREVIEW: Serves from local SSD cache in 0.001s.
     """
     cached_path, stream, doc, content_length = await asyncio.to_thread(
         document_service.get_preview_file_path_or_stream,
@@ -231,7 +235,6 @@ async def get_document_preview(
     )
     filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
     
-    # ⚡ FAST PATH: Serve directly from local SSD disk cache in 0 milliseconds
     if cached_path and os.path.exists(cached_path):
         return FileResponse(
             path=cached_path,
@@ -244,7 +247,6 @@ async def get_document_preview(
             }
         )
     
-    # ☁️ CLOUD FALLBACK: Stream from B2
     headers = {
         "Content-Disposition": f'inline; filename="{filename}"',
         "Cache-Control": "public, max-age=3600",
