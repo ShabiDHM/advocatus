@@ -1,4 +1,6 @@
 // FILE: src/components/law/LawArticleContent.tsx
+// PHOENIX PROTOCOL - LAW ARTICLE CONTENT V38.0 (PROFESSIONAL LEFT-ALIGNED TYPOGRAPHY)
+
 import React from 'react';
 import { GraduationCap, BookOpen, FileText, ExternalLink, Scale, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 import { ArticleData, SourceInfo } from './lawArticleTypes';
@@ -122,7 +124,7 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
       </div>
 
       <div className="bg-canvas/50 px-2 sm:px-10 py-12 flex justify-center">
-        <div className="w-full max-w-[95ch] bg-surface border border-main rounded-2xl sm:rounded-r-3xl sm:rounded-l-lg shadow-2xl p-8 sm:p-16 relative overflow-hidden transition-all duration-300">
+        <div className="w-full max-w-[95ch] bg-surface border border-main rounded-2xl sm:rounded-r-3xl sm:rounded-l-lg shadow-2xl p-6 sm:p-16 relative overflow-hidden transition-all duration-300">
           <div className="absolute top-0 bottom-0 left-0 w-4 bg-gradient-to-r from-black/20 via-primary-start/1 to-transparent pointer-events-none border-r border-main/40 hidden sm:block" />
           <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none hidden sm:block" />
 
@@ -136,7 +138,8 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
             </h2>
           </div>
 
-          <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.75] font-normal whitespace-pre-wrap text-justify font-serif selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
+          {/* ⚡ CLEAN LEFT-ALIGNED TYPOGRAPHY WITHOUT WIDE GAPS */}
+          <div className="text-[15px] sm:text-[17px] text-text-primary leading-[1.8] font-normal whitespace-pre-line text-left text-start font-serif tracking-normal selection:bg-primary-start/20 relative z-10 px-0 sm:px-6">
             {article.text}
           </div>
 

@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V26.0 (UNIFIED MOBILE/DESKTOP PAGE TARGETING & TEXT LAYER SPACING OVERRIDE)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V27.0 (RESPONSIVE MOBILE AUTO-FIT & PROFESSIONAL TYPOGRAPHY)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -90,18 +90,29 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         documentData?.file_name?.toLowerCase().includes('kontrat') ||
                         (textContent && textContent.includes('# ')));
 
+  // PRECISION MOBILE AUTO-FIT RESPONSIVE SIZING
   useEffect(() => {
     if (isMinimized) return;
     const el = containerRef.current;
-    if (!el) return;
+    
     const updateWidth = () => {
-      const padding = window.innerWidth < 640 ? 12 : 40;
+      if (!el) {
+        if (typeof window !== 'undefined') {
+          const fallback = window.innerWidth < 640 ? window.innerWidth - 24 : 800;
+          setContainerWidth(fallback);
+        }
+        return;
+      }
+      const padding = window.innerWidth < 640 ? 12 : 32;
       const measured = el.clientWidth - padding;
-      if (measured > 0 && measured !== containerWidth) setContainerWidth(measured);
+      if (measured > 0 && measured !== containerWidth) {
+        setContainerWidth(measured);
+      }
     };
+
     updateWidth();
     const observer = new ResizeObserver(updateWidth);
-    observer.observe(el);
+    if (el) observer.observe(el);
     return () => observer.disconnect();
   }, [isMinimized, isFullscreen]);
 
@@ -261,8 +272,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           );
         }
 
+        // AUTO-CALCULATE PRECISE PAGE FIT FOR MOBILE SCREENS
+        const effectiveWidth = containerWidth > 0 
+          ? containerWidth 
+          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 16, 800) : 360);
+
         return (
-            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
+            <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
                 {/* CSS OVERRIDE TO ELIMINATE STRETCHED SPACES IN TEXT LAYER */}
                 <style>{`
                   .react-pdf__Page__textLayer {
@@ -273,6 +289,11 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   .react-pdf__Page__textLayer span {
                     word-spacing: normal !important;
                     letter-spacing: normal !important;
+                  }
+                  .react-pdf__Page__canvas {
+                    max-width: 100% !important;
+                    height: auto !important;
+                    margin: 0 auto !important;
                   }
                 `}</style>
                 {fileSource && (
@@ -330,13 +351,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
                         </div>
                       }
-                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left"
+                      className="flex flex-col items-center w-full px-0 text-left max-w-full overflow-hidden"
                     >
-                      {/* UNIFIED SINGLE-PAGE TARGETING FOR BOTH MOBILE AND DESKTOP */}
+                      {/* PERFECT 100% RESPONSIVE FIT FOR MOBILE AND DESKTOP */}
                       <Page 
                         pageNumber={pageNumber} 
-                        width={containerWidth > 0 ? containerWidth : undefined} 
-                        scale={scale} 
+                        width={effectiveWidth} 
+                        scale={isMobile ? 1.0 : scale} 
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
                         className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
@@ -481,7 +502,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           className={
             isFullscreen 
               ? "fixed inset-0 w-screen h-screen rounded-none z-[9999] bg-canvas flex flex-col overflow-hidden border-0" 
-              : "glass-panel w-[95vw] max-w-7xl h-[92vh] rounded-3xl shadow-2xl flex flex-col border border-main bg-canvas overflow-hidden"
+              : "glass-panel w-full sm:w-[95vw] max-w-7xl h-full sm:h-[92vh] rounded-none sm:rounded-3xl shadow-2xl flex flex-col border-0 sm:border border-main bg-canvas overflow-hidden"
           } 
           onClick={e => e.stopPropagation()}
         >
