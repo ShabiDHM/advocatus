@@ -1,15 +1,16 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V6.0 (GUARANTEED PDF STREAM VIA BACKEND PROXY)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V8.0 (INSTANT LOCAL SSD DISK-CACHED STREAMING)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from pymongo.database import Database
 import redis
 from bson import ObjectId
 import asyncio
 import logging
 import io
+import os
 
 from app.services import document_service, storage_service, pdf_service
 from app.services.archive_service import ArchiveService
@@ -59,6 +60,15 @@ async def upload_document_for_case(
         "application/pdf"
     )
 
+    # Immediately populate local SSD disk cache for 0ms previews
+    try:
+        cache_file_name = key.replace('/', '_')
+        cache_file_path = os.path.join(document_service.CACHE_DIR, cache_file_name)
+        with open(cache_file_path, "wb") as f:
+            f.write(pdf_bytes)
+    except Exception as e:
+        logger.warning(f"Could not populate local SSD preview cache: {e}")
+
     doc = document_service.create_document_record(
         db=db,
         owner=current_user,
@@ -75,8 +85,6 @@ async def upload_document_for_case(
     )
 
     return DocumentOut.model_validate(doc)
-
-# --- SINGLE DOCUMENT ARCHIVE ENDPOINT ---
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)
 async def archive_case_document_endpoint(
@@ -204,7 +212,7 @@ async def delete_document(
         )
     raise HTTPException(status_code=500, detail="Failed to delete document.")
 
-@router.get("/{case_id}/documents/{doc_id}/preview", response_class=StreamingResponse)
+@router.get("/{case_id}/documents/{doc_id}/preview")
 async def get_document_preview(
     case_id: str,
     doc_id: str,
@@ -212,22 +220,41 @@ async def get_document_preview(
     db: Database = Depends(get_db)
 ):
     """
-    PHOENIX FIX: Bypasses Backblaze B2 CORS blocks by securely proxying the stream 
-    through the backend. Guaranteed to load PDFs on the frontend without crashing!
+    PHOENIX FAST PREVIEW: Checks local SSD disk cache first. If present, returns
+    instant FileResponse (0.001s latency). Otherwise, falls back to B2 stream.
     """
-    stream, doc = await asyncio.to_thread(
-        document_service.get_preview_document_stream,
+    cached_path, stream, doc, content_length = await asyncio.to_thread(
+        document_service.get_preview_file_path_or_stream,
         db,
         doc_id,
         current_user
     )
     filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
     
+    # ⚡ FAST PATH: Serve directly from local SSD disk cache in 0 milliseconds
+    if cached_path and os.path.exists(cached_path):
+        return FileResponse(
+            path=cached_path,
+            media_type="application/pdf",
+            filename=filename,
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Cache-Control": "public, max-age=86400",
+                "Accept-Ranges": "bytes"
+            }
+        )
+    
+    # ☁️ CLOUD FALLBACK: Stream from B2
+    headers = {
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes"
+    }
+    if content_length > 0:
+        headers["Content-Length"] = str(content_length)
+
     return StreamingResponse(
         stream, 
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "no-cache"
-        }
+        headers=headers
     )

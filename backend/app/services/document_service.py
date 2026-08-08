@@ -1,12 +1,11 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.7 (AGGRESSIVE CASCADE CLEANUP)
-# 1. FIXED: Implements rigorous cascade deletion (metadata, S3, findings, embeddings, calendar).
-# 2. FIXED: Added immediate 'DOCUMENT_DELETED' Redis event publishing to update frontend UI live.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.9 (LOCAL SSD FILE CACHING FOR INSTANT PREVIEWS)
 
 import logging
 import datetime
 import importlib
 import json
+import os
 from datetime import timezone
 from typing import List, Optional, Tuple, Any, Dict
 from bson import ObjectId
@@ -16,11 +15,13 @@ from pymongo.database import Database
 
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
-
-# Only essential services
 from . import vector_store_service, storage_service
 
 logger = logging.getLogger(__name__)
+
+# Local disk cache directory
+CACHE_DIR = os.path.join(os.getcwd(), ".file_cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 def create_document_record(
     db: Database, owner: UserInDB, case_id: str, file_name: str, storage_key: str, mime_type: str
@@ -85,26 +86,37 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
         raise HTTPException(status_code=404, detail="Document not found.")
     return DocumentOut.model_validate(document_data)
 
-def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
+def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Optional[str], Any, DocumentOut, int]:
+    """
+    Checks local SSD disk cache first before downloading from B2 cloud storage.
+    """
     document = get_and_verify_document(db, doc_id, owner)
+    storage_key = document.preview_storage_key or document.storage_key
     
-    if document.preview_storage_key:
-        try:
-            file_stream = storage_service.download_preview_document_stream(document.preview_storage_key)
-            if file_stream:
-                return file_stream, document
-        except Exception:
-            logger.warning(f"Preview key exists but fetch failed for {doc_id}, falling back to original.")
-
-    if not document.storage_key:
+    if not storage_key:
         raise FileNotFoundError("Document content unavailable.")
-        
+
+    # Check local SSD disk cache
+    safe_cache_name = storage_key.replace('/', '_')
+    cached_path = os.path.join(CACHE_DIR, safe_cache_name)
+    
+    if os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
+        return cached_path, None, document, os.path.getsize(cached_path)
+
+    # Cloud fallback if not in local cache
     try:
-        file_stream = storage_service.download_original_document_stream(document.storage_key)
-        return file_stream, document
+        file_stream, length = storage_service.get_file_stream_with_meta(storage_key)
+        return None, file_stream, document, length
     except Exception as e:
         logger.error(f"Failed to download document: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve the document.")
+        raise HTTPException(status_code=500, detail="Could not retrieve document stream.")
+
+def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut, int]:
+    document = get_and_verify_document(db, doc_id, owner)
+    storage_key = document.preview_storage_key or document.storage_key
+    if not storage_key:
+        raise FileNotFoundError("Document content unavailable.")
+    return storage_service.get_file_stream_with_meta(storage_key) + (document,)
 
 def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
@@ -127,11 +139,6 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
-    """
-    MASTER DELETE FUNCTION
-    Removes: DB Record, S3 Files, Findings, Vector Embeddings, Calendar Events, Graph Nodes.
-    Robust against failures in individual subsystems.
-    """
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -141,39 +148,33 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
+    # Clean up local SSD disk cache
+    for k in [storage_key, preview_key]:
+        if k:
+            cached_file = os.path.join(CACHE_DIR, k.replace('/', '_'))
+            if os.path.exists(cached_file):
+                try: os.remove(cached_file)
+                except Exception: pass
+
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     deleted_finding_ids = []
     
-    # 1. DELETE FINDINGS
     try:
         findings_query = {"document_id": mixed_id_query}
         findings_cursor = db.findings.find(findings_query, {"_id": 1})
         deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
-        
-        delete_result = db.findings.delete_many(findings_query)
-        logger.info(f"Cascading delete: Removed {delete_result.deleted_count} findings for doc {doc_id}")
+        db.findings.delete_many(findings_query)
     except Exception as e:
         logger.error(f"Error deleting findings for doc {doc_id}: {e}")
     
-    # 2. DELETE CALENDAR EVENTS & ALERTS
-    link_query = {
-        "$or": [
-            {"document_id": mixed_id_query},
-            {"documentId": mixed_id_query}
-        ]
-    }
-    
+    link_query = {"$or": [{"document_id": mixed_id_query}, {"documentId": mixed_id_query}]}
     try:
-        events_result = db.calendar_events.delete_many(link_query)
-        logger.info(f"Cascading delete: Removed {events_result.deleted_count} calendar events for doc {doc_id}")
-        
+        db.calendar_events.delete_many(link_query)
         if "alerts" in db.list_collection_names():
-            alerts_result = db.alerts.delete_many(link_query)
-            logger.info(f"Cascading delete: Removed {alerts_result.deleted_count} alerts for doc {doc_id}")
+            db.alerts.delete_many(link_query)
     except Exception as e:
         logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
 
-    # 3. DELETE GRAPH NODES
     try:
         graph_service_module = importlib.import_module("app.services.graph_service")
         if hasattr(graph_service_module, "graph_service"):
@@ -181,16 +182,11 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.warning(f"Graph cleanup failed (non-critical): {e}")
 
-    # 4. DELETE VECTOR EMBEDDINGS (AI Memory)
     try:
-        vector_store_service.delete_document_embeddings(
-            user_id=str(owner.id),
-            document_id=doc_id_str
-        )
+        vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
     except Exception as e:
         logger.error(f"Vector store cleanup failed: {e}")
     
-    # 5. DELETE S3 (B2) FILES
     try:
         if storage_key: storage_service.delete_file(storage_key=storage_key)
         if processed_key: storage_service.delete_file(storage_key=processed_key)
@@ -198,20 +194,13 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.error(f"S3 cleanup failed (non-critical): {e}")
     
-    # 6. DELETE DOCUMENT RECORD (Final DB Step)
     db.documents.delete_one({"_id": doc_id})
-    logger.info(f"Document record {doc_id} deleted successfully.")
     
-    # 7. PUBLISH DELETE SSE EVENT (Visual Handshake sync)
     try:
         if redis_client:
-            payload = {
-                "type": "DOCUMENT_DELETED",
-                "document_id": doc_id_str
-            }
+            payload = {"type": "DOCUMENT_DELETED", "document_id": doc_id_str}
             channel = f"user:{owner.id}:updates"
             redis_client.publish(channel, json.dumps(payload))
-            logger.info(f"🚀 SSE DELETED PUBLISHED: {channel} -> {doc_id_str}")
     except Exception as sse_err:
         logger.error(f"SSE deletion broadcast warning: {sse_err}")
     
@@ -226,7 +215,6 @@ def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids:
         try:
             if not ObjectId.is_valid(doc_id_str):
                 continue
-            
             doc_oid = ObjectId(doc_id_str)
             finding_ids = delete_document_by_id(db, redis_client, doc_oid, owner)
             all_deleted_finding_ids.extend(finding_ids)

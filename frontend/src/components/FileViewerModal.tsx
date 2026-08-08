@@ -1,14 +1,14 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V20.0 (NATIVE FETCH BLOB PRE-LOADING FOR FAST PDF RENDERING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V22.1 (FIXED UNUSED ISAUTH TYPE WARNING)
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
-import { apiService, API_V1_URL } from '../services/api';
+import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon
+    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon, Eye
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
@@ -17,7 +17,8 @@ import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Set standard PDF.js worker URL
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
   documentData: any;
@@ -39,10 +40,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   onMinimize, 
   t, 
   directUrl, 
-  isAuth = false,
+  isAuth: _isAuth = false,
   initialPage = 1
 }) => {
-  const [fileSource, setFileSource] = useState<any>(null);
+  const [fileSource, setFileSource] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +58,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [useNativeIframe, setUseNativeIframe] = useState(false);
 
   useEffect(() => {
     if (initialPage && initialPage > 0) {
@@ -98,27 +100,95 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     if (f.endsWith('.txt') || f.endsWith('.json') || m.startsWith('text/')) return 'TEXT';
     return 'PDF';
   };
-  
-  const handleBlobContent = async (blob: Blob, mode: ViewerMode) => {
-      if (mode === 'TEXT' || mode === 'CSV') {
-          const text = await blob.text();
-          if (mode === 'CSV') {
-              const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
-              const data = rows.map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
-              setCsvContent(data);
-              setViewerMode('CSV');
+
+  const processBlob = useCallback(async (blob: Blob, targetMode: ViewerMode) => {
+    if (targetMode === 'TEXT' || targetMode === 'CSV') {
+        const text = await blob.text();
+        if (targetMode === 'CSV') {
+            const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
+            const data = rows.map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+            setCsvContent(data);
+            setViewerMode('CSV');
+        } else {
+            setTextContent(text);
+            setViewerMode('TEXT');
+        }
+        setIsLoading(false);
+    } else {
+        const objectUrl = URL.createObjectURL(blob);
+        setFileSource(objectUrl);
+        setViewerMode(targetMode);
+        setIsLoading(false);
+    }
+  }, []);
+
+  // MASTER DOCUMENT CONTENT LOADING EFFECT
+  useEffect(() => {
+    setError(null);
+    setIsLoading(true);
+
+    const targetMode = getTargetMode(
+      documentData?.mime_type || '', 
+      documentData?.file_name || documentData?.title || ''
+    );
+    setViewerMode(targetMode);
+
+    let activeUrl = directUrl;
+
+    const loadData = async () => {
+      try {
+        // CASE 1: Memory Blob URL already present (e.g. freshly uploaded or in-memory)
+        if (activeUrl && activeUrl.startsWith('blob:')) {
+          if (targetMode === 'PDF' || targetMode === 'IMAGE') {
+            setFileSource(activeUrl);
+            setIsLoading(false);
           } else {
-              setTextContent(text);
-              setViewerMode('TEXT');
+            const res = await window.fetch(activeUrl);
+            const blob = await res.blob();
+            await processBlob(blob, targetMode);
           }
-          setIsLoading(false);
-      } else { 
-          const url = URL.createObjectURL(blob);
-          setFileSource(url);
-          setViewerMode(mode);
-          setIsLoading(false);
+          return;
+        }
+
+        // CASE 2: Case Document Fetch via apiService Axios Pipeline
+        if (caseId && documentData?.id) {
+          const blob = await apiService.getPreviewDocument(caseId, documentData.id);
+          await processBlob(blob, targetMode);
+          return;
+        }
+
+        // CASE 3: Archive Document Fetch
+        if (documentData?.id && !caseId) {
+          const blob = await apiService.getArchiveFileBlob(documentData.id);
+          await processBlob(blob, targetMode);
+          return;
+        }
+
+        // CASE 4: Direct HTTP URL
+        if (activeUrl) {
+          const blob = await apiService.fetchImageBlob(activeUrl);
+          await processBlob(blob, targetMode);
+          return;
+        }
+
+        setIsLoading(false);
+      } catch (err: any) {
+        console.error("Document preview load error:", err);
+        setError(err?.message || "Nuk mund të ngarkohej pamja.");
+        setViewerMode('DOWNLOAD');
+        setIsLoading(false);
       }
-  };
+    };
+
+    loadData();
+
+    return () => {
+      // Cleanup Object URLs when modal unmounts or changes
+      if (fileSource && fileSource.startsWith('blob:') && fileSource !== directUrl) {
+        URL.revokeObjectURL(fileSource);
+      }
+    };
+  }, [caseId, documentData?.id, directUrl, processBlob]);
 
   const handleMinimizeAction = () => {
     setIsMinimized(true);
@@ -145,61 +215,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // NATIVE FETCH BLOB PRE-LOADING
-  useEffect(() => {
-    setError(null);
-    setIsLoading(true);
-    const targetMode = getTargetMode(documentData?.mime_type || '', documentData?.file_name || documentData?.title || '');
-    setViewerMode(targetMode);
-
-    const loadContent = async () => {
-        try {
-            let pdfStreamUrl = directUrl;
-            if (!pdfStreamUrl && caseId && documentData?.id) {
-                pdfStreamUrl = `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
-            }
-
-            if (pdfStreamUrl && pdfStreamUrl.startsWith('blob:')) {
-                const response = await fetch(pdfStreamUrl);
-                if (!response.ok) throw new Error("Blob fetch failed");
-                const blob = await response.blob();
-                await handleBlobContent(blob, targetMode);
-                return;
-            }
-
-            if (pdfStreamUrl) {
-                // Native Fetch forces the browser to stream the bytes super fast without Axios bloat
-                const token = apiService.getToken();
-                const headers: any = {};
-                if (token && isAuth) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-
-                const response = await fetch(pdfStreamUrl, { headers });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const blob = await response.blob();
-                await handleBlobContent(blob, targetMode);
-            } else {
-                setIsLoading(false);
-            }
-        } catch (err: any) {
-            console.error("Native Fetch Failed:", err);
-            setError(err?.message || t('pdfViewer.errorFetch'));
-            setViewerMode('DOWNLOAD');
-            setIsLoading(false);
-        }
-    };
-
-    loadContent();
-
-    return () => {
-        if (typeof fileSource === 'string' && fileSource.startsWith('blob:')) {
-            URL.revokeObjectURL(fileSource);
-        }
-    };
-  }, [caseId, documentData?.id, directUrl, isAuth, t]);
-
   const renderContent = () => {
     if (viewerMode === 'DOWNLOAD') {
         return (
@@ -216,13 +231,29 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
 
     if (viewerMode === 'PDF') {
+        if (isLoading) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full bg-canvas gap-3">
+              <Loader className="animate-spin h-10 w-10 text-primary-start" />
+              <p className="text-xs font-mono text-text-muted animate-pulse">Po shkarkohet pamja e dokumentit...</p>
+            </div>
+          );
+        }
+
+        if (useNativeIframe && fileSource) {
+          return (
+            <div className="w-full h-full bg-canvas p-2">
+              <iframe 
+                src={`${fileSource}#toolbar=1`} 
+                title={documentData?.file_name || 'PDF Preview'} 
+                className="w-full h-full rounded-2xl border border-main bg-white shadow-inner"
+              />
+            </div>
+          );
+        }
+
         return (
             <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-canvas/60 backdrop-blur-xs z-10">
-                    <Loader className="animate-spin text-primary-start" size={36} />
-                  </div>
-                )}
                 {fileSource && (
                     <PdfDocument 
                       file={fileSource} 
@@ -235,14 +266,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         }
                       }} 
                       onLoadError={(err) => {
-                        console.error("PDF Render Error:", err);
-                        setError("Nuk mund të ngarkohej pamja e PDF.");
-                        setViewerMode('DOWNLOAD');
-                        setIsLoading(false);
+                        console.error("PDF.js Canvas Error, switching to native iframe:", err);
+                        setUseNativeIframe(true);
                       }}
                       loading={
-                        <div className="flex items-center justify-center p-12">
+                        <div className="flex flex-col items-center justify-center p-12 gap-3">
                           <Loader className="animate-spin text-primary-start" size={32} />
+                          <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
                         </div>
                       }
                       className="flex flex-col items-center w-full px-2 sm:px-0"
@@ -425,7 +455,23 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {!isMobile && viewerMode === 'PDF' && (
+              {viewerMode === 'PDF' && (
+                <button 
+                  type="button"
+                  onClick={() => setUseNativeIframe(!useNativeIframe)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    useNativeIframe 
+                      ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' 
+                      : 'bg-surface text-text-muted hover:text-text-primary border-main'
+                  }`}
+                  title={useNativeIframe ? "Kalo në pamjen Canvas" : "Kalo në pamjen Native Iframe"}
+                >
+                  <Eye size={14} />
+                  <span className="hidden sm:inline">{useNativeIframe ? 'Canvas View' : 'Native View'}</span>
+                </button>
+              )}
+
+              {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
                       <button 
@@ -473,7 +519,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
           {/* HIGH-CONTRAST DARK GLASSMORPHIC PAGE INDICATOR CONTROL BAR */}
-          {!isMobile && viewerMode === 'PDF' && numPages && numPages > 1 && (
+          {!isMobile && viewerMode === 'PDF' && !useNativeIframe && numPages && numPages > 1 && (
             <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-5 py-2.5 rounded-full border border-slate-700/80 flex items-center gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
               <button 
                 type="button"

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v5.2 (SETTINGS-ALIGNED B2 CONFIG)
+# PHOENIX PROTOCOL - STORAGE SERVICE v5.3 (HIGH-PERFORMANCE CONTENT-LENGTH METADATA STREAM)
 
 import os
 import boto3
@@ -12,7 +12,7 @@ from fastapi import UploadFile
 from fastapi.exceptions import HTTPException
 import logging
 import tempfile
-from typing import Any, Optional, IO
+from typing import Any, Optional, IO, Tuple
 
 from app.core.config import settings
 
@@ -109,6 +109,19 @@ def get_file_stream(storage_key: str) -> Any:
         return response['Body']
     except Exception as e:
         logger.error(f"Failed to retrieve file stream: {e}")
+        raise e
+
+def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
+    """
+    High-performance retriever that returns both file stream and Content-Length.
+    """
+    s3_client = get_s3_client()
+    try:
+        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+        content_length = response.get('ContentLength', 0)
+        return response['Body'], content_length
+    except Exception as e:
+        logger.error(f"Failed to retrieve file stream with meta: {e}")
         raise e
 
 # --- DOCUMENT SPECIFIC FUNCTIONS ---
@@ -221,7 +234,6 @@ def delete_file(storage_key: str):
         logger.error(f"!!! ERROR: Delete failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete file.")
 
-# PHOENIX NEW: COPY FUNCTION
 def copy_s3_object(source_key: str, dest_folder: str) -> str:
     """
     Copies an object within the same bucket (Server-Side Copy).
