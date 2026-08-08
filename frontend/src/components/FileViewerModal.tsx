@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V33.0 (SMART VIRTUAL PAGE RENDERING & ZERO-POP INITIAL SIZING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V34.0 (SINGLE FULLSCREEN ICON & UNRESTRICTED 800+ PAGE MOUSE SCROLLING)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -68,7 +68,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [scale, setScale] = useState(1.0); 
 
-  // ⚡ INITIALIZE WIDTH IMMEDIATELY TO PREVENT RESIZING POPS
+  // INITIALIZE WIDTH IMMEDIATELY TO PREVENT RESIZING POPS
   const [containerWidth, setContainerWidth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 640 ? window.innerWidth - 16 : Math.min(window.innerWidth - 64, 850);
@@ -245,19 +245,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // ⚡ SMART VIRTUAL WINDOW CALCULATOR FOR LARGE BOOKS (800+ PAGES)
-  const visiblePageRange = useMemo(() => {
-    if (!numPages) return [];
-    if (numPages <= 15) {
-      return Array.from({ length: numPages }, (_, i) => i + 1);
-    }
-    const start = Math.max(1, pageNumber - 4);
-    const end = Math.min(numPages, pageNumber + 8);
-    const range: number[] = [];
-    for (let i = start; i <= end; i++) range.push(i);
-    return range;
-  }, [numPages, pageNumber]);
-
   const renderContent = () => {
     if (viewerMode === 'DOWNLOAD') {
         return (
@@ -375,27 +362,30 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       }
                       className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
                     >
-                      {/* HIGH-PERFORMANCE VIRTUAL WINDOW FOR LARGE BOOKS (0s BLANK FLASHES) */}
-                      {visiblePageRange.map((pageIdx) => (
-                        <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
-                          <Page 
-                            pageNumber={pageIdx} 
-                            width={effectiveWidth} 
-                            scale={scale} 
-                            renderTextLayer={true}
-                            renderAnnotationLayer={true}
-                            loading={
-                              <div 
-                                style={{ width: effectiveWidth, height: effectiveWidth * 1.4 }} 
-                                className="bg-white rounded-lg border border-main animate-pulse shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
-                              >
-                                Faqja {pageIdx}...
-                              </div>
-                            }
-                            className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
-                          />
-                        </div>
-                      ))}
+                      {/* UNRESTRICTED CONTINUOUS SCROLLABLE LIST OF ALL PAGES */}
+                      {numPages && Array.from(new Array(numPages), (_, index) => {
+                        const pageIdx = index + 1;
+                        return (
+                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
+                            <Page 
+                              pageNumber={pageIdx} 
+                              width={effectiveWidth} 
+                              scale={scale} 
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              loading={
+                                <div 
+                                  style={{ width: effectiveWidth, height: effectiveWidth * 1.4 }} 
+                                  className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
+                                >
+                                  Faqja {pageIdx}...
+                                </div>
+                              }
+                              className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                            />
+                          </div>
+                        );
+                      })}
                     </PdfDocument>
                 )}
             </div>
@@ -555,7 +545,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
-                      <span className="text-xs font-mono font-bold text-text-secondary px-1">{Math.round(scale * 100)}%</span>
+                      <button onClick={() => setScale(1.0)} className="px-2 py-0.5 text-xs font-mono font-bold text-text-secondary hover:text-text-primary cursor-pointer" title="Reset Zoom">{Math.round(scale * 100)}%</button>
                       <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom In"><ZoomIn size={16} /></button>
                   </div>
               )}
