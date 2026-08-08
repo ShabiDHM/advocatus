@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V23.0 (SMART NENI / ARTICLE AUTO-JUMPING & PRECISE PAGE TARGETING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V24.0 (CLEAN MINIMAL HEADER - NATIVE TOGGLE REMOVED)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -8,7 +8,7 @@ import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon, Eye
+    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
@@ -498,22 +498,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {viewerMode === 'PDF' && (
-                <button 
-                  type="button"
-                  onClick={() => setUseNativeIframe(!useNativeIframe)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    useNativeIframe 
-                      ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' 
-                      : 'bg-surface text-text-muted hover:text-text-primary border-main'
-                  }`}
-                  title={useNativeIframe ? "Kalo në pamjen Canvas" : "Kalo në pamjen Native Iframe"}
-                >
-                  <Eye size={14} />
-                  <span className="hidden sm:inline">{useNativeIframe ? 'Canvas View' : 'Native View'}</span>
-                </button>
-              )}
-
               {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
