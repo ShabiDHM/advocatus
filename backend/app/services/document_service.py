@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.9 (LOCAL SSD FILE CACHING FOR INSTANT PREVIEWS)
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V7.0 (AUTO-CACHING B2 CLOUD FILES TO SSD FOR 0ms PREVIEWS)
 
 import logging
 import datetime
@@ -88,7 +88,8 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
 
 def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Optional[str], Any, DocumentOut, int]:
     """
-    Checks local SSD disk cache first before downloading from B2 cloud storage.
+    Checks local SSD disk cache first. If missing, downloads from B2, writes
+    to local SSD cache, and returns local file path for 0ms future previews.
     """
     document = get_and_verify_document(db, doc_id, owner)
     storage_key = document.preview_storage_key or document.storage_key
@@ -96,27 +97,36 @@ def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) 
     if not storage_key:
         raise FileNotFoundError("Document content unavailable.")
 
-    # Check local SSD disk cache
     safe_cache_name = storage_key.replace('/', '_')
     cached_path = os.path.join(CACHE_DIR, safe_cache_name)
     
+    # ⚡ 1. FAST PATH: Local SSD Cache hit (1ms)
     if os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
         return cached_path, None, document, os.path.getsize(cached_path)
 
-    # Cloud fallback if not in local cache
+    # ☁️ 2. CLOUD FALLBACK + AUTO SSD CACHE WRITE: Download from B2 once and save to local disk
     try:
-        file_stream, length = storage_service.get_file_stream_with_meta(storage_key)
-        return None, file_stream, document, length
+        s3 = storage_service.get_s3_client()
+        obj = s3.get_object(Bucket=storage_service.B2_BUCKET_NAME, Key=storage_key)
+        file_bytes = obj['Body'].read()
+        if file_bytes:
+            with open(cached_path, "wb") as f:
+                f.write(file_bytes)
+            logger.info(f"⚡ [SSD Cache Populated] Saved B2 file '{storage_key}' to local SSD cache -> {cached_path}")
+            return cached_path, None, document, len(file_bytes)
     except Exception as e:
-        logger.error(f"Failed to download document: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve document stream.")
+        logger.warning(f"Could not populate SSD cache from B2 stream: {e}")
+
+    file_stream, length = storage_service.get_file_stream_with_meta(storage_key)
+    return None, file_stream, document, length
 
 def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut, int]:
     document = get_and_verify_document(db, doc_id, owner)
     storage_key = document.preview_storage_key or document.storage_key
     if not storage_key:
         raise FileNotFoundError("Document content unavailable.")
-    return storage_service.get_file_stream_with_meta(storage_key) + (document,)
+    stream, length = storage_service.get_file_stream_with_meta(storage_key)
+    return stream, document, length
 
 def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
@@ -148,7 +158,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    # Clean up local SSD disk cache
     for k in [storage_key, preview_key]:
         if k:
             cached_file = os.path.join(CACHE_DIR, k.replace('/', '_'))
