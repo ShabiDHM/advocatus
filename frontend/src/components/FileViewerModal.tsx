@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V24.0 (CLEAN MINIMAL HEADER - NATIVE TOGGLE REMOVED)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V26.0 (UNIFIED MOBILE/DESKTOP PAGE TARGETING & TEXT LAYER SPACING OVERRIDE)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -95,7 +95,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const el = containerRef.current;
     if (!el) return;
     const updateWidth = () => {
-      const padding = window.innerWidth < 640 ? 16 : 40;
+      const padding = window.innerWidth < 640 ? 12 : 40;
       const measured = el.clientWidth - padding;
       if (measured > 0 && measured !== containerWidth) setContainerWidth(measured);
     };
@@ -251,7 +251,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
         if (useNativeIframe && fileSource) {
           return (
-            <div className="w-full h-full bg-canvas p-2">
+            <div className="w-full h-full bg-canvas p-1 sm:p-2">
               <iframe 
                 src={`${fileSource}#page=${pageNumber}&toolbar=1`} 
                 title={documentData?.file_name || 'PDF Preview'} 
@@ -263,6 +263,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
         return (
             <div className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" ref={containerRef}>
+                {/* CSS OVERRIDE TO ELIMINATE STRETCHED SPACES IN TEXT LAYER */}
+                <style>{`
+                  .react-pdf__Page__textLayer {
+                    text-align: left !important;
+                    word-spacing: normal !important;
+                    letter-spacing: normal !important;
+                  }
+                  .react-pdf__Page__textLayer span {
+                    word-spacing: normal !important;
+                    letter-spacing: normal !important;
+                  }
+                `}</style>
                 {fileSource && (
                     <PdfDocument 
                       file={fileSource} 
@@ -318,30 +330,17 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
                         </div>
                       }
-                      className="flex flex-col items-center w-full px-2 sm:px-0"
+                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left"
                     >
-                      {isMobile ? (
-                        numPages && Array.from(new Array(numPages), (_, index) => (
-                          <Page 
-                            key={`page_${index + 1}`}
-                            pageNumber={index + 1} 
-                            width={containerWidth > 0 ? containerWidth : undefined} 
-                            scale={scale} 
-                            renderTextLayer={true}
-                            renderAnnotationLayer={true}
-                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white" 
-                          />
-                        ))
-                      ) : (
-                        <Page 
-                          pageNumber={pageNumber} 
-                          width={containerWidth > 0 ? containerWidth : undefined} 
-                          scale={scale} 
-                          renderTextLayer={true}
-                          renderAnnotationLayer={true}
-                          className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white" 
-                        />
-                      )}
+                      {/* UNIFIED SINGLE-PAGE TARGETING FOR BOTH MOBILE AND DESKTOP */}
+                      <Page 
+                        pageNumber={pageNumber} 
+                        width={containerWidth > 0 ? containerWidth : undefined} 
+                        scale={scale} 
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                      />
                     </PdfDocument>
                 )}
             </div>
@@ -365,8 +364,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   <DraftResultRenderer text={textContent || ''} t={t} />
                </div>
             ) : (
-                <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface">
-                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed">{textContent}</pre>
+                <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface text-left">
+                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed text-left">{textContent}</pre>
                 </div>
             )}
           </div>
@@ -486,18 +485,18 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           } 
           onClick={e => e.stopPropagation()}
         >
-          <header className="flex items-center justify-between p-4 border-b border-main bg-surface shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+          <header className="flex items-center justify-between p-3 sm:p-4 border-b border-main bg-surface shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="p-2 bg-hover rounded-lg border border-main flex items-center justify-center shrink-0">
-                    {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
+                    {viewerMode === 'CSV' ? <TableIcon className="text-primary-start w-4 h-4 sm:w-5 sm:h-5" /> : <FileText className="text-primary-start w-4 h-4 sm:w-5 sm:h-5" />}
                 </div>
                 <div className="min-w-0">
-                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[180px] sm:max-w-md">{documentData?.file_name || documentData?.title}</h2>
+                    <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[140px] sm:max-w-md">{documentData?.file_name || documentData?.title}</h2>
                     <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest block truncate">{isLegalDraft ? 'LEGAL DRAFT MODE' : `${viewerMode} MODE`}</span>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
@@ -517,28 +516,28 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <button 
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title={isFullscreen ? "Restauro Madhësinë" : "Ekrani i Plotë"}
               >
-                {isFullscreen ? <Maximize2 size={18} /> : <Maximize size={18} />}
+                {isFullscreen ? <Maximize2 size={16} /> : <Maximize size={18} />}
               </button>
 
               <button 
                 type="button"
                 onClick={handleMinimizeAction} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Minimizo"
               >
-                <Minus size={20} />
+                <Minus size={18} />
               </button>
 
               <button 
                 type="button"
                 onClick={onClose} 
-                className="flex items-center justify-center w-10 h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:text-danger-start hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title="Mbyll"
               >
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
           </header>
@@ -546,16 +545,16 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
           {/* HIGH-CONTRAST DARK GLASSMORPHIC PAGE INDICATOR CONTROL BAR */}
-          {!isMobile && viewerMode === 'PDF' && !useNativeIframe && numPages && numPages > 1 && (
-            <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-5 py-2.5 rounded-full border border-slate-700/80 flex items-center gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
+          {viewerMode === 'PDF' && !useNativeIframe && numPages && numPages > 1 && (
+            <footer className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-700/80 flex items-center gap-2 sm:gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
               <button 
                 type="button"
                 onClick={() => handlePageChange(pageNumber - 1)} 
                 disabled={pageNumber <= 1} 
-                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
                 title="Faqja e mëparshme"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
               
               {isEditingPage ? (
@@ -565,7 +564,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                     value={jumpInput}
                     onChange={(e) => setJumpInput(e.target.value)}
                     onBlur={handlePageJumpSubmit}
-                    className="w-14 bg-slate-800 text-white font-mono font-bold text-xs text-center border border-sky-500 rounded-md py-1 focus:outline-none"
+                    className="w-12 sm:w-14 bg-slate-800 text-white font-mono font-bold text-xs text-center border border-sky-500 rounded-md py-1 focus:outline-none"
                     autoFocus
                   />
                   <span className="text-xs font-mono text-slate-400 ml-1">/ {numPages}</span>
@@ -574,7 +573,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditingPage(true)}
-                  className="px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-xs font-bold text-sky-400 font-mono tracking-wider border border-slate-700/60 hover:border-sky-500/50 transition-all cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-xs font-bold text-sky-400 font-mono tracking-wider border border-slate-700/60 hover:border-sky-500/50 transition-all cursor-pointer"
                   title="Kliko për të kërcyer në faqe"
                 >
                   Faqja {pageNumber} <span className="text-slate-400 font-normal">/ {numPages}</span>
@@ -585,10 +584,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 type="button"
                 onClick={() => handlePageChange(pageNumber + 1)} 
                 disabled={pageNumber >= numPages} 
-                className="w-9 h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded-full disabled:opacity-20 cursor-pointer transition-all"
                 title="Faqja tjetër"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </footer>
           )}
