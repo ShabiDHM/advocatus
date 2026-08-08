@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V41.0 (FIXED DOCUMENT TITLE TYPE CHECK)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V42.0 (SILKY-SMOOTH TYPEWRITER STREAMING ENGINE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -166,7 +166,6 @@ const CaseViewPage: React.FC = () => {
       if (matchedDoc) {
         handleViewOriginal(matchedDoc);
       } else if (liveDocuments.length > 0) {
-        // Fallback: match by partial word
         const fuzzyMatch = liveDocuments.find((d) => {
           const words = cleanSearch.split(/\s+/).filter((w: string) => w.length > 3);
           const name = (d.file_name || (d as any).title || '').toLowerCase();
@@ -278,13 +277,18 @@ const CaseViewPage: React.FC = () => {
 
       for await (const chunk of stream) {
         acc += chunk;
+        const currentAcc = acc;
+
         setChatMessages((prev) => {
           const updated = [...prev];
           if (updated.length > 0) {
-            updated[updated.length - 1] = { ...updated[updated.length - 1], content: acc };
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: currentAcc };
           }
           return updated;
         });
+
+        // ⚡ TYPEWRITER FLUSH YIELD: Gives React 10ms to render token-by-token in real-time
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       setChatMessages((prev) => {

@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V31.0 (MOUSE WHEEL SCROLLING & SMART JUMP INTEGRATION)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V32.0 (SINGLE FULLSCREEN ICON & UNRESTRICTED VERTICAL SCROLL)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -8,7 +8,7 @@ import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    ZoomIn, ZoomOut, Maximize, Maximize2, Minus, FileText, Table as TableIcon
+    ZoomIn, ZoomOut, Maximize2, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
@@ -90,7 +90,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         documentData?.file_name?.toLowerCase().includes('kontrat') ||
                         (textContent && textContent.includes('# ')));
 
-  // PRECISION MOBILE AUTO-FIT RESPONSIVE SIZING
+  // PRECISION RESPONSIVE CONTAINER WIDTH CALCULATOR
   useEffect(() => {
     if (isMinimized) return;
     const el = containerRef.current;
@@ -98,7 +98,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const updateWidth = () => {
       if (!el) {
         if (typeof window !== 'undefined') {
-          const fallback = window.innerWidth < 640 ? window.innerWidth - 16 : 800;
+          const fallback = window.innerWidth < 640 ? window.innerWidth - 16 : 850;
           setContainerWidth(fallback);
         }
         return;
@@ -122,27 +122,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, []);
-
-  // MOUSE WHEEL SCROLL NAVIGATION HANDLER
-  const handleWheelScroll = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    const container = containerRef.current;
-    if (!container || !numPages || numPages <= 1) return;
-
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 10;
-    const isAtTop = container.scrollTop <= 10;
-
-    if (e.deltaY > 0 && isAtBottom && pageNumber < numPages) {
-      const nextPage = pageNumber + 1;
-      setPageNumber(nextPage);
-      setJumpInput(String(nextPage));
-      scrollToPage(nextPage);
-    } else if (e.deltaY < 0 && isAtTop && pageNumber > 1) {
-      const prevPage = pageNumber - 1;
-      setPageNumber(prevPage);
-      setJumpInput(String(prevPage));
-      scrollToPage(prevPage);
-    }
-  }, [numPages, pageNumber, scrollToPage]);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -301,15 +280,15 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           );
         }
 
+        // OPTIMAL DESKTOP & MOBILE PAGE WIDTH (MAX 850px ON DESKTOP FOR CRISP FULL-HEIGHT VIEWING)
         const effectiveWidth = containerWidth > 0 
-          ? containerWidth 
-          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 12, 800) : 360);
+          ? Math.min(containerWidth, 850) 
+          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 16, 850) : 800);
 
         return (
             <div 
-              className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-2 sm:pt-6 pb-28 custom-finance-scroll" 
+              className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-4 sm:pt-6 pb-36 custom-finance-scroll" 
               ref={containerRef}
-              onWheel={handleWheelScroll}
             >
                 <style>{`
                   .react-pdf__Page__textLayer {
@@ -365,7 +344,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         setPageNumber(targetPage);
                         setJumpInput(String(targetPage));
 
-                        // ⚡ INSTANT SMOOTH AUTO-SCROLL TO TARGET PAGE ON LOAD
                         setTimeout(() => {
                           scrollToPage(targetPage);
                         }, 100);
@@ -380,20 +358,20 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                           <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
                         </div>
                       }
-                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full overflow-hidden"
+                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
                     >
-                      {/* CONTINUOUS SCROLLABLE VERTICAL LIST OF ALL PAGES */}
+                      {/* UNRESTRICTED CONTINUOUS SCROLLABLE LIST OF ALL PAGES */}
                       {numPages && Array.from(new Array(numPages), (_, index) => {
                         const pageIdx = index + 1;
                         return (
-                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full">
+                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
                             <Page 
                               pageNumber={pageIdx} 
                               width={effectiveWidth} 
                               scale={scale} 
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
-                              className="shadow-2xl mb-6 rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                              className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
                             />
                           </div>
                         );
@@ -557,26 +535,19 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
-                      <button 
-                        type="button"
-                        onClick={() => setIsFullscreen(!isFullscreen)} 
-                        className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer transition-colors" 
-                        title={isFullscreen ? "Restauro Madhësinë" : "Ekrani i Plotë (Fullscreen)"}
-                      >
-                        {isFullscreen ? <Maximize2 size={16} /> : <Maximize size={16} />}
-                      </button>
+                      <span className="text-xs font-mono font-bold text-text-secondary px-1">{Math.round(scale * 100)}%</span>
                       <button onClick={() => setScale(s => Math.min(s + 0.2, 3.0))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom In"><ZoomIn size={16} /></button>
                   </div>
               )}
 
-              {/* FULLSCREEN EXPAND TOGGLE BUTTON */}
+              {/* SINGLE FULLSCREEN EXPAND BUTTON */}
               <button 
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)} 
                 className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-text-muted hover:text-text-primary hover:bg-hover border border-main sm:border-transparent rounded-xl transition-all focus:outline-none cursor-pointer"
                 title={isFullscreen ? "Restauro Madhësinë" : "Ekrani i Plotë"}
               >
-                {isFullscreen ? <Maximize2 size={16} /> : <Maximize size={18} />}
+                <Maximize2 size={18} />
               </button>
 
               <button 
