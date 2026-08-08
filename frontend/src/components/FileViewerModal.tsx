@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V32.0 (SINGLE FULLSCREEN ICON & UNRESTRICTED VERTICAL SCROLL)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V33.0 (SMART VIRTUAL PAGE RENDERING & ZERO-POP INITIAL SIZING)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -67,7 +67,15 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [jumpInput, setJumpInput] = useState<string>(String(targetInitialPage));
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [scale, setScale] = useState(1.0); 
-  const [containerWidth, setContainerWidth] = useState<number>(0); 
+
+  // ⚡ INITIALIZE WIDTH IMMEDIATELY TO PREVENT RESIZING POPS
+  const [containerWidth, setContainerWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 640 ? window.innerWidth - 16 : Math.min(window.innerWidth - 64, 850);
+    }
+    return 800;
+  }); 
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isMinimized, setIsMinimized] = useState(false);
@@ -90,22 +98,16 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         documentData?.file_name?.toLowerCase().includes('kontrat') ||
                         (textContent && textContent.includes('# ')));
 
-  // PRECISION RESPONSIVE CONTAINER WIDTH CALCULATOR
+  // SMOOTH CONTAINER RESIZING OBSERVER
   useEffect(() => {
     if (isMinimized) return;
     const el = containerRef.current;
     
     const updateWidth = () => {
-      if (!el) {
-        if (typeof window !== 'undefined') {
-          const fallback = window.innerWidth < 640 ? window.innerWidth - 16 : 850;
-          setContainerWidth(fallback);
-        }
-        return;
-      }
+      if (!el) return;
       const padding = window.innerWidth < 640 ? 12 : 32;
       const measured = el.clientWidth - padding;
-      if (measured > 0 && measured !== containerWidth) {
+      if (measured > 0 && Math.abs(measured - containerWidth) > 10) {
         setContainerWidth(measured);
       }
     };
@@ -114,7 +116,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const observer = new ResizeObserver(updateWidth);
     if (el) observer.observe(el);
     return () => observer.disconnect();
-  }, [isMinimized, isFullscreen]);
+  }, [isMinimized, isFullscreen, containerWidth]);
 
   const scrollToPage = useCallback((p: number) => {
     const el = document.getElementById(`pdf_page_${p}`);
@@ -243,6 +245,19 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
+  // ⚡ SMART VIRTUAL WINDOW CALCULATOR FOR LARGE BOOKS (800+ PAGES)
+  const visiblePageRange = useMemo(() => {
+    if (!numPages) return [];
+    if (numPages <= 15) {
+      return Array.from({ length: numPages }, (_, i) => i + 1);
+    }
+    const start = Math.max(1, pageNumber - 4);
+    const end = Math.min(numPages, pageNumber + 8);
+    const range: number[] = [];
+    for (let i = start; i <= end; i++) range.push(i);
+    return range;
+  }, [numPages, pageNumber]);
+
   const renderContent = () => {
     if (viewerMode === 'DOWNLOAD') {
         return (
@@ -280,10 +295,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           );
         }
 
-        // OPTIMAL DESKTOP & MOBILE PAGE WIDTH (MAX 850px ON DESKTOP FOR CRISP FULL-HEIGHT VIEWING)
-        const effectiveWidth = containerWidth > 0 
-          ? Math.min(containerWidth, 850) 
-          : (typeof window !== 'undefined' ? Math.min(window.innerWidth - 16, 850) : 800);
+        const effectiveWidth = Math.min(
+          containerWidth > 0 ? containerWidth : 800,
+          850
+        );
 
         return (
             <div 
@@ -346,7 +361,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
                         setTimeout(() => {
                           scrollToPage(targetPage);
-                        }, 100);
+                        }, 50);
                       }} 
                       onLoadError={(err) => {
                         console.error("PDF.js Canvas Error, switching to native iframe:", err);
@@ -360,22 +375,27 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                       }
                       className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
                     >
-                      {/* UNRESTRICTED CONTINUOUS SCROLLABLE LIST OF ALL PAGES */}
-                      {numPages && Array.from(new Array(numPages), (_, index) => {
-                        const pageIdx = index + 1;
-                        return (
-                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
-                            <Page 
-                              pageNumber={pageIdx} 
-                              width={effectiveWidth} 
-                              scale={scale} 
-                              renderTextLayer={true}
-                              renderAnnotationLayer={true}
-                              className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
-                            />
-                          </div>
-                        );
-                      })}
+                      {/* HIGH-PERFORMANCE VIRTUAL WINDOW FOR LARGE BOOKS (0s BLANK FLASHES) */}
+                      {visiblePageRange.map((pageIdx) => (
+                        <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
+                          <Page 
+                            pageNumber={pageIdx} 
+                            width={effectiveWidth} 
+                            scale={scale} 
+                            renderTextLayer={true}
+                            renderAnnotationLayer={true}
+                            loading={
+                              <div 
+                                style={{ width: effectiveWidth, height: effectiveWidth * 1.4 }} 
+                                className="bg-white rounded-lg border border-main animate-pulse shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
+                              >
+                                Faqja {pageIdx}...
+                              </div>
+                            }
+                            className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                          />
+                        </div>
+                      ))}
                     </PdfDocument>
                 )}
             </div>
