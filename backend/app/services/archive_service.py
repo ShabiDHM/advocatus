@@ -1,5 +1,5 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE SERVICE V7.0 (GUARANTEED USER_ID & OWNER_ID BACKWARD COMPATIBILITY)
+# PHOENIX PROTOCOL - ARCHIVE SERVICE V8.0 (KEEP DOCUMENT ACTIVE IN PANEL AFTER ARCHIVING)
 
 import os
 import logging
@@ -105,6 +105,9 @@ class ArchiveService:
         return ArchiveItemInDB.model_validate(doc_data)
 
     def archive_document(self, db: Database, case_id: str, doc_id: str, owner: Any) -> Optional[ArchiveItemInDB]:
+        """
+        Creates a copy of the active document in the Archive without deleting or hiding it from the Documents Panel.
+        """
         try:
             user_id = str(owner.id) if hasattr(owner, 'id') else str(owner)
             user_oid = self._to_oid(user_id)
@@ -148,8 +151,8 @@ class ArchiveService:
             res = self.db.archives.insert_one(doc_data)
             doc_data["id"] = res.inserted_id
 
-            # Update document status in db.documents
-            self.db.documents.update_one({"_id": doc_oid}, {"$set": {"status": "ARCHIVED"}})
+            # FIX: Intentionally OMITTED changing the document's status to "ARCHIVED".
+            # The document remains "READY" and stays visible in the active Documents Panel!
 
             return ArchiveItemInDB.model_validate(doc_data)
         except Exception as e:
@@ -157,9 +160,6 @@ class ArchiveService:
             return None
 
     def get_archive_items(self, user_id: str, category: Optional[str] = None, case_id: Optional[str] = None, parent_id: Optional[str] = None) -> List[ArchiveItemInDB]:
-        """
-        PHOENIX FIX: Populates missing user_id / owner_id on old records to prevent Pydantic validation crashes.
-        """
         user_oid = self._to_oid(user_id)
         
         query: Dict[str, Any] = {
@@ -187,13 +187,11 @@ class ArchiveService:
         for doc in cursor:
             doc["id"] = doc["_id"]
             
-            # GUARANTEE BOTH USER_ID AND OWNER_ID ARE POPULATED BEFORE PYDANTIC VALIDATION
             if not doc.get("user_id") and doc.get("owner_id"):
                 doc["user_id"] = doc["owner_id"]
             if not doc.get("owner_id") and doc.get("user_id"):
                 doc["owner_id"] = doc["user_id"]
 
-            # SAFE CONVERSION TO OBJECTID
             if doc.get("case_id") and isinstance(doc["case_id"], str) and ObjectId.is_valid(doc["case_id"]):
                 doc["case_id"] = ObjectId(doc["case_id"])
             if doc.get("user_id") and isinstance(doc["user_id"], str) and ObjectId.is_valid(doc["user_id"]):

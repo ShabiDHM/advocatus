@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V18.0 (INSTANT HTTP RANGE PDF STREAMING & 0S DELAY)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V20.0 (NATIVE FETCH BLOB PRE-LOADING FOR FAST PDF RENDERING)
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -81,13 +81,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const updateWidth = () => {
       const padding = window.innerWidth < 640 ? 16 : 40;
       const measured = el.clientWidth - padding;
-      if (measured > 0) setContainerWidth(measured);
+      if (measured > 0 && measured !== containerWidth) setContainerWidth(measured);
     };
     updateWidth();
     const observer = new ResizeObserver(updateWidth);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewerMode, isMinimized, isFullscreen]);
+  }, [isMinimized, isFullscreen]);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -145,7 +145,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // INSTANT PDF STREAMING LOADER
+  // NATIVE FETCH BLOB PRE-LOADING
   useEffect(() => {
     setError(null);
     setIsLoading(true);
@@ -154,61 +154,45 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadContent = async () => {
         try {
-            // OPTIMIZATION: Instant HTTP Range Stream for PDFs (0s Delay)
-            if (targetMode === 'PDF') {
-                let pdfStreamUrl = directUrl;
-                if (!pdfStreamUrl && caseId && documentData?.id) {
-                    pdfStreamUrl = `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
-                }
-
-                if (pdfStreamUrl) {
-                    // Pass Auth token header config to react-pdf or use direct stream URL
-                    const token = apiService.getToken();
-                    if (token && !pdfStreamUrl.startsWith('blob:')) {
-                        setFileSource({
-                            url: pdfStreamUrl,
-                            httpHeaders: { 'Authorization': `Bearer ${token}` },
-                            withCredentials: true
-                        });
-                    } else {
-                        setFileSource(pdfStreamUrl);
-                    }
-                    setIsLoading(false);
-                    return;
-                }
+            let pdfStreamUrl = directUrl;
+            if (!pdfStreamUrl && caseId && documentData?.id) {
+                pdfStreamUrl = `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
             }
 
-            if (directUrl && directUrl.startsWith('blob:')) {
-                const response = await fetch(directUrl);
+            if (pdfStreamUrl && pdfStreamUrl.startsWith('blob:')) {
+                const response = await fetch(pdfStreamUrl);
                 if (!response.ok) throw new Error("Blob fetch failed");
                 const blob = await response.blob();
                 await handleBlobContent(blob, targetMode);
                 return;
             }
 
-            if (directUrl) {
-                if (isAuth) {
-                    const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
-                    await handleBlobContent(response.data, targetMode);
-                } else {
-                    const response = await fetch(directUrl);
-                    if (!response.ok) throw new Error("Fetch failed");
-                    const blob = await response.blob();
-                    await handleBlobContent(blob, targetMode);
+            if (pdfStreamUrl) {
+                // Native Fetch forces the browser to stream the bytes super fast without Axios bloat
+                const token = apiService.getToken();
+                const headers: any = {};
+                if (token && isAuth) {
+                    headers['Authorization'] = `Bearer ${token}`;
                 }
-            } else if (caseId && documentData?.id) {
-                const blob = await apiService.getOriginalDocument(caseId, documentData.id);
+
+                const response = await fetch(pdfStreamUrl, { headers });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const blob = await response.blob();
                 await handleBlobContent(blob, targetMode);
             } else {
                 setIsLoading(false);
             }
         } catch (err: any) {
+            console.error("Native Fetch Failed:", err);
             setError(err?.message || t('pdfViewer.errorFetch'));
             setViewerMode('DOWNLOAD');
             setIsLoading(false);
         }
     };
+
     loadContent();
+
     return () => {
         if (typeof fileSource === 'string' && fileSource.startsWith('blob:')) {
             URL.revokeObjectURL(fileSource);
