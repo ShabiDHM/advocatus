@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V37.0 (UNIFIED CANVAS PDF ENGINE VIA FILEVIEWERMODAL)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE V38.0 (PRECISE NENI PAGE TARGETING FOR FILEVIEWERMODAL)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -20,7 +20,7 @@ export default function LawArticlePage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const [article, setArticle] = useState<ArticleData | null>(null);
+  const [article, setArticle] = useState<(ArticleData & { page_number?: number; page?: number }) | null>(null);
   const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -123,11 +123,15 @@ export default function LawArticlePage() {
           is_official_statute: !isAcademic,
         };
 
+        const pageNum = (data as any).page_number || (data as any).page;
+
         setSourceInfo(updatedSourceInfo);
         setArticle({
           law_title: data.law_title,
           article_number: data.article_number || articleNumber,
           source: data.source || `${lawTitle}.pdf`,
+          page_number: pageNum,
+          page: pageNum,
           text: normalizedText,
           chunk_id: chunkId,
           source_info: updatedSourceInfo,
@@ -273,6 +277,7 @@ export default function LawArticlePage() {
   }
 
   const rawArtNum = (article.article_number || articleNumber || '').replace(/\.$/, '').trim();
+  const targetPage = article.page_number || article.page;
 
   return (
     <motion.div
@@ -385,8 +390,13 @@ export default function LawArticlePage() {
         <FileViewerModal
           documentData={{
             file_name: article.source || article.law_title,
+            title: article.law_title,
+            article_number: article.article_number || articleNumber,
+            page_number: targetPage,
+            page: targetPage,
             mime_type: 'application/pdf',
           }}
+          initialPage={targetPage}
           directUrl={pdfUrl}
           isAuth={true}
           onClose={() => setShowPdfModal(false)}
