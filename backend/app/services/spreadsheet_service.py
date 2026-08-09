@@ -1,5 +1,5 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V8.0 (UNIFIED MASTER VECTOR STORE INTEGRATION)
+# PHOENIX PROTOCOL - FORENSIC ENGINE V9.0 (STANDALONE ISOLATED FINANCIAL VECTOR STORE)
 
 import pandas as pd
 import io
@@ -23,7 +23,7 @@ from decimal import Decimal, ROUND_HALF_UP
 # Internal Services
 from . import llm_service
 
-logger = logging.getLogger(__name__)
+logger = logging.get_logger(__name__)
 
 # --- CONSTANTS & DATA STRUCTURES ---
 class RiskLevel(str, Enum):
@@ -185,88 +185,44 @@ def _is_weekend(date_str: str) -> bool:
     except: pass
     return False
 
-# --- UNIFIED MASTER VECTOR STORE INTEGRATION ---
+# --- STANDALONE ISOLATED FINANCIAL VECTOR STORE ---
 
 async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database, user_id: Optional[str] = None, filename: str = "Tabela Financiale"):
     """
-    PHOENIX ENGINE: UNIFIES SPREADSHEET VECTOR EMBEDDINGS INTO THE MASTER 'user_vectors' COLLECTION.
-    Guarantees Socratic Chat, Deep Strategy, and Forensic Interrogation query 100% unified knowledge.
+    STANDALONE ISOLATED FINANCIAL VECTOR STORE.
+    Keeps forensic spreadsheet data inside 'financial_vectors' ONLY.
+    Prevents spreadsheet row chunks from polluting master 'user_vectors'.
     """
     try:
-        user_oid = ObjectId(user_id) if user_id and ObjectId.is_valid(user_id) else None
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
-        # 1. Register or find document in db.documents
-        doc_record = await asyncio.to_thread(
-            db.documents.find_one,
-            {"case_id": case_oid, "file_name": filename, "status": {"$ne": "DELETED"}}
-        )
-        
-        if not doc_record and user_oid:
-            doc_id = ObjectId()
-            doc_record = {
-                "_id": doc_id,
-                "owner_id": user_oid,
-                "case_id": case_oid,
-                "file_name": filename,
-                "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "status": "READY",
-                "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
-            }
-            await asyncio.to_thread(db.documents.insert_one, doc_record)
-        
-        doc_id_str = str(doc_record.get("_id")) if doc_record else str(ObjectId())
-
-        # 2. Build vector chunk records for master user_vectors collection
-        master_vectors = []
         financial_vectors = []
-
         for r in records:
             semantic_text = f"DOKUMENTI: {filename}. Data: {r['date']}. Shuma: {r['amount']} EUR. Përshkrimi: {r['description']}."
             embedding = await asyncio.to_thread(llm_service.get_embedding, semantic_text)
             
             if embedding and len(embedding) == 1536:
-                # Master unified vector record (user_vectors)
-                master_vectors.append({
-                    "user_id": str(user_id) if user_id else "",
-                    "owner_id": user_oid,
-                    "case_id": str(case_id),
-                    "document_id": doc_id_str,
+                financial_vectors.append({
+                    "case_id": case_oid,
+                    "case_id_str": str(case_id),
                     "file_name": filename,
-                    "chunk": semantic_text,
-                    "text": semantic_text,
+                    "content": semantic_text,
                     "embedding": embedding,
-                    "source_type": "FORENSIC_EXCEL",
                     "created_at": datetime.now(timezone.utc)
                 })
 
-                # Legacy compatibility record (financial_vectors)
-                financial_vectors.append({
-                    "case_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id,
-                    "content": semantic_text,
-                    "embedding": embedding
-                })
-
-        if master_vectors:
-            # Purge existing Excel chunks for this file in user_vectors
-            await asyncio.to_thread(
-                db.user_vectors.delete_many, 
-                {"case_id": str(case_id), "file_name": filename}
-            )
-            # Insert into unified master vector store
-            await asyncio.to_thread(db.user_vectors.insert_many, master_vectors)
-            logger.info(f"✅ Unified {len(master_vectors)} spreadsheet vectors into 'user_vectors' master store!")
-
         if financial_vectors:
+            # Delete existing financial vectors for this case in standalone financial_vectors collection
             await asyncio.to_thread(
                 db.financial_vectors.delete_many, 
-                {"case_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id}
+                {"$or": [{"case_id": case_oid}, {"case_id_str": str(case_id)}, {"case_id": str(case_id)}]}
             )
+            # Insert into standalone financial_vectors collection ONLY
             await asyncio.to_thread(db.financial_vectors.insert_many, financial_vectors)
+            logger.info(f"✅ Stored {len(financial_vectors)} isolated financial vectors in 'financial_vectors' collection!")
 
     except Exception as e:
-        logger.error(f"❌ Unified vector store insertion error: {e}")
+        logger.error(f"❌ Standalone financial vector store error: {e}")
 
 # --- CORE LOGIC ---
 
@@ -438,7 +394,7 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     
     executive_summary = await _generate_unified_strategic_memo(case_id, stats_for_llm, top_anomalies_for_llm, lang)
     
-    # UNIFIED VECTOR STORE INJECTION (user_vectors)
+    # STANDALONE FINANCIAL VECTOR STORE INJECTION (db.financial_vectors ONLY)
     await _vectorize_and_store(records, case_id, db, user_id=user_id, filename=filename)
     
     return {
@@ -462,23 +418,26 @@ async def forensic_analyze_spreadsheet(content: bytes, filename: str, case_id: s
 async def ask_financial_question(case_id: str, question: str, db: Database, lang: str = 'sq') -> Dict[str, Any]:
     q_vector = await asyncio.to_thread(llm_service.get_embedding, question)
     
-    # Query unified user_vectors master store
+    case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+
+    # Query standalone isolated financial_vectors collection ONLY
     rows = await asyncio.to_thread(
         list, 
-        db.user_vectors.find({"case_id": str(case_id)})
+        db.financial_vectors.find({"$or": [{"case_id": case_oid}, {"case_id_str": str(case_id)}, {"case_id": str(case_id)}]})
     )
+
     if not rows:
-        rows = await asyncio.to_thread(list, db.financial_vectors.find({"case_id": ObjectId(case_id)}))
+        return {"answer": get_text('msg_no_data', lang), "supporting_evidence_count": 0}
 
     scored_rows = sorted(
         [(np.dot(q_vector, row.get("embedding", [])), row) for row in rows if row.get("embedding")], 
         key=lambda x: x[0], 
         reverse=True
     )
-    context_lines = [row.get("chunk") or row.get("content", "") for _, row in scored_rows[:15]]
+    context_lines = [row.get("content", "") for _, row in scored_rows[:15]]
     
     if not context_lines: 
-        return {"answer": get_text('msg_no_data', lang)}
+        return {"answer": get_text('msg_no_data', lang), "supporting_evidence_count": 0}
     
     answer = await asyncio.to_thread(llm_service.forensic_interrogation, question, context_lines)
     return { "answer": answer, "supporting_evidence_count": len(context_lines) }

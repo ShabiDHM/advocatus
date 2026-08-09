@@ -1,12 +1,10 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V18.3 (OCR ANALYSIS FIX)
-# 1. FIXED: analyze_expense_receipt no longer creates DB records prematurely
-# 2. FIXED: Response format flattened to match Frontend interface
-# 3. KEPT: All other finance endpoints intact
+# PHOENIX PROTOCOL - FINANCE ROUTER V19.0 (FIXED FORENSIC REPORT ARCHIVE BODY PARSING)
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from typing import List, Annotated, Optional, Any, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -33,24 +31,19 @@ from app.api.endpoints.dependencies import get_current_user, get_db, get_current
 router = APIRouter(tags=["Finance"])
 logger = structlog.get_logger(__name__)
 
+class ArchiveForensicReportRequest(BaseModel):
+    case_id: str
+    title: str
+    content: str
+
 # --- PUBLIC TEST OCR ENDPOINT (NO AUTH) ---
 @router.post("/public-test-ocr")
 async def public_test_ocr(
     file: UploadFile = File(...)
 ):
-    """
-    Public endpoint to test OCR functionality.
-    Accepts an image file and returns extracted text.
-    No authentication required for debugging purposes.
-    """
     try:
-        # Read image bytes
         image_bytes = await file.read()
-        
-        # Extract text using OCR service
         ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
-        
-        # Return result
         return {
             "status": "success",
             "filename": file.filename,
@@ -67,8 +60,7 @@ async def public_test_ocr(
             detail=f"OCR processing failed: {str(e)}"
         )
 
-
-# --- ANALYTICS & HISTORY ENDPOINTS (SYNC) ---
+# --- ANALYTICS & HISTORY ENDPOINTS ---
 
 @router.get("/case-summary", response_model=List[CaseFinancialSummary])
 def get_case_financial_summaries(
@@ -112,7 +104,6 @@ def get_case_financial_summaries(
             ))
             
     return sorted(summaries, key=lambda s: s.total_billed, reverse=True)
-
 
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
 def get_analytics_dashboard(
@@ -222,21 +213,35 @@ async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Dep
     archived_item = await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_content, category="INVOICE", title=title, case_id=case_id)
     return archived_item
 
-# --- FORENSIC REPORT ---
+# --- FORENSIC REPORT ARCHIVE ENDPOINT ---
 @router.post("/forensic-report/archive", response_model=ArchiveItemOut)
 async def archive_forensic_report(
+    body: ArchiveForensicReportRequest,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db),
-    case_id: str = Body(..., embed=True),
-    title: str = Body(..., embed=True),
-    content: str = Body(..., embed=True),
 ):
     archive_service = ArchiveService(db)
-    pdf_buffer = create_pdf_from_text(text=content, document_title=title)
+    
+    c_title = "Rast Ligjor"
+    if body.case_id:
+        try:
+            c_oid = ObjectId(body.case_id) if ObjectId.is_valid(body.case_id) else body.case_id
+            c_obj = db.cases.find_one({"$or": [{"_id": c_oid}, {"_id": body.case_id}]})
+            if c_obj:
+                c_title = c_obj.get("title") or c_obj.get("name") or c_title
+        except Exception:
+            pass
+
+    header_meta = f"<b>LËNDA:</b> {c_title}"
+    pdf_buffer = create_pdf_from_text(
+        text=body.content, 
+        document_title=body.title, 
+        header_meta_content_html=header_meta
+    )
     pdf_bytes = pdf_buffer.getvalue()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    sanitized_title = "".join(c for c in title if c.isalnum() or c in (' ', '_')).replace(' ', '_')
+    sanitized_title = "".join(c for c in body.title if c.isalnum() or c in (' ', '_')).replace(' ', '_')
     filename = f"ForensicReport_{sanitized_title}_{timestamp}.pdf"
     
     archived_item = await archive_service.save_generated_file(
@@ -244,8 +249,8 @@ async def archive_forensic_report(
         filename=filename,
         content=pdf_bytes,
         category="FORENSIC",
-        title=title,
-        case_id=case_id
+        title=body.title,
+        case_id=body.case_id
     )
     return archived_item
 
@@ -287,21 +292,14 @@ async def analyze_expense_receipt(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     file: UploadFile = File(...)
 ):
-    """
-    Analyzes receipt and returns structured data (DOES NOT CREATE EXPENSE).
-    """
     try:
         logger.info(f"🔍 Receipt scanning started: {file.filename}")
-        
-        # 1. Read image
         image_bytes = await file.read()
         logger.info(f"📊 Image size: {len(image_bytes)} bytes")
         
-        # 2. Extract text with OCR
         ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
         logger.info(f"📝 OCR extracted: {len(ocr_text or '')} chars")
         
-        # 3. Get structured data from LLM (or use defaults)
         if not ocr_text or len(ocr_text) < 5:
             logger.warning("⚠️ OCR text too short, using default data")
             structured_data = {
@@ -315,20 +313,16 @@ async def analyze_expense_receipt(
             structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
             logger.info(f"✅ LLM returned: {structured_data}")
 
-        # 4. Standardize Date
         if structured_data.get("date"):
             try:
-                # Ensure we return a clean ISO date string
                 date_val = structured_data["date"]
                 if isinstance(date_val, str):
-                     # If it has Z or offsets, try to parse and clean
                      parsed = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
                      structured_data["date"] = parsed.strftime("%Y-%m-%d")
             except Exception as e:
                 logger.warning(f"Date standardization failed: {e}")
                 structured_data["date"] = datetime.utcnow().strftime("%Y-%m-%d")
         
-        # 5. Return FLAT structure for Frontend
         return JSONResponse(
             status_code=200,
             content=jsonable_encoder(structured_data)
@@ -336,9 +330,8 @@ async def analyze_expense_receipt(
         
     except Exception as e:
         logger.error(f"❌ Receipt scanning failed: {e}")
-        # Return default structure on error to prevent frontend crash
         return JSONResponse(
-            status_code=200, # Return 200 with empty data so user can manually edit
+            status_code=200,
             content={
                 "category": "",
                 "amount": 0,

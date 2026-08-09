@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V32.0 (SINGLE SOKRATI THINKING BUBBLE & CLEAN ICON LAYOUT)
+// PHOENIX PROTOCOL - CHAT PANEL V33.0 (SINGLE FLUID STREAMING & SMART THINKING BUBBLE)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -110,6 +110,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
+  // Determine if AI is waiting for its first token to arrive
+  const isAwaitingFirstToken =
+    isSendingMessage &&
+    (displayMessages.length === 0 || displayMessages[displayMessages.length - 1].role === 'user');
+
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
       <ChatHeader
@@ -215,8 +220,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             );
           })}
 
-          {/* SINGLE ELEGANT THINKING BUBBLE */}
-          {isSendingMessage && (
+          {/* THINKING BUBBLE - Shows ONLY before the first AI token arrives */}
+          {isAwaitingFirstToken && (
             <motion.div key="thinking" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
                 <BrainCircuit size={16} className="animate-pulse" />

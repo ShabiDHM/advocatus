@@ -1,5 +1,5 @@
 # FILE: backend/app/models/document.py
-# PHOENIX PROTOCOL - DOCUMENT MODELS V3.0 (ADDED ARCHIVED STATUS TO ENUM)
+# PHOENIX PROTOCOL - DOCUMENT MODELS V4.0 (OPTIONAL RESILIENT FIELDS)
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, List, Any
@@ -15,17 +15,17 @@ class DocumentStatus(str, Enum):
     ARCHIVED = "ARCHIVED"
 
 class DocumentBase(BaseModel):
-    file_name: str
-    status: DocumentStatus = DocumentStatus.PENDING
+    file_name: Optional[str] = "Dokument"
+    status: Optional[str] = "PENDING"
     mime_type: Optional[str] = None
     summary: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
 class DocumentInDB(DocumentBase):
-    id: PyObjectId = Field(alias="_id")
-    case_id: PyObjectId
-    owner_id: PyObjectId
-    storage_key: str
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    case_id: Optional[PyObjectId] = None
+    owner_id: Optional[PyObjectId] = None
+    storage_key: Optional[str] = ""
     processed_text_storage_key: Optional[str] = None
     preview_storage_key: Optional[str] = None
     error_message: Optional[str] = None

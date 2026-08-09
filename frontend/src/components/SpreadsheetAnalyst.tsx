@@ -1,14 +1,16 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V9.0 (INTEGRATED LAW CITATION TEXT)
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V24.0 (CLEAN NEUTRAL CHAT BUBBLES WITHOUT SOLID BLUE BACKGROUNDS)
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    FileSpreadsheet, Activity, CheckCircle, RefreshCw, Send, ShieldAlert, Bot, Save, FileText, AlertCircle, Info, Table
+    FileSpreadsheet, Activity, Send, Bot, FileText, AlertCircle, Info, Table, AlertTriangle, User, CheckCircle2, Gavel, BrainCircuit, Sparkles
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 import { LawCitationText } from './LawCitationText';
+import { ThinkingDots } from './chat/ThinkingDots';
+import { extractFollowUpQuestions } from '../utils/chatHelpers';
 
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
@@ -17,80 +19,156 @@ const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); retu
 interface SmartFinancialReport { executive_summary: string; }
 interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; timestamp: Date; evidenceCount?: number; }
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
-interface SpreadsheetAnalystProps { caseId: string; }
+interface SpreadsheetAnalystProps { 
+  caseId: string; 
+  onReportAvailable?: (summaryText: string, fileNameText: string) => void;
+}
 
-// --- High-Fidelity Markdown Renderer (theme-aware with Law Citation Parsing) ---
+// --- High-Fidelity Executive Memorandum Renderer with Dual-Theme Contrast ---
 const renderMarkdown = (text: string) => {
     if (!text) return null;
-    return text.split('\n').map((line, i) => {
-        const trimmed = line.trim();
-        if (trimmed === '---') return <hr key={i} className="border-main my-6" />;
-        if (!trimmed) return <div key={i} className="h-3" />;
-        if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-            return <h3 key={i} className="text-xs font-black text-text-primary uppercase tracking-wider mt-6 mb-3 border-b border-main pb-2">{trimmed.slice(2, -2)}</h3>;
+
+    const lines = text.split('\n');
+    let currentSection = 1; // 1: BLUF/Citizen, 2: Anomalies (RED/ROSE), 3: Legal (INDIGO), 4: Action Plan (EMERALD)
+
+    return lines.map((line, i) => {
+        let trimmed = line.trim();
+        if (trimmed === '---') return <hr key={i} className="border-main my-4" />;
+        if (!trimmed) return <div key={i} className="h-2" />;
+
+        // Update currentSection based on text keywords
+        if (trimmed.includes('2.') || trimmed.includes('Parregullsive') || trimmed.includes('Anomalitë') || trimmed.includes('Anomali')) {
+            currentSection = 2;
+        } else if (trimmed.includes('3.') || trimmed.includes('Implikimet Ligjore') || trimmed.includes('Tatimore')) {
+            currentSection = 3;
+        } else if (trimmed.includes('4.') || trimmed.includes('Plani i Veprimit') || trimmed.includes('Hartimi')) {
+            currentSection = 4;
+        } else if (trimmed.includes('1.') || trimmed.includes('Përmbledhja')) {
+            currentSection = 1;
         }
-        if (/^\d\.\d\.?/.test(trimmed) || /^\d\.\s/.test(trimmed)) {
-             return <h4 key={i} className="text-primary-start font-black text-xs uppercase tracking-wider mt-4 mb-2"><LawCitationText text={trimmed} /></h4>;
-        }
-        if (trimmed.includes(':')) {
-            const parts = trimmed.split(/:(.*)/s);
-            if (parts.length > 1 && parts[0].length < 35) { 
-                return (
-                    <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-2.5">
-                        <strong className="font-black uppercase text-[10px] tracking-wider text-primary-start mr-2">{parts[0]}:</strong>
-                        <LawCitationText text={parts[1]} />
-                    </p>
-                );
-            }
-        }
-        if (trimmed.startsWith('* ')) {
+
+        // Citizen Guide Sub-Card (Blue)
+        if (trimmed.includes('UDHËZUESI PËR QYTETARIN') || trimmed.includes('👨‍💼')) {
+            const cleanTitle = trimmed.replace(/^[#\*\s]+|[#\*\s]+$/g, '');
             return (
-                <div key={i} className="flex gap-2.5 ml-1 mb-2.5 items-start">
-                    <span className="text-primary-start mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-start shrink-0" />
-                    <p className="text-text-primary text-xs sm:text-sm leading-relaxed"><LawCitationText text={trimmed.substring(2)} /></p>
+                <div key={i} className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 mb-3 shadow-sm">
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider">
+                        <User size={15} />
+                        <span>{cleanTitle}</span>
+                    </div>
                 </div>
             );
         }
-        return <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-2.5"><LawCitationText text={trimmed} /></p>;
+
+        // Technical Forensic Sub-Card (Teal)
+        if (trimmed.includes('ANALIZA TEKNIKE FORENZIKE') || trimmed.includes('📊')) {
+            const cleanTitle = trimmed.replace(/^[#\*\s]+|[#\*\s]+$/g, '');
+            return (
+                <div key={i} className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 mb-3 shadow-sm mt-4">
+                    <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 font-black text-xs uppercase tracking-wider">
+                        <Activity size={15} />
+                        <span>{cleanTitle}</span>
+                    </div>
+                </div>
+            );
+        }
+
+        // Section Headers
+        if (trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 70)) {
+            const titleClean = trimmed.replace(/^[#\*\s]+|[#\*\s]+$/g, '');
+            
+            let headingBadge = 'bg-primary-start/10 border-primary-start/30 text-primary-start';
+            let HeadingIcon = Activity;
+
+            if (currentSection === 2) {
+                headingBadge = 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400';
+                HeadingIcon = AlertTriangle;
+            } else if (currentSection === 3) {
+                headingBadge = 'bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-400';
+                HeadingIcon = Gavel;
+            } else if (currentSection === 4) {
+                headingBadge = 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400';
+                HeadingIcon = CheckCircle2;
+            }
+
+            return (
+                <div key={i} className={`p-3.5 rounded-2xl border mb-3.5 mt-5 shadow-sm flex items-center gap-2.5 ${headingBadge}`}>
+                    <HeadingIcon size={16} className="shrink-0" />
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                        {titleClean}
+                    </h3>
+                </div>
+            );
+        }
+
+        // Detect Numbered Items (1., 2., 3., 4., 5.)
+        const findingMatch = trimmed.match(/^(\d+)\.\s*\*\*(.*?)\*\*\s*:\s*(.*)/i) || trimmed.match(/^(\d+)\.\s*(.*)/i);
+        if (findingMatch) {
+            const num = findingMatch[1];
+            let title = findingMatch[2] ? findingMatch[2].replace(/\*\*/g, '').trim() : '';
+            let body = findingMatch[3] ? findingMatch[3].trim() : findingMatch[2] ? findingMatch[2].trim() : '';
+
+            if (!title && body.includes(':')) {
+                const parts = body.split(/:(.*)/s);
+                title = parts[0].replace(/\*\*/g, '').trim();
+                body = parts[1].replace(/\*\*/g, '').trim();
+            }
+
+            const isAnomaly = currentSection === 2 || /anomali|benford|deficit|mashtrim|dyshimt|rrezik|fiktiv|gabim|shkelje|mungesë/i.test(`${title} ${body}`);
+            const isAction = currentSection === 4 || /auditimi|intervistimi|hartimi|kontrolli|bisedoni|përdorni/i.test(`${title} ${body}`);
+
+            let cardStyle = 'bg-canvas border-main text-text-primary';
+            let badgeStyle = 'bg-primary-start/20 text-primary-start border border-primary-start/30';
+            let titleStyle = 'text-primary-start';
+            let ItemIcon = Activity;
+
+            if (isAnomaly) {
+                cardStyle = 'bg-rose-500/10 border-rose-500/30 text-text-primary shadow-md shadow-rose-500/5';
+                badgeStyle = 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40';
+                titleStyle = 'text-rose-600 dark:text-rose-400';
+                ItemIcon = AlertTriangle;
+            } else if (isAction) {
+                cardStyle = 'bg-emerald-500/10 border-emerald-500/30 text-text-primary shadow-sm';
+                badgeStyle = 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40';
+                titleStyle = 'text-emerald-600 dark:text-emerald-400';
+                ItemIcon = CheckCircle2;
+            } else if (currentSection === 3) {
+                cardStyle = 'bg-indigo-500/10 border-indigo-500/30 text-text-primary shadow-sm';
+                badgeStyle = 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40';
+                titleStyle = 'text-indigo-600 dark:text-indigo-400';
+                ItemIcon = Gavel;
+            }
+
+            return (
+                <div key={i} className={`p-4 rounded-2xl border shadow-sm mb-3.5 transition-all ${cardStyle}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center shrink-0 ${badgeStyle}`}>
+                            {num}
+                        </span>
+                        {title && (
+                            <h4 className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${titleStyle}`}>
+                                <ItemIcon size={14} className="shrink-0" />
+                                {title}
+                            </h4>
+                        )}
+                    </div>
+                    <div className="text-xs sm:text-sm leading-relaxed font-medium pl-8 text-text-primary">
+                        <LawCitationText text={(body || trimmed).replace(/\*\*/g, '')} />
+                    </div>
+                </div>
+            );
+        }
+
+        // Regular Paragraph
+        return (
+            <p key={i} className="text-text-primary text-xs sm:text-sm leading-relaxed mb-3 font-medium">
+                <LawCitationText text={trimmed.replace(/\*\*/g, '')} />
+            </p>
+        );
     });
 };
 
-const useTypewriter = (text: string, speed: number = 10) => {
-    const [displayText, setDisplayText] = useState('');
-    useEffect(() => {
-        setDisplayText('');
-        if (text) {
-            let i = 0;
-            const intervalId = setInterval(() => {
-                if (i < text.length) { setDisplayText(p => p + text.charAt(i)); i++; } 
-                else clearInterval(intervalId);
-            }, speed);
-            return () => clearInterval(intervalId);
-        }
-    }, [text, speed]);
-    return displayText;
-};
-
-const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void }> = ({ message, onComplete }) => {
-    const displayText = useTypewriter(message.content);
-    const { t } = useTranslation();
-    useEffect(() => { if (displayText.length === message.content.length) onComplete(); }, [displayText, message.content.length, onComplete]);
-    return (
-        <div className="flex justify-start">
-            <div className="max-w-[88%] rounded-2xl rounded-tl-none p-4 text-xs sm:text-sm leading-relaxed bg-surface border border-main shadow-sm text-text-primary">
-                <div>{renderMarkdown(displayText)}</div>
-                {message.evidenceCount !== undefined && (
-                    <div className="mt-2.5 pt-2.5 border-t border-main flex items-center gap-1.5 text-[10px] font-black text-text-muted uppercase tracking-wider">
-                        <ShieldAlert className="w-3.5 h-3.5 text-status-success" />
-                        {t('analyst.verifiedAgainst', 'Verifikuar kundrejt {{count}} dëshmive', { count: message.evidenceCount })}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
+const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId, onReportAvailable }) => {
     const { t, i18n } = useTranslation();
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -99,31 +177,38 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
     const [question, setQuestion] = useState('');
     const [isInterrogating, setIsInterrogating] = useState(false);
-    const [typingMessage, setTypingMessage] = useState<ChatMessage | null>(null);
-    const [isArchiving, setIsArchiving] = useState(false);
-    const [archiveSuccess, setArchiveSuccess] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+
+    const notifyParent = useCallback((summary: string, file: string) => {
+        (window as any).__LATEST_FORENSIC_SUMMARY__ = summary;
+        (window as any).__LATEST_FORENSIC_FILENAME__ = file;
+        if (onReportAvailable && summary) {
+            onReportAvailable(summary, file);
+        }
+    }, [onReportAvailable]);
 
     useEffect(() => {
         const cache = getCache();
         const caseData = cache[caseId];
-        if (caseData) {
+        if (caseData && caseData.report) {
             setResult(caseData.report);
-            setChatHistory(caseData.chat.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
-            setFileName(caseData.fileName);
+            setChatHistory((caseData.chat || []).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
+            setFileName(caseData.fileName || 'File');
+            notifyParent(caseData.report.executive_summary, caseData.fileName || 'File');
         }
-    }, [caseId]);
+    }, [caseId, notifyParent]);
 
     useEffect(() => {
-        if (result && !typingMessage) {
+        if (result) {
             const cache = getCache();
             const dataToCache: CachedState = { report: result, chat: chatHistory, fileName: fileName || 'File' };
             cache[caseId] = dataToCache;
             localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+            notifyParent(result.executive_summary, fileName || 'File');
         }
-    }, [result, chatHistory, fileName, caseId, typingMessage]);
+    }, [result, chatHistory, fileName, caseId, notifyParent]);
 
-    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, typingMessage]);
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, isInterrogating]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -132,6 +217,9 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             try {
                 const data = await apiService.forensicAnalyzeSpreadsheet(caseId, newFile, i18n.language || 'sq') as unknown as SmartFinancialReport;
                 setResult(data);
+                if (data && data.executive_summary) {
+                    notifyParent(data.executive_summary, newFile.name);
+                }
             } catch (err: any) { 
                 const msg = err.response?.data?.detail || t('analyst.errorAnalysis', 'Analiza dështoi. Sigurohuni që skedari ka kolonën "Shuma" ose "Amount".');
                 setError(msg); 
@@ -139,55 +227,51 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
 
+    const handleSendQuestion = async (customPrompt?: string) => {
+        const queryText = customPrompt || question.trim();
+        if (!queryText || isInterrogating) return;
+
+        if (!customPrompt) setQuestion('');
+        const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: queryText, timestamp: new Date() };
+        setChatHistory((prev) => [...prev, userMsg]);
+        setIsInterrogating(true);
+
+        try {
+            const res = await apiService.forensicInterrogateEvidence(caseId, queryText);
+            const aiContent = res.answer || t('analyst.noAnswer', 'Nuk u gjet përgjigje në pasqyrën financiare.');
+            const aiMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'agent',
+                content: aiContent,
+                timestamp: new Date(),
+                evidenceCount: res.supporting_evidence_count,
+            };
+            setChatHistory((prev) => [...prev, aiMsg]);
+        } catch {
+            const errMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'agent',
+                content: t('analyst.errorConnection', 'Gabim gjatë lidhjes me shërbimin e analizës financiare.'),
+                timestamp: new Date(),
+            };
+            setChatHistory((prev) => [...prev, errMsg]);
+        } finally {
+            setIsInterrogating(false);
+        }
+    };
+
     return (
-        <div className="w-full flex flex-col gap-6 pb-6">
-            {/* EXECUTIVE TOOLBAR – Command Center Header */}
-            <div className="glass-panel p-5 sm:p-6 rounded-2xl border border-main bg-surface shadow-sm transition-all">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center gap-2.5">
-                            <Activity className="text-primary-start shrink-0" size={18} />
-                            <h2 className="text-xs font-black uppercase tracking-wider text-text-primary leading-none truncate">
-                                {t('analyst.title', 'Analizë Financiare Forenzike')}
-                            </h2>
-                            {result && <CheckCircle className="w-4 h-4 text-status-success rounded-full shrink-0" />}
+        <div className="w-full flex flex-col gap-4 pb-4">
+            <AnimatePresence>
+                {error && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                        <div className="p-3.5 bg-danger-start/10 border border-danger-start/20 rounded-xl flex items-center gap-2.5 text-danger-start shadow-sm">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span className="text-xs font-bold uppercase tracking-wide">{error}</span>
                         </div>
-                        {fileName && <p className="text-[10px] font-mono text-text-muted truncate mt-1 ml-7">{fileName}</p>}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                        {result && (
-                            <div className="flex gap-2">
-                                <button onClick={async () => {
-                                    setIsArchiving(true);
-                                    try { 
-                                        await apiService.archiveForensicReport(caseId, `${t('analyst.forensicMemo', 'Memorandum Forenzik')} - ${fileName}`, result.executive_summary); 
-                                        setArchiveSuccess(true); setTimeout(() => setArchiveSuccess(false), 3000); 
-                                    } 
-                                    catch { setError(t('analyst.errorArchive', 'Arkivimi dështoi.')); } finally { setIsArchiving(false); }
-                                }} disabled={isArchiving || archiveSuccess} className={`h-10 px-5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border flex items-center gap-2 ${archiveSuccess ? 'bg-status-success text-white border-status-success' : 'bg-primary-start text-white border-primary-start shadow-sm'}`}>
-                                    {isArchiving ? <RefreshCw className="animate-spin" size={14} /> : archiveSuccess ? <CheckCircle size={14} /> : <Save size={14} />}
-                                    {archiveSuccess ? t('analyst.archived', 'Arkivuar!') : t('analyst.archiveMemo', 'Arkivo Memo')}
-                                </button>
-                                <button onClick={() => {setFileName(null); setResult(null); setChatHistory([]); const c = getCache(); delete c[caseId]; localStorage.setItem(CACHE_KEY, JSON.stringify(c));}} className="h-10 px-5 rounded-xl border border-main bg-canvas text-text-muted hover:text-text-primary text-xs font-bold uppercase tracking-wider hover-lift transition-all flex items-center gap-2">
-                                    <RefreshCw size={14} /> {t('analyst.newAnalysis', 'Analizë e Re')}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <AnimatePresence>
-                    {error && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-4">
-                            <div className="p-3.5 bg-danger-start/10 border border-danger-start/20 rounded-xl flex items-center gap-2.5 text-danger-start shadow-sm">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span className="text-xs font-bold uppercase tracking-wide">{error}</span>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             
             <AnimatePresence mode="wait">
                 {result && (
@@ -197,21 +281,24 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         exit={{ opacity: 0, y: -10 }} 
                         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
                     >
-                        {/* LEFT PANEL: Forensic Report */}
-                        <div className="glass-panel p-0 rounded-2xl border border-main bg-surface flex flex-col h-[65vh] min-h-[450px] overflow-hidden shadow-sm">
-                            <div className="px-6 py-4 border-b border-main bg-canvas/80 backdrop-blur-md flex items-center gap-2.5 shrink-0">
-                                <FileText size={16} className="text-primary-start" />
-                                <h3 className="text-xs font-black text-text-primary uppercase tracking-wider">Memorandumi i Gjetjeve</h3>
+                        {/* LEFT PANEL: Forensic Memorandum of Findings */}
+                        <div className="glass-panel p-0 rounded-2xl border border-main bg-surface flex flex-col h-[72vh] min-h-[520px] overflow-hidden shadow-sm">
+                            <div className="px-6 py-4 border-b border-main bg-canvas/80 backdrop-blur-md flex items-center justify-between gap-2.5 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                    <FileText size={16} className="text-primary-start shrink-0" />
+                                    <h3 className="text-xs font-black text-text-primary uppercase tracking-wider">Memorandumi i Gjetjeve</h3>
+                                </div>
+                                {fileName && <span className="text-[10px] font-mono text-text-muted bg-canvas px-2.5 py-1 rounded-md border border-main">{fileName}</span>}
                             </div>
                             <div className="flex-1 overflow-y-auto p-6 custom-finance-scroll">
-                                <div className="max-w-2xl mx-auto">
+                                <div className="max-w-2xl mx-auto space-y-2">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
                         </div>
 
-                        {/* RIGHT PANEL: Chat Interrogation */}
-                        <div className="glass-panel p-0 rounded-2xl border border-main bg-surface flex flex-col h-[65vh] min-h-[450px] overflow-hidden shadow-sm">
+                        {/* RIGHT PANEL: Socratic Interrogation Chat - CLEAN NEUTRAL BUBBLES */}
+                        <div className="glass-panel p-0 rounded-2xl border border-main bg-surface flex flex-col h-[72vh] min-h-[520px] overflow-hidden shadow-sm">
                             <div className="px-6 py-4 border-b border-main bg-canvas/80 backdrop-blur-md flex items-center gap-2.5 shrink-0">
                                 <Bot className="text-primary-start w-4 h-4 shrink-0" />
                                 <div>
@@ -219,33 +306,92 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     <p className="text-[10px] font-medium text-text-muted mt-0.5">{t('analyst.interrogationSubtitle', 'Bëni pyetje rreth gjetjeve të memorandumit.')}</p>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-finance-scroll">
-                                {(chatHistory || []).map((msg) => (
-                                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-sm border ${msg.role === 'user' ? 'bg-primary-start text-white border-primary-start rounded-tr-none' : 'bg-canvas text-text-primary border-main rounded-tl-none'}`}>
-                                            {renderMarkdown(msg.content)}
+
+                            {/* Chat Messages */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-finance-scroll">
+                                {(chatHistory || []).map((msg) => {
+                                    const isAi = msg.role === 'agent' || (msg.role as string) === 'ai';
+                                    const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
+
+                                    return (
+                                        <div key={msg.id} className={`flex gap-3 ${!isAi ? 'flex-row-reverse' : 'flex-row'}`}>
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
+                                                isAi ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-main text-text-secondary'
+                                            }`}>
+                                                {isAi ? <BrainCircuit size={16} /> : <User size={16} />}
+                                            </div>
+
+                                            <div className={`relative max-w-[85%] rounded-2xl p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed shadow-sm border ${
+                                                !isAi ? 'bg-surface text-text-primary border-main rounded-tr-none' : 'bg-canvas text-text-primary border-main rounded-tl-none'
+                                            }`}>
+                                                {renderMarkdown(cleanText || msg.content)}
+
+                                                {/* Follow-up question pills */}
+                                                {isAi && suggestedQuestions.length > 0 && (
+                                                    <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main">
+                                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
+                                                            <Sparkles size={11} className="text-primary-start animate-pulse" />
+                                                            Pyetje Sugjeruese
+                                                        </span>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {suggestedQuestions.map((q, qIdx) => (
+                                                                <button
+                                                                    key={qIdx}
+                                                                    type="button"
+                                                                    onClick={() => handleSendQuestion(q)}
+                                                                    className="px-3 py-1.5 bg-surface border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-medium text-left transition-all hover-lift focus:outline-none flex items-center gap-1.5"
+                                                                >
+                                                                    <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
+                                                                    {q}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* SOKRATI DUKE MENDUAR THINKING BUBBLE */}
+                                {isInterrogating && (
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
+                                            <BrainCircuit size={16} className="animate-pulse" />
+                                        </div>
+                                        <div className="bg-surface border border-main rounded-2xl rounded-tl-none px-4 py-2.5 shadow-sm flex items-center gap-2">
+                                            <span className="text-xs font-bold text-primary-start tracking-wide">
+                                                Sokrati duke menduar
+                                            </span>
+                                            <ThinkingDots />
                                         </div>
                                     </div>
-                                ))}
-                                {typingMessage && <TypingChatMessage message={typingMessage} onComplete={() => {setChatHistory(p => [...p, typingMessage]); setTypingMessage(null);}} />}
+                                )}
+
                                 <div ref={chatEndRef} />
                             </div>
+
+                            {/* Chat Input Form */}
                             <div className="p-4 border-t border-main bg-canvas shrink-0">
-                                <form onSubmit={async (e) => { 
-                                    e.preventDefault(); 
-                                    if (!question.trim() || isInterrogating || typingMessage) return; 
-                                    const cur = question; setQuestion(''); 
-                                    setChatHistory(p => [...p, { id: Date.now().toString(), role: 'user', content: cur, timestamp: new Date() }]); 
-                                    setIsInterrogating(true); 
-                                    try { 
-                                        const r = await apiService.forensicInterrogateEvidence(caseId, cur); 
-                                        setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: r.answer || t('analyst.noAnswer', 'Nuk u gjet përgjigje.'), timestamp: new Date(), evidenceCount: r.supporting_evidence_count }); 
-                                    } catch { 
-                                        setTypingMessage({ id: (Date.now()+1).toString(), role: 'agent', content: t('analyst.errorConnection', 'Lidhja dështoi.'), timestamp: new Date() }); 
-                                    } finally { setIsInterrogating(false); } 
-                                }} className="relative flex items-center gap-2 max-w-4xl mx-auto">
-                                    <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.placeholderQuestion', 'Bëni një pyetje rreth dosjes...')} className="w-full p-3 pr-12 bg-surface border border-main rounded-xl text-xs sm:text-sm leading-relaxed text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"/>
-                                    <button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="absolute right-2 h-8 w-8 flex items-center justify-center bg-primary-start text-white rounded-lg hover:bg-primary-start/90 transition-all disabled:opacity-30">
+                                <form 
+                                    onSubmit={(e) => { 
+                                        e.preventDefault(); 
+                                        handleSendQuestion();
+                                    }} 
+                                    className="relative flex items-center gap-2 max-w-4xl mx-auto"
+                                >
+                                    <input 
+                                        type="text" 
+                                        value={question} 
+                                        onChange={(e) => setQuestion(e.target.value)} 
+                                        placeholder={t('analyst.placeholderQuestion', 'Bëni një pyetje rreth dosjes...')} 
+                                        className="w-full p-3 pr-12 bg-surface border border-main rounded-xl text-xs sm:text-sm leading-relaxed text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+                                    />
+                                    <button 
+                                        type="submit" 
+                                        disabled={!question.trim() || isInterrogating} 
+                                        className="absolute right-2 h-8 w-8 flex items-center justify-center bg-primary-start text-white rounded-lg hover:bg-primary-start/90 transition-all disabled:opacity-30"
+                                    >
                                         <Send size={15} />
                                     </button>
                                 </form>
@@ -270,7 +416,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
 
             {!result && !isAnalyzing && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
-                    {/* STANDARDIZED EXECUTIVE HERO PANEL */}
                     <div className="flex flex-col items-center justify-center text-center py-12 sm:py-16 px-6 glass-panel rounded-3xl border border-main bg-surface shadow-sm w-full">
                         <div className="w-16 h-16 bg-primary-start/10 rounded-2xl border border-primary-start/20 flex items-center justify-center mb-6 shadow-sm">
                             <FileSpreadsheet className="w-8 h-8 text-primary-start" />
@@ -291,7 +436,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </div>
                     </div>
 
-                    {/* STANDARDIZED HELPER CARDS */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="glass-panel p-6 rounded-2xl border border-main bg-surface shadow-sm">
                             <div className="flex items-center gap-2.5 mb-4">

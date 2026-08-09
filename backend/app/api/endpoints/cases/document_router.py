@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V9.0 (PRISTINE UN-WATERMARKED INSTANT UPLOAD)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V10.0 (RESILIENT DOCUMENT VALIDATION & PRISTINE UPLOAD)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -39,7 +39,19 @@ async def get_documents_for_case(
         "status": {"$ne": "DELETED"}
     })
     docs = list(cursor)
-    return [DocumentOut.model_validate(d) for d in docs]
+
+    validated_docs = []
+    for d in docs:
+        if "_id" in d and not d.get("storage_key"):
+            d["storage_key"] = f"doc_fallback_{str(d['_id'])}"
+        if "_id" in d and not d.get("file_name"):
+            d["file_name"] = "Dokument"
+        try:
+            validated_docs.append(DocumentOut.model_validate(d))
+        except Exception as err:
+            logger.warning(f"Document validation bypass for {d.get('_id')}: {err}")
+
+    return validated_docs
 
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_for_case(
@@ -50,12 +62,12 @@ async def upload_document_for_case(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    # ⚡ 1. Read raw pristine PDF bytes directly (0ms - No watermarks, no modifications)
+    # Read raw pristine PDF bytes directly (0ms - No watermarks, no modifications)
     pdf_bytes = await file.read()
     filename = file.filename or "document.pdf"
     content_type = file.content_type or "application/pdf"
 
-    # 2. Upload pristine bytes to storage
+    # Upload pristine bytes to storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -65,7 +77,7 @@ async def upload_document_for_case(
         content_type
     )
 
-    # 3. Immediately populate local SSD disk cache for instant 0ms previews
+    # Immediately populate local SSD disk cache for instant 0ms previews
     try:
         cache_file_name = key.replace('/', '_')
         cache_file_path = os.path.join(document_service.CACHE_DIR, cache_file_name)

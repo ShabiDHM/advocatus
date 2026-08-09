@@ -1,4 +1,6 @@
 // FILE: src/components/analysis/AnalysisModalHeader.tsx
+// PHOENIX PROTOCOL - ANALYSIS MODAL HEADER V34.0 (TASKBAR MINIMIZE BUTTON & CONTROLS)
+
 import React from 'react';
 import { Swords, Shield, ZoomIn, ZoomOut, Minimize2, Maximize2, Minus, X } from 'lucide-react';
 import { TFunction } from 'i18next';
@@ -12,6 +14,7 @@ interface AnalysisModalHeaderProps {
   onToggleZoom: () => void;
   isFullScreen: boolean;
   onToggleFullScreen: () => void;
+  onToggleMinimize: () => void;
   onClose: () => void;
   t: TFunction;
 }
@@ -24,6 +27,7 @@ export const AnalysisModalHeader: React.FC<AnalysisModalHeaderProps> = ({
   onToggleZoom,
   isFullScreen,
   onToggleFullScreen,
+  onToggleMinimize,
   onClose,
   t,
 }) => {
@@ -50,7 +54,7 @@ export const AnalysisModalHeader: React.FC<AnalysisModalHeaderProps> = ({
           </div>
         </div>
 
-        {/* Action Controls Header Bar with Minimize Icon right next to Close X */}
+        {/* Header Action Controls */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             type="button"
@@ -71,16 +75,16 @@ export const AnalysisModalHeader: React.FC<AnalysisModalHeaderProps> = ({
             type="button"
             onClick={onToggleFullScreen}
             className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all focus:outline-none"
-            title={isFullScreen ? 'Zvogëlo ekranin' : 'Zmadho në ekran të plotë'}
+            title={isFullScreen ? 'Zvogëlo në madhësi standarde' : 'Zmadho në ekran të plotë'}
           >
             {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={onToggleMinimize}
             className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
-            title="Zvogëlo dritaren"
+            title="Minimizo në taskbar"
           >
             <Minus size={18} />
           </button>
@@ -89,7 +93,7 @@ export const AnalysisModalHeader: React.FC<AnalysisModalHeaderProps> = ({
             type="button"
             onClick={onClose}
             className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
-            aria-label="Close modal"
+            aria-label="Mbyll"
             title="Mbyll"
           >
             <X size={20} />
