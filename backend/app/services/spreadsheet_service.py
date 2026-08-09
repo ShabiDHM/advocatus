@@ -1,5 +1,5 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V9.0 (STANDALONE ISOLATED FINANCIAL VECTOR STORE)
+# PHOENIX PROTOCOL - FORENSIC ENGINE V9.1 (FIXED STANDARD LOGGING GETLOGGER)
 
 import pandas as pd
 import io
@@ -23,7 +23,7 @@ from decimal import Decimal, ROUND_HALF_UP
 # Internal Services
 from . import llm_service
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # --- CONSTANTS & DATA STRUCTURES ---
 class RiskLevel(str, Enum):
@@ -188,11 +188,6 @@ def _is_weekend(date_str: str) -> bool:
 # --- STANDALONE ISOLATED FINANCIAL VECTOR STORE ---
 
 async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database, user_id: Optional[str] = None, filename: str = "Tabela Financiale"):
-    """
-    STANDALONE ISOLATED FINANCIAL VECTOR STORE.
-    Keeps forensic spreadsheet data inside 'financial_vectors' ONLY.
-    Prevents spreadsheet row chunks from polluting master 'user_vectors'.
-    """
     try:
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
@@ -212,12 +207,10 @@ async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database, 
                 })
 
         if financial_vectors:
-            # Delete existing financial vectors for this case in standalone financial_vectors collection
             await asyncio.to_thread(
                 db.financial_vectors.delete_many, 
                 {"$or": [{"case_id": case_oid}, {"case_id_str": str(case_id)}, {"case_id": str(case_id)}]}
             )
-            # Insert into standalone financial_vectors collection ONLY
             await asyncio.to_thread(db.financial_vectors.insert_many, financial_vectors)
             logger.info(f"✅ Stored {len(financial_vectors)} isolated financial vectors in 'financial_vectors' collection!")
 
@@ -230,7 +223,6 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
     anomalies = []
     amounts = [r['amount'] for r in records]
     
-    # 1. Benford's Law
     benford_score = _check_benfords_law(amounts)
     if benford_score and benford_score > 5.0:
         anomalies.append(AnomalyEvidence(
@@ -243,7 +235,6 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
             legal_hook=get_text('hook_benford', lang, score=f"{benford_score:.1f}")
         ))
 
-    # 2. Round Number Analysis
     round_counts = sum(1 for a in amounts if a % 1 == 0 or a % 10 == 0)
     if len(amounts) > 5:
         pct_round = (round_counts / len(amounts)) * 100
@@ -258,7 +249,6 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
                 legal_hook=get_text('hook_round', lang, pct=f"{pct_round:.1f}")
             ))
 
-    # 3. Duplicate Detection
     seen = {}
     for r in records:
         key = f"{r['amount']}_{r['date']}"
@@ -279,11 +269,8 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
                 legal_hook=get_text('hook_duplicate', lang, count=len(group), amount=group[0]['amount'], date=group[0]['date'])
             ))
 
-    # 4. Specific Transaction Checks
     for record in records:
         amt = abs(record['amount'])
-        
-        # Structuring check
         if THRESHOLD_STRUCTURING_MIN <= amt <= THRESHOLD_STRUCTURING_MAX:
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()), type=AnomalyType.STRUCTURING, risk_level=RiskLevel.HIGH,
@@ -291,7 +278,6 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
                 legal_hook=get_text('hook_structuring', lang, amount=f"{amt:,.2f}")
             ))
             
-        # Weekend High Value
         if amt > 500 and _is_weekend(record['date']):
             anomalies.append(AnomalyEvidence(
                 anomaly_id=str(uuid.uuid4()),
@@ -303,7 +289,6 @@ async def _forensic_detect_anomalies(records: List[Dict], lang: str) -> List[Ano
                 legal_hook=get_text('hook_weekend', lang, amount=f"{amt:,.2f}")
             ))
 
-    # 5. Cash Flow Deficit
     total_in = sum(r['amount'] for r in records if r['amount'] > 0)
     total_out = abs(sum(r['amount'] for r in records if r['amount'] < 0))
     deficit = total_out - total_in
@@ -394,7 +379,6 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
     
     executive_summary = await _generate_unified_strategic_memo(case_id, stats_for_llm, top_anomalies_for_llm, lang)
     
-    # STANDALONE FINANCIAL VECTOR STORE INJECTION (db.financial_vectors ONLY)
     await _vectorize_and_store(records, case_id, db, user_id=user_id, filename=filename)
     
     return {
@@ -402,7 +386,6 @@ async def _run_unified_analysis(content: bytes, filename: str, case_id: str, db:
         "anomalies": json_friendly_encoder([asdict(a) for a in anomalies_found]),
     }
 
-# --- PUBLIC FUNCTIONS ---
 async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, db: Database, user_id: Optional[str] = None, lang: str = 'sq') -> Dict[str, Any]:
     return await _run_unified_analysis(content, filename, case_id, db, user_id=user_id, lang=lang)
 
@@ -420,7 +403,6 @@ async def ask_financial_question(case_id: str, question: str, db: Database, lang
     
     case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
 
-    # Query standalone isolated financial_vectors collection ONLY
     rows = await asyncio.to_thread(
         list, 
         db.financial_vectors.find({"$or": [{"case_id": case_oid}, {"case_id_str": str(case_id)}, {"case_id": str(case_id)}]})
