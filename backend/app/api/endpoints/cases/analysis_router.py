@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 async def run_textual_case_analysis(
     case_id: str,
     client_position: Optional[str] = Query(None),
+    force: Optional[bool] = Query(False),
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
@@ -28,14 +29,9 @@ async def run_textual_case_analysis(
         db, 
         case_id, 
         str(current_user.id),
-        client_position=client_position
+        client_position=client_position,
+        force=force or False
     )
-    if analysis_result and "error" not in analysis_result:
-        await asyncio.to_thread(
-            db.cases.update_one,
-            {"_id": case_oid},
-            {"$set": {"latest_analysis": analysis_result, "updated_at": datetime.now(timezone.utc)}}
-        )
     return JSONResponse(content=analysis_result)
 
 @router.post("/{case_id}/analyze/clear", status_code=status.HTTP_200_OK)
@@ -48,7 +44,7 @@ async def clear_case_analysis_endpoint(
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
-        {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+        {"$unset": {"latest_analysis": "", "latest_deep_analysis": "", "analyzed_doc_fingerprints": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
     )
     return {"status": "success", "message": "Persistent analysis cleared successfully."}
 
@@ -64,11 +60,6 @@ async def run_deep_case_analysis(
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": case_oid},
-        {"$set": {"latest_deep_analysis": result, "updated_at": datetime.now(timezone.utc)}}
-    )
     return JSONResponse(result)
 
 @router.post("/{case_id}/deep-analysis/simulation", dependencies=[Depends(require_pro_tier)])

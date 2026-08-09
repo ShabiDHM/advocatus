@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V42.0 (SILKY-SMOOTH TYPEWRITER STREAMING ENGINE)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V46.0 (STRICT GATEKEEPER DISPLAY)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -107,8 +107,14 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
-      if (details && (details as any).latest_analysis) {
-        setAnalysisResult((details as any).latest_analysis);
+      if (details) {
+        const fullAnalysis = (details as any).latest_analysis
+          ? {
+              ...(details as any).latest_analysis,
+              latest_deep_analysis: (details as any).latest_deep_analysis || {}
+            }
+          : null;
+        setAnalysisResult(fullAnalysis);
       }
 
       const backendMessages = extractAndNormalizeHistory(details);
@@ -144,7 +150,6 @@ const CaseViewPage: React.FC = () => {
     setMinimizedDocument(null);
   }, [caseId]);
 
-  // ⚡ INSTANT EVIDENCE CITATION PREVIEW CLICK LISTENER
   useEffect(() => {
     const handleOpenDocPreview = (e: any) => {
       const { fileName, href } = e.detail || {};
@@ -206,34 +211,36 @@ const CaseViewPage: React.FC = () => {
 
   const handleRunAnalysis = async (force = false) => {
     if (!caseId) return;
-    const existingAnalysis = caseData.details && (caseData.details as any).latest_analysis ? (caseData.details as any).latest_analysis : analysisResult;
-
-    if (force && existingAnalysis) {
-      const lastDocIds: string[] = (existingAnalysis as any).analyzed_doc_ids || [];
-      const currentDocIds: string[] = liveDocuments.map((d) => String(d.id)).sort();
-      const isIdentical = lastDocIds.length > 0 && lastDocIds.length === currentDocIds.length && lastDocIds.slice().sort().every((id, idx) => id === currentDocIds[idx]);
-
-      if (isIdentical) {
-        setGatekeeperNotice('Nuk ka ndryshime në dokumentet e rastit. Për të ekzekutuar një ri-analizë të re, kërkohet të shtohet një dokument i ri ose të fshihet një dokument ekzistues.');
-        return;
-      }
-    }
 
     setIsAnalyzing(true);
-    setActiveModal('none');
 
     try {
       const activeRole = clientPosition || 'DEFENDANT';
       const result = selectedDocumentIds.length === 0
-        ? await apiService.analyzeCase(caseId, activeRole)
+        ? await apiService.analyzeCase(caseId, activeRole, force)
         : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
 
       if (result.error) {
         alert(result.error);
       } else {
-        const resultWithMeta = { ...result, analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(), client_position: activeRole };
+        const resultWithMeta = {
+          ...result,
+          latest_deep_analysis: result.latest_deep_analysis || (result as any).deep_analysis || {},
+          analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(),
+          client_position: activeRole
+        };
         setAnalysisResult(resultWithMeta);
-        setActiveModal('analysis');
+
+        if (result.cached) {
+          setGatekeeperNotice(
+            result.message || 'Nuk ka dokumente të reja apo të fshira në dosje. Po shfaqet analiza ekzistuese.'
+          );
+          setActiveModal('none');
+        } else {
+          setGatekeeperNotice(null);
+          setActiveModal('analysis');
+        }
+
         setCaseData((prev) => prev.details ? { details: { ...prev.details, client_position: activeRole, latest_analysis: resultWithMeta } } : prev);
       }
     } catch {
@@ -287,7 +294,6 @@ const CaseViewPage: React.FC = () => {
           return updated;
         });
 
-        // ⚡ TYPEWRITER FLUSH YIELD: Gives React 10ms to render token-by-token in real-time
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
@@ -399,7 +405,15 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
       <RoleSelectionModal isOpen={showRoleModal} onClose={() => setShowRoleModal(false)} onSelectRole={handleRoleChosen} />
-      <GatekeeperNoticeModal notice={gatekeeperNotice} documentCount={liveDocuments.length} onClose={() => setGatekeeperNotice(null)} />
+      <GatekeeperNoticeModal
+        notice={gatekeeperNotice}
+        documentCount={liveDocuments.length}
+        onClose={() => {
+          setGatekeeperNotice(null);
+          setActiveModal('analysis');
+        }}
+        onForceReanalyze={() => handleRunAnalysis(true)}
+      />
     </motion.div>
   );
 };

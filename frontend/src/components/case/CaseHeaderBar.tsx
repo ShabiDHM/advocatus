@@ -166,7 +166,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onRunAnalysis(true)}
+                  onClick={() => onRunAnalysis(false)}
                   disabled={isAnalyzing}
                   className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
                   title="Rianalizo sërish me AI"

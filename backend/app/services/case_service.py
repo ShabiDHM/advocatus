@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V8.0 (UNBREAKABLE TRILINGUAL EXHIBIT CONTEXT)
+# PHOENIX PROTOCOL - CASE SERVICE V9.0 (PERSISTENT MULTI-DEVICE DEEP ANALYSIS SYNC)
 
 import re
 import importlib
@@ -104,6 +104,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "updated_at": updated_at, 
             "chat_history": case_doc.get("chat_history", []), 
             "latest_analysis": case_doc.get("latest_analysis"), 
+            "latest_deep_analysis": case_doc.get("latest_deep_analysis"),
+            "analyzed_doc_fingerprints": case_doc.get("analyzed_doc_fingerprints"),
             **counts
         }
     except Exception as e:
@@ -120,7 +122,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "updated_at": datetime.now(timezone.utc), 
             "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0,
             "chat_history": [],
-            "latest_analysis": None
+            "latest_analysis": None,
+            "latest_deep_analysis": None
         }
 
 # --- CRUD OPERATIONS ---
@@ -171,10 +174,6 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
     return _map_case_document(case, db)
 
 def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> Dict[str, Any]:
-    """
-    TRILINGUAL CROSS-LINGUAL CONTEXT INGESTION (SQ + EN + DE)
-    Retrieves complete case metadata and attached document summaries/text regardless of language.
-    """
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")

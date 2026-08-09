@@ -1,5 +1,5 @@
 # FILE: backend/app/services/report_service/evidence_map_report.py
-# PHOENIX PROTOCOL - EVIDENCE MAP REPORT GENERATOR
+# PHOENIX PROTOCOL - EVIDENCE MAP REPORT GENERATOR (CLEAN TITLES & LEGAL DISCLAIMER)
 
 import io
 from datetime import datetime
@@ -18,9 +18,9 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
     
     report_parts: List[str] = []
     
-    report_parts.append(f"# {_get_text('map_report_title', lang)}")
-    report_parts.append(f"**{_get_text('map_case_id', lang)}** {case_title} ({case_id})")
-    report_parts.append(f"**{_get_text('footer_gen', lang)}** Juristi.tech | **{_get_text('date_issue', lang)}** {datetime.now().strftime('%d/%m/%Y')}")
+    report_parts.append("# Raporti i Ontologjisë")
+    report_parts.append(f"**Lënda:** {case_title}")
+    report_parts.append(f"**Data e Gjenerimit:** {datetime.now().strftime('%d/%m/%Y')}")
     report_parts.append("\n---\n")
 
     report_parts.append(f"## {_get_text('map_section_claims', lang)}\n")
@@ -76,4 +76,4 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
         report_parts.append("\n---\n")
 
     final_markdown = "\n".join(report_parts)
-    return create_pdf_from_text(final_markdown, _get_text('map_report_title', lang))
+    return create_pdf_from_text(final_markdown, "Raporti i Ontologjisë")

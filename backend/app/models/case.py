@@ -1,6 +1,5 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V11.0 (ANALYSIS PERSISTENCE)
-# 1. ADDED: 'latest_analysis' field to CaseInDB and CaseOut to store the persistent analytical reports.
+# PHOENIX PROTOCOL - CASE MODEL V12.0 (ADDED CLIENT_POSITION & DEEP ANALYSIS PERSISTENCE)
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -27,6 +26,7 @@ class CaseBase(BaseModel):
     status: str = "OPEN"
     client_id: Optional[PyObjectId] = None 
     org_id: Optional[PyObjectId] = None 
+    client_position: Optional[str] = "DEFENDANT"
     
     # Optional metadata
     court_name: Optional[str] = None
@@ -44,6 +44,7 @@ class CaseUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    client_position: Optional[str] = None
     court_name: Optional[str] = None
     judge_name: Optional[str] = None
     opponent_name: Optional[str] = None
@@ -58,7 +59,9 @@ class CaseInDB(CaseBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
-    latest_analysis: Optional[Dict[str, Any]] = None  # Persistent AI Analysis
+    latest_analysis: Optional[Dict[str, Any]] = None
+    latest_deep_analysis: Optional[Dict[str, Any]] = None
+    analyzed_doc_ids: Optional[List[str]] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -74,7 +77,9 @@ class CaseOut(CaseBase):
     
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
-    latest_analysis: Optional[Dict[str, Any]] = None  # Persistent AI Analysis
+    latest_analysis: Optional[Dict[str, Any]] = None
+    latest_deep_analysis: Optional[Dict[str, Any]] = None
+    analyzed_doc_ids: Optional[List[str]] = None
 
     # Explicitly exposed counters
     document_count: int = 0

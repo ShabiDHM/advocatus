@@ -1,5 +1,5 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V30.0 (ADDED CLIENT_POSITION TO CASE INTERFACE)
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V31.0 (ADDED CACHED, MESSAGE, & DEEP ANALYSIS TO CASEANALYSISRESULT)
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -144,6 +144,9 @@ export interface CaseAnalysisResult {
     red_flags?: string[]; 
     contradictions?: string[]; 
     chronology?: ChronologyEvent[]; 
+    cached?: boolean;
+    message?: string;
+    latest_deep_analysis?: DeepAnalysisResult;
     error?: string; 
 }
 

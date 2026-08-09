@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/graph_router.py
-# PHOENIX PROTOCOL - GRAPH ROUTER V3.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE ENDPOINT)
+# PHOENIX PROTOCOL - GRAPH ROUTER V4.0 (CLEAN REPORT TITLES & ARCHIVE EXPORT)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
@@ -155,9 +155,10 @@ async def export_and_archive_courtroom_graph_report(
 
     c_title = case_obj.get("title") or case_obj.get("name") or "Rast Ligjor"
 
-    # 1. Generate Official PDF Report Bytes
+    # 1. Generate Official PDF Report Bytes (No raw hex ObjectIDs)
     pdf_bytes = ontology_service.generate_court_report_pdf(db=db, case_id=case_id)
-    filename = f"Raporti_i_Ontologjise_Gjyqesore_{case_id[:8]}.pdf"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"Raporti_i_Ontologjise_{timestamp}.pdf"
     
     # 2. Upload PDF Bytes to Backblaze B2 Cloud Storage
     storage_key = await asyncio.to_thread(

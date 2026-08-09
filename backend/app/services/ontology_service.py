@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - MINI-FOUNDRY ONTOLOGY SERVICE V7.0 (UPDATED COURT REPORT HEADER)
+# PHOENIX PROTOCOL - ONTOLOGY SERVICE V9.0 (ALBANIAN ENTITY TYPE MAPPING & DISCLAIMER FOOTER)
 
 import logging
 import re
@@ -353,7 +353,7 @@ class OntologyService:
     def generate_court_report_pdf(self, db: Database, case_id: str) -> bytes:
         """
         Generates an official courtroom PDF report with ReportLab Tables, alternating row colors,
-        financial totals, and human-readable entity names.
+        financial totals, Albanian entity names, and legal disclaimer footer.
         """
         graph = self.get_case_graph(db, case_id)
         nodes = graph.get("nodes", [])
@@ -389,7 +389,7 @@ class OntologyService:
                 leftMargin=40,
                 rightMargin=40,
                 topMargin=40,
-                bottomMargin=40
+                bottomMargin=45
             )
 
             styles = getSampleStyleSheet()
@@ -398,8 +398,8 @@ class OntologyService:
                 'DocTitle',
                 parent=styles['Heading1'],
                 fontName='Helvetica-Bold',
-                fontSize=13,
-                leading=17,
+                fontSize=14,
+                leading=18,
                 textColor=colors.HexColor('#0f172a'),
                 spaceAfter=6
             )
@@ -409,7 +409,7 @@ class OntologyService:
                 parent=styles['Normal'],
                 fontName='Helvetica',
                 fontSize=9,
-                leading=12,
+                leading=13,
                 textColor=colors.HexColor('#475569'),
                 spaceAfter=12
             )
@@ -463,31 +463,45 @@ class OntologyService:
 
             elements = []
 
-            # 1. HEADER BLOCK (UPDATED ACCORDING TO USER SPECIFICATION)
-            elements.append(Paragraph("RAPORTI I ONTOLOGJISË SË PROVAVE DHE KANALEVE", title_style))
-            elements.append(Paragraph(f"Lënda: <b>{c_title}</b> | Data e Gjenerimit: <b>{now_str}</b> | Id e Lëndës: <font name='Courier'>{case_id[:12]}</font>", meta_style))
+            # 1. HEADER BLOCK (No raw hex ObjectIDs, clean title)
+            elements.append(Paragraph("Raporti i Ontologjisë", title_style))
+            elements.append(Paragraph(f"Lënda: <b>{c_title}</b> &nbsp;|&nbsp; Data e Gjenerimit: <b>{now_str}</b>", meta_style))
             elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563eb'), spaceAfter=14))
 
-            # 2. ENTITIES REGISTRY TABLE
+            # 2. ENTITIES REGISTRY TABLE WITH ALBANIAN ENTITY TYPE MAPPING
             elements.append(Paragraph(f"1. REGJISTRI I ENTITETEVE TË IDENTIFIKUARA ({len(nodes)})", section_heading))
 
             entity_table_data = [
                 [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>EMRI ZYRTAR (ENTITY)</b>", cell_bold), Paragraph("<b>LLOJI</b>", cell_bold), Paragraph("<b>PËRSHKRIMI / ROLI I DOKUMENTUAR</b>", cell_bold)]
             ]
 
+            type_map = {
+                "ORGANIZATION": "ORGANIZATA",
+                "COMPANY": "ORGANIZATA",
+                "INSTITUCIONE": "ORGANIZATA",
+                "PERSON": "PERSONA",
+                "PERSONA": "PERSONA",
+                "ACCOUNT": "LLOGARI BANKARE",
+                "LOCATION": "LOKACION",
+                "EVENT": "NGJARJE",
+                "DOCUMENT": "DOKUMENT"
+            }
+
             for i, n in enumerate(nodes, 1):
                 lbl = n.get("label") or n.get("name") or "Entitet"
-                ntype = n.get("type") or n.get("group") or "PERSON"
+                raw_ntype = str(n.get("type") or n.get("group") or "PERSON").upper()
+                ntype_clean = type_map.get(raw_ntype, "ORGANIZATA")
                 desc = n.get("description") or "N/A"
 
                 entity_table_data.append([
                     Paragraph(f"<b>[{i}]</b>", cell_text),
                     Paragraph(f"<b>{lbl}</b>", cell_bold),
-                    Paragraph(f"<font color='#2563eb'><b>{ntype}</b></font>", cell_text),
+                    Paragraph(f"<font color='#2563eb'><b>{ntype_clean}</b></font>", cell_text),
                     Paragraph(desc, cell_text)
                 ])
 
-            entity_table = Table(entity_table_data, colWidths=[24, 150, 95, 263])
+            # Exact 532pt Printable Width
+            entity_table = Table(entity_table_data, colWidths=[28, 140, 90, 274])
             entity_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -531,7 +545,8 @@ class OntologyService:
                     Paragraph(f"<i>\"{evidence}\"</i>", cell_italic)
                 ])
 
-            rel_table = Table(rel_table_data, colWidths=[20, 115, 115, 115, 167])
+            # Exact 532pt Printable Width
+            rel_table = Table(rel_table_data, colWidths=[24, 115, 115, 115, 163])
             rel_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -543,7 +558,18 @@ class OntologyService:
             ]))
             elements.append(rel_table)
 
-            doc.build(elements)
+            # Footer callback with legal disclaimer
+            def add_footer(canvas, doc_obj):
+                canvas.saveState()
+                canvas.setFont('Helvetica', 8)
+                canvas.setFillColor(colors.HexColor('#64748b'))
+                disclaimer_text = "Ky raport është për referencë ligjore dhe duhet të verifikohet."
+                canvas.drawString(40, 20, disclaimer_text)
+                page_num = canvas.getPageNumber()
+                canvas.drawRightString(612 - 40, 20, f"Faqja {page_num}")
+                canvas.restoreState()
+
+            doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
             buffer.seek(0)
             return buffer.getvalue()
 

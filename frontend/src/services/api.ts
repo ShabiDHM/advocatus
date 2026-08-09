@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V31.0 (RESILIENT CHAT STREAMING & ABORT-TIMEOUT SAFEGUARD)
+// PHOENIX PROTOCOL - API SERVICE V32.0 (RESILIENT CHAT STREAMING & CACHED 1-CLICK ANALYSIS)
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -355,9 +355,11 @@ class ApiService {
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
     
     // ========== ROLE-AWARE CASE ANALYSIS METHOD (DEFENDANT | PLAINTIFF | NEUTRAL) ==========
-    public async analyzeCase(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<CaseAnalysisResult> { 
-        const params = clientPosition ? { client_position: clientPosition } : {};
-        const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`, null, { params }); 
+    public async analyzeCase(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL', force?: boolean): Promise<CaseAnalysisResult & { cached?: boolean; message?: string; latest_deep_analysis?: DeepAnalysisResult }> { 
+        const params: any = {};
+        if (clientPosition) params.client_position = clientPosition;
+        if (force) params.force = force;
+        const response = await this.axiosInstance.post<any>(`/cases/${caseId}/analyze`, null, { params }); 
         return response.data; 
     }
     

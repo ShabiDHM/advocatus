@@ -1,4 +1,6 @@
 // FILE: src/utils/caseHelpers.ts
+// PHOENIX PROTOCOL - CASE HELPERS V9.0 (DYNAMIC DYNAMIC USER NAME SALUTATION)
+
 import { ChatMessage } from '../data/types';
 
 export const safeString = (val: any): string => {
@@ -45,12 +47,27 @@ export const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
 
 export const getUserSalutation = (user: any): string => {
   if (!user) return 'Avokat';
-  const rawName = (user.last_name || user.lastName || user.full_name || user.name || user.first_name || '').trim();
-  const cleanName = rawName.replace(/[\(\)]/g, '').replace(/admin/gi, '').trim();
 
-  if (!cleanName) return 'Avokat';
-  const parts = cleanName.split(' ');
-  const lastName = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  const fullName = (user.full_name || user.fullName || user.name || '').trim();
+  if (fullName) {
+    return fullName;
+  }
 
-  return lastName ? `z. ${lastName}` : 'Avokat';
+  const firstName = (user.first_name || user.firstName || user.username || '').trim();
+  const lastName = (user.last_name || user.lastName || '').trim();
+
+  if (firstName && lastName) {
+    return `${firstName} ${lastName}`;
+  }
+
+  if (firstName) {
+    return firstName;
+  }
+
+  if (user.email) {
+    const emailPrefix = user.email.split('@')[0];
+    return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+  }
+
+  return 'Avokat';
 };

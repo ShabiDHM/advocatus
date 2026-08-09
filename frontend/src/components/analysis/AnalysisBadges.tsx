@@ -53,26 +53,26 @@ export const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction 
 
 export const RenderRiskBadge: React.FC<{ level: string; t: TFunction }> = ({ level, t }) => {
   const l = level?.toUpperCase() || 'MEDIUM';
-  let styles = 'bg-warning-start/10 text-warning-start border-warning-start/20';
-  let icon = <Shield size={14} />;
+  let styles = 'bg-amber-500/15 text-amber-400 border-amber-500/40 shadow-sm shadow-amber-500/10';
+  let icon = <Shield size={14} className="text-amber-400" />;
   let label = t('analysis.risk_medium', 'I MESËM');
 
   if (l.includes('HIGH')) {
-    styles = 'bg-danger-start/10 text-danger-start border-danger-start/20';
-    icon = <ShieldAlert size={14} />;
+    styles = 'bg-rose-500/15 text-rose-400 border-rose-500/40 shadow-sm shadow-rose-500/10';
+    icon = <ShieldAlert size={14} className="text-rose-400" />;
     label = t('analysis.risk_high', 'I LARTË');
   } else if (l.includes('LOW')) {
-    styles = 'bg-success-start/10 text-success-start border-success-start/20';
-    icon = <ShieldCheck size={14} />;
+    styles = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-sm shadow-emerald-500/10';
+    icon = <ShieldCheck size={14} className="text-emerald-400" />;
     label = t('analysis.risk_low', 'I ULËT');
   }
 
   return (
-    <div className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border ${styles} shadow-sm w-full sm:w-auto`}>
+    <div className={`flex items-center justify-center gap-2 px-3 py-1 rounded-lg border ${styles} w-full sm:w-auto`}>
       {icon}
-      <div className="flex items-center gap-1.5 text-[11px] font-black tracking-widest uppercase">
-        <span className="opacity-70">{t('analysis.risk_label', 'RREZIKU')}</span>
-        <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+      <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase">
+        <span className="opacity-75">{t('analysis.risk_label', 'RREZIKU')}</span>
+        <span className="w-1 h-1 rounded-full bg-current opacity-60" />
         <span>{label}</span>
       </div>
     </div>
@@ -83,11 +83,11 @@ export const RenderSuccessBadge: React.FC<{ prob: string | null; t: TFunction }>
   if (!prob) return null;
   return (
     <SuccessTooltip t={t}>
-      <div className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border bg-primary-start/10 text-primary-start border-primary-start/20 shadow-sm w-full sm:w-auto cursor-help">
-        <Percent size={14} />
-        <div className="flex items-center gap-1.5 text-[11px] font-black tracking-widest uppercase">
-          <span className="opacity-70">SUKSESI</span>
-          <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+      <div className="flex items-center justify-center gap-2 px-3 py-1 rounded-lg border bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-sm shadow-emerald-500/10 w-full sm:w-auto cursor-help">
+        <Percent size={14} className="text-emerald-400" />
+        <div className="flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase">
+          <span className="opacity-75">SUKSESI</span>
+          <span className="w-1 h-1 rounded-full bg-current opacity-60" />
           <span>{prob}</span>
         </div>
       </div>

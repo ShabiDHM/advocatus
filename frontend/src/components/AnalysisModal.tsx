@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V32.0 (DECOUPLED & MODULARIZED ATOMIC ARCHITECTURE)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V33.0 (1-CLICK INSTANT DEEP ANALYSIS PRE-LOADED)
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scale, Swords, CheckCircle2 } from 'lucide-react';
@@ -41,6 +41,20 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   useLockBodyScroll(isOpen);
 
+  // Instantly extract pre-calculated deep analysis from 1-click single response
+  const activeDeepResult: DeepAnalysisResult | null = useMemo(() => {
+    const existing =
+      (result as any)?.latest_deep_analysis ||
+      (result as any)?.deep_analysis ||
+      (result as any)?.deep_result ||
+      deepResult;
+
+    if (existing && (existing.adversarial_simulation || existing.chronology || existing.contradictions)) {
+      return existing;
+    }
+    return deepResult;
+  }, [result, deepResult]);
+
   useEffect(() => {
     if (isOpen) {
       setActiveTab('legal');
@@ -55,11 +69,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const handleWarRoomEntry = async () => {
     setActiveTab('war_room');
 
-    const existingDeep =
-      deepResult || (result as any)?.latest_deep_analysis || (result as any)?.deep_analysis || (result as any)?.deep_result;
-
-    if (existingDeep && (existingDeep.adversarial_simulation || existingDeep.chronology || existingDeep.contradictions)) {
-      if (!deepResult) setDeepResult(existingDeep);
+    if (activeDeepResult && (activeDeepResult.adversarial_simulation || activeDeepResult.chronology || activeDeepResult.contradictions)) {
       return;
     }
 
@@ -104,10 +114,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   };
 
   const handleArchiveStrategy = async () => {
-    if (!deepResult || isArchiving) return;
+    if (!activeDeepResult || isArchiving) return;
     setIsArchiving(true);
     try {
-      await apiService.archiveStrategyReport(caseId, result, deepResult);
+      await apiService.archiveStrategyReport(caseId, result, activeDeepResult);
       alert(t('analysis.archive_success', 'Strategjia u ruajt me sukses në dosjen e rastit në Arkiv!'));
     } catch {
       alert(t('analysis.archive_error', 'Dështoi ruajtja në arkiv.'));
@@ -181,24 +191,29 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
           {!isLoading && (
             <>
-              <div className="flex border-b border-main px-6 bg-canvas shrink-0 overflow-x-auto no-scrollbar gap-6">
+              {/* Professional Main Navigation Tabs */}
+              <div className="flex border-b border-main px-3 sm:px-6 py-2.5 bg-surface shrink-0 overflow-x-auto no-scrollbar scroll-smooth gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setActiveTab('legal')}
-                  className={`py-3 text-[11px] font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap focus:outline-none ${
-                    activeTab === 'legal' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-text-primary'
+                  className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap focus:outline-none shrink-0 ${
+                    activeTab === 'legal'
+                      ? 'bg-primary-start text-white shadow-md shadow-primary-start/20'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-hover'
                   }`}
                 >
-                  <Scale size={15} /> {t('analysis.tab_legal', 'Analiza Ligjore')}
+                  <Scale size={14} /> {t('analysis.tab_legal', 'Analiza Ligjore')}
                 </button>
                 <button
                   type="button"
                   onClick={handleWarRoomEntry}
-                  className={`py-3 text-[11px] font-black uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all whitespace-nowrap focus:outline-none ${
-                    activeTab === 'war_room' ? 'border-primary-start text-primary-start' : 'border-transparent text-text-secondary hover:text-primary-start'
+                  className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap focus:outline-none shrink-0 ${
+                    activeTab === 'war_room'
+                      ? 'bg-primary-start text-white shadow-md shadow-primary-start/20'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-hover'
                   }`}
                 >
-                  <Swords size={15} /> {t('analysis.tab_war_room', 'Dhoma e Luftës')}
+                  <Swords size={14} /> {t('analysis.tab_war_room', 'Dhoma e Luftës')}
                 </button>
               </div>
 
@@ -220,7 +235,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
                   {activeTab === 'war_room' && (
                     <WarRoomTab
-                      deepResult={deepResult}
+                      deepResult={activeDeepResult}
                       strategicAnalysis={strategic_analysis}
                       weaknesses={weaknesses}
                       actionPlan={action_plan}
@@ -239,9 +254,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
             <button
               type="button"
               onClick={handleArchiveStrategy}
-              disabled={isArchiving || !deepResult}
+              disabled={isArchiving || !activeDeepResult}
               className={`w-full sm:w-auto h-10 px-5 rounded-xl text-xs uppercase tracking-wider font-bold transition-all flex items-center justify-center gap-2 border focus:outline-none ${
-                isArchiving || !deepResult
+                isArchiving || !activeDeepResult
                   ? 'bg-canvas text-text-disabled border-main cursor-not-allowed'
                   : 'bg-status-success/15 text-status-success border-status-success/20 hover:bg-status-success/20 active:scale-95'
               }`}

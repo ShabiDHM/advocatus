@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V65.0 (ELEVATED COLUMN HEADERS & CLEAN CONTRADICTION GLOW)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V66.0 (THEME AWARE & HIGH-CONTRAST ZOOM TOOLBAR)
 
 import React from 'react';
 import { ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
@@ -100,7 +100,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     <div className="flex-1 h-full w-full relative">
       <svg
         ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing select-none bg-[radial-gradient(#1e293b_1.5px,transparent_1.5px)] [background-size:32px_32px]"
+        className="w-full h-full cursor-grab active:cursor-grabbing select-none bg-[radial-gradient(#334155_1.5px,transparent_1.5px)] [background-size:32px_32px]"
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -143,7 +143,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   y1={-1200}
                   x2={xPos + 280}
                   y2={1200}
-                  stroke="#1e293b"
+                  stroke="#334155"
                   strokeWidth="1.5"
                   strokeDasharray="6,6"
                 />
@@ -155,7 +155,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                     width="220"
                     height="40"
                     rx="20"
-                    fill="#0d1322"
+                    fill="#0f172a"
                     stroke="#2563eb"
                     strokeWidth="2"
                     className="shadow-2xl"
@@ -187,12 +187,10 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
             const midX = (s.x + t.x) / 2;
             const midY = (s.y + t.y) / 2 + 10;
 
-            // Render text badge ONLY when hovered or selected to prevent overlaps
             const showBadge = isHovered || isSelected;
 
             return (
               <g key={edge.id} style={{ opacity: edgeOpacity }} className="transition-opacity duration-200">
-                {/* 28px Invisible Hit Area for Instant Hovering */}
                 <path
                   d={pathD}
                   fill="none"
@@ -204,7 +202,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   onMouseLeave={() => onHoverEdge(null)}
                 />
 
-                {/* Fiber-Optic Glowing Edge Line */}
                 <path
                   d={pathD}
                   fill="none"
@@ -215,7 +212,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   className="pointer-events-none transition-all duration-200"
                 />
 
-                {/* Text Badge Renders ONLY When Hovered/Selected */}
                 {showBadge && (
                   <g transform={`translate(${midX}, ${midY})`} className="pointer-events-none">
                     <rect
@@ -276,7 +272,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   onNodeDragStart(node.id);
                 }}
               >
-                {/* Active Selection Glowing Halo */}
                 {isSelected && (
                   <rect
                     x={-cardW / 2 - 8}
@@ -291,7 +286,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   />
                 )}
 
-                {/* Glassmorphism Card Background */}
                 <rect
                   x={-cardW / 2}
                   y={-cardH / 2}
@@ -299,12 +293,11 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   height={cardH}
                   rx="16"
                   fill="url(#nodeGlassBg)"
-                  stroke={isSelected ? '#ffffff' : '#1e293b'}
+                  stroke={isSelected ? '#ffffff' : '#334155'}
                   strokeWidth={isSelected ? '2.5' : '1.5'}
                   className="shadow-2xl transition-transform duration-150 group-hover:scale-105"
                 />
 
-                {/* Left Type Side Indicator Bar */}
                 <rect
                   x={-cardW / 2}
                   y={-cardH / 2}
@@ -314,7 +307,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   fill={conf.bg}
                 />
 
-                {/* Type Icon Badge */}
                 <g transform={`translate(${-cardW / 2 + 30}, 0)`}>
                   <circle r="16" fill={conf.bg} className="shadow-md" />
                   <foreignObject x="-8" y="-8" width="16" height="16" className="pointer-events-none">
@@ -324,7 +316,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   </foreignObject>
                 </g>
 
-                {/* Entity Name Label */}
                 <text
                   x={-cardW / 2 + 56}
                   y="-5"
@@ -336,7 +327,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   {displayLabel.length > 18 ? `${displayLabel.substring(0, 16)}..` : displayLabel}
                 </text>
 
-                {/* Category Subtitle */}
                 <text
                   x={-cardW / 2 + 56}
                   y="15"
@@ -348,7 +338,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
                   {conf.albanianLabel}
                 </text>
 
-                {/* Connection Count Badge Pill */}
                 {connCount > 0 && (
                   <g transform={`translate(${cardW / 2 - 28}, ${-cardH / 2 + 16})`}>
                     <rect
@@ -380,15 +369,30 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         </g>
       </svg>
 
-      {/* FLOATING ZOOM CONTROLS */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-[#0d1322]/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 shadow-2xl z-20">
-        <button type="button" onClick={onZoomIn} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Zmadho">
+      {/* THEME AWARE & HIGH-CONTRAST FLOATING ZOOM CONTROLS TOOLBAR */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
+        <button
+          type="button"
+          onClick={onZoomIn}
+          className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
+          title="Zmadho"
+        >
           <ZoomIn size={16} />
         </button>
-        <button type="button" onClick={onResetZoom} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Reset View">
+        <button
+          type="button"
+          onClick={onResetZoom}
+          className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
+          title="Rivendos Pamjen"
+        >
           <Maximize2 size={15} />
         </button>
-        <button type="button" onClick={onZoomOut} className="p-2 text-text-muted hover:text-text-primary rounded-xl" title="Zvogëlo">
+        <button
+          type="button"
+          onClick={onZoomOut}
+          className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
+          title="Zvogëlo"
+        >
           <ZoomOut size={16} />
         </button>
       </div>

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/report_service/strategy_report.py
-# PHOENIX PROTOCOL - ONTOLOGY-GRADE EXECUTIVE STRATEGY REPORT GENERATOR
+# PHOENIX PROTOCOL - ONTOLOGY-GRADE EXECUTIVE STRATEGY REPORT GENERATOR V34.0
 
 import io
 import re
@@ -17,8 +17,8 @@ logger = structlog.get_logger(__name__)
 
 def create_pdf_from_text(text: str, document_title: str, header_meta_content_html: Optional[str] = None) -> io.BytesIO:
     """
-    ⚡ ONTOLOGY GRADE: Generates a high-trust, publication-grade PDF report matching 
-    the clean table/card layout of the Ontology Report. 0 empty pages, clean white paper.
+    Generates a publication-grade PDF report matching clean table/card layout.
+    No raw hex ObjectIDs, includes required legal disclaimer footer on every page.
     """
     buffer = io.BytesIO()
     
@@ -26,7 +26,7 @@ def create_pdf_from_text(text: str, document_title: str, header_meta_content_htm
     html_body = markdown2.markdown(clean_text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
 
     generation_date = datetime.now().strftime('%d.%m.%Y %H:%M')
-    display_title = escape(document_title) if document_title and "Pa Titull" not in document_title else "RAPORTI I STRATEGJISË LIGJORE"
+    display_title = "RAPORTI I ANALIZËS"
     meta_html = header_meta_content_html or ""
 
     header_html = f"""
@@ -42,7 +42,7 @@ def create_pdf_from_text(text: str, document_title: str, header_meta_content_htm
     <div id='footer_content' style='font-size: 8pt; color: #64748b;'>
         <table width="100%" style="border-top: 1px solid #e2e8f0; padding-top: 4px;">
             <tr>
-                <td align="left" style="color: #64748b;">Juristi AI System — Dokument Konfidencial Zyrtar</td>
+                <td align="left" style="color: #64748b;">Ky raport është për referencë ligjore dhe duhet të verifikohet.</td>
                 <td align="right" style="color: #64748b;">Data e Gjenerimit: {generation_date}</td>
             </tr>
         </table>
@@ -75,7 +75,7 @@ def create_pdf_from_text(text: str, document_title: str, header_meta_content_htm
 
 def generate_legal_strategy_report(case_title: str, raw_report_markdown: str, lang: str = "sq") -> io.BytesIO:
     """Generates an executive Legal Strategy Report PDF in clean Ontology style."""
-    main_title = _get_text('analysis_title', lang)
+    main_title = "RAPORTI I ANALIZËS"
     display_case_title = case_title if case_title and case_title.strip() != "" else "Pa Titull"
     header_meta_content_html = f"<span><b>{_get_text('report_case_label', lang)}</b> {escape(display_case_title)}</span>"
     

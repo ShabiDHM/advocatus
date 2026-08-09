@@ -1,6 +1,8 @@
 // FILE: src/components/graph/GraphToolbar.tsx
+// PHOENIX PROTOCOL - GRAPH TOOLBAR V66.0 (THEME AWARE, RUAJ PILL, CIRCLE REFRESH ICON)
+
 import React from 'react';
-import { Search, RefreshCw, Download, Sparkles, Filter, LayoutGrid, Clock, Network } from 'lucide-react';
+import { Search, RefreshCw, Sparkles, Filter, LayoutGrid, Clock, Network } from 'lucide-react';
 import { EntityType, ENTITY_CONFIG, OntologyNode } from './graphTypes';
 
 interface GraphToolbarProps {
@@ -50,7 +52,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase border transition-all shadow-sm ${
               simplifiedView
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                : 'bg-canvas text-text-secondary border-main hover:text-text-primary'
             }`}
           >
             <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
@@ -68,21 +70,21 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
             />
           </div>
 
-          <div className="hidden md:flex items-center gap-2 bg-[#0d1322] px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs font-bold shrink-0 shadow-lg">
+          <div className="hidden md:flex items-center gap-2 bg-canvas px-3 py-1.5 rounded-xl border border-main text-xs font-bold shrink-0 shadow-sm">
             <Filter size={13} className="text-primary-start" />
             <select
               value={activeFilter}
               onChange={(e) => onFilterChange(e.target.value)}
-              className="bg-[#0d1322] text-white focus:outline-none cursor-pointer uppercase font-bold text-xs"
+              className="bg-canvas text-text-primary focus:outline-none cursor-pointer uppercase font-bold text-xs"
             >
-              <option value="ALL" className="bg-[#0d1322] text-white">
+              <option value="ALL" className="bg-surface text-text-primary">
                 Gjithë Entitetet ({filteredCount})
               </option>
               {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
                 const count = nodes.filter((n) => n.type === type).length || 0;
                 if (count === 0) return null;
                 return (
-                  <option key={type} value={type} className="bg-[#0d1322] text-white">
+                  <option key={type} value={type} className="bg-surface text-text-primary">
                     {ENTITY_CONFIG[type].albanianLabel} ({count})
                   </option>
                 );
@@ -92,23 +94,26 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
         </div>
 
         <div className="flex items-center justify-end gap-2 shrink-0">
+          {/* Ruaj Pill Button */}
           <button
             type="button"
             onClick={onExportCourtReport}
             disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-hover border border-main text-text-primary rounded-xl text-xs font-bold uppercase disabled:opacity-50"
+            className="px-4 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-full text-xs font-black uppercase tracking-wider shadow-sm transition-all focus:outline-none disabled:opacity-50"
           >
-            <Download className="w-4 h-4 text-primary-start" /> <span>{exporting ? '...' : 'Eksporto'}</span>
+            {exporting ? '...' : 'Ruaj'}
           </button>
 
+          {/* Circle Refresh Icon Only */}
           <button
             type="button"
             onClick={onRebuildGraph}
             disabled={rebuilding}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-black uppercase shadow-md"
+            className="p-2 bg-surface hover:bg-hover border border-main text-text-primary rounded-full transition-all focus:outline-none"
+            title="Rirregullo Grafikun"
+            aria-label="Rirregullo Grafikun"
           >
-            <RefreshCw className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} />{' '}
-            <span>{rebuilding ? '...' : 'Rirregullo'}</span>
+            <RefreshCw className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>

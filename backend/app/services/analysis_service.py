@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - UNIFIED ANALYSIS & ONTOLOGY-GRADE REPORT ENGINE V33.0
+# PHOENIX PROTOCOL - UNIFIED ANALYSIS & FULL STRATEGY REPORT ARCHIVER V36.0
 
 import asyncio
 import structlog
@@ -91,7 +91,13 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
     except Exception: 
         return False
 
-async def cross_examine_case(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
+async def cross_examine_case(
+    db: Database, 
+    case_id: str, 
+    user_id: str, 
+    client_position: Optional[str] = None,
+    force: bool = False
+) -> Dict[str, Any]:
     if not authorize_case_access(db, case_id, user_id): 
         return {"error": "Pa autorizim."}
     
@@ -104,6 +110,32 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     client_name = case.get("client_name") or case.get("client", {}).get("name") or case.get("title") or "Pala Kliente"
     opposing_name = case.get("opposing_party") or case.get("opponent") or "Pala Kundërshtare"
 
+    # Compute document fingerprints for document change detection
+    doc_filter = {"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}}
+    documents = await asyncio.to_thread(lambda: list(db.documents.find(doc_filter, {"_id": 1, "updated_at": 1})))
+    current_doc_ids = sorted([str(d["_id"]) for d in documents])
+
+    cached_analysis = case.get("latest_analysis")
+    cached_deep = case.get("latest_deep_analysis")
+    saved_doc_ids = case.get("analyzed_doc_ids") or case.get("analyzed_doc_fingerprints")
+
+    # GATEKEEPER CHECK: If case has existing analysis and force is False
+    if not force and cached_analysis:
+        if saved_doc_ids is None or saved_doc_ids == current_doc_ids:
+            await asyncio.to_thread(
+                db.cases.update_one,
+                {"_id": c_oid},
+                {"$set": {"analyzed_doc_ids": current_doc_ids}}
+            )
+            logger.info("Serving cached analysis - gatekeeper active", case_id=case_id)
+            return {
+                **cached_analysis,
+                "latest_deep_analysis": cached_deep or {},
+                "cached": True,
+                "message": "Nuk ka dokumente të reja apo të fshira në dosje. Po shfaqet analiza ekzistuese."
+            }
+
+    # Parallel Execution: Runs primary analysis + full War Room deep analysis in 1 click
     context_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     facts_only_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=False)
     
@@ -121,9 +153,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     3. Përshkruaj me precizion të gjitha vlerat monetare dhe llogarit kamatën ligjore prej 8% në vit (LMD Neni 382) mbi çdo dëm ose mjet të shmangur.
     4. MOS PERVERTO PALËT: Rreptësisht dallo Paditësin/Dëmtuarin nga i Padituri/Shkelësi. Mos ia vish shkeljet e drejtorëve apo ortakëve shoqërisë së dëmtuar!
     5. CITIMET STATUTORE TË SAKTA:
-       - Prokura & Afati Prekluziv: LPK (Ligji Nr. 03/L-006) Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
+       - Prokura & Afati Prekluziv: LPK (Ligji Nr. 03/L-006) Neni 91 par 3, Neni 92 & Neni 93.3.
        - Refuzimi / Ndryshimi i Padisë: LPK Neni 256 par 1 & Neni 258.
-       - Këqyrja e Shkresave: LPK Neni 122.1 (JO Neni 113).
+       - Këqyrja e Shkresave: LPK Neni 122.1.
        - Masa e Sigurisë / Ngrirja e Llogarive: LPK Neni 297, 298, 299 (299.1 pika a).
        - Shkelja e Detyrës së Besnikërisë & Ndalimi i Konkurrencës: LSHT (Ligji Nr. 06/L-016) Neni 258 (par 1, 2, 3).
        - Shpërblimi i Dëmit & Pasurimi i Pabazë: LMD (Ligji Nr. 04/L-077) Neni 136 & Neni 141.
@@ -136,12 +168,12 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     Përgjigju VETËM si një objekt JSON me këtë strukturë të saktë:
     
     {{
-      "executive_summary": "### 👨‍💼 UDHËZUESI PËR QYTETARIN (Gjuhë e Thjeshtë)\\n[Shpjegimi i thjeshtë i fakteve me gjuhë të thjeshtë]\\n\\n### ⚖️ ANALIZA PROFESIONALE E AVOKATIT\\n[Analiza teknike procedurale]",
+      "executive_summary": "[Përmbledhje ekzekutive e rastit në gjuhë të thjeshtë dhe profesionale ligjore]",
       "legal_audit": {{
           "burden_of_proof": "Shpjegimi dinamik se kush e mban barrën e provës sipas faktikave të fashikullit.",
           "legal_basis": [
             {{
-              "title": "Baza ligjore e identifikuar (p.sh. LSHT Neni 258 ose LMD Neni 136/141/382)",
+              "title": "Baza ligjore e identifikuar",
               "article": "Neni përkatës",
               "relevance": "Arsyetimi pse ky nen është vendimtar për rastin"
             }}
@@ -159,8 +191,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
              "Argumenti ligjor procedural ose material nga fashikulli"
           ],
           "action_plan": [
-             "HAPAT PËR QYTETARIN: Veprimi praktik me terma të qartë",
-             "HAPAT PËR AVOKATIN: Veprimi procedural në gjykatë sipas LPK/LSHT/LMD"
+             "Veprimi praktik dhe procedural i rekomanduar"
           ],
           "success_probability": "75%",
           "risk_level": "MEDIUM"
@@ -220,11 +251,18 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         {"$set": {
             "latest_analysis": primary_analysis,
             "latest_deep_analysis": deep_analysis,
+            "analyzed_doc_ids": current_doc_ids,
+            "client_position": effective_position,
             "updated_at": datetime.now(timezone.utc)
         }}
     )
 
-    return primary_analysis
+    return {
+        **primary_analysis,
+        "latest_deep_analysis": deep_analysis,
+        "cached": False,
+        "message": "Analiza u krye me sukses."
+    }
 
 async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -233,9 +271,8 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_pos
     if case.get("latest_deep_analysis"):
         return case["latest_deep_analysis"]
 
-    await cross_examine_case(db, case_id, user_id, client_position=client_position)
-    updated_case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid}) or {}
-    return updated_case.get("latest_deep_analysis", {})
+    res = await cross_examine_case(db, case_id, user_id, client_position=client_position)
+    return res.get("latest_deep_analysis", {})
 
 async def archive_full_strategy_report(db: Database, case_id: str, user_id: str, legal_data: Dict[str, Any], deep_data: Dict[str, Any], lang: str = "sq") -> Dict[str, Any]:
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
@@ -248,7 +285,7 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     position = (case.get("client_position") or "DEFENDANT").upper()
     role_label = "I PADITUR / MBROJTJE" if position == "DEFENDANT" else "PADITËS / SULM"
 
-    md = f"# STRATEGJIA LIGJORE DHE DEKLARATA E RASTIT ({role_label})\n\n"
+    md = f"# STRATEGJIA LIGJORE E RASTIT ({role_label})\n\n"
     
     # 1. PËRMBLEDHJA LIGJORE
     md += "## 1. PËRMBLEDHJA LIGJORE\n"
@@ -259,7 +296,7 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     if legal_data.get('burden_of_proof'):
         md += f"> **BARRA E PROVËS:** {legal_data.get('burden_of_proof', '')}\n\n"
     
-    # 2. REGJISTRI I BAZËS LIGJORE DHE RELEVANCËS (STRUCTURED ONTOLOGY TABLE)
+    # 2. REGJISTRI I BAZËS LIGJORE DHE RELEVANCËS
     legal_basis_list = legal_data.get('legal_basis', [])
     if legal_basis_list:
         md += "## 2. REGJISTRI I BAZËS LIGJORE DHE RELEVANCËS\n\n"
@@ -281,18 +318,48 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     # Action Plan Table
     action_plan = legal_data.get('action_plan', [])
     if action_plan:
-        md += "### PLANI I HAPAVE TË VEPRIMIT (ACTION PLAN)\n\n"
+        md += "### PLANI I HAPAVE TË VEPRIMIT\n\n"
         md += "| # | ROLI | VEPRIMI STRATEGJIK I REKOMANDUAR |\n"
         md += "|---|---|---|\n"
         for idx, act in enumerate(action_plan, 1):
-            act_clean = str(act).replace('|', '-')
-            role = "QYTETARI" if "QYTETAR" in act_clean.upper() else "AVOKATI"
+            act_clean = str(act).replace('|', '-').replace('HAPAT PËR QYTETARIN:', '').replace('HAPAT PËR AVOKATIN:', '').strip()
+            role = "QYTETARI" if "QYTETAR" in str(act).upper() else "AVOKATI"
             badge_class = "badge-green" if role == "QYTETARI" else "badge-blue"
             md += f"| [{idx}] | <span class=\"badge {badge_class}\">{role}</span> | {act_clean} |\n"
         md += "\n"
 
+    # 4. KRONOLOGJIA E FAKTEVE
+    chronology = deep_data.get('chronology', []) if isinstance(deep_data, dict) else []
+    if chronology:
+        md += "## 4. KRONOLOGJIA E FAKTEVE\n\n"
+        md += "| DATAT / PERIUDHA | EVENTI DHE PROVA ORIGJINALE |\n"
+        md += "|---|---|\n"
+        for ev in chronology:
+            if isinstance(ev, dict):
+                d_str = str(ev.get('date', 'Datë e pacaktuar')).replace('|', '-')
+                e_str = str(ev.get('event', '')).replace('|', '-').replace('\n', ' ')
+                md += f"| **{d_str}** | {e_str} |\n"
+        md += "\n"
+
+    # 5. KONTRADIKTAT DHE MOSPËRPUTHJET FAKTIKE
+    contradictions = deep_data.get('contradictions', []) if isinstance(deep_data, dict) else []
+    if contradictions:
+        md += "## 5. KONTRADIKTAT DHE MOSPËRPUTHJET FAKTIKE\n\n"
+        md += "| # | SEVERITETI | DEKLARATA E PALËS | PROVA OBJEKTIVE DHE NDIKIMI |\n"
+        md += "|---|---|---|---|\n"
+        for idx, c in enumerate(contradictions, 1):
+            if isinstance(c, dict):
+                sev = str(c.get('severity', 'HIGH')).upper()
+                claim = str(c.get('claim', '')).replace('|', '-').replace('\n', ' ')
+                evidence = str(c.get('evidence', '')).replace('|', '-').replace('\n', ' ')
+                impact = str(c.get('impact', '')).replace('|', '-').replace('\n', ' ')
+                badge_class = "badge-red" if "HIGH" in sev or "CRIT" in sev else "badge-yellow"
+                sev_label = "KRITIKE" if "CRIT" in sev or "HIGH" in sev else "E MESME"
+                md += f"| [{idx}] | <span class=\"badge {badge_class}\">{sev_label}</span> | *\"{claim}\"* | **PROVA:** {evidence}<br/>**NDIKIMI:** {impact} |\n"
+        md += "\n"
+
     try:
-        main_report_title = _get_text('analysis_title', lang)
+        main_report_title = "RAPORTI I ANALIZËS"
         pdf_buffer = report_service.create_pdf_from_text(
             text=md, 
             document_title=main_report_title, 
@@ -305,12 +372,12 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
 
     archiver = archive_service.ArchiveService(db)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    filename = f"{_get_text('analysis_title', lang).replace(' ', '_')}_{case_name.replace(' ', '_')}_{timestamp}.pdf"
+    filename = f"Raporti_i_Analizes_{case_name.replace(' ', '_')}_{timestamp}.pdf"
     
     try:
         archive_item = await archiver.save_generated_file(
             user_id=user_id, filename=filename, content=pdf_bytes,
-            category="CASE_FILE", title=f"{_get_text('analysis_title', lang)} ({role_label}): {case_name}", case_id=case_id
+            category="CASE_FILE", title=f"Raporti i Analizës ({role_label}): {case_name}", case_id=case_id
         )
         return {"status": "success", "item_id": str(archive_item.id)}
     except Exception as e:
