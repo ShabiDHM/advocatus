@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - UNIFIED ANALYSIS & WAR ROOM ENGINE V32.0 (PARALLEL SINGLE-PASS DYNAMIC EXECUTION)
+# PHOENIX PROTOCOL - UNIFIED ANALYSIS & ONTOLOGY-GRADE REPORT ENGINE V33.0
 
 import asyncio
 import structlog
@@ -25,7 +25,6 @@ async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, inc
     
     q = f"{case.get('title', '')} {case.get('case_name', '')} {case.get('description', '')}" if case else "Legal analysis"
     
-    # 1. Fetch Top Vector Chunks
     tasks = [
         asyncio.to_thread(vector_store_service.query_case_knowledge_base, user_id=user_id, query_text=q, case_context_id=case_id, n_results=15)
     ]
@@ -37,7 +36,6 @@ async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, inc
     case_facts = results[0]
     global_laws = results[1] if include_laws else []
 
-    # 2. Fetch ALL Uploaded Case Documents directly with Strict Isolation Tags
     doc_filter = {"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}}
     documents = await asyncio.to_thread(lambda: list(db.documents.find(doc_filter)))
 
@@ -94,10 +92,6 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 async def cross_examine_case(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """
-    PHOENIX ENGINE: Unified Single-Pass Master Case & War Room Analysis.
-    Generates primary analysis AND Dhoma e Luftës deep strategy in parallel dynamically.
-    """
     if not authorize_case_access(db, case_id, user_id): 
         return {"error": "Pa autorizim."}
     
@@ -107,11 +101,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid}) or {}
     effective_position = (client_position or case.get("client_position") or case.get("client_role") or "DEFENDANT").upper()
     
-    # Fully Dynamic Extraction of Names (0 Hardcoded Defaults)
     client_name = case.get("client_name") or case.get("client", {}).get("name") or case.get("title") or "Pala Kliente"
     opposing_name = case.get("opposing_party") or case.get("opponent") or "Pala Kundërshtare"
 
-    # Fetch context with document boundary isolation
     context_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     facts_only_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=False)
     
@@ -177,7 +169,6 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     }}
     """
     
-    # PARALLEL UNIFIED EXECUTION: Primary Analysis + War Room Strategy
     context_with_role = f"{identity_header}\n\nPOZICIONI I KLIENTIT TONË: {effective_position}\n\n{context}"
 
     tasks = [
@@ -223,7 +214,6 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
         "contradictions": cnt.get("contradictions", []) if isinstance(cnt, dict) else []
     }
 
-    # PERSIST BOTH PRIMARY AND DEEP ANALYSIS ON MONGO IN ONE STEP
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": c_oid},
@@ -237,7 +227,6 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str, client_po
     return primary_analysis
 
 async def run_deep_strategy(db: Database, case_id: str, user_id: str, client_position: Optional[str] = None) -> Dict[str, Any]:
-    """Returns stored deep strategy or executes on demand."""
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid}) or {}
     
@@ -259,27 +248,59 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     position = (case.get("client_position") or "DEFENDANT").upper()
     role_label = "I PADITUR / MBROJTJE" if position == "DEFENDANT" else "PADITËS / SULM"
 
-    md = f"---\n\n# STRATEGJIA LIGJORE ({role_label})\n\n"
-    md += f"## 1. PËRMBLEDHJA LIGJORE\n{legal_data.get('summary', '')}\n\n"
-    if legal_data.get('burden_of_proof'):
-        md += f"**BARRA E PROVËS:**\n{legal_data.get('burden_of_proof', '')}\n\n"
+    md = f"# STRATEGJIA LIGJORE DHE DEKLARATA E RASTIT ({role_label})\n\n"
     
-    if legal_data.get('legal_basis'):
-        md += "## 2. BAZA LIGJORE & RELEVANCA\n"
-        for lb in legal_data.get('legal_basis', []):
-            md += f"### {lb.get('title', 'Ligj/Nen')}\n"
-            md += f"**Baza:** {lb.get('article', '')}\n\n"
-            md += f"**Arsyetimi Strategjik:** {lb.get('relevance', '')}\n\n"
+    # 1. PËRMBLEDHJA LIGJORE
+    md += "## 1. PËRMBLEDHJA LIGJORE\n"
+    summary_text = legal_data.get('summary', '')
+    if summary_text:
+        md += f"{summary_text}\n\n"
         
-    md += "## 3. ANALIZA STRATEGJIKE\n"
-    md += f"{legal_data.get('strategic_analysis', '')}\n\n"
+    if legal_data.get('burden_of_proof'):
+        md += f"> **BARRA E PROVËS:** {legal_data.get('burden_of_proof', '')}\n\n"
+    
+    # 2. REGJISTRI I BAZËS LIGJORE DHE RELEVANCËS (STRUCTURED ONTOLOGY TABLE)
+    legal_basis_list = legal_data.get('legal_basis', [])
+    if legal_basis_list:
+        md += "## 2. REGJISTRI I BAZËS LIGJORE DHE RELEVANCËS\n\n"
+        md += "| # | SHKELJA / TEMA | BAZA LIGJORE | ARSYETIMI STRATEGJIK DHE RELEVANCA |\n"
+        md += "|---|---|---|---|\n"
+        for idx, lb in enumerate(legal_basis_list, 1):
+            title = str(lb.get('title', 'Shkelje Ligjore')).replace('|', '-')
+            article = str(lb.get('article', 'Neni përkatës')).replace('|', '-')
+            relevance = str(lb.get('relevance', '')).replace('|', '-').replace('\n', ' ')
+            md += f"| [{idx}] | **{title}** | <span class=\"badge badge-blue\">{article}</span> | {relevance} |\n"
+        md += "\n"
+        
+    # 3. ANALIZA STRATEGJIKE DHE PLANI I VEPRIMIT
+    md += "## 3. ANALIZA STRATEGJIKE DHE PLANI I VEPRIMIT\n"
+    strat_text = legal_data.get('strategic_analysis', '')
+    if strat_text:
+        md += f"{strat_text}\n\n"
+
+    # Action Plan Table
+    action_plan = legal_data.get('action_plan', [])
+    if action_plan:
+        md += "### PLANI I HAPAVE TË VEPRIMIT (ACTION PLAN)\n\n"
+        md += "| # | ROLI | VEPRIMI STRATEGJIK I REKOMANDUAR |\n"
+        md += "|---|---|---|\n"
+        for idx, act in enumerate(action_plan, 1):
+            act_clean = str(act).replace('|', '-')
+            role = "QYTETARI" if "QYTETAR" in act_clean.upper() else "AVOKATI"
+            badge_class = "badge-green" if role == "QYTETARI" else "badge-blue"
+            md += f"| [{idx}] | <span class=\"badge {badge_class}\">{role}</span> | {act_clean} |\n"
+        md += "\n"
 
     try:
         main_report_title = _get_text('analysis_title', lang)
-        pdf_buffer = report_service.create_pdf_from_text(text=md, document_title=main_report_title, header_meta_content_html=None)
+        pdf_buffer = report_service.create_pdf_from_text(
+            text=md, 
+            document_title=main_report_title, 
+            header_meta_content_html=f"<b>LËNDA:</b> {case_name} &nbsp;|&nbsp; <b>POZICIONI:</b> {role_label}"
+        )
         pdf_bytes = pdf_buffer.getvalue()
     except Exception as e:
-        logger.error(f"Strategy PDF generation failed: {e}")
+        logger.error(f"Strategy PDF generation failed: {e}", exc_info=True)
         return {"error": "Dështoi krijimi i dokumentit PDF."}
 
     archiver = archive_service.ArchiveService(db)
