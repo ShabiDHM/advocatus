@@ -1,9 +1,9 @@
 // FILE: frontend/src/components/OntologyModal.tsx
-// PHOENIX PROTOCOL - ONTOLOGY MODAL V3.0 (STANDARDIZED EXECUTIVE SIZE: 95VW x 92VH)
+// PHOENIX PROTOCOL - ONTOLOGY MODAL V4.0 (ADDED MINIMIZE ICON & FULL HEADER CONTROLS)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Network, X, Maximize2, Minimize2 } from 'lucide-react';
+import { Network, X, Maximize2, Minimize2, Minus } from 'lucide-react';
 import EvidenceGraphTab from './EvidenceGraphTab';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
@@ -41,16 +41,16 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
         >
           {/* MODAL HEADER */}
           <div className="p-4 sm:p-5 border-b border-main bg-surface flex flex-wrap items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
                 <Network size={20} />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
                     Ontologjia e Provave
                   </h3>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary-start/10 text-primary-start border border-primary-start/20">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary-start/10 text-primary-start border border-primary-start/20 shrink-0">
                     {clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' : '⚔️ PADITËSI'}
                   </span>
                 </div>
@@ -62,19 +62,32 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Top Right Header Controls with Minimize Icon next to Close X */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsFullScreen(!isFullScreen)}
-                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors"
-                title={isFullScreen ? 'Zvogëlo' : 'Zmadho në Ekran të Plotë'}
+                className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all focus:outline-none"
+                title={isFullScreen ? 'Zvogëlo ekranin' : 'Zmadho në ekran të plotë'}
               >
                 {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </button>
+
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors"
+                className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
+                title="Zvogëlo dritaren"
+              >
+                <Minus size={18} />
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
+                aria-label="Mbyll"
+                title="Mbyll"
               >
                 <X size={20} />
               </button>
