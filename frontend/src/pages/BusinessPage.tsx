@@ -1,6 +1,5 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V13.3 (MOBILE‑FRIENDLY LAYOUT)
-// POLISH: Standardized controls to 44px (h-11), swapped out border tokens, and updated layout grid spacing.
+// PHOENIX PROTOCOL - BUSINESS PAGE V13.4 (REMOVED ADMIN ROLE SUFFIX)
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,7 +47,7 @@ const BusinessPage: React.FC = () => {
         {/* Executive Row: Greeting (Left) and Tabs (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             
-            {/* The Greeting */}
+            {/* The Greeting without (admin) */}
             <div className="text-center lg:text-left">
                 <h1 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-widest mb-1 select-none">
                     {t('general.welcome', 'Mirësevini')}
@@ -76,7 +75,6 @@ const BusinessPage: React.FC = () => {
                     >
                         {tab.icon} 
                         <span className="hidden sm:inline">{tab.label}</span>
-                        {/* Show only icon on very small screens to save space */}
                         <span className="sm:hidden">{tab.label.substring(0, 3)}</span>
                     </button>
                 ))}
