@@ -16,6 +16,7 @@
     "@types/dagre": "^0.7.53",
     "@xyflow/react": "^12.10.0",
     "axios": "^1.6.8",
+    "cytoscape": "^3.34.1",
     "dagre": "^0.8.5",
     "date-fns": "^4.1.0",
     "dom-to-image-more": "^3.7.2",
@@ -43,6 +44,7 @@
     "ws": "^8.17.0"
   },
   "devDependencies": {
+    "@types/cytoscape": "^3.21.9",
     "@types/react": "^18.3.3",
     "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "^18.3.0",

@@ -1,5 +1,5 @@
 // FILE: src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V65.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V67.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -16,7 +16,6 @@ import {
 } from './graph/graphTypes';
 import { GraphToolbar } from './graph/GraphToolbar';
 import { EvidenceCanvas } from './graph/EvidenceCanvas';
-import { EvidenceTooltip } from './graph/EvidenceTooltip';
 import { EvidenceInspector } from './graph/EvidenceInspector';
 import { EntityChatDrawer } from './graph/EntityChatDrawer';
 
@@ -32,8 +31,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [selectedEdge, setSelectedEdge] = useState<OntologyEdge | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<OntologyEdge | null>(null);
 
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
-
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [simplifiedView, setSimplifiedView] = useState<boolean>(false);
@@ -47,17 +44,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const [inputQuestion, setInputQuestion] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
-
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
-  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
-
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const [viewBox, setViewBox] = useState({ x: -500, y: -300, width: 1000, height: 600 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
-  const touchDistRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -88,30 +74,10 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   }, [caseId]);
 
   useEffect(() => {
-    if (loading) return;
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88;
-      setViewBox((prev) => ({
-        x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2),
-        y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2),
-        width: Math.round(Math.max(400, Math.min(5000, prev.width * zoomFactor))),
-        height: Math.round(Math.max(250, Math.min(3500, prev.height * zoomFactor))),
-      }));
-    };
-
-    svgEl.addEventListener('wheel', handleWheel, { passive: false });
-    return () => svgEl.removeEventListener('wheel', handleWheel);
-  }, [loading]);
-
-  useEffect(() => {
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entityMessages, isSending]);
 
+  // Strict Deduplication & Filtering
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
     let base = graphData.nodes.filter((node) => {
@@ -133,6 +99,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     }
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
+
+  const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
+
+  const filteredEdges = useMemo(() => {
+    if (!graphData?.edges) return [];
+    return graphData.edges.filter((e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target));
+  }, [graphData?.edges, filteredNodeIds]);
 
   const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
     const activeNode = selectedNode;
@@ -203,71 +176,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     return items.sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.isContradiction ? -1 : 0));
   }, [graphData?.edges, graphData?.nodes]);
 
-  useEffect(() => {
-    if (filteredNodes.length === 0) return;
-    const initialPos: Record<string, { x: number; y: number }> = {};
-    
-    const colKeys = ['PERSON', 'ORGANIZATION', 'ACCOUNT', 'DOCUMENT', 'EVENT'];
-    const activeColumns: Record<string, OntologyNode[]> = {};
-
-    filteredNodes.forEach((node) => {
-      let key = 'EVENT';
-      if (node.type === 'PERSON') key = 'PERSON';
-      else if (node.type === 'ORGANIZATION') key = 'ORGANIZATION';
-      else if (node.type === 'ACCOUNT' || node.type === 'LOCATION') key = 'ACCOUNT';
-      else if (node.type === 'DOCUMENT') key = 'DOCUMENT';
-
-      if (!activeColumns[key]) activeColumns[key] = [];
-      activeColumns[key].push(node);
-    });
-
-    const presentKeys = colKeys.filter(k => activeColumns[k] && activeColumns[k].length > 0);
-    const numActiveCols = presentKeys.length;
-
-    const colSpacing = numActiveCols <= 2 ? 800 : numActiveCols === 3 ? 650 : 500;
-    const startX = -((numActiveCols - 1) * colSpacing) / 2;
-
-    presentKeys.forEach((key, colIdx) => {
-      const nodesInCol = activeColumns[key];
-      const xPos = Math.round(startX + colIdx * colSpacing);
-      const startY = -((nodesInCol.length - 1) * 160) / 2;
-
-      nodesInCol.forEach((n, idx) => {
-        initialPos[n.id] = { x: xPos, y: Math.round(startY + idx * 160) };
-      });
-    });
-
-    setPositions(initialPos);
-
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    Object.values(initialPos).forEach((p) => {
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
-    });
-
-    const cardW = 240;
-    const cardH = 62;
-
-    const contentW = Math.round((maxX - minX) + cardW + 280);
-    const contentH = Math.round((maxY - minY) + cardH + 220);
-
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    setViewBox({
-      x: Math.round(centerX - contentW / 2),
-      y: Math.round(centerY - contentH / 2),
-      width: Math.max(600, contentW),
-      height: Math.max(400, contentH),
-    });
-  }, [filteredNodes]);
-
-  const handleZoomIn = () => setViewBox((prev) => ({ ...prev, x: Math.round(prev.x + prev.width * 0.09), y: Math.round(prev.y + prev.height * 0.09), width: Math.round(prev.width * 0.82), height: Math.round(prev.height * 0.82) }));
-  const handleZoomOut = () => setViewBox((prev) => ({ ...prev, x: Math.round(prev.x - prev.width * 0.09), y: Math.round(prev.y - prev.height * 0.09), width: Math.round(prev.width * 1.18), height: Math.round(prev.height * 1.18) }));
-  const handleResetZoom = () => { setSelectedNode(null); setSelectedEdge(null); setHoveredEdge(null); };
-
   const handleRebuildGraph = async () => {
     setRebuilding(true);
     try {
@@ -292,12 +200,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       setExporting(false);
     }
   };
-
-  const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
-  const filteredEdges = useMemo(() => {
-    if (!graphData?.edges) return [];
-    return graphData.edges.filter((e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target));
-  }, [graphData?.edges, filteredNodeIds]);
 
   const connectedEdgesForSelectedNode = useMemo(() => {
     if (!selectedNode || !graphData?.edges) return [];
@@ -324,73 +226,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
     return { inEur, outEur, netEur: inEur - outEur };
   }, [selectedNode, graphData?.edges]);
-
-  const getSVGPoint = (clientX: number, clientY: number) => {
-    if (!svgRef.current) return { x: 0, y: 0 };
-    const pt = svgRef.current.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const transformed = pt.matrixTransform(svgRef.current.getScreenCTM()?.inverse());
-    return { x: transformed.x, y: transformed.y };
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (draggedNodeId) return;
-    if (e.target === svgRef.current || (e.target as HTMLElement).tagName === 'svg') {
-      setIsPanning(true);
-      setStartPoint({ x: e.clientX, y: e.clientY });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({ x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top) });
-    }
-
-    if (draggedNodeId) {
-      const point = getSVGPoint(e.clientX, e.clientY);
-      setPositions((prev) => ({ ...prev, [draggedNodeId]: { x: Math.round(point.x), y: Math.round(point.y) } }));
-      return;
-    }
-
-    if (isPanning) {
-      const dx = (e.clientX - startPoint.x) * (viewBox.width / 2400);
-      const dy = (e.clientY - startPoint.y) * (viewBox.height / 1500);
-      setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
-      setStartPoint({ x: e.clientX, y: e.clientY });
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      touchDistRef.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    } else if (e.touches.length === 1 && !draggedNodeId) {
-      setIsPanning(true);
-      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (containerRef.current && e.touches.length > 0) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({ x: Math.round(e.touches[0].clientX - rect.left), y: Math.round(e.touches[0].clientY - rect.top) });
-    }
-
-    if (e.touches.length === 2 && touchDistRef.current !== null) {
-      const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-      if (newDist > 0 && touchDistRef.current > 0) {
-        const zoomFactor = touchDistRef.current / newDist;
-        setViewBox((prev) => ({ ...prev, x: Math.round(prev.x + (prev.width * (1 - zoomFactor)) / 2), y: Math.round(prev.y + (prev.height * (1 - zoomFactor)) / 2), width: Math.round(Math.max(500, Math.min(6000, prev.width * zoomFactor))), height: Math.round(Math.max(300, Math.min(4000, prev.height * zoomFactor))) }));
-      }
-      touchDistRef.current = newDist;
-    } else if (e.touches.length === 1 && isPanning) {
-      const dx = (e.touches[0].clientX - startPoint.x) * (viewBox.width / 2400);
-      const dy = (e.touches[0].clientY - startPoint.y) * (viewBox.height / 1500);
-      setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
-      setStartPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  };
 
   const handleOpenEntityChat = (node: OntologyNode) => {
     setChatEntity(node);
@@ -475,7 +310,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         timelineCount={timelineItems.length}
       />
 
-      <div ref={containerRef} className="flex-1 flex relative overflow-hidden bg-canvas" onMouseMove={handleMouseMove}>
+      <div className="flex-1 flex relative overflow-hidden bg-canvas">
         {isMobile && mobileTab === 'entities' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-finance-scroll">
             {filteredNodes.map((node) => {
@@ -519,9 +354,6 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         {(!isMobile || mobileTab === 'graph') && (
           <EvidenceCanvas
             loading={loading}
-            svgRef={svgRef}
-            viewBox={viewBox}
-            positions={positions}
             filteredNodes={filteredNodes}
             filteredEdges={filteredEdges}
             selectedNode={selectedNode}
@@ -533,20 +365,8 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
             onSelectNode={(node) => { setSelectedNode(node); setSelectedEdge(null); }}
             onSelectEdge={(edge) => { setSelectedEdge(edge); setSelectedNode(null); }}
             onHoverEdge={setHoveredEdge}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={() => { setIsPanning(false); setDraggedNodeId(null); }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={() => { touchDistRef.current = null; setIsPanning(false); setDraggedNodeId(null); }}
-            onNodeDragStart={setDraggedNodeId}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onResetZoom={handleResetZoom}
           />
         )}
-
-        <EvidenceTooltip hoveredEdge={hoveredEdge} tooltipPos={tooltipPos} nodeMap={nodeMap} />
 
         <EvidenceInspector
           selectedNode={selectedNode}

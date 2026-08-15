@@ -1,8 +1,8 @@
 // FILE: src/components/graph/GraphToolbar.tsx
-// PHOENIX PROTOCOL - GRAPH TOOLBAR V66.0 (THEME AWARE, RUAJ PILL, CIRCLE REFRESH ICON)
+// PHOENIX PROTOCOL - GRAPH TOOLBAR V67.0 (ULTRA-SLIM HIGH-DENSITY WORKSPACE)
 
 import React from 'react';
-import { Search, RefreshCw, Sparkles, Filter, LayoutGrid, Clock, Network } from 'lucide-react';
+import { Search, RefreshCw, Sparkles, Filter, LayoutGrid, Clock, Network, X } from 'lucide-react';
 import { EntityType, ENTITY_CONFIG, OntologyNode } from './graphTypes';
 
 interface GraphToolbarProps {
@@ -44,38 +44,51 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
 }) => {
   return (
     <>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between px-4 py-2.5 bg-surface border-b border-main gap-3 z-10 shrink-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2 bg-surface/90 backdrop-blur-md border-b border-main gap-2 z-10 shrink-0">
+        {/* Pjesa e Majtë: Pamja, Kërkimi dhe Filtri */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {/* Toggle Pamja e Thjeshtë / Plotë */}
           <button
             type="button"
             onClick={onToggleSimplified}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase border transition-all shadow-sm ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase border transition-all shrink-0 ${
               simplifiedView
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                : 'bg-canvas text-text-secondary border-main hover:text-text-primary'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                : 'bg-canvas text-text-secondary border-main hover:text-text-primary hover:border-slate-600'
             }`}
           >
-            <Sparkles size={14} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
-            <span>{simplifiedView ? '⚡ Provat Kryesore' : '🌐 Pamja e Plotë'}</span>
+            <Sparkles size={12} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
+            <span>{simplifiedView ? 'Provat Kryesore' : 'Pamja e Plotë'}</span>
           </button>
 
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-text-muted" />
+          {/* Fusha e Kërkimit */}
+          <div className="relative flex-1 max-w-xs min-w-[140px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-text-muted" />
             <input
               type="text"
-              placeholder="Kërko entitetin ose fjalën kyçe..."
+              placeholder="Kërko entitetin..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-canvas border border-main rounded-xl pl-9 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-start"
+              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-7 py-1 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary-start transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                className="absolute right-2 top-2 text-text-muted hover:text-text-primary"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
 
-          <div className="hidden md:flex items-center gap-2 bg-canvas px-3 py-1.5 rounded-xl border border-main text-xs font-bold shrink-0 shadow-sm">
-            <Filter size={13} className="text-primary-start" />
+          {/* Filtri i Entiteteve */}
+          <div className="hidden md:flex items-center gap-1.5 bg-canvas px-2.5 py-1 rounded-lg border border-main text-xs font-bold shrink-0">
+            <Filter size={11} className="text-primary-start" />
             <select
               value={activeFilter}
               onChange={(e) => onFilterChange(e.target.value)}
-              className="bg-canvas text-text-primary focus:outline-none cursor-pointer uppercase font-bold text-xs"
+              className="bg-canvas text-text-primary focus:outline-none cursor-pointer uppercase font-bold text-[11px]"
             >
               <option value="ALL" className="bg-surface text-text-primary">
                 Gjithë Entitetet ({filteredCount})
@@ -93,62 +106,64 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 shrink-0">
-          {/* Ruaj Pill Button */}
+        {/* Pjesa e Djathtë: Ruaj dhe Ri-sinkronizo */}
+        <div className="flex items-center justify-end gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onExportCourtReport}
             disabled={exporting}
-            className="px-4 py-1.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-full text-xs font-black uppercase tracking-wider shadow-sm transition-all focus:outline-none disabled:opacity-50"
+            className="px-3.5 py-1 bg-primary-start hover:bg-primary-start/90 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-sm transition-all focus:outline-none disabled:opacity-50 flex items-center gap-1"
           >
-            {exporting ? '...' : 'Ruaj'}
+            {exporting ? 'Duke ruajtur...' : 'Ruaj'}
           </button>
 
-          {/* Circle Refresh Icon Only */}
           <button
             type="button"
             onClick={onRebuildGraph}
             disabled={rebuilding}
-            className="p-2 bg-surface hover:bg-hover border border-main text-text-primary rounded-full transition-all focus:outline-none"
-            title="Rirregullo Grafikun"
-            aria-label="Rirregullo Grafikun"
+            className="p-1.5 bg-canvas hover:bg-hover border border-main text-text-primary rounded-lg transition-all focus:outline-none"
+            title="Ri-kalkulo dhe Rindërto Ontologjinë"
+            aria-label="Ri-kalkulo dhe Rindërto Ontologjinë"
           >
-            <RefreshCw className={`w-4 h-4 ${rebuilding ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin text-primary-start' : ''}`} />
           </button>
         </div>
       </div>
 
+      {/* Navigimi në Mobile */}
       {isMobile && (
-        <div className="flex items-center justify-around bg-surface border-b border-main p-1.5 gap-1 shrink-0">
+        <div className="flex items-center justify-around bg-surface border-b border-main p-1 gap-1 shrink-0">
           <button
             type="button"
             onClick={() => onMobileTabChange('entities')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold uppercase ${
               mobileTab === 'entities' ? 'bg-primary-start text-white shadow' : 'text-text-muted'
             }`}
           >
-            <LayoutGrid size={15} /> <span>👥 Entitetet ({filteredCount})</span>
+            <LayoutGrid size={13} /> <span>Entitetet ({filteredCount})</span>
           </button>
           <button
             type="button"
             onClick={() => onMobileTabChange('timeline')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold uppercase ${
               mobileTab === 'timeline' ? 'bg-primary-start text-white shadow' : 'text-text-muted'
             }`}
           >
-            <Clock size={15} /> <span>🕒 Kronologjia ({timelineCount})</span>
+            <Clock size={13} /> <span>Kronologjia ({timelineCount})</span>
           </button>
           <button
             type="button"
             onClick={() => onMobileTabChange('graph')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold uppercase ${
+            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold uppercase ${
               mobileTab === 'graph' ? 'bg-primary-start text-white shadow' : 'text-text-muted'
             }`}
           >
-            <Network size={15} /> <span>🗺️ Grafiku</span>
+            <Network size={13} /> <span>Grafiku</span>
           </button>
         </div>
       )}
     </>
   );
 };
+
+export default GraphToolbar;

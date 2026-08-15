@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/OntologyModal.tsx
-// PHOENIX PROTOCOL - ONTOLOGY MODAL V7.0 (OPAQUE TASKBAR MINIMIZATION DOCK)
+// PHOENIX PROTOCOL - ONTOLOGY MODAL V8.0 (MAXIMIZED FULL-BLEED WORKSPACE • NO FOOTER)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -74,25 +74,25 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
           </button>
         </motion.div>
       ) : (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[200] p-2 sm:p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[200] p-1 sm:p-3">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.98, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className={`glass-panel w-[95vw] rounded-3xl shadow-2xl border border-main bg-canvas flex flex-col overflow-hidden transition-all duration-300 ${
-              isFullScreen ? 'w-full h-full max-w-none rounded-none' : 'max-w-7xl h-[92vh]'
+            exit={{ opacity: 0, scale: 0.98, y: 6 }}
+            transition={{ duration: 0.18 }}
+            className={`glass-panel w-[98vw] rounded-2xl shadow-2xl border border-main bg-canvas flex flex-col overflow-hidden transition-all duration-300 ${
+              isFullScreen ? 'w-full h-full max-w-none rounded-none' : 'max-w-[1600px] h-[96vh]'
             }`}
           >
             {/* MODAL HEADER */}
-            <div className="p-4 sm:p-5 border-b border-main bg-surface flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-main bg-surface flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
-                  <Network size={20} />
+                <div className="w-8 h-8 sm:w-9 sm:h-9 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
+                  <Network size={18} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
+                    <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
                       Ontologjia e Provave
                     </h3>
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-primary-start/10 text-primary-start border border-primary-start/20 shrink-0">
@@ -100,7 +100,7 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
                     </span>
                   </div>
                   {caseTitle && (
-                    <p className="text-xs text-text-muted font-medium truncate mt-0.5">
+                    <p className="text-[11px] text-text-muted font-medium truncate mt-0.5">
                       Lënda: {caseTitle}
                     </p>
                   )}
@@ -115,7 +115,7 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
                   className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all focus:outline-none"
                   title={isFullScreen ? 'Zvogëlo në madhësi standarde' : 'Zmadho në ekran të plotë'}
                 >
-                  {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                  {isFullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
                 </button>
 
                 <button
@@ -124,35 +124,24 @@ export const OntologyModal: React.FC<OntologyModalProps> = ({
                   className="p-1.5 sm:p-2 text-text-secondary hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
                   title="Minimizo në taskbar"
                 >
-                  <Minus size={18} />
+                  <Minus size={17} />
                 </button>
 
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
+                  className="p-1.5 sm:p-2 text-text-muted hover:text-rose-400 hover:bg-hover rounded-xl transition-all shrink-0 focus:outline-none"
                   aria-label="Mbyll"
                   title="Mbyll"
                 >
-                  <X size={20} />
+                  <X size={19} />
                 </button>
               </div>
             </div>
 
-            {/* MODAL BODY (ONTOLOGY GRAPH CANVAS) */}
-            <div className="flex-1 overflow-hidden p-2 sm:p-3 bg-canvas relative">
+            {/* MODAL BODY - 100% FULL-BLEED WORKSPACE */}
+            <div className="flex-1 overflow-hidden p-0 bg-canvas relative">
               <EvidenceGraphTab caseId={caseId} caseTitle={caseTitle} />
-            </div>
-
-            {/* MODAL FOOTER */}
-            <div className="p-3.5 sm:p-4 border-t border-main bg-surface flex items-center justify-end shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-10 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-start/15 transition-all"
-              >
-                Mbyll
-              </button>
             </div>
           </motion.div>
         </div>

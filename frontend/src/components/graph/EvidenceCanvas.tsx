@@ -1,379 +1,315 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V66.0 (THEME AWARE & HIGH-CONTRAST ZOOM TOOLBAR)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V77.0 (STRICT ZERO-WARNING D3 ENGINE)
 
-import React from 'react';
-import { ZoomIn, ZoomOut, Maximize2, RefreshCw } from 'lucide-react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
+import { ZoomIn, ZoomOut, Maximize2, RefreshCw, RotateCcw } from 'lucide-react';
 import { OntologyNode, OntologyEdge, ENTITY_CONFIG } from './graphTypes';
 import { translateToAlbanian, formatRelationText } from '../../utils/albanianLegalTranslator';
 
-interface EvidenceCanvasProps {
+export interface EvidenceCanvasProps {
   loading: boolean;
-  svgRef: React.Ref<SVGSVGElement>;
-  viewBox: { x: number; y: number; width: number; height: number };
-  positions: Record<string, { x: number; y: number }>;
   filteredNodes: OntologyNode[];
   filteredEdges: OntologyEdge[];
   selectedNode: OntologyNode | null;
   selectedEdge: OntologyEdge | null;
   hoveredEdge: OntologyEdge | null;
-  connectedNodeIds: Set<string>;
-  connectedEdgeIds: Set<string>;
+  connectedNodeIds?: Set<string>;
+  connectedEdgeIds?: Set<string>;
   isFocusMode: boolean;
-  onSelectNode: (n: OntologyNode) => void;
-  onSelectEdge: (e: OntologyEdge) => void;
+  onSelectNode: (n: OntologyNode | null) => void;
+  onSelectEdge: (e: OntologyEdge | null) => void;
   onHoverEdge: (e: OntologyEdge | null) => void;
-  onMouseDown: (e: React.MouseEvent) => void;
-  onMouseMove: (e: React.MouseEvent) => void;
-  onMouseUp: () => void;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onTouchMove: (e: React.TouchEvent) => void;
-  onTouchEnd: () => void;
-  onNodeDragStart: (id: string) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onResetZoom: () => void;
 }
 
 export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   loading,
-  svgRef,
-  viewBox,
-  positions,
   filteredNodes,
   filteredEdges,
   selectedNode,
   selectedEdge,
   hoveredEdge,
-  connectedNodeIds,
-  connectedEdgeIds,
   isFocusMode,
   onSelectNode,
   onSelectEdge,
   onHoverEdge,
-  onMouseDown,
-  onMouseMove,
-  onMouseUp,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
-  onNodeDragStart,
-  onZoomIn,
-  onZoomOut,
-  onResetZoom,
 }) => {
+  const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Struktura e të dhënave për D3 Force Graph
+  const graphData = useMemo(() => {
+    const nodes = filteredNodes.map((n) => {
+      const conf = ENTITY_CONFIG[n.type] || ENTITY_CONFIG.PERSON;
+      const displayLabel = translateToAlbanian(n.label);
+      const initials =
+        displayLabel
+          .split(' ')
+          .filter(Boolean)
+          .map((w) => w[0])
+          .slice(0, 2)
+          .join('')
+          .toUpperCase() || n.label.substring(0, 2).toUpperCase();
+
+      return {
+        id: n.id,
+        rawNode: n,
+        label: displayLabel,
+        initials: initials,
+        type: n.type,
+        color: conf.bg,
+        borderColor: conf.border,
+        albanianType: conf.albanianLabel,
+      };
+    });
+
+    const edges = filteredEdges.map((e) => {
+      const isContradiction = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR');
+      let edgeLabel = formatRelationText(e.relation).toUpperCase();
+      if (e.amount_eur) {
+        edgeLabel += ` • €${e.amount_eur.toLocaleString()}`;
+      }
+
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        rawEdge: e,
+        label: edgeLabel,
+        isContradiction,
+      };
+    });
+
+    return { nodes, links: edges };
+  }, [filteredNodes, filteredEdges]);
+
+  // Konfigurimi i Forcave D3 (Hard Collision Constraint)
+  useEffect(() => {
+    if (!fgRef.current) return;
+
+    fgRef.current.d3Force('charge')?.strength(-2000);
+    fgRef.current.d3Force('link')?.distance(240);
+
+    const d3 = (window as any).d3;
+    if (d3 && d3.forceCollide) {
+      fgRef.current.d3Force('collide', d3.forceCollide(90).iterations(3));
+    }
+
+    fgRef.current.d3ReheatSimulation();
+  }, [graphData]);
+
+  const handleResetView = useCallback(() => {
+    if (fgRef.current) {
+      fgRef.current.zoomToFit(700, 100);
+    }
+  }, []);
+
+  const handleZoomIn = () => {
+    if (fgRef.current) {
+      fgRef.current.zoom(fgRef.current.zoom() * 1.3, 400);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (fgRef.current) {
+      fgRef.current.zoom(fgRef.current.zoom() / 1.3, 400);
+    }
+  };
+
+  // Vizatimi i Nyjes në Canvas
+  const drawNode = useCallback(
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      void globalScale; // Parandalon paralajmërimin TS6133
+      const isSelected = selectedNode?.id === node.id;
+      const isDimmed = isFocusMode && !isSelected;
+
+      const r = 26;
+      const x = node.x;
+      const y = node.y;
+
+      ctx.save();
+      ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
+
+      // 1. Halo kur Zgjidhet Nyja
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(x, y, r + 10, 0, 2 * Math.PI, false);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x, y, r + 5, 0, 2 * Math.PI, false);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+      }
+
+      // 2. Rrethi Kryesor
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI, false);
+      ctx.fillStyle = node.color || '#2563eb';
+      ctx.fill();
+
+      ctx.strokeStyle = isSelected ? '#ffffff' : node.borderColor || '#60a5fa';
+      ctx.lineWidth = isSelected ? 3.5 : 2.5;
+      ctx.stroke();
+
+      // 3. Inicialet në Qendër
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(node.initials || '', x, y);
+
+      // 4. Badge me Emrin e Plotë poshtë Nyjes
+      const labelText = node.label || '';
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      const textWidth = ctx.measureText(labelText).width;
+      const badgeW = textWidth + 16;
+      const badgeH = 22;
+      const badgeX = x - badgeW / 2;
+      const badgeY = y + r + 8;
+
+      ctx.fillStyle = '#090d16';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+      } else {
+        ctx.rect(badgeX, badgeY, badgeW, badgeH);
+      }
+      ctx.fill();
+
+      ctx.strokeStyle = isSelected ? '#38bdf8' : '#334155';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.stroke();
+
+      ctx.fillStyle = isSelected ? '#38bdf8' : '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labelText, x, badgeY + badgeH / 2);
+
+      ctx.restore();
+    },
+    [selectedNode, isFocusMode]
+  );
+
+  // Vizatimi i Lidhjes me Etiketë në Canvas
+  const drawLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      void globalScale; // Parandalon paralajmërimin TS6133
+      const isSelected = selectedEdge?.id === link.id || hoveredEdge?.id === link.id;
+      const isDimmed = isFocusMode && !isSelected;
+
+      const start = link.source;
+      const end = link.target;
+      if (!start || !end || typeof start.x !== 'number' || typeof end.x !== 'number') return;
+
+      const midX = (start.x + end.x) / 2;
+      const midY = (start.y + end.y) / 2;
+
+      ctx.save();
+      ctx.globalAlpha = isDimmed ? 0.1 : 1.0;
+
+      let angle = Math.atan2(end.y - start.y, end.x - start.x);
+      if (angle > Math.PI / 2) angle -= Math.PI;
+      if (angle < -Math.PI / 2) angle += Math.PI;
+
+      ctx.save();
+      ctx.translate(midX, midY);
+      ctx.rotate(angle);
+
+      const labelText = link.label || '';
+      ctx.font = 'bold 9px system-ui, sans-serif';
+      const textWidth = ctx.measureText(labelText).width;
+      const padW = textWidth + 12;
+      const padH = 18;
+
+      ctx.fillStyle = link.isContradiction ? '#450a0a' : isSelected ? '#0369a1' : '#090d16';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(-padW / 2, -padH / 2, padW, padH, 5);
+      } else {
+        ctx.rect(-padW / 2, -padH / 2, padW, padH);
+      }
+      ctx.fill();
+
+      ctx.strokeStyle = link.isContradiction ? '#ef4444' : isSelected ? '#38bdf8' : '#334155';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = link.isContradiction ? '#fca5a5' : isSelected ? '#ffffff' : '#94a3b8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labelText, 0, 0);
+
+      ctx.restore();
+      ctx.restore();
+    },
+    [selectedEdge, hoveredEdge, isFocusMode]
+  );
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full">
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full bg-canvas">
         <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
         <p className="text-xs font-semibold">Po ngarkohet Ontologjia e Provave...</p>
       </div>
     );
   }
 
-  // Derive distinct active X columns and their minimum Y positions to place headers cleanly above top nodes
-  const activeColHeaderMap = new Map<number, { title: string; minY: number }>();
-  filteredNodes.forEach((node) => {
-    const pos = positions[node.id];
-    if (pos) {
-      const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
-      const current = activeColHeaderMap.get(pos.x);
-      const title = conf.albanianLabel.toUpperCase();
-      
-      if (!current) {
-        activeColHeaderMap.set(pos.x, { title, minY: pos.y });
-      } else {
-        if (pos.y < current.minY) {
-          current.minY = pos.y;
-        }
-      }
-    }
-  });
-
-  // Calculate connection counts for each node
-  const nodeConnectionCounts = new Map<string, number>();
-  filteredEdges.forEach((e) => {
-    nodeConnectionCounts.set(e.source, (nodeConnectionCounts.get(e.source) || 0) + 1);
-    nodeConnectionCounts.set(e.target, (nodeConnectionCounts.get(e.target) || 0) + 1);
-  });
-
   return (
-    <div className="flex-1 h-full w-full relative">
-      <svg
-        ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing select-none bg-[radial-gradient(#334155_1.5px,transparent_1.5px)] [background-size:32px_32px]"
-        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        <defs>
-          {/* Arrowheads */}
-          <marker id="arrowhead-blue" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-            <polygon points="0 0, 10 4, 0 8" fill="#3b82f6" />
-          </marker>
-          <marker id="arrowhead-contradiction" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-            <polygon points="0 0, 10 4, 0 8" fill="#ef4444" />
-          </marker>
+    <div ref={containerRef} className="flex-1 h-full w-full relative bg-canvas overflow-hidden">
+      <ForceGraph2D
+        ref={fgRef as any}
+        graphData={graphData}
+        backgroundColor="rgba(0,0,0,0)"
+        nodeRelSize={26}
+        nodeCanvasObject={drawNode}
+        nodePointerAreaPaint={(node: any, color, ctx) => {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 30, 0, 2 * Math.PI, false);
+          ctx.fill();
+        }}
+        linkCanvasObjectMode={() => 'after'}
+        linkCanvasObject={drawLink}
+        linkColor={(link: any) =>
+          link.isContradiction
+            ? '#ef4444'
+            : selectedEdge?.id === link.id
+            ? '#38bdf8'
+            : '#475569'
+        }
+        linkWidth={(link: any) =>
+          link.isContradiction || selectedEdge?.id === link.id ? 3 : 2
+        }
+        linkDirectionalArrowLength={7}
+        linkDirectionalArrowRelPos={0.85}
+        linkDirectionalArrowColor={(link: any) =>
+          link.isContradiction
+            ? '#ef4444'
+            : selectedEdge?.id === link.id
+            ? '#38bdf8'
+            : '#64748b'
+        }
+        linkLineDash={(link: any) => (link.isContradiction ? [5, 4] : null)}
+        linkCurvature={0.12}
+        onNodeClick={(node: any) => onSelectNode(node.rawNode)}
+        onLinkClick={(link: any) => onSelectEdge(link.rawEdge)}
+        onLinkHover={(link: any) => onHoverEdge(link ? link.rawEdge : null)}
+        onBackgroundClick={() => {
+          onSelectNode(null);
+          onSelectEdge(null);
+          onHoverEdge(null);
+        }}
+        cooldownTicks={120}
+        onEngineStop={handleResetView}
+      />
 
-          {/* Fiber-Optic Line Gradients */}
-          <linearGradient id="lineGradientBlue" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
-            <stop offset="50%" stopColor="#60a5fa" stopOpacity="1" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
-          </linearGradient>
-
-          {/* Palantir Glassmorphism Card Gradient */}
-          <linearGradient id="nodeGlassBg" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#111827" stopOpacity="0.95" />
-            <stop offset="100%" stopColor="#0b0f19" stopOpacity="0.98" />
-          </linearGradient>
-        </defs>
-
-        {/* DYNAMIC ACTIVE COLUMN HEADERS ELEVATED SAFELY ABOVE TOP NODES */}
-        <g className="swimlane-grid" pointerEvents="none">
-          {Array.from(activeColHeaderMap.entries()).map(([xPos, data], i) => {
-            const headerY = data.minY - 90; // Floats 90px above the highest node card in that column
-            return (
-              <g key={i}>
-                <line
-                  x1={xPos + 280}
-                  y1={-1200}
-                  x2={xPos + 280}
-                  y2={1200}
-                  stroke="#334155"
-                  strokeWidth="1.5"
-                  strokeDasharray="6,6"
-                />
-
-                <g transform={`translate(${xPos}, ${headerY})`}>
-                  <rect
-                    x="-110"
-                    y="-20"
-                    width="220"
-                    height="40"
-                    rx="20"
-                    fill="#0f172a"
-                    stroke="#2563eb"
-                    strokeWidth="2"
-                    className="shadow-2xl"
-                  />
-                  <text x="0" y="5" textAnchor="middle" fill="#60a5fa" fontSize="12" fontWeight="900" letterSpacing="1px">
-                    {data.title}
-                  </text>
-                </g>
-              </g>
-            );
-          })}
-        </g>
-
-        {/* FIBER-OPTIC EDGES WITH CLEAN HOVER BADGES */}
-        <g className="edges">
-          {filteredEdges.map((edge) => {
-            const s = positions[edge.source];
-            const t = positions[edge.target];
-            if (!s || !t) return null;
-
-            const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
-            const isSelected = selectedEdge?.id === edge.id;
-            const isHovered = hoveredEdge?.id === edge.id;
-
-            const isEdgeConnected = connectedEdgeIds.has(edge.id);
-            const edgeOpacity = isFocusMode ? (isEdgeConnected ? 1.0 : 0.05) : isHovered || isSelected || isContradiction ? 1.0 : 0.65;
-
-            const pathD = `M ${s.x},${s.y} C ${s.x + (t.x - s.x) * 0.4},${s.y + 40} ${s.x + (t.x - s.x) * 0.6},${t.y - 40} ${t.x},${t.y}`;
-            const midX = (s.x + t.x) / 2;
-            const midY = (s.y + t.y) / 2 + 10;
-
-            const showBadge = isHovered || isSelected;
-
-            return (
-              <g key={edge.id} style={{ opacity: edgeOpacity }} className="transition-opacity duration-200">
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke="transparent"
-                  strokeWidth="28"
-                  className="cursor-pointer"
-                  onClick={() => onSelectEdge(edge)}
-                  onMouseEnter={() => onHoverEdge(edge)}
-                  onMouseLeave={() => onHoverEdge(null)}
-                />
-
-                <path
-                  d={pathD}
-                  fill="none"
-                  stroke={isContradiction ? '#ef4444' : isSelected || isHovered ? '#60a5fa' : 'url(#lineGradientBlue)'}
-                  strokeWidth={isContradiction ? 3.5 : isSelected || isHovered ? 3.5 : 2}
-                  strokeDasharray={isContradiction ? '6,6' : 'none'}
-                  markerEnd={isContradiction ? 'url(#arrowhead-contradiction)' : isSelected || isHovered ? 'url(#arrowhead-blue)' : undefined}
-                  className="pointer-events-none transition-all duration-200"
-                />
-
-                {showBadge && (
-                  <g transform={`translate(${midX}, ${midY})`} className="pointer-events-none">
-                    <rect
-                      x="-75"
-                      y="-15"
-                      width="150"
-                      height="30"
-                      fill={isContradiction ? '#450a0a' : '#0a0f1d'}
-                      stroke={isContradiction ? '#ef4444' : '#60a5fa'}
-                      strokeWidth="2"
-                      rx="15"
-                      className="shadow-2xl"
-                    />
-                    <text
-                      x="0"
-                      y="4"
-                      textAnchor="middle"
-                      fill={isContradiction ? '#fca5a5' : '#ffffff'}
-                      fontSize="11"
-                      fontWeight="900"
-                      className="uppercase tracking-wider font-sans"
-                    >
-                      {formatRelationText(edge.relation)}
-                    </text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </g>
-
-        {/* PALANTIR GLASSMORPHISM NODE CARDS */}
-        <g className="nodes">
-          {filteredNodes.map((node) => {
-            const pos = positions[node.id] || { x: 0, y: 0 };
-            const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
-            const IconComponent = conf.icon;
-
-            const isNodeConnected = connectedNodeIds.has(node.id);
-            const nodeOpacity = isFocusMode ? (isNodeConnected ? 1.0 : 0.05) : 1.0;
-            const isSelected = selectedNode?.id === node.id;
-
-            const cardW = 240;
-            const cardH = 62;
-            const connCount = nodeConnectionCounts.get(node.id) || 0;
-
-            const displayLabel = translateToAlbanian(node.label);
-
-            return (
-              <g
-                key={node.id}
-                transform={`translate(${pos.x}, ${pos.y})`}
-                className="cursor-grab active:cursor-grabbing transition-opacity duration-200 group"
-                style={{ opacity: nodeOpacity }}
-                onClick={() => onSelectNode(node)}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  onNodeDragStart(node.id);
-                }}
-              >
-                {isSelected && (
-                  <rect
-                    x={-cardW / 2 - 8}
-                    y={-cardH / 2 - 8}
-                    width={cardW + 16}
-                    height={cardH + 16}
-                    rx="20"
-                    fill="none"
-                    stroke={conf.border}
-                    strokeWidth="3.5"
-                    className="animate-pulse"
-                  />
-                )}
-
-                <rect
-                  x={-cardW / 2}
-                  y={-cardH / 2}
-                  width={cardW}
-                  height={cardH}
-                  rx="16"
-                  fill="url(#nodeGlassBg)"
-                  stroke={isSelected ? '#ffffff' : '#334155'}
-                  strokeWidth={isSelected ? '2.5' : '1.5'}
-                  className="shadow-2xl transition-transform duration-150 group-hover:scale-105"
-                />
-
-                <rect
-                  x={-cardW / 2}
-                  y={-cardH / 2}
-                  width="8"
-                  height={cardH}
-                  rx="4"
-                  fill={conf.bg}
-                />
-
-                <g transform={`translate(${-cardW / 2 + 30}, 0)`}>
-                  <circle r="16" fill={conf.bg} className="shadow-md" />
-                  <foreignObject x="-8" y="-8" width="16" height="16" className="pointer-events-none">
-                    <div className="w-full h-full flex items-center justify-center text-white">
-                      <IconComponent size={13} />
-                    </div>
-                  </foreignObject>
-                </g>
-
-                <text
-                  x={-cardW / 2 + 56}
-                  y="-5"
-                  fill="#ffffff"
-                  fontSize="14"
-                  fontWeight="900"
-                  className="select-none tracking-tight pointer-events-none font-sans"
-                >
-                  {displayLabel.length > 18 ? `${displayLabel.substring(0, 16)}..` : displayLabel}
-                </text>
-
-                <text
-                  x={-cardW / 2 + 56}
-                  y="15"
-                  fill={conf.border}
-                  fontSize="10"
-                  fontWeight="800"
-                  className="select-none uppercase tracking-wider pointer-events-none font-sans"
-                >
-                  {conf.albanianLabel}
-                </text>
-
-                {connCount > 0 && (
-                  <g transform={`translate(${cardW / 2 - 28}, ${-cardH / 2 + 16})`}>
-                    <rect
-                      x="-14"
-                      y="-9"
-                      width="28"
-                      height="18"
-                      rx="9"
-                      fill="#0d1322"
-                      stroke="#334155"
-                      strokeWidth="1"
-                    />
-                    <text
-                      x="0"
-                      y="4"
-                      textAnchor="middle"
-                      fill="#60a5fa"
-                      fontSize="9"
-                      fontWeight="900"
-                      className="font-mono select-none"
-                    >
-                      {connCount}
-                    </text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </g>
-      </svg>
-
-      {/* THEME AWARE & HIGH-CONTRAST FLOATING ZOOM CONTROLS TOOLBAR */}
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
         <button
           type="button"
-          onClick={onZoomIn}
+          onClick={handleZoomIn}
           className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Zmadho"
         >
@@ -381,21 +317,36 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         </button>
         <button
           type="button"
-          onClick={onResetZoom}
+          onClick={handleResetView}
           className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
-          title="Rivendos Pamjen"
+          title="Qendërzo Rrjetin"
         >
           <Maximize2 size={15} />
         </button>
         <button
           type="button"
-          onClick={onZoomOut}
+          onClick={handleZoomOut}
           className="p-2 text-text-primary hover:text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Zvogëlo"
         >
           <ZoomOut size={16} />
         </button>
+        <div className="h-4 w-px bg-main mx-1" />
+        <button
+          type="button"
+          onClick={() => {
+            if (fgRef.current) {
+              fgRef.current.d3ReheatSimulation();
+            }
+          }}
+          className="p-2 text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
+          title="Ri-kalkulo Fizikën D3"
+        >
+          <RotateCcw size={15} />
+        </button>
       </div>
     </div>
   );
 };
+
+export default EvidenceCanvas;
