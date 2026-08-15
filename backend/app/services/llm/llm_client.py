@@ -1,5 +1,5 @@
 # FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V18.0 (GEMINI 2.5 FLASH-LITE • 100% ALBANIAN LEGAL COMPLIANCE)
+# PHOENIX PROTOCOL - LLM CLIENT V19.0 (DEEPSEEK V4 FLASH • LEGAL #5 ACCELERATED CORE)
 
 import os
 import json
@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
 
-# Modeli i Përzgjedhur: Gemini 2.5 Flash Lite (Ultra-I Shpejtë • Kosto ~3 centë • Saktësi 95%+)
-FAST_MODEL = "google/gemini-2.5-flash-lite"
+# Modeli Kryesor i Zgjedhur: DeepSeek V4 Flash (Legal #5 • 1.05M Context • $0.064/M • Shpejtësi e Lartë)
+FAST_MODEL = "deepseek/deepseek-v4-flash"
 DEEP_MODEL = "deepseek/deepseek-r1"
 
-# Renditja e fallback-ut në rast ndërprerjeje të ndonjë serveri në OpenRouter
+# Renditja e fallback-ut në rast mbingarkese të ndonjë serveri
 FAST_MODELS_PRIORITY = [
-    "google/gemini-2.5-flash-lite",
-    "meta-llama/llama-3.3-70b-instruct",
-    "deepseek/deepseek-chat"
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-chat",
+    "deepseek/deepseek-v4-pro"
 ]
 
 TEMP_DRAFTING = 0.0
@@ -45,7 +45,7 @@ def _get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=45.0)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """Pastron dhe dekodon përgjigjen JSON duke hequr etiketat e padëshiruara markdown."""
+    """Pastron dhe dekodon përgjigjen JSON me mbrojtje nga formatimi."""
     if not text:
         return {}
     
@@ -68,7 +68,7 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje sinkrone drejt OpenRouter me mbrojtje automatike fallback."""
+    """Thirrje sinkrone drejt OpenRouter me auto-fallback."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
@@ -106,7 +106,7 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
     return ""
 
 async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje 100% asinkrone për shpejtësi maksimale (nën 2 sekonda)."""
+    """Thirrje 100% asinkrone për shpejtësi maksimale."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
