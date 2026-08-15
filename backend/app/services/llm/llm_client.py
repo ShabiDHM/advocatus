@@ -1,5 +1,5 @@
 # FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V19.0 (DEEPSEEK V4 FLASH • LEGAL #5 ACCELERATED CORE)
+# PHOENIX PROTOCOL - LLM CLIENT V20.0 (DIRECT FAST DISPATCH • ZERO TIMEOUT LAG)
 
 import os
 import json
@@ -18,16 +18,9 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
 
-# Modeli Kryesor i Zgjedhur: DeepSeek V4 Flash (Legal #5 • 1.05M Context • $0.064/M • Shpejtësi e Lartë)
-FAST_MODEL = "deepseek/deepseek-v4-flash"
+# Modeli i provuar që përgjigjet menjëherë pa vonesa në OpenRouter
+FAST_MODEL = "deepseek/deepseek-chat"
 DEEP_MODEL = "deepseek/deepseek-r1"
-
-# Renditja e fallback-ut në rast mbingarkese të ndonjë serveri
-FAST_MODELS_PRIORITY = [
-    "deepseek/deepseek-v4-flash",
-    "deepseek/deepseek-chat",
-    "deepseek/deepseek-v4-pro"
-]
 
 TEMP_DRAFTING = 0.0
 TEMP_ANALYSIS = 0.0
@@ -38,11 +31,11 @@ def _get_api_key() -> str:
 
 def _get_sync_client() -> OpenAI: 
     key = _get_api_key()
-    return OpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=45.0)
+    return OpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=25.0)
 
 def _get_async_client() -> AsyncOpenAI: 
     key = _get_api_key()
-    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=45.0)
+    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=25.0)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
     """Pastron dhe dekodon përgjigjen JSON me mbrojtje nga formatimi."""
@@ -68,80 +61,68 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje sinkrone drejt OpenRouter me auto-fallback."""
+    """Thirrje direkte dhe e menjëhershme pa vonesa timeout-i."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
         return ""
 
-    identity_header = build_dynamic_identity_header()
-    albanian_enforcement = "RREGULL GJUHËSOR: Përgjigju VETËM në gjuhën shqipe standarde juridike të Republikës së Kosovës."
-    full_sys_prompt = f"{identity_header}\n{albanian_enforcement}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
-    sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
+    try:
+        client = _get_sync_client()
+        identity_header = build_dynamic_identity_header()
+        albanian_enforcement = "RREGULL GJUHËSOR: Përgjigju VETËM në gjuhën shqipe standarde juridike të Republikës së Kosovës."
+        full_sys_prompt = f"{identity_header}\n{albanian_enforcement}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
+        sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
 
-    models_to_try = [model] + [m for m in FAST_MODELS_PRIORITY if m != model]
+        kwargs = {
+            "model": model or FAST_MODEL,
+            "messages": [
+                {"role": "system", "content": full_sys_prompt},
+                {"role": "user", "content": sanitized_user_content}
+            ],
+            "temperature": temperature,
+            "max_tokens": 8192
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
 
-    for attempt_model in models_to_try:
-        try:
-            client = _get_sync_client()
-            kwargs = {
-                "model": attempt_model,
-                "messages": [
-                    {"role": "system", "content": full_sys_prompt},
-                    {"role": "user", "content": sanitized_user_content}
-                ],
-                "temperature": temperature,
-                "max_tokens": 8192
-            }
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-
-            res = client.chat.completions.create(**kwargs)
-            return res.choices[0].message.content or ""
-        except Exception as e:
-            logger.warning(f"⚠️ Modeli '{attempt_model}' dështoi ({e}). Po provohet modeli pasardhës...")
-            continue
-
-    logger.error("❌ Të gjitha modelet dështuan në _call_llm")
-    return ""
+        res = client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"❌ Error in _call_llm ({model}): {e}")
+        return ""
 
 async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje 100% asinkrone për shpejtësi maksimale."""
+    """Thirrje direkte asinkrone pa bllokuar CPU-në."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
         return ""
 
-    identity_header = build_dynamic_identity_header()
-    albanian_enforcement = "RREGULL GJUHËSOR: Përgjigju VETËM në gjuhën shqipe standarde juridike të Republikës së Kosovës."
-    full_sys_prompt = f"{identity_header}\n{albanian_enforcement}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
-    sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
+    try:
+        client = _get_async_client()
+        identity_header = build_dynamic_identity_header()
+        albanian_enforcement = "RREGULL GJUHËSOR: Përgjigju VETËM në gjuhën shqipe standarde juridike të Republikës së Kosovës."
+        full_sys_prompt = f"{identity_header}\n{albanian_enforcement}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
+        sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
 
-    models_to_try = [model] + [m for m in FAST_MODELS_PRIORITY if m != model]
+        kwargs = {
+            "model": model or FAST_MODEL,
+            "messages": [
+                {"role": "system", "content": full_sys_prompt},
+                {"role": "user", "content": sanitized_user_content}
+            ],
+            "temperature": temperature,
+            "max_tokens": 8192
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
 
-    for attempt_model in models_to_try:
-        try:
-            client = _get_async_client()
-            kwargs = {
-                "model": attempt_model,
-                "messages": [
-                    {"role": "system", "content": full_sys_prompt},
-                    {"role": "user", "content": sanitized_user_content}
-                ],
-                "temperature": temperature,
-                "max_tokens": 8192
-            }
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-
-            res = await client.chat.completions.create(**kwargs)
-            return res.choices[0].message.content or ""
-        except Exception as e:
-            logger.warning(f"⚠️ Async modeli '{attempt_model}' dështoi ({e}). Po provohet modeli pasardhës...")
-            continue
-
-    logger.error("❌ Të gjitha modelet dështuan në _call_llm_async")
-    return ""
+        res = await client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"❌ Error in _call_llm_async ({model}): {e}")
+        return ""
 
 def get_embedding(text: str) -> List[float]:
     key = _get_api_key()
