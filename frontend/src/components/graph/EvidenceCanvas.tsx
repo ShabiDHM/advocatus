@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V81.0 (DYNAMIC PARALLEL CURVATURE • ZERO WARNINGS)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V85.0 (STABLE FIXED VIEWPORT • RADIAL SATELLITE ORBIT)
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -37,7 +37,17 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Llogaritja e Lakoreve Dinamike për Lidhjet Paralele (Multi-Edge Curvature)
+  // Llogarit shkallën e lidhjeve (Degree) për çdo nyje
+  const nodeDegreeMap = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredEdges.forEach((e) => {
+      map.set(e.source, (map.get(e.source) || 0) + 1);
+      map.set(e.target, (map.get(e.target) || 0) + 1);
+    });
+    return map;
+  }, [filteredEdges]);
+
+  // Struktura e të dhënave me Lakore Dinamike Paralele
   const graphData = useMemo(() => {
     const nodes = filteredNodes.map((n) => {
       const conf = ENTITY_CONFIG[n.type] || ENTITY_CONFIG.PERSON;
@@ -60,10 +70,10 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         color: conf.bg,
         borderColor: conf.border,
         albanianType: conf.albanianLabel,
+        degree: nodeDegreeMap.get(n.id) || 0,
       };
     });
 
-    // Numëron sa lidhje ekzistojnë midis të njëjtit çift entitetesh
     const pairMap = new Map<string, number>();
     filteredEdges.forEach((e) => {
       const key = [e.source, e.target].sort().join('___');
@@ -78,7 +88,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       const currentIndex = pairCurrentIndex.get(key) || 0;
       pairCurrentIndex.set(key, currentIndex + 1);
 
-      // Lakorja shpërndahet në mënyrë simetrike: -0.22, 0.0, +0.22
       let curvature = 0;
       if (total > 1) {
         curvature = (currentIndex - (total - 1) / 2) * 0.22;
@@ -107,49 +116,64 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     });
 
     return { nodes, links: edges };
-  }, [filteredNodes, filteredEdges]);
+  }, [filteredNodes, filteredEdges, nodeDegreeMap]);
 
-  // Konfigurimi i Forcave D3 me Gravitet Qendror Përmbajtës
+  // Konfigurimi i Forcave Fizike (Me Përmbajtje Radiale për Nyjet pa Lidhje)
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge')?.strength(-1400);
-    fgRef.current.d3Force('link')?.distance(220);
+    fgRef.current.d3Force('charge')?.strength(-900);
+    fgRef.current.d3Force('link')?.distance(190);
 
     const d3 = (window as any).d3;
     if (d3) {
+      // 1. Pengesa e përplasjes
       if (d3.forceCollide) {
-        fgRef.current.d3Force('collide', d3.forceCollide(85).iterations(2));
+        fgRef.current.d3Force('collide', d3.forceCollide(70).iterations(2));
       }
-      if (d3.forceX && d3.forceY) {
-        fgRef.current.d3Force('x', d3.forceX(0).strength(0.06));
-        fgRef.current.d3Force('y', d3.forceY(0).strength(0.06));
+      
+      // 2. Forca Radiale: Mban nyjet satelite në orbitë të ngushtë (320px) rreth qendrës
+      if (d3.forceRadial) {
+        fgRef.current.d3Force(
+          'radial',
+          d3
+            .forceRadial(
+              (node: any) => (node.degree === 0 ? 320 : 0),
+              0,
+              0
+            )
+            .strength((node: any) => (node.degree === 0 ? 0.75 : 0.05))
+        );
       }
     }
 
     fgRef.current.d3ReheatSimulation();
+
+    // Kamera fillestare e qëndrueshme në Zoom = 1.0 (Nuk zvogëlohet kurrë)
+    const timer = setTimeout(() => {
+      if (fgRef.current) {
+        fgRef.current.centerAt(0, 0, 500);
+        fgRef.current.zoom(1.0, 500);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
   }, [graphData]);
 
-  // Kamera e Kufizuar Inteligjente
+  // Qendërzimi manual i kamerës në shkallën 1.0
   const handleResetView = useCallback(() => {
     if (fgRef.current) {
-      fgRef.current.zoomToFit(600, 80, (node: any) => {
-        return filteredEdges.some((e) => e.source === node.id || e.target === node.id);
-      });
-      setTimeout(() => {
-        if (fgRef.current && fgRef.current.zoom() < 0.55) {
-          fgRef.current.zoom(0.75, 400);
-        }
-      }, 650);
+      fgRef.current.centerAt(0, 0, 500);
+      fgRef.current.zoom(1.0, 500);
     }
-  }, [filteredEdges]);
+  }, []);
 
   const handleZoomIn = () => {
-    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 400);
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 300);
   };
 
   const handleZoomOut = () => {
-    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 400);
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 300);
   };
 
   // Vizatimi i Nyjes në Canvas
@@ -334,8 +358,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
           onSelectEdge(null);
           onHoverEdge(null);
         }}
-        cooldownTicks={100}
-        onEngineStop={handleResetView}
+        cooldownTicks={120}
       />
 
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
