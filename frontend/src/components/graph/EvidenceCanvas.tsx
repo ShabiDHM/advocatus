@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V95.0 (DARK EXECUTIVE CANVAS & RESILIENT AUTO-FIT)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V101.0 (100% TYPE-SAFE PIN & RIGHT-CLICK UNPIN)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -119,7 +119,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       const isContradiction =
         e.relation.includes('CONTRADICT') ||
         e.relation.includes('KUNDËR') ||
-        e.relation.includes('MOSPËRPUTHJE');
+        e.relation.includes('MOSPËRPUTHJE') ||
+        e.relation.includes('FALSIFIKIM') ||
+        e.relation.includes('SHKELJE');
 
       let edgeLabel = formatRelationText(e.relation).toUpperCase();
       if (e.amount_eur) {
@@ -143,8 +145,8 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge')?.strength(-850);
-    fgRef.current.d3Force('link')?.distance(200);
+    fgRef.current.d3Force('charge')?.strength(-950);
+    fgRef.current.d3Force('link')?.distance(210);
 
     const d3 = (window as any).d3;
     if (d3) {
@@ -152,11 +154,11 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         fgRef.current.d3Force('center', d3.forceCenter(0, 0));
       }
       if (d3.forceCollide) {
-        fgRef.current.d3Force('collide', d3.forceCollide(70).iterations(2));
+        fgRef.current.d3Force('collide', d3.forceCollide(72).iterations(2));
       }
       if (d3.forceX && d3.forceY) {
-        fgRef.current.d3Force('x', d3.forceX(0).strength(0.08));
-        fgRef.current.d3Force('y', d3.forceY(0).strength(0.08));
+        fgRef.current.d3Force('x', d3.forceX(0).strength(0.06));
+        fgRef.current.d3Force('y', d3.forceY(0).strength(0.06));
       }
     }
 
@@ -164,7 +166,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
 
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(500, 45);
+        fgRef.current.zoomToFit(500, 50);
       }
     }, 400);
 
@@ -173,7 +175,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
 
   const handleResetView = useCallback(() => {
     if (fgRef.current) {
-      fgRef.current.zoomToFit(500, 45);
+      fgRef.current.zoomToFit(500, 50);
     }
   }, []);
 
@@ -185,11 +187,25 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 300);
   };
 
+  const handleResetSimulationAndUnpin = useCallback(() => {
+    if (graphData && graphData.nodes) {
+      graphData.nodes.forEach((n: any) => {
+        n.fx = undefined;
+        n.fy = undefined;
+      });
+    }
+    if (fgRef.current) {
+      fgRef.current.d3ReheatSimulation();
+      fgRef.current.zoomToFit(500, 50);
+    }
+  }, [graphData]);
+
   const drawNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       void globalScale;
       const isSelected = selectedNode?.id === node.id;
       const isDimmed = isFocusMode && !isSelected;
+      const isPinned = node.fx !== undefined && node.fy !== undefined;
 
       const r = 24;
       const x = node.x;
@@ -216,8 +232,8 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       ctx.fillStyle = node.color || '#2563eb';
       ctx.fill();
 
-      ctx.strokeStyle = isSelected ? '#ffffff' : node.borderColor || '#60a5fa';
-      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.strokeStyle = isSelected ? '#ffffff' : isPinned ? '#fbbf24' : node.borderColor || '#60a5fa';
+      ctx.lineWidth = isSelected ? 3 : isPinned ? 2.5 : 2;
       ctx.stroke();
 
       ctx.font = 'bold 12px system-ui, sans-serif';
@@ -243,11 +259,11 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       }
       ctx.fill();
 
-      ctx.strokeStyle = isSelected ? '#38bdf8' : '#334155';
+      ctx.strokeStyle = isSelected ? '#38bdf8' : isPinned ? '#fbbf24' : '#334155';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.fillStyle = isSelected ? '#38bdf8' : '#f8fafc';
+      ctx.fillStyle = isSelected ? '#38bdf8' : isPinned ? '#fef08a' : '#f8fafc';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(labelText, x, badgeY + badgeH / 2);
@@ -362,6 +378,19 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         onNodeClick={(node: any) => onSelectNode(node.rawNode)}
         onLinkClick={(link: any) => onSelectEdge(link.rawEdge)}
         onLinkHover={(link: any) => onHoverEdge(link ? link.rawEdge : null)}
+        // PIN-ON-DRAG: Fikson nyjen aty ku e lëshoni me maus
+        onNodeDragEnd={(node: any) => {
+          node.fx = node.x;
+          node.fy = node.y;
+        }}
+        // RIGHT-CLICK: Çliron nyjen kur klikohet me butonin e djathtë
+        onNodeRightClick={(node: any) => {
+          node.fx = undefined;
+          node.fy = undefined;
+          if (fgRef.current) {
+            fgRef.current.d3ReheatSimulation();
+          }
+        }}
         onBackgroundClick={() => {
           onSelectNode(null);
           onSelectEdge(null);
@@ -370,6 +399,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         cooldownTicks={120}
       />
 
+      {/* Kontrollet e Navigimit */}
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-[#0f172a]/90 backdrop-blur-md border border-slate-700 p-2 rounded-2xl shadow-2xl z-20 text-slate-100">
         <button
           type="button"
@@ -398,11 +428,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         <div className="h-4 w-px bg-slate-700 mx-1" />
         <button
           type="button"
-          onClick={() => {
-            if (fgRef.current) fgRef.current.d3ReheatSimulation();
-          }}
+          onClick={handleResetSimulationAndUnpin}
           className="p-2 text-primary-start hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
-          title="Ri-kalkulo Fizikën D3"
+          title="Liro të gjitha nyjet dhe Ri-kalkulo Fizikën"
         >
           <RotateCcw size={15} />
         </button>
