@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V105.0 (100% THEME-AWARE • TRANSPARENT CANVAS UNIFICATION)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V110.0 (TRUE CONTRADICTION STYLING ONLY)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -116,12 +116,13 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         if (e.source > e.target) curvature *= -1;
       }
 
+      // VIJA E KUQE VETËM PËR KONTRADIKTA DHE SHKELJE TË VËRTETUARA TË KUNDËRSHTARIT
       const isContradiction =
         e.relation.includes('CONTRADICT') ||
-        e.relation.includes('KUNDËR') ||
+        e.relation.includes('KUNDËRTHËNIE') ||
         e.relation.includes('MOSPËRPUTHJE') ||
         e.relation.includes('FALSIFIKIM') ||
-        e.relation.includes('SHKELJE');
+        e.relation.includes('E_RREME');
 
       let edgeLabel = formatRelationText(e.relation).toUpperCase();
       if (e.amount_eur) {
@@ -397,7 +398,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         cooldownTicks={120}
       />
 
-      {/* Kontrollet e Navigimit - Theme Aware */}
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
         <button
           type="button"

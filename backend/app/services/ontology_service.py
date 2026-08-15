@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - ONTOLOGY SERVICE V17.0 (DYNAMIC TOKEN-BUCKET & BFS COMPLETE ENGINE)
+# PHOENIX PROTOCOL - ONTOLOGY SERVICE V18.0 (PRESUMPTION OF INNOCENCE & ACCUSATION SANITIZATION)
 
 import logging
 import re
@@ -18,9 +18,9 @@ VALID_ENTITY_TYPES = {"PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "EVENT", 
 
 class OntologyService:
     """
-    Enterprise Dynamic Token-Bucket Forensic Ontology Engine.
-    Dynamically batches any number of documents (5, 32, 100+) without triggering 429 rate limits,
-    and unifies all evidence subgraphs using BFS component bridging.
+    Forensic Ontology Engine enforcing strict Presumption of Innocence (Neni 3 i KPPRK).
+    Never marks unproven allegations as established criminal acts.
+    Distinguishes objective scientific evidence from subjective opponent claims.
     """
 
     def _clean_entity_name(self, name: str) -> str:
@@ -47,11 +47,6 @@ class OntologyService:
         return clean.strip()
 
     def pack_documents_into_dynamic_buckets(self, docs: List[Dict[str, Any]], max_chars_per_bucket: int = 75000) -> List[Dict[str, Any]]:
-        """
-        DYNAMIC TOKEN-BUCKET BATCHER:
-        Grupon automatikisht çdo numër dokumentesh (5, 32, 100+) në paketa optimale prej ~75k karakteresh,
-        duke garantuar shpejtësi maksimale dhe zero gabime 429 Rate Limit.
-        """
         buckets = []
         current_bucket_docs = []
         current_bucket_text = []
@@ -92,25 +87,30 @@ class OntologyService:
         return buckets
 
     async def extract_ontology_from_batch_async(self, combined_text: str, doc_ids: List[str]) -> Dict[str, Any]:
-        """Nxjerr ontologjinë nga një bllok i tërë dokumentesh në një thirrje të vetme."""
         if not combined_text.strip():
             return {"nodes": [], "edges": []}
 
         system_prompt = """
-        Ti je Krye-Auditori dhe Eksperti Forenzik i Graph-it të Provave Ligjore për Drejtësinë e Kosovës.
-        DETYRA: Analizo këtë paketë dokumentesh të lëndës dhe nxirr personat, institucionet, provat shkresore dhe lidhjet e tyre.
+        Ti je Krye-Auditori Forenzik i Drejtësisë në Kosovë.
+        DETYRA: Analizo këtë paketë shkresash dhe nxirr entitetet dhe lidhjet me saktësi absolute ligjore.
+
+        RREGULL I HEKURT JURIDIK (PREZUMIMI I PAFAJËSISË):
+        1. MOS E SHËNO KURRË një kërkesë apo pretendim të palës tjetër si "KRYER_VEPRË_PENALE" apo "KRYER_DHUNË"!
+        2. Nëse njëra palë pretendon diçka, shënoje saktë: "AKUZON_PËR", "PRETENDON_DHUNË", "KËRKON_URDHËRMBROJTJE", "PARAQET_KALLËZIM".
+        3. Fjala "KUNDËRTHËNIE_ME_PROVËN" përdoret VETËM kur një pretendim rrëzohet me provë materiale (p.sh. Testi i Koslaborit që rrëzon akuzën për drogë).
 
         KATEGORITË (type): "PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "EVENT", "DOCUMENT".
-        RELACIONET NË SHQIP: Shëno lidhje të qarta (p.sh. "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "PRONAR_I", "PUNËSUAR_NË", "EKSPERTIZË_PËR", "PROVË_E_DORËZUAR_NGA").
-        NËSE VËREN KONTRADIKTA shënoje me: "KUNDËRTHËNIE_ME_PROVËN" ose "MOSPËRPUTHJE_DËSHMIE".
+        RELACIONET LIGJORE NË SHQIP:
+        - "AKUZON_PËR", "PRETENDON_DHUNË", "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "EKSPERTIZË_PËR", "LËSHUAR_NGA", "TEST_NEGATIV_I".
+        - "KUNDËRTHËNIE_ME_PROVËN", "MOSPËRPUTHJE_DËSHMIE", "FALSIFIKIM_DOKUMENTI".
 
         Përgjigju VETËM si JSON:
         {
           "nodes": [
-            { "id": "slug_unike", "label": "Emri Zyrtar", "type": "PERSON|ORGANIZATION|ACCOUNT|LOCATION|EVENT|DOCUMENT", "description": "Roli ligjor" }
+            { "id": "slug_unike", "label": "Emri Zyrtar", "type": "PERSON|ORGANIZATION|ACCOUNT|LOCATION|EVENT|DOCUMENT", "description": "Roli procedural" }
           ],
           "edges": [
-            { "source": "id_burimi", "target": "id_synimi", "relation": "RELACIONI_SHQIP", "amount_eur": null, "date_iso": "YYYY-MM-DD", "evidence_text": "Citat prove" }
+            { "source": "id_burimi", "target": "id_synimi", "relation": "RELACIONI_SHQIP", "amount_eur": null, "date_iso": "YYYY-MM-DD", "evidence_text": "Citat ekzakt" }
           ]
         }
         """
@@ -166,6 +166,10 @@ class OntologyService:
 
                 raw_rel = str(edge.get("relation") or edge.get("label") or "LIDHJE_LIGJORE").upper().replace(" ", "_")
                 
+                # Korrigjim automatik i gabimeve të fajësisë së parakohshme
+                if "KRYER_VEPR" in raw_rel or "KRYER_DHUN" in raw_rel:
+                    raw_rel = "AKUZON_PËR_VEPËR_PENALE"
+
                 raw_amount = edge.get("amount_eur")
                 amount_eur = None
                 if raw_amount is not None:
@@ -226,7 +230,6 @@ class OntologyService:
         return list(node_dict.values()), list(edge_dict.values())
 
     async def dynamically_synthesize_cross_document_contradictions(self, nodes: List[Dict], edges: List[Dict], case_title: str) -> Tuple[List[Dict], List[Dict]]:
-        """Bashkimi me BFS dhe analiza automatike e kontradiktave."""
         if not nodes or len(nodes) < 2:
             return nodes, edges
 
@@ -238,7 +241,9 @@ class OntologyService:
         summary_edges = [f"- [{e['source']}] --({e['relation']})--> [{e['target']}]: \"{e.get('evidence_text', '')}\"" for e in edges[:50]]
 
         prompt = f"""
-        Identifiko kontradiktat reale midis provave dhe lidhjet e munguara në dosjen: "{case_title}".
+        Identifiko kontradiktat reale midis provave materiale dhe pretendimeve të palëve në dosjen: "{case_title}".
+        RREGULL: Mos e shëno të pandehurin si fajtor pa vendim gjykate. Nëse një dëshmi bie ndesh me një provë shkencore, shënoje si "KUNDËRTHËNIE_ME_PROVËN".
+
         ENTITETET:
         {"\n".join(summary_entities)}
 
@@ -260,7 +265,7 @@ class OntologyService:
 
         try:
             raw = await _call_llm_async(
-                system_prompt="Ti je ekspert ligjor i zbulimit të kontradiktave.",
+                system_prompt="Ti je ekspert ligjor i zbulimit të kontradiktave dhe mbrojtjes së të drejtave procedurale.",
                 user_content=prompt,
                 json_mode=True,
                 temperature=0.0,
@@ -476,7 +481,7 @@ class OntologyService:
                 amt = f"<br/><font color='#059669'><b>€{e['amount_eur']:,.2f}</b></font>" if e.get("amount_eur") else ""
                 evidence = e.get("evidence_text") or "I dokumentuar në fashikullin e lëndës."
 
-                is_contradiction = "CONTRADICT" in rel or "KUNDËR" in rel or "MOSPËRPUTHJE" in rel or "SHKELJE" in rel
+                is_contradiction = "CONTRADICT" in rel or "KUNDËR" in rel or "MOSPËRPUTHJE" in rel or "FALSIFIKIM" in rel
                 rel_style = cell_contradiction if is_contradiction else cell_bold
 
                 rel_table_data.append([
