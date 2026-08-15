@@ -1,9 +1,10 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - ONTOLOGY SERVICE V14.0 (100% UNIVERSAL DYNAMIC ENGINE • ZERO HARDCODING)
+# PHOENIX PROTOCOL - ONTOLOGY SERVICE V15.0 (BFS CONNECTED-COMPONENT UNIFICATION ENGINE)
 
 import logging
 import re
 import io
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from pymongo.database import Database
@@ -17,9 +18,9 @@ VALID_ENTITY_TYPES = {"PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "EVENT", 
 
 class OntologyService:
     """
-    100% Universal, Multi-Tenant Forensic Ontology & Contradiction Engine for Kosovo Jurisdiction.
-    Supports Civil, Criminal, Family, Commercial/ARBK, and Administrative cases dynamically.
-    Contains ZERO hardcoded case-specific names or logic.
+    100% Universal, Multi-Tenant Forensic Ontology Engine with BFS Component Bridging.
+    Mathematically guarantees that all disjoint subgraphs, mini-islands, and aliases 
+    are unified into exactly ONE connected case matrix with zero isolated elements.
     """
 
     def _clean_entity_name(self, name: str) -> str:
@@ -47,7 +48,6 @@ class OntologyService:
         return clean.strip()
 
     def extract_ontology_from_text(self, text: str, doc_id: str = "", doc_name: str = "") -> Dict[str, Any]:
-        """Nxjerr entitetet dhe relacionet ligjore nga çdo lloj dokumenti në mënyrë universale."""
         if not text or not text.strip():
             return {"nodes": [], "edges": []}
 
@@ -55,19 +55,19 @@ class OntologyService:
 
         system_prompt = """
         Ti je Krye-Auditori dhe Eksperti Forenzik i Graph-it të Provave Ligjore për Drejtësinë e Republikës së Kosovës (Juristi AI Universal Engine).
-        DETYRA JOTE: Analizo këtë dokument ligjor/financiar/procesverbal dhe nxirr TË GJITHË aktorët, institucionet, dokumentet/provat dhe LIDHJET E TYRE.
+        DETYRA JOTE: Analizo këtë dokument ligjor/financiar/procesverbal dhe nxirr TË GJITHË aktorët, institucionet, provat shkresore dhe LIDHJET E TYRE.
 
         KATEGORITË E ENTITETEVE (type):
-        1. "PERSON": Individët (Palët në procedurë, Përfaqësuesit, Dëshmitarët, Zyrtarët, Ekspertët, Pronarët, etj.).
-        2. "ORGANIZATION": Institucionet publike (Gjykata, Prokuroria, Ministritë, Komunat, Agjencitë) dhe Kompanitë private / Personat Juridikë (ARBK).
-        3. "ACCOUNT": Llogaritë bankare, IBAN, transaksionet financiare, faturat, shumat e kërkesëpadisë ose dëmit.
-        4. "LOCATION": Qytetet, selitë, adresat, parcelat kadastrale, pronat e paluajtshme.
+        1. "PERSON": Individët (Palët në procedurë, Përfaqësuesit, Dëshmitarët, Zyrtarët, Ekspertët, Pronarët).
+        2. "ORGANIZATION": Institucionet (Gjykata, Prokuroria, Ministritë, Komunat, QPS, Policia, QKUK) dhe Kompanitë ARBK.
+        3. "ACCOUNT": Llogaritë bankare, IBAN, transaksionet, faturat, shumat e kërkesëpadisë.
+        4. "LOCATION": Qytetet, selitë, adresat, pronat e paluajtshme.
         5. "EVENT": Seancat gjyqësore, marrëveshjet, aktakuzat, shkeljet, ngjarjet thelbësore.
-        6. "DOCUMENT": Ekspertizat, kontratat, aktvendimet, certifikatat, provat shkresore, raportet mjekësore/financiare.
+        6. "DOCUMENT": Ekspertizat, procesverbalet, aktvendimet, certifikatat, provat shkresore.
 
         RREGULLAT E LIDHJEVE DHE KONTRADIKTAVE (relation):
-        - Përcakto relacionin e saktë në gjuhën shqipe (p.sh. "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "PRONAR_I", "PUNËSUAR_NË", "EKSPERTIZË_PËR", "PROVË_E_DORËZUAR_NGA", "TRANSFER_PARASH").
-        - NËSE VËREN KONTRADIKTA APO MOS-PËRPUTHJE brenda dokumentit, shënoje relacionin me parashtesën "KUNDËRTHËNIE_" ose "MOSPËRPUTHJE_" (p.sh. "KUNDËRTHËNIE_ME_PROVËN", "MOSPËRPUTHJE_DËSHMIE").
+        - Përcakto relacionin e saktë në gjuhën shqipe (p.sh. "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "PRONAR_I", "PUNËSUAR_NË", "EKSPERTIZË_PËR", "PROVË_E_DORËZUAR_NGA").
+        - NËSE VËREN KONTRADIKTA shënoje me "KUNDËRTHËNIE_ME_PROVËN" ose "MOSPËRPUTHJE_DËSHMIE".
         - Çdo dokument provues (raport, ekspertizë, certifikatë) DUHET të lidhet me personin ose institucionin përkatës.
 
         Përgjigju VETËM në formatin JSON të pastër:
@@ -174,7 +174,7 @@ class OntologyService:
 
     def merge_graph_data(self, existing_nodes: List[Dict], existing_edges: List[Dict], 
                          new_nodes: List[Dict], new_edges: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
-        """Bashkon entitetet nga dokumente të shumëfishta duke ruajtur të gjitha referencat."""
+        """Bashkon entitetet nga dokumente të shumëfishta."""
         node_dict = {n["id"]: n for n in existing_nodes}
 
         for node in new_nodes:
@@ -208,47 +208,41 @@ class OntologyService:
 
     async def dynamically_synthesize_cross_document_contradictions(self, nodes: List[Dict], edges: List[Dict], case_title: str) -> Tuple[List[Dict], List[Dict]]:
         """
-        ANALIZA E THELLË DINAMIKE E KONTRADIKTAVE ME LLM (100% PA HARDKODIM):
-        Merr entitetet dhe provat e akumuluara të ÇDO lënde (penale, civile, familjare, korrupsion)
-        dhe gjen kontradiktat reale midis dokumenteve të ndryshme.
+        BASHKIMI I PLOTË I GRAFIT ME BFS (ZERO DISJOINT ISLANDS):
+        Gjen të gjithë ishujt e shkëputur dhe i bashkon në 1 rrjet të vetëm koheziv.
         """
         if not nodes or len(nodes) < 2:
             return nodes, edges
 
-        # Zgjedhim entitetet kryesore dhe provat shkresore për analizë të kryqëzuar
-        summary_entities = []
-        for n in nodes[:60]:
-            summary_entities.append(f"- {n['label']} ({n['type']}): {n.get('description', '')}")
+        node_ids = {n["id"] for n in nodes}
+        edge_set = {f"{e['source']}___{e['target']}" for e in edges}
+        updated_edges = list(edges)
 
-        summary_edges = []
-        for e in edges[:80]:
-            summary_edges.append(f"- [{e['source']}] --({e['relation']})--> [{e['target']}]: \"{e.get('evidence_text', '')}\"")
+        # 1. ANALIZA E KRYQËZUAR ME LLM E KONTRADIKTAVE
+        summary_entities = [f"- {n['label']} ({n['type']}): {n.get('description', '')}" for n in nodes[:50]]
+        summary_edges = [f"- [{e['source']}] --({e['relation']})--> [{e['target']}]: \"{e.get('evidence_text', '')}\"" for e in edges[:60]]
 
         ent_str = "\n".join(summary_entities)
         rel_str = "\n".join(summary_edges)
 
         prompt = f"""
-        Ti je Ekspert i Inteligjencës dhe Forenzikës Ligjore në Kosovë.
-        Kjo është lista e provave dhe marrëdhënieve të nxjerra nga dosja ligjore: "{case_title}".
-
-        ENTITETET E DOSJES:
+        Ti je Ekspert Forenzik në Kosovë. Dosja: "{case_title}".
+        ENTITETET:
         {ent_str}
 
-        LIDHJET DHE PROVAT E DERITANISHME:
+        LIDHJET:
         {rel_str}
 
-        DETYRA JOTE FORENZIKE:
-        Identifiko të gjitha KONTRADIKTAT E KRYQËZUARA midis dokumenteve të ndryshme (p.sh. një test/raport shkencor që rrëzon një pretendim, dy dëshmi me fakte të kundërta, pretendim financiar i pabazuar, shkelje procedurale).
-        Gjithashtu identifiko nëse ka ndonjë dokument/ekspertizë që duhet të lidhet me personin që i përket.
-
-        Kthe VETËM një JSON me lidhjet e reja të kontradiktave dhe provave:
+        DETYRA:
+        Identifiko kontradiktat reale midis provave dhe lidhjet e munguara midis palëve.
+        Kthe JSON:
         {{
           "new_forensic_edges": [
             {{
-              "source": "slug_burimi_ekzakt",
-              "target": "slug_synimi_ekzakt",
-              "relation": "KUNDËRTHËNIE_ME_PROVËN | MOSPËRPUTHJE_DËSHMIE | SHKELJE_LIGJORE | PROVË_SHKËNCORË_PËR",
-              "evidence_text": "Arsyetimi i saktë ligjor pse kjo përbën kontradiktë apo provë materiale"
+              "source": "slug_burimi",
+              "target": "slug_synimi",
+              "relation": "KUNDËRTHËNIE_ME_PROVËN | MOSPËRPUTHJE_DËSHMIE | PROVË_SHKENCORE_PËR",
+              "evidence_text": "Arsyetimi ligjor"
             }}
           ]
         }}
@@ -264,10 +258,6 @@ class OntologyService:
             )
             parsed = clean_and_parse_json(raw)
             new_forensic_edges = parsed.get("new_forensic_edges", [])
-
-            node_ids = {n["id"] for n in nodes}
-            edge_set = {f"{e['source']}___{e['target']}" for e in edges}
-            updated_edges = list(edges)
 
             for fe in new_forensic_edges:
                 src = str(fe.get("source", "")).strip().lower()
@@ -288,43 +278,67 @@ class OntologyService:
                             "source_doc_ids": ["CROSS_DOC_CONTRADICTION_ENGINE"]
                         })
                         edge_set.add(key)
-
-            # ANKORIMI DINAMIK UNIVERSAL: Çdo nyje e izoluar lidhet me qendrën e asaj lënde specifike
-            connected_ids = set()
-            for e in updated_edges:
-                connected_ids.add(e["source"])
-                connected_ids.add(e["target"])
-
-            # Gjen nyjen me lidhshmërinë më të lartë në këtë lëndë (Degree Centrality)
-            degree_counts = {}
-            for e in updated_edges:
-                degree_counts[e["source"]] = degree_counts.get(e["source"], 0) + 1
-                degree_counts[e["target"]] = degree_counts.get(e["target"], 0) + 1
-
-            hub_id = max(degree_counts, key=degree_counts.get) if degree_counts else (nodes[0]["id"] if nodes else None)
-
-            if hub_id:
-                for n in nodes:
-                    if n["id"] not in connected_ids and n["id"] != hub_id:
-                        rel = "PROVË_E_LËNDËS" if n["type"] == "DOCUMENT" else "PËRFSHIRË_NË_LËNDË"
-                        key = f"{n['id']}___{hub_id}"
-                        if key not in edge_set:
-                            edge_id = f"{n['id']}_{rel}_{hub_id}"
-                            updated_edges.append({
-                                "id": edge_id,
-                                "source": n["id"],
-                                "target": hub_id,
-                                "relation": rel,
-                                "evidence_text": f"Dokument i administruar në fashikullin e lëndës {case_title}.",
-                                "source_doc_ids": n.get("source_doc_ids", [])
-                            })
-                            edge_set.add(key)
-
-            return nodes, updated_edges
-
         except Exception as e:
-            logger.error(f"❌ Error in dynamic contradiction synthesis: {e}")
-            return nodes, edges
+            logger.error(f"Error in LLM contradiction synthesis: {e}")
+
+        # 2. ALGORITMI I PLOTË I BASHKIMIT TË ISHUJVE (BFS CONNECTED COMPONENTS)
+        adj = defaultdict(set)
+        for e in updated_edges:
+            adj[e["source"]].add(e["target"])
+            adj[e["target"]].add(e["source"])
+
+        visited = set()
+        components = []
+
+        for node in nodes:
+            nid = node["id"]
+            if nid not in visited:
+                comp = []
+                queue = deque([nid])
+                visited.add(nid)
+                while queue:
+                    curr = queue.popleft()
+                    comp.append(curr)
+                    for neighbor in adj[curr]:
+                        if neighbor not in visited and neighbor in node_ids:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+                components.append(comp)
+
+        # Rendit komponentët sipas madhësisë (Komponenti [0] është kontinenti kryesor)
+        components.sort(key=len, reverse=True)
+
+        if len(components) > 1:
+            main_component = components[0]
+            # Gjej nyjen me më shumë lidhje në kontinentin kryesor (Main Hub)
+            main_hub = max(main_component, key=lambda x: len(adj[x]))
+
+            # ÇDO ISHULL I NDARË LIDHET ME KONTINENTIN KRYESOR
+            for minor_island in components[1:]:
+                # Gjej nyjen më përfaqësuese të atij ishulli
+                rep_node = max(minor_island, key=lambda x: len(adj[x]))
+                rep_node_obj = next((n for n in nodes if n["id"] == rep_node), None)
+                
+                rel = "PROCEDURË_E_NDËRLIDHUR"
+                if rep_node_obj and rep_node_obj["type"] == "DOCUMENT":
+                    rel = "PROVË_E_ADMINISTRUAR_NË_LËNDË"
+                elif rep_node_obj and rep_node_obj["type"] == "PERSON":
+                    rel = "PËRFSHIRË_NË_LËNDË"
+
+                key = f"{rep_node}___{main_hub}"
+                if key not in edge_set:
+                    edge_id = f"{rep_node}_{rel}_{main_hub}"
+                    updated_edges.append({
+                        "id": edge_id,
+                        "source": rep_node,
+                        "target": main_hub,
+                        "relation": rel,
+                        "evidence_text": f"Pjesë përbërëse e administruar në lëndën {case_title}.",
+                        "source_doc_ids": ["BFS_COMPONENT_UNIFIER"]
+                    })
+                    edge_set.add(key)
+
+        return nodes, updated_edges
 
     def get_case_graph(self, db: Database, case_id: str) -> Dict[str, Any]:
         try:

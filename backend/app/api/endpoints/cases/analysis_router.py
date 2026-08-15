@@ -1,4 +1,6 @@
 # FILE: app/api/endpoints/cases/analysis_router.py
+# PHOENIX PROTOCOL - ANALYSIS ROUTER V11.0 (CLEAN SINGLE INSTANCE • FULL ASYNC PIPELINE)
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from typing import Annotated, Optional
 from fastapi.responses import JSONResponse
@@ -11,7 +13,12 @@ from app.services import analysis_service, llm_service, spreadsheet_service, cas
 from app.models.user import UserInDB
 from app.models.drafting import DraftRequest
 from app.api.endpoints.dependencies import get_current_user, get_db
-from app.api.endpoints.cases.cases_helpers import validate_object_id, require_pro_tier, FinanceInterrogationRequest, ArchiveStrategyRequest
+from app.api.endpoints.cases.cases_helpers import (
+    validate_object_id,
+    require_pro_tier,
+    FinanceInterrogationRequest,
+    ArchiveStrategyRequest
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,7 +31,7 @@ async def run_textual_case_analysis(
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
+    validate_object_id(case_id)
     analysis_result = await analysis_service.cross_examine_case(
         db, 
         case_id, 
@@ -44,7 +51,14 @@ async def clear_case_analysis_endpoint(
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
-        {"$unset": {"latest_analysis": "", "latest_deep_analysis": "", "analyzed_doc_fingerprints": ""}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+        {
+            "$unset": {
+                "latest_analysis": "",
+                "latest_deep_analysis": "",
+                "analyzed_doc_ids": ""
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
     )
     return {"status": "success", "message": "Persistent analysis cleared successfully."}
 
@@ -55,8 +69,10 @@ async def run_deep_case_analysis(
     current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
-    result = await analysis_service.run_deep_strategy(db, case_id, str(current_user.id), client_position=client_position)
+    validate_object_id(case_id)
+    result = await analysis_service.run_deep_strategy(
+        db, case_id, str(current_user.id), client_position=client_position
+    )
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     

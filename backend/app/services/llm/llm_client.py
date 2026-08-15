@@ -1,5 +1,5 @@
 # FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V12.0 (8K MAX-TOKENS • RESILIENT JSON PARSER • DEEPSEEK CORE)
+# PHOENIX PROTOCOL - LLM CLIENT V15.0 (GEMINI 2.0 FLASH & DEEPSEEK R1 • NATIVE ASYNC 8K)
 
 import os
 import json
@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small" 
 
-FAST_MODEL = "deepseek/deepseek-chat"
+# Modeli Ultra-Shpejtë për Ontologji & Analizë (1M Context • 1.5s Response Time)
+FAST_MODEL = "google/gemini-2.0-flash-001"
+# Modeli i Thellë për Arsyetim Juridik (DeepSeek R1)
 DEEP_MODEL = "deepseek/deepseek-r1"
 
 TEMP_DRAFTING = 0.0
@@ -37,7 +39,7 @@ def _get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """Pastron dhe dekodon përgjigjen JSON me fallbacks të shumëfishtë."""
+    """Pastron dhe dekodon përgjigjen JSON me mbrojtje nga formatimi."""
     if not text:
         return {}
     
@@ -50,17 +52,17 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
     try:
         return json.loads(cleaned)
     except Exception as e:
-        logger.warning(f"Standard JSON parse failed. Running regex extractor fallback. Error: {e}")
+        logger.warning(f"Standard JSON parse failed. Running regex fallback: {e}")
         try:
             json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group(0))
         except Exception as fallback_err:
-            logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text[:200]}")
+            logger.error(f"Regex JSON fallback failed: {fallback_err}")
         return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje sinkrone e sigurt drejt DeepSeek në OpenRouter me 8192 max_tokens."""
+    """Thirrje sinkrone e sigurt."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
@@ -79,7 +81,7 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
                 {"role": "user", "content": sanitized_user_content}
             ],
             "temperature": temperature,
-            "max_tokens": 8192  # Hapësirë maksimale që përgjigja JSON të mos pritet kurrë në mes
+            "max_tokens": 8192
         }
         
         if json_mode:
@@ -89,6 +91,38 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
         return res.choices[0].message.content or ""
     except Exception as e:
         logger.error(f"❌ Error in _call_llm ({model}): {e}")
+        return ""
+
+async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
+    """Thirrje 100% asinkrone pa bllokuar threads në Render."""
+    key = _get_api_key()
+    if not key:
+        logger.error("❌ Mungon OPENROUTER_API_KEY")
+        return ""
+    try:
+        client = _get_async_client()
+        
+        identity_header = build_dynamic_identity_header()
+        full_sys_prompt = f"{identity_header}\n\n{system_prompt}" if "MANDATI RIGOROZ" not in system_prompt else system_prompt
+        sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
+
+        kwargs = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": full_sys_prompt},
+                {"role": "user", "content": sanitized_user_content}
+            ],
+            "temperature": temperature,
+            "max_tokens": 8192
+        }
+        
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        res = await client.chat.completions.create(**kwargs)
+        return res.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"❌ Error in _call_llm_async ({model}): {e}")
         return ""
 
 def get_embedding(text: str) -> List[float]:
