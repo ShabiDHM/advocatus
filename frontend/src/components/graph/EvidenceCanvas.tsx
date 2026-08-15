@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V77.0 (STRICT ZERO-WARNING D3 ENGINE)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V81.0 (DYNAMIC PARALLEL CURVATURE • ZERO WARNINGS)
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -37,7 +37,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Struktura e të dhënave për D3 Force Graph
+  // Llogaritja e Lakoreve Dinamike për Lidhjet Paralele (Multi-Edge Curvature)
   const graphData = useMemo(() => {
     const nodes = filteredNodes.map((n) => {
       const conf = ENTITY_CONFIG[n.type] || ENTITY_CONFIG.PERSON;
@@ -63,8 +63,33 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       };
     });
 
+    // Numëron sa lidhje ekzistojnë midis të njëjtit çift entitetesh
+    const pairMap = new Map<string, number>();
+    filteredEdges.forEach((e) => {
+      const key = [e.source, e.target].sort().join('___');
+      pairMap.set(key, (pairMap.get(key) || 0) + 1);
+    });
+
+    const pairCurrentIndex = new Map<string, number>();
+
     const edges = filteredEdges.map((e) => {
-      const isContradiction = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR');
+      const key = [e.source, e.target].sort().join('___');
+      const total = pairMap.get(key) || 1;
+      const currentIndex = pairCurrentIndex.get(key) || 0;
+      pairCurrentIndex.set(key, currentIndex + 1);
+
+      // Lakorja shpërndahet në mënyrë simetrike: -0.22, 0.0, +0.22
+      let curvature = 0;
+      if (total > 1) {
+        curvature = (currentIndex - (total - 1) / 2) * 0.22;
+        if (e.source > e.target) curvature *= -1;
+      }
+
+      const isContradiction =
+        e.relation.includes('CONTRADICT') ||
+        e.relation.includes('KUNDËR') ||
+        e.relation.includes('MOSPËRPUTHJE');
+
       let edgeLabel = formatRelationText(e.relation).toUpperCase();
       if (e.amount_eur) {
         edgeLabel += ` • €${e.amount_eur.toLocaleString()}`;
@@ -77,103 +102,110 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         rawEdge: e,
         label: edgeLabel,
         isContradiction,
+        curvature: curvature,
       };
     });
 
     return { nodes, links: edges };
   }, [filteredNodes, filteredEdges]);
 
-  // Konfigurimi i Forcave D3 (Hard Collision Constraint)
+  // Konfigurimi i Forcave D3 me Gravitet Qendror Përmbajtës
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge')?.strength(-2000);
-    fgRef.current.d3Force('link')?.distance(240);
+    fgRef.current.d3Force('charge')?.strength(-1400);
+    fgRef.current.d3Force('link')?.distance(220);
 
     const d3 = (window as any).d3;
-    if (d3 && d3.forceCollide) {
-      fgRef.current.d3Force('collide', d3.forceCollide(90).iterations(3));
+    if (d3) {
+      if (d3.forceCollide) {
+        fgRef.current.d3Force('collide', d3.forceCollide(85).iterations(2));
+      }
+      if (d3.forceX && d3.forceY) {
+        fgRef.current.d3Force('x', d3.forceX(0).strength(0.06));
+        fgRef.current.d3Force('y', d3.forceY(0).strength(0.06));
+      }
     }
 
     fgRef.current.d3ReheatSimulation();
   }, [graphData]);
 
+  // Kamera e Kufizuar Inteligjente
   const handleResetView = useCallback(() => {
     if (fgRef.current) {
-      fgRef.current.zoomToFit(700, 100);
+      fgRef.current.zoomToFit(600, 80, (node: any) => {
+        return filteredEdges.some((e) => e.source === node.id || e.target === node.id);
+      });
+      setTimeout(() => {
+        if (fgRef.current && fgRef.current.zoom() < 0.55) {
+          fgRef.current.zoom(0.75, 400);
+        }
+      }, 650);
     }
-  }, []);
+  }, [filteredEdges]);
 
   const handleZoomIn = () => {
-    if (fgRef.current) {
-      fgRef.current.zoom(fgRef.current.zoom() * 1.3, 400);
-    }
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 400);
   };
 
   const handleZoomOut = () => {
-    if (fgRef.current) {
-      fgRef.current.zoom(fgRef.current.zoom() / 1.3, 400);
-    }
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 400);
   };
 
   // Vizatimi i Nyjes në Canvas
   const drawNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      void globalScale; // Parandalon paralajmërimin TS6133
+      void globalScale;
       const isSelected = selectedNode?.id === node.id;
       const isDimmed = isFocusMode && !isSelected;
 
-      const r = 26;
+      const r = 24;
       const x = node.x;
       const y = node.y;
 
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
 
-      // 1. Halo kur Zgjidhet Nyja
       if (isSelected) {
         ctx.beginPath();
-        ctx.arc(x, y, r + 10, 0, 2 * Math.PI, false);
+        ctx.arc(x, y, r + 9, 0, 2 * Math.PI, false);
         ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
         ctx.fill();
 
         ctx.beginPath();
-        ctx.arc(x, y, r + 5, 0, 2 * Math.PI, false);
+        ctx.arc(x, y, r + 4, 0, 2 * Math.PI, false);
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 3;
         ctx.stroke();
       }
 
-      // 2. Rrethi Kryesor
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI, false);
       ctx.fillStyle = node.color || '#2563eb';
       ctx.fill();
 
       ctx.strokeStyle = isSelected ? '#ffffff' : node.borderColor || '#60a5fa';
-      ctx.lineWidth = isSelected ? 3.5 : 2.5;
+      ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
 
-      // 3. Inicialet në Qendër
-      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffffff';
       ctx.fillText(node.initials || '', x, y);
 
-      // 4. Badge me Emrin e Plotë poshtë Nyjes
       const labelText = node.label || '';
-      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.font = 'bold 10.5px system-ui, sans-serif';
       const textWidth = ctx.measureText(labelText).width;
-      const badgeW = textWidth + 16;
-      const badgeH = 22;
+      const badgeW = textWidth + 14;
+      const badgeH = 20;
       const badgeX = x - badgeW / 2;
-      const badgeY = y + r + 8;
+      const badgeY = y + r + 7;
 
       ctx.fillStyle = '#090d16';
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
       } else {
         ctx.rect(badgeX, badgeY, badgeW, badgeH);
       }
@@ -193,10 +225,10 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     [selectedNode, isFocusMode]
   );
 
-  // Vizatimi i Lidhjes me Etiketë në Canvas
+  // Vizatimi i Lidhjes me Lakore
   const drawLink = useCallback(
     (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      void globalScale; // Parandalon paralajmërimin TS6133
+      void globalScale;
       const isSelected = selectedEdge?.id === link.id || hoveredEdge?.id === link.id;
       const isDimmed = isFocusMode && !isSelected;
 
@@ -204,11 +236,11 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       const end = link.target;
       if (!start || !end || typeof start.x !== 'number' || typeof end.x !== 'number') return;
 
-      const midX = (start.x + end.x) / 2;
-      const midY = (start.y + end.y) / 2;
+      const midX = (start.x + end.x) / 2 + (link.curvature || 0) * (end.y - start.y) * 0.4;
+      const midY = (start.y + end.y) / 2 - (link.curvature || 0) * (end.x - start.x) * 0.4;
 
       ctx.save();
-      ctx.globalAlpha = isDimmed ? 0.1 : 1.0;
+      ctx.globalAlpha = isDimmed ? 0.08 : 1.0;
 
       let angle = Math.atan2(end.y - start.y, end.x - start.x);
       if (angle > Math.PI / 2) angle -= Math.PI;
@@ -219,15 +251,15 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       ctx.rotate(angle);
 
       const labelText = link.label || '';
-      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.font = 'bold 8.5px system-ui, sans-serif';
       const textWidth = ctx.measureText(labelText).width;
-      const padW = textWidth + 12;
-      const padH = 18;
+      const padW = textWidth + 10;
+      const padH = 16;
 
       ctx.fillStyle = link.isContradiction ? '#450a0a' : isSelected ? '#0369a1' : '#090d16';
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(-padW / 2, -padH / 2, padW, padH, 5);
+        ctx.roundRect(-padW / 2, -padH / 2, padW, padH, 4);
       } else {
         ctx.rect(-padW / 2, -padH / 2, padW, padH);
       }
@@ -263,16 +295,17 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         ref={fgRef as any}
         graphData={graphData}
         backgroundColor="rgba(0,0,0,0)"
-        nodeRelSize={26}
+        nodeRelSize={24}
         nodeCanvasObject={drawNode}
         nodePointerAreaPaint={(node: any, color, ctx) => {
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 30, 0, 2 * Math.PI, false);
+          ctx.arc(node.x, node.y, 28, 0, 2 * Math.PI, false);
           ctx.fill();
         }}
         linkCanvasObjectMode={() => 'after'}
         linkCanvasObject={drawLink}
+        linkCurvature="curvature"
         linkColor={(link: any) =>
           link.isContradiction
             ? '#ef4444'
@@ -281,9 +314,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
             : '#475569'
         }
         linkWidth={(link: any) =>
-          link.isContradiction || selectedEdge?.id === link.id ? 3 : 2
+          link.isContradiction || selectedEdge?.id === link.id ? 2.5 : 1.8
         }
-        linkDirectionalArrowLength={7}
+        linkDirectionalArrowLength={6}
         linkDirectionalArrowRelPos={0.85}
         linkDirectionalArrowColor={(link: any) =>
           link.isContradiction
@@ -292,8 +325,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
             ? '#38bdf8'
             : '#64748b'
         }
-        linkLineDash={(link: any) => (link.isContradiction ? [5, 4] : null)}
-        linkCurvature={0.12}
+        linkLineDash={(link: any) => (link.isContradiction ? [5, 3] : null)}
         onNodeClick={(node: any) => onSelectNode(node.rawNode)}
         onLinkClick={(link: any) => onSelectEdge(link.rawEdge)}
         onLinkHover={(link: any) => onHoverEdge(link ? link.rawEdge : null)}
@@ -302,7 +334,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
           onSelectEdge(null);
           onHoverEdge(null);
         }}
-        cooldownTicks={120}
+        cooldownTicks={100}
         onEngineStop={handleResetView}
       />
 
@@ -335,9 +367,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         <button
           type="button"
           onClick={() => {
-            if (fgRef.current) {
-              fgRef.current.d3ReheatSimulation();
-            }
+            if (fgRef.current) fgRef.current.d3ReheatSimulation();
           }}
           className="p-2 text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Ri-kalkulo Fizikën D3"

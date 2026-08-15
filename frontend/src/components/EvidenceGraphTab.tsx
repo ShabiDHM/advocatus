@@ -1,5 +1,5 @@
 // FILE: src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V67.0 (AUTO-SAVE PDF REPORT TO CASE ARCHIVE)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V70.0 (SMART CORE-18 CONTRADICTION MATRIX & TIMELINE)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -77,7 +77,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entityMessages, isSending]);
 
-  // Strict Deduplication & Filtering
+  // Filtri inteligjent i entiteteve (Provat Kryesore merr 18 nyjet qendrore dhe kontradiktat)
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
     let base = graphData.nodes.filter((node) => {
@@ -89,13 +89,14 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 4) {
+    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 18) {
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach((e) => {
-        edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + 1);
-        edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + 1);
+        const bonus = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR') ? 3 : 1;
+        edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + bonus);
+        edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + bonus);
       });
-      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 4);
+      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 18);
     }
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
@@ -180,7 +181,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     setRebuilding(true);
     try {
       await apiService.rebuildCaseGraph(caseId);
-      setTimeout(() => fetchGraphAndCaseDetails(), 3000);
+      setTimeout(() => fetchGraphAndCaseDetails(), 1500);
     } catch (err) {
       console.error('Rebuild failed:', err);
     } finally {
@@ -290,7 +291,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
   const isFocusMode = selectedNode !== null || hoveredEdge !== null || selectedEdge !== null;
 
   return (
-    <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-2xl border border-main overflow-hidden shadow-xl relative font-sans select-none">
+    <div className="flex flex-col h-full w-full bg-canvas text-text-primary rounded-none overflow-hidden relative font-sans select-none">
       <GraphToolbar
         simplifiedView={simplifiedView}
         onToggleSimplified={() => setSimplifiedView(!simplifiedView)}
@@ -312,23 +313,23 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
 
       <div className="flex-1 flex relative overflow-hidden bg-canvas">
         {isMobile && mobileTab === 'entities' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-finance-scroll">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 custom-finance-scroll">
             {filteredNodes.map((node) => {
               const conf = ENTITY_CONFIG[node.type] || ENTITY_CONFIG.PERSON;
               const IconComp = conf.icon;
               return (
-                <div key={node.id} onClick={() => setSelectedNode(node)} className="p-4 bg-surface border border-main rounded-2xl cursor-pointer flex flex-col gap-2">
+                <div key={node.id} onClick={() => setSelectedNode(node)} className="p-3 bg-surface border border-main rounded-xl cursor-pointer flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: conf.bg }}>
-                        <IconComp size={20} />
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: conf.bg }}>
+                        <IconComp size={16} />
                       </div>
                       <div>
-                        <h4 className="text-sm font-black text-text-primary">{translateToAlbanian(node.label)}</h4>
-                        <span className="text-[10px] font-bold uppercase" style={{ color: conf.border }}>{conf.albanianLabel}</span>
+                        <h4 className="text-xs font-black text-text-primary">{translateToAlbanian(node.label)}</h4>
+                        <span className="text-[9px] font-bold uppercase" style={{ color: conf.border }}>{conf.albanianLabel}</span>
                       </div>
                     </div>
-                    <ChevronRight size={16} className="text-text-muted" />
+                    <ChevronRight size={14} className="text-text-muted" />
                   </div>
                 </div>
               );
@@ -337,13 +338,13 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
         )}
 
         {isMobile && mobileTab === 'timeline' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-finance-scroll">
-            <div className="relative border-l-2 border-main ml-4 space-y-4 pl-6">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-finance-scroll">
+            <div className="relative border-l-2 border-main ml-3 space-y-3 pl-4">
               {timelineItems.map((item) => (
-                <div key={item.id} onClick={() => setSelectedEdge(item.rawEdge)} className="p-3 bg-surface border border-main rounded-2xl cursor-pointer">
-                  <span className="text-xs font-black text-primary-start uppercase">{item.title}</span>
+                <div key={item.id} onClick={() => setSelectedEdge(item.rawEdge)} className="p-2.5 bg-surface border border-main rounded-xl cursor-pointer">
+                  <span className="text-[11px] font-black text-primary-start uppercase">{item.title}</span>
                   <div className="text-xs font-bold text-text-primary my-1 flex items-center gap-1">
-                    <span>{item.sourceLabel}</span> <Link2 size={12} /> <span>{item.targetLabel}</span>
+                    <span>{item.sourceLabel}</span> <Link2 size={11} /> <span>{item.targetLabel}</span>
                   </div>
                 </div>
               ))}
