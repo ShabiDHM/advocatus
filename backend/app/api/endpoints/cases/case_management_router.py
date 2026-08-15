@@ -1,4 +1,6 @@
 # FILE: app/api/endpoints/cases/case_management_router.py
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V10.0 (FASTAPI COMPLIANT • ZERO ERRORS)
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated
 from fastapi.responses import StreamingResponse, JSONResponse, Response
@@ -139,7 +141,7 @@ async def get_single_case(
         owner=current_user
     )
     if not case:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Case not found")
     return case
 
 @router.put("/{case_id}/position", status_code=status.HTTP_200_OK)

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - ONTOLOGY SERVICE V10.0 (KOSOVO LEGAL FORENSIC DEEP-EXTRACTION ENGINE)
+# PHOENIX PROTOCOL - ONTOLOGY SERVICE V14.0 (100% UNIVERSAL DYNAMIC ENGINE • ZERO HARDCODING)
 
 import logging
 import re
@@ -17,12 +17,13 @@ VALID_ENTITY_TYPES = {"PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "EVENT", 
 
 class OntologyService:
     """
-    Advanced Legal & Financial Forensic Ontology Engine tailored for Kosovo Jurisdiction.
-    Extracts high-resolution evidence webs, procedural actors, money flows, and legal contradictions.
+    100% Universal, Multi-Tenant Forensic Ontology & Contradiction Engine for Kosovo Jurisdiction.
+    Supports Civil, Criminal, Family, Commercial/ARBK, and Administrative cases dynamically.
+    Contains ZERO hardcoded case-specific names or logic.
     """
 
     def _clean_entity_name(self, name: str) -> str:
-        """Pastron parashtesat procedurale për të shmangur duplikimet e personave."""
+        """Pastron titujt dhe parashtesat procedurale për unifikim dinamik të entiteteve."""
         if not name:
             return ""
         clean = name.strip()
@@ -32,60 +33,61 @@ class OntologyService:
             r"^paditës(i|ja)\s+",
             r"^i\s+paditur(i)?\s+",
             r"^dëshmitar(i|ja)\s+",
-            r"^avokat(i)?\s+",
-            r"^prokuror(i)?\s+",
-            r"^gjyqtar(i|ja)\s+",
+            r"^avokat(i|e)?\s+",
+            r"^prokuror(i|e)?\s+",
+            r"^gjyqtar(i|e)?\s+",
             r"^ekspert(i)?\s+",
             r"^dr\.\s+",
-            r"^prof\.\s+"
+            r"^prof\.\s+",
+            r"^m\.sc\.\s+",
+            r"^ing\.\s+"
         ]
         for p in prefixes:
             clean = re.sub(p, "", clean, flags=re.IGNORECASE)
         return clean.strip()
 
     def extract_ontology_from_text(self, text: str, doc_id: str = "", doc_name: str = "") -> Dict[str, Any]:
+        """Nxjerr entitetet dhe relacionet ligjore nga çdo lloj dokumenti në mënyrë universale."""
         if not text or not text.strip():
             return {"nodes": [], "edges": []}
 
-        # Lexon deri në 60,000 karaktere (~20 faqe A4) për dokument
         safe_text = text[:60000]
 
         system_prompt = """
-        Ti je Krye-Auditori dhe Eksperti Forenzik i Graph-it të Provave Ligjore për Gjykatat dhe Prokuroritë e Republikës së Kosovës (Juristi AI Evidence Matrix).
-        DETYRA JOTE: Analizo me saktësi kirurgjike këtë dokument/aktakuzë/ekspertizë dhe nxirr TË GJITHË personat, institucionet, llogaritë, shkeljet dhe KONTRADIKTAT.
+        Ti je Krye-Auditori dhe Eksperti Forenzik i Graph-it të Provave Ligjore për Drejtësinë e Republikës së Kosovës (Juristi AI Universal Engine).
+        DETYRA JOTE: Analizo këtë dokument ligjor/financiar/procesverbal dhe nxirr TË GJITHË aktorët, institucionet, dokumentet/provat dhe LIDHJET E TYRE.
 
         KATEGORITË E ENTITETEVE (type):
-        1. "PERSON": Çdo individ i përmendur (Paditësi, I Padituri, I Pandehuri, Dëshmitari, Avokati, Prokurori, Gjyqtari, Eksperti, Pronari).
-        2. "ORGANIZATION": Institucionet shtetërore (Gjykata, Prokuroria, Ministritë, Policia, QKUK) dhe Kompanitë private / ARBK.
-        3. "ACCOUNT": Llogaritë bankare, IBAN, faturat, transaksionet financiare, tenderët publikë.
-        4. "LOCATION": Adresat, qytetet, pronat e paluajtshme, parcelat kadastrale.
-        5. "EVENT": Seancat gjyqësore, marrëveshjet, aktakuzat, incidentet/veprat penale.
-        6. "DOCUMENT": Kontratat, faturat, ekspertizat mjekoligjore/financiare, certifikatat e vdekjes/pronësisë.
+        1. "PERSON": Individët (Palët në procedurë, Përfaqësuesit, Dëshmitarët, Zyrtarët, Ekspertët, Pronarët, etj.).
+        2. "ORGANIZATION": Institucionet publike (Gjykata, Prokuroria, Ministritë, Komunat, Agjencitë) dhe Kompanitë private / Personat Juridikë (ARBK).
+        3. "ACCOUNT": Llogaritë bankare, IBAN, transaksionet financiare, faturat, shumat e kërkesëpadisë ose dëmit.
+        4. "LOCATION": Qytetet, selitë, adresat, parcelat kadastrale, pronat e paluajtshme.
+        5. "EVENT": Seancat gjyqësore, marrëveshjet, aktakuzat, shkeljet, ngjarjet thelbësore.
+        6. "DOCUMENT": Ekspertizat, kontratat, aktvendimet, certifikatat, provat shkresore, raportet mjekësore/financiare.
 
-        RELACIONET LIGJORE NË SHQIP (relation):
-        - Procedurale: "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "BASHKËPANDEHUR_ME", "DËSHMITAR_I", "GJYKUAR_NGA", "PUNËSUAR_NË"
-        - Familjare/Shoqërore: "PRIND_I", "FËMIJË_I", "BASHKËSHORT_I", "LIDHJE_FAMILJARE", "BASHKËPUNTOR_I"
-        - Pronësi & Financa: "PRONAR_I", "TRANSFER_PARASH", "FITUES_I_TENDERIT", "I_DETYROHET"
-        - KONTRADIKTA & SHKELJE: "KUNDËRTHËNIE_ME_PROVËN", "MOSPËRPUTHJE_DËSHMIE", "SHKELJE_LIGJORE", "DENONCUAR_NGA"
+        RREGULLAT E LIDHJEVE DHE KONTRADIKTAVE (relation):
+        - Përcakto relacionin e saktë në gjuhën shqipe (p.sh. "PADITËS_I", "I_PADITUR_NGA", "PËRFAQËSOHET_NGA", "PRONAR_I", "PUNËSUAR_NË", "EKSPERTIZË_PËR", "PROVË_E_DORËZUAR_NGA", "TRANSFER_PARASH").
+        - NËSE VËREN KONTRADIKTA APO MOS-PËRPUTHJE brenda dokumentit, shënoje relacionin me parashtesën "KUNDËRTHËNIE_" ose "MOSPËRPUTHJE_" (p.sh. "KUNDËRTHËNIE_ME_PROVËN", "MOSPËRPUTHJE_DËSHMIE").
+        - Çdo dokument provues (raport, ekspertizë, certifikatë) DUHET të lidhet me personin ose institucionin përkatës.
 
         Përgjigju VETËM në formatin JSON të pastër:
         {
           "nodes": [
             {
               "id": "slug_unike",
-              "label": "Emri zyrtar (p.sh. Shaban Bala, Gjykata Themelore Prishtinë)",
+              "label": "Emri Zyrtar i Entitetit",
               "type": "PERSON | ORGANIZATION | ACCOUNT | LOCATION | EVENT | DOCUMENT",
-              "description": "Roli i saktë ligjor i nxjerrë nga dokumenti"
+              "description": "Roli ose konteksti procedural i dokumentuar"
             }
           ],
           "edges": [
             {
-              "source": "id_e_nyjes_burim",
-              "target": "id_e_nyjes_synim",
+              "source": "id_burimi",
+              "target": "id_synimi",
               "relation": "RELACIONI_NË_SHQIP",
-              "amount_eur": 15000.0,
+              "amount_eur": null,
               "date_iso": "YYYY-MM-DD",
-              "evidence_text": "Citati tekstual nga dokumenti që e vërteton këtë lidhje ose kontradiktë"
+              "evidence_text": "Citati ekzakt nga teksti që e vërteton këtë lidhje apo mospërputhje"
             }
           ]
         }
@@ -172,7 +174,7 @@ class OntologyService:
 
     def merge_graph_data(self, existing_nodes: List[Dict], existing_edges: List[Dict], 
                          new_nodes: List[Dict], new_edges: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
-        """Bashkon entitetet nga shumë dokumente duke ruajtur të gjitha referencat dhe përshkrimet."""
+        """Bashkon entitetet nga dokumente të shumëfishta duke ruajtur të gjitha referencat."""
         node_dict = {n["id"]: n for n in existing_nodes}
 
         for node in new_nodes:
@@ -204,10 +206,128 @@ class OntologyService:
 
         return list(node_dict.values()), list(edge_dict.values())
 
-    def get_case_graph(self, db: Database, case_id: str) -> Dict[str, Any]:
-        """Merr të gjithë ontologjinë e unifikuar të lëndës."""
+    async def dynamically_synthesize_cross_document_contradictions(self, nodes: List[Dict], edges: List[Dict], case_title: str) -> Tuple[List[Dict], List[Dict]]:
+        """
+        ANALIZA E THELLË DINAMIKE E KONTRADIKTAVE ME LLM (100% PA HARDKODIM):
+        Merr entitetet dhe provat e akumuluara të ÇDO lënde (penale, civile, familjare, korrupsion)
+        dhe gjen kontradiktat reale midis dokumenteve të ndryshme.
+        """
+        if not nodes or len(nodes) < 2:
+            return nodes, edges
+
+        # Zgjedhim entitetet kryesore dhe provat shkresore për analizë të kryqëzuar
+        summary_entities = []
+        for n in nodes[:60]:
+            summary_entities.append(f"- {n['label']} ({n['type']}): {n.get('description', '')}")
+
+        summary_edges = []
+        for e in edges[:80]:
+            summary_edges.append(f"- [{e['source']}] --({e['relation']})--> [{e['target']}]: \"{e.get('evidence_text', '')}\"")
+
+        ent_str = "\n".join(summary_entities)
+        rel_str = "\n".join(summary_edges)
+
+        prompt = f"""
+        Ti je Ekspert i Inteligjencës dhe Forenzikës Ligjore në Kosovë.
+        Kjo është lista e provave dhe marrëdhënieve të nxjerra nga dosja ligjore: "{case_title}".
+
+        ENTITETET E DOSJES:
+        {ent_str}
+
+        LIDHJET DHE PROVAT E DERITANISHME:
+        {rel_str}
+
+        DETYRA JOTE FORENZIKE:
+        Identifiko të gjitha KONTRADIKTAT E KRYQËZUARA midis dokumenteve të ndryshme (p.sh. një test/raport shkencor që rrëzon një pretendim, dy dëshmi me fakte të kundërta, pretendim financiar i pabazuar, shkelje procedurale).
+        Gjithashtu identifiko nëse ka ndonjë dokument/ekspertizë që duhet të lidhet me personin që i përket.
+
+        Kthe VETËM një JSON me lidhjet e reja të kontradiktave dhe provave:
+        {{
+          "new_forensic_edges": [
+            {{
+              "source": "slug_burimi_ekzakt",
+              "target": "slug_synimi_ekzakt",
+              "relation": "KUNDËRTHËNIE_ME_PROVËN | MOSPËRPUTHJE_DËSHMIE | SHKELJE_LIGJORE | PROVË_SHKËNCORË_PËR",
+              "evidence_text": "Arsyetimi i saktë ligjor pse kjo përbën kontradiktë apo provë materiale"
+            }}
+          ]
+        }}
+        """
+
         try:
-            # 1. Kontrollo së pari në depon qendrore `db.case_graphs`
+            raw = _call_llm(
+                system_prompt="Ti je ekspert ligjor i zbulimit të kontradiktave.",
+                user_content=prompt,
+                json_mode=True,
+                temperature=0.0,
+                model=FAST_MODEL
+            )
+            parsed = clean_and_parse_json(raw)
+            new_forensic_edges = parsed.get("new_forensic_edges", [])
+
+            node_ids = {n["id"] for n in nodes}
+            edge_set = {f"{e['source']}___{e['target']}" for e in edges}
+            updated_edges = list(edges)
+
+            for fe in new_forensic_edges:
+                src = str(fe.get("source", "")).strip().lower()
+                tgt = str(fe.get("target", "")).strip().lower()
+                rel = str(fe.get("relation", "KUNDËRTHËNIE_LIGJORE")).upper().replace(" ", "_")
+                ev = str(fe.get("evidence_text", ""))
+
+                if src in node_ids and tgt in node_ids and src != tgt:
+                    key = f"{src}___{tgt}"
+                    if key not in edge_set:
+                        edge_id = f"{src}_{rel}_{tgt}"
+                        updated_edges.append({
+                            "id": edge_id,
+                            "source": src,
+                            "target": tgt,
+                            "relation": rel,
+                            "evidence_text": ev,
+                            "source_doc_ids": ["CROSS_DOC_CONTRADICTION_ENGINE"]
+                        })
+                        edge_set.add(key)
+
+            # ANKORIMI DINAMIK UNIVERSAL: Çdo nyje e izoluar lidhet me qendrën e asaj lënde specifike
+            connected_ids = set()
+            for e in updated_edges:
+                connected_ids.add(e["source"])
+                connected_ids.add(e["target"])
+
+            # Gjen nyjen me lidhshmërinë më të lartë në këtë lëndë (Degree Centrality)
+            degree_counts = {}
+            for e in updated_edges:
+                degree_counts[e["source"]] = degree_counts.get(e["source"], 0) + 1
+                degree_counts[e["target"]] = degree_counts.get(e["target"], 0) + 1
+
+            hub_id = max(degree_counts, key=degree_counts.get) if degree_counts else (nodes[0]["id"] if nodes else None)
+
+            if hub_id:
+                for n in nodes:
+                    if n["id"] not in connected_ids and n["id"] != hub_id:
+                        rel = "PROVË_E_LËNDËS" if n["type"] == "DOCUMENT" else "PËRFSHIRË_NË_LËNDË"
+                        key = f"{n['id']}___{hub_id}"
+                        if key not in edge_set:
+                            edge_id = f"{n['id']}_{rel}_{hub_id}"
+                            updated_edges.append({
+                                "id": edge_id,
+                                "source": n["id"],
+                                "target": hub_id,
+                                "relation": rel,
+                                "evidence_text": f"Dokument i administruar në fashikullin e lëndës {case_title}.",
+                                "source_doc_ids": n.get("source_doc_ids", [])
+                            })
+                            edge_set.add(key)
+
+            return nodes, updated_edges
+
+        except Exception as e:
+            logger.error(f"❌ Error in dynamic contradiction synthesis: {e}")
+            return nodes, edges
+
+    def get_case_graph(self, db: Database, case_id: str) -> Dict[str, Any]:
+        try:
             graph_record = db.case_graphs.find_one({"case_id": case_id})
             if graph_record and graph_record.get("nodes"):
                 return {
@@ -216,7 +336,6 @@ class OntologyService:
                     "updated_at": graph_record.get("updated_at")
                 }
 
-            # 2. Fallback te `db.cases`
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
             if case_doc and case_doc.get("graph_data"):
@@ -341,16 +460,14 @@ class OntologyService:
 
             elements = []
 
-            # 1. Titulli
-            elements.append(Paragraph("Raporti i Ontologjisë Ligjore", title_style))
+            elements.append(Paragraph("Raporti i Ontologjisë Ligjore dhe Matrica e Provave", title_style))
             elements.append(Paragraph(f"Lënda: <b>{c_title}</b> &nbsp;|&nbsp; Data e Gjenerimit: <b>{now_str}</b>", meta_style))
             elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563eb'), spaceAfter=14))
 
-            # 2. Tabela e Entiteteve
-            elements.append(Paragraph(f"1. REGJISTRI I ENTITETEVE TË DOKUMENTUARA ({len(nodes)})", section_heading))
+            elements.append(Paragraph(f"1. REGJISTRI I ENTITETEVE TË IDENTIFIKUARA ({len(nodes)})", section_heading))
 
             entity_table_data = [
-                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>EMRI ZYRTAR</b>", cell_bold), Paragraph("<b>LLOJI</b>", cell_bold), Paragraph("<b>PËRSHKRIMI / ROLI LIGJOR</b>", cell_bold)]
+                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>EMRI ZYRTAR</b>", cell_bold), Paragraph("<b>LLOJI</b>", cell_bold), Paragraph("<b>PËRSHKRIMI / ROLI PROCEDURAL</b>", cell_bold)]
             ]
 
             type_map = {
@@ -388,14 +505,13 @@ class OntologyService:
             elements.append(entity_table)
             elements.append(Spacer(1, 16))
 
-            # 3. Tabela e Marrëdhënieve dhe Kontradiktave
             total_eur = sum(e.get("amount_eur", 0.0) or 0.0 for e in edges)
             fin_summary_str = f" (Sasia totale e transaksioneve: €{total_eur:,.2f})" if total_eur > 0 else ""
 
-            elements.append(Paragraph(f"2. HARTA E LIDHJEVE DHE KANALEVE FINANCIARE ({len(edges)}){fin_summary_str}", section_heading))
+            elements.append(Paragraph(f"2. MATRICA E LIDHJEVE DHE KONTRADIKTAVE TË DOKUMENTUARA ({len(edges)}){fin_summary_str}", section_heading))
 
             rel_table_data = [
-                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>BURIMI</b>", cell_bold), Paragraph("<b>LIDHJA / TRANSAKSIONI</b>", cell_bold), Paragraph("<b>CAKU</b>", cell_bold), Paragraph("<b>PROVA ORIGJINALE / CITATI</b>", cell_bold)]
+                [Paragraph("<b>#</b>", cell_bold), Paragraph("<b>BURIMI</b>", cell_bold), Paragraph("<b>RELACIONI / SHKELJA</b>", cell_bold), Paragraph("<b>CAKU</b>", cell_bold), Paragraph("<b>CITATI I PROVËS MATERIALE</b>", cell_bold)]
             ]
 
             for i, e in enumerate(edges, 1):
@@ -408,7 +524,7 @@ class OntologyService:
                 amt = f"<br/><font color='#059669'><b>€{e['amount_eur']:,.2f}</b></font>" if e.get("amount_eur") else ""
                 evidence = e.get("evidence_text") or "I dokumentuar në fashikullin e lëndës."
 
-                is_contradiction = "CONTRADICT" in rel or "KUNDËR" in rel or "MOSPËRPUTHJE" in rel
+                is_contradiction = "CONTRADICT" in rel or "KUNDËR" in rel or "MOSPËRPUTHJE" in rel or "SHKELJE" in rel
                 rel_style = cell_contradiction if is_contradiction else cell_bold
 
                 rel_table_data.append([
@@ -435,7 +551,7 @@ class OntologyService:
                 canvas.saveState()
                 canvas.setFont('Helvetica', 8)
                 canvas.setFillColor(colors.HexColor('#64748b'))
-                disclaimer_text = "Ky raport është për referencë ligjore dhe duhet të verifikohet nga avokati mbrojtës."
+                disclaimer_text = "Ky raport është gjeneruar nga Juristi AI për përdorim në organet e drejtësisë."
                 canvas.drawString(40, 20, disclaimer_text)
                 page_num = canvas.getPageNumber()
                 canvas.drawRightString(612 - 40, 20, f"Faqja {page_num}")

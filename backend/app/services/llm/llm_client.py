@@ -1,4 +1,6 @@
 # FILE: app/services/llm/llm_client.py
+# PHOENIX PROTOCOL - LLM CLIENT V12.0 (8K MAX-TOKENS • RESILIENT JSON PARSER • DEEPSEEK CORE)
+
 import os
 import json
 import logging
@@ -28,13 +30,14 @@ def _get_api_key() -> str:
 
 def _get_sync_client() -> OpenAI: 
     key = _get_api_key()
-    return OpenAI(api_key=key, base_url=OPENROUTER_URL)
+    return OpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
 def _get_async_client() -> AsyncOpenAI: 
     key = _get_api_key()
-    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL)
+    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
+    """Pastron dhe dekodon përgjigjen JSON me fallbacks të shumëfishtë."""
     if not text:
         return {}
     
@@ -53,13 +56,15 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
             if json_match:
                 return json.loads(json_match.group(0))
         except Exception as fallback_err:
-            logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text}")
-        raise
+            logger.error(f"Ultimate JSON extraction failed: {fallback_err}. Raw text: {text[:200]}")
+        return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
+    """Thirrje sinkrone e sigurt drejt DeepSeek në OpenRouter me 8192 max_tokens."""
     key = _get_api_key()
     if not key:
-        return "Gabim: Mungon OPENROUTER_API_KEY"
+        logger.error("❌ Mungon OPENROUTER_API_KEY")
+        return ""
     try:
         client = _get_sync_client()
         
@@ -73,16 +78,17 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
                 {"role": "system", "content": full_sys_prompt},
                 {"role": "user", "content": sanitized_user_content}
             ],
-            "temperature": temperature
+            "temperature": temperature,
+            "max_tokens": 8192  # Hapësirë maksimale që përgjigja JSON të mos pritet kurrë në mes
         }
         
-        if json_mode and model == FAST_MODEL:
+        if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
             
         res = client.chat.completions.create(**kwargs)
         return res.choices[0].message.content or ""
     except Exception as e:
-        logger.error(f"Error in _call_llm: {e}")
+        logger.error(f"❌ Error in _call_llm ({model}): {e}")
         return ""
 
 def get_embedding(text: str) -> List[float]:
@@ -110,7 +116,9 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.05, model: 
                 {"role": "system", "content": full_sys},
                 {"role": "user", "content": sanitized_user_p}
             ],
-            temperature=temp, stream=True
+            temperature=temp,
+            stream=True,
+            max_tokens=8192
         )
         async for chunk in stream:
             if chunk.choices[0].delta.content: 

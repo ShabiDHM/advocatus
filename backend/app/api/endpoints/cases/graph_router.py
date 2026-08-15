@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/graph_router.py
-# PHOENIX PROTOCOL - GRAPH ROUTER V6.0 (RENDER FREE TIER SAFE • SEMAPHORE 3 • ZERO-DATA-LOSS)
+# PHOENIX PROTOCOL - GRAPH ROUTER V9.0 (UNIVERSAL DYNAMIC CONTRADICTIONS • ZERO HARDCODING)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
@@ -52,12 +52,10 @@ async def get_case_graph_endpoint(
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-    # 1. Lexo së pari nga depoja qendrore `db.case_graphs` (32 dokumentet e unifikuara)
     graph_record = db.case_graphs.find_one({"case_id": case_id})
     nodes = graph_record.get("nodes", []) if graph_record else []
     edges = graph_record.get("edges", []) if graph_record else []
 
-    # 2. Nëse nuk ekziston në `db.case_graphs`, kontrollo te `db.cases.graph_data` ose Neo4j
     if not nodes:
         case = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
         if case and case.get("graph_data"):
@@ -109,6 +107,9 @@ async def rebuild_case_graph_endpoint(
 ):
     case_oid = validate_object_id(case_id)
     
+    case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id}]})
+    c_title = (case_doc.get("title") or case_doc.get("name") or "Rast Ligjor") if case_doc else "Rast Ligjor"
+
     docs = list(db.documents.find({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
         "status": {"$ne": "DELETED"}
@@ -126,9 +127,9 @@ async def rebuild_case_graph_endpoint(
             pass
         return {"status": "success", "case_id": case_id, "nodes": [], "edges": []}
 
-    logger.info(f"⚡ Duke nisur analizën paralele të lëndës {case_id} ({len(docs)} dokumente)...")
+    logger.info(f"⚡ Duke nisur analizën universale për '{c_title}' ({len(docs)} dokumente)...")
 
-    # Kufizuesi i Sigurt për Render Free Tier: 3 thirrje paralele (RAM < 150MB, Koha ~45s)
+    # Kufizuesi i Sigurt për Render Free Tier (RAM < 150MB)
     sem = asyncio.Semaphore(3)
 
     async def process_single_doc(doc: dict):
@@ -147,27 +148,27 @@ async def rebuild_case_graph_endpoint(
                     doc_id=doc_id,
                     doc_name=doc_name
                 )
-                nodes_count = len(extracted.get("nodes", []))
-                edges_count = len(extracted.get("edges", []))
-                logger.info(f"✅ Dokumenti '{doc_name}': U nxorën {nodes_count} nyje dhe {edges_count} lidhje.")
                 return extracted
             except Exception as e:
                 logger.error(f"⚠️ Dështoi nxjerrja për '{doc_name}': {e}")
                 return {"nodes": [], "edges": []}
 
-    # Ekzekutimi paralel i të gjitha dokumenteve në grupe nga 3
     extraction_results = await asyncio.gather(*(process_single_doc(doc) for doc in docs))
 
     accumulated_nodes = []
     accumulated_edges = []
 
-    # Bashkimi i të gjitha të dhënave në një graf të vetëm unifikues
     for extracted in extraction_results:
         new_nodes = extracted.get("nodes", [])
         new_edges = extracted.get("edges", [])
         accumulated_nodes, accumulated_edges = ontology_service.merge_graph_data(
             accumulated_nodes, accumulated_edges, new_nodes, new_edges
         )
+
+    # EKZEKUTIMI I SINTEZËS FORENZIKE DINAMIKE ME LLM (ZERO HARDCODING)
+    accumulated_nodes, accumulated_edges = await ontology_service.dynamically_synthesize_cross_document_contradictions(
+        accumulated_nodes, accumulated_edges, case_title=c_title
+    )
 
     now_iso = datetime.now(timezone.utc).isoformat()
     final_graph = {
@@ -178,20 +179,17 @@ async def rebuild_case_graph_endpoint(
         "updated_at": now_iso
     }
 
-    # 1. Ruaj në `db.case_graphs` (Depoja e thellë e ontologjisë)
     db.case_graphs.update_one(
         {"case_id": case_id},
         {"$set": final_graph},
         upsert=True
     )
 
-    # 2. Sinkronizo te `db.cases.graph_data`
     db.cases.update_one(
         {"$or": [{"_id": case_oid}, {"_id": case_id}]},
         {"$set": {"graph_data": final_graph, "updated_at": datetime.now(timezone.utc)}}
     )
 
-    # 3. Sinkronizo me Neo4j (nëse instanca Aura është e lidhur)
     try:
         await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
         for edge in accumulated_edges:
@@ -210,7 +208,7 @@ async def rebuild_case_graph_endpoint(
     except Exception as neo_err:
         logger.warning(f"Neo4j sync bypass: {neo_err}")
 
-    logger.info(f"🎉 Rindërtimi përfundoi me sukses: {len(accumulated_nodes)} nyje dhe {len(accumulated_edges)} lidhje të unifikuara nga {len(docs)} dokumente.")
+    logger.info(f"🎉 Rindërtimi përfundoi: {len(accumulated_nodes)} nyje dhe {len(accumulated_edges)} lidhje të unifikuara në mënyrë 100% dinamike.")
 
     return {
         "status": "success",
@@ -235,12 +233,10 @@ async def export_and_archive_courtroom_graph_report(
 
     c_title = case_obj.get("title") or case_obj.get("name") or "Rast Ligjor"
 
-    # 1. Gjenero Raportin PDF
     pdf_bytes = ontology_service.generate_court_report_pdf(db=db, case_id=case_id)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     filename = f"Raporti_i_Ontologjise_{timestamp}.pdf"
     
-    # 2. Ngarko në Cloud Storage (Backblaze B2)
     storage_key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -250,7 +246,6 @@ async def export_and_archive_courtroom_graph_report(
         "application/pdf"
     )
 
-    # 3. Regjistro në Arkivin e Lëndës
     user_oid = ObjectId(current_user.id) if ObjectId.is_valid(str(current_user.id)) else str(current_user.id)
     
     archive_item = {
