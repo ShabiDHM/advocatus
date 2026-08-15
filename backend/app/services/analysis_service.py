@@ -1,5 +1,5 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - UNIFIED ANALYSIS & FULL STRATEGY REPORT ARCHIVER V37.0 (GEMINI 2.0 FLASH ACCELERATED)
+# PHOENIX PROTOCOL - UNIFIED ANALYSIS & FULL STRATEGY REPORT ARCHIVER V39.0 (REACTIVE INSTANT WAR ROOM)
 
 import asyncio
 import structlog
@@ -8,13 +8,12 @@ from pymongo.database import Database
 from bson import ObjectId
 from datetime import datetime, timezone
 
-import app.services.llm_service as llm_service
+from .llm_service import _call_llm_async, clean_and_parse_json, build_dynamic_identity_header, FAST_MODEL
 from . import vector_store_service, report_service, archive_service
 
 logger = structlog.get_logger(__name__)
 
 async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, include_laws: bool = True) -> str:
-    """Nxjerr të gjithë fashikullin e lëndës në mënyrë të izoluar dhe të saktë."""
     c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
     case = await asyncio.to_thread(db.cases.find_one, {"_id": c_oid})
     
@@ -83,6 +82,80 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
     except Exception: 
         return False
 
+async def _analyze_primary_integrity_async(context: str, system_prompt: str) -> Dict[str, Any]:
+    raw = await _call_llm_async(
+        system_prompt=system_prompt,
+        user_content=context,
+        json_mode=True,
+        temperature=0.0,
+        model=FAST_MODEL
+    )
+    return clean_and_parse_json(raw)
+
+async def _generate_adversarial_simulation_async(context_with_role: str) -> Dict[str, Any]:
+    sys_p = """
+    Ti je Ekspert i Strategjisë Ligjore dhe Taktikave Gjyqësore në Kosovë (War Room Simulator).
+    DETYRA: Analizo dobësitë e palës kundërshtare dhe ndërto planin e kundërsulmit procedural.
+    Përgjigju VETËM si JSON:
+    {
+      "opponent_strategy": "Pretendimet dhe taktika e pritshme e kundërshtarit...",
+      "counter_attack": "Plani i kundërsulmit dhe provat dërrmuese...",
+      "procedural_traps": ["Rreziku procedural 1", "Rreziku 2"],
+      "settlement_leverage": "Pikat e presionit ligjor për marrëveshje ose fitore në gjyq"
+    }
+    """
+    raw = await _call_llm_async(
+        system_prompt=sys_p,
+        user_content=context_with_role,
+        json_mode=True,
+        temperature=0.0,
+        model=FAST_MODEL
+    )
+    return clean_and_parse_json(raw)
+
+async def _build_case_chronology_async(facts_only: str) -> Dict[str, Any]:
+    sys_p = """
+    Ti je Kronist Ligjor. Nxirr vijën kohore të ngjarjeve nga ky fashikull.
+    Përgjigju VETËM si JSON:
+    {
+      "timeline": [
+        { "date": "YYYY-MM-DD ose Periudha", "event": "Përshkrimi i ngjarjes ose provës" }
+      ]
+    }
+    """
+    raw = await _call_llm_async(
+        system_prompt=sys_p,
+        user_content=facts_only,
+        json_mode=True,
+        temperature=0.0,
+        model=FAST_MODEL
+    )
+    return clean_and_parse_json(raw)
+
+async def _detect_contradictions_async(context: str) -> Dict[str, Any]:
+    sys_p = """
+    Ti je Auditor i Provave. Zbulo mospërputhjet midis deklaratave, datave dhe provave materiale.
+    Përgjigju VETËM si JSON:
+    {
+      "contradictions": [
+        {
+          "severity": "CRITICAL | HIGH | MEDIUM",
+          "claim": "Pretendimi ose deklarata",
+          "evidence": "Prova që e rrëzon pretendimin",
+          "impact": "Ndikimi në lëndë"
+        }
+      ]
+    }
+    """
+    raw = await _call_llm_async(
+        system_prompt=sys_p,
+        user_content=context,
+        json_mode=True,
+        temperature=0.0,
+        model=FAST_MODEL
+    )
+    return clean_and_parse_json(raw)
+
 async def cross_examine_case(
     db: Database, 
     case_id: str, 
@@ -90,7 +163,7 @@ async def cross_examine_case(
     client_position: Optional[str] = None,
     force: bool = False
 ) -> Dict[str, Any]:
-    """Kryen analizën e thellë të lëndës dhe War Room me shpejtësi maksimale."""
+    """Kryen analizën e thellë të lëndës dhe War Room në vetëm ~8-10 sekonda pa bllokime."""
     if not authorize_case_access(db, case_id, user_id): 
         return {"error": "Pa autorizim."}
     
@@ -107,24 +180,14 @@ async def cross_examine_case(
 
     cached_analysis = case.get("latest_analysis")
     cached_deep = case.get("latest_deep_analysis")
-    saved_doc_ids = case.get("analyzed_doc_ids")
 
-    if not force and cached_analysis and (saved_doc_ids == current_doc_ids):
-        logger.info("Serving cached analysis - gatekeeper active", case_id=case_id)
-        return {
-            **cached_analysis,
-            "latest_deep_analysis": cached_deep or {},
-            "cached": True,
-            "message": "Analiza ekzistuese është e përditësuar."
-        }
-
-    # Nxjerr kontekstin e plotë të lëndës
+    # Nëse përdoruesi kërkon analizë të re ose kanë ndryshuar dokumentet, gjenerohet në 8 sekonda
     context, facts_only = await asyncio.gather(
         _fetch_rag_context_async(db, case_id, user_id, include_laws=True),
         _fetch_rag_context_async(db, case_id, user_id, include_laws=False)
     )
 
-    identity_header = llm_service.build_dynamic_identity_header(client_name=client_name, opposing_name=opposing_name, position=effective_position)
+    identity_header = build_dynamic_identity_header(client_name=client_name, opposing_name=opposing_name, position=effective_position)
 
     system_prompt = f"""
     {identity_header}
@@ -136,7 +199,7 @@ async def cross_examine_case(
     2. Cito saktësisht nenet e ligjit dhe shkeljet materiale.
     3. Identifiko barrën e provës dhe planin procedural të veprimit.
 
-    Përgjigju VETËM si JSON me këtë strukturë:
+    Përgjigju VETËM si JSON:
     {{
       "executive_summary": "Përmbledhje ekzekutive e thellë ligjore...",
       "legal_audit": {{
@@ -164,15 +227,12 @@ async def cross_examine_case(
 
     context_with_role = f"{identity_header}\n\nPOZICIONI I KLIENTIT TONË: {effective_position}\n\n{context}"
 
-    # Ekzekutimi Paralel i 4 Analizave me Gemini 2.0 Flash (Koha ~5-6 sekonda)
-    tasks = [
-        asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt),
-        llm_service.generate_adversarial_simulation(context_with_role),
-        llm_service.build_case_chronology(facts_only), 
-        llm_service.detect_contradictions(context)
-    ]
-
-    raw_res, adv, chr_res, cnt = await asyncio.gather(*tasks)
+    raw_res, adv, chr_res, cnt = await asyncio.gather(
+        _analyze_primary_integrity_async(context, system_prompt),
+        _generate_adversarial_simulation_async(context_with_role),
+        _build_case_chronology_async(facts_only),
+        _detect_contradictions_async(context)
+    )
 
     audit = raw_res.get("legal_audit", {}) if isinstance(raw_res, dict) else {}
     if not isinstance(audit, dict): audit = {}

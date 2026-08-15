@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/analysis_router.py
-# PHOENIX PROTOCOL - ANALYSIS ROUTER V11.0 (CLEAN SINGLE INSTANCE • FULL ASYNC PIPELINE)
+# PHOENIX PROTOCOL - ANALYSIS ROUTER V12.0 (REACTIVE INSTANT WAR ROOM ROUTER)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from typing import Annotated, Optional
@@ -78,73 +78,6 @@ async def run_deep_case_analysis(
     
     return JSONResponse(result)
 
-@router.post("/{case_id}/deep-analysis/simulation", dependencies=[Depends(require_pro_tier)])
-async def run_deep_simulation_only(
-    case_id: str,
-    client_position: Optional[str] = Query(None),
-    current_user: Annotated[UserInDB, Depends(get_current_user)] = None,
-    db: Database = Depends(get_db)
-):
-    if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
-        raise HTTPException(status_code=403)
-    
-    c_oid = validate_object_id(case_id)
-    case = db.cases.find_one({"_id": c_oid}) or {}
-    effective_pos = (client_position or case.get("client_position") or "DEFENDANT").upper()
-
-    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    context_with_role = f"POZICIONI I KLIENTIT TONË: {effective_pos}\n\n{context}"
-    res = await llm_service.generate_adversarial_simulation(context_with_role)
-    
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": c_oid},
-        {"$set": {"latest_deep_analysis.adversarial_simulation": res, "updated_at": datetime.now(timezone.utc)}}
-    )
-    return JSONResponse(res)
-
-@router.post("/{case_id}/deep-analysis/chronology", dependencies=[Depends(require_pro_tier)])
-async def run_deep_chronology_only(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
-        raise HTTPException(status_code=403)
-        
-    c_oid = validate_object_id(case_id)
-    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), False)
-    res = await llm_service.build_case_chronology(context)
-    timeline = res.get("timeline", [])
-
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": c_oid},
-        {"$set": {"latest_deep_analysis.chronology": timeline, "updated_at": datetime.now(timezone.utc)}}
-    )
-    return JSONResponse(timeline)
-
-@router.post("/{case_id}/deep-analysis/contradictions", dependencies=[Depends(require_pro_tier)])
-async def run_deep_contradictions_only(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    if not await asyncio.to_thread(analysis_service.authorize_case_access, db, case_id, str(current_user.id)):
-        raise HTTPException(status_code=403)
-        
-    c_oid = validate_object_id(case_id)
-    context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), True)
-    res = await llm_service.detect_contradictions(context)
-    contradictions = res.get("contradictions", [])
-
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": c_oid},
-        {"$set": {"latest_deep_analysis.contradictions": contradictions, "updated_at": datetime.now(timezone.utc)}}
-    )
-    return JSONResponse(contradictions)
-
 @router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
 async def archive_case_strategy_endpoint(
     case_id: str,
@@ -158,42 +91,6 @@ async def archive_case_strategy_endpoint(
     )
     if result.get("error"):
         raise HTTPException(status_code=500, detail=result["error"])
-    return JSONResponse(result)
-
-@router.post("/{case_id}/analyze/spreadsheet/forensic", dependencies=[Depends(require_pro_tier)])
-async def analyze_forensic_spreadsheet_endpoint(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    file: UploadFile = File(...),
-    db: Database = Depends(get_db)
-):
-    try:
-        content = await file.read()
-        result = await spreadsheet_service.forensic_analyze_spreadsheet(
-            content, 
-            file.filename or "upload", 
-            case_id, 
-            db, 
-            str(current_user.id)
-        )
-        return JSONResponse(result)
-    except ValueError as val_err:
-        raise HTTPException(status_code=400, detail=str(val_err))
-    except Exception as e:
-        logger.error(f"Spreadsheet forensic analysis error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error during spreadsheet forensic analysis.")
-
-@router.post("/{case_id}/interrogate-finances/forensic", dependencies=[Depends(require_pro_tier)])
-async def interrogate_forensic_finances_endpoint(
-    case_id: str,
-    body: FinanceInterrogationRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    validate_object_id(case_id)
-    result = await spreadsheet_service.forensic_interrogate_evidence(
-        case_id, body.question, db
-    )
     return JSONResponse(result)
 
 @router.post("/{case_id}/drafts", status_code=status.HTTP_202_ACCEPTED)
