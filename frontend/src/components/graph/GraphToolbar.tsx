@@ -1,5 +1,5 @@
 // FILE: src/components/graph/GraphToolbar.tsx
-// PHOENIX PROTOCOL - GRAPH TOOLBAR V70.0 (100% THEME-AWARE • UNIFIED BG)
+// PHOENIX PROTOCOL - GRAPH TOOLBAR V80.0 (LIGHT & DARK DUAL-THEME HIGH CONTRAST)
 
 import React from 'react';
 import { Search, RefreshCw, Sparkles, Filter, LayoutGrid, Clock, Network, X } from 'lucide-react';
@@ -47,17 +47,20 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
       <div className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2 bg-surface border-b border-main gap-2 z-10 shrink-0">
         {/* Pjesa e Majtë: Pamja, Kërkimi dhe Filtri */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          {/* Toggle Pamja e Thjeshtë / Plotë */}
+          {/* Toggle Pamja e Thjeshtë / Plotë - DUAL THEME HIGH CONTRAST */}
           <button
             type="button"
             onClick={onToggleSimplified}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase border transition-all shrink-0 ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-black uppercase border transition-all shrink-0 shadow-sm ${
               simplifiedView
-                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm'
-                : 'bg-canvas text-text-secondary border-main hover:text-text-primary'
+                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-950 dark:text-amber-300 border-amber-400 dark:border-amber-500/40 font-black'
+                : 'bg-canvas text-text-primary border-main hover:bg-surface'
             }`}
           >
-            <Sparkles size={12} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
+            <Sparkles 
+              size={13} 
+              className={simplifiedView ? 'text-amber-700 dark:text-amber-400 animate-pulse' : 'text-text-muted'} 
+            />
             <span>{simplifiedView ? 'Provat Kryesore' : 'Pamja e Plotë'}</span>
           </button>
 
@@ -69,7 +72,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
               placeholder="Kërko entitetin..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-7 py-1 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary-start transition-all"
+              className="w-full bg-canvas border border-main rounded-lg pl-8 pr-7 py-1 text-xs text-text-primary placeholder:text-text-muted font-medium focus:outline-none focus:ring-1 focus:ring-primary-start transition-all"
             />
             {searchQuery && (
               <button
@@ -97,7 +100,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
                 const count = nodes.filter((n) => n.type === type).length || 0;
                 if (count === 0) return null;
                 return (
-                  <option key={type} value={type} className="bg-surface text-text-primary">
+                  <option key={type} value={type} className="bg-surface text-text-primary font-bold">
                     {ENTITY_CONFIG[type].albanianLabel} ({count})
                   </option>
                 );
@@ -125,7 +128,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
             title="Ri-kalkulo dhe Rindërto Ontologjinë"
             aria-label="Ri-kalkulo dhe Rindërto Ontologjinë"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin text-primary-start' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin text-primary-start' : 'text-text-primary'}`} />
           </button>
         </div>
       </div>

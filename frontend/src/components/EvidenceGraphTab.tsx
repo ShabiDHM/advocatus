@@ -1,5 +1,5 @@
 // FILE: src/components/EvidenceGraphTab.tsx
-// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V70.0 (SMART CORE-18 CONTRADICTION MATRIX & TIMELINE)
+// PHOENIX PROTOCOL - EVIDENCE GRAPH TAB V80.0 (CLIENT-ANCHORED KEY EVIDENCE & CONTRADICTION HUB)
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../services/api';
@@ -77,7 +77,7 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entityMessages, isSending]);
 
-  // Filtri inteligjent i entiteteve (Provat Kryesore merr 18 nyjet qendrore dhe kontradiktat)
+  // Filtri Inteligjent: Provat Kryesore me Klientin gjithmonë të ankoruar në qendër
   const filteredNodes = useMemo(() => {
     if (!graphData?.nodes) return [];
     let base = graphData.nodes.filter((node) => {
@@ -89,14 +89,46 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
       return matchesType && matchesSearch;
     });
 
-    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 18) {
+    if (simplifiedView && !searchQuery && activeFilter === 'ALL' && base.length > 20) {
+      // 1. Gjej të gjitha nyjet që janë pjesë e kontradiktave dhe shkeljeve kryesore
+      const priorityNodeIds = new Set<string>();
+      graphData.edges.forEach((e) => {
+        const isPriorityRel =
+          e.relation.includes('CONTRADICT') ||
+          e.relation.includes('KUNDËR') ||
+          e.relation.includes('MOSPËRPUTHJE') ||
+          e.relation.includes('FALSIFIKIM') ||
+          e.relation.includes('SHKELJE') ||
+          e.relation.includes('NDIKIM') ||
+          e.relation.includes('PADIT');
+        if (isPriorityRel) {
+          priorityNodeIds.add(e.source);
+          priorityNodeIds.add(e.target);
+        }
+      });
+
+      // 2. Sigurohemi që Klienti kryesor dhe të afërmit thelbësorë janë gjithmonë brenda
+      const coreProtagonists = base.filter((n) => {
+        const lbl = n.label.toLowerCase();
+        return (
+          lbl.includes('shaban') ||
+          lbl.includes('andi') ||
+          lbl.includes('sanije') ||
+          lbl.includes('gjykata') ||
+          priorityNodeIds.has(n.id)
+        );
+      });
+
+      // 3. Plotësojmë me nyjet më të ndërlidhura deri në 24 aktorë
       const edgeCounts = new Map<string, number>();
       graphData.edges.forEach((e) => {
-        const bonus = e.relation.includes('CONTRADICT') || e.relation.includes('KUNDËR') ? 3 : 1;
-        edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + bonus);
-        edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + bonus);
+        edgeCounts.set(e.source, (edgeCounts.get(e.source) || 0) + 1);
+        edgeCounts.set(e.target, (edgeCounts.get(e.target) || 0) + 1);
       });
-      base = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0)).slice(0, 18);
+
+      const sortedBase = base.sort((a, b) => (edgeCounts.get(b.id) || 0) - (edgeCounts.get(a.id) || 0));
+      const combined = Array.from(new Set([...coreProtagonists, ...sortedBase])).slice(0, 24);
+      return combined;
     }
     return base;
   }, [graphData?.nodes, graphData?.edges, activeFilter, searchQuery, simplifiedView]);
@@ -159,7 +191,12 @@ export const EvidenceGraphTab: React.FC<EvidenceGraphTabProps> = ({ caseId }) =>
     graphData.edges.forEach((edge) => {
       const src = nMap.get(edge.source);
       const tgt = nMap.get(edge.target);
-      const isContradiction = edge.relation.includes('CONTRADICT') || edge.relation.includes('KUNDËR');
+      const isContradiction =
+        edge.relation.includes('CONTRADICT') ||
+        edge.relation.includes('KUNDËR') ||
+        edge.relation.includes('MOSPËRPUTHJE') ||
+        edge.relation.includes('FALSIFIKIM') ||
+        edge.relation.includes('SHKELJE');
 
       items.push({
         id: edge.id,
