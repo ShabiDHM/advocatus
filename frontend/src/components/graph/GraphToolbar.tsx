@@ -1,5 +1,5 @@
 // FILE: src/components/graph/GraphToolbar.tsx
-// PHOENIX PROTOCOL - GRAPH TOOLBAR V67.0 (ULTRA-SLIM HIGH-DENSITY WORKSPACE)
+// PHOENIX PROTOCOL - GRAPH TOOLBAR V70.0 (100% THEME-AWARE • UNIFIED BG)
 
 import React from 'react';
 import { Search, RefreshCw, Sparkles, Filter, LayoutGrid, Clock, Network, X } from 'lucide-react';
@@ -44,7 +44,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
 }) => {
   return (
     <>
-      <div className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2 bg-surface/90 backdrop-blur-md border-b border-main gap-2 z-10 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2 bg-surface border-b border-main gap-2 z-10 shrink-0">
         {/* Pjesa e Majtë: Pamja, Kërkimi dhe Filtri */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Toggle Pamja e Thjeshtë / Plotë */}
@@ -53,8 +53,8 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
             onClick={onToggleSimplified}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase border transition-all shrink-0 ${
               simplifiedView
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
-                : 'bg-canvas text-text-secondary border-main hover:text-text-primary hover:border-slate-600'
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm'
+                : 'bg-canvas text-text-secondary border-main hover:text-text-primary'
             }`}
           >
             <Sparkles size={12} className={simplifiedView ? 'text-amber-400 animate-pulse' : ''} />
@@ -121,7 +121,7 @@ export const GraphToolbar: React.FC<GraphToolbarProps> = ({
             type="button"
             onClick={onRebuildGraph}
             disabled={rebuilding}
-            className="p-1.5 bg-canvas hover:bg-hover border border-main text-text-primary rounded-lg transition-all focus:outline-none"
+            className="p-1.5 bg-canvas hover:bg-surface border border-main text-text-primary rounded-lg transition-all focus:outline-none"
             title="Ri-kalkulo dhe Rindërto Ontologjinë"
             aria-label="Ri-kalkulo dhe Rindërto Ontologjinë"
           >
