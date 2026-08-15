@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V101.0 (100% TYPE-SAFE PIN & RIGHT-CLICK UNPIN)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V105.0 (100% THEME-AWARE • TRANSPARENT CANVAS UNIFICATION)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -329,21 +329,21 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full bg-[#0b0f19]">
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full bg-canvas">
         <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
-        <p className="text-xs font-semibold text-slate-200">Po ngarkohet Ontologjia e Provave...</p>
+        <p className="text-xs font-semibold text-text-primary">Po ngarkohet Ontologjia e Provave...</p>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="flex-1 h-full w-full relative bg-[#0b0f19] overflow-hidden flex items-center justify-center">
+    <div ref={containerRef} className="flex-1 h-full w-full relative bg-canvas overflow-hidden flex items-center justify-center">
       <ForceGraph2D
         ref={fgRef as any}
         width={dimensions.width}
         height={dimensions.height}
         graphData={graphData}
-        backgroundColor="#0b0f19"
+        backgroundColor="rgba(0,0,0,0)"
         nodeRelSize={24}
         nodeCanvasObject={drawNode}
         nodePointerAreaPaint={(node: any, color, ctx) => {
@@ -378,12 +378,10 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         onNodeClick={(node: any) => onSelectNode(node.rawNode)}
         onLinkClick={(link: any) => onSelectEdge(link.rawEdge)}
         onLinkHover={(link: any) => onHoverEdge(link ? link.rawEdge : null)}
-        // PIN-ON-DRAG: Fikson nyjen aty ku e lëshoni me maus
         onNodeDragEnd={(node: any) => {
           node.fx = node.x;
           node.fy = node.y;
         }}
-        // RIGHT-CLICK: Çliron nyjen kur klikohet me butonin e djathtë
         onNodeRightClick={(node: any) => {
           node.fx = undefined;
           node.fy = undefined;
@@ -399,12 +397,12 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         cooldownTicks={120}
       />
 
-      {/* Kontrollet e Navigimit */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-[#0f172a]/90 backdrop-blur-md border border-slate-700 p-2 rounded-2xl shadow-2xl z-20 text-slate-100">
+      {/* Kontrollet e Navigimit - Theme Aware */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
         <button
           type="button"
           onClick={handleZoomIn}
-          className="p-2 text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
+          className="p-2 text-text-secondary hover:text-text-primary hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Zmadho"
         >
           <ZoomIn size={16} />
@@ -412,7 +410,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         <button
           type="button"
           onClick={handleResetView}
-          className="p-2 text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
+          className="p-2 text-text-secondary hover:text-text-primary hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Qendërzo Rrjetin"
         >
           <Maximize2 size={15} />
@@ -420,16 +418,16 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         <button
           type="button"
           onClick={handleZoomOut}
-          className="p-2 text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
+          className="p-2 text-text-secondary hover:text-text-primary hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Zvogëlo"
         >
           <ZoomOut size={16} />
         </button>
-        <div className="h-4 w-px bg-slate-700 mx-1" />
+        <div className="h-4 w-px bg-main mx-1" />
         <button
           type="button"
           onClick={handleResetSimulationAndUnpin}
-          className="p-2 text-primary-start hover:bg-slate-800 rounded-xl transition-all focus:outline-none"
+          className="p-2 text-primary-start hover:bg-canvas rounded-xl transition-all focus:outline-none"
           title="Liro të gjitha nyjet dhe Ri-kalkulo Fizikën"
         >
           <RotateCcw size={15} />
