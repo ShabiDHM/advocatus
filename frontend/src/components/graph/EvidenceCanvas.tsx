@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V110.0 (TRUE CONTRADICTION STYLING ONLY)
+// PHOENIX PROTOCOL - EVIDENCE CANVAS V120.0 (DUAL NAMED & DEFAULT EXPORT • ZERO SYNTAX ERRORS)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -22,6 +22,7 @@ export interface EvidenceCanvasProps {
   onHoverEdge: (e: OntologyEdge | null) => void;
 }
 
+// 1. NAMED EXPORT: export const EvidenceCanvas
 export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   loading,
   filteredNodes,
@@ -116,7 +117,6 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         if (e.source > e.target) curvature *= -1;
       }
 
-      // VIJA E KUQE VETËM PËR KONTRADIKTA DHE SHKELJE TË VËRTETUARA TË KUNDËRSHTARIT
       const isContradiction =
         e.relation.includes('CONTRADICT') ||
         e.relation.includes('KUNDËRTHËNIE') ||
@@ -437,4 +437,5 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   );
 };
 
+// 2. DEFAULT EXPORT: export default EvidenceCanvas
 export default EvidenceCanvas;

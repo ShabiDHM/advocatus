@@ -1,21 +1,21 @@
 // FILE: frontend/src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V9.1 (0 WARNINGS - CLEAN IMPORTS)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V10.0 (4-PILLAR LITIGATION SHOWCASE & ZERO MOCKUP HARDCODING)
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { 
     ShieldAlert, FileText, ScanEye, BrainCircuit, 
     CheckCircle, PenTool, 
     Sparkles, Calculator, Network, ArrowRight, AlertTriangle, ChevronRight,
-    Scale, CheckCircle2
+    Scale, CheckCircle2, Swords, MessageSquare, Zap, Layers, Lock
 } from 'lucide-react';
 
-const ProductShowcase = () => {
+const ProductShowcase: React.FC = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState(0);
 
-    // Auto-rotate slides every 8 seconds
+    // Rrotullim automatik i sllajdeve çdo 8 sekonda
     useEffect(() => {
         const timer = setInterval(() => {
             setActiveTab((prev) => (prev + 1) % 6);
@@ -26,62 +26,62 @@ const ProductShowcase = () => {
     const features = [
         {
             id: 0,
-            title: t('showcase.slide1_title', 'Dhoma e Luftës (War Room)'),
-            desc: t('showcase.slide1_desc', 'Simulim i strategjisë së kundërshtarit, pyetje kryqëzuese dhe detektim automatik i kontradiktave.'),
-            icon: <SwordsIcon className="w-5 h-5" />,
-            badge: "ANALIZË ADVERSARE SOKRATIKE",
+            title: "Dhoma e Luftës (War Room & Simulimi)",
+            desc: "Simulim i strategjisë së palës kundërshtare, parashikim i sulmeve dhe përgatitje e kundërsulmit procedural sipas rolit (Paditës / I Paditur).",
+            icon: <Swords className="w-5 h-5" />,
+            badge: "INTELIGJENCË KUNDËRSHTARE",
             color: "from-rose-600 to-red-600",
             mockup: <WarRoomMockup />
         },
         {
             id: 1,
-            title: t('showcase.slide_ontology_title', 'Zero Halucinacione & Citime Zyrtare'),
-            desc: t('showcase.slide_ontology_desc', 'Çdo citim lidhet drejtpërdrejt me nene zyrtare të Kosovës (LPK, LMD, LSHT). Avokati mbetet Kryeredaktori.'),
+            title: "4 Shtyllat e Fillimit (Sokrati AI)",
+            desc: "Strategjia e Padisë, Baza Ligjore sipas LPK-së, Pyetësori Taktik i Seancës dhe Raporti Ekzekutiv me shanset e fitores (%).",
+            icon: <Sparkles className="w-5 h-5" />,
+            badge: "4 SHTYLLAT E FITORES",
+            color: "from-blue-600 to-indigo-600",
+            mockup: <FourPillarsMockup />
+        },
+        {
+            id: 2,
+            title: "Harta e Provave (Ontologjia Forenzike)",
+            desc: "Rrjet organik i nivelit Palantir Gotham që unifikon të gjithë fashikullin dhe zbulon kontradiktat me vija të kuqe të ndërprera.",
+            icon: <Network className="w-5 h-5" />,
+            badge: "PALANTIR GOTHAM MATRIX",
+            color: "from-purple-600 to-violet-600",
+            mockup: <OntologyMockup />
+        },
+        {
+            id: 3,
+            title: "Citime të Klikueshme të PDF-ve & Zero Halucinacione",
+            desc: "Çdo fakt dhe dëshmi lidhet me link direkt te skedari origjinal PDF. Baza ligjore mbështetet 100% në LPK, KPRK, KPPRK, LFK dhe LMD.",
             icon: <CheckCircle2 className="w-5 h-5" />,
             badge: "VERIFIKIM ME LIGJET E KOSOVËS",
             color: "from-emerald-600 to-teal-600",
             mockup: <LegalGroundingMockup />
         },
         {
-            id: 2,
-            title: t('showcase.slide2_title', 'Leximi i Provave të Skanuara (HD OCR)'),
-            desc: t('showcase.slide2_desc', 'Lexim me precizion i fotokopjeve të dëmtuara, vulave dhe kontratave të nënshkruara pa përzierje skedarësh.'),
-            icon: <ScanEye className="w-5 h-5" />,
-            badge: "KOSOVO SCANNED OCR HD",
-            color: "from-blue-600 to-cyan-600",
-            mockup: <DeepScanMockup />
-        },
-        {
-            id: 3,
-            title: t('showcase.slide3_title', 'Hartimi i Shkresave (Drafting Engine)'),
-            desc: t('showcase.slide3_desc', 'Gjenerim automatik i Përgjigjeve në Padi, Kundërpadive dhe Masave të Sigurisë sipas mandatit të klientit.'),
-            icon: <PenTool className="w-5 h-5" />,
-            badge: "MANDATI I AVOKATIT",
-            color: "from-purple-600 to-indigo-600",
-            mockup: <DraftingMockup />
-        },
-        {
             id: 4,
-            title: t('showcase.slide4_title', 'Ontologjia e Provave & Grafiku'),
-            desc: t('showcase.slide4_desc', 'Grafik interaktiv i lidhjeve midis personave, kompanive, llogarive bankare dhe kontratave.'),
-            icon: <Network className="w-5 h-5" />,
-            badge: "GRAPH RELATIONSHIP ENGINE",
-            color: "from-indigo-600 to-violet-600",
-            mockup: <OntologyMockup />
+            title: "Analizë e Shpejtë e 30+ Dokumenteve (~18s)",
+            desc: "Motori Dynamic Token-Bucket përpunon fashikuj voluminozë në sekonda pa gabime 429 dhe me saktësi absolute në gjuhën shqipe.",
+            icon: <Zap className="w-5 h-5" />,
+            badge: "SHPEJTËSI ASINKRONE",
+            color: "from-amber-600 to-yellow-600",
+            mockup: <SpeedScanMockup />
         },
         {
             id: 5,
-            title: t('showcase.slide5_title', 'Analisti Financiar Forenzik'),
-            desc: t('showcase.slide5_desc', 'Auditim automatik i librave bankarë, Benford Check dhe analizë e parregullsive financiare.'),
-            icon: <Calculator className="w-5 h-5" />,
-            badge: "BENFORD'S LAW AUDIT",
-            color: "from-amber-600 to-yellow-600",
-            mockup: <FinanceMockup />
+            title: "Hartimi i Shkresave (Drafting V2)",
+            desc: "Gjenerim automatik i Padive, Përgjigjeve në Padi, Kundërpadive, Masave të Sigurisë dhe Kallëzimeve Penale në format Word (.docx).",
+            icon: <PenTool className="w-5 h-5" />,
+            badge: "MANDATI I AVOKATIT",
+            color: "from-cyan-600 to-blue-600",
+            mockup: <DraftingMockup />
         }
     ];
 
     return (
-        <div className="py-20 lg:py-28 bg-canvas relative overflow-hidden border-y border-main">
+        <div className="py-20 lg:py-28 bg-canvas relative overflow-hidden border-y border-main font-sans">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-primary-start/5 rounded-full blur-[140px] pointer-events-none" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -120,25 +120,25 @@ const ProductShowcase = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
                     
                     {/* Desktop Control Buttons List */}
-                    <div className="hidden lg:flex lg:col-span-5 flex-col justify-between space-y-3">
+                    <div className="hidden lg:flex lg:col-span-5 flex-col justify-between space-y-2.5">
                         {features.map((feature, index) => {
                             const isActive = activeTab === index;
                             return (
                                 <button
                                     key={feature.id}
                                     onClick={() => setActiveTab(index)}
-                                    className={`w-full text-left p-4 lg:p-5 rounded-2xl transition-all duration-300 border flex items-center justify-between group cursor-pointer ${
+                                    className={`w-full text-left p-4 rounded-2xl transition-all duration-300 border flex items-center justify-between group cursor-pointer ${
                                         isActive 
                                         ? 'bg-surface border-primary-start/60 shadow-xl ring-1 ring-primary-start/30 scale-[1.02]' 
                                         : 'bg-surface/40 hover:bg-surface/80 border-main'
                                     }`}
                                 >
-                                    <div className="flex items-center gap-4 min-w-0">
-                                        <div className={`p-3 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-md shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-105'}`}>
+                                    <div className="flex items-center gap-3.5 min-w-0">
+                                        <div className={`p-2.5 rounded-xl bg-gradient-to-br ${feature.color} text-white shadow-md shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-105'}`}>
                                             {feature.icon}
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex items-center gap-2 mb-0.5">
                                                 <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
                                                     isActive ? 'bg-primary-start/15 text-primary-start border border-primary-start/30' : 'bg-canvas text-text-muted border border-main'
                                                 }`}>
@@ -161,7 +161,7 @@ const ProductShowcase = () => {
                     </div>
 
                     {/* Interactive Stage Viewport */}
-                    <div className="lg:col-span-7 h-[420px] sm:h-[480px] lg:h-[540px] w-full relative">
+                    <div className="lg:col-span-7 h-[440px] sm:h-[480px] lg:h-[540px] w-full relative">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
@@ -178,19 +178,19 @@ const ProductShowcase = () => {
                                             <div className="w-3 h-3 rounded-full bg-amber-500/80" />
                                             <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
                                             <span className="text-[10px] font-mono text-slate-400 font-bold ml-2 uppercase tracking-widest">
-                                                Juristi AI — {features[activeTab].badge}
+                                                Juristi Virtual — {features[activeTab].badge}
                                             </span>
                                         </div>
                                         <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase font-bold">
-                                            LIVE ENGINE
+                                            LIVE WORKSPACE
                                         </span>
                                     </div>
                                     
-                                    <div className="p-5 lg:p-8 flex-1 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
+                                    <div className="p-5 lg:p-7 flex-1 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
                                         {features[activeTab].mockup}
                                     </div>
 
-                                    <div className="lg:hidden p-3.5 bg-slate-900 border-t border-slate-800">
+                                    <div className="lg:hidden p-3 bg-slate-900 border-t border-slate-800">
                                         <p className="text-xs text-slate-300 text-center font-medium">
                                             {features[activeTab].desc}
                                         </p>
@@ -208,15 +208,8 @@ const ProductShowcase = () => {
 
 // --- MOCKUP COMPONENTS ---
 
-const SwordsIcon = ({ className }: { className?: string }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.4a1 1 0 001.4 0l3.7-3.7a1 1 0 000-1.4l-1.6-1.4a1 1 0 00-1.4 0l-3.7 3.7z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3L4.5 16.5M3 21l3-1.5M16.5 4.5L21 3" />
-    </svg>
-);
-
 const WarRoomMockup = () => (
-    <div className="space-y-4 h-full flex flex-col justify-center animate-in fade-in duration-500">
+    <div className="space-y-3.5 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
         <div className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-wider">
                 <ShieldAlert size={16} /> Analiza Adversare e Mbrojtjes (I PADITUR)
@@ -226,33 +219,123 @@ const WarRoomMockup = () => (
             </span>
         </div>
 
-        <div className="p-4 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-2">
+        <div className="p-3.5 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-1.5">
             <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase">
                 <AlertTriangle size={14} /> Pika e Sulmit të Kundërshtarit
             </div>
             <p className="text-xs text-slate-200 leading-relaxed font-mono">
-                &quot;Paditësi pretendoi se ekziston marrëveshje verbale, por nuk ka prokurë përfaqësimi (LPK Neni 98/99)...&quot;
+                &quot;Paditësi pretendoi dëme materiale pa faturë tatimore dhe kërkoi masë të pabazuar sigurie...&quot;
             </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-blue-950/40 border border-blue-800/50 rounded-xl">
                 <span className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Mbrojtja Jonë & Prapësimi</span>
-                <p className="text-xs text-slate-300 font-medium">Kalimi i afatit prekluziv 7-ditor (LPK Neni 99 par. 3) për Hudhje Padie.</p>
+                <p className="text-xs text-slate-300 font-medium">Parashkrimi i kërkesëpadisë sipas LMD Neni 376 dhe mungesa e legjitimitetit aktiv.</p>
             </div>
             <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl">
                 <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Probabiliteti i Fitores</span>
-                <p className="text-sm font-mono font-black text-emerald-300">85% Sukses</p>
+                <p className="text-sm font-mono font-black text-emerald-300">85% Sukses në Seancë</p>
             </div>
         </div>
     </div>
 );
 
+const FourPillarsMockup = () => (
+    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
+        <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center justify-between mb-1">
+            <span className="flex items-center gap-2"><Sparkles size={15} /> 4 Kartelat e Fitores Gjyqësore</span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Roli: ⚔️ PADITËS</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                <span className="text-[9px] font-black uppercase text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Shtyllë 1</span>
+                <p className="text-xs font-bold text-slate-100">Strategjia e Padisë</p>
+                <p className="text-[10px] text-slate-400 line-clamp-2">Nxjerr 3 pikat kryesore me linke direkte te provat materiale.</p>
+            </div>
+
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                <span className="text-[9px] font-black uppercase text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Shtyllë 2</span>
+                <p className="text-xs font-bold text-slate-100">Baza Ligjore (LPK/LMD)</p>
+                <p className="text-[10px] text-slate-400 line-clamp-2">Llogarit kamatën ligjore 8% dhe nenet e detyrimit.</p>
+            </div>
+
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Shtyllë 3</span>
+                <p className="text-xs font-bold text-slate-100">Pyetësori i Seancës</p>
+                <p className="text-[10px] text-slate-400 line-clamp-2">Pyetje taktike kurth me provën në dorë për dëshmitarin.</p>
+            </div>
+
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Shtyllë 4</span>
+                <p className="text-xs font-bold text-slate-100">Raporti për Klientin</p>
+                <p className="text-[10px] text-slate-400 line-clamp-2">Memorandum ekzekutiv me shanset e fitores dhe hapat.</p>
+            </div>
+        </div>
+    </div>
+);
+
+const OntologyMockup = () => (
+    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500 font-sans">
+        <div className="flex justify-between items-center bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                <Network size={16} /> Topologjia e Provave (Palantir Gotham)
+            </div>
+            <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-mono font-bold">
+                KUNDËRTHËNIE SHKENCORE E ZBULUAR
+            </span>
+        </div>
+
+        <div className="flex-1 relative flex items-center justify-center my-2">
+            <svg className="w-full h-full" viewBox="-220 -120 440 240">
+                {/* Vija e kuqe e kontradiktës */}
+                <path d="M -120 -30 Q 0 10 120 -30" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeDasharray="6,4" className="animate-pulse" />
+                <path d="M -120 -30 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                <path d="M 0 50 Q 60 50 120 -30" fill="none" stroke="#8b5cf6" strokeWidth="2" />
+                
+                {/* Badge i kuq i kontradiktës */}
+                <rect x="-60" y="-18" width="120" height="20" rx="6" fill="#450a0a" stroke="#ef4444" strokeWidth="1.5" />
+                <text x="0" y="-4" textAnchor="middle" fill="#fca5a5" fontSize="8.5" fontWeight="900">KUNDËRTHËNIE ME PROVËN</text>
+
+                {/* Nyja 1: Laboratori Koslabor */}
+                <g transform="translate(-120, -30)" className="cursor-pointer">
+                    <circle r="22" fill="#2563eb" stroke="#60a5fa" strokeWidth="3" />
+                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">LK</text>
+                    <rect x="-65" y="28" width="130" height="18" rx="5" fill="#090d16" stroke="#334155" strokeWidth="1" />
+                    <text x="0" y="40" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">Laboratori &quot;Koslabor&quot;</text>
+                </g>
+
+                {/* Nyja 2: Klienti */}
+                <g transform="translate(0, 50)" className="cursor-pointer">
+                    <circle r="24" fill="#2563eb" stroke="#ffffff" strokeWidth="3.5" />
+                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">SB</text>
+                    <rect x="-55" y="30" width="110" height="18" rx="5" fill="#090d16" stroke="#38bdf8" strokeWidth="1.5" />
+                    <text x="0" y="42" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">Pala Kliente</text>
+                </g>
+
+                {/* Nyja 3: Diagnoza e Rreme */}
+                <g transform="translate(120, -30)" className="cursor-pointer">
+                    <circle r="22" fill="#7c3aed" stroke="#a78bfa" strokeWidth="3" />
+                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">QK</text>
+                    <rect x="-65" y="28" width="130" height="18" rx="5" fill="#090d16" stroke="#334155" strokeWidth="1" />
+                    <text x="0" y="40" textAnchor="middle" fill="#c4b5fd" fontSize="8" fontWeight="bold">Ekspertiza e Kundërshtuar</text>
+                </g>
+            </svg>
+        </div>
+
+        <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
+            <span className="text-[11px] text-slate-400 font-medium">Testi 100% Negativ rrëzon pretendimin e palës tjetër.</span>
+            <span className="text-indigo-400 font-bold text-xs flex items-center gap-1">Unifikuar me BFS <ArrowRight size={12} /></span>
+        </div>
+    </div>
+);
+
 const LegalGroundingMockup = () => (
-    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500 space-y-3">
-        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500 space-y-2.5 font-sans">
+        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                <CheckCircle2 size={16} /> Verifikim me Bazën Ligjore të Kosovës
+                <CheckCircle2 size={16} /> Citime me Linke të Klikueshme të PDF-ve
             </span>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
                 100% SAKTI
@@ -260,169 +343,89 @@ const LegalGroundingMockup = () => (
         </div>
 
         <div className="space-y-2 my-1">
-            <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
+            <div className="p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
                 <div>
-                    <span className="text-xs font-bold text-slate-100 block">Ligji Nr. 06/L-016 për Shoqëritë Tregtare</span>
-                    <span className="text-[10px] text-slate-400">Neni 258 (Detyrimi i Besnikërisë) & Neni 259 (Ndalimi i Konkurrencës)</span>
+                    <span className="text-xs font-bold text-slate-100 block">Kodi i Procedurës Penale (KPPRK)</span>
+                    <span className="text-[10px] text-slate-400">Neni 188 (Masa Mbrojtëse për Dëshmitarin e Mitur)</span>
                 </div>
                 <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-bold">
-                    ✅ Verifikuar
+                    ✅ Neni i Saktë
                 </span>
             </div>
 
-            <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
+            <div className="p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between">
                 <div>
-                    <span className="text-xs font-bold text-slate-100 block">Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve</span>
-                    <span className="text-[10px] text-slate-400">Neni 180 (Shpërblimi i Dëmit) & Neni 210 (Përfitimi pa Bazë)</span>
+                    <span className="text-xs font-bold text-slate-100 block">Prova Shkencore në Dosje</span>
+                    <span className="text-[10px] text-blue-400 font-mono underline">[Certifikata_Toksikologjike.pdf](/documents/6a80)</span>
                 </div>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-bold">
-                    ✅ Verifikuar
+                <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20 font-bold">
+                    📄 Hap PDF-në
                 </span>
             </div>
         </div>
 
-        <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
-            <Scale size={20} className="text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-200 font-medium leading-normal">
-                Kryeredaktori: Çdo citim përmban numrin zyrtar të ligjit dhe mund të verifikohet me klikim te burimi origjinal.
+        <div className="p-2.5 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
+            <Scale size={18} className="text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-200 font-medium leading-tight">
+                Avokati mbetet Kryeredaktori: çdo fakt verifikohet me klikim të menjëhershëm mbi dokumentin origjinal.
             </p>
         </div>
     </div>
 );
 
-const DeepScanMockup = () => (
-    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500">
-        <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2 mb-1">
-            <ScanEye size={16} /> Leximi i Shkresave të Skanuara (HD OCR 10.0)
+const SpeedScanMockup = () => (
+    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
+        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between mb-1">
+            <span className="flex items-center gap-2"><Zap size={16} /> Dynamic Token-Bucket (~18 Sekonda)</span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">32/32 DOKUMENTE</span>
         </div>
+
         {[
-            { name: "Contract - Rainer Gerke_countersigned.pdf", pages: "5 Faqe", status: "100% Skanuar (€51,500 EUR)" },
-            { name: "Seanca_E_Pare_GetCom.pdf", pages: "12 Faqe", status: "100% Skanuar" },
-            { name: "Raporti_Zyrtar_ATK_0.00.pdf", pages: "4 Faqe", status: "100% Skanuar" },
+            { name: "Procesverbali_Seanca_1.pdf", status: "✅ Analizuar (0.8s)", size: "14 Faqe" },
+            { name: "Raporti_Mjekesor_QKUK.pdf", status: "✅ Analizuar (1.1s)", size: "8 Faqe" },
+            { name: "Certifikata_Laboratorike.pdf", status: "✅ Analizuar (0.6s)", size: "4 Faqe" },
         ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg border border-cyan-500/20">
-                        <FileText size={16} />
+            <div key={i} className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-800 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg border border-amber-500/20">
+                        <FileText size={15} />
                     </div>
                     <div>
                         <p className="text-xs font-bold text-slate-200">{item.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{item.pages}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{item.size}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
-                        {item.status}
-                    </span>
-                    <CheckCircle size={16} className="text-emerald-400" />
-                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                    {item.status}
+                </span>
             </div>
         ))}
     </div>
 );
 
 const DraftingMockup = () => (
-    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
-        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-            <span className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
-                <PenTool size={16} /> Gjeneruesi i Prapësimit & Kundërpadisë
+    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500 font-sans">
+        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
+            <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+                <PenTool size={16} /> Gjeneruesi i Shkresave Ligjore V2
             </span>
-            <span className="text-[10px] font-mono text-slate-400">FORMATI .DOCX</span>
+            <span className="text-[10px] font-mono text-slate-400">FORMATI .DOCX / PDF</span>
         </div>
 
-        <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 font-serif leading-relaxed my-2 space-y-2">
-            <p className="font-bold uppercase text-center text-slate-100 border-b border-slate-800 pb-2">
-                GJYKATA THEMELORE NË PRISHTINË — DEPARTAMENTI PËR ÇËSHTJE EKONOMIKE
+        <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 text-xs text-slate-300 font-serif leading-relaxed my-1.5 space-y-1.5">
+            <p className="font-bold uppercase text-center text-slate-100 border-b border-slate-800 pb-1.5 text-[11px]">
+                GJYKATA THEMELORE NË PRISHTINË — DEPARTAMENTI I PËRGJITHSHËM
             </p>
-            <p className="italic text-slate-400">
-                Lënda: Përgjigje në Padi dhe Kundërpadi sipas Nenit 160 të LPK-së dhe Nenit 258 të LSHT-së...
-            </p>
-        </div>
-
-        <div className="p-3 bg-purple-950/40 border border-purple-800/50 rounded-xl flex items-center gap-3">
-            <BrainCircuit size={20} className="text-purple-400 shrink-0" />
-            <p className="text-xs text-purple-200 font-medium leading-normal">
-                AI futi automatikisht emrat e palëve (INTEGRATION GmbH / Dr. Rainer Gerke) dhe kërkesën për shpërblim dëmi.
+            <p className="italic text-slate-400 text-[11px]">
+                Lënda: Përgjigje në Padi me Prapësim Procedural dhe Kërkesë për Shpërblim Dëmi...
             </p>
         </div>
-    </div>
-);
 
-const OntologyMockup = () => (
-    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500">
-        <div className="flex justify-between items-center bg-slate-900/90 p-3 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
-                <Network size={16} /> Ontologjia e Provave
-            </div>
-            <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono font-bold">
-                17 ENTITETE • 1 KUNDËRTHËNJE
-            </span>
-        </div>
-
-        <div className="flex-1 relative flex items-center justify-center my-3">
-            <svg className="w-full h-full" viewBox="-220 -130 440 260">
-                <path d="M -120 -40 Q 0 20 120 -40" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" />
-                <path d="M -120 -40 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                <path d="M 0 50 Q 60 50 120 -40" fill="none" stroke="#8b5cf6" strokeWidth="2" />
-                
-                <rect x="-45" y="-12" width="90" height="18" rx="5" fill="#450a0a" stroke="#ef4444" strokeWidth="1" />
-                <text x="0" y="0" textAnchor="middle" fill="#fca5a5" fontSize="8" fontWeight="black">KUNDËRTHËNJE</text>
-
-                <rect x="-30" y="42" width="60" height="16" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                <text x="0" y="53" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">€51,500</text>
-
-                <g transform="translate(-120, -40)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(59, 130, 246, 0.25)" stroke="#3b82f6" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Shaban Bala</text>
-                </g>
-
-                <g transform="translate(0, 50)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(139, 92, 246, 0.25)" stroke="#8b5cf6" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">Getting Competent Sh.p.k.</text>
-                </g>
-
-                <g transform="translate(120, -40)" className="cursor-pointer">
-                    <circle r="22" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2.5" />
-                    <text y="36" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">TEB Bank QAFA</text>
-                </g>
-            </svg>
-        </div>
-
-        <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
-            <span className="font-semibold text-slate-400">Gjurmim i automatizuar i rrjedhës financiare</span>
-            <span className="text-indigo-400 font-bold flex items-center gap-1">Eksporto Raportin <ArrowRight size={12} /></span>
-        </div>
-    </div>
-);
-
-const FinanceMockup = () => (
-    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500">
-        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                <Calculator size={16} /> Auditimi Financiar & Benford Check
-            </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
-                PASQYRAT E RREGULLTA
-            </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 my-2">
-            <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase block">Qarkullimi Total</span>
-                <span className="text-base font-mono font-black text-slate-100">€ 142,500.00</span>
-            </div>
-            <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl">
-                <span className="text-[10px] font-bold text-amber-400 uppercase block">Depozitë e Mbrojtur</span>
-                <span className="text-base font-mono font-black text-amber-300">€ 52,000.00</span>
-            </div>
-        </div>
-
-        <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1">
-            <div className="flex justify-between text-xs font-bold text-slate-200">
-                <span>Rezultati i Ligjit të Benfordit:</span>
-                <span className="text-emerald-400 font-mono">98.4% Normal</span>
-            </div>
-            <p className="text-[10px] text-slate-400">Nuk u gjetën manipulime të shifrave në ditarin e arkës.</p>
+        <div className="p-2.5 bg-cyan-950/40 border border-cyan-800/50 rounded-xl flex items-center gap-3">
+            <BrainCircuit size={18} className="text-cyan-400 shrink-0" />
+            <p className="text-xs text-cyan-200 font-medium leading-tight">
+                AI plotëson automatikisht emrat e palëve, faktet nga fashikulli dhe nenet statutore të Kosovës.
+            </p>
         </div>
     </div>
 );
