@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V2.0 (SAFE RAG VECTORIZATION & ZERO TYPE-ERROR)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V3.0 (AUDIO WHISPER + VIDEO FORENSIC VISION DUAL PIPELINE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -20,6 +20,7 @@ import json
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
 from app.services import storage_service, transcription_service
+from app.services.video_forensic_service import video_forensic_service
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks, delete_document_embeddings
 from app.services.albanian_document_processor import EnhancedDocumentProcessor
 from app.core.config import settings
@@ -54,81 +55,62 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
     except Exception as e:
         logger.warning(f"Media deletion SSE publish failed: {e}")
 
-def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str):
+def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
+    """Orkestron transkriptimin e zërit dhe analizën e videos me Vision AI."""
     from app.core.db import get_db_instance
     db = get_db_instance()
     media_oid = ObjectId(media_id_str)
 
     try:
-        logger.info(f"🎙️ [Media] Starting Whisper transcription for media ID: {media_id_str}")
+        # 1. Transkriptimi Audio me Whisper
+        logger.info(f"🎙️ [Media] Starting audio transcription for: {file_name}")
         transcript = transcription_service.transcribe_media_file(file_path)
 
-        # 1. Update MongoDB with transcript
-        db.media_evidence.update_one(
-            {"_id": media_oid},
-            {
-                "$set": {
-                    "transcript": transcript,
-                    "status": "READY",
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
-        logger.info(f"✅ [Media] Transcription completed for media ID: {media_id_str}")
-
-        # 2. Vectorize and ingest into MongoDB Atlas Vector Search (RAG Knowledge Base)
-        if transcript and len(transcript.strip()) > 20:
-            logger.info(f"🧠 [Media] Indexing audio transcript into Vector RAG Knowledge Base...")
+        visual_data = {}
+        # 2. Forenzika Vizuale e Videos me Vision AI (nëse skedari është video)
+        if is_video:
+            logger.info(f"📹 [Media Vision] Starting Video Forensic AI Analysis for: {file_name}")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                enriched_chunks = EnhancedDocumentProcessor.process_document(
-                    text_content=transcript, 
-                    document_metadata={'file_name': f"Audio Transcript: {file_name}"}
+                visual_data = loop.run_until_complete(
+                    video_forensic_service.analyze_video_evidence_async(file_path, file_name)
                 )
-                
-                chunk_texts = []
-                chunk_metas = []
-                
-                if isinstance(enriched_chunks, list):
-                    for c in enriched_chunks:
-                        if hasattr(c, 'content'):
-                            chunk_texts.append(c.content)
-                            chunk_metas.append(getattr(c, 'metadata', {}))
-                        elif isinstance(c, dict):
-                            chunk_texts.append(c.get('content') or c.get('text') or str(c))
-                            chunk_metas.append(c.get('metadata') or {})
-                        else:
-                            chunk_texts.append(str(c))
-                            chunk_metas.append({})
-                else:
-                    chunk_texts = [transcript]
-                    chunk_metas = [{'file_name': f"Audio: {file_name}"}]
+            finally:
+                loop.close()
 
-                create_and_store_embeddings_from_chunks(
-                    user_id=user_id_str,
-                    document_id=media_id_str,
-                    case_id=case_id_str,
-                    file_name=f"Audio: {file_name}",
-                    chunks=chunk_texts,
-                    metadatas=chunk_metas
-                )
-                logger.info(f"✅ [Media] Audio transcript successfully vectorized and indexed for RAG search!")
-            except Exception as vec_err:
-                logger.warning(f"⚠️ Vector indexing fallback: {vec_err}")
-                # Fallback: ruaj të paktën transkriptin direkt
-                create_and_store_embeddings_from_chunks(
-                    user_id=user_id_str,
-                    document_id=media_id_str,
-                    case_id=case_id_str,
-                    file_name=f"Audio: {file_name}",
-                    chunks=[transcript],
-                    metadatas=[{'file_name': f"Audio: {file_name}"}]
-                )
+        # 3. Përditësimi i të dhënave në MongoDB
+        update_fields = {
+            "transcript": transcript,
+            "visual_analysis": visual_data,
+            "status": "READY",
+            "updated_at": datetime.now(timezone.utc)
+        }
+        db.media_evidence.update_one({"_id": media_oid}, {"$set": update_fields})
+        logger.info(f"✅ [Media] Audio & Visual analysis successfully saved for: {file_name}")
+
+        # 4. Indeksimi në Vector RAG Knowledge Base
+        combined_rag_text = f"PROVA AUDIO/VIDEO: {file_name}\n\nTRANSKRIPTI I BISEDËS:\n{transcript}\n"
+        if visual_data and visual_data.get("video_forensic_log"):
+            combined_rag_text += "\nDITARI I FAKTEVE VIZUALE NGA VIDEOJA:\n"
+            for log in visual_data["video_forensic_log"]:
+                combined_rag_text += f"- [{log.get('timestamp_video', '00:00')}]: {log.get('visual_evidence', '')} (Vlera: {log.get('evidentiary_value', '')})\n"
+
+        create_and_store_embeddings_from_chunks(
+            user_id=user_id_str,
+            document_id=media_id_str,
+            case_id=case_id_str,
+            file_name=f"Media: {file_name}",
+            chunks=[combined_rag_text],
+            metadatas=[{'file_name': f"Media: {file_name}"}]
+        )
+        logger.info(f"🧠 [Media] Evidence successfully indexed for Chat & Strategy RAG!")
 
     except Exception as e:
-        logger.error(f"❌ [Media] Transcription/Vectorization failed for {media_id_str}: {e}")
+        logger.error(f"❌ [Media] Analysis failed for {file_name}: {e}")
         db.media_evidence.update_one(
             {"_id": media_oid},
-            {"$set": {"status": "FAILED", "transcript": f"Dështoi transkriptimi: {str(e)}"}}
+            {"$set": {"status": "FAILED", "transcript": f"Dështoi analiza: {str(e)}"}}
         )
     finally:
         if file_path and os.path.exists(file_path):
@@ -165,6 +147,7 @@ async def upload_case_media(
 
     filename = file.filename or "recording.mp3"
     ext = os.path.splitext(filename)[1].lower()
+    is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
 
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
@@ -185,7 +168,7 @@ async def upload_case_media(
 
     with open(temp_path, "rb") as f:
         storage_key = storage_service.upload_bytes_as_file(
-            f, filename, str(current_user.id), case_id, file.content_type or 'audio/mpeg'
+            f, filename, str(current_user.id), case_id, file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
         )
 
     now = datetime.now(timezone.utc)
@@ -194,10 +177,11 @@ async def upload_case_media(
         "owner_id": user_oid,
         "file_name": filename,
         "storage_key": storage_key,
-        "media_type": "audio",
-        "mime_type": file.content_type or 'audio/mpeg',
+        "media_type": "video" if is_video else "audio",
+        "mime_type": file.content_type or ('video/mp4' if is_video else 'audio/mpeg'),
         "status": "PROCESSING",
         "transcript": "",
+        "visual_analysis": {},
         "created_at": now,
         "updated_at": now
     }
@@ -206,13 +190,14 @@ async def upload_case_media(
     media_id_str = str(result.inserted_id)
 
     background_tasks.add_task(
-        orchestrate_media_transcription,
+        orchestrate_media_analysis,
         db,
         media_id_str,
         temp_path,
         str(current_user.id),
         case_id,
-        filename
+        filename,
+        is_video
     )
 
     serialized_doc = serialize_media_doc(media_doc)
@@ -248,8 +233,8 @@ async def stream_case_media(
     if not stream:
         raise HTTPException(status_code=404, detail="Could not retrieve media stream.")
 
-    filename = media_item.get("file_name", "media.mp3")
-    mime_type = media_item.get("mime_type", "audio/mpeg")
+    filename = media_item.get("file_name", "media.mp4")
+    mime_type = media_item.get("mime_type", "video/mp4")
 
     return StreamingResponse(
         stream,
@@ -279,18 +264,14 @@ async def delete_case_media(
     if storage_key:
         try:
             await asyncio.to_thread(storage_service.delete_file, storage_key)
-            logger.info(f"🗑️ Cascading delete: Purged B2 storage file {storage_key}")
         except Exception as e:
-            logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
+            logger.warning(f"Failed to purge B2 storage file: {e}")
 
     try:
         delete_document_embeddings(document_id=media_id)
-        logger.info(f"🗑️ Cascading delete: Removed vector embeddings for media {media_id}")
     except Exception as e:
         logger.warning(f"Failed to purge vector embeddings: {e}")
 
     db.media_evidence.delete_one({"_id": media_oid})
-    logger.info(f"🗑️ Cascading delete: Removed media evidence record {media_id}")
-
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
     return
