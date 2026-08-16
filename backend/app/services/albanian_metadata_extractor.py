@@ -1,8 +1,5 @@
 # FILE: backend/app/services/albanian_metadata_extractor.py
-# PHOENIX PROTOCOL - METADATA EXTRACTOR V5.1 (SYNTAX FIX)
-# 1. FIX: Resolved truncated variable name at end of file.
-# 2. JURISDICTION: Target strictly "Republic of Kosovo" Institutions.
-# 3. SCHEMA: Standardized extraction for Graph & DB ingestion.
+# PHOENIX PROTOCOL - METADATA EXTRACTOR V6.0 (UNIVERSAL OPENROUTER & KOSOVO DB INGESTION)
 
 import re
 import logging
@@ -15,62 +12,58 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+API_KEY = os.getenv("OPENROUTER_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 
 class AlbanianMetadataExtractor:
     def __init__(self):
-        # Tier 1: DeepSeek Client
-        if DEEPSEEK_API_KEY:
+        # Tier 1: Semantic Client
+        if API_KEY:
             self.client = OpenAI(
-                api_key=DEEPSEEK_API_KEY,
+                api_key=API_KEY,
                 base_url=OPENROUTER_BASE_URL
             )
         else:
             self.client = None
 
-        # Tier 2: Regex Patterns (Backup)
-        # PHOENIX: Optimized for Kosovo context (EUR primary)
+        # Tier 2: Regex Patterns (Backup për shpejtësi dhe offline)
         self.patterns = {
             'contract_section': re.compile(r'Neni\s+(\d+\.?\d*)[:\-]\s*(.+?)(?=\n|$)', re.IGNORECASE),
             'date': re.compile(r'(\d{1,2}\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor)\s+\d{4})', re.IGNORECASE),
-            'case_reference': re.compile(r'Çështja\s+(Nr\.?\s*[\w\-\/]+)', re.IGNORECASE),
-            'party': re.compile(r'(Paditësi|Padituesi|Pale|E Paditura)\s*[:\-]\s*(.+?)(?=\n|$)', re.IGNORECASE),
+            'case_reference': re.compile(r'(?:Çështja|Lënda|Numri|Nr\.?)\s*(?:Nr\.?)?\s*([A-Z]{1,3}\.?\s*nr\.?\s*[\w\-\/]+)', re.IGNORECASE),
+            'party': re.compile(r'(Paditësi|Padituesi|Pale|E Paditura|I Pandehuri|Parashtruesi)\s*[:\-]\s*(.+?)(?=\n|$)', re.IGNORECASE),
             'amount': re.compile(r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(€|EUR|euro)', re.IGNORECASE),
             'court': re.compile(r'(Gjykat[aë]s?\s+(e|ë)\s+[\w\s]+)', re.IGNORECASE),
-            'judge': re.compile(r'(Gjykat[aë]s(it)?\s+[\w\s]+)', re.IGNORECASE),
+            'judge': re.compile(r'(Gjyqtar[i|e]\s+[\w\s]+)', re.IGNORECASE),
         }
         
-        logger.info("✅ Kosovo Metadata Extractor V5.1 Initialized")
+        logger.info("✅ Kosovo Metadata Extractor V6.0 Initialized")
 
     def _extract_with_deepseek(self, text: str) -> Optional[Dict[str, Any]]:
-        """
-        Tier 1: Semantic Extraction using DeepSeek V3.
-        """
-        if not self.client: return None
+        """Nxjerrje semantike e metatëdhënave me dritare të plotë."""
+        if not self.client: 
+            return None
 
-        truncated_text = text[:15000] 
+        truncated_text = text[:20000] 
 
         system_prompt = """
-        Ti je "Specialist i Arkivës Ligjore" për Republikën e Kosovës.
+        Ti je "Specialist i Arkivës dhe Regjistrit Ligjor" për Republikën e Kosovës.
         
         DETYRA:
-        Identifiko të dhënat strukturore (Metadata) nga dokumenti.
+        Identifiko të dhënat strukturore (Metadata) nga ky dokument.
         
         FUSHAT E KËRKUARA (JSON):
-        - court: Emri i Gjykatës (psh. "Gjykata Themelore në Prishtinë").
-        - judge: Emri i Gjyqtarit.
-        - case_number: Numri i Lëndës (format: C.nr... / P.nr...).
-        - parties: Lista e palëve.
-        - document_type: Lloji (Aktgjykim, Padi, Kontratë).
-        - date: Data e dokumentit.
-        - amount: Vlera monetare (Prefero EUR).
-        - jurisdiction_check: "KOSOVË" ose "E HUAJ" (nëse është Shqipëri/Tjetër).
+        - court: Emri i Gjykatës apo Institucionit (psh. "Gjykata Themelore në Prishtinë", "QPS", "QKUK").
+        - judge: Emri i Gjyqtarit / Zyrtarit përgjegjës.
+        - case_number: Numri i Lëndës (format: C.nr... / P.nr... / Doc.nr...).
+        - parties: Lista e personave dhe palëve kryesore.
+        - document_type: Lloji (Aktgjykim, Padi, Ekspertizë, Procesverbal, Kontratë, Kallëzim Penal).
+        - date: Data e saktë e dokumentit.
+        - amount: Vlera monetare në EUR (nëse ka).
+        - jurisdiction_check: "KOSOVË" ose "E HUAJ".
         
-        RREGULLA:
-        - Fokusohu te institucionet e Kosovës.
-        - Përgjigju VETËM me JSON valid.
+        Përgjigju VETËM me JSON të pastër.
         """
 
         try:
@@ -80,12 +73,8 @@ class AlbanianMetadataExtractor:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"DOKUMENTI:\n{truncated_text}"}
                 ],
-                temperature=0.1,
-                response_format={"type": "json_object"},
-                extra_headers={
-                    "HTTP-Referer": "https://juristi.tech", 
-                    "X-Title": "Juristi AI Metadata"
-                }
+                temperature=0.0,
+                response_format={"type": "json_object"}
             )
             
             content = response.choices[0].message.content
@@ -93,14 +82,12 @@ class AlbanianMetadataExtractor:
                 return json.loads(content)
                 
         except Exception as e:
-            logger.warning(f"⚠️ DeepSeek Metadata Extraction Failed: {e}")
+            logger.warning(f"⚠️ Metadata Extraction Fallback: {e}")
             return None
         return None
 
     def _extract_with_regex(self, text: str) -> Dict[str, Any]:
-        """
-        Tier 2: Regex Backup.
-        """
+        """Nxjerrje me Regex nëse cloud nuk përgjigjet."""
         metadata = {}
         
         match = self.patterns['case_reference'].search(text)
@@ -124,21 +111,15 @@ class AlbanianMetadataExtractor:
         return metadata
 
     def extract(self, text: str, document_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Main extraction pipeline.
-        """
+        """Tubi kryesor i nxjerrjes së të dhënave."""
         if not text:
             return {}
         
-        # 1. Try DeepSeek
         metadata = self._extract_with_deepseek(text)
         
-        # 2. Fallback
         if not metadata:
-            logger.info("Falling back to Regex Metadata Extraction")
             metadata = self._extract_with_regex(text)
         
-        # Standardize Output
         result = {
             "document_id": document_id,
             "extraction_timestamp": datetime.now().isoformat(),
@@ -149,7 +130,7 @@ class AlbanianMetadataExtractor:
             "document_type": metadata.get("document_type"),
             "amount": metadata.get("amount"),
             "date": metadata.get("date"),
-            "jurisdiction": metadata.get("jurisdiction_check", "UNKNOWN")
+            "jurisdiction": metadata.get("jurisdiction_check", "KOSOVË")
         }
         
         return result
