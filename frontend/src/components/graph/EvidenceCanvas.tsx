@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - PROFESSIONAL RADIAL COURTROOM CANVAS (ZERO TS WARNINGS)
+// PHOENIX PROTOCOL - PROFESSIONAL RADIAL COURTROOM CANVAS (PERFECT SCALE & CENTERING • 0 WARNINGS)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -43,6 +43,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     height: 800,
   });
 
+  // Përshtatja e saktë e përmasave të ekranit
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -97,7 +98,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         borderColor: isRoot ? '#fbbf24' : conf.border,
         degree: degree,
         isRoot: isRoot,
-        val: isRoot ? 32 : n.type === 'DOCUMENT' ? 22 : 18,
+        val: isRoot ? 28 : n.type === 'DOCUMENT' ? 22 : 18,
       };
     });
 
@@ -117,7 +118,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
 
       let curvature = 0;
       if (total > 1) {
-        curvature = (currentIndex - (total - 1) / 2) * 0.22;
+        curvature = (currentIndex - (total - 1) / 2) * 0.2;
         if (e.source > e.target) curvature *= -1;
       }
 
@@ -148,35 +149,39 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     return { nodes, links: edges };
   }, [filteredNodes, filteredEdges, nodeDegreeMap]);
 
-  // FIZIKË RADIALE ME DISTANCË TË GJERË (ZERO OVERLAP)
+  // KALIBRIMI I D3 PHYSICS PËR GRAF TË DENDUR DHE TË BALANCUAR NË QENDËR
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge')?.strength(-1800);
-    fgRef.current.d3Force('link')?.distance((link: any) => (link.isContradiction ? 280 : 220));
+    // Repulsion i butë për të mbajtur nyjet afër qendrës
+    fgRef.current.d3Force('charge')?.strength(-350).distanceMax(500);
+
+    // Distancë ideale mes nyjeve (80px - 120px) në mënyrë që të mos shpërndahen
+    fgRef.current.d3Force('link')?.distance((link: any) => (link.isContradiction ? 120 : 85));
+
     fgRef.current.d3ReheatSimulation();
 
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(500, 80);
+        fgRef.current.zoomToFit(400, 50);
       }
-    }, 450);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [graphData, dimensions]);
 
   const handleResetView = useCallback(() => {
     if (fgRef.current) {
-      fgRef.current.zoomToFit(500, 80);
+      fgRef.current.zoomToFit(400, 50);
     }
   }, []);
 
   const handleZoomIn = () => {
-    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 300);
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() * 1.3, 250);
   };
 
   const handleZoomOut = () => {
-    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 300);
+    if (fgRef.current) fgRef.current.zoom(fgRef.current.zoom() / 1.3, 250);
   };
 
   const handleResetSimulationAndUnpin = useCallback(() => {
@@ -187,13 +192,13 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       });
     }
     if (fgRef.current) {
-      fgRef.current.d3Force('charge')?.strength(-1800);
+      fgRef.current.d3Force('charge')?.strength(-350).distanceMax(500);
       fgRef.current.d3ReheatSimulation();
-      fgRef.current.zoomToFit(500, 80);
+      fgRef.current.zoomToFit(400, 50);
     }
   }, [graphData]);
 
-  // VIZATIMI I NYJEVE: RRETH ME INICIALE + EMËR I SHKURTËR DHE I PASTER
+  // VIZATIMI I NYJEVE (HD CANVAS OBJECT)
   const drawNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, _globalScale: number) => {
       void _globalScale;
@@ -206,6 +211,8 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       const x = node.x;
       const y = node.y;
 
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
 
@@ -213,7 +220,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       if (isSelected || isHovered) {
         ctx.beginPath();
         ctx.arc(x, y, r + 7, 0, 2 * Math.PI, false);
-        ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.2)';
+        ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.35)' : 'rgba(255, 255, 255, 0.2)';
         ctx.fill();
 
         ctx.beginPath();
@@ -233,24 +240,26 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
 
-      // Inicialet
-      const fontSize = Math.max(9, Math.min(13, r * 0.6));
-      ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+      // Inicialet brenda rrethit
+      const fontSize = Math.max(9, Math.min(13, r * 0.55));
+      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffffff';
       ctx.fillText(node.initials || '', x, y);
 
-      // Teksti poshtë nyjes
+      // Teksti i etiketës poshtë nyjes
       const labelText = node.label || '';
       const isDetailView = isSelected || isHovered;
-      const maxChars = isDetailView ? 36 : 18;
+      const maxChars = isDetailView ? 32 : 18;
       const displayTxt = labelText.length > maxChars ? `${labelText.substring(0, maxChars)}…` : labelText;
 
       const labelFontSize = isDetailView ? 11 : 9.5;
-      ctx.font = isDetailView ? `bold ${labelFontSize}px system-ui, sans-serif` : `600 ${labelFontSize}px system-ui, sans-serif`;
-      
-      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.font = isDetailView
+        ? `bold ${labelFontSize}px system-ui, -apple-system, sans-serif`
+        : `600 ${labelFontSize}px system-ui, -apple-system, sans-serif`;
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
       ctx.shadowBlur = 4;
       ctx.fillStyle = isSelected ? '#38bdf8' : isHovered ? '#fef08a' : '#f8fafc';
       ctx.textAlign = 'center';
@@ -262,7 +271,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     [selectedNode, hoveredNode, isFocusMode]
   );
 
-  // VIZATIMI I LIDHJEVE DHE KONTRADIKTAVE
+  // VIZATIMI I LIDHJEVE
   const drawLink = useCallback(
     (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isSelected = selectedEdge?.id === link.id || hoveredEdge?.id === link.id;
@@ -279,7 +288,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       ctx.globalAlpha = isDimmed ? 0.08 : 1.0;
 
       // Shfaq emërtimin e relacionit
-      if (link.isContradiction || isSelected || globalScale > 0.75) {
+      if (link.isContradiction || isSelected || globalScale > 0.85) {
         let angle = Math.atan2(end.y - start.y, end.x - start.x);
         if (angle > Math.PI / 2) angle -= Math.PI;
         if (angle < -Math.PI / 2) angle += Math.PI;
@@ -289,10 +298,10 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         ctx.rotate(angle);
 
         const labelText = link.label || '';
-        ctx.font = 'bold 8.5px system-ui, sans-serif';
+        ctx.font = 'bold 8.5px system-ui, -apple-system, sans-serif';
         const textWidth = ctx.measureText(labelText).width;
         const padW = textWidth + 8;
-        const padH = 15;
+        const padH = 14;
 
         ctx.fillStyle = link.isContradiction ? '#450a0a' : isSelected ? '#0369a1' : 'rgba(15, 23, 42, 0.9)';
         ctx.beginPath();
@@ -388,9 +397,15 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
           onSelectEdge(null);
           onHoverEdge(null);
         }}
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
-        cooldownTicks={140}
+        warmupTicks={50}
+        cooldownTicks={100}
+        d3AlphaDecay={0.03}
+        d3VelocityDecay={0.4}
+        onEngineStop={() => {
+          if (fgRef.current) {
+            fgRef.current.zoomToFit(400, 50);
+          }
+        }}
       />
 
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
