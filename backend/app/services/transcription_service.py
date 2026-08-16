@@ -1,172 +1,5 @@
 # FILE: backend/app/services/transcription_service.py
-# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V5.0 (WHATSAPP 16KHZ PCM RESTORATION & TIMESTAMPED SEGMENTS)
-
-import os
-import json
-import logging
-import subprocess
-import tempfile
-from typing import Dict, Any, List
-from openai import OpenAI
-from app.core.config import settings
-
-logger = logging.getLogger(__name__)
-
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
-WHISPER_FALLBACK_MODEL = "openai/whisper-1"
-
-def convert_to_forensic_wav(input_path: str) -> str:
-    """
-    WHATSAPP AUDIO RESTORATION ENGINE (FFmpeg):
-    Konverton çdo format të ngjeshur të WhatsApp (OPUS, M4A, OGG, MP3) 
-    në formatin e pastër uncompressed 16,000Hz Mono WAV (PCM_S16LE) 
-    me normalizim dinamik zëri për të arritur saktësi maksimale në Whisper.
-    """
-    output_wav = f"{input_path}_forensic.wav"
-    try:
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i", input_path,
-            "-ar", "16000",       # Frekuenca standarde e artë për Whisper (16kHz)
-            "-ac", "1",           # Mono channel për fokusim te zëri i folësit
-            "-c:a", "pcm_s16le",  # Uncompressed audio
-            "-af", "highpass=f=80,dynaudnorm=f=150:g=15",  # Heq zhurmat e sfondit dhe forcon pëshpëritjet
-            output_wav
-        ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
-        if res.returncode == 0 and os.path.exists(output_wav):
-            logger.info("🎙️ [Media DSP] WhatsApp audio converted to 16kHz PCM WAV successfully.")
-            return output_wav
-    except Exception as e:
-        logger.warning(f"⚠️ FFmpeg 16kHz conversion fallback: {e}")
-    return input_path
-
-def format_timestamp(seconds_float: float) -> str:
-    """Kthen sekondat në formatin standard të gjykatës [MM:SS]."""
-    total_seconds = int(seconds_float)
-    minutes = total_seconds // 60
-    seconds = total_seconds % 60
-    return f"{minutes:02d}:{seconds:02d}"
-
-def extract_audio_from_video(video_path: str) -> str:
-    """Nxjerr audion nga skedarët video."""
-    audio_path = f"{video_path}.mp3"
-    try:
-        from moviepy.editor import VideoFileClip  # type: ignore
-        clip = VideoFileClip(video_path)
-        if clip.audio is not None:
-            clip.audio.write_audiofile(audio_path, codec='mp3', logger=None)
-            clip.close()
-            if os.path.exists(audio_path):
-                return audio_path
-        clip.close()
-    except Exception as e:
-        logger.warning(f"Moviepy extraction fallback: {e}")
-    return video_path
-
-def transcribe_media_file(file_path: str) -> str:
-    """
-    Transkriptim Forenzik me Sekonda të Sakta [MM:SS] dhe mbështetje për biseda mikse (Shqip + Anglisht).
-    """
-    api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("❌ Mungon API Key për transkriptim.")
-        return "Gabim: Mungon API Key për transkriptim."
-
-    processed_path = file_path
-    extracted_audio = False
-    converted_wav_path = None
-
-    try:
-        # 1. Nxjerrja nga video nëse është video
-        ext = os.path.splitext(file_path)[1].lower()
-        if ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']:
-            audio_out = extract_audio_from_video(file_path)
-            if audio_out != file_path:
-                processed_path = audio_out
-                extracted_audio = True
-
-        # 2. Restaurimi Akustik për WhatsApp (16kHz WAV Mono)
-        converted_wav_path = convert_to_forensic_wav(processed_path)
-        active_audio_file = converted_wav_path if os.path.exists(converted_wav_path) else processed_path
-
-        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL, timeout=120.0)
-        
-        file_size_mb = os.path.getsize(active_audio_file) / (1024 * 1024)
-        logger.info(f"📁 [Media Forensic] Sending to Whisper Large V3 ({file_size_mb:.2f} MB)")
-
-        if file_size_mb > 24.5:
-            return f"[Gabim: Skedari është {file_size_mb:.1f}MB. Kufiri maksimal është 25MB.]"
-
-        # Prompti që orienton modelin për biseda mikse dhe fjalë WhatsApp
-        multilingual_prompt = (
-            "Transkriptim zyrtar hetimor i një incizimi me zë me gjuhë të përzier (Shqip dhe English). "
-            "Ruaj fjalët ekzakte të folura në gjuhën shqipe dhe anglishte pa i ndryshuar."
-        )
-
-        response_data = None
-
-        # 3. Thirrja e Whisper me `verbose_json` për të marrë sekondat e çdo fjalie
-        try:
-            with open(active_audio_file, "rb") as audio_file:
-                response_data = client.audio.transcriptions.create(
-                    model=WHISPER_TURBO_MODEL,
-                    file=audio_file,
-                    prompt=multilingual_prompt,
-                    response_format="verbose_json"
-                )
-        except Exception as turbo_err:
-            logger.warning(f"⚠️ Whisper Turbo fallback to Whisper-1: {turbo_err}")
-            with open(active_audio_file, "rb") as audio_file:
-                response_data = client.audio.transcriptions.create(
-                    model=WHISPER_FALLBACK_MODEL,
-                    file=audio_file,
-                    prompt=multilingual_prompt,
-                    response_format="verbose_json"
-                )
-
-        # 4. Përpunimi i Segmenteve me Sekonda [MM:SS]
-        formatted_lines = []
-        file_base_name = os.path.basename(file_path)
-
-        # Kontrollo nëse morëm segmente me kohë
-        segments = getattr(response_data, "segments", None)
-        if not segments and isinstance(response_data, dict):
-            segments = response_data.get("segments")
-
-        if segments and isinstance(segments, list) and len(segments) > 0:
-            formatted_lines.append(f"=== TRANSKRIPTI FORENZIK I INCIZIMIT (WHATSAPP AUDIO) ===")
-            formatted_lines.append(f"📁 Skedari: {file_base_name}")
-            formatted_lines.append("=" * 60 + "\n")
-
-            for seg in segments:
-                start_sec = seg.get("start", 0.0) if isinstance(seg, dict) else getattr(seg, "start", 0.0)
-                end_sec = seg.get("end", 0.0) if isinstance(seg, dict) else getattr(seg, "end", 0.0)
-                text_content = seg.get("text", "") if isinstance(seg, dict) else getattr(seg, "text", "")
-                
-                clean_seg_text = text_content.strip()
-                if clean_seg_text:
-                    time_badge = f"[{format_timestamp(start_sec)} - {format_timestamp(end_sec)}]"
-                    formatted_lines.append(f"{time_badge} FOLËSI: {clean_seg_text}")
-
-            return "\n".join(formatted_lines)
-
-        # Fallback nëse nuk ka segmente
-        raw_text = getattr(response_data, "text", "") if hasattr(response_data, "text") else (response_data.get("text", "") if isinstance(response_data, dict) else str(response_data))
-        if raw_text and raw_text.strip():
-            return f"=== TRANSKRIPTI I INCIZIMIT: {file_base_name} ===\n\n{raw_text.strip()}"
-
-        return "[Nuk u detektua zë i kuptueshëm në këtë regjistrim.]"
-
-    except Exception as e:
-        logger.error(f"❌ Forensic Transcription Error: {e}")
-        return f"[Gabim gjatë transkriptimit: {str(e)}]"
-    finally:
-        if converted_wav_path and converted_wav_path != file_path and os.path.exists(converted_wav_path):
-            try:# FILE: backend/app/services/transcription_service.py
-# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V6.0 (KOSOVO COURTROOM DUAL-LAYER: ALBANIAN + BRACKETED ORIGINAL)
+# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V7.0 (SYNTAX CLEAN • VERIFIED DUAL-LAYER KOSOVO TRANSCRIPTION)
 
 import os
 import json
@@ -185,9 +18,7 @@ WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
 WHISPER_FALLBACK_MODEL = "openai/whisper-1"
 
 def convert_to_forensic_wav(input_path: str) -> str:
-    """
-    Konverton audion në 16,000Hz Mono WAV (PCM) me normalizim volumi dhe heqje zhurmash.
-    """
+    """Konverton audion në 16,000Hz Mono WAV (PCM) me normalizim volumi dhe heqje zhurmash."""
     output_wav = f"{input_path}_forensic.wav"
     try:
         cmd = [
@@ -217,7 +48,6 @@ def format_timestamp(seconds_float: float) -> str:
 
 def generate_courtroom_bilingual_transcript_with_ai(segmented_transcript: str, file_name: str) -> str:
     """
-    DUAL-LAYER COURTROOM TRANSLITERATOR:
     Kthen transkriptin në Gjuhën Shqipe Zyrtare për Gjykatë,
     duke vendosur në kllapa fjalët ekzakte origjinale në Anglisht/Gjermanisht.
     """
@@ -318,13 +148,17 @@ def transcribe_media_file(file_path: str) -> str:
                 )
         except Exception as turbo_err:
             logger.warning(f"⚠️ Whisper Turbo fallback to Whisper-1: {turbo_err}")
-            with open(active_audio_file, "rb") as audio_file:
-                response_data = client.audio.transcriptions.create(
-                    model=WHISPER_FALLBACK_MODEL,
-                    file=audio_file,
-                    prompt=multilingual_prompt,
-                    response_format="verbose_json"
-                )
+            try:
+                with open(active_audio_file, "rb") as audio_file:
+                    response_data = client.audio.transcriptions.create(
+                        model=WHISPER_FALLBACK_MODEL,
+                        file=audio_file,
+                        prompt=multilingual_prompt,
+                        response_format="verbose_json"
+                    )
+            except Exception as fb_err:
+                logger.error(f"❌ Whisper fallback also failed: {fb_err}")
+                return f"[Gabim në thirrjen e Whisper: {str(fb_err)}]"
 
         formatted_lines = []
         file_base_name = os.path.basename(file_path)
@@ -346,7 +180,6 @@ def transcribe_media_file(file_path: str) -> str:
 
             raw_segmented_text = "\n".join(formatted_lines)
             
-            # Përpunimi në formatin e dyfishtë gjyqësor (Shqip + Kllapa Origjinale)
             logger.info("🪄 [Media Forensic] Formatting courtroom dual-layer transcript (Albanian + Original in brackets)...")
             final_courtroom_transcript = generate_courtroom_bilingual_transcript_with_ai(raw_segmented_text, file_base_name)
             
@@ -371,13 +204,6 @@ def transcribe_media_file(file_path: str) -> str:
         if converted_wav_path and converted_wav_path != file_path and os.path.exists(converted_wav_path):
             try:
                 os.remove(converted_wav_path)
-            except Exception:
-                pass
-        if extracted_audio and processed_path != file_path and os.path.exists(processed_path):
-            try:
-                os.remove(processed_path)
-            except Exception:
-                pass                os.remove(converted_wav_path)
             except Exception:
                 pass
         if extracted_audio and processed_path != file_path and os.path.exists(processed_path):

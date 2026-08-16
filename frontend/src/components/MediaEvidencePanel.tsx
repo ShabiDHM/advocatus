@@ -1,12 +1,12 @@
 // FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V3.0 (AUDIO & VIDEO FORENSIC DUAL WORKSPACE)
+// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V4.0 (0 WARNINGS • CLEAN IMPORTS)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
-    Loader2, Headphones, Radio, Download, Save, CheckCircle2,
-    Video, Film, Layers, Car, Clock, Eye
+    Loader2, Download, Save, CheckCircle2,
+    Video, Film, Car, Clock, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -252,7 +252,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </button>
                                 </div>
 
-                                {/* MEDIA PLAYER: AUDIO OSE VIDEO */}
                                 <div className="w-full bg-canvas p-2 rounded-lg border border-main">
                                     {isVideo ? (
                                         <video 
@@ -287,7 +286,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL I DETARIT DHE TRANSKRIPTIMIT */}
             <AnimatePresence>
                 {selectedMedia && (
                     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
@@ -297,7 +295,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
                             className="glass-panel w-full max-w-4xl h-[88vh] max-h-[850px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-canvas flex flex-col"
                         >
-                            {/* Modal Header */}
                             <div className="flex justify-between items-center mb-4 border-b border-main pb-4 shrink-0">
                                 <div className="flex items-center gap-3.5 min-w-0">
                                     <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
@@ -315,7 +312,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
-                            {/* Tab Switcher nëse ka të dhëna vizuale */}
                             {selectedMedia.visual_analysis?.video_forensic_log?.length ? (
                                 <div className="flex gap-2 mb-4 shrink-0">
                                     <button
@@ -343,11 +339,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </div>
                             ) : null}
 
-                            {/* Modal Content */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary shadow-inner space-y-4">
                                 {modalTab === 'visual' && selectedMedia.visual_analysis?.video_forensic_log ? (
                                     <div className="space-y-4">
-                                        {/* Përmbledhja Vizuale */}
                                         {selectedMedia.visual_analysis.visual_summary && (
                                             <div className="p-3.5 bg-canvas rounded-xl border border-main text-xs leading-relaxed">
                                                 <span className="text-[10px] font-black uppercase text-primary-start block mb-1">Përmbledhja Ekzekutive Vizuale:</span>
@@ -355,7 +349,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                             </div>
                                         )}
 
-                                        {/* Targat e Zbuluara */}
                                         {selectedMedia.visual_analysis.detected_license_plates?.length ? (
                                             <div className="p-3.5 bg-canvas rounded-xl border border-main space-y-2">
                                                 <span className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
@@ -373,7 +366,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                             </div>
                                         ) : null}
 
-                                        {/* Ditari i Sekondave */}
                                         <div className="space-y-2">
                                             <span className="text-[10px] font-black uppercase text-text-muted block">Kronologjia me Sekonda (Video Event Log):</span>
                                             <div className="space-y-2">
@@ -401,7 +393,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 )}
                             </div>
 
-                            {/* Modal Footer */}
                             <div className="flex flex-wrap items-center justify-between pt-4 mt-4 border-t border-main gap-3 shrink-0">
                                 <div className="flex items-center gap-2">
                                     <button 
