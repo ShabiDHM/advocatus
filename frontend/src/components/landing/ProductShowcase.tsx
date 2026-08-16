@@ -1,23 +1,16 @@
 // FILE: frontend/src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V11.0 (0 WARNINGS • CLEAN IMPORTS)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V12.0 (ONTOLOGY EXCISED • 0 WARNINGS)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ShieldAlert, FileText, BrainCircuit, 
-    PenTool, Sparkles, Network, ArrowRight, AlertTriangle, ChevronRight,
+    PenTool, Sparkles, AlertTriangle, ChevronRight,
     Scale, CheckCircle2, Swords, Zap
 } from 'lucide-react';
 
 const ProductShowcase: React.FC = () => {
     const [activeTab, setActiveTab] = useState(0);
-
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setActiveTab((prev) => (prev + 1) % 6);
-        }, 8000);
-        return () => clearInterval(timer);
-    }, []);
 
     const features = [
         {
@@ -40,15 +33,6 @@ const ProductShowcase: React.FC = () => {
         },
         {
             id: 2,
-            title: "Harta e Provave (Ontologjia Forenzike)",
-            desc: "Rrjet organik i nivelit Palantir Gotham që unifikon të gjithë fashikullin dhe zbulon kontradiktat me vija të kuqe të ndërprera.",
-            icon: <Network className="w-5 h-5" />,
-            badge: "PALANTIR GOTHAM MATRIX",
-            color: "from-purple-600 to-violet-600",
-            mockup: <OntologyMockup />
-        },
-        {
-            id: 3,
             title: "Citime të Klikueshme të PDF-ve & Zero Halucinacione",
             desc: "Çdo fakt dhe dëshmi lidhet me link direkt te skedari origjinal PDF. Baza ligjore mbështetet 100% në LPK, KPRK, KPPRK, LFK dhe LMD.",
             icon: <CheckCircle2 className="w-5 h-5" />,
@@ -57,7 +41,7 @@ const ProductShowcase: React.FC = () => {
             mockup: <LegalGroundingMockup />
         },
         {
-            id: 4,
+            id: 3,
             title: "Analizë e Shpejtë e 30+ Dokumenteve (~18s)",
             desc: "Motori Dynamic Token-Bucket përpunon fashikuj voluminozë në sekonda pa gabime 429 dhe me saktësi absolute në gjuhën shqipe.",
             icon: <Zap className="w-5 h-5" />,
@@ -66,7 +50,7 @@ const ProductShowcase: React.FC = () => {
             mockup: <SpeedScanMockup />
         },
         {
-            id: 5,
+            id: 4,
             title: "Hartimi i Shkresave (Drafting V2)",
             desc: "Gjenerim automatik i Padive, Përgjigjeve në Padi, Kundërpadive, Masave të Sigurisë dhe Kallëzimeve Penale në format Word (.docx).",
             icon: <PenTool className="w-5 h-5" />,
@@ -75,6 +59,13 @@ const ProductShowcase: React.FC = () => {
             mockup: <DraftingMockup />
         }
     ];
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setActiveTab((prev) => (prev + 1) % features.length);
+        }, 8000);
+        return () => clearInterval(timer);
+    }, [features.length]);
 
     return (
         <div className="py-20 lg:py-28 bg-canvas relative overflow-hidden border-y border-main font-sans">
@@ -177,7 +168,7 @@ const ProductShowcase: React.FC = () => {
                                                 Juristi Virtual — {features[activeTab].badge}
                                             </span>
                                         </div>
-                                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase font-bold">
+                                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 font-bold px-2 py-0.5 rounded uppercase">
                                             LIVE WORKSPACE
                                         </span>
                                     </div>
@@ -268,56 +259,6 @@ const FourPillarsMockup = () => (
                 <p className="text-xs font-bold text-slate-100">Raporti për Klientin</p>
                 <p className="text-[10px] text-slate-400 line-clamp-2">Memorandum ekzekutiv me shanset e fitores dhe hapat.</p>
             </div>
-        </div>
-    </div>
-);
-
-const OntologyMockup = () => (
-    <div className="h-full flex flex-col justify-between relative overflow-hidden animate-in fade-in duration-500 font-sans">
-        <div className="flex justify-between items-center bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
-                <Network size={16} /> Topologjia e Provave (Palantir Gotham)
-            </div>
-            <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-mono font-bold">
-                KUNDËRTHËNIE SHKENCORE E ZBULUAR
-            </span>
-        </div>
-
-        <div className="flex-1 relative flex items-center justify-center my-2">
-            <svg className="w-full h-full" viewBox="-220 -120 440 240">
-                <path d="M -120 -30 Q 0 10 120 -30" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeDasharray="6,4" className="animate-pulse" />
-                <path d="M -120 -30 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                <path d="M 0 50 Q 60 50 120 -30" fill="none" stroke="#8b5cf6" strokeWidth="2" />
-                
-                <rect x="-60" y="-18" width="120" height="20" rx="6" fill="#450a0a" stroke="#ef4444" strokeWidth="1.5" />
-                <text x="0" y="-4" textAnchor="middle" fill="#fca5a5" fontSize="8.5" fontWeight="900">KUNDËRTHËNIE ME PROVËN</text>
-
-                <g transform="translate(-120, -30)" className="cursor-pointer">
-                    <circle r="22" fill="#2563eb" stroke="#60a5fa" strokeWidth="3" />
-                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">LK</text>
-                    <rect x="-65" y="28" width="130" height="18" rx="5" fill="#090d16" stroke="#334155" strokeWidth="1" />
-                    <text x="0" y="40" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">Laboratori &quot;Koslabor&quot;</text>
-                </g>
-
-                <g transform="translate(0, 50)" className="cursor-pointer">
-                    <circle r="24" fill="#2563eb" stroke="#ffffff" strokeWidth="3.5" />
-                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">SB</text>
-                    <rect x="-55" y="30" width="110" height="18" rx="5" fill="#090d16" stroke="#38bdf8" strokeWidth="1.5" />
-                    <text x="0" y="42" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">Pala Kliente</text>
-                </g>
-
-                <g transform="translate(120, -30)" className="cursor-pointer">
-                    <circle r="22" fill="#7c3aed" stroke="#a78bfa" strokeWidth="3" />
-                    <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">QK</text>
-                    <rect x="-65" y="28" width="130" height="18" rx="5" fill="#090d16" stroke="#334155" strokeWidth="1" />
-                    <text x="0" y="40" textAnchor="middle" fill="#c4b5fd" fontSize="8" fontWeight="bold">Ekspertiza e Kundërshtuar</text>
-                </g>
-            </svg>
-        </div>
-
-        <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs text-slate-300 flex justify-between items-center">
-            <span className="text-[11px] text-slate-400 font-medium">Testi 100% Negativ rrëzon pretendimin e palës tjetër.</span>
-            <span className="text-indigo-400 font-bold text-xs flex items-center gap-1">Unifikuar me BFS <ArrowRight size={12} /></span>
         </div>
     </div>
 );

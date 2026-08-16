@@ -1,5 +1,5 @@
 // FILE: src/components/graph/EvidenceCanvas.tsx
-// PHOENIX PROTOCOL - EVIDENCE CANVAS V120.0 (DUAL NAMED & DEFAULT EXPORT • ZERO SYNTAX ERRORS)
+// PHOENIX PROTOCOL - PROFESSIONAL RADIAL COURTROOM CANVAS (ZERO TS WARNINGS)
 
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -22,7 +22,6 @@ export interface EvidenceCanvasProps {
   onHoverEdge: (e: OntologyEdge | null) => void;
 }
 
-// 1. NAMED EXPORT: export const EvidenceCanvas
 export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   loading,
   filteredNodes,
@@ -37,6 +36,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
 }) => {
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<any>(null);
 
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
     width: 1200,
@@ -75,6 +75,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     const nodes = filteredNodes.map((n) => {
       const conf = ENTITY_CONFIG[n.type] || ENTITY_CONFIG.PERSON;
       const displayLabel = translateToAlbanian(n.label);
+      const degree = nodeDegreeMap.get(n.id) || 0;
+      const isRoot = n.id === 'trungu_i_lendes' || n.metadata?.is_root;
+
       const initials =
         displayLabel
           .split(' ')
@@ -90,10 +93,11 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         label: displayLabel,
         initials: initials,
         type: n.type,
-        color: conf.bg,
-        borderColor: conf.border,
-        albanianType: conf.albanianLabel,
-        degree: nodeDegreeMap.get(n.id) || 0,
+        color: isRoot ? '#f59e0b' : conf.bg,
+        borderColor: isRoot ? '#fbbf24' : conf.border,
+        degree: degree,
+        isRoot: isRoot,
+        val: isRoot ? 32 : n.type === 'DOCUMENT' ? 22 : 18,
       };
     });
 
@@ -122,7 +126,8 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         e.relation.includes('KUNDËRTHËNIE') ||
         e.relation.includes('MOSPËRPUTHJE') ||
         e.relation.includes('FALSIFIKIM') ||
-        e.relation.includes('E_RREME');
+        e.relation.includes('SHKELJE') ||
+        e.relation.includes('NDRYSHIM_DËSHMIE');
 
       let edgeLabel = formatRelationText(e.relation).toUpperCase();
       if (e.amount_eur) {
@@ -143,40 +148,26 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     return { nodes, links: edges };
   }, [filteredNodes, filteredEdges, nodeDegreeMap]);
 
+  // FIZIKË RADIALE ME DISTANCË TË GJERË (ZERO OVERLAP)
   useEffect(() => {
     if (!fgRef.current) return;
 
-    fgRef.current.d3Force('charge')?.strength(-950);
-    fgRef.current.d3Force('link')?.distance(210);
-
-    const d3 = (window as any).d3;
-    if (d3) {
-      if (d3.forceCenter) {
-        fgRef.current.d3Force('center', d3.forceCenter(0, 0));
-      }
-      if (d3.forceCollide) {
-        fgRef.current.d3Force('collide', d3.forceCollide(72).iterations(2));
-      }
-      if (d3.forceX && d3.forceY) {
-        fgRef.current.d3Force('x', d3.forceX(0).strength(0.06));
-        fgRef.current.d3Force('y', d3.forceY(0).strength(0.06));
-      }
-    }
-
+    fgRef.current.d3Force('charge')?.strength(-1800);
+    fgRef.current.d3Force('link')?.distance((link: any) => (link.isContradiction ? 280 : 220));
     fgRef.current.d3ReheatSimulation();
 
     const timer = setTimeout(() => {
       if (fgRef.current) {
-        fgRef.current.zoomToFit(500, 50);
+        fgRef.current.zoomToFit(500, 80);
       }
-    }, 400);
+    }, 450);
 
     return () => clearTimeout(timer);
   }, [graphData, dimensions]);
 
   const handleResetView = useCallback(() => {
     if (fgRef.current) {
-      fgRef.current.zoomToFit(500, 50);
+      fgRef.current.zoomToFit(500, 80);
     }
   }, []);
 
@@ -196,87 +187,84 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       });
     }
     if (fgRef.current) {
+      fgRef.current.d3Force('charge')?.strength(-1800);
       fgRef.current.d3ReheatSimulation();
-      fgRef.current.zoomToFit(500, 50);
+      fgRef.current.zoomToFit(500, 80);
     }
   }, [graphData]);
 
+  // VIZATIMI I NYJEVE: RRETH ME INICIALE + EMËR I SHKURTËR DHE I PASTER
   const drawNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      void globalScale;
+    (node: any, ctx: CanvasRenderingContext2D, _globalScale: number) => {
+      void _globalScale;
       const isSelected = selectedNode?.id === node.id;
+      const isHovered = hoveredNode?.id === node.id;
       const isDimmed = isFocusMode && !isSelected;
       const isPinned = node.fx !== undefined && node.fy !== undefined;
 
-      const r = 24;
+      const r = node.val || 18;
       const x = node.x;
       const y = node.y;
 
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.15 : 1.0;
 
-      if (isSelected) {
+      // Glow për nyjen aktive ose hover
+      if (isSelected || isHovered) {
         ctx.beginPath();
-        ctx.arc(x, y, r + 9, 0, 2 * Math.PI, false);
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.arc(x, y, r + 7, 0, 2 * Math.PI, false);
+        ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.2)';
         ctx.fill();
 
         ctx.beginPath();
-        ctx.arc(x, y, r + 4, 0, 2 * Math.PI, false);
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 3;
+        ctx.arc(x, y, r + 3, 0, 2 * Math.PI, false);
+        ctx.strokeStyle = isSelected ? '#38bdf8' : '#ffffff';
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
 
+      // Rrethi kryesor
       ctx.beginPath();
       ctx.arc(x, y, r, 0, 2 * Math.PI, false);
       ctx.fillStyle = node.color || '#2563eb';
       ctx.fill();
 
       ctx.strokeStyle = isSelected ? '#ffffff' : isPinned ? '#fbbf24' : node.borderColor || '#60a5fa';
-      ctx.lineWidth = isSelected ? 3 : isPinned ? 2.5 : 2;
+      ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
 
-      ctx.font = 'bold 12px system-ui, sans-serif';
+      // Inicialet
+      const fontSize = Math.max(9, Math.min(13, r * 0.6));
+      ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffffff';
       ctx.fillText(node.initials || '', x, y);
 
+      // Teksti poshtë nyjes
       const labelText = node.label || '';
-      ctx.font = 'bold 10.5px system-ui, sans-serif';
-      const textWidth = ctx.measureText(labelText).width;
-      const badgeW = textWidth + 14;
-      const badgeH = 20;
-      const badgeX = x - badgeW / 2;
-      const badgeY = y + r + 7;
+      const isDetailView = isSelected || isHovered;
+      const maxChars = isDetailView ? 36 : 18;
+      const displayTxt = labelText.length > maxChars ? `${labelText.substring(0, maxChars)}…` : labelText;
 
-      ctx.fillStyle = '#090d16';
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
-      } else {
-        ctx.rect(badgeX, badgeY, badgeW, badgeH);
-      }
-      ctx.fill();
-
-      ctx.strokeStyle = isSelected ? '#38bdf8' : isPinned ? '#fbbf24' : '#334155';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      ctx.fillStyle = isSelected ? '#38bdf8' : isPinned ? '#fef08a' : '#f8fafc';
+      const labelFontSize = isDetailView ? 11 : 9.5;
+      ctx.font = isDetailView ? `bold ${labelFontSize}px system-ui, sans-serif` : `600 ${labelFontSize}px system-ui, sans-serif`;
+      
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = isSelected ? '#38bdf8' : isHovered ? '#fef08a' : '#f8fafc';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(labelText, x, badgeY + badgeH / 2);
+      ctx.textBaseline = 'top';
+      ctx.fillText(displayTxt, x, y + r + 4);
 
       ctx.restore();
     },
-    [selectedNode, isFocusMode]
+    [selectedNode, hoveredNode, isFocusMode]
   );
 
+  // VIZATIMI I LIDHJEVE DHE KONTRADIKTAVE
   const drawLink = useCallback(
     (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      void globalScale;
       const isSelected = selectedEdge?.id === link.id || hoveredEdge?.id === link.id;
       const isDimmed = isFocusMode && !isSelected;
 
@@ -290,39 +278,43 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
       ctx.save();
       ctx.globalAlpha = isDimmed ? 0.08 : 1.0;
 
-      let angle = Math.atan2(end.y - start.y, end.x - start.x);
-      if (angle > Math.PI / 2) angle -= Math.PI;
-      if (angle < -Math.PI / 2) angle += Math.PI;
+      // Shfaq emërtimin e relacionit
+      if (link.isContradiction || isSelected || globalScale > 0.75) {
+        let angle = Math.atan2(end.y - start.y, end.x - start.x);
+        if (angle > Math.PI / 2) angle -= Math.PI;
+        if (angle < -Math.PI / 2) angle += Math.PI;
 
-      ctx.save();
-      ctx.translate(midX, midY);
-      ctx.rotate(angle);
+        ctx.save();
+        ctx.translate(midX, midY);
+        ctx.rotate(angle);
 
-      const labelText = link.label || '';
-      ctx.font = 'bold 8.5px system-ui, sans-serif';
-      const textWidth = ctx.measureText(labelText).width;
-      const padW = textWidth + 10;
-      const padH = 16;
+        const labelText = link.label || '';
+        ctx.font = 'bold 8.5px system-ui, sans-serif';
+        const textWidth = ctx.measureText(labelText).width;
+        const padW = textWidth + 8;
+        const padH = 15;
 
-      ctx.fillStyle = link.isContradiction ? '#450a0a' : isSelected ? '#0369a1' : '#090d16';
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(-padW / 2, -padH / 2, padW, padH, 4);
-      } else {
-        ctx.rect(-padW / 2, -padH / 2, padW, padH);
+        ctx.fillStyle = link.isContradiction ? '#450a0a' : isSelected ? '#0369a1' : 'rgba(15, 23, 42, 0.9)';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(-padW / 2, -padH / 2, padW, padH, 3);
+        } else {
+          ctx.rect(-padW / 2, -padH / 2, padW, padH);
+        }
+        ctx.fill();
+
+        ctx.strokeStyle = link.isContradiction ? '#ef4444' : isSelected ? '#38bdf8' : '#334155';
+        ctx.lineWidth = link.isContradiction ? 1.5 : 1;
+        ctx.stroke();
+
+        ctx.fillStyle = link.isContradiction ? '#fca5a5' : isSelected ? '#ffffff' : '#94a3b8';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, 0, 0);
+
+        ctx.restore();
       }
-      ctx.fill();
 
-      ctx.strokeStyle = link.isContradiction ? '#ef4444' : isSelected ? '#38bdf8' : '#334155';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.fillStyle = link.isContradiction ? '#fca5a5' : isSelected ? '#ffffff' : '#94a3b8';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(labelText, 0, 0);
-
-      ctx.restore();
       ctx.restore();
     },
     [selectedEdge, hoveredEdge, isFocusMode]
@@ -332,7 +324,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 text-text-muted w-full bg-canvas">
         <RefreshCw className="w-8 h-8 animate-spin text-primary-start" />
-        <p className="text-xs font-semibold text-text-primary">Po ngarkohet Ontologjia e Provave...</p>
+        <p className="text-xs font-semibold text-text-primary">Po përgatitet Harta Forenzike e Provave...</p>
       </div>
     );
   }
@@ -345,12 +337,12 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         height={dimensions.height}
         graphData={graphData}
         backgroundColor="rgba(0,0,0,0)"
-        nodeRelSize={24}
+        nodeRelSize={18}
         nodeCanvasObject={drawNode}
         nodePointerAreaPaint={(node: any, color, ctx) => {
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 28, 0, 2 * Math.PI, false);
+          ctx.arc(node.x, node.y, (node.val || 18) + 6, 0, 2 * Math.PI, false);
           ctx.fill();
         }}
         linkCanvasObjectMode={() => 'after'}
@@ -364,9 +356,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
             : '#475569'
         }
         linkWidth={(link: any) =>
-          link.isContradiction || selectedEdge?.id === link.id ? 2.5 : 1.8
+          link.isContradiction || selectedEdge?.id === link.id ? 2.5 : 1.4
         }
-        linkDirectionalArrowLength={6}
+        linkDirectionalArrowLength={5}
         linkDirectionalArrowRelPos={0.85}
         linkDirectionalArrowColor={(link: any) =>
           link.isContradiction
@@ -377,6 +369,7 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
         }
         linkLineDash={(link: any) => (link.isContradiction ? [5, 3] : null)}
         onNodeClick={(node: any) => onSelectNode(node.rawNode)}
+        onNodeHover={(node: any) => setHoveredNode(node ? node : null)}
         onLinkClick={(link: any) => onSelectEdge(link.rawEdge)}
         onLinkHover={(link: any) => onHoverEdge(link ? link.rawEdge : null)}
         onNodeDragEnd={(node: any) => {
@@ -395,7 +388,9 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
           onSelectEdge(null);
           onHoverEdge(null);
         }}
-        cooldownTicks={120}
+        d3AlphaDecay={0.02}
+        d3VelocityDecay={0.3}
+        cooldownTicks={140}
       />
 
       <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-surface border border-main p-2 rounded-2xl shadow-2xl z-20 text-text-primary">
@@ -437,5 +432,4 @@ export const EvidenceCanvas: React.FC<EvidenceCanvasProps> = ({
   );
 };
 
-// 2. DEFAULT EXPORT: export default EvidenceCanvas
 export default EvidenceCanvas;

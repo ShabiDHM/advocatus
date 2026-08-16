@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V12.0 (HERO COPY TUNING • 0 WARNINGS)
+// PHOENIX PROTOCOL - LANDING PAGE V13.0 (ONTOLOGY EXCISED • 0 WARNINGS)
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -7,8 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
     Database, FileText, Swords, ShieldCheck, BarChart2, Zap,
-    Scale, FileSearch, CheckCircle2, Network, Sparkles, 
-    Layers, Shield
+    Scale, FileSearch, CheckCircle2, Sparkles, Shield
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -156,7 +155,7 @@ const LandingPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-base sm:text-lg md:text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed font-medium">
-                    Analizoni 100+ shkresa të fashikullit për një kohë të shkurtër, zbuloni kontradiktat me vija të kuqe në Hartën e Provave dhe dominoni seancën gjyqësore me citime ekzakte të LPK, KPRK, LFK dhe LMD.
+                    Analizoni 100+ shkresa të fashikullit për një kohë të shkurtër, zbuloni kontradiktat dhe dominoni seancën gjyqësore me citime ekzakte të LPK, KPRK, LFK dhe LMD.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -248,59 +247,6 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
-        </section>
-
-        {/* --- SECTION: EVIDENCE GRAPH --- */}
-        <section className="py-16 max-w-7xl mx-auto space-y-12">
-          <div className="glass-panel p-8 md:p-12 border border-main bg-surface rounded-3xl shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-black uppercase tracking-widest border border-purple-500/20">
-                <Network size={14} />
-                <span>Harta e Provave & Ontologjia Forenzike</span>
-              </div>
-              <h2 className="text-3xl md:text-4xl font-black uppercase text-text-primary tracking-tight leading-tight">
-                Zbuloni Lidhjet e Fshehura dhe Kontradiktat në 1 Rrjet të Vetëm
-              </h2>
-              <p className="text-text-secondary text-sm md:text-base leading-relaxed font-medium">
-                Nga 30 deri në 100 dokumente të shpërndara, Juristi Virtual ndërton një rrjet organik force-directed të nivelit Palantir Gotham. Zbuloni menjëherë me vija të kuqe kur një dëshmi bie ndesh me një provë shkencore apo kur një gjyqtar ka falsifikuar datat e procesverbalit.
-              </p>
-              <div className="grid grid-cols-2 gap-4 text-xs font-bold text-text-primary pt-2">
-                <div className="flex items-center gap-2 bg-canvas p-3 rounded-xl border border-main">
-                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  <span>Unifikim me BFS i të gjitha provave</span>
-                </div>
-                <div className="flex items-center gap-2 bg-canvas p-3 rounded-xl border border-main">
-                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  <span>Funksioni &quot;Pin-on-Drag&quot; për seancë</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-canvas border border-main rounded-2xl p-6 space-y-4 shadow-inner">
-              <div className="flex items-center justify-between border-b border-main pb-3">
-                <span className="text-xs font-black uppercase text-primary-start flex items-center gap-2">
-                  <Layers size={15} /> Topologjia e Provave (Live Preview)
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold">
-                  239 ENTITETE TË NDËRLIDHURA
-                </span>
-              </div>
-              <div className="space-y-2.5 text-xs text-text-secondary">
-                <div className="p-3 bg-surface rounded-xl border border-main flex items-center justify-between">
-                  <span className="font-bold text-text-primary">Laboratori &quot;Koslabor&quot; (Test 100% Negativ)</span>
-                  <span className="text-rose-400 font-bold uppercase text-[10px] bg-rose-500/10 px-2 py-0.5 rounded">Kundërshtim Shkencor</span>
-                </div>
-                <div className="p-3 bg-surface rounded-xl border border-main flex items-center justify-between">
-                  <span className="font-bold text-text-primary">Procesverbali i Gjyqtarit (Data 19.01.2024)</span>
-                  <span className="text-rose-400 font-bold uppercase text-[10px] bg-rose-500/10 px-2 py-0.5 rounded">Falsifikim Retroaktiv</span>
-                </div>
-                <div className="p-3 bg-surface rounded-xl border border-main flex items-center justify-between">
-                  <span className="font-bold text-text-primary">Raporti i QKUK (Fëmija do babain)</span>
-                  <span className="text-emerald-400 font-bold uppercase text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded">Provë Shfajësuese</span>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
