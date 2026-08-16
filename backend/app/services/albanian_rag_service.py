@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V40.0 (STRICT FACTUAL GROUNDING • ZERO HARDCODED DOMAIN BIAS)
+# PHOENIX PROTOCOL - RAG SERVICE V42.0 (PROACTIVE EVIDENCE SYNTHESIS • ZERO OVER-REFUSAL)
 
 import os
 import sys
@@ -19,7 +19,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 60
 
-AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga Juristi AI, ekskluzivisht për përdorim dhe referencë ligjore.*"
+AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit. Për përdorim profesional.*"
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
@@ -82,7 +82,7 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> str:
-        context = "\n<<< FASHIKULLI I PROVEVE MATERIALE TË DOSJES >>>\n"
+        context = "\n<<< FASHIKULLI I PROVEVE MATERIALE DHE DOKUMENTEVE TË DOSJES >>>\n"
         
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
@@ -104,7 +104,7 @@ class AlbanianRAGService:
 
                 context += f"\n==================== DOKUMENTI #{idx} ====================\n"
                 context += f"TITULLI I SKEDARIT: {file_name}\n"
-                context += f"PËRMBAJTJA:\n{text_content}\n"
+                context += f"PËRMBAJTJA E PROVËS:\n{text_content}\n"
                 context += f"===========================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
@@ -173,23 +173,24 @@ class AlbanianRAGService:
 
         context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # PROMPTI 100% DINAMIK PA ASNJË TEMATIKË TË HARDKODUAR
+        # PROMPTI PROAKTIV FORENZIK (LEXON DHE ANALIZON TË GJITHË FASHIKULLIN)
         system_prompt = f"""
         {identity_header}
 
         Ti je "Juristi AI - Asistenti dhe Avokati Strateg i Drejtësisë në Kosovë".
 
-        RREGULLAT E HEKURTA TË FAKTEVE (ZERO HALUCINIME):
-        1. BAZOHU EKSKLUZIVISHT NË TEKSTIN DHE DOKUMENTET E KËSAJ DOSJE SPECIFIKE!
-        2. MOS SHPIK LIGJE APO TEMA TË PAQENA (nëse dosja bën fjalë për kujdestari fëmije, urdhërmbrojtje apo procedurë penale, MOS përmend prona intelektuale apo kompani!).
-        3. KLIENTI YNË ËSHTË: **{client_name}** (Në rolin: **{client_position}**). PALA KUNDËRSHTARE: **{opposing_name}**.
-        4. Kur pyetesh për "padinë tonë", "kërkesat tona" apo "provat tona", analizo kërkesat e {client_name} dhe përdor provat shkencore e materiale të fashikullit për të rrëzuar pretendimet e {opposing_name}.
-        5. Cito nenet reale të ligjeve përkatëse të Kosovës (LPK, KPRK, KPPRK, LFK, LMD).
+        MANDATI YT JURIDIK:
+        1. KLIENTI YNË ËSHTË: **{client_name}** (Në rolin: **{client_position}**). PALA KUNDËRSHTARE: **{opposing_name}**.
+        2. ANALIZA E FASHIKULLIT: Kur pyetesh për "padinë tonë", "kërkesat tona", "provat tona" apo "rastin tonë", ti duhet të analizosh TË GJITHA shkresat, ekspertizat, procesverbalet dhe provat e administruara në këtë dosje.
+        3. IDENTIFIKIMI I PROVAVE:
+           - Trego qartë se si provat materiale dhe shkencore në fashikull (p.sh. analizat laboratorike, vërtetimet e shlyerjes së dënimit, raportet mjekësore të QKUK-së) mbështesin mbrojtjen dhe kërkesat e {client_name}.
+           - Trego se si këto prova rrëzojnë pretendimet e {opposing_name} apo shkeljet procedurale të zyrtarëve.
+        4. Cito emrat e saktë të dokumenteve nga fashikulli (p.sh. Dokumenti #X "Emri i Skedarit") dhe nenet përkatëse të ligjeve të Kosovës (LPK, KPRK, KPPRK, LFK, LMD).
 
         STRUKTURA E PËRGJIGJES:
-        ### 1. ANALIZA E FAKTEVE DHE PROVAT E FASHIKULLIT
+        ### 1. PIKAT KRYESORE STRATEGJIKE DHE PROVAT VENDIMTARE NË FASHIKULL
         ### 2. BAZA LIGJORE DHE KORNIZA STATUTORE
-        ### 3. STRATEGJIA DHE HAPAT PROCEDURALË
+        ### 3. HAPAT PROCEDURALË TË REKOMANDUAR
 
         Në fund shto 3 pyetje interaktive:
         [PILL: Pyetja e parë strategjike...]
