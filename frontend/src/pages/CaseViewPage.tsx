@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V46.0 (STRICT GATEKEEPER DISPLAY)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V47.0 (CLEAN PROMPT FORWARDING & 4-PILLAR PROGRESSIVE SYNC)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -155,22 +155,24 @@ const CaseViewPage: React.FC = () => {
       const { fileName, href } = e.detail || {};
       if (!fileName && !href) return;
 
-      const cleanSearch = (fileName || href || '').toString().toLowerCase().trim().replace(/^[\(\[\s"']+|[\)\]\s"']+$|\.pdf$/gi, '');
-      if (!cleanSearch) return;
+      const cleanSearch = (fileName || '').toString().toLowerCase().trim().replace(/^[\(\[\s"']+|[\)\]\s"']+$|\.pdf$/gi, '');
+      const docIdFromHref = (href || '').match(/\/documents\/([a-f0-9]{24})/i)?.[1]?.toLowerCase();
 
       const matchedDoc = liveDocuments.find((doc) => {
+        const docId = String(doc.id || (doc as any)._id || '').toLowerCase();
+        if (docIdFromHref && docId === docIdFromHref) return true;
+        if (href && href.toLowerCase().includes(docId)) return true;
+
         const docName = (doc.file_name || (doc as any).title || '').toLowerCase();
-        const docId = String(doc.id).toLowerCase();
-        return (
-          docName.includes(cleanSearch) || 
-          cleanSearch.includes(docName.replace(/\.pdf$/i, '')) || 
-          (href && href.includes(docId))
-        );
+        if (cleanSearch && (docName.includes(cleanSearch) || cleanSearch.includes(docName.replace(/\.pdf$/i, '')))) {
+          return true;
+        }
+        return false;
       });
 
       if (matchedDoc) {
         handleViewOriginal(matchedDoc);
-      } else if (liveDocuments.length > 0) {
+      } else if (liveDocuments.length > 0 && cleanSearch) {
         const fuzzyMatch = liveDocuments.find((d) => {
           const words = cleanSearch.split(/\s+/).filter((w: string) => w.length > 3);
           const name = (d.file_name || (d as any).title || '').toLowerCase();
@@ -261,7 +263,14 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handleChatSubmit = async (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: string, documentIds?: string[], jurisdiction?: Jurisdiction) => {
+  const handleChatSubmit = async (
+    text: string, 
+    mode: ChatMode, 
+    reasoning: ReasoningMode, 
+    domain: string, 
+    documentIds?: string[], 
+    jurisdiction?: Jurisdiction
+  ) => {
     if (!caseId) return;
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
@@ -271,11 +280,9 @@ const CaseViewPage: React.FC = () => {
 
     try {
       let acc = '';
-      const enrichedText = `${text}\n\n(Ju lutem, në fund të përgjigjes suaj, shtoni një seksion të titulluar 'Sugjerime:' dhe rreshtoni saktësisht 3 pyetje të shkurtra vijuese që unë mund t'i bëj më pas në lidhje me këtë përgjigje. Formatizo si: \nSugjerime:\n1. Pyetja e parë?\n2. Pyetja e dytë?\n3. Pyetja e tretë?)`;
-      
       const stream = apiService.sendChatMessageStream(
         caseId, 
-        enrichedText, 
+        text, 
         documentIds, 
         jurisdiction, 
         reasoning, 

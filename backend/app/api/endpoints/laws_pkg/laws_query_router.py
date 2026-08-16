@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V69.0 (EXPLICIT PAGE_NUMBER RETENTION FOR SMART JUMPING)
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V70.0 (ROBUST ACRONYM RESOLVER & SAFE BOUNDS)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Set, List
@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 CASE_NO_REGEX = re.compile(r'(REV|PML|PA1|A|CP|PKR|P|KMLP|ANR)\s*\.?\s*NR', re.IGNORECASE)
+
+LAW_ACRONYMS = {
+    "lmd": "Ligji për Marrëdhëniet e Detyrimeve",
+    "lpk": "Ligji për Procedurën Kontestimore",
+    "kpk": "Kodi Penal i Republikës së Kosovës",
+    "kprk": "Kodi Penal i Republikës së Kosovës",
+    "kpprk": "Kodi i Procedurës Penale",
+    "lfk": "Ligji për Familjen i Kosovës",
+    "lsht": "Ligji për Shoqëritë Tregtare",
+    "lp": "Ligji i Punës",
+}
 
 
 def _get_b2_filenames(prefix: str) -> List[str]:
@@ -108,18 +119,23 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        mapped_title = _normalize_hallucinated_title(law_title, "")
+        clean_title = law_title.strip()
+        clean_key = clean_title.lower()
+        if clean_key in LAW_ACRONYMS:
+            clean_title = LAW_ACRONYMS[clean_key]
+
+        mapped_title = _normalize_hallucinated_title(clean_title, "")
 
         docs = find_documents_by_title(
             db, 
-            mapped_title if mapped_title else law_title, 
+            mapped_title if mapped_title else clean_title, 
             fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "page_number": 1, "text": 1}
         )
 
         if not docs:
             raise HTTPException(status_code=404, detail=f"Ligji '{law_title}' nuk u gjet në bazën e të dhënave.")
         
-        canonical_title = docs[0].get("law_title", mapped_title if mapped_title else law_title)
+        canonical_title = docs[0].get("law_title", mapped_title if mapped_title else clean_title)
 
         articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
@@ -155,33 +171,41 @@ async def get_law_article(
         db = get_db_instance()
         
         clean_law_title = law_title.strip()
+        clean_art = str(article_number).strip()
 
-        if clean_law_title.lower().startswith("neni") or clean_law_title == article_number:
+        # 1. Resolve Acronyms (e.g. LMD -> Ligji për Marrëdhëniet e Detyrimeve)
+        clean_key = clean_law_title.lower()
+        if clean_key in LAW_ACRONYMS:
+            clean_law_title = LAW_ACRONYMS[clean_key]
+
+        if clean_law_title.lower().startswith("neni") or clean_law_title == clean_art or clean_law_title == "Ligji përkatës":
             fallback_doc = db.legal_knowledge_base.find_one({
-                "article_number": str(article_number),
+                "article_number": clean_art,
                 "category": {"$nin": ["academic", "caselaw"]}
             })
             if fallback_doc and fallback_doc.get("law_title"):
                 clean_law_title = fallback_doc.get("law_title")
-                logger.info(f"Resolved hallucinated title '{law_title}' -> '{clean_law_title}' for Neni {article_number}")
 
-        statute_docs, academic_doc, metadata = find_law_documents(db, clean_law_title, article_number)
+        try:
+            statute_docs, academic_doc, metadata = find_law_documents(db, clean_law_title, clean_art)
+        except Exception as find_err:
+            logger.warning(f"find_law_documents warning: {find_err}")
+            statute_docs, academic_doc, metadata = [], None, {}
         
-        if not statute_docs or not statute_docs[0]:
+        if not statute_docs or len(statute_docs) == 0:
             fallback_docs = list(db.legal_knowledge_base.find({
-                "article_number": str(article_number),
+                "article_number": clean_art,
                 "category": {"$nin": ["academic", "caselaw"]}
             }).limit(5))
             if fallback_docs:
                 statute_docs = fallback_docs
 
-        if not statute_docs or not statute_docs[0]: 
-            raise HTTPException(status_code=404, detail=f"Dokumenti ({law_title}, Neni {article_number}) nuk u gjet në bazën e të dhënave.")
+        if not statute_docs or len(statute_docs) == 0 or not statute_docs[0]: 
+            raise HTTPException(status_code=404, detail=f"Neni {clean_art} i ligjit '{clean_law_title}' nuk u gjet.")
 
         primary_doc = statute_docs[0]
-        source_info = _generate_source_info(primary_doc, metadata if 'metadata' in locals() else {}, clean_law_title, article_number)
+        source_info = _generate_source_info(primary_doc, metadata or {}, clean_law_title, clean_art)
 
-        # ⚡ CRITICAL FIX: Extract exact page number from MongoDB chunk so frontend jumps to Neni 423
         raw_page = primary_doc.get("page") or primary_doc.get("page_number") or 1
         try:
             page_val = int(raw_page)
@@ -190,7 +214,7 @@ async def get_law_article(
 
         response_data = {
             "law_title": primary_doc.get("law_title", clean_law_title),
-            "article_number": primary_doc.get("article_number", article_number),
+            "article_number": primary_doc.get("article_number", clean_art),
             "source": primary_doc.get("source", ""),
             "page": page_val,
             "page_number": page_val,
@@ -201,8 +225,8 @@ async def get_law_article(
         return response_data
     except HTTPException: raise
     except Exception as e: 
-        logger.error(f"Article endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.error(f"Article endpoint error handled: {e}")
+        raise HTTPException(status_code=404, detail=f"Baza ligjore nuk u gjet: {str(e)}")
 
 
 @router.get("/search")

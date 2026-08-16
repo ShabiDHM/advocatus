@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V70.0 (ROLE-ADAPTIVE 4-PILLAR PROGRESSIVE INTELLIGENCE)
+# PHOENIX PROTOCOL - RAG SERVICE V73.0 (STRICT 4-PILLAR CESSATION & EVIDENCE GROUNDING)
 
 import os
 import sys
@@ -136,33 +136,30 @@ class AlbanianRAGService:
         return "\n".join(manifest_lines), context
 
     def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
-        """Përcakton 4 pyetjet startuese në mënyrë 100% të përshtatur sipas Pozicionit."""
+        """Përcakton 4 pyetjet startuese identike me kartat e CommandPaletteGrid."""
         pos = position.upper()
-        if pos == "DEFENDANT":
-            return [
-                ("STRATEGJIA", "Identifiko 3 pikat kryesore për rrëzimin e padisë dhe provat shfajësuese në fashikull."),
-                ("BAZA_LIGJORE", "Analizo shkeljet procedurale të paditësit, parashkrimin e afateve dhe prapësimet sipas LPK."),
-                ("PYETESORI", "Gjenero pyetjet kurth për të rrëzuar dëshmitarët e paditësit dhe zbuluar kontradiktat në seancë."),
-                ("RAPORTI", "Përgatit një përmbledhje ekzekutive mbi rreziqet e padisë, prapësimet kryesore dhe hapat për mbrojtjen e klientit.")
-            ]
-        elif pos == "PLAINTIFF":
-            return [
-                ("STRATEGJIA", "Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat e përgjegjësisë së kundërshtarit."),
-                ("BAZA_LIGJORE", "Analizo bazën ligjore të kërkesëpadisë dhe provat për shpërblimin e dëmit sipas LPK dhe kodeve përkatëse."),
-                ("PYETESORI", "Gjenero pyetjet taktike për të kryqëzuar dhe demaskuar palën e paditur në seancë."),
-                ("RAPORTI", "Përgatit një përmbledhje ekzekutive mbi shanset e fitimit të padisë, dëmet dhe hapat proceduralë për klientin.")
-            ]
-        else: # NEUTRAL
-            return [
-                ("STRATEGJIA", "Vlerëso në mënyrë objektive 3 provat kryesore dhe peshën e tyre ligjore në këtë dosje."),
-                ("BAZA_LIGJORE", "Analizo barrën e provës (Onus Probandi) dhe përputhshmërinë ligjore për të dyja palët sipas LPK."),
-                ("PYETESORI", "Gjenero pyetjet sqaruese të gjykatës për të vërtetuar faktet thelbësore kontestuese."),
-                ("RAPORTI", "Përgatit sintezën e paanshme të dosjes dhe rekomandimet objektive ligjore.")
-            ]
+        if pos == "PLAINTIFF":
+            p1 = "Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull."
+        else:
+            p1 = "Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës."
+
+        return [
+            ("PILLAR_1", p1),
+            ("PILLAR_2", "Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK)."),
+            ("PILLAR_3", "Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë."),
+            ("PILLAR_4", "Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.")
+        ]
 
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        """Llogarit pyetjet e mbetura progresive (3 ➡️ 2 ➡️ 1) sipas rolit."""
-        role_pillars = self._get_role_adapted_pillars(position)
+        """
+        Llogarit me saktësi absolute kartat e mbetura progresive:
+        Fillimi: 4 karta
+        Pas 1-së: 3 mbetura
+        Pas 2-së: 2 mbetura
+        Pas 3-së: 1 mbetur
+        Pas 4-së: 0 (Ndalon sugjerimet plotsisht)
+        """
+        pillars = self._get_role_adapted_pillars(position)
 
         all_past_queries = []
         if history:
@@ -173,44 +170,21 @@ class AlbanianRAGService:
         combined_text = " ".join(all_past_queries)
 
         remaining = []
-        
-        # 1. Kontrollo Strategjinë
-        if "strategjia" not in combined_text and "3 pikat" not in combined_text and "rrëzimin" not in combined_text:
-            remaining.append(role_pillars[0][1])
-            
-        # 2. Kontrollo Bazën Ligjore
-        if "lpk" not in combined_text and "baza ligjore" not in combined_text and "parashkrimin" not in combined_text and "barrën" not in combined_text:
-            remaining.append(role_pillars[1][1])
-            
-        # 3. Kontrollo Pyetësorin e Seancës
-        if "pyetësor" not in combined_text and "pyetjet" not in combined_text and "dëgjimin" not in combined_text and "kurth" not in combined_text:
-            remaining.append(role_pillars[2][1])
-            
-        # 4. Kontrollo Raportin për Klientin
-        if "raporti" not in combined_text and "përmbledhje ekzekutive" not in combined_text and "informimin" not in combined_text and "memorandum" not in combined_text:
-            remaining.append(role_pillars[3][1])
 
-        if remaining:
-            return remaining[:3]
-        
-        if position.upper() == "DEFENDANT":
-            return [
-                "A ka ndonjë provë tjetër në fashikull që rrëzon pretendimet e paditësit?",
-                "Si mund të kërkojmë kompensimin e shpenzimeve të procedurës për shkak të padisë së pabazuar?",
-                "Cilat janë afatet ligjore prekluzive që paditësi i ka tejkaluar?"
-            ]
-        elif position.upper() == "PLAINTIFF":
-            return [
-                "Cilat janë provat shtesë që duhet të depozitojmë për të kërkuar masë të menjëhershme sigurie?",
-                "Si llogaritet dëmi material dhe kamata ligjore prej 8% mbi vlerën e kërkuar?",
-                "Cilat janë pyetjet shtesë për të provuar dashjen dhe përgjegjësinë e të paditurit?"
-            ]
-        else:
-            return [
-                "Cilat fakte kërkojnë marrjen e një ekspertize shtesë financiare apo mjekësore?",
-                "Si ndahet barra e provës midis paditësit dhe të paditurit për pretendimet kryesore?",
-                "Cilat janë alternativat për zgjidhjen e çështjes me ndërmjetësim?"
-            ]
+        if not any(k in combined_text for k in ["3 pikat kryesore", "mbështetet padia", "pretendimeve mbrojtëse"]):
+            remaining.append(pillars[0][1])
+
+        if not any(k in combined_text for k in ["procedurën kontestimore", "lpk", "përputhshmërinë e veprimeve"]):
+            remaining.append(pillars[1][1])
+
+        if not any(k in combined_text for k in ["pyetjet kritike", "kundër-pyetjet", "dëgjimin e palëve"]):
+            remaining.append(pillars[2][1])
+
+        if not any(k in combined_text for k in ["përmbledhje ekzekutive të strukturuar", "rreziqet ligjore", "informimin e klientit"]):
+            remaining.append(pillars[3][1])
+
+        # Kur të 4 shtyllat kryhen, kthehet listë e zbrazët (nuk propozohen më pyetje të tjera)
+        return remaining
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks',
@@ -266,9 +240,16 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # LLOGARITJA E PYETJEVE TË MBETURA TË PËRSHTATURA SIPAS ROLIT
-        suggested_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
-        pills_formatted_instruction = "\n".join([f"[PILL: {p}]" for p in suggested_pills])
+        # Llogaritja progresive e kartave (3 -> 2 -> 1 -> 0)
+        remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
+        
+        if remaining_pills and len(remaining_pills) > 0:
+            formatted_suggestions = (
+                "NË FUND TË PËRGJIGJES TËNDE, SHTO SAKTËSISHT KËTË BLOK SUGJERIMESH:\n"
+                "Sugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+            )
+        else:
+            formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
         system_prompt = f"""
         {identity_header}
@@ -282,22 +263,19 @@ class AlbanianRAGService:
         REGJISTRI I SKEDARËVE REALË TË LËNDËS:
         {manifest_str}
 
-        RREGULLAT E ANALIZËS SIPAS ROLIT PROCEDURAL:
-        1. BAZOHU EKSKLUZIVISHT NË PROVAT E FASHIKULLIT DHE MBRO INTERESIN E {client_name}.
-        2. ÇDO CITIM I PROVAVE DUHET TË JETË LINK I KLIKUESHËM: `[Emri_Skedarit.pdf](/documents/ID)`
+        RREGULLAT KRITIKE TË CITIMIT DHE FORMATIMIT:
+        1. ÇDO CITIM I DOKUMENTIT TË DOSJES DUHET TË JETË LINK I KLIKUESHËM: `[Emri_Skedarit.pdf](/documents/ID)`
+        2. BAZA LIGJORE DUHET TË SHKRUHET NATYRSHEM PA KLLAPA KROSHERË, p.sh: `Neni 123 i LPK` ose `Neni 145 i Kodit Penal`. MOS përdor kllapa [ ] për nenet e ligjit.
         3. PËRSHTAT PËRGJIGJEN SIPAS POZICIONIT PROCEDURAL ({client_position}):
-           - Nëse Paditës: thekso provat e dëmit, përgjegjësisë së {opposing_name} dhe masat e sigurisë.
-           - Nëse I Paditur: thekso provat shfajësuese, kontradiktat e {opposing_name} dhe prapësimet ligjore.
-           - Nëse Neutral: analizo paanshmërinë dhe peshën e provave.
-        4. Cito nenet e sakta të ligjeve të Kosovës (LPK, KPRK, KPPRK, LFK, LMD).
+           - Nëse Paditës: thekso provat e dëmit, përgjegjësisë së {opposing_name} dhe kërkesën ligjore.
+           - Nëse I Paditur: thekso provat shfajësuese, parashkrimin e afateve dhe kontradiktat e {opposing_name}.
 
         STRUKTURA E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
         ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
         ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
 
-        FORMATIMI I SUGJERIMEVE NË FUND:
-        {pills_formatted_instruction}
+        {formatted_suggestions}
         """
 
         try:
@@ -307,7 +285,7 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": sanitized_query}
                 ],
-                temperature=0.1,
+                temperature=0.05,
                 stream=True,
                 max_tokens=4096
             )
