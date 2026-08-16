@@ -1,12 +1,12 @@
 // FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V5.0 (CLEAN COURTROOM TRANSCRIPT UI • ZERO NOISE HEADERS)
+// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V7.0 (0 WARNINGS • CLEAN IMPORTS & MINIMAL UI)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
     Loader2, Download, Save, CheckCircle2,
-    Video, Film, Car, Clock, Eye, Copy
+    Video, Film, Eye, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -100,7 +100,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             setUploadProgress(100);
             await loadMedia();
         } catch (err: any) {
-            alert(err.response?.data?.detail || "Dështoi ngarkimi i skedarit media.");
+            alert(err.response?.data?.detail || "Dështoi ngarkimi i skedarit.");
         } finally {
             setIsUploading(false);
             setUploadProgress(0);
@@ -109,19 +109,19 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     };
 
     const handleDelete = async (mediaId: string) => {
-        if (!window.confirm("A jeni të sigurt që dëshironi ta fshini këtë provë audio/video?")) return;
+        if (!window.confirm("A jeni të sigurt që dëshironi ta fshini këtë skedar?")) return;
         try {
             await apiService.axiosInstance.delete(`/cases/${caseId}/media/${mediaId}`);
             setMediaItems(prev => prev.filter(m => m.id !== mediaId));
             if (selectedMedia?.id === mediaId) setSelectedMedia(null);
         } catch (err) {
-            alert("Dështoi fshirja e provës.");
+            alert("Dështoi fshirja.");
         }
     };
 
     const handleDownloadTranscript = (item: MediaItem) => {
         const element = document.createElement("a");
-        let content = `TRANSKRIPTI ZYRTAR I PROVËS: ${item.file_name}\n\n${item.transcript}\n`;
+        let content = `${item.transcript}\n`;
         const file = new Blob([content], { type: 'text/plain;charset=utf-8' });
         element.href = URL.createObjectURL(file);
         element.download = `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`;
@@ -136,7 +136,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         try {
             await apiService.archiveForensicReport(
                 caseId, 
-                `Transkript Zyrtar: ${item.file_name}`, 
+                `Transkript: ${item.file_name}`, 
                 item.transcript
             );
             setArchiveSuccess(true);
@@ -152,7 +152,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     return (
         <div className="space-y-4 font-sans">
-            {/* HEADER ME BUTON PËR AUDIO DHE VIDEO */}
+            {/* HEADER */}
             <div className="flex items-center justify-between gap-3 border-b border-main pb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-lg flex items-center justify-center border border-primary-start/20 shrink-0">
@@ -160,7 +160,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio & Video</h2>
-                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim me Sekonda</p>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim me AI</p>
                     </div>
                 </div>
 
@@ -195,7 +195,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             ) : mediaItems.length === 0 ? (
                 <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
                     <Film size={32} className="mx-auto mb-2 text-text-muted animate-pulse" />
-                    <p className="text-text-primary text-xs font-bold">Nuk ka ende prova audio apo video në këtë lëndë.</p>
+                    <p className="text-text-primary text-xs font-bold">Nuk ka ende skedarë audio apo video në këtë lëndë.</p>
                     <p className="text-[11px] text-text-muted mt-0.5">Mbështet MP3, WAV, M4A, MP4, MOV, AVI.</p>
                 </div>
             ) : (
@@ -234,7 +234,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     <button 
                                         onClick={() => handleDelete(item.id)}
                                         className="p-1.5 text-text-muted hover:text-danger-start hover:bg-hover rounded-lg transition-colors"
-                                        title="Fshi provën"
+                                        title="Fshi"
                                     >
                                         <Trash2 size={14} />
                                     </button>
@@ -265,7 +265,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         }}
                                         className="w-full py-2 bg-canvas hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
                                     >
-                                        <FileText size={14} /> Shiko Transkriptin me Sekonda
+                                        <FileText size={14} /> Shiko Transkriptin
                                     </button>
                                 )}
                             </div>
@@ -274,7 +274,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL I TRANSKRIPTIT TË PASTËR ME SEKONDA */}
+            {/* MODAL - "TRANSKRIPTI" */}
             <AnimatePresence>
                 {selectedMedia && (
                     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
@@ -292,7 +292,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
-                                            Transkripti Zyrtar i Provës
+                                            Transkripti
                                         </h3>
                                         <p className="text-xs text-text-muted font-medium truncate mt-0.5">{selectedMedia.file_name}</p>
                                     </div>
@@ -302,7 +302,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
-                            {/* Tab Switcher nëse ka të dhëna vizuale videoje */}
+                            {/* Tab Switcher */}
                             {selectedMedia.visual_analysis?.video_forensic_log?.length ? (
                                 <div className="flex gap-2 mb-3 shrink-0">
                                     <button
@@ -314,7 +314,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                 : 'bg-surface border border-main text-text-muted hover:text-text-primary'
                                         }`}
                                     >
-                                        <Mic size={13} /> Transkripti i Zërit me Sekonda
+                                        <Mic size={13} /> Transkripti
                                     </button>
                                     <button
                                         type="button"
@@ -325,12 +325,12 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                 : 'bg-surface border border-main text-text-muted hover:text-text-primary'
                                         }`}
                                     >
-                                        <Eye size={13} /> Ditari Vizual Forenzik ({selectedMedia.visual_analysis.video_forensic_log.length})
+                                        <Eye size={13} /> Ditari Vizual ({selectedMedia.visual_analysis.video_forensic_log.length})
                                     </button>
                                 </div>
                             ) : null}
 
-                            {/* Modal Body - Transkripti me Tipografi të Pastër Gjyqësore */}
+                            {/* Modal Body */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary shadow-inner">
                                 {modalTab === 'visual' && selectedMedia.visual_analysis?.video_forensic_log ? (
                                     <div className="space-y-3">

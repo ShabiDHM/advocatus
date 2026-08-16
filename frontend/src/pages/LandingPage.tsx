@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V11.0 (0 WARNINGS • CLEAN IMPORTS)
+// PHOENIX PROTOCOL - LANDING PAGE V12.0 (HERO COPY TUNING • 0 WARNINGS)
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -125,7 +125,7 @@ const LandingPage: React.FC = () => {
         <BrandLogo />
         <div className="flex gap-3 sm:gap-4 h-11 items-center">
             <Link to="/login" className="flex items-center justify-center px-5 sm:px-6 h-11 text-xs sm:text-sm font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors focus:outline-none">
-                {t('landing.login', 'Hyni Këtu')}
+                {t('landing.login', 'Hyrja')}
             </Link>
             <Link to="/register" className="flex px-5 sm:px-6 h-11 btn-primary text-xs sm:text-sm font-extrabold uppercase tracking-wider rounded-xl items-center gap-2 focus:outline-none shadow-lg shadow-primary-start/20 hover-lift">
                 <span>{t('landing.getStarted', 'Fillo Tani')}</span>
@@ -156,7 +156,7 @@ const LandingPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-base sm:text-lg md:text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed font-medium">
-                    Analizoni 100+ shkresa të fashikullit brenda 20 sekondave, zbuloni kontradiktat me vija të kuqe në Hartën e Provave dhe dominoni seancën gjyqësore me citime ekzakte të LPK, KPRK, LFK dhe LMD.
+                    Analizoni 100+ shkresa të fashikullit për një kohë të shkurtër, zbuloni kontradiktat me vija të kuqe në Hartën e Provave dhe dominoni seancën gjyqësore me citime ekzakte të LPK, KPRK, LFK dhe LMD.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -175,8 +175,8 @@ const LandingPage: React.FC = () => {
         {/* --- HIGH-TRUST METRICS BANNER --- */}
         <div className="max-w-6xl mx-auto my-12 grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-surface/50 border border-main rounded-3xl backdrop-blur-md shadow-sm text-center">
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-primary-start font-mono">~18 Sekonda</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Analizë e 30+ Dokumenteve</p>
+            <p className="text-2xl sm:text-3xl font-black text-primary-start font-mono">Kohë Rekord</p>
+            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Analizë e 100+ Shkresave</p>
           </div>
           <div>
             <p className="text-2xl sm:text-3xl font-black text-emerald-500 font-mono">100%</p>
