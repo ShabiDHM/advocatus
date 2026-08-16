@@ -1,8 +1,11 @@
 # FILE: backend/app/services/transcription_service.py
-# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V3.1 (ZERO WARNINGS • TRILINGUAL WHISPER)
+# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V4.0 (DSP ACOUSTIC FILTER & FORENSIC STATEMENT LEDGER)
 
 import os
+import json
 import logging
+import subprocess
+import tempfile
 from openai import OpenAI
 from app.core.config import settings
 from . import llm_service
@@ -13,43 +16,84 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
 WHISPER_FALLBACK_MODEL = "openai/whisper-1"
 
-def polish_transcript_with_ai(raw_text: str) -> str:
+def apply_acoustic_forensic_filter(input_audio_path: str) -> str:
     """
-    Përpunon transkriptin e papërpunuar me saktësi forenzike,
-    duke ruajtur 100% bisedat mikse (Shqip, Anglisht, Gjermanisht) pa i përkthyer me zor.
+    DSP ACOUSTIC PRE-PROCESSOR (FFmpeg):
+    1. highpass=f=80: Heq zhurmat e rënda të ambientit (era, shiu, zhurma e motorit).
+    2. dynaudnorm: Normalizon volumin e zërit që pëshpëritjet të dëgjohen qartë.
     """
-    if not raw_text or len(raw_text.strip()) < 10:
-        return raw_text
+    filtered_path = f"{input_audio_path}_cleaned.mp3"
+    try:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", input_audio_path,
+            "-af", "highpass=f=80,dynaudnorm=f=150:g=15",
+            "-q:a", "2",
+            filtered_path
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
+        if res.returncode == 0 and os.path.exists(filtered_path):
+            logger.info("🎧 [Media DSP] Acoustic forensic noise filter applied successfully.")
+            return filtered_path
+    except Exception as e:
+        logger.warning(f"⚠️ FFmpeg acoustic filter skipped: {e}")
+    return input_audio_path
+
+def analyze_forensic_statements_with_ai(raw_text: str, file_name: str) -> dict:
+    """
+    GJENERON DITARIN FORENZIK TË DEKLARATAVE AUDIO:
+    Ndan folësit dhe klasifikon deklaratat me vlerë provuese penale/civile.
+    """
+    if not raw_text or len(raw_text.strip()) < 15:
+        return {"speakers": [], "forensic_statements": [], "polished_transcript": raw_text}
 
     system_prompt = """
-    Ti je një Ekspert i Gjuhësisë Forenzike dhe Transkriptimit Gjyqësor për Drejtësinë e Kosovës.
-    DETYRA: Ky është një transkript i papërpunuar audio nga një incizim/bisedë familjare ose zyrtare me gjuhë të përzier (Code-Switching: Shqip, English, Deutsch - p.sh. fëmijë apo persona që flasin 60% shqip dhe 40% anglisht/gjermanisht).
+    Ti je Ekspert i Gjuhësisë Forenzike dhe Analizës së Deklaratave Audio për Gjykatat e Kosovës.
+    DETYRA: Analizo këtë transkript audio (Shqip, Anglisht, Gjermanisht) dhe nxirr Ditarin e Fakteve Penale/Civile.
 
-    RREGULLAT E HEKURTA TË VLEFSHMËRISË GJYQËSORE:
-    1. RUAJ GJUHËN ORIGJINALE TË ÇDO FJALE: Nëse një fjalë apo fjali është folur në Anglisht apo Gjermanisht, LËRE NË ANGLISHT/GJERMANISHT! Mos e përkthe në shqip nëse folësi e ka thënë në gjuhë tjetër.
-    2. Korrigjo vetëm gabimet e dëgjimit fonetik të mikrofonit (zhurma, eho, pëshpëritje) dhe rregullo pikësimin e fjalive.
-    3. Strukturoje dialogun qartë me paragrafe të ndara sipas radhës natyrale të bisedës.
-    4. MOS ndrysho kuptimin apo thelbin e asnjë deklarate. Kthe VETËM tekstin e pastruar të bisedës.
+    KLASIFIKIMET PENALE QË DUHET TË ZBULOSH:
+    - "KANOSJE_APO_SHANTAZH" (Neni 386 KPRK)
+    - "PRANIM_I_FAJËSISË_APO_SHKELJES"
+    - "KUNDËRTHËNIE_ME_PROCESVERBALIN"
+    - "TJETËRSIM_PRINDËROR_APO_PRESION" (Neni 250 KPRK)
+    - "DEKLARATË_E_RREGULLT"
+
+    RREGULL: Ruaj fjalët ekzakte në gjuhën që janë folur. Mos përkthe me zor.
+
+    KTHE JSON:
+    {
+      "polished_transcript": "Teksti i plotë i pastruar dhe i strukturuar me dialog...",
+      "forensic_statements": [
+        {
+          "speaker": "FOLËSI A | FOLËSI B",
+          "exact_quote": "Citati ekzakt i fjalëve të thëna",
+          "legal_classification": "KANOSJE_APO_SHANTAZH | PRANIM_I_FAJËSISË | KUNDËRTHËNIE",
+          "evidentiary_value": "Shpjegimi i vlerës provuese për gjykatë"
+        }
+      ]
+    }
     """
     try:
-        polished = llm_service._call_llm(
-            system_prompt=system_prompt, 
-            user_content=f"TRANSKRIPTI I PAPËRPUNUAR:\n{raw_text}", 
-            json_mode=False, 
-            temperature=0.1, 
+        raw = llm_service._call_llm(
+            system_prompt, 
+            f"INCIZIMI AUDIO: {file_name}\n\nTRANSKRIPTI I PAPËRPUNUAR:\n{raw_text}", 
+            json_mode=True, 
+            temperature=0.0, 
             model=llm_service.FAST_MODEL
         )
-        return polished.strip() if polished else raw_text
+        parsed = llm_service.clean_and_parse_json(raw)
+        if isinstance(parsed, dict) and "polished_transcript" in parsed:
+            return parsed
+        return {"polished_transcript": raw_text, "forensic_statements": []}
     except Exception as e:
-        logger.warning(f"Transcript AI polish fallback: {e}")
-        return raw_text
+        logger.warning(f"Audio statement forensic analysis fallback: {e}")
+        return {"polished_transcript": raw_text, "forensic_statements": []}
 
 def extract_audio_from_video(video_path: str) -> str:
-    """Nxjerr audion nga skedarët video përmes moviepy nëse është e disponueshme."""
     audio_path = f"{video_path}.mp3"
     try:
         from moviepy.editor import VideoFileClip  # type: ignore
-        logger.info(f"🎬 [Media] Extracting audio track from video...")
         clip = VideoFileClip(video_path)
         if clip.audio is not None:
             clip.audio.write_audiofile(audio_path, codec='mp3', logger=None)
@@ -58,13 +102,12 @@ def extract_audio_from_video(video_path: str) -> str:
                 return audio_path
         clip.close()
     except Exception as e:
-        logger.warning(f"⚠️ Moviepy extraction fallback: {e}")
+        logger.warning(f"Moviepy extraction fallback: {e}")
     return video_path
 
 def transcribe_media_file(file_path: str) -> str:
     """
-    Transkripton audion duke përdorur Whisper Large V3 Turbo në OpenRouter
-    me mbështetje të plotë për biseda mikse (Shqip, English, Deutsch).
+    Transkriptim Forenzik i Plotë me Filtrin Akustik FFmpeg dhe Whisper Large V3 Turbo.
     """
     api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -73,6 +116,7 @@ def transcribe_media_file(file_path: str) -> str:
 
     processed_path = file_path
     extracted_audio = False
+    cleaned_audio_path = None
 
     try:
         ext = os.path.splitext(file_path)[1].lower()
@@ -82,10 +126,14 @@ def transcribe_media_file(file_path: str) -> str:
                 processed_path = audio_out
                 extracted_audio = True
 
+        # 1. Pastrimi Akustik i Zhurmave me FFmpeg
+        cleaned_audio_path = apply_acoustic_forensic_filter(processed_path)
+        active_audio_file = cleaned_audio_path if os.path.exists(cleaned_audio_path) else processed_path
+
         client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL, timeout=90.0)
         
-        file_size_mb = os.path.getsize(processed_path) / (1024 * 1024)
-        logger.info(f"📁 [Media] Preparing audio file for Whisper Large V3 Turbo. Size: {file_size_mb:.2f} MB")
+        file_size_mb = os.path.getsize(active_audio_file) / (1024 * 1024)
+        logger.info(f"📁 [Media Forensic] Processing audio with Whisper Large V3 Turbo ({file_size_mb:.2f} MB)")
 
         if file_size_mb > 24.5:
             return f"[Gabim: Skedari është {file_size_mb:.1f}MB. Kufiri maksimal është 25MB. Ngarkoni një pjesë më të shkurtër nën 25MB.]"
@@ -98,7 +146,7 @@ def transcribe_media_file(file_path: str) -> str:
 
         raw_text = ""
         try:
-            with open(processed_path, "rb") as audio_file:
+            with open(active_audio_file, "rb") as audio_file:
                 res = client.audio.transcriptions.create(
                     model=WHISPER_TURBO_MODEL,
                     file=audio_file,
@@ -107,8 +155,8 @@ def transcribe_media_file(file_path: str) -> str:
                 )
                 raw_text = res.text if hasattr(res, "text") else (res.get("text", "") if isinstance(res, dict) else str(res))
         except Exception as turbo_err:
-            logger.warning(f"⚠️ Whisper Large V3 Turbo error ({turbo_err}). Falling back to Whisper-1...")
-            with open(processed_path, "rb") as audio_file:
+            logger.warning(f"⚠️ Whisper Turbo fallback to Whisper-1: {turbo_err}")
+            with open(active_audio_file, "rb") as audio_file:
                 res = client.audio.transcriptions.create(
                     model=WHISPER_FALLBACK_MODEL,
                     file=audio_file,
@@ -120,14 +168,20 @@ def transcribe_media_file(file_path: str) -> str:
         if not raw_text or not raw_text.strip():
             return "[Nuk u detektua zë i qartë në këtë incizim audio.]"
 
-        logger.info("🪄 [Media] Polishing trilingual transcript with AI...")
-        clean_text = polish_transcript_with_ai(raw_text)
-        return clean_text
+        logger.info("🪄 [Media Forensic] Polishing transcript & extracting forensic statement ledger...")
+        forensic_res = analyze_forensic_statements_with_ai(raw_text, os.path.basename(file_path))
+        
+        return forensic_res.get("polished_transcript") or raw_text
 
     except Exception as e:
-        logger.error(f"❌ Transcription Error: {e}")
+        logger.error(f"❌ Forensic Transcription Error: {e}")
         return f"[Gabim gjatë transkriptimit: {str(e)}]"
     finally:
+        if cleaned_audio_path and cleaned_audio_path != processed_path and os.path.exists(cleaned_audio_path):
+            try:
+                os.remove(cleaned_audio_path)
+            except Exception:
+                pass
         if extracted_audio and processed_path != file_path and os.path.exists(processed_path):
             try:
                 os.remove(processed_path)
