@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/graph_router.py
-# PHOENIX PROTOCOL - GRAPH ROUTER V11.0 (DYNAMIC BUCKET DISPATCH • ZERO 429 • ~12 SECONDS)
+# PHOENIX PROTOCOL - GRAPH ROUTER V12.0 (DEEP DOSSIER INGESTION FOR CONTRADICTION SYNTHESIS)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated
@@ -127,9 +127,8 @@ async def rebuild_case_graph_endpoint(
             pass
         return {"status": "success", "case_id": case_id, "nodes": [], "edges": []}
 
-    # 1. PAKETIMI DINAMIK SIPAS VËLLIMIT (Ndan 32 dokumente në vetëm 2-3 kërkesa!)
     buckets = ontology_service.pack_documents_into_dynamic_buckets(docs, max_chars_per_bucket=75000)
-    logger.info(f"⚡ {len(docs)} dokumente u paketuan automatikisht në {len(buckets)} kërkesa paralele...")
+    logger.info(f"⚡ {len(docs)} dokumente u paketuan në {len(buckets)} kërkesa dinamike...")
 
     sem = asyncio.Semaphore(3)
 
@@ -152,9 +151,9 @@ async def rebuild_case_graph_endpoint(
             accumulated_nodes, accumulated_edges, new_nodes, new_edges
         )
 
-    # 2. BASHKIMI ME BFS
+    # DËRGON TË GJITHË FASHIKULLIN E DOKUMENTEVE TE MOTORRI I KONTRADIKTAVE
     accumulated_nodes, accumulated_edges = await ontology_service.dynamically_synthesize_cross_document_contradictions(
-        accumulated_nodes, accumulated_edges, case_title=c_title
+        accumulated_nodes, accumulated_edges, case_title=c_title, all_docs=docs
     )
 
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -177,7 +176,7 @@ async def rebuild_case_graph_endpoint(
         {"$set": {"graph_data": final_graph, "updated_at": datetime.now(timezone.utc)}}
     )
 
-    # Sinkronizimi me Neo4j në Background
+    # Sinkronizim me Neo4j në Background
     try:
         await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
         async def sync_neo4j_async():
@@ -201,7 +200,7 @@ async def rebuild_case_graph_endpoint(
     except Exception as neo_err:
         logger.warning(f"Neo4j sync bypass: {neo_err}")
 
-    logger.info(f"🎉 Rindërtimi përfundoi në ~12 sekonda me {len(accumulated_nodes)} nyje dhe {len(accumulated_edges)} lidhje.")
+    logger.info(f"🎉 Rindërtimi përfundoi: {len(accumulated_nodes)} nyje dhe {len(accumulated_edges)} lidhje me kontradikta shkencore të dokumentuara.")
 
     return {
         "status": "success",

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ontology_service.py
-# PHOENIX PROTOCOL - ONTOLOGY SERVICE V20.0 (TRUE EVIDENTIARY CONTRADICTION ENGINE)
+# PHOENIX PROTOCOL - ONTOLOGY SERVICE V25.0 (EVIDENTIARY STORYTELLING & REAL RED CONTRADICTION MATRIX)
 
 import logging
 import re
@@ -18,9 +18,9 @@ VALID_ENTITY_TYPES = {"PERSON", "ORGANIZATION", "ACCOUNT", "LOCATION", "EVENT", 
 
 class OntologyService:
     """
-    Forensic Contradiction Engine tailored for high-stakes litigation in Kosovo.
-    Explicitly extracts material conflicts, falsified records, medical fraud,
-    and institutional abuse of authority with zero generic placeholder edges.
+    Forensic Knowledge Graph Engine with Evidentiary Storytelling.
+    Replaces generic spokes with cause-and-effect chains, medical contradictions,
+    and judicial falsification paths for trial lawyers.
     """
 
     def _clean_entity_name(self, name: str) -> str:
@@ -91,24 +91,25 @@ class OntologyService:
             return {"nodes": [], "edges": []}
 
         system_prompt = """
-        Ti je Krye-Auditori dhe Eksperti Forenzik i Provave Ligjore në Kosovë.
-        DETYRA JOTE KRYESORE: Zbulo TË GJITHA KONTRADIKTAT, RAPORTET E RREME, FALSIFIKIMET dhe SHKELJET LIGJORE në këtë dosje.
+        Ti je Krye-Auditori Forenzik i Drejtësisë në Kosovë.
+        DETYRA JOTE: Ndërto Rrjetin Hetimor Shkak-Pasojë nga këto shkresa ligjore.
 
-        RREGULLAT E IDENTIFIKIMIT TË KONTRADIKTAVE (ME PRIORITET):
-        1. Kur një provë shkencore/laboratorike rrëzon një diagnozë mjekësore apo akuzë, shënoje direkt: "KUNDËRTHËNIE_ME_TESTIN_SHKENCOR".
-        2. Kur një raport i QKUK-së dëshmon raport pozitiv prind-fëmijë përballë pretendimeve të QPS-së, shënoje: "KUNDËRTHËNIE_ME_RAPORTIN_E_QPS".
-        3. Kur një gjyqtar apo zyrtar kthen datat pas (retroaktivisht) apo censuron procesverbalin, shënoje: "FALSIFIKIM_DATASH_RETROAKTIVE" ose "CENSURIM_PROCESVERBALI".
-        4. Kur një person zyrtar përdor pozitën politike mbi mjekët/gjykatën, shënoje: "USHTRIM_NDIKIMI_POLITIK".
-        5. Kur përdoret një dënim i shlyer, shënoje: "SHKELJE_E_REHABILITIMIT_LIGJOR_NENI_93".
-        6. MOS PËRDOR terma të përgjithshëm si "përfshirë në lëndë". Shëno rolin e saktë (p.sh. "PËRFAQËSUES_I_AUTORIZUAR", "AKUZON_PËR_DHUNË", "EKSPERTIZË_MJEKËSORE_PËR", "TEST_NEGATIV_100_PËRQIND").
+        RREGULLAT E LIDHJES SË DOKUMENTEVE ME AUTORËT E TYRE (MOS I LIDH TË GJITHA TE KLIENTI):
+        1. Dokumenti mjekësor (diagonza, ekspertiza) lidhet te MJEKU ose INSTITUCIONI që e ka lëshuar (p.sh. [Dr. Samire Braina] -> [Raporti i QKUK]).
+        2. Testi laboratorik (Koslabor) lidhet te LABORATORI / EKSPERTI që e ka bërë (p.sh. [Dr. Driton Avdiu] -> [Laboratori Koslabor]).
+        3. Vendimi gjyqësor lidhet te GJYKATA apo GJYQTARI që e ka nxjerrë (p.sh. [Bujar Dobërdolani] -> [Vendimi i Urdhërmbrojtjes]).
+        4. Aktakuza lidhet te PROKURORIA (p.sh. [Prokuroria Themelore] -> [Aktakuza PP.IL]).
+        5. Lidhjet e palëve: [Sanije Bala] -> "AKUZON_PËR_DHUNË" -> [Shaban Bala], [Shaban Bala] -> "PARAQET_KALLËZIM_PENAL" -> [Prokuroria Speciale].
+
+        NDALOHET RREPTËSISHT përdorimi i etiketave boshe si "Provë e Administruar" apo "Përfshirë në lëndë". Shëno relacionin e saktë!
 
         Kthe JSON:
         {
           "nodes": [
-            { "id": "slug_unike", "label": "Emri Zyrtar", "type": "PERSON|ORGANIZATION|ACCOUNT|LOCATION|EVENT|DOCUMENT", "description": "Roli procedural i saktë" }
+            { "id": "slug_unike", "label": "Emri Zyrtar", "type": "PERSON|ORGANIZATION|ACCOUNT|LOCATION|EVENT|DOCUMENT", "description": "Fakti thelbësor nga dokumenti" }
           ],
           "edges": [
-            { "source": "id_burimi", "target": "id_synimi", "relation": "RELACIONI_SPECIFIK", "amount_eur": null, "date_iso": "YYYY-MM-DD", "evidence_text": "Citati ekzakt nga shkresa" }
+            { "source": "id_burimi", "target": "id_synimi", "relation": "RELACIONI_SPECIFIK", "amount_eur": null, "date_iso": "YYYY-MM-DD", "evidence_text": "Citati i shkurtër" }
           ]
         }
         """
@@ -222,10 +223,12 @@ class OntologyService:
 
         return list(node_dict.values()), list(edge_dict.values())
 
-    async def dynamically_synthesize_cross_document_contradictions(self, nodes: List[Dict], edges: List[Dict], case_title: str) -> Tuple[List[Dict], List[Dict]]:
+    async def dynamically_synthesize_cross_document_contradictions(
+        self, nodes: List[Dict], edges: List[Dict], case_title: str, all_docs: List[Dict] = None
+    ) -> Tuple[List[Dict], List[Dict]]:
         """
-        KRYEN AUDITIN FORENZIK TË KONTRADIKTAVE DHE SHKELJEVE PENALE:
-        Gjen të gjitha mospërputhjet materiale midis testeve shkencore, raporteve mjekësore dhe datave të gjykatës.
+        ZBULIMI FORENZIK I KONTRADIKTAVE DHE KRYQËZIMI I PROVAVE SHKENCORE:
+        Krahason provat shkencore përballë pretendimeve dhe gjeneron linjat e kuqe të kontradiktave.
         """
         if not nodes or len(nodes) < 2:
             return nodes, edges
@@ -234,35 +237,45 @@ class OntologyService:
         edge_set = {f"{e['source']}___{e['target']}" for e in edges}
         updated_edges = list(edges)
 
-        # Mbledh provat kryesore nga përshkrimet e nyjeve ekzistuese
-        summary_evidence = []
-        for n in nodes[:50]:
-            if n.get("description"):
-                summary_evidence.append(f"- {n['label']} ({n['type']}): {n['description']}")
+        # Mbledh përmbledhjet e të gjitha dokumenteve reale për krahasim
+        doc_digests = []
+        if all_docs:
+            for d in all_docs[:32]:
+                fname = d.get("file_name", "Dokument")
+                txt = (d.get("extracted_text") or d.get("text_content") or d.get("summary") or "")[:2500]
+                if txt:
+                    doc_digests.append(f"SKEDARI: {fname}\nPËRMBAJTJA KRYESORE: {txt}\n")
 
-        evidence_context = "\n".join(summary_evidence)
+        dossier_text = "\n".join(doc_digests)
 
         prompt = f"""
-        Ti je Ekspert Hetues i Prokurorisë Speciale (PSRK). Dosja: "{case_title}".
-        PROVAT DHE SHKRESAT NË DOSJE:
-        {evidence_context}
+        Ti je Krye-Hetuesi Forenzik i Prokurorisë Speciale (PSRK). Dosja: "{case_title}".
+
+        FASHIKULLI I SHKRESAVE DHE PROVAVE:
+        {dossier_text[:35000]}
+
+        LISTA E NYJEVE TË IDENTIFIKUARA:
+        {", ".join([n['label'] + ' (' + n['id'] + ')' for n in nodes[:50]])}
 
         DETYRA JOTE FORENZIKE:
-        Nxirr të gjitha KONTRADIKTAT REALE dhe SHKELJET LIGJORE midis palëve:
-        1. Testi shkencor i laboratorit (Koslabor) që rrëzon pretendimin për narkotikë apo diagnozën mjekësore.
-        2. Raporti i QKUK-së që konstaton raport të mirë prind-fëmijë përballë raporteve të QPS-së.
-        3. Datat e falsifikuara retroaktive nga gjyqtari në procesverbal (dt. 19.01.2024).
-        4. Ushtrimi i ndikimit politik nga zyrtarët e lartë mbi mjekët dhe gjykatën.
-        5. Shkelja e nenit 93 të KPRK-së (përdorimi i dënimit të shlyer).
+        Identifiko të gjitha KONTRADIKTAT REALE, FALSIFIKIMET dhe SHKELJET LIGJORE midis këtyre dokumenteve:
+        1. Kur një test laboratorik/shkencor (Koslabor) doli NEGATIV për narkotikë por pala tjetër ose mjeku pretendoi përdorim droge/diagnozë F60.31:
+           -> Gjenero lidhjen: [Laboratori / Testi] --("KUNDËRTHËNIE_ME_TESTIN_SHKENCOR")--> [Personi / Mjeku që pretendoi]
+        2. Kur procesverbali i gjyqtarit mban datë të kthyer pas (19.01.2024) për të anashkaluar testin e shkurtit:
+           -> Gjenero lidhjen: [Gjyqtari] --("FALSIFIKIM_DATASH_RETROAKTIVE")--> [Pala e Dëmtuar]
+        3. Kur raporti i QKUK-së vërteton raport të mirë prind-fëmijë përballë raporteve të QPS-së:
+           -> Gjenero lidhjen: [Raporti QKUK] --("KUNDËRTHËNIE_ME_RAPORTIN_E_QPS")--> [QPS / Zyrtari]
+        4. Kur zyrtari i lartë politik ushtron ndikim mbi mjekët ose gjykatën:
+           -> Gjenero lidhjen: [Zyrtari Politik] --("USHTRIM_NDIKIMI_POLITIK")--> [Mjeku / Gjyqtari]
 
         Kthe VETËM JSON me lidhjet e kuqe të kontradiktave:
         {{
           "contradiction_edges": [
             {{
-              "source": "slug_burimi",
-              "target": "slug_synimi",
-              "relation": "KUNDËRTHËNIE_ME_TESTIN_SHKENCOR | KUNDËRTHËNIE_ME_RAPORTIN_E_QPS | FALSIFIKIM_DATASH_RETROAKTIVE | USHTRIM_NDIKIMI_POLITIK | SHKELJE_E_REHABILITIMIT_LIGJOR",
-              "evidence_text": "Arsyetimi i saktë ligjor me numër neni dhe citat prove"
+              "source": "slug_burimi_ekzakt",
+              "target": "slug_synimi_ekzakt",
+              "relation": "KUNDËRTHËNIE_ME_TESTIN_SHKENCOR | FALSIFIKIM_DATASH_RETROAKTIVE | KUNDËRTHËNIE_ME_RAPORTIN_E_QPS | USHTRIM_NDIKIMI_POLITIK",
+              "evidence_text": "Arsyetimi i saktë ligjor pse kjo është kontradiktë e provuar"
             }}
           ]
         }}
@@ -270,7 +283,7 @@ class OntologyService:
 
         try:
             raw = await _call_llm_async(
-                system_prompt="Ti je ekspert ligjor i zbulimit të kontradiktave.",
+                system_prompt="Ti je hetues ligjor i kontradiktave.",
                 user_content=prompt,
                 json_mode=True,
                 temperature=0.0,
@@ -301,7 +314,7 @@ class OntologyService:
         except Exception as e:
             logger.error(f"Error in contradiction synthesis: {e}")
 
-        # BFS Connected Components: Bashkon çdo grup të shkëputur me relacion të saktë procedural (jo 'Provë e Administruar')
+        # BFS Connected Components: Lidh grupet e shkëputura te autorët e tyre institucionalë (jo të gjitha te një njeri)
         adj = defaultdict(set)
         for e in updated_edges:
             adj[e["source"]].add(e["target"])
@@ -335,12 +348,11 @@ class OntologyService:
                 rep_node = max(minor_island, key=lambda x: len(adj[x]))
                 rep_node_obj = next((n for n in nodes if n["id"] == rep_node), None)
                 
-                # Emërtim i saktë procedural dhe jo etiketë boshe
                 rel = "PROCEDURË_E_NDËRLIDHUR"
                 if rep_node_obj and rep_node_obj["type"] == "DOCUMENT":
-                    rel = "EKSPERTIZË_NË_DOSJE"
+                    rel = "PROVË_SHKRESORE_NË_FASHIKULL"
                 elif rep_node_obj and rep_node_obj["type"] == "PERSON":
-                    rel = "PËRFAQËSUES_APO_DËSHMITAR_I_LËNDËS"
+                    rel = "PËRFAQËSUES_APO_DËSHMITAR"
 
                 key = f"{rep_node}___{main_hub}"
                 if key not in edge_set:
