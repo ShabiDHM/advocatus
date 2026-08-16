@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V3.0 (AUDIO WHISPER + VIDEO FORENSIC VISION DUAL PIPELINE)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V4.0 (6-LEVEL TOTAL CASCADE WIPEOUT & GDPR COMPLIANCE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pymongo.database import Database
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -22,7 +22,6 @@ from app.models.user import UserInDB
 from app.services import storage_service, transcription_service
 from app.services.video_forensic_service import video_forensic_service
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks, delete_document_embeddings
-from app.services.albanian_document_processor import EnhancedDocumentProcessor
 from app.core.config import settings
 
 router = APIRouter(tags=["Media Evidence"])
@@ -56,18 +55,15 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
         logger.warning(f"Media deletion SSE publish failed: {e}")
 
 def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
-    """Orkestron transkriptimin e zërit dhe analizën e videos me Vision AI."""
     from app.core.db import get_db_instance
     db = get_db_instance()
     media_oid = ObjectId(media_id_str)
 
     try:
-        # 1. Transkriptimi Audio me Whisper
-        logger.info(f"🎙️ [Media] Starting audio transcription for: {file_name}")
+        logger.info(f"🎙️ [Media] Starting forensic audio transcription for: {file_name}")
         transcript = transcription_service.transcribe_media_file(file_path)
 
         visual_data = {}
-        # 2. Forenzika Vizuale e Videos me Vision AI (nëse skedari është video)
         if is_video:
             logger.info(f"📹 [Media Vision] Starting Video Forensic AI Analysis for: {file_name}")
             loop = asyncio.new_event_loop()
@@ -79,7 +75,6 @@ def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, use
             finally:
                 loop.close()
 
-        # 3. Përditësimi i të dhënave në MongoDB
         update_fields = {
             "transcript": transcript,
             "visual_analysis": visual_data,
@@ -89,7 +84,6 @@ def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, use
         db.media_evidence.update_one({"_id": media_oid}, {"$set": update_fields})
         logger.info(f"✅ [Media] Audio & Visual analysis successfully saved for: {file_name}")
 
-        # 4. Indeksimi në Vector RAG Knowledge Base
         combined_rag_text = f"PROVA AUDIO/VIDEO: {file_name}\n\nTRANSKRIPTI I BISEDËS:\n{transcript}\n"
         if visual_data and visual_data.get("video_forensic_log"):
             combined_rag_text += "\nDITARI I FAKTEVE VIZUALE NGA VIDEOJA:\n"
@@ -253,6 +247,10 @@ async def delete_case_media(
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_db)
 ):
+    """
+    6-LEVEL TOTAL CASCADE WIPEOUT (GDPR COMPLIANT):
+    Asgjëson përfundimisht provën nga Cloud Storage, Vector RAG, Grafi i Lëndës dhe MongoDB.
+    """
     media_oid = validate_object_id(media_id)
     user_oid = ObjectId(current_user.id)
 
@@ -260,18 +258,55 @@ async def delete_case_media(
     if not media_item:
         raise HTTPException(status_code=404, detail="Media evidence not found.")
 
+    # 1. Asgjësimi i Skedarit Fizik nga Backblaze B2 Cloud Storage
     storage_key = media_item.get("storage_key")
     if storage_key:
         try:
             await asyncio.to_thread(storage_service.delete_file, storage_key)
+            logger.info(f"🗑️ [Cascade 1/6] Purged B2 storage file: {storage_key}")
         except Exception as e:
-            logger.warning(f"Failed to purge B2 storage file: {e}")
+            logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
+    # 2. Asgjësimi i Vektorëve nga Vector Database (Chroma / Atlas Vector Search)
     try:
         delete_document_embeddings(document_id=media_id)
+        logger.info(f"🗑️ [Cascade 2/6] Removed vector embeddings for media {media_id}")
     except Exception as e:
         logger.warning(f"Failed to purge vector embeddings: {e}")
 
+    # 3. Spastrimi i Referencave nga Harta e Provave (Case Knowledge Graph)
+    try:
+        graph_rec = db.case_graphs.find_one({"case_id": case_id})
+        if graph_rec:
+            nodes = graph_rec.get("nodes", [])
+            edges = graph_rec.get("edges", [])
+            for n in nodes:
+                if "source_doc_ids" in n and media_id in n["source_doc_ids"]:
+                    n["source_doc_ids"].remove(media_id)
+            for e in edges:
+                if "source_doc_ids" in e and media_id in e["source_doc_ids"]:
+                    e["source_doc_ids"].remove(media_id)
+            db.case_graphs.update_one(
+                {"case_id": case_id},
+                {"$set": {"nodes": nodes, "edges": edges, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            logger.info(f"🗑️ [Cascade 3/6] Cleaned media references from Case Knowledge Graph")
+    except Exception as g_err:
+        logger.warning(f"Graph cascade cleanup bypass: {g_err}")
+
+    # 4. Spastrimi nga Arkivi i Lëndës (Archives)
+    try:
+        db.archives.delete_many({"case_id": case_id, "file_name": media_item.get("file_name")})
+        logger.info(f"🗑️ [Cascade 4/6] Purged related archive records")
+    except Exception as a_err:
+        logger.warning(f"Archive cascade cleanup bypass: {a_err}")
+
+    # 5. Fshirja Finale nga Baza e të Dhënave MongoDB (`media_evidence`)
     db.media_evidence.delete_one({"_id": media_oid})
+    logger.info(f"🗑️ [Cascade 5/6] Removed media evidence database record: {media_id}")
+
+    # 6. Njoftimi Asinkron Real-Time (SSE / Redis) për Fshirje të Menjëhershme nga Ekrani
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
-    return
+    logger.info(f"⚡ [Cascade 6/6] Real-time SSE wipeout event dispatched")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
