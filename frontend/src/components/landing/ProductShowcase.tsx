@@ -1,21 +1,17 @@
 // FILE: frontend/src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V10.0 (4-PILLAR LITIGATION SHOWCASE & ZERO MOCKUP HARDCODING)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V11.0 (0 WARNINGS • CLEAN IMPORTS)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslation } from 'react-i18next';
 import { 
-    ShieldAlert, FileText, ScanEye, BrainCircuit, 
-    CheckCircle, PenTool, 
-    Sparkles, Calculator, Network, ArrowRight, AlertTriangle, ChevronRight,
-    Scale, CheckCircle2, Swords, MessageSquare, Zap, Layers, Lock
+    ShieldAlert, FileText, BrainCircuit, 
+    PenTool, Sparkles, Network, ArrowRight, AlertTriangle, ChevronRight,
+    Scale, CheckCircle2, Swords, Zap
 } from 'lucide-react';
 
 const ProductShowcase: React.FC = () => {
-    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState(0);
 
-    // Rrotullim automatik i sllajdeve çdo 8 sekonda
     useEffect(() => {
         const timer = setInterval(() => {
             setActiveTab((prev) => (prev + 1) % 6);
@@ -289,16 +285,13 @@ const OntologyMockup = () => (
 
         <div className="flex-1 relative flex items-center justify-center my-2">
             <svg className="w-full h-full" viewBox="-220 -120 440 240">
-                {/* Vija e kuqe e kontradiktës */}
                 <path d="M -120 -30 Q 0 10 120 -30" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeDasharray="6,4" className="animate-pulse" />
                 <path d="M -120 -30 Q -60 50 0 50" fill="none" stroke="#3b82f6" strokeWidth="2" />
                 <path d="M 0 50 Q 60 50 120 -30" fill="none" stroke="#8b5cf6" strokeWidth="2" />
                 
-                {/* Badge i kuq i kontradiktës */}
                 <rect x="-60" y="-18" width="120" height="20" rx="6" fill="#450a0a" stroke="#ef4444" strokeWidth="1.5" />
                 <text x="0" y="-4" textAnchor="middle" fill="#fca5a5" fontSize="8.5" fontWeight="900">KUNDËRTHËNIE ME PROVËN</text>
 
-                {/* Nyja 1: Laboratori Koslabor */}
                 <g transform="translate(-120, -30)" className="cursor-pointer">
                     <circle r="22" fill="#2563eb" stroke="#60a5fa" strokeWidth="3" />
                     <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">LK</text>
@@ -306,7 +299,6 @@ const OntologyMockup = () => (
                     <text x="0" y="40" textAnchor="middle" fill="#93c5fd" fontSize="8" fontWeight="bold">Laboratori &quot;Koslabor&quot;</text>
                 </g>
 
-                {/* Nyja 2: Klienti */}
                 <g transform="translate(0, 50)" className="cursor-pointer">
                     <circle r="24" fill="#2563eb" stroke="#ffffff" strokeWidth="3.5" />
                     <text y="4" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">SB</text>
@@ -314,7 +306,6 @@ const OntologyMockup = () => (
                     <text x="0" y="42" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">Pala Kliente</text>
                 </g>
 
-                {/* Nyja 3: Diagnoza e Rreme */}
                 <g transform="translate(120, -30)" className="cursor-pointer">
                     <circle r="22" fill="#7c3aed" stroke="#a78bfa" strokeWidth="3" />
                     <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">QK</text>

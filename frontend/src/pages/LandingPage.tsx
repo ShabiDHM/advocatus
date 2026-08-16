@@ -1,14 +1,14 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V10.0 (4-PILLAR LITIGATION SHOWCASE & ROLE ADVERSARIAL MATRIX)
+// PHOENIX PROTOCOL - LANDING PAGE V11.0 (0 WARNINGS • CLEAN IMPORTS)
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
     ArrowRight, Lock, Globe, ChevronRight, 
-    Database, FileText, Swords, ShieldCheck, BarChart2, Cpu, Zap,
-    Scale, FileSearch, CheckCircle2, Network, Sparkles, AlertTriangle, 
-    MessageSquare, HelpCircle, Layers, Shield
+    Database, FileText, Swords, ShieldCheck, BarChart2, Zap,
+    Scale, FileSearch, CheckCircle2, Network, Sparkles, 
+    Layers, Shield
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
@@ -192,7 +192,7 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
 
-        {/* --- SECTION: THE 4 PILLARS ADAPTED BY ROLE (THE GAME CHANGER) --- */}
+        {/* --- SECTION: THE 4 PILLARS ADAPTED BY ROLE --- */}
         <section id="four-pillars" className="py-20 max-w-7xl mx-auto space-y-12">
           <div className="text-center space-y-4 max-w-3xl mx-auto">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 text-primary-start text-xs font-black uppercase tracking-widest border border-primary-start/20">
@@ -251,7 +251,7 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* --- SECTION: EVIDENCE GRAPH (PALANTIR GOTHAM FOR KOSOVO) --- */}
+        {/* --- SECTION: EVIDENCE GRAPH --- */}
         <section className="py-16 max-w-7xl mx-auto space-y-12">
           <div className="glass-panel p-8 md:p-12 border border-main bg-surface rounded-3xl shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="space-y-6">
@@ -304,7 +304,7 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* --- PREMIUM INTERACTIVE PRODUCT SHOWCASE SECTION --- */}
+        {/* --- PRODUCT SHOWCASE COMPONENT --- */}
         <div id="showcase">
           <ProductShowcase />
         </div>
