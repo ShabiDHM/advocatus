@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V37.0 (DYNAMIC PARTY ALIGNMENT, EXACT STATUTES & INTERACTIVE PILLS)
+# PHOENIX PROTOCOL - RAG SERVICE V38.0 (STRICT CLIENT ADVOCACY & DYNAMIC OPPONENT DISAMBIGUATION)
 
 import os
 import sys
@@ -17,28 +17,9 @@ logger.setLevel(logging.DEBUG)
 API_KEY = settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
-LLM_TIMEOUT = 120
+LLM_TIMEOUT = 60
 
-AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
-
-PROTOKOLLI_MANDATOR = """
-**URDHËRA TË RREPTË FORMATIMI DHE DOKTRINËS GJYQËSORE:**
-1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR TË NENIT** (p.sh., "Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD), Neni 136 / Neni 141 / Neni 382 (Kamata 8%)").
-2. RREPTËSISHT MOS PËRZI PALËT: Rruaj pozicionin e klienteve. Veprimet e paautorizuara, përvetësimet ose regjistrimet paralele i atribuohen vetëm palës kundërshtare ose drejtorëve përgjegjës, kurrë shoqërisë së dëmtuar.
-3. CITIMET E SAKTA Procedurale dhe Materiale (Gjykata Komerciale e Kosovës):
-   - Prokura & Afati Prekluziv: LPK (Ligji Nr. 03/L-006) Neni 91 par 3, Neni 92 & Neni 93.3 (JO Neni 99).
-   - Refuzimi / Ndryshimi i Padisë: LPK Neni 256 par 1 & Neni 258.
-   - Këqyrja e Shkresave: LPK Neni 122.1 (JO Neni 113).
-   - Masa e Sigurisë / Ngrirja e Llogarive: LPK Neni 297, Neni 298, Neni 299 (Neni 299.1 pika a).
-   - Shkelja e Besnikërisë & Ndalimi i Konkurrencës: LSHT (Ligji Nr. 06/L-016) Neni 258 (par 1, 2, 3).
-   - Shpërblimi i Dëmit & Pasurimi i Pabazë: LMD (Ligji Nr. 04/L-077) Neni 136 & Neni 141, si dhe Neni 382 (Kamata vonesës 8% p.a.).
-
-4. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
-5. NE FUND TË PËRGJIGJES, DUHET TË SHTOSH RREPTËSISHT 3 PYETJE STRATEGJIKE TË INTERAKTIVE SIPAS FORMATIT:
-   [PILL: Pyetja e parë strategjike...]
-   [PILL: Pyetja e dytë procedurale...]
-   [PILL: Pyetja e tretë për prova...]
-"""
+AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga Juristi AI, ekskluzivisht për përdorim dhe referencë ligjore.*"
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
@@ -60,10 +41,6 @@ class AlbanianRAGService:
     def _normalize_law_title(self, title: str) -> str:
         return ' '.join(title.strip().split())
 
-    def _extract_law_number(self, text: str) -> Optional[str]:
-        match = re.search(r'Nr\.?\s*([\d/L\-]+)', text, re.IGNORECASE)
-        return match.group(1) if match else None
-
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
         preambles = [
@@ -81,12 +58,10 @@ class AlbanianRAGService:
         
         abbreviations = {
             r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
-            r"\bKPK\b": "Kodi Penal i Republikës së Kosovës",
-            r"\bKPPK\b": "Kodi i Procedurës Penale",
-            r"\bLPP\b": "Ligji për Procedurën Kontestimore",
+            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës",
+            r"\bKPPRK\b": "Kodi i Procedurës Penale",
             r"\bLPK\b": "Ligji për Procedurën Kontestimore",
-            r"\bLPA\b": "Ligji për Procedurën Administrative",
-            r"\bKPC\b": "Kodi i Procedurës Civile",
+            r"\bLFK\b": "Ligji për Familjen i Kosovës",
             r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
         }
         for abbr, expansion in abbreviations.items():
@@ -109,40 +84,37 @@ class AlbanianRAGService:
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> str:
         context = "\n<<< FASHIKULLI I PROVEVE MATERIALE (DOKUMENTE TË IZOLUARA) >>>\n"
         
-        # 1. Direct Extracted Document Text with Strict Boundary Tagging
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
                 file_name = doc.get("file_name") or doc.get("title") or "Dokument"
-                raw_t = doc.get("extracted_text") or ""
+                raw_t = doc.get("extracted_text") or doc.get("text_content") or ""
                 summ = doc.get("summary") or ""
                 
                 if summ == "Sinteza...":
                     summ = ""
 
                 if raw_t and summ:
-                    text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI EKSKLUSIV I KËTIJ SKEDARI:\n{raw_t[:3500]}"
+                    text_content = f"PËRMBLEDHJE: {summ}\nTEKSTI:\n{raw_t[:10000]}"
                 elif raw_t:
-                    text_content = f"TEKSTI EKSKLUSIV I KËTIJ SKEDARI:\n{raw_t[:4000]}"
+                    text_content = f"TEKSTI:\n{raw_t[:12000]}"
                 elif summ:
                     text_content = f"PËRMBLEDHJE: {summ}"
                 else:
-                    text_content = "Dokument i verifikuar në fashikull (Teksti në procesim)."
+                    text_content = "Dokument i verifikuar në fashikull."
 
                 context += f"\n==================== DOKUMENTI INDIVIDUAL #{idx} ====================\n"
                 context += f"EMRI I SKEDARIT: {file_name}\n"
-                context += f"PËRMBAJTJA TEKSTUALE TË KËTIJ SKEDARI:\n{text_content}\n"
+                context += f"PËRMBAJTJA:\n{text_content}\n"
                 context += f"=======================================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
 
-        # 2. Vector Semantic Chunks
         context += "\n<<< PARAGRAFET SELEKTIVE NGA KËRKIMI SEMANTIK >>>\n"
         for idx, d in enumerate(case_docs):
             text_content = self._get_expanded_text(d)
             context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
 
-        # 3. Global Statutory Law Base
-        context += "\n<<< BAZA LIGJORE STATUTORE (LPK, LMD, LSHT) >>>\n"
+        context += "\n<<< BAZA LIGJORE STATUTORE E KOSOVËS (LPK, LMD, LFK, KPRK) >>>\n"
         for d in global_docs:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
@@ -162,9 +134,6 @@ class AlbanianRAGService:
 
         from app.services import vector_store_service, llm_service
 
-        logger.info(f"🔍 RAG Chat request: query='{query[:100]}...'")
-
-        # 100% Dynamic Name Extraction with Generic Fallbacks
         client_position = "DEFENDANT"
         client_name = "Pala Kliente"
         opposing_name = "Pala Kundërshtare"
@@ -180,13 +149,11 @@ class AlbanianRAGService:
                     client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or case_doc.get("title") or client_name
                     opposing_name = case_doc.get("opposing_party") or case_doc.get("opponent") or opposing_name
 
-                # FETCH ALL UPLOADED CASE DOCUMENTS DIRECTLY FROM MONGO
                 doc_cursor = self.db.documents.find({"$or": [{"case_id": case_id}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}})
                 db_documents = list(doc_cursor)
             except Exception as ex:
-                logger.warning(f"Could not read case details or documents from Mongo: {ex}")
+                logger.warning(f"Could not read case details: {ex}")
 
-        # Dynamic Identity Header with Strict Contract Signatory Rules
         identity_header = llm_service.build_dynamic_identity_header(
             client_name=client_name, 
             opposing_name=opposing_name, 
@@ -197,51 +164,51 @@ class AlbanianRAGService:
         sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=6
+            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=8
         )
 
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=sanitized_query, n_results=4
+            query_text=sanitized_query, n_results=6
         )
 
         context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        prompt = f"""
+        # MANDATI SUPREM I AVOKATIT DHE MBROJTJA E INTERESIT TË KLIENTIT (ZERO ROLE REVERSAL)
+        system_prompt = f"""
         {identity_header}
 
-        Ti je "Juristi AI - Asistenti i Avokatit dhe Auditorit Ligjor".
+        Ti je "Juristi AI - Asistenti dhe Avokati Strateg i Drejtësisë në Kosovë".
 
-        **RREGULLAT KRITIKE TË MOS-PËRZIJES SË DOKUMENTEVE (STRICT ISOLATION MANDATE):**
-        1. Çdo dokument në fashikull është me vete. MOS PËRZI faktet, sekretarët, avokatët apo procesverbalet e seancave me përmbajtjen e një kontrate origjinale!
-        2. Kur pyetesh për një kontratë apo skedar specifik, lexo VETËM tekstin brenda bllokut që përket me atë skedar.
-        3. Identifiko me saktësi absolute palët nënshkruese që citohen EKSPLIÇITISHT në vetë atë kontratë (Party A vs Party B). Mos përmend përfaqësueset ligjore ose procesverbalet e gjykatës sikur janë nënshkrues të kontratës!
-        
-        {PROTOKOLLI_MANDATOR}
+        RREGULLAT SUPREME TË PËRFAQËSIMIT LIGJOR (MANDATI I PALËS):
+        1. KLIENTI YNË QË PO MBRON ËSHTË: **{client_name}** (Në rolin: **{client_position}**).
+        2. PALA KUNDËRSHTARE ËSHTË: **{opposing_name}**.
+        3. NDALOHET RREPTËSISHT TË SULMOSH KLIENTIN TËND: Kur përdoruesi pyet "ku mbështetet padia jonë", "çfarë kërkojmë ne", "strategjia jonë", ti duhet të flasësh EKSKLUZIVISHT nga pozicioni i {client_name}.
+        4. DIFERENCIMI I DOKUMENTEVE:
+           - Nëse në fashikull ka dokumente të paraqitura nga pala kundërshtare ({opposing_name}) si p.sh. kërkesë për urdhërmbrojtje, padi apo akuza, ato janë **PRETENDIME ARMIQËSORE TË KUNDËRSHTARIT** dhe JO fakte të vërtetuara!
+           - Detyra jote është të tregosh se si provat materiale dhe shkencore të {client_name} i rrëzojnë ato pretendime.
+        5. Cito saktësisht nenet e ligjit të Kosovës (LPK, KPRK, KPPRK, LMD, LFK).
 
-        **KONTEKSTI I LËNDËS ME SKEDARË TË IZOLUAR:**
-        {context_str}
+        PËRDOR KËTË STRUKTURË NË PËRGJIGJE:
+        ### 1. ANALIZA E FAKTEVE DHE MBROJTJA E KLIENTIT
+        ### 2. BAZA LIGJORE DHE PROVAT MBËSHTETËSE
+        ### 3. REKOMANDIMI STRATEGJIK DHE KUNDËRSULMI
 
-        **PYETJA E DREJTPËRDREJTË E PËRDORUESIT:** "{sanitized_query}"
-
-        **STRUKTURA E OBLIGUESHME E PËRGJIGJES:**
-        ### 1. ANALIZA E FAKTEVE (Nga skedari përkatës)
-
-        ### 2. BAZA LIGJORE DHE RELEVANCA (LPK / LSHT / LMD 382)
-
-        ### 3. KONKLUZIONI STRATEGJIK DHE VEPRIMET
-
-        Fillo përgjigjen tani:
+        Në fund shto 3 pyetje interaktive:
+        [PILL: Pyetja e parë strategjike...]
+        [PILL: Pyetja e dytë procedurale...]
+        [PILL: Pyetja e tretë për prova...]
         """
 
         try:
             response = await self.client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=[
-                    {"role": "system", "content": prompt},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": sanitized_query}
                 ],
-                temperature=0.1,  # Lower temperature for maximum literal accuracy
-                stream=True
+                temperature=0.0,
+                stream=True,
+                max_tokens=4096
             )
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
