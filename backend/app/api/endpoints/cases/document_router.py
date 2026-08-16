@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V10.0 (RESILIENT DOCUMENT VALIDATION & PRISTINE UPLOAD)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V11.0 (DYNAMIC MULTI-MIME TYPE PREVIEW STREAMER)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -11,6 +11,7 @@ import asyncio
 import logging
 import io
 import os
+import mimetypes
 
 from app.services import document_service, storage_service
 from app.services.archive_service import ArchiveService
@@ -23,6 +24,30 @@ from app.api.endpoints.cases.cases_helpers import validate_object_id, DeletedDoc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
+    """Dynamically resolves the accurate MIME type for PDFs, JPGs, PNGs, and text."""
+    if doc_mime and doc_mime != "application/octet-stream" and "/" in doc_mime:
+        return doc_mime
+
+    fn = (filename or "").lower()
+    if fn.endswith(".jpg") or fn.endswith(".jpeg"):
+        return "image/jpeg"
+    if fn.endswith(".png"):
+        return "image/png"
+    if fn.endswith(".webp"):
+        return "image/webp"
+    if fn.endswith(".pdf"):
+        return "application/pdf"
+    if fn.endswith(".csv"):
+        return "text/csv"
+    if fn.endswith(".txt") or fn.endswith(".json"):
+        return "text/plain"
+
+    guessed_type, _ = mimetypes.guess_type(filename)
+    return guessed_type or "application/pdf"
+
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
@@ -53,6 +78,7 @@ async def get_documents_for_case(
 
     return validated_docs
 
+
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_for_case(
     case_id: str,
@@ -62,12 +88,10 @@ async def upload_document_for_case(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    # Read raw pristine PDF bytes directly (0ms - No watermarks, no modifications)
     pdf_bytes = await file.read()
     filename = file.filename or "document.pdf"
-    content_type = file.content_type or "application/pdf"
+    content_type = _resolve_media_type(filename, file.content_type)
 
-    # Upload pristine bytes to storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -77,7 +101,6 @@ async def upload_document_for_case(
         content_type
     )
 
-    # Immediately populate local SSD disk cache for instant 0ms previews
     try:
         cache_file_name = key.replace('/', '_')
         cache_file_path = os.path.join(document_service.CACHE_DIR, cache_file_name)
@@ -103,6 +126,7 @@ async def upload_document_for_case(
 
     return DocumentOut.model_validate(doc)
 
+
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)
 async def archive_case_document_endpoint(
     case_id: str,
@@ -124,6 +148,7 @@ async def archive_case_document_endpoint(
     if not archive_item:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose dështoi arkivimi.")
     return archive_item
+
 
 @router.post("/{case_id}/documents/bulk-delete")
 @router.delete("/{case_id}/documents/bulk-delete")
@@ -183,6 +208,7 @@ async def bulk_delete_documents_endpoint(
         "remaining_documents": remaining_docs
     }
 
+
 @router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse)
 async def delete_document(
     case_id: str,
@@ -229,6 +255,7 @@ async def delete_document(
         )
     raise HTTPException(status_code=500, detail="Failed to delete document.")
 
+
 @router.get("/{case_id}/documents/{doc_id}/preview")
 async def get_document_preview(
     case_id: str,
@@ -237,7 +264,7 @@ async def get_document_preview(
     db: Database = Depends(get_db)
 ):
     """
-    PHOENIX FAST PREVIEW: Serves from local SSD cache in 0.001s.
+    PHOENIX FAST PREVIEW: Serves from local SSD cache or object store with correct MIME type.
     """
     cached_path, stream, doc, content_length = await asyncio.to_thread(
         document_service.get_preview_file_path_or_stream,
@@ -245,12 +272,14 @@ async def get_document_preview(
         doc_id,
         current_user
     )
-    filename = doc.file_name if hasattr(doc, 'file_name') else "document.pdf"
+    filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "document.pdf"
+    doc_mime = getattr(doc, 'mime_type', None)
+    resolved_media_type = _resolve_media_type(filename, doc_mime)
     
     if cached_path and os.path.exists(cached_path):
         return FileResponse(
             path=cached_path,
-            media_type="application/pdf",
+            media_type=resolved_media_type,
             filename=filename,
             headers={
                 "Content-Disposition": f'inline; filename="{filename}"',
@@ -269,6 +298,6 @@ async def get_document_preview(
 
     return StreamingResponse(
         stream, 
-        media_type="application/pdf",
+        media_type=resolved_media_type,
         headers=headers
     )
