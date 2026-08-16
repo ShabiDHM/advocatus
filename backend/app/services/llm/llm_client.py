@@ -1,5 +1,5 @@
 # FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V25.0 (BULLETPROOF SAFE CHOICES PARSER • AUTO-RETRY ON 429)
+# PHOENIX PROTOCOL - LLM CLIENT V26.0 (DEEPSEEK REASONING STRIPPER & ROBUST JSON EXTRACTOR)
 
 import os
 import json
@@ -31,33 +31,50 @@ def _get_api_key() -> str:
 
 def _get_sync_client() -> OpenAI: 
     key = _get_api_key()
-    return OpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=45.0)
+    return OpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
 def _get_async_client() -> AsyncOpenAI: 
     key = _get_api_key()
-    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=45.0)
+    return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """Pastron dhe dekodon përgjigjen JSON me mbrojtje absolute nga gabimet."""
+    """
+    Pastron dhe dekodon përgjigjen JSON me mbrojtje absolute nga gabimet.
+    Largon tag-et e arsyetimit <think>, blloqet markdown dhe nxjerr strukturen JSON.
+    """
     if not text:
         return {}
     
-    cleaned = text.strip()
-    cleaned = re.sub(r'^```json\s*', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^```\s*', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'\s*```$', '', cleaned, flags=re.IGNORECASE)
+    # 1. Hiq tag-et e mendimit të DeepSeek R1 / V3
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     cleaned = cleaned.strip()
     
+    # 2. Provo parsese direkte
     try:
         return json.loads(cleaned)
     except Exception:
+        pass
+
+    # 3. Kërko bllokun ```json ... ``` kudo në tekst
+    json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', cleaned, re.DOTALL)
+    if json_block_match:
         try:
-            json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(0))
+            return json.loads(json_block_match.group(1).strip())
         except Exception:
             pass
-        return {}
+
+    # 4. Kërko çdo objekt JSON midis kllapave { ... } me përputhje më të gjerë
+    try:
+        first_brace = cleaned.find('{')
+        last_brace = cleaned.rfind('}')
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            candidate = cleaned[first_brace:last_brace + 1]
+            return json.loads(candidate)
+    except Exception as parse_err:
+        logger.warning(f"⚠️ JSON parsing extraction fallback failed: {parse_err} | Raw: {cleaned[:200]}")
+        pass
+
+    return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
     """Thirrje sinkrone e sigurt me auto-retry."""
@@ -84,7 +101,6 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    # Riprovon deri në 3 herë në rast 429
     for attempt in range(3):
         try:
             res = client.chat.completions.create(**kwargs)
@@ -126,14 +142,15 @@ async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    # Riprovon deri në 3 herë në rast 429
     for attempt in range(3):
         try:
             res = await client.chat.completions.create(**kwargs)
             if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
                 msg = res.choices[0].message
-                return getattr(msg, 'content', '') or ""
-            return ""
+                content = getattr(msg, 'content', '') or ""
+                if content:
+                    return content
+            logger.warning(f"⚠️ Empty choice response on attempt {attempt + 1}")
         except Exception as e:
             if "429" in str(e) and attempt < 2:
                 await asyncio.sleep(1.5 * (attempt + 1))
