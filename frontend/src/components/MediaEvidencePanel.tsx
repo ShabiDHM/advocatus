@@ -1,12 +1,12 @@
 // FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V4.0 (0 WARNINGS • CLEAN IMPORTS)
+// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V5.0 (CLEAN COURTROOM TRANSCRIPT UI • ZERO NOISE HEADERS)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
     Loader2, Download, Save, CheckCircle2,
-    Video, Film, Car, Clock, Eye
+    Video, Film, Car, Clock, Eye, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -54,6 +54,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const [modalTab, setModalTab] = useState<'transcript' | 'visual'>('transcript');
     const [isArchiving, setIsArchiving] = useState(false);
     const [archiveSuccess, setArchiveSuccess] = useState(false);
+    const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadMedia = async () => {
@@ -120,18 +121,10 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const handleDownloadTranscript = (item: MediaItem) => {
         const element = document.createElement("a");
-        let content = `RAPORTI I PROVËS: ${item.file_name}\n\nTRANSKRIPTI I ZËRIT:\n${item.transcript}\n`;
-        
-        if (item.visual_analysis?.video_forensic_log?.length) {
-            content += "\n\nDITARI I FAKTEVE VIZUALE:\n";
-            item.visual_analysis.video_forensic_log.forEach(log => {
-                content += `[${log.timestamp_video}] ${log.event_type}: ${log.visual_evidence} (${log.evidentiary_value})\n`;
-            });
-        }
-
+        let content = `TRANSKRIPTI ZYRTAR I PROVËS: ${item.file_name}\n\n${item.transcript}\n`;
         const file = new Blob([content], { type: 'text/plain;charset=utf-8' });
         element.href = URL.createObjectURL(file);
-        element.download = `Forenzika_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`;
+        element.download = `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`;
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
@@ -141,15 +134,10 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         setIsArchiving(true);
         setArchiveSuccess(false);
         try {
-            let content = `TRANSKRIPTI:\n${item.transcript}\n`;
-            if (item.visual_analysis?.visual_summary) {
-                content += `\nPËRMBLEDHJA VIZUALE:\n${item.visual_analysis.visual_summary}`;
-            }
-
             await apiService.archiveForensicReport(
                 caseId, 
-                `Forenzika Media: ${item.file_name}`, 
-                content
+                `Transkript Zyrtar: ${item.file_name}`, 
+                item.transcript
             );
             setArchiveSuccess(true);
             setTimeout(() => setArchiveSuccess(false), 3000);
@@ -172,7 +160,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio & Video</h2>
-                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim & Forenzikë me AI</p>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim me Sekonda</p>
                     </div>
                 </div>
 
@@ -208,7 +196,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
                     <Film size={32} className="mx-auto mb-2 text-text-muted animate-pulse" />
                     <p className="text-text-primary text-xs font-bold">Nuk ka ende prova audio apo video në këtë lëndë.</p>
-                    <p className="text-[11px] text-text-muted mt-0.5">Mbështet MP3, WAV, M4A, MP4, MOV, AVI (deri 25MB).</p>
+                    <p className="text-[11px] text-text-muted mt-0.5">Mbështet MP3, WAV, M4A, MP4, MOV, AVI.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
@@ -235,7 +223,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                     item.status === 'PROCESSING' ? 'bg-warning-start/15 text-warning-start border border-warning-start/30 animate-pulse' :
                                                     'bg-danger-start/15 text-danger-start border border-danger-start/30'
                                                 }`}>
-                                                    {item.status === 'READY' ? (isVideo ? 'Video e Analizuar' : 'Transkriptuar') : item.status === 'PROCESSING' ? 'Duke analizuar...' : 'Dështoi'}
+                                                    {item.status === 'READY' ? (isVideo ? 'Video e Analizuar' : 'Transkriptuar') : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
                                                 </span>
                                                 <span className="text-[9px] text-text-muted font-mono">
                                                     {new Date(item.created_at).toLocaleDateString()}
@@ -277,7 +265,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         }}
                                         className="w-full py-2 bg-canvas hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
                                     >
-                                        <FileText size={14} /> {isVideo ? 'Shiko Ditarin & Transkriptin' : 'Shiko Transkriptin'}
+                                        <FileText size={14} /> Shiko Transkriptin me Sekonda
                                     </button>
                                 )}
                             </div>
@@ -286,6 +274,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
+            {/* MODAL I TRANSKRIPTIT TË PASTËR ME SEKONDA */}
             <AnimatePresence>
                 {selectedMedia && (
                     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
@@ -295,6 +284,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
                             className="glass-panel w-full max-w-4xl h-[88vh] max-h-[850px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-canvas flex flex-col"
                         >
+                            {/* Modal Header */}
                             <div className="flex justify-between items-center mb-4 border-b border-main pb-4 shrink-0">
                                 <div className="flex items-center gap-3.5 min-w-0">
                                     <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
@@ -302,7 +292,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
-                                            Analiza Forenzike e Provës
+                                            Transkripti Zyrtar i Provës
                                         </h3>
                                         <p className="text-xs text-text-muted font-medium truncate mt-0.5">{selectedMedia.file_name}</p>
                                     </div>
@@ -312,8 +302,20 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
+                            {/* Tab Switcher nëse ka të dhëna vizuale videoje */}
                             {selectedMedia.visual_analysis?.video_forensic_log?.length ? (
-                                <div className="flex gap-2 mb-4 shrink-0">
+                                <div className="flex gap-2 mb-3 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalTab('transcript')}
+                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                                            modalTab === 'transcript'
+                                                ? 'bg-primary-start text-white shadow-sm'
+                                                : 'bg-surface border border-main text-text-muted hover:text-text-primary'
+                                        }`}
+                                    >
+                                        <Mic size={13} /> Transkripti i Zërit me Sekonda
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setModalTab('visual')}
@@ -325,74 +327,63 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     >
                                         <Eye size={13} /> Ditari Vizual Forenzik ({selectedMedia.visual_analysis.video_forensic_log.length})
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalTab('transcript')}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
-                                            modalTab === 'transcript'
-                                                ? 'bg-primary-start text-white shadow-sm'
-                                                : 'bg-surface border border-main text-text-muted hover:text-text-primary'
-                                        }`}
-                                    >
-                                        <Mic size={13} /> Transkripti i Zërit
-                                    </button>
                                 </div>
                             ) : null}
 
-                            <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary shadow-inner space-y-4">
+                            {/* Modal Body - Transkripti me Tipografi të Pastër Gjyqësore */}
+                            <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary shadow-inner">
                                 {modalTab === 'visual' && selectedMedia.visual_analysis?.video_forensic_log ? (
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         {selectedMedia.visual_analysis.visual_summary && (
-                                            <div className="p-3.5 bg-canvas rounded-xl border border-main text-xs leading-relaxed">
-                                                <span className="text-[10px] font-black uppercase text-primary-start block mb-1">Përmbledhja Ekzekutive Vizuale:</span>
+                                            <div className="p-3 bg-canvas rounded-xl border border-main text-xs">
+                                                <span className="text-[10px] font-black uppercase text-primary-start block mb-1">Përmbledhja Vizuale:</span>
                                                 <p className="text-text-secondary font-medium">{selectedMedia.visual_analysis.visual_summary}</p>
                                             </div>
                                         )}
 
-                                        {selectedMedia.visual_analysis.detected_license_plates?.length ? (
-                                            <div className="p-3.5 bg-canvas rounded-xl border border-main space-y-2">
-                                                <span className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
-                                                    <Car size={13} /> Targat dhe Automjetet e Identifikuara:
-                                                </span>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                    {selectedMedia.visual_analysis.detected_license_plates.map((lp, idx) => (
-                                                        <div key={idx} className="p-2 bg-surface rounded-lg border border-main text-xs flex items-center justify-between">
-                                                            <span className="font-mono font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">{lp.plate_number}</span>
-                                                            <span className="text-text-secondary">{lp.vehicle_description}</span>
-                                                            <span className="text-[10px] text-text-muted font-mono">[{lp.timestamp}]</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : null}
-
                                         <div className="space-y-2">
-                                            <span className="text-[10px] font-black uppercase text-text-muted block">Kronologjia me Sekonda (Video Event Log):</span>
-                                            <div className="space-y-2">
-                                                {selectedMedia.visual_analysis.video_forensic_log.map((item, idx) => (
-                                                    <div key={idx} className="p-3 bg-canvas rounded-xl border border-main text-xs space-y-1">
-                                                        <div className="flex items-center justify-between font-bold">
-                                                            <span className="text-primary-start flex items-center gap-1">
-                                                                <Clock size={12} /> Minuta: [{item.timestamp_video}] {item.cctv_clock ? `• Ora CCTV: ${item.cctv_clock}` : ''}
-                                                            </span>
-                                                            <span className="text-[10px] font-black uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                                                                {item.event_type}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-text-primary font-medium">{item.visual_evidence}</p>
-                                                        <p className="text-[11px] text-text-muted italic border-t border-main/40 pt-1">Vlera Provuese: {item.evidentiary_value}</p>
+                                            {selectedMedia.visual_analysis.video_forensic_log.map((item, idx) => (
+                                                <div key={idx} className="p-3 bg-canvas rounded-xl border border-main text-xs space-y-1">
+                                                    <div className="flex items-center justify-between font-bold">
+                                                        <span className="text-primary-start font-mono">[{item.timestamp_video}]</span>
+                                                        <span className="text-[10px] uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded font-bold">
+                                                            {item.event_type}
+                                                        </span>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                    <p className="text-text-primary font-medium">{item.visual_evidence}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-medium">
-                                        {selectedMedia.transcript || "Nuk u gjend transkript audio për këtë skedar."}
+                                    <div className="space-y-2 text-sm sm:text-base font-normal leading-relaxed">
+                                        {selectedMedia.transcript ? (
+                                            selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
+                                                const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);
+                                                if (timeMatch) {
+                                                    const timeStr = timeMatch[0];
+                                                    const textStr = line.replace(timeStr, '').trim();
+                                                    return (
+                                                        <div key={idx} className="p-2.5 bg-canvas/60 rounded-xl border border-main/50 flex items-start gap-3">
+                                                            <span className="text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
+                                                                {timeStr}
+                                                            </span>
+                                                            <p className="text-xs sm:text-sm font-medium text-text-primary pt-0.5 leading-normal">
+                                                                {textStr}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return <p key={idx} className="text-xs sm:text-sm text-text-secondary leading-normal">{line}</p>;
+                                            })
+                                        ) : (
+                                            <p className="text-text-muted text-xs">Nuk u gjend transkript audio për këtë skedar.</p>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
+                            {/* Modal Footer */}
                             <div className="flex flex-wrap items-center justify-between pt-4 mt-4 border-t border-main gap-3 shrink-0">
                                 <div className="flex items-center gap-2">
                                     <button 
@@ -418,11 +409,12 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     type="button"
                                     onClick={() => {
                                         navigator.clipboard.writeText(selectedMedia.transcript);
-                                        alert("Transkripti u kopjua!");
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 2500);
                                     }}
-                                    className="h-9 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all"
+                                    className="h-9 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
                                 >
-                                    Kopjo Tekstin
+                                    <Copy size={13} /> {copied ? 'U Kopjua!' : 'Kopjo Transkriptin'}
                                 </button>
                             </div>
                         </motion.div>
