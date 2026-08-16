@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.4 (STRICT TYPE-GUARDED BRIEFING GREETINGS)
+// PHOENIX PROTOCOL - DASHBOARD V9.5 (HIGH-CONTRAST THEME-AWARE DESTRUCTION MODAL)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -33,10 +33,8 @@ const DashboardPage: React.FC = () => {
   const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
   const [isDeletingCase, setIsDeletingCase] = useState(false);
   
-  // Search state
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side holiday detection
   const holidayBriefing = useMemo(() => {
     const today = new Date();
     return getCurrentBriefingHoliday(today, (key: string) => t(key));
@@ -183,7 +181,6 @@ const DashboardPage: React.FC = () => {
   const inputClasses = "w-full px-5 h-11 bg-surface border border-main rounded-xl text-text-primary placeholder:text-text-disabled text-sm focus:outline-none focus:ring-2 focus:ring-primary-start transition-all";
   const labelClasses = "block text-[10px] font-black text-primary-start uppercase tracking-widest mb-1.5 ml-1";
 
-  // STRICT SAFE STRING GUARD - PREVENTS 't.indexOf is not a function' CRASHES
   const getGreeting = (): string => {
     if (holidayBriefing.isHoliday) {
       return holidayBriefing.greeting || '';
@@ -423,17 +420,38 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
+        {/* DELETION CONFIRMATION MODAL WITH THEME-AWARE CONTRAST */}
         {caseToDeleteId && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl text-center border border-main bg-canvas">
-              <div className="w-16 h-16 bg-danger-start/15 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-main">
-                  <Trash2 className="h-8 w-8 text-danger-start" />
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl text-center border border-main bg-surface"
+            >
+              <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-rose-500/30">
+                <Trash2 className="h-8 w-8 text-rose-500" />
               </div>
-              <h2 className="text-xl font-bold text-text-primary mb-2 uppercase tracking-tight">{t('caseDelete.confirmTitle', 'Fshij Rastin?')}</h2>
-              <p className="text-text-secondary text-sm mb-6 leading-relaxed italic font-medium">{t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}</p>
+              <h2 className="text-xl font-bold text-text-primary mb-2 uppercase tracking-tight">
+                {t('caseDelete.confirmTitle', 'Fshij Rastin?')}
+              </h2>
+              <p className="text-text-secondary text-sm mb-6 leading-relaxed italic font-medium">
+                {t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}
+              </p>
               <div className="flex gap-3 justify-center">
-                <button type="button" onClick={() => setCaseToDeleteId(null)} className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none">{t('general.cancel', 'Anulo')}</button>
-                <button type="button" onClick={confirmDeleteCase} disabled={isDeletingCase} className="w-full h-11 rounded-xl bg-danger-start hover:bg-opacity-90 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-primary-start/15">
+                <button
+                  type="button"
+                  onClick={() => setCaseToDeleteId(null)}
+                  className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none"
+                >
+                  {t('general.cancel', 'Anulo')}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteCase}
+                  disabled={isDeletingCase}
+                  className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-rose-600/25 cursor-pointer"
+                >
                   {isDeletingCase ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.delete', 'Fshij')}
                 </button>
               </div>
