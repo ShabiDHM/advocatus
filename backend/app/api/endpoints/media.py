@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V1.9 (AUTOMATIC VECTOR RAG INDEXING)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V2.0 (SAFE RAG VECTORIZATION & ZERO TYPE-ERROR)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -79,20 +79,50 @@ def orchestrate_media_transcription(db_client, media_id_str: str, file_path: str
         # 2. Vectorize and ingest into MongoDB Atlas Vector Search (RAG Knowledge Base)
         if transcript and len(transcript.strip()) > 20:
             logger.info(f"🧠 [Media] Indexing audio transcript into Vector RAG Knowledge Base...")
-            enriched_chunks = EnhancedDocumentProcessor.process_document(
-                text_content=transcript, 
-                document_metadata={'file_name': f"Audio Transcript: {file_name}"}, 
-                is_albanian=True
-            )
-            create_and_store_embeddings_from_chunks(
-                user_id=user_id_str,
-                document_id=media_id_str,
-                case_id=case_id_str,
-                file_name=f"Audio: {file_name}",
-                chunks=[c.content for c in enriched_chunks],
-                metadatas=[c.metadata for c in enriched_chunks]
-            )
-            logger.info(f"✅ [Media] Audio transcript successfully vectorized and indexed for RAG search!")
+            try:
+                enriched_chunks = EnhancedDocumentProcessor.process_document(
+                    text_content=transcript, 
+                    document_metadata={'file_name': f"Audio Transcript: {file_name}"}
+                )
+                
+                chunk_texts = []
+                chunk_metas = []
+                
+                if isinstance(enriched_chunks, list):
+                    for c in enriched_chunks:
+                        if hasattr(c, 'content'):
+                            chunk_texts.append(c.content)
+                            chunk_metas.append(getattr(c, 'metadata', {}))
+                        elif isinstance(c, dict):
+                            chunk_texts.append(c.get('content') or c.get('text') or str(c))
+                            chunk_metas.append(c.get('metadata') or {})
+                        else:
+                            chunk_texts.append(str(c))
+                            chunk_metas.append({})
+                else:
+                    chunk_texts = [transcript]
+                    chunk_metas = [{'file_name': f"Audio: {file_name}"}]
+
+                create_and_store_embeddings_from_chunks(
+                    user_id=user_id_str,
+                    document_id=media_id_str,
+                    case_id=case_id_str,
+                    file_name=f"Audio: {file_name}",
+                    chunks=chunk_texts,
+                    metadatas=chunk_metas
+                )
+                logger.info(f"✅ [Media] Audio transcript successfully vectorized and indexed for RAG search!")
+            except Exception as vec_err:
+                logger.warning(f"⚠️ Vector indexing fallback: {vec_err}")
+                # Fallback: ruaj të paktën transkriptin direkt
+                create_and_store_embeddings_from_chunks(
+                    user_id=user_id_str,
+                    document_id=media_id_str,
+                    case_id=case_id_str,
+                    file_name=f"Audio: {file_name}",
+                    chunks=[transcript],
+                    metadatas=[{'file_name': f"Audio: {file_name}"}]
+                )
 
     except Exception as e:
         logger.error(f"❌ [Media] Transcription/Vectorization failed for {media_id_str}: {e}")
@@ -253,7 +283,6 @@ async def delete_case_media(
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # Also purge vector embeddings for this media item
     try:
         delete_document_embeddings(document_id=media_id)
         logger.info(f"🗑️ Cascading delete: Removed vector embeddings for media {media_id}")
