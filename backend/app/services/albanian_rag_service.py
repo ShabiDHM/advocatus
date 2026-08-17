@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V73.0 (STRICT 4-PILLAR CESSATION & EVIDENCE GROUNDING)
+# PHOENIX PROTOCOL - UNIVERSAL LEGAL AI ENGINE V75.0 (ZERO HARDCODING • PURE DYNAMIC RAG)
 
 import os
 import sys
@@ -21,11 +21,10 @@ LLM_TIMEOUT = 60
 
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
+
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        self.citation_map: Dict[Tuple[str, str], str] = {}
-        self.law_number_map: Dict[Tuple[str, str], str] = {}
         
         if API_KEY:
             self.client = AsyncOpenAI(
@@ -33,13 +32,10 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] AI Engine initialized with direct AsyncOpenAI client.")
+            logger.info("✅ [RAG] Universal AI Engine initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
-
-    def _normalize_law_title(self, title: str) -> str:
-        return ' '.join(title.strip().split())
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -82,8 +78,8 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
-        manifest_lines = ["\n<<< REGJISTRI ZYRTAR I DOKUMENTEVE TË LËNDËS (PËR CITIM ME LINKE) >>>\n"]
-        context = "\n<<< FASHIKULLI I PROVEVE DHE PËRMBAJTJA E TYRE >>>\n"
+        manifest_lines = ["\n<<< REGJISTRI ZYRTAR I SKEDARËVE TË FASHIKULLIT (PËR CITIM ME LINKE) >>>\n"]
+        context = "\n<<< PËRMBAJTJA E PLOTË E PROVEVE DHE DOKUMENTEVE TË LËNDËS >>>\n"
         
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
@@ -106,27 +102,27 @@ class AlbanianRAGService:
                     summ = ""
 
                 if raw_t and summ:
-                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA TEKSTUALE:\n{raw_t[:12000]}"
+                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA E TEKSTIT:\n{raw_t[:14000]}"
                 elif raw_t:
-                    text_content = f"PËRMBAJTJA TEKSTUALE:\n{raw_t[:14000]}"
+                    text_content = f"PËRMBAJTJA E TEKSTIT:\n{raw_t[:16000]}"
                 elif summ:
                     text_content = f"PËRMBLEDHJE: {summ}"
                 else:
                     text_content = "Dokument i administruar në fashikull."
 
                 context += f"\n==================== DOKUMENTI #{idx} ====================\n"
-                context += f"CITIMI ZYRTAR: {doc_clickable_link}\n"
+                context += f"CITIMI I SAKTË: {doc_clickable_link}\n"
                 context += f"{text_content}\n"
                 context += f"===========================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
 
-        context += "\n<<< PARAGRAFET SELEKTIVE TË KËRKIMIT SEMANTIK >>>\n"
+        context += "\n<<< PARAGRAFET SELEKTIVE NGA KËRKIMI SEMANTIK I LËNDËS >>>\n"
         for idx, d in enumerate(case_docs):
             text_content = self._get_expanded_text(d)
             context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
 
-        context += "\n<<< BAZA LIGJORE STATUTORE E KOSOVËS >>>\n"
+        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n"
         for d in global_docs:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
@@ -136,7 +132,6 @@ class AlbanianRAGService:
         return "\n".join(manifest_lines), context
 
     def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
-        """Përcakton 4 pyetjet startuese identike me kartat e CommandPaletteGrid."""
         pos = position.upper()
         if pos == "PLAINTIFF":
             p1 = "Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull."
@@ -151,14 +146,6 @@ class AlbanianRAGService:
         ]
 
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        """
-        Llogarit me saktësi absolute kartat e mbetura progresive:
-        Fillimi: 4 karta
-        Pas 1-së: 3 mbetura
-        Pas 2-së: 2 mbetura
-        Pas 3-së: 1 mbetur
-        Pas 4-së: 0 (Ndalon sugjerimet plotsisht)
-        """
         pillars = self._get_role_adapted_pillars(position)
 
         all_past_queries = []
@@ -183,7 +170,6 @@ class AlbanianRAGService:
         if not any(k in combined_text for k in ["përmbledhje ekzekutive të strukturuar", "rreziqet ligjore", "informimin e klientit"]):
             remaining.append(pillars[3][1])
 
-        # Kur të 4 shtyllat kryhen, kthehet listë e zbrazët (nuk propozohen më pyetje të tjera)
         return remaining
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
@@ -201,6 +187,8 @@ class AlbanianRAGService:
         client_position = "DEFENDANT"
         client_name = "Pala Kliente"
         opposing_name = "Pala Kundërshtare"
+        case_title = "Lënda Ligjore"
+        case_desc = ""
         db_documents = []
 
         if case_id and self.db is not None:
@@ -210,8 +198,10 @@ class AlbanianRAGService:
                 if case_doc:
                     if case_doc.get("client_position") or case_doc.get("client_role"):
                         client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
-                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or case_doc.get("title") or client_name
+                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
                     opposing_name = case_doc.get("opposing_party") or case_doc.get("opponent") or opposing_name
+                    case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
+                    case_desc = case_doc.get("description") or ""
 
                 doc_cursor = self.db.documents.find({
                     "$or": [{"case_id": case_id}, {"case_id": c_oid}], 
@@ -231,11 +221,11 @@ class AlbanianRAGService:
         sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=12
+            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=16
         )
 
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=sanitized_query, n_results=6
+            query_text=sanitized_query, n_results=8
         )
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
@@ -251,24 +241,37 @@ class AlbanianRAGService:
         else:
             formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
+        # 🧠 UNIVERSAL JURIDICAL REASONING SYSTEM PROMPT (100% DYNAMIC • ZERO HARDCODING)
         system_prompt = f"""
         {identity_header}
 
         Ti je "Sokrati - Krye-Strategu dhe Avokati Elitar i Drejtësisë në Kosovë".
 
-        MANDATI DHE BESNIKËRIA JURIDIKE:
-        - KLIENTI YNË: **{client_name}** (Pozicioni: **{client_position}**).
-        - PALA KUNDËRSHTARE: **{opposing_name}**.
+        KONTEKSTI I LËNDËS:
+        - TITULLI: **{case_title}**
+        - KLIENTI YNË: **{client_name}** (Pozicioni: **{client_position}**)
+        - PALA KUNDËRSHTARE: **{opposing_name}**
+        {f'- PËRSHKRIMI: {case_desc}' if case_desc else ''}
 
-        REGJISTRI I SKEDARËVE REALË TË LËNDËS:
+        REGJISTRI I SKEDARËVE REALË TË FASHIKULLIT:
         {manifest_str}
 
-        RREGULLAT KRITIKE TË CITIMIT DHE FORMATIMIT:
-        1. ÇDO CITIM I DOKUMENTIT TË DOSJES DUHET TË JETË LINK I KLIKUESHËM: `[Emri_Skedarit.pdf](/documents/ID)`
-        2. BAZA LIGJORE DUHET TË SHKRUHET NATYRSHEM PA KLLAPA KROSHERË, p.sh: `Neni 123 i LPK` ose `Neni 145 i Kodit Penal`. MOS përdor kllapa [ ] për nenet e ligjit.
-        3. PËRSHTAT PËRGJIGJEN SIPAS POZICIONIT PROCEDURAL ({client_position}):
-           - Nëse Paditës: thekso provat e dëmit, përgjegjësisë së {opposing_name} dhe kërkesën ligjore.
-           - Nëse I Paditur: thekso provat shfajësuese, parashkrimin e afateve dhe kontradiktat e {opposing_name}.
+        DOKUMENTET DHE PROVAT E LEXUARA NGA FASHIKULLI:
+        {context_str}
+
+        RREGULLAT KRITIKE TË ANALIZËS DHE ARSYETIMIT JURIDIK:
+        1. BESNIKËRIA NDAJ KLIENTIT ({client_name}): Ti je avokati dhe mbrojtësi i {client_name}. Analizo çdo provë në favor të interesit të tij/saj.
+        2. KUPTIMI I SAKTË I REZULTATEVE DHE DOKUMENTEVE:
+           - Lexo tekstin literal dhe empirik të dokumenteve (p.sh. nëse një test laboratorik/mjekësor ka dalë NEGATIV, analizoje si provë shfajësuese dërrmuese që rrëzon pretendimet e kundërshtarit).
+           - Nëse një dokument i palës kundërshtare përmban akuza apo raporte të kontestuara, krahasi me provat dhe shkresat e depozituara nga {client_name} për të evidentuar shkeljet, falsifikimet apo prapësimet procedurale.
+           - Nëse përmenden dënime të kaluara, verifiko nëse janë shlyer (Rehabilitimi Ligjor sipas Nenit 93 të KPRK) ose nëse janë të parashkruara.
+        3. PËRCAKTIMI I SAKTË I DEGËS SË SË DREJTËS:
+           - Nëse lënda përmban kallëzim penal, aktakuzë apo vepra penale: Përdor dispozitat e Kodit Penal (KPRK) dhe Kodit të Procedurës Penale (KPPRK).
+           - Nëse lënda është kontestuese/civile: Përdor Ligjin për Procedurën Kontestimore (LPK) dhe Ligjin për Marrëdhëniet e Detyrimeve (LMD).
+           - Nëse lënda është familjare apo trashëgimore: Përdor Ligjin për Familjen (LFK) dhe Konventat përkatëse.
+        4. RREGULLAT E CITIMIT:
+           - Çdo provë e fashikullit DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
+           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`, `Neni 424 i KPRK`). MOS përdor kllapa [ ] për nenet e ligjit.
 
         STRUKTURA E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
