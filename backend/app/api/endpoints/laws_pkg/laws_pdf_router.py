@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V69.0 (RECURSIVE DIRECTORY SCAN & FUZZY LAW RESOLVER)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V70.0 (CLEAN ALPHANUMERIC MATCHER & ZERO 404s)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -19,16 +19,16 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_FILE_DIR))
 WORKSPACE_ROOT = os.path.dirname(BACKEND_DIR)
 
 
-def _normalize_title_str(name: str) -> str:
-    nfc_name = unicodedata.normalize('NFC', name)
-    clean = re.sub(r'\.pdf$', '', nfc_name, flags=re.IGNORECASE).strip().lower()
-    clean = clean.replace('sh', 'z')
-    clean = re.sub(r'[\-_.:,;()\[\]"\'\/\\]', ' ', clean)
-    clean = re.sub(r'\s+', ' ', clean).strip()
-    return clean
+def _to_alpha_key(name: str) -> str:
+    """Strips all punctuation, underscores, hyphens, and whitespace for bulletproof matching."""
+    if not name:
+        return ""
+    nfc = unicodedata.normalize('NFC', name)
+    clean = re.sub(r'\.pdf$', '', nfc, flags=re.IGNORECASE).lower()
+    return re.sub(r'[^a-z0-9]', '', clean)
 
 
-def _find_file_recursively(search_roots: list[str], target_filename: str, normalized_target: str) -> str | None:
+def _find_file_recursively(search_roots: list[str], target_filename: str, alpha_target: str) -> str | None:
     """Recursively scans all directories and subdirectories on local disk."""
     clean_target_pdf = target_filename.lower() if target_filename.lower().endswith('.pdf') else f"{target_filename.lower()}.pdf"
 
@@ -37,22 +37,19 @@ def _find_file_recursively(search_roots: list[str], target_filename: str, normal
             continue
 
         for root, _, files in os.walk(root_dir):
-            # Pass 1: Exact / Normalized Match
+            # Pass 1: Exact filename match (case-insensitive)
             for f in files:
                 if not f.lower().endswith('.pdf'):
                     continue
-                f_nfc = unicodedata.normalize('NFC', f)
-                norm_f = _normalize_title_str(f_nfc)
-                if f.lower() == clean_target_pdf or f_nfc.lower() == clean_target_pdf or (normalized_target and norm_f == normalized_target):
+                if f.lower() == clean_target_pdf:
                     return os.path.join(root, f)
 
-            # Pass 2: Substring & Underscore-Agnostic Match
+            # Pass 2: Alphanumeric Key Match (ignores double underscores, spaces, hyphens)
             for f in files:
                 if not f.lower().endswith('.pdf'):
                     continue
-                f_nfc = unicodedata.normalize('NFC', f)
-                norm_f = _normalize_title_str(f_nfc)
-                if normalized_target and (normalized_target in norm_f or norm_f in normalized_target):
+                f_alpha = _to_alpha_key(f)
+                if alpha_target and f_alpha and (f_alpha == alpha_target or alpha_target in f_alpha or f_alpha in alpha_target):
                     return os.path.join(root, f)
 
     return None
@@ -72,38 +69,26 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         from app.core.db import get_db_instance
         db = get_db_instance()
 
-        source_candidate = None
-        if " - " in clean_search_name:
-            parts = clean_search_name.split(" - ")
-            source_candidate = parts[-1].strip()
+        alpha_query = _to_alpha_key(clean_search_name)
 
-        query_conditions = [
-            {"law_title": clean_search_name},
-            {"law_title": raw_basename},
-            {"source": raw_basename},
-            {"law_title": {"$regex": re.escape(clean_search_name), "$options": "i"}},
-            {"source": {"$regex": re.escape(clean_search_name), "$options": "i"}}
-        ]
-        if source_candidate:
-            query_conditions.append({"source": {"$regex": re.escape(source_candidate), "$options": "i"}})
-            query_conditions.append({"law_title": {"$regex": re.escape(source_candidate), "$options": "i"}})
-
-        doc = db.legal_knowledge_base.find_one({"$or": query_conditions})
+        doc = db.legal_knowledge_base.find_one({
+            "$or": [
+                {"source": raw_basename},
+                {"source": {"$regex": re.escape(clean_search_name), "$options": "i"}},
+                {"law_title": {"$regex": re.escape(clean_search_name), "$options": "i"}}
+            ]
+        })
         if doc and doc.get("source"):
-            exact_source = unicodedata.normalize('NFC', doc.get("source"))
-            logger.info(f"Resolved law query '{raw_basename}' -> exact source '{exact_source}'")
-            raw_basename = exact_source
-        elif source_candidate:
-            raw_basename = f"{source_candidate}.pdf" if not source_candidate.lower().endswith(".pdf") else source_candidate
-
+            raw_basename = doc.get("source")
+            logger.info(f"MongoDB resolved '{filename}' -> source '{raw_basename}'")
     except Exception as db_err:
         logger.warning(f"MongoDB source mapping skipped: {db_err}")
 
     # --- STEP 2: PREPARE SEARCH TARGETS ---
     clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
-    normalized_target = _normalize_title_str(raw_basename)
+    alpha_target = _to_alpha_key(raw_basename)
 
-    # --- STEP 3: RECURSIVE LOCAL DISK SCAN (ALL LAW & DATA DIRS) ---
+    # --- STEP 3: RECURSIVE LOCAL DISK SCAN ---
     search_roots = [
         os.path.join(WORKSPACE_ROOT, "data", "laws"),
         os.path.join(WORKSPACE_ROOT, "data", "academic"),
@@ -116,7 +101,7 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         "data/laws", "data/academic", "data/case_law", "data"
     ]
 
-    local_file_path = _find_file_recursively(search_roots, clean_name_pdf, normalized_target)
+    local_file_path = _find_file_recursively(search_roots, clean_name_pdf, alpha_target)
     if local_file_path and os.path.exists(local_file_path):
         f_nfc = unicodedata.normalize('NFC', os.path.basename(local_file_path))
         logger.info(f"⚡ [Instant Local Disk Stream] Found -> {local_file_path}")
@@ -145,18 +130,13 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                     if not b2_filename or not b2_filename.lower().endswith('.pdf'):
                         continue
 
-                    b2_nfc = unicodedata.normalize('NFC', b2_filename)
-                    norm_b2 = _normalize_title_str(b2_nfc)
-
-                    if (b2_nfc.lower() == clean_name_pdf.lower() or
-                        (normalized_target and norm_b2 == normalized_target) or
-                        (normalized_target and norm_b2 in normalized_target)):
-                        
+                    b2_alpha = _to_alpha_key(b2_filename)
+                    if alpha_target and b2_alpha and (b2_alpha == alpha_target or alpha_target in b2_alpha or b2_alpha in alpha_target):
                         stream, content_length = storage_service.get_file_stream_with_meta(key)
                         if stream:
                             logger.info(f"☁️ Cloud B2 stream -> {key}")
                             headers = {
-                                "Content-Disposition": f'inline; filename="{b2_nfc}"',
+                                "Content-Disposition": f'inline; filename="{b2_filename}"',
                                 "Cache-Control": "public, max-age=86400",
                                 "Accept-Ranges": "bytes"
                             }
