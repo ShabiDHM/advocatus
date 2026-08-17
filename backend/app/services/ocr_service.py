@@ -1,11 +1,12 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V7.0 (ADVANCED SCANNED LEGAL DOCUMENT PARSER)
+# PHOENIX PROTOCOL - OCR ENGINE V8.0 (429 RATE-LIMIT AUTO-RETRY & MULTI-PAGE RESILIENCE)
 
 import os
 import json
 import logging
 import re
 import io
+import time
 import requests
 from typing import Dict, List, Tuple, Optional, Any
 
@@ -46,10 +47,12 @@ def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
         logger.warning(f"Local PDF parser skipped: {e}")
     return None
 
-# --- ADVANCED OCR.SPACE ENGINE ---
+# --- ADVANCED OCR.SPACE ENGINE WITH 429 AUTO-RETRY ---
 
 def run_ocr_space_ocr(image_bytes: bytes) -> Tuple[str, float]:
-    """Sends image or PDF bytes to OCR.space API using Engine 2 for scanned contracts."""
+    """
+    Sends image or PDF bytes to OCR.space API with automatic 429 rate limit backoff.
+    """
     if not OCR_SPACE_API_KEY:
         logger.error("❌ OCR_SPACE_API_KEY is missing from environment variables.")
         return "", 0.0
@@ -57,40 +60,72 @@ def run_ocr_space_ocr(image_bytes: bytes) -> Tuple[str, float]:
     url = "https://api.ocr.space/parse/image"
     is_pdf = image_bytes.startswith(b'%PDF-')
     
-    if is_pdf:
-        files = {"file": ("page.pdf", image_bytes, "application/pdf")}
-    else:
-        files = {"file": ("page.png", image_bytes, "image/png")}
-        
+    filename = "page.pdf" if is_pdf else "page.png"
+    mime = "application/pdf" if is_pdf else "image/png"
+    
     payload = {
         "apikey": OCR_SPACE_API_KEY,
         "language": "eng", 
         "isOverlayRequired": False,
-        "OCREngine": "2",  # Engine 2 is engineered specifically for scanned documents and fine print
+        "OCREngine": "2",
         "scale": True,
         "detectOrientation": True
     }
     
-    try:
-        response = requests.post(url, files=files, data=payload, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-        
-        parsed_results = result.get("ParsedResults", [])
-        if not parsed_results:
-            err_msg = result.get("ErrorMessage", "Unknown OCR.space Error")
-            logger.error(f"❌ OCR.space API Error: {err_msg}")
-            return "", 0.0
+    max_attempts = 4
+    for attempt in range(max_attempts):
+        try:
+            files = {"file": (filename, image_bytes, mime)}
+            response = requests.post(url, files=files, data=payload, timeout=35)
             
-        full_text = parsed_results[0].get("ParsedText", "")
-        return full_text, 0.95
-        
-    except Exception as e:
-        logger.error(f"❌ OCR.space Request Failed: {e}")
-        return "", 0.0
+            # Handle OCR.space 429 Too Many Requests or Rate Limit Error codes
+            if response.status_code == 429 or "429" in response.text:
+                wait_seconds = 1.5 * (attempt + 1)
+                logger.warning(f"⚠️ [OCR.space 429] Rate limit hit. Backing off {wait_seconds:.1f}s before retry ({attempt + 1}/{max_attempts})...")
+                time.sleep(wait_seconds)
+                continue
+
+            response.raise_for_status()
+            result = response.json()
+            
+            # Check if OCR.space returned an internal error message
+            if result.get("IsErroredOnProcessing"):
+                err_msg = result.get("ErrorMessage", ["Processing error"])
+                err_str = " ".join(err_msg) if isinstance(err_msg, list) else str(err_msg)
+                if "429" in err_str or "limit" in err_str.lower():
+                    wait_seconds = 2.0 * (attempt + 1)
+                    logger.warning(f"⚠️ [OCR.space Error 429] {err_str}. Backing off {wait_seconds:.1f}s...")
+                    time.sleep(wait_seconds)
+                    continue
+                logger.error(f"❌ OCR.space Internal Error: {err_str}")
+                return "", 0.0
+            
+            parsed_results = result.get("ParsedResults", [])
+            if not parsed_results:
+                return "", 0.0
+                
+            full_text = parsed_results[0].get("ParsedText", "")
+            return full_text, 0.95
+            
+        except requests.exceptions.RequestException as e:
+            if "429" in str(e) and attempt < max_attempts - 1:
+                wait_seconds = 1.8 * (attempt + 1)
+                logger.warning(f"⚠️ [OCR.space 429 Exception] Pausing {wait_seconds:.1f}s...")
+                time.sleep(wait_seconds)
+                continue
+            if attempt == max_attempts - 1:
+                logger.error(f"❌ OCR.space Request Failed after {max_attempts} attempts: {e}")
+                return "", 0.0
+            time.sleep(1.0)
+        except Exception as e:
+            logger.error(f"❌ OCR.space Unexpected Failure: {e}")
+            return "", 0.0
+
+    return "", 0.0
 
 def rule_based_correction(text: str) -> str:
-    if not text: return text
+    if not text: 
+        return text
     text = re.sub(r'SPARKOSOVA', 'SPAR KOSOVA', text, flags=re.IGNORECASE)
     text = re.sub(r'\bKate\b', 'Kafe', text, flags=re.IGNORECASE)
     text = re.sub(r'\bSandun\b', 'Sanduiç', text, flags=re.IGNORECASE)
@@ -122,8 +157,12 @@ def extract_text_from_image(file_path: str) -> str:
         logger.error(f"❌ OCR disk extraction failed: {e}")
         return ""
 
-def preprocess_image_for_ocr(pil_image): return pil_image
-def clean_ocr_garbage(text): return text.strip()
+def preprocess_image_for_ocr(pil_image): 
+    return pil_image
+
+def clean_ocr_garbage(text): 
+    return text.strip()
+
 def extract_expense_data_from_image(image_bytes: bytes) -> Dict[str, Any]:
     text = extract_text_from_image_bytes(image_bytes)
     return {'success': True, 'text': text, 'structured_data': {}}
