@@ -1,10 +1,62 @@
+# ==========================================
+# PHOENIX PROTOCOL - PRODUCTION GITIGNORE
+# ==========================================
+
+# Virtual Environments
 .venv/
 venv/
+env/
+ENV/
+
+# Dependencies
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python Cache & Bytecode
 __pycache__/
-.file_cache/
-.vercel/
-.env
-.env.local
+*.py[cod]
+*$py.class
 *.pyc
+
+# Local File & PDF Caches
+.file_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Local Law & Document Data (Stored in Backblaze B2, not Git)
+data/laws/
+data/case_law/
+data/academic/
+data/*.pdf
+backend/data/laws/
+backend/data/case_law/
+backend/data/academic/
+backend/data/*.pdf
+*.pdf
+
+# Build Outputs
+dist/
+build/
+.vercel/
+*.tsbuildinfo
+
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+.env.local
+
+# Operating System & IDE Files
+.DS_Store
+Thumbs.db
 *.ps1
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Celery & Worker Artifacts
+celerybeat-schedule
+celerybeat.pid
