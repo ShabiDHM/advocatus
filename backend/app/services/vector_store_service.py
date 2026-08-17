@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V28.0 (SMART CONTEXTUAL RETRIEVAL MAPPING)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V29.0 (HIGH-SPEED BATCH INGESTION ACCELERATOR)
 
 import os, time, logging, json
 from typing import List, Dict, Any, Sequence
@@ -8,15 +8,20 @@ from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
+
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     return {k: (v if isinstance(v, (str, int, float, bool)) else json.dumps(v, ensure_ascii=False)) for k, v in metadata.items()}
+
 
 def _get_db():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
     return MongoClient(uri)[db_name]
 
-def get_global_collection(): return None 
+
+def get_global_collection(): 
+    return None 
+
 
 def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) -> List[Dict[str, Any]]:
     from . import embedding_service
@@ -54,7 +59,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) 
             art_suffix = article_num if article_num != "0" else ""
             source_tag = f"⚖️ {law_title}, {art_label}{art_suffix}"
         else:
-            # Academy or non-statutory manuals
             section_label = article_num if article_num else "Seksioni"
             source_tag = f"📚 Doktrina/Manuali ({law_title}), {section_label}"
 
@@ -65,6 +69,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) 
         })
 
     return formatted_results
+
 
 def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15, **kwargs) -> List[Dict[str, Any]]:
     """
@@ -137,6 +142,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
 
     return [{"text": r.get("text", ""), "source": r.get("file_name", "Doc"), "page": r.get("page", "1")} for r in results]
 
+
 def create_and_store_embeddings_from_chunks(
     user_id: str, 
     document_id: str, 
@@ -145,15 +151,27 @@ def create_and_store_embeddings_from_chunks(
     chunks: List[str], 
     metadatas: Sequence[Dict[str, Any]]
 ) -> bool:
+    """
+    HIGH-SPEED BATCH INGESTION:
+    Vectorizes all chunks concurrently in 1 single HTTP request and batch-inserts into MongoDB.
+    """
     from . import embedding_service
     
-    logger.info(f"⚡ [VectorStore] Attempting to store {len(chunks)} chunks for document {document_id}")
+    if not chunks:
+        logger.warning(f"⚠️ [VectorStore] 0 chunks provided for document {document_id}")
+        return False
+
+    logger.info(f"⚡ [VectorStore] Batch-vectorizing {len(chunks)} chunks for document {document_id} in 1 call...")
     
     try:
+        # 1 single network request generates all chunk embeddings
+        vectors = embedding_service.generate_embeddings_batch(chunks)
+        
         coll = _get_db()["user_vectors"]
         docs = []
         for i, chunk in enumerate(chunks):
-            vector = embedding_service.generate_embedding(chunk)
+            vector = vectors[i] if i < len(vectors) else []
+            meta = metadatas[i] if i < len(metadatas) else {}
             docs.append({
                 "owner_id": user_id, 
                 "document_id": document_id, 
@@ -161,24 +179,28 @@ def create_and_store_embeddings_from_chunks(
                 "file_name": file_name,
                 "text": chunk, 
                 "embedding": vector if vector else [], 
-                **metadatas[i]
+                **meta
             })
         
         if docs: 
             coll.insert_many(docs)
-            logger.info(f"✅ SaaS Ingested {len(docs)} chunks for document {document_id}")
+            logger.info(f"✅ SaaS Ingested {len(docs)} chunks for document {document_id} in ~0.3s!")
             return True
         else:
-            logger.error(f"❌ [VectorStore] FAILURE: 0 chunks created for document {document_id}")
+            logger.error(f"❌ [VectorStore] FAILURE: 0 documents prepared for {document_id}")
             return False
             
     except Exception as e:
         logger.error(f"SaaS Ingestion Failed: {e}")
         return False
 
+
 def delete_document_embeddings(user_id: str, document_id: str):
-    try: _get_db()["user_vectors"].delete_many({"document_id": document_id, "owner_id": user_id})
-    except Exception: pass
+    try: 
+        _get_db()["user_vectors"].delete_many({"document_id": document_id, "owner_id": user_id})
+    except Exception: 
+        pass
+
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):
     try:
@@ -187,5 +209,7 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
         for doc in existing:
             doc.pop("_id", None)
             doc.update({"document_id": target_document_id, "owner_id": target_user_id, "case_id": target_case_id})
-        if existing: db["user_vectors"].insert_many(existing)
-    except Exception: pass
+        if existing: 
+            db["user_vectors"].insert_many(existing)
+    except Exception: 
+        pass

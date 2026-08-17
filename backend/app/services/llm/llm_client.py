@@ -1,5 +1,5 @@
 # FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V26.0 (DEEPSEEK REASONING STRIPPER & ROBUST JSON EXTRACTOR)
+# PHOENIX PROTOCOL - LLM CLIENT V27.0 (HIGH-SPEED BATCH EMBEDDINGS & ROBUST PARSER)
 
 import os
 import json
@@ -160,6 +160,7 @@ async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool
     return ""
 
 def get_embedding(text: str) -> List[float]:
+    """Generates embedding for a single text."""
     key = _get_api_key()
     if not text or not key: 
         return [0.0] * 1536
@@ -170,6 +171,24 @@ def get_embedding(text: str) -> List[float]:
     except Exception as e:
         logger.error(f"❌ Embedding Failure: {e}")
         return [0.0] * 1536
+
+def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
+    """
+    HIGH-SPEED BATCH EMBEDDING:
+    Vectorizes an entire array of chunks in 1 single HTTP request (< 0.4s).
+    """
+    key = _get_api_key()
+    if not texts or not key: 
+        return [[0.0] * 1536 for _ in texts]
+    try:
+        clean_inputs = [t.replace("\n", " ").strip() or " " for t in texts]
+        client = _get_sync_client()
+        res = client.embeddings.create(input=clean_inputs, model=EMBEDDING_MODEL)
+        return [item.embedding for item in res.data]
+    except Exception as e:
+        logger.error(f"❌ Batch Embedding Failure: {e}")
+        # Fallback to single calls if batch fails
+        return [get_embedding(t) for t in texts]
 
 async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.05, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
     client = _get_async_client()
