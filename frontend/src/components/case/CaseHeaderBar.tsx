@@ -1,4 +1,6 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
+// PHOENIX PROTOCOL - CASE HEADER BAR V11.0 (EXECUTIVE NATURAL TITLE TYPOGRAPHY)
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Case, Document } from '../../data/types';
@@ -70,7 +72,9 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
   );
 
   const buttonBase =
-    'h-10 sm:h-11 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none';
+    'h-10 sm:h-11 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none cursor-pointer';
+
+  const rawTitle = caseDetails.title || (caseDetails as any).name || 'Rast pa Titull';
 
   return (
     <motion.div
@@ -85,9 +89,10 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
             <Briefcase size={20} className="sm:w-5 sm:h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-sm sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
-                {caseDetails.title || (caseDetails as any).name || 'Rast pa Titull'}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Executive natural casing title without uppercase forcing */}
+              <h1 className="text-base sm:text-xl font-bold text-text-primary tracking-tight truncate leading-snug">
+                {rawTitle}
               </h1>
 
               <button
@@ -156,7 +161,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
                   type="button"
                   onClick={onViewExistingAnalysis}
                   disabled={isAnalyzing}
-                  className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0"
+                  className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0 cursor-pointer"
                   title="Shiko Analizën ekzistuese"
                 >
                   <span className="truncate text-primary-start font-bold">ANALIZA</span>
@@ -168,7 +173,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
                   type="button"
                   onClick={() => onRunAnalysis(false)}
                   disabled={isAnalyzing}
-                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0"
+                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0 cursor-pointer"
                   title="Rianalizo sërish me AI"
                 >
                   <RefreshCw size={13} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
@@ -180,10 +185,10 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
                   type="button"
                   onClick={onClearAnalysis}
                   disabled={isAnalyzing}
-                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0"
+                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0 cursor-pointer"
                   title="Fshi analizën e ruajtur"
                 >
-                  <Trash2 size={13} className="text-text-muted hover:text-danger-start shrink-0" />
+                  <Trash2 size={13} className="text-text-muted hover:text-rose-600 shrink-0" />
                 </button>
               </div>
             ) : (
@@ -202,3 +207,5 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
     </motion.div>
   );
 };
+
+export default CaseHeaderBar;
