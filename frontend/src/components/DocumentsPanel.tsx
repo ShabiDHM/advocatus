@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V13.0 (PRE-UPLOAD DUPLICATE GUARD & MULTI-FILE PIPELINE)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V14.0 (SOLID OPAQUE THEME-AWARE DROPDOWN MENU)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -99,7 +99,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     setUploadNotice(null);
 
-    // 🛡️ 1. CLIENT-SIDE DUPLICATE PRE-CHECK
     const existingFileNames = new Set(
       documents.map((d) => (d.file_name || (d as any).title || '').toLowerCase().trim())
     );
@@ -301,25 +300,31 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
+                    {/* 100% SOLID OPAQUE DROPDOWN MENU */}
                     <AnimatePresence>
                         {showAddMenu && !isSystemBusy && (
                             <motion.div 
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                initial={{ opacity: 0, y: 8, scale: 0.96 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-12 w-56 glass-panel border border-main bg-surface rounded-xl shadow-2xl z-50 overflow-hidden"
+                                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 top-12 w-60 rounded-2xl shadow-2xl border border-main z-50 overflow-hidden text-text-primary bg-card"
+                                style={{
+                                  backgroundColor: 'var(--bg-card, #ffffff)',
+                                  boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border-main)'
+                                }}
                             >
                                 <button 
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
-                                    className="w-full text-left px-4 h-11 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary transition-colors focus:outline-none"
+                                    className="w-full text-left px-4.5 py-3 hover:bg-hover flex items-center gap-3 text-xs sm:text-sm font-semibold text-text-primary transition-colors focus:outline-none cursor-pointer"
                                 >
-                                    <FilePlus size={16} className="text-primary-start" /> Ngarko Dokumente
+                                    <FilePlus size={16} className="text-primary-start shrink-0" /> Ngarko Dokumente
                                 </button>
                                 <button 
                                     onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} 
-                                    className="w-full text-left px-4 h-11 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary border-t border-main transition-colors focus:outline-none"
+                                    className="w-full text-left px-4.5 py-3 hover:bg-hover flex items-center gap-3 text-xs sm:text-sm font-semibold text-text-primary border-t border-main transition-colors focus:outline-none cursor-pointer"
                                 >
-                                    <HardDrive size={16} className="text-status-success" /> Importo nga Arkiva
+                                    <HardDrive size={16} className="text-status-success shrink-0" /> Importo nga Arkiva
                                 </button>
                             </motion.div>
                         )}
