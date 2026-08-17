@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – EXECUTIVE GLASS HEADER v12.2 (MOBILE‑FRIENDLY DRAWER)
+// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V14.0 (ZERO BLEED-THROUGH IN LIGHT & DARK THEMES)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -41,7 +41,6 @@ const Header: React.FC = () => {
     });
   }
 
-  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -53,7 +52,6 @@ const Header: React.FC = () => {
     };
   }, [isMobileMenuOpen]);
 
-  // Close mobile menu on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsMobileMenuOpen(false);
@@ -62,7 +60,6 @@ const Header: React.FC = () => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  // Click outside to close mobile menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -118,13 +115,19 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 bg-canvas/90 backdrop-blur-xl border-b border-border-main">
-        
+      {/* 100% OPAQUE SOLID HEADER (NO TRANSPARENCY - ZERO BLEED-THROUGH) */}
+      <header 
+        className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 border-b border-main shadow-sm transition-colors duration-200"
+        style={{
+          backgroundColor: theme === 'dark' ? '#020617' : '#F4F6F9',
+          opacity: 1
+        }}
+      >
         {/* Left: Brand */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button 
             onClick={() => setIsMobileMenuOpen(true)} 
-            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-surface/20 rounded-lg transition-colors"
+            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-hover rounded-xl transition-colors focus:outline-none"
             aria-label={t('header.menu', 'Menu')}
           >
             <Menu size={22} />
@@ -134,8 +137,11 @@ const Header: React.FC = () => {
           </Link>
         </div>
 
-        {/* Center: Segmented Glass Bar (Desktop Only) */}
-        <div className="hidden lg:flex items-center glass-panel bg-canvas/40 p-1.5 rounded-2xl border border-border-main gap-1">
+        {/* Center: Segmented Navigation Bar (Desktop Only) */}
+        <div 
+          className="hidden lg:flex items-center p-1.5 rounded-2xl border border-main gap-1 shadow-xs"
+          style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+        >
           {navItems.map((item) => {
             const active = isActive(item.path);
             return (
@@ -145,8 +151,8 @@ const Header: React.FC = () => {
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
                   ${active 
-                    ? 'bg-primary-start text-white shadow-accent-glow' 
-                    : 'text-text-muted hover:text-text-primary hover:bg-surface/50 border border-transparent'
+                    ? 'bg-primary-start text-white shadow-md shadow-primary-start/20' 
+                    : 'text-text-muted hover:text-text-primary hover:bg-hover border border-transparent'
                   }
                 `}
               >
@@ -161,25 +167,29 @@ const Header: React.FC = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={toggleTheme} 
-            className="p-2 rounded-lg text-text-muted hover:text-text-primary transition-colors hover:bg-surface/20"
-            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+            className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none"
+            aria-label={theme === 'dark' ? t('theme.light', 'Dritë') : t('theme.dark', 'Errët')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          <Link to="/calendar" className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg relative">
+          <Link 
+            to="/calendar" 
+            className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl relative transition-colors focus:outline-none"
+          >
             <Bell size={18} />
             {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
             )}
           </Link>
 
-          {/* User profile (desktop and tablet) */}
+          {/* User profile */}
           <div className="relative hidden sm:block">
             <button
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 rounded-full bg-surface/30 border border-border-main hover:bg-surface/50 transition-colors"
+              className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none"
+              style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
             >
               <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
                 {user?.username?.charAt(0).toUpperCase() || 'U'}
@@ -187,22 +197,32 @@ const Header: React.FC = () => {
             </button>
 
             {isProfileOpen && (
-              <div ref={dropdownRef} className="absolute right-0 mt-2 w-56 glass-panel border border-border-main rounded-xl shadow-xl py-2 z-[70]">
-                <div className="px-4 py-2 border-b border-border-main mb-1">
-                  <p className="text-sm font-bold text-primary">{user?.username}</p>
-                  <p className="text-xs text-text-muted">{user?.email}</p>
+              <div 
+                ref={dropdownRef} 
+                className="absolute right-0 mt-2 w-56 border border-main rounded-2xl shadow-2xl py-2 z-[70] text-text-primary"
+                style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+              >
+                <div className="px-4 py-2.5 border-b border-main mb-1">
+                  <p className="text-sm font-bold text-text-primary truncate">{user?.username}</p>
+                  <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
 
-                <button onClick={() => navigate('/account')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
-                  <UserIcon size={16} className="mr-3 text-primary" />{t('sidebar.account')}
+                <button 
+                  onClick={() => { setIsProfileOpen(false); navigate('/account'); }} 
+                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors"
+                >
+                  <UserIcon size={16} className="mr-3 text-primary-start" />{t('sidebar.account', 'Llogaria')}
                 </button>
-                <button onClick={() => navigate('/support')} className="w-full text-left flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-primary hover:bg-hover">
-                  <MessageSquare size={16} className="mr-3 text-primary" />{t('sidebar.support')}
+                <button 
+                  onClick={() => { setIsProfileOpen(false); navigate('/support'); }} 
+                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors"
+                >
+                  <MessageSquare size={16} className="mr-3 text-primary-start" />{t('sidebar.support', 'Ndihma')}
                 </button>
                 <div className="h-px bg-border-main my-1"></div>
                 <button 
                   onClick={() => { setIsProfileOpen(false); logout(); }} 
-                  className="w-full flex items-center px-4 py-2.5 text-sm text-danger-start hover:bg-danger-start/10 transition-colors"
+                  className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 >
                   <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
                 </button>
@@ -212,13 +232,12 @@ const Header: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile Navigation Drawer (Left Side) */}
+      {/* Mobile Navigation Drawer */}
       <div
         className={`fixed inset-0 z-[70] transition-all duration-300 ease-in-out ${
           isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
       >
-        {/* Backdrop */}
         <div
           className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
             isMobileMenuOpen ? 'opacity-100' : 'opacity-0'
@@ -226,26 +245,24 @@ const Header: React.FC = () => {
           onClick={() => setIsMobileMenuOpen(false)}
         />
         
-        {/* Drawer */}
         <div
           ref={mobileMenuRef}
-          className={`absolute top-0 left-0 bottom-0 w-72 max-w-[85vw] glass-panel rounded-r-2xl border-y border-r border-border-main shadow-xl transition-transform duration-300 ease-in-out ${
+          className={`absolute top-0 left-0 bottom-0 w-72 max-w-[85vw] rounded-r-3xl border-y border-r border-main shadow-2xl transition-transform duration-300 ease-in-out ${
             isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           } flex flex-col`}
+          style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
         >
-          {/* Drawer Header */}
-          <div className="flex justify-between items-center p-4 border-b border-border-main">
+          <div className="flex justify-between items-center p-4 border-b border-main">
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="p-2 text-text-muted hover:text-text-primary hover:bg-surface/20 rounded-lg transition-colors"
-              aria-label={t('general.close', 'Close')}
+              className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors focus:outline-none"
+              aria-label={t('general.close', 'Mbyll')}
             >
               <X size={22} />
             </button>
           </div>
 
-          {/* Navigation Items */}
           <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
             {navItems.map((item) => {
               const active = isActive(item.path);
@@ -255,10 +272,10 @@ const Header: React.FC = () => {
                   to={item.path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`
-                    flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all duration-200
+                    flex items-center gap-4 px-4 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all duration-200
                     ${active 
-                      ? 'bg-primary-start text-white shadow-accent-glow' 
-                      : 'text-text-muted hover:text-text-primary hover:bg-surface/50'
+                      ? 'bg-primary-start text-white shadow-md shadow-primary-start/20' 
+                      : 'text-text-muted hover:text-text-primary hover:bg-hover'
                     }
                   `}
                 >
@@ -269,20 +286,19 @@ const Header: React.FC = () => {
             })}
           </div>
 
-          {/* Optional user info at bottom (if not logged in, you could show login) */}
-          <div className="p-4 border-t border-border-main">
+          <div className="p-4 border-t border-main">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-10 w-10 rounded-full bg-primary-start text-white flex items-center justify-center text-sm font-black">
                 {user?.username?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-text-primary truncate">{user?.username || t('header.guest')}</p>
-                <p className="text-xs text-text-muted truncate">{user?.email || t('header.notLoggedIn')}</p>
+                <p className="text-sm font-bold text-text-primary truncate">{user?.username || t('header.guest', 'Mysafir')}</p>
+                <p className="text-xs text-text-muted truncate">{user?.email || ''}</p>
               </div>
             </div>
             <button
               onClick={() => { setIsMobileMenuOpen(false); logout(); }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-danger-start/10 text-danger-start hover:bg-danger-start/20 transition-colors text-xs font-black uppercase tracking-widest"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
             >
               <LogOut size={16} />
               {t('general.logout', 'Dilni')}

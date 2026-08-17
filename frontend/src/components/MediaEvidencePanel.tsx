@@ -1,5 +1,5 @@
 // FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA EVIDENCE PANEL V7.0 (0 WARNINGS • CLEAN IMPORTS & MINIMAL UI)
+// PHOENIX PROTOCOL - MEDIA PANEL V8.0 (HIGH-CLASS MINIMALIST TRANSCRIPTION SYSTEM)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -62,7 +62,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             const res = await apiService.axiosInstance.get(`/cases/${caseId}/media`);
             setMediaItems(res.data || []);
         } catch (err) {
-            console.error("Failed to load media evidence:", err);
+            console.error("Failed to load media items:", err);
         } finally {
             setIsLoading(false);
         }
@@ -152,15 +152,15 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     return (
         <div className="space-y-4 font-sans">
-            {/* HEADER */}
+            {/* HEADER - HIGH CLASS MINIMALIST */}
             <div className="flex items-center justify-between gap-3 border-b border-main pb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-lg flex items-center justify-center border border-primary-start/20 shrink-0">
+                    <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
                         <Film size={16} />
                     </div>
                     <div className="min-w-0">
-                        <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio & Video</h2>
-                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim me AI</p>
+                        <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Audio & Video</h2>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkript</p>
                     </div>
                 </div>
 
@@ -184,7 +184,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             <Upload size={13} className="text-white shrink-0" />
                         )}
                         <span className="text-white font-bold whitespace-nowrap">
-                            {isUploading ? `${uploadProgress}%` : 'Ngarko Audio / Video'}
+                            {isUploading ? `${uploadProgress}%` : 'Ngarko Skedar'}
                         </span>
                     </button>
                 </div>
@@ -194,9 +194,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6 text-primary-start" /></div>
             ) : mediaItems.length === 0 ? (
                 <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
-                    <Film size={32} className="mx-auto mb-2 text-text-muted animate-pulse" />
+                    <Film size={32} className="mx-auto mb-2 text-text-muted opacity-70" />
                     <p className="text-text-primary text-xs font-bold">Nuk ka ende skedarë audio apo video në këtë lëndë.</p>
-                    <p className="text-[11px] text-text-muted mt-0.5">Mbështet MP3, WAV, M4A, MP4, MOV, AVI.</p>
+                    <p className="text-[11px] text-text-muted mt-0.5 font-medium font-mono">Mbështet MP3, WAV, M4A, MP4, MOV, AVI.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
@@ -205,7 +205,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                         const isVideo = item.media_type === 'video' || /\.(mp4|mov|avi|mkv|webm)$/i.test(item.file_name);
 
                         return (
-                            <div key={item.id} className="p-4 rounded-xl border border-main bg-surface flex flex-col justify-between gap-3 shadow-sm">
+                            <div key={item.id} className="p-4 rounded-xl border border-main bg-card flex flex-col justify-between gap-3 shadow-sm">
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2.5 min-w-0">
                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
@@ -223,7 +223,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                     item.status === 'PROCESSING' ? 'bg-warning-start/15 text-warning-start border border-warning-start/30 animate-pulse' :
                                                     'bg-danger-start/15 text-danger-start border border-danger-start/30'
                                                 }`}>
-                                                    {item.status === 'READY' ? (isVideo ? 'Video e Analizuar' : 'Transkriptuar') : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
+                                                    {item.status === 'READY' ? 'Transkriptuar' : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
                                                 </span>
                                                 <span className="text-[9px] text-text-muted font-mono">
                                                     {new Date(item.created_at).toLocaleDateString()}
@@ -233,14 +233,14 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <button 
                                         onClick={() => handleDelete(item.id)}
-                                        className="p-1.5 text-text-muted hover:text-danger-start hover:bg-hover rounded-lg transition-colors"
-                                        title="Fshi"
+                                        className="p-1.5 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                        title="Fshij"
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
 
-                                <div className="w-full bg-canvas p-2 rounded-lg border border-main">
+                                <div className="w-full bg-surface/50 p-2 rounded-lg border border-main">
                                     {isVideo ? (
                                         <video 
                                             controls 
@@ -263,7 +263,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                             setSelectedMedia(item);
                                             setModalTab(isVideo && item.visual_analysis?.video_forensic_log?.length ? 'visual' : 'transcript');
                                         }}
-                                        className="w-full py-2 bg-canvas hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
+                                        className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
                                     >
                                         <FileText size={14} /> Shiko Transkriptin
                                     </button>
@@ -282,7 +282,8 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             initial={{ opacity: 0, scale: 0.96, y: 12 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                            className="glass-panel w-full max-w-4xl h-[88vh] max-h-[850px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-canvas flex flex-col"
+                            className="glass-panel w-full max-w-4xl h-[88vh] max-h-[850px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-card flex flex-col"
+                            style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
                         >
                             {/* Modal Header */}
                             <div className="flex justify-between items-center mb-4 border-b border-main pb-4 shrink-0">
@@ -335,7 +336,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 {modalTab === 'visual' && selectedMedia.visual_analysis?.video_forensic_log ? (
                                     <div className="space-y-3">
                                         {selectedMedia.visual_analysis.visual_summary && (
-                                            <div className="p-3 bg-canvas rounded-xl border border-main text-xs">
+                                            <div className="p-3 bg-card rounded-xl border border-main text-xs shadow-xs">
                                                 <span className="text-[10px] font-black uppercase text-primary-start block mb-1">Përmbledhja Vizuale:</span>
                                                 <p className="text-text-secondary font-medium">{selectedMedia.visual_analysis.visual_summary}</p>
                                             </div>
@@ -343,7 +344,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
                                         <div className="space-y-2">
                                             {selectedMedia.visual_analysis.video_forensic_log.map((item, idx) => (
-                                                <div key={idx} className="p-3 bg-canvas rounded-xl border border-main text-xs space-y-1">
+                                                <div key={idx} className="p-3 bg-card rounded-xl border border-main text-xs space-y-1 shadow-xs">
                                                     <div className="flex items-center justify-between font-bold">
                                                         <span className="text-primary-start font-mono">[{item.timestamp_video}]</span>
                                                         <span className="text-[10px] uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded font-bold">
@@ -364,7 +365,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                     const timeStr = timeMatch[0];
                                                     const textStr = line.replace(timeStr, '').trim();
                                                     return (
-                                                        <div key={idx} className="p-2.5 bg-canvas/60 rounded-xl border border-main/50 flex items-start gap-3">
+                                                        <div key={idx} className="p-2.5 bg-card rounded-xl border border-main flex items-start gap-3 shadow-xs">
                                                             <span className="text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
                                                                 {timeStr}
                                                             </span>
@@ -412,7 +413,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         setCopied(true);
                                         setTimeout(() => setCopied(false), 2500);
                                     }}
-                                    className="h-9 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
+                                    className="h-9 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Copy size={13} /> {copied ? 'U Kopjua!' : 'Kopjo Transkriptin'}
                                 </button>

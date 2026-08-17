@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V14.0 (SOLID OPAQUE THEME-AWARE DROPDOWN MENU)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V15.0 (MINIMALIST EXECUTIVE DROPDOWN & MULTI-FILE PIPELINE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -9,7 +9,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    HardDrive, FilePlus, Lock, AlertTriangle
+    Lock, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -300,31 +300,31 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
-                    {/* 100% SOLID OPAQUE DROPDOWN MENU */}
+                    {/* CLEAN MINIMALIST EXECUTIVE DROPDOWN MENU (TEXT-ONLY) */}
                     <AnimatePresence>
                         {showAddMenu && !isSystemBusy && (
                             <motion.div 
-                                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                                initial={{ opacity: 0, y: 6, scale: 0.96 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute right-0 top-12 w-60 rounded-2xl shadow-2xl border border-main z-50 overflow-hidden text-text-primary bg-card"
+                                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                                transition={{ duration: 0.12 }}
+                                className="absolute right-0 top-12 w-52 rounded-2xl shadow-2xl border border-main z-50 overflow-hidden text-text-primary bg-card divide-y divide-main"
                                 style={{
                                   backgroundColor: 'var(--bg-card, #ffffff)',
-                                  boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border-main)'
+                                  boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-main)'
                                 }}
                             >
                                 <button 
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
-                                    className="w-full text-left px-4.5 py-3 hover:bg-hover flex items-center gap-3 text-xs sm:text-sm font-semibold text-text-primary transition-colors focus:outline-none cursor-pointer"
+                                    className="w-full text-left px-4 py-3 hover:bg-hover text-xs font-bold uppercase tracking-wider text-text-primary transition-colors focus:outline-none cursor-pointer"
                                 >
-                                    <FilePlus size={16} className="text-primary-start shrink-0" /> Ngarko Dokumente
+                                    Ngarko Dokumente
                                 </button>
                                 <button 
                                     onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} 
-                                    className="w-full text-left px-4.5 py-3 hover:bg-hover flex items-center gap-3 text-xs sm:text-sm font-semibold text-text-primary border-t border-main transition-colors focus:outline-none cursor-pointer"
+                                    className="w-full text-left px-4 py-3 hover:bg-hover text-xs font-bold uppercase tracking-wider text-text-primary transition-colors focus:outline-none cursor-pointer"
                                 >
-                                    <HardDrive size={16} className="text-status-success shrink-0" /> Importo nga Arkiva
+                                    Importo nga Arkiva
                                 </button>
                             </motion.div>
                         )}
