@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V23.0 (EMBEDDING FIX & WORD DOC SUPPORT)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V24.0 (WINDOWS FILE-LOCK IMMUNITY & RESILIENT CLEANUP)
 
 import os
 import tempfile
@@ -7,13 +7,14 @@ import logging
 import shutil
 import json
 import asyncio
+import gc
+import time
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
 import redis.asyncio as aioredis
 
-from app.services import storage_service, llm_service, text_extraction_service, conversion_service, deadline_service
-from app.services.albanian_language_detector import AlbanianLanguageDetector
+from app.services import storage_service, llm_service, text_extraction_service, conversion_service
 from app.services.albanian_document_processor import EnhancedDocumentProcessor
 from app.models.document import DocumentStatus
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks
@@ -21,8 +22,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class DocumentNotFoundInDBError(Exception):
     pass
+
 
 async def publish_sse_update_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
     redis_client = None
@@ -47,6 +50,25 @@ async def publish_sse_update_async(user_id: str, document_id_str: str, status: s
         if redis_client:
             await redis_client.close()
 
+
+def _safe_remove_temp_file(file_path: str):
+    """Safely removes temporary files on Windows without raising WinError 32."""
+    if not file_path or not os.path.exists(file_path):
+        return
+    gc.collect()
+    for _ in range(3):
+        try:
+            os.remove(file_path)
+            return
+        except Exception:
+            time.sleep(0.1)
+    try:
+        # Final attempt; ignore if still locked
+        os.remove(file_path)
+    except Exception as e:
+        logger.warning(f"Non-critical: could not delete temp file '{file_path}': {e}")
+
+
 async def orchestrate_document_processing_mongo(
     document_id_str: str,
     *args,
@@ -56,9 +78,9 @@ async def orchestrate_document_processing_mongo(
 ):
     """
     MASTER HYDRA ORCHESTRATOR:
-    Executes high-definition text extraction, RAG vector embeddings, and preview rendering for PDF & Word docs.
+    Executes high-definition text extraction, RAG vector embeddings, and preview rendering for PDF, Images & Word docs.
     """
-    logger.info(f"⚡ [Orchestrator V23.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V24.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -93,12 +115,12 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'): 
             file_stream.close()
 
-        # Step 1: Text Extraction (PDF & Word Docs)
+        # Step 1: High-Speed Text Extraction
         logger.info("⚡ [Orchestrator] Step 1/3: Running Text Extraction...")
         try:
             raw_text = await asyncio.wait_for(
                 asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", "")),
-                timeout=30.0
+                timeout=40.0
             )
         except asyncio.TimeoutError:
             logger.warning("⚠️ Extraction timed out. Using fallback header.")
@@ -107,18 +129,16 @@ async def orchestrate_document_processing_mongo(
         if not raw_text or not raw_text.strip():
             raw_text = f"Dokument i ngarkuar: {doc_name}."
 
-        sterilized_text = llm_service.sterilize_legal_text(raw_text)
-
         # Step 2: Parallel Analytical Sub-Tasks
         async def task_summary():
             try:
+                sterilized_text = llm_service.sterilize_legal_text(raw_text)
                 return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=15.0)
             except Exception:
                 return raw_text[:500]
 
         async def task_embeddings():
             try:
-                # Fixed: Removed invalid 'is_albanian' parameter
                 enriched_chunks = await asyncio.to_thread(
                     EnhancedDocumentProcessor.process_document, 
                     text_content=raw_text, document_metadata={'file_name': doc_name}
@@ -146,7 +166,7 @@ async def orchestrate_document_processing_mongo(
                 pdf_path = await asyncio.to_thread(conversion_service.convert_to_pdf, temp_original_file_path)
                 key = await asyncio.to_thread(storage_service.upload_document_preview, pdf_path, user_id, case_id_str, document_id_str)
                 if pdf_path and os.path.exists(pdf_path) and pdf_path != temp_original_file_path:
-                    os.remove(pdf_path)
+                    _safe_remove_temp_file(pdf_path)
                 return key
             except Exception as e:
                 logger.warning(f"Preview conversion error for {doc_name}: {e}")
@@ -155,7 +175,7 @@ async def orchestrate_document_processing_mongo(
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(task_summary(), task_embeddings(), task_storage(), task_preview(), return_exceptions=True),
-                timeout=35.0
+                timeout=45.0
             )
             final_summary = results[0] if isinstance(results[0], str) else raw_text[:500]
             text_key = results[2] if isinstance(results[2], str) else ""
@@ -182,11 +202,11 @@ async def orchestrate_document_processing_mongo(
             }
         )
 
-        logger.info(f"✅ [Orchestrator V23.0] SUCCESS: Document {document_id_str} is 100% Finalized!")
+        logger.info(f"✅ [Orchestrator V24.0] SUCCESS: Document {document_id_str} is 100% Finalized!")
         await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
 
     except Exception as e:
-        logger.error(f"❌ [Orchestrator V23.0] Error on doc {document_id_str}: {e}")
+        logger.error(f"❌ [Orchestrator V24.0] Handled error on doc {document_id_str}: {e}")
         await asyncio.to_thread(
             db.documents.update_one, 
             {"_id": doc_id}, 
@@ -194,5 +214,4 @@ async def orchestrate_document_processing_mongo(
         )
         await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
     finally:
-        if temp_original_file_path and os.path.exists(temp_original_file_path): 
-            os.remove(temp_original_file_path)
+        _safe_remove_temp_file(temp_original_file_path)
