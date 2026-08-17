@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V11.0 (HIGH-CONTRAST THEME-AWARE BULK DELETE SYSTEM)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V12.0 (MULTI-FILE SIMULTANEOUS UPLOAD PIPELINE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -68,11 +68,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const performUpload = async (file: File) => {
+  const performUpload = async (file: File): Promise<void> => {
     if (file.name.startsWith('.')) return;
     setCurrentFileName(file.name);
     setUploadProgress(0);
-    setIsUploading(true);
     try {
       const responseData = await apiService.uploadDocument(caseId, file, (percent) => setUploadProgress(percent));
       const rawData = responseData as any;
@@ -86,28 +85,43 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       console.error(`Failed to upload ${file.name}`, error);
-      setUploadError(`${t('documentsPanel.uploadFailed')}: ${file.name}`);
-    } finally {
-      setIsUploading(false);
+      setUploadError(`${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`);
     }
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) { 
-      setUploadError(null); 
-      await performUpload(file); 
-      if (fileInputRef.current) fileInputRef.current.value = ''; 
+    const rawFiles = event.target.files;
+    if (!rawFiles || rawFiles.length === 0) return;
+
+    const filesArray = Array.from(rawFiles).filter((f) => !f.name.startsWith('.'));
+    if (filesArray.length === 0) return;
+
+    setUploadError(null);
+    setIsUploading(true);
+
+    try {
+      // Process all files sequentially or in parallel batches
+      for (const file of filesArray) {
+        await performUpload(file);
+      }
+    } finally {
+      setIsUploading(false);
+      setCurrentFileName("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
     if (!documentId) return;
-    if (!window.confirm(t('documentsPanel.confirmDelete'))) return;
+    if (!window.confirm(t('documentsPanel.confirmDelete', 'A jeni i sigurt që doni të fshini këtë dokument?'))) return;
     try {
       const response = await apiService.deleteDocument(caseId, documentId);
       onDocumentDeleted(response);
-    } catch (error) { alert(t('documentsPanel.deleteFailed')); }
+    } catch (error) { 
+      alert(t('documentsPanel.deleteFailed', 'Fshirja e dokumentit dështoi.')); 
+    }
   };
 
   const handleArchiveDocument = async (docId: string) => {
@@ -115,7 +129,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       try {
           await apiService.archiveCaseDocument(caseId, docId);
           alert(t('documentsPanel.archiveSuccess', 'Dokumenti u arkivua me sukses!'));
-      } catch (error) { alert(t('documentsPanel.archiveFailed', 'Arkivimi dështoi.')); } finally { setScanningIdArchive(null); }
+      } catch (error) { 
+        alert(t('documentsPanel.archiveFailed', 'Arkivimi dështoi.')); 
+      } finally { 
+        setScanningIdArchive(null); 
+      }
   };
 
   const toggleSelectAll = () => {
@@ -178,7 +196,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const displayDocuments = [...documents];
-  if (isUploading) {
+  if (isUploading && currentFileName) {
       displayDocuments.unshift({
           id: 'ghost-upload',
           file_name: currentFileName,
@@ -231,7 +249,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     >
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
-                    <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title')}</h2>
+                    <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title', 'Dokumentet')}</h2>
                     <div className="flex items-center justify-center ml-1">
                         <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
                     </div>
@@ -247,7 +265,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 ? 'bg-surface text-text-disabled cursor-not-allowed border border-main' 
                                 : 'btn-primary p-0'
                         }`}
-                        title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
+                        title={isSystemBusy ? "Prisni që dokumentet aktuale të procesohen..." : "Shto Dokumente"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
@@ -264,7 +282,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
                                     className="w-full text-left px-4 h-11 hover:bg-hover flex items-center gap-3 text-sm text-text-secondary transition-colors focus:outline-none"
                                 >
-                                    <FilePlus size={16} className="text-primary-start" /> Ngarko Dokument
+                                    <FilePlus size={16} className="text-primary-start" /> Ngarko Dokumente
                                 </button>
                                 <button 
                                     onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} 
@@ -277,7 +295,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </AnimatePresence>
                 </div>
 
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isSystemBusy} />
+                {/* MULTI-FILE UPLOAD INPUT */}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  multiple 
+                  disabled={isSystemBusy} 
+                />
             </>
         )}
       </div>
@@ -293,7 +319,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         {displayDocuments.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
             <FolderOpen className="w-12 h-12 mb-3 text-text-disabled/20" />
-            <p className="text-sm font-medium">{t('documentsPanel.noDocuments')}</p>
+            <p className="text-sm font-medium">{t('documentsPanel.noDocuments', 'Nuk ka dokumente në këtë lëndë.')}</p>
           </div>
         )}
         
@@ -345,7 +371,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} 
                         className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
-                        title={t('documentsPanel.rename')}
+                        title={t('documentsPanel.rename', 'Riemërto')}
                     >
                         <Pencil size={13} />
                     </button>
@@ -356,7 +382,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} 
                         className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-primary-start transition-colors focus:outline-none" 
-                        title={t('documentsPanel.viewOriginal')}
+                        title={t('documentsPanel.viewOriginal', 'Shiko')}
                     >
                         <Eye size={13} />
                     </button>
@@ -376,7 +402,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
                         className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none" 
-                        title={t('documentsPanel.delete')}
+                        title={t('documentsPanel.delete', 'Fshij')}
                     >
                         <Trash size={13} />
                     </button>
