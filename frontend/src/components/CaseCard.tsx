@@ -1,5 +1,5 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL – COMPACT CARD REFIT (CRASH-PROOF TYPE-GUARDED VERSION)
+// PHOENIX PROTOCOL – COMPACT CARD REFIT V10.0 (CLEAN LOWERCASE EMAIL & METADATA GUARD)
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -30,11 +30,11 @@ const safeDate = (dateVal: any): string => {
 
 const safeString = (val: any): string => {
   if (!val) return '';
-  if (typeof val === 'string') return val;
+  if (typeof val === 'string') return val.trim();
   try {
-    return JSON.stringify(val);
+    return JSON.stringify(val).trim();
   } catch {
-    return String(val);
+    return String(val).trim();
   }
 };
 
@@ -63,29 +63,41 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const formattedDate = safeDate(caseData?.created_at);
 
   const rawTitle = safeString(caseData?.title);
-  const hasTitle = rawTitle.trim() !== '';
+  const hasTitle = rawTitle !== '';
   const displayTitle = hasTitle ? rawTitle : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
-  const clientName = safeString(caseData?.client?.name);
-  const clientEmail = safeString(caseData?.client?.email);
-  const clientPhone = safeString(caseData?.client?.phone);
+  // Intelligent Name & Email Normalization
+  let rawClientName = safeString(caseData?.client?.name || (caseData as any)?.client_name);
+  let rawClientEmail = safeString(caseData?.client?.email || (caseData as any)?.client_email);
+  const clientPhone = safeString(caseData?.client?.phone || (caseData as any)?.client_phone);
+
+  // If the name field contains an email address and email field is a name, swap them
+  if (rawClientName.includes('@') && !rawClientEmail.includes('@') && rawClientEmail.length > 0) {
+    const temp = rawClientName;
+    rawClientName = rawClientEmail;
+    rawClientEmail = temp;
+  }
+
+  // Force email to be lowercase
+  const cleanEmail = rawClientEmail ? rawClientEmail.toLowerCase() : '';
+  const cleanName = rawClientName ? rawClientName : (cleanEmail ? cleanEmail : t('general.notAvailable', 'N/A'));
 
   return (
     <motion.div 
       onClick={handleCardClick}
-      className="glass-panel group relative flex flex-col justify-between h-full p-5 rounded-2xl hover-lift cursor-pointer border border-main bg-canvas"
+      className="glass-panel group relative flex flex-col justify-between h-full p-5 rounded-2xl hover-lift cursor-pointer border border-main bg-card shadow-sm"
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       whileTap={{ scale: 0.985 }}
     >
-      {/* Background dynamic hover effect */}
+      {/* Background dynamic hover glow */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
       <div className="relative z-10 flex-grow flex flex-col justify-between">
         {/* Title and Date */}
         <div className="flex flex-col mb-4">
-          <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight mb-1 transition-colors duration-250 ${
+          <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight mb-1 transition-colors duration-200 ${
             !hasTitle ? 'text-text-secondary italic' : 'text-text-primary group-hover:text-primary-start'
           }`}>
             {displayTitle}
@@ -96,7 +108,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         </div>
         
         {/* Client Details Section */}
-        <div className="flex flex-col mb-5 bg-surface/40 border border-main/60 p-3.5 rounded-xl transition-colors duration-200 group-hover:bg-surface/60">
+        <div className="flex flex-col mb-5 bg-surface/50 border border-main p-3.5 rounded-xl transition-colors duration-200 group-hover:bg-surface/80">
           <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-main">
             <User className="w-3.5 h-3.5 text-primary-start" />
             <span className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">
@@ -105,20 +117,20 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           </div>
           
           <div className="space-y-1.5 pl-0.5">
-            <p className="text-base font-semibold text-text-primary truncate">
-              {clientName || t('general.notAvailable', 'N/A')}
+            <p className="text-sm sm:text-base font-bold text-text-primary truncate">
+              {cleanName}
             </p>
             
-            {clientEmail && (
+            {cleanEmail && (
               <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Mail className="w-3.5 h-3.5 text-text-muted" />
-                <span className="truncate">{clientEmail}</span>
+                <Mail className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                <span className="truncate font-mono lowercase text-xs">{cleanEmail}</span>
               </div>
             )}
             {clientPhone && (
               <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Phone className="w-3.5 h-3.5 text-text-muted" />
-                <span className="truncate">{clientPhone}</span>
+                <Phone className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                <span className="truncate font-mono text-xs">{clientPhone}</span>
               </div>
             )}
           </div>
@@ -130,7 +142,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="pt-4 border-t border-main flex flex-wrap items-center gap-2">
           {/* Chip: Document Counter */}
           <div 
-            className="flex items-center gap-1.5 bg-surface/60 border border-main px-2.5 py-1 rounded-xl" 
+            className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs" 
             title={`${caseData?.document_count || 0} Dokumente`}
           >
             <FileText className="h-3.5 w-3.5 text-primary-start" />
@@ -141,7 +153,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           <button 
             type="button"
             onClick={handleCalendarNav}
-            className="flex items-center gap-1.5 bg-surface/60 hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none" 
+            className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none shadow-xs" 
             title={`${caseData?.alert_count || 0} Afate`}
           >
             <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />
@@ -152,7 +164,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           <button 
             type="button"
             onClick={handleCalendarNav}
-            className="flex items-center gap-1.5 bg-surface/60 hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none" 
+            className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl transition-all focus:outline-none shadow-xs" 
             title={`${caseData?.event_count || 0} Ngjarje`}
           >
             <CalendarDays className="h-3.5 w-3.5 text-secondary-start" />
@@ -170,7 +182,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           <motion.button
             type="button"
             onClick={handleDeleteClick}
-            className="flex items-center justify-center w-11 h-11 -mr-3 rounded-xl text-text-muted hover:text-danger-start hover:bg-danger-start/10 transition-colors z-20 relative focus:outline-none"
+            className="flex items-center justify-center w-9 h-9 rounded-xl text-text-muted hover:text-rose-600 hover:bg-rose-500/10 transition-colors z-20 relative focus:outline-none"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             title={t('general.delete', 'Fshij')}
