@@ -1,7 +1,11 @@
 // FILE: src/components/chat/ChatHeader.tsx
+// PHOENIX PROTOCOL - CHAT HEADER V10.0 (INTEGRATED COMPACT DOCUMENT SELECTOR DOCK)
+
 import React from 'react';
 import { Download, Trash2 } from 'lucide-react';
 import { TFunction } from 'i18next';
+import { DocumentSelector } from '../DocumentSelector';
+import { Document } from '../../data/types';
 
 interface ChatHeaderProps {
   connectionStatus: string;
@@ -10,6 +14,10 @@ interface ChatHeaderProps {
   onClearChat: () => void;
   onExportChat?: () => void;
   t: TFunction;
+  documents?: Document[];
+  selectedDocumentIds?: string[];
+  onDocumentSelectionChange?: (ids: string[]) => void;
+  isPro?: boolean;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -19,14 +27,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onClearChat,
   onExportChat,
   t,
+  documents = [],
+  selectedDocumentIds = [],
+  onDocumentSelectionChange,
+  isPro = true,
 }) => {
   return (
-    <div className="flex flex-row items-center justify-between px-4 sm:px-5 py-3 border-b border-main bg-surface z-50 shrink-0 h-12">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none">
+    <div className="flex flex-row items-center justify-between px-3.5 sm:px-5 py-2.5 border-b border-main bg-surface z-50 shrink-0 h-13 min-h-[52px]">
+      {/* Left: Chat Agent Title & LED status light */}
+      <div className="flex items-center gap-2 min-w-0">
+        <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none truncate">
           {t('chatPanel.title', 'Asistenti Sokratik')}
         </h2>
-        <div className="flex items-center justify-center ml-0.5">
+        <div className="flex items-center justify-center ml-0.5 shrink-0">
           <span
             className={`w-2 h-2 rounded-full ${
               connectionStatus === 'CONNECTED'
@@ -35,32 +48,38 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             }`}
           />
         </div>
-
-        {activeContextId !== 'general' && selectedDocumentCount > 0 && (
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-primary-start/10 border border-primary-start/20 rounded-full shadow-sm">
-            <span className="text-[10px] font-semibold text-primary-start uppercase tracking-wide">
-              {selectedDocumentCount} Lëndë
-            </span>
-          </div>
-        )}
       </div>
 
-      <div className="flex items-center justify-end gap-1.5 h-8">
+      {/* Right: Document Selector + Action Buttons */}
+      <div className="flex items-center justify-end gap-2 shrink-0">
+        {/* Document Selector embedded right inside chat dock */}
+        {activeContextId !== 'general' && onDocumentSelectionChange && (
+          <div className="w-44 sm:w-56 z-[60]">
+            <DocumentSelector
+              documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
+              selectedIds={selectedDocumentIds}
+              onChange={onDocumentSelectionChange}
+              disabled={!isPro}
+            />
+          </div>
+        )}
+
         {onExportChat && (
           <button
             type="button"
             onClick={onExportChat}
-            className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none"
-            title="Download"
+            className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none cursor-pointer"
+            title="Shkarko Bisedën"
           >
             <Download size={15} />
           </button>
         )}
+
         <button
           type="button"
           onClick={onClearChat}
-          className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all focus:outline-none"
-          title="Clear"
+          className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-all focus:outline-none cursor-pointer"
+          title="Pastro Bisedën"
         >
           <Trash2 size={15} />
         </button>
@@ -68,3 +87,5 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     </div>
   );
 };
+
+export default ChatHeader;
