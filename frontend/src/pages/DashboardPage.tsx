@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.5 (HIGH-CONTRAST THEME-AWARE DESTRUCTION MODAL)
+// PHOENIX PROTOCOL - DASHBOARD V9.7 (UNIFIED SEAMLESS THEME SEARCH BAR & DIALOGS)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -228,7 +228,7 @@ const DashboardPage: React.FC = () => {
     if (hasRiskRadar) {
       return (
         <div className="space-y-3">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/30 ml-1 italic">RADARI I RREZIKUT</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/50 ml-1 italic">RADARI I RREZIKUT</h3>
           {effectiveBriefing!.risk_radar!.map((item: RiskAlert) => (
             <div key={item.id} className={`p-4 rounded-2xl border border-main flex items-center justify-between gap-4 backdrop-blur-xl transition-all ${item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-danger-start/10 border-danger-start/20' : 'bg-warning-start/10 border-warning-start/20'}`}>
               <div className="flex items-center gap-3 min-w-0">
@@ -237,7 +237,7 @@ const DashboardPage: React.FC = () => {
                   {item.title}
                 </span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 rounded-xl border border-main shrink-0">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-xl border border-main shrink-0 shadow-sm">
                 <Timer size={14} className={item.level === 'LEVEL_1_PREKLUZIV' ? 'text-danger-start' : 'text-warning-start'} />
                 <span className="text-xs font-black font-mono text-text-primary tabular-nums">{formatCountdown(item.seconds_remaining)}</span>
               </div>
@@ -251,9 +251,9 @@ const DashboardPage: React.FC = () => {
       const previewEvents = todaysEvents.slice(0, 3);
       return (
         <div className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/30 ml-1 italic">NGJARJE SOT</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/50 ml-1 italic">NGJARJE SOT</h3>
           {previewEvents.map(event => (
-            <div key={event.id} className="p-3 rounded-xl border border-main bg-surface/10 flex items-center gap-3">
+            <div key={event.id} className="p-3 rounded-xl border border-main bg-surface flex items-center gap-3 shadow-sm">
               <div className="w-2 h-2 rounded-full bg-primary-start" />
               <div>
                 <p className="text-xs font-bold text-text-primary">{event.title}</p>
@@ -286,13 +286,13 @@ const DashboardPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className="glass-panel shrink-0 mb-6 rounded-[2rem] border border-main backdrop-blur-md overflow-hidden shadow-sm"
+            className="glass-panel shrink-0 mb-6 rounded-[2rem] border border-main overflow-hidden shadow-sm bg-surface"
           >
-            <div className="p-5 sm:p-8 bg-gradient-to-br briefing-gradient-optimal">
+            <div className="p-5 sm:p-8 bg-gradient-to-br from-primary-start/5 to-transparent">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Left: Greeting */}
                 <div className="flex items-start gap-4">
-                  <div className="glass-panel p-3 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
+                  <div className="p-3 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
                     {theme.icon}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -341,7 +341,7 @@ const DashboardPage: React.FC = () => {
             placeholder={t('dashboard.searchPlaceholder', 'Kërko rast...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full h-11 pl-11 pr-4 bg-surface border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
+            className="w-full h-11 pl-11 pr-4 bg-surface border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all shadow-sm"
           />
         </div>
         <button 
@@ -384,7 +384,7 @@ const DashboardPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-[2rem] shadow-2xl border border-main bg-canvas"
+              className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-[2rem] shadow-2xl border border-main bg-surface"
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-text-primary tracking-tight uppercase">{t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}</h2>
@@ -420,9 +420,9 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* DELETION CONFIRMATION MODAL WITH THEME-AWARE CONTRAST */}
+        {/* THEME-SEAMLESS DELETION CONFIRMATION MODAL */}
         {caseToDeleteId && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -442,7 +442,7 @@ const DashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCaseToDeleteId(null)}
-                  className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none"
+                  className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none bg-surface"
                 >
                   {t('general.cancel', 'Anulo')}
                 </button>
@@ -450,7 +450,7 @@ const DashboardPage: React.FC = () => {
                   type="button"
                   onClick={confirmDeleteCase}
                   disabled={isDeletingCase}
-                  className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-rose-600/25 cursor-pointer"
+                  className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-rose-600/30 cursor-pointer"
                 >
                   {isDeletingCase ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.delete', 'Fshij')}
                 </button>
