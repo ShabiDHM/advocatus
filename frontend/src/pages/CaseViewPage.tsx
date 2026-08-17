@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V47.0 (CLEAN PROMPT FORWARDING & 4-PILLAR PROGRESSIVE SYNC)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V48.0 (CONNECTED CHAT DOCUMENT SELECTOR DOCK)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -344,6 +344,8 @@ const CaseViewPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
+        
+        {/* Case Header Bar with clean identity and right-aligned role badge */}
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
@@ -357,7 +359,6 @@ const CaseViewPage: React.FC = () => {
           isPro={isPro}
           isAdmin={isAdmin}
           selectedDocumentIds={selectedDocumentIds}
-          onDocumentSelectionChange={setSelectedDocumentIds}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0">
@@ -374,6 +375,7 @@ const CaseViewPage: React.FC = () => {
           />
 
           <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+            {/* Chat Panel with integrated Document Selector in the Chat Header */}
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -385,6 +387,9 @@ const CaseViewPage: React.FC = () => {
               className="h-full w-full bg-transparent border-0 rounded-none"
               activeContextId={currentCaseId}
               isPro={isPro}
+              documents={liveDocuments}
+              selectedDocumentIds={selectedDocumentIds}
+              onDocumentSelectionChange={setSelectedDocumentIds}
               selectedDocumentCount={selectedDocumentIds.length}
               userSalutation={userSalutation}
               clientPosition={clientPosition}

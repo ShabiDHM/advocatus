@@ -1,5 +1,5 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V10.0 (INTEGRATED COMPACT DOCUMENT SELECTOR DOCK)
+// PHOENIX PROTOCOL - CHAT HEADER V11.0 (ZERO TYPESCRIPT COMPILATION WARNINGS)
 
 import React from 'react';
 import { Download, Trash2 } from 'lucide-react';
@@ -10,7 +10,6 @@ import { Document } from '../../data/types';
 interface ChatHeaderProps {
   connectionStatus: string;
   activeContextId: string;
-  selectedDocumentCount: number;
   onClearChat: () => void;
   onExportChat?: () => void;
   t: TFunction;
@@ -23,7 +22,6 @@ interface ChatHeaderProps {
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   connectionStatus,
   activeContextId,
-  selectedDocumentCount,
   onClearChat,
   onExportChat,
   t,

@@ -1,10 +1,9 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V12.0 (BALANCED 2-COLUMN EXECUTIVE CONTROL DOCK)
+// PHOENIX PROTOCOL - CASE HEADER BAR V14.0 (ZERO TYPESCRIPT COMPILATION WARNINGS)
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Case, Document } from '../../data/types';
-import { DocumentSelector } from '../DocumentSelector';
 import {
   Briefcase,
   Calendar,
@@ -32,8 +31,7 @@ interface CaseHeaderBarProps {
   isAnalyzing: boolean;
   isPro: boolean;
   isAdmin: boolean;
-  selectedDocumentIds: string[];
-  onDocumentSelectionChange: (ids: string[]) => void;
+  selectedDocumentIds?: string[];
 }
 
 export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
@@ -48,8 +46,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
   isAnalyzing,
   isPro,
   isAdmin,
-  selectedDocumentIds,
-  onDocumentSelectionChange,
+  selectedDocumentIds = [],
 }) => {
   const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
   const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
@@ -92,7 +89,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
     >
       <div className="bg-surface border border-main rounded-2xl p-4 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         
-        {/* LEFT COLUMN: Clean Case Identity */}
+        {/* LEFT COLUMN: Case Identity */}
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <div className="p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
             <Briefcase size={22} className="sm:w-6 sm:h-6" />
@@ -113,22 +110,12 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Stacked Document Selector & Role Pill */}
-        <div className="flex flex-col items-end gap-2 w-full sm:w-auto shrink-0 z-[60]">
-          <div className="w-full sm:w-64">
-            <DocumentSelector
-              documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
-              selectedIds={selectedDocumentIds}
-              onChange={onDocumentSelectionChange}
-              disabled={!isPro}
-            />
-          </div>
-
-          {/* Role Pill directly below Document Selector, aligned right */}
+        {/* RIGHT COLUMN: Right-Aligned Role Badge */}
+        <div className="flex items-center justify-end shrink-0">
           <button
             type="button"
             onClick={onOpenRoleModal}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider border transition-all shadow-xs cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider border transition-all shadow-xs cursor-pointer ${
               clientPosition === 'DEFENDANT'
                 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
                 : clientPosition === 'PLAINTIFF'
@@ -138,11 +125,11 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
             title="Kliko për të ndryshuar rolin procedural të klientit"
           >
             {clientPosition === 'DEFENDANT' ? (
-              <Shield size={11} className="shrink-0" />
+              <Shield size={12} className="shrink-0" />
             ) : clientPosition === 'PLAINTIFF' ? (
-              <Swords size={11} className="shrink-0" />
+              <Swords size={12} className="shrink-0" />
             ) : (
-              <Scale size={11} className="shrink-0" />
+              <Scale size={12} className="shrink-0" />
             )}
             <span>{roleLabel}</span>
           </button>

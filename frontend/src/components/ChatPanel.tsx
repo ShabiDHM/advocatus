@@ -1,10 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V33.0 (SINGLE FLUID STREAMING & SMART THINKING BUBBLE)
+// PHOENIX PROTOCOL - CHAT PANEL V35.0 (ZERO TYPESCRIPT COMPILATION WARNINGS)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, BrainCircuit, User, RefreshCw, Sparkles } from 'lucide-react';
-import { ChatMessage } from '../data/types';
+import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -40,6 +40,9 @@ interface ChatPanelProps {
   className?: string;
   activeContextId: string;
   isPro?: boolean;
+  documents?: Document[];
+  selectedDocumentIds?: string[];
+  onDocumentSelectionChange?: (ids: string[]) => void;
   selectedDocumentCount?: number;
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF';
@@ -55,9 +58,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   t,
   className,
   activeContextId,
-  selectedDocumentCount = 0,
+  documents = [],
+  selectedDocumentIds = [],
+  onDocumentSelectionChange,
   userSalutation = 'Avokat',
   clientPosition = 'DEFENDANT',
+  isPro = true,
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
@@ -84,7 +90,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
-    onSendMessage(text, mode, reasoningMode, 'automatic', [], 'ks');
+    onSendMessage(text, mode, reasoningMode, 'automatic', selectedDocumentIds, 'ks');
     setInput('');
   };
 
@@ -105,12 +111,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const safeMessages = Array.isArray(messages) ? messages : [];
 
-  // Filter out empty placeholder AI messages while sending so duplicate brain icons never show
   const displayMessages = safeMessages.filter(
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
-  // Determine if AI is waiting for its first token to arrive
   const isAwaitingFirstToken =
     isSendingMessage &&
     (displayMessages.length === 0 || displayMessages[displayMessages.length - 1].role === 'user');
@@ -120,10 +124,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <ChatHeader
         connectionStatus={connectionStatus}
         activeContextId={activeContextId}
-        selectedDocumentCount={selectedDocumentCount}
         onClearChat={onClearChat}
         onExportChat={onExportChat}
         t={t}
+        documents={documents}
+        selectedDocumentIds={selectedDocumentIds}
+        onDocumentSelectionChange={onDocumentSelectionChange}
+        isPro={isPro}
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col justify-start">
@@ -181,7 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                               key={qIdx}
                               type="button"
                               onClick={() => sendMessage(q)}
-                              className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5"
+                              className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5 cursor-pointer"
                             >
                               <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
                               {q}
@@ -220,7 +227,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             );
           })}
 
-          {/* THINKING BUBBLE - Shows ONLY before the first AI token arrives */}
           {isAwaitingFirstToken && (
             <motion.div key="thinking" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
