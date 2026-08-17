@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V9.0 (PERSISTENT MULTI-DEVICE DEEP ANALYSIS SYNC)
+# PHOENIX PROTOCOL - CASE SERVICE V10.0 (ENTERPRISE TEAM COLLABORATION & MULTI-DEVICE SYNC)
 
 import re
 import importlib
@@ -21,6 +21,42 @@ from ..celery_app import celery_app
 def _safe_str(oid: Any) -> Optional[str]:
     if not oid: return None
     return str(oid)
+
+def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
+    """
+    ENTERPRISE ACCESS GUARD:
+    Allows both the Enterprise Owner and all invited team members (up to 5 seats)
+    to collaboratively access, view, and manage all organization cases.
+    """
+    org_id = getattr(user, 'org_id', None)
+    
+    allowed_ids = [user.id]
+    if org_id:
+        try:
+            org_oid = ObjectId(org_id) if ObjectId.is_valid(str(org_id)) else org_id
+            if org_oid not in allowed_ids:
+                allowed_ids.append(org_oid)
+        except Exception:
+            pass
+
+    or_clauses: List[Dict[str, Any]] = [
+        {"owner_id": {"$in": allowed_ids}},
+        {"user_id": {"$in": allowed_ids}},
+    ]
+    
+    if org_id:
+        or_clauses.extend([
+            {"org_id": org_id},
+            {"org_id": str(org_id)},
+            {"organization_id": org_id},
+            {"organization_id": str(org_id)}
+        ])
+
+    base_query: Dict[str, Any] = {"$or": or_clauses}
+    if case_id:
+        base_query["_id"] = case_id
+
+    return base_query
 
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
     try:
@@ -58,7 +94,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             event_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}, {"caseId": case_id_str}]}
             counts["event_count"] = db.calendar_events.count_documents(event_filter)
             
-            doc_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}]}
+            doc_filter = {"$or": [{"case_id": case_id_str}, {"case_id": case_id_obj}], "status": {"$ne": "DELETED"}}
             counts["document_count"] = db.documents.count_documents(doc_filter)
             
             now_utc = datetime.now(timezone.utc)
@@ -136,30 +172,25 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         case_dict["client"] = {"name": clean_name, "email": case_in.clientEmail, "phone": case_in.clientPhone}
         case_dict["client_name"] = clean_name
     
+    org_id = getattr(owner, "org_id", None)
     case_dict.update({
         "owner_id": owner.id, 
         "user_id": owner.id,
+        "org_id": org_id,
         "created_at": datetime.now(timezone.utc), 
         "updated_at": datetime.now(timezone.utc),
         "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
     })
-    
-    if not case_dict.get("org_id") and getattr(owner, "org_id", None):
-        case_dict["org_id"] = owner.org_id
 
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
-    if not new_case: raise HTTPException(status_code=500, detail="Failed to create case.")
+    if not new_case: 
+        raise HTTPException(status_code=500, detail="Dështoi krijimi i rastit.")
     return _map_case_document(cast(Dict[str, Any], new_case), db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    query_filter: Dict[str, Any] = {
-        "$or": [
-            {"owner_id": owner.id},
-            {"user_id": owner.id}
-        ]
-    }
+    query_filter = _build_case_access_query(owner)
     
     cursor = db.cases.find(query_filter).sort("updated_at", -1)
     for case_doc in cursor:
@@ -169,14 +200,17 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     return results
 
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
-    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case: return None
+    query_filter = _build_case_access_query(owner, case_id=case_id)
+    case = db.cases.find_one(query_filter)
+    if not case: 
+        return None
     return _map_case_document(case, db)
 
 def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> Dict[str, Any]:
-    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
+    query_filter = _build_case_access_query(owner, case_id=case_id)
+    case = db.cases.find_one(query_filter)
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found.")
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
     
     case_id_str = str(case_id)
     doc_filter = {
@@ -216,8 +250,10 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     graph_service_module = importlib.import_module("app.services.graph_service")
     graph_service = getattr(graph_service_module, "graph_service")
     
-    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    query_filter = _build_case_access_query(owner, case_id=case_id)
+    case = db.cases.find_one(query_filter)
+    if not case: 
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
     
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
@@ -227,33 +263,45 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         doc_id_str = str(doc["_id"])
         keys_to_delete = [doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")]
         for key in filter(None, keys_to_delete):
-            try: storage_service.delete_file(key)
-            except Exception: pass
-        try: vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
-        except Exception: pass
-        try: graph_service.delete_node(doc_id_str)
-        except Exception: pass
+            try: 
+                storage_service.delete_file(key)
+            except Exception: 
+                pass
+        try: 
+            vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
+        except Exception: 
+            pass
+        try: 
+            graph_service.delete_node(doc_id_str)
+        except Exception: 
+            pass
 
     media_items = list(db.media_evidence.find(any_id_query))
     for media in media_items:
         storage_key = media.get("storage_key")
         if storage_key:
-            try: storage_service.delete_file(storage_key)
-            except Exception: pass
+            try: 
+                storage_service.delete_file(storage_key)
+            except Exception: 
+                pass
     db.media_evidence.delete_many(any_id_query)
 
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
-            try: storage_service.delete_file(item["storage_key"])
-            except Exception: pass
+            try: 
+                storage_service.delete_file(item["storage_key"])
+            except Exception: 
+                pass
     
     db.archives.delete_many(any_id_query)
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
-    try: db.alerts.delete_many(any_id_query)
-    except Exception: pass
+    try: 
+        db.alerts.delete_many(any_id_query)
+    except Exception: 
+        pass
 
     try:
         graph_service.delete_node(case_id_str)
@@ -261,17 +309,23 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         print(f"Graph deletion warning: {e}")
 
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
-    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    query_filter = _build_case_access_query(owner, case_id=case_id)
+    case = db.cases.find_one(query_filter)
+    if not case: 
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
     task = celery_app.send_task("process_drafting_job", kwargs={"case_id": str(case_id), "user_id": str(owner.id), "draft_type": job_in.document_type, "user_prompt": job_in.prompt, "use_library": job_in.use_library})
     return {"job_id": task.id, "status": "queued", "message": "Drafting job created."}
 
 def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
-    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    query_filter = _build_case_access_query(owner, case_id=case_id)
+    case = db.cases.find_one(query_filter)
+    if not case: 
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
     doc = db.documents.find_one({"_id": doc_id})
-    if not doc: raise HTTPException(status_code=404, detail="Document not found.")
-    if str(doc.get("case_id")) != str(case_id): raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+    if not doc: 
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+    if str(doc.get("case_id")) != str(case_id): 
+        raise HTTPException(status_code=403, detail="Dokumenti nuk i përket kësaj lënde.")
     original_name = doc.get("file_name", "untitled")
     extension = original_name.split(".")[-1] if "." in original_name else ""
     final_name = new_name if not extension or new_name.endswith(f".{extension}") else f"{new_name}.{extension}"
@@ -282,7 +336,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
-        if not case: return None
+        if not case: 
+            return None
         
         events_cursor = db.calendar_events.find({
             "$and": [
@@ -335,7 +390,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         }).sort("created_at", -1)
         
         for a in archive_cursor:
-             if not a.get("storage_key"): continue 
+             if not a.get("storage_key"): 
+                 continue 
              a_date = a.get("created_at")
              a_date_str = a_date.isoformat() if isinstance(a_date, datetime) else a_date
              shared_docs.append({
@@ -374,8 +430,10 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             if isinstance(owner_id, ObjectId):
                 search_conditions.append({"user_id": str(owner_id)})
             if isinstance(owner_id, str):
-                try: search_conditions.append({"user_id": ObjectId(owner_id)})
-                except InvalidId: pass
+                try: 
+                    search_conditions.append({"user_id": ObjectId(owner_id)})
+                except InvalidId: 
+                    pass
             
             profile = db.business_profiles.find_one({"$or": search_conditions})
             if profile:
