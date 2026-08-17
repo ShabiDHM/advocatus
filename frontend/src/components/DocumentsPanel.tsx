@@ -1,6 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V10.3 (NEON LED STATUS LIGHT)
-// POLISH: Standardized design tokens, upgraded custom scrollbars, and optimized mobile touch target ergonomics.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V11.0 (HIGH-CONTRAST THEME-AWARE BULK DELETE SYSTEM)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -167,7 +166,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  // NEON LED STATUS LIGHT: solid green, double glow, pulse
   const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': 
@@ -197,8 +195,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     <>
     <div className={`glass-panel p-4 rounded-2xl flex flex-col h-full overflow-hidden bg-canvas ${className}`}>
       
-      {/* Header Bar */}
-      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-danger-start/30 bg-danger-start/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'}`}>
+      {/* Header Bar with high-contrast selection theme */}
+      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${
+        isSelectionMode ? 'border-rose-500/30 bg-rose-500/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'
+      }`}>
         
         {isSelectionMode ? (
             <div className="flex items-center justify-between w-full h-11">
@@ -210,12 +210,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     >
                         <XCircle size={20} />
                     </button>
-                    <span className="text-danger-start font-bold text-sm">{selectedIds.size} të zgjedhura</span>
+                    <span className="text-rose-600 dark:text-rose-400 font-bold text-sm">{selectedIds.size} të zgjedhura</span>
                 </div>
                 <button 
                     onClick={handleBulkDelete} 
                     disabled={isBulkDeleting}
-                    className="flex items-center gap-2 px-4 h-11 bg-danger-start hover:bg-opacity-95 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-danger-start/15 focus:outline-none"
+                    className="flex items-center gap-2 px-4 h-11 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-rose-600/25 focus:outline-none cursor-pointer active:scale-95"
                 >
                     {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={15} />}
                     Fshi Të Gjitha
@@ -232,7 +232,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title')}</h2>
-                    {/* NEON LED STATUS LIGHT – perfectly centered */}
                     <div className="flex items-center justify-center ml-1">
                         <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)} transition-all duration-300`} />
                     </div>
@@ -259,7 +258,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-12 w-56 glass-panel border border-main bg-canvas rounded-xl shadow-2xl z-50 overflow-hidden"
+                                className="absolute right-0 top-12 w-56 glass-panel border border-main bg-surface rounded-xl shadow-2xl z-50 overflow-hidden"
                             >
                                 <button 
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
@@ -284,7 +283,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       </div>
 
       {uploadError && (
-        <div className="p-3 text-xs text-danger-start bg-danger-start/10 border border-danger-start/20 rounded-xl mb-4 font-medium">
+        <div className="p-3 text-xs text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl mb-4 font-medium">
           {uploadError}
         </div>
       )}
@@ -302,9 +301,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isUploadingState = doc.status === 'UPLOADING';
           const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
           const progressPercent = doc.progress_percent || 0;
-          const barColor = isUploadingState ? "bg-primary-start" : "bg-primary-start";
+          const barColor = "bg-primary-start";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
-          const statusTextColor = isUploadingState ? "text-primary-start" : "text-primary-start";
+          const statusTextColor = "text-primary-start";
           const canInteract = !isUploadingState && !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
@@ -339,7 +338,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 )}
               </div>
               
-              {/* Row action tools mapped with safe hitboxes */}
+              {/* Row action tools */}
               <div className={`flex items-center gap-1.5 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
                 {canInteract && (
                     <button 
@@ -376,7 +375,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-danger-start/15 rounded-lg text-danger-start hover:text-danger-start/85 transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none" 
                         title={t('documentsPanel.delete')}
                     >
                         <Trash size={13} />
@@ -402,4 +401,5 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     </>
   );
 };
+
 export default DocumentsPanel;
