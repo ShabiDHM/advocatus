@@ -1,5 +1,5 @@
 # FILE: backend/scripts/ingest_statutes.py
-# PHOENIX PROTOCOL - STRICT STATUTORY LAW INGESTOR V4.0 (BULLETPROOF SMART-SKIP IDEMPOTENCY)
+# PHOENIX PROTOCOL - STATUTORY LAW INGESTOR V5.0 (CLEAN RE-INDEXING & BATCH SYNC)
 
 import os
 import sys
@@ -27,7 +27,7 @@ from app.services.embedding_service import generate_embedding
 from app.services.text_extraction_service import extract_text
 from app.services.albanian_language_detector import detect_document_language
 
-print("--- [PHOENIX] Starting Statutory Law Ingester (Bulletproof Smart-Skip) ---")
+print("--- [PHOENIX] Starting Statutory Law Ingester ---")
 
 
 def calculate_file_hash(filepath: str) -> str:
@@ -58,22 +58,27 @@ def ingest_statutes():
     db = client[db_name]
     coll = db["legal_knowledge_base"]
 
-    laws_dir = ROOT_DIR / "data" / "laws"
-    if not laws_dir.exists():
-        laws_dir = BACKEND_DIR / "data" / "laws"
-
-    all_files = list(laws_dir.rglob("*.pdf")) if laws_dir.exists() else []
+    # Search in root data/laws and backend data/laws
+    laws_dirs = [ROOT_DIR / "data" / "laws", BACKEND_DIR / "data" / "laws"]
     
-    files = [
-        f for f in all_files 
-        if not any(keyword in f.name.upper() for keyword in ["AKADEMIA", "KOMMENTAR", "DORACAK"])
-    ]
+    all_files = []
+    for ldir in laws_dirs:
+        if ldir.exists():
+            all_files.extend(list(ldir.rglob("*.pdf")))
+
+    # Deduplicate by filename
+    seen = set()
+    files = []
+    for f in all_files:
+        if f.name not in seen and not any(kw in f.name.upper() for kw in ["AKADEMIA", "KOMMENTAR", "DORACAK"]):
+            seen.add(f.name)
+            files.append(f)
 
     if not files:
-        print(f"⚠️ No Statutory Law PDFs found in {laws_dir}.")
+        print(f"⚠️ No Statutory Law PDFs found.")
         return
 
-    print(f"🚀 Scanning {len(files)} Statutory Law files...")
+    print(f"🚀 Found {len(files)} Statutory Law files to scan...")
 
     stats = {"skipped": 0, "added": 0, "failed": 0}
 
@@ -82,26 +87,18 @@ def ingest_statutes():
         law_title = clean_law_title(fname)
         current_hash = calculate_file_hash(str(file_path))
         
-        # 🛡️ SMART-SKIP: Check if law already has indexed articles in MongoDB
-        existing_doc_count = coll.count_documents({
-            "$or": [
-                {"source": fname},
-                {"source": fname.replace(".pdf", "")},
-                {"law_title": law_title}
-            ]
-        })
-
+        # Check if already synced with matching hash AND articles in DB
+        existing_doc_count = coll.count_documents({"source": fname})
+        
         if existing_doc_count > 0:
-            print(f"⏭️  Skipped (Already Synced - {existing_doc_count} articles in DB): {fname}")
+            print(f"⏭️  Skipped (Already Synced - {existing_doc_count} articles): {fname}")
             stats["skipped"] += 1
-            # Backfill hash if missing
-            coll.update_many(
-                {"$or": [{"source": fname}, {"law_title": law_title}], "file_hash": {"$exists": False}},
-                {"$set": {"file_hash": current_hash}}
-            )
             continue
 
-        print(f"\n⚖️ Processing New Law: {fname}")
+        print(f"\n⚖️ Ingesting New Law: {fname}")
+        
+        # Remove any partial old records
+        coll.delete_many({"source": fname})
         
         raw_text = extract_text(str(file_path), "application/pdf")
         if not raw_text or len(raw_text.strip()) < 50:
@@ -154,14 +151,13 @@ def ingest_statutes():
                         "jurisdiction": "ks", 
                         "is_article": True, 
                         "file_hash": current_hash,
-                        "processor_version": "V4.0-STATUTE"
+                        "processor_version": "V5.0-STATUTE"
                     }},
                     upsert=True
                 )
                 global_idx += 1
-                print(f"   [Indexed Article {art_num}]", end="\r")
 
-        print(f"\n✅ Finished Law: {law_title} ({global_idx} articles)")
+        print(f"✅ Finished Law: {law_title} ({global_idx} articles indexed)")
         stats["added"] += 1
 
     print("\n" + "="*40)
