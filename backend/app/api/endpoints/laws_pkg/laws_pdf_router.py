@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V71.0 (LAW NUMBER EXTRACTOR & SMART GHOST RESOLVER)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V72.0 (ABSOLUTE PATHLIB RECURSIVE DISK STREAMER)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -8,15 +8,12 @@ import re
 import urllib.parse
 import unicodedata
 import logging
+from pathlib import Path
 
 from app.services import storage_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-CURRENT_FILE_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_FILE_DIR)))
-WORKSPACE_ROOT = os.path.dirname(BACKEND_DIR)
 
 
 def _to_alpha_key(name: str) -> str:
@@ -37,39 +34,32 @@ def _extract_law_number_code(name: str) -> str:
     return ""
 
 
-def _find_file_recursively(search_roots: list[str], target_filename: str, alpha_target: str, law_code: str) -> str | None:
+def _find_file_recursively(search_roots: list[Path], target_filename: str, alpha_target: str, law_code: str) -> Path | None:
     """Recursively scans all directories on local disk with 3-tier fallback."""
     clean_target_pdf = target_filename.lower() if target_filename.lower().endswith('.pdf') else f"{target_filename.lower()}.pdf"
 
     for root_dir in search_roots:
-        if not os.path.exists(root_dir):
+        if not root_dir.exists():
             continue
 
-        for root, _, files in os.walk(root_dir):
+        for p in root_dir.rglob("*.pdf"):
+            fname = p.name
+            
             # Tier 1: Exact Filename Match
-            for f in files:
-                if not f.lower().endswith('.pdf'):
-                    continue
-                if f.lower() == clean_target_pdf:
-                    return os.path.join(root, f)
+            if fname.lower() == clean_target_pdf:
+                return p
 
-            # Tier 2: Official Law Number Code Match (e.g. 03-L-052 -> Ligji_Nr_03_L_052.pdf)
+            # Tier 2: Official Law Number Code Match (e.g. 03l052)
             if law_code:
-                for f in files:
-                    if not f.lower().endswith('.pdf'):
-                        continue
-                    f_code = _extract_law_number_code(f)
-                    if f_code and f_code == law_code:
-                        return os.path.join(root, f)
+                f_code = _extract_law_number_code(fname)
+                if f_code and f_code == law_code:
+                    return p
 
             # Tier 3: Alphanumeric Key Match
             if alpha_target:
-                for f in files:
-                    if not f.lower().endswith('.pdf'):
-                        continue
-                    f_alpha = _to_alpha_key(f)
-                    if f_alpha and (f_alpha == alpha_target or alpha_target in f_alpha or f_alpha in alpha_target):
-                        return os.path.join(root, f)
+                f_alpha = _to_alpha_key(fname)
+                if f_alpha and (f_alpha == alpha_target or alpha_target in f_alpha or f_alpha in alpha_target):
+                    return p
 
     return None
 
@@ -102,7 +92,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         doc = db.legal_knowledge_base.find_one({"$or": query_conditions})
         if doc and doc.get("source"):
             raw_basename = doc.get("source")
-            clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
             alpha_target = _to_alpha_key(raw_basename)
             if not law_code:
                 law_code = _extract_law_number_code(raw_basename)
@@ -112,25 +101,25 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
 
     clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
 
-    # --- STEP 2: RECURSIVE LOCAL DISK SCAN ---
+    # --- STEP 2: ROBUST PATHLIB ROOT RECURSIVE DISK SCAN ---
+    this_file = Path(__file__).resolve()
+    
+    # Check all possible root data directories safely
     search_roots = [
-        os.path.join(WORKSPACE_ROOT, "data", "laws"),
-        os.path.join(WORKSPACE_ROOT, "data", "academic"),
-        os.path.join(WORKSPACE_ROOT, "data", "case_law"),
-        os.path.join(WORKSPACE_ROOT, "data"),
-        os.path.join(BACKEND_DIR, "data", "laws"),
-        os.path.join(BACKEND_DIR, "data", "academic"),
-        os.path.join(BACKEND_DIR, "data", "case_law"),
-        os.path.join(BACKEND_DIR, "data"),
-        "data/laws", "data/academic", "data/case_law", "data"
+        this_file.parents[5] / "data",              # advocatus/data
+        this_file.parents[4] / "data",              # advocatus/backend/data
+        Path.cwd() / "data",                        # cwd/data
+        Path.cwd().parent / "data",                 # cwd/../data
+        Path("data").resolve(),
+        Path("../data").resolve(),
     ]
 
-    local_file_path = _find_file_recursively(search_roots, clean_name_pdf, alpha_target, law_code)
-    if local_file_path and os.path.exists(local_file_path):
-        f_nfc = unicodedata.normalize('NFC', os.path.basename(local_file_path))
-        logger.info(f"⚡ [Instant Local Disk Stream] Found -> {local_file_path}")
+    local_file = _find_file_recursively(search_roots, clean_name_pdf, alpha_target, law_code)
+    if local_file and local_file.exists():
+        f_nfc = unicodedata.normalize('NFC', local_file.name)
+        logger.info(f"⚡ [Instant Local Disk Stream] Found -> {local_file}")
         return FileResponse(
-            local_file_path,
+            str(local_file),
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'inline; filename="{f_nfc}"',
