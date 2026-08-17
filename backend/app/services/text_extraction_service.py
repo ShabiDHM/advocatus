@@ -1,188 +1,171 @@
-# FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V13.0 (SAFE CONCURRENCY THROTTLING & 429 IMMUNITY)
+# FILE: backend/app/services/ocr_service.py
+# PHOENIX PROTOCOL - OCR ENGINE V9.0 (REPUBLIC OF KOSOVO ALBANIAN LEGAL OPTIMIZED)
 
-import fitz
-import logging
 import os
-import tempfile
+import json
+import logging
 import re
 import io
-from typing import Dict, List, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-try:
-    import docx
-except ImportError:
-    docx = None
-
-try: 
-    from .ocr_service import extract_text_from_image_bytes as advanced_bytes_ocr
-except ImportError: 
-    advanced_bytes_ocr = None
+import time
+import requests
+from typing import Dict, List, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
-FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 
+# --- SECURE CREDENTIALS ---
+OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "K89840741888957")
 
-def _sanitize_text(text: str) -> str: 
-    return text.replace("\x00", "") if text else ""
+# Fjalët kyçe për dokumentet ligjore dhe financiare të Kosovës
+LEGAL_KEYWORDS_KS = [
+    'gjykata', 'themelore', 'paditësi', 'padituri', 'aktgjykim', 'aktvendim', 
+    'prokuroria', 'fashikull', 'kërkesëpadi', 'procesverbal', 'neni', 'lpk', 'kpk'
+]
 
-
-def _strip_footer(text: str) -> str: 
-    return '\n'.join([l for l in text.split('\n') if not FOOTER_PATTERN.search(l)])
-
-
-def _extract_legacy_doc_text(file_path: str) -> str:
-    """Extracts text from binary Word 97-2003 (.doc) files safely."""
-    try:
-        with open(file_path, 'rb') as f:
-            content = f.read()
-
-        decoded_latin = content.decode('latin-1', errors='ignore')
-        clean_blocks = re.findall(r'[\w\s\.,;:!?\(\)\[\]\/\-\–\—\+\@\#\%\&\=\"]{4,}', decoded_latin)
-        extracted = "\n".join([b.strip() for b in clean_blocks if len(b.strip()) > 5])
+class SmartOCRResult:
+    def __init__(self, text: str, confidence: float = 0.0, metadata: Optional[Dict[str, Any]] = None):
+        self.text = text
+        self.confidence = confidence
+        self.metadata = metadata if metadata is not None else {}
+        self.structured_data: Dict[str, Any] = {}
         
-        if extracted and len(extracted) > 50:
-            logger.info(f"✅ [Binary .DOC Extractor] Extracted {len(extracted)} characters from legacy Word document.")
-            return _sanitize_text(extracted)
+    def to_dict(self) -> Dict[str, Any]:
+        return {'text': self.text, 'confidence': self.confidence, 'metadata': self.metadata, 'structured_data': self.structured_data}
+
+# --- HYBRID PARSER: LOCAL PDF TEXT EXTRACTOR ---
+
+def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+        text_runs = []
+        for page in reader.pages:
+            text_runs.append(page.extract_text() or "")
+        full_text = "\n".join(text_runs).strip()
+        if len(full_text) > 80:
+            logger.info(f"✅ Local PDF extraction (Albanian character preserved): {len(full_text)} chars")
+            return full_text
     except Exception as e:
-        logger.warning(f"Legacy .doc binary parser warning: {e}")
+        logger.warning(f"Local PDF parser skipped: {e}")
+    return None
 
-    return ""
+# --- ADVANCED OCR.SPACE ENGINE (ALBANIAN LEGAL TUNED) ---
 
+def run_ocr_space_ocr(image_bytes: bytes) -> Tuple[str, float]:
+    """
+    Sends image/PDF bytes to OCR.space API with Albanian legal character calibration.
+    """
+    if not OCR_SPACE_API_KEY:
+        logger.error("❌ OCR_SPACE_API_KEY is missing.")
+        return "", 0.0
 
-def _extract_docx_text(file_path: str) -> str:
-    """Extracts text from modern .docx and falls back gracefully for binary .doc."""
-    if not docx:
-        return _extract_legacy_doc_text(file_path)
-
-    try:
-        doc = docx.Document(file_path)
-        paragraphs_text = [p.text for p in doc.paragraphs if p.text]
-        tables_text = []
-        for table in doc.tables:
-            for row in table.rows:
-                tables_text.append(" | ".join(cell.text.strip() for cell in row.cells if cell.text.strip()))
-        
-        full_text = "\n".join(paragraphs_text + tables_text)
-        if full_text and len(full_text.strip()) > 0:
-            return _sanitize_text(full_text)
-    except Exception as docx_err:
-        logger.warning(f"python-docx failed on file, running legacy binary fallback: {docx_err}")
-        return _extract_legacy_doc_text(file_path)
-
-    return _extract_legacy_doc_text(file_path)
-
-
-def _ocr_single_page_bytes(page_num: int, jpeg_bytes: bytes) -> Tuple[int, str]:
-    """Worker executed in parallel threads for Cloud OCR."""
-    marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
-    if not advanced_bytes_ocr:
-        return page_num, marker + "[SCANNED - NO OCR ENGINE AVAILABLE]"
-
-    try:
-        logger.info(f"🔍 [Throttled OCR] Page {page_num + 1}: Dispatching Cloud OCR ({len(jpeg_bytes) / 1024:.1f} KB)...")
-        ocr_text = _sanitize_text(advanced_bytes_ocr(jpeg_bytes))
-        if ocr_text and len(ocr_text.strip()) > 20:
-            logger.info(f"✅ [Throttled OCR] Page {page_num + 1}: OCR Success ({len(ocr_text)} chars)")
-            return page_num, marker + ocr_text
-        return page_num, marker + "[Përmbajtja nuk u lexua dot me OCR]"
-    except Exception as e:
-        logger.error(f"❌ [Throttled OCR] Page {page_num + 1} Error: {e}")
-        return page_num, marker + ""
-
-
-def _extract_text_from_pdf(file_path: str) -> str:
-    try:
-        doc = fitz.open(file_path)
-        total = len(doc)
-        if total < 1: 
-            doc.close()
-            return ""
-        
-        logger.info(f"⚡ [OCR Engine V13.0] Starting Extraction. Total Pages: {total}")
-        
-        pages_results: Dict[int, str] = {}
-        pages_needing_ocr: List[Tuple[int, bytes]] = []
-
-        # Pass 1: Instant Digital Text Extraction (0.01s)
-        for i in range(total):
-            page = doc[i]
-            digital_text = _strip_footer(_sanitize_text("\n".join([b[4] for b in sorted(page.get_text("blocks"), key=lambda b: (int(b[1]/3), int(b[0])))])))
-            
-            if digital_text and len(digital_text.strip()) > 80:
-                pages_results[i] = f"\n--- [FAQJA {i + 1}] ---\n" + digital_text
-            else:
-                pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-                jpeg_bytes = pix.tobytes("jpeg", jpg_quality=80)
-                pages_needing_ocr.append((i, jpeg_bytes))
-
-        doc.close()
-
-        # Pass 2: Throttled Concurrency (max_workers=2 avoids 429 rate limits)
-        if pages_needing_ocr:
-            logger.info(f"🚀 [OCR Engine V13.0] Running Safe Throttled OCR for {len(pages_needing_ocr)} scanned pages...")
-            max_workers = min(len(pages_needing_ocr), 2)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_page = {
-                    executor.submit(_ocr_single_page_bytes, page_num, j_bytes): page_num
-                    for page_num, j_bytes in pages_needing_ocr
-                }
-                for future in as_completed(future_to_page):
-                    page_num, ocr_result = future.result()
-                    pages_results[page_num] = ocr_result
-
-        ordered_text = "".join([pages_results[i] for i in range(total) if i in pages_results])
-        logger.info(f"🎉 [OCR Engine V13.0] Total Document Text Extracted: {len(ordered_text)} characters")
-        return ordered_text
-
-    except Exception as e:
-        logger.error(f"❌ PDF Extraction Failed: {e}")
-        return ""
-
-
-def extract_text(file_path: str, mime_type: str) -> str:
-    m = (mime_type or "").lower()
-    fn = (file_path or "").lower()
-
-    if "pdf" in m or fn.endswith(".pdf"): 
-        return _extract_text_from_pdf(file_path)
-
-    # WORD DOCUMENTS (.docx & legacy .doc)
-    if "word" in m or "officedocument" in m or fn.endswith(".docx") or fn.endswith(".doc") or m == "application/msword":
-        return _extract_docx_text(file_path)
-
-    # DIRECT IMAGE OCR SUPPORT (.jpg, .jpeg, .png, .webp)
-    if any(m.startswith(img_t) for img_t in ["image/jpeg", "image/png", "image/webp", "image/jpg"]) or any(fn.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-        if advanced_bytes_ocr:
-            try:
-                with open(file_path, "rb") as img_f:
-                    img_bytes = img_f.read()
-                logger.info(f"📷 [Image Extraction] Running direct Cloud OCR on image: {os.path.basename(file_path)}")
-                return _sanitize_text(advanced_bytes_ocr(img_bytes))
-            except Exception as img_err:
-                logger.error(f"❌ Direct Image OCR Error: {img_err}")
-        return ""
-
-    if "excel" in m or "spreadsheet" in m or fn.endswith(".xlsx") or fn.endswith(".xls"):
+    url = "https://api.ocr.space/parse/image"
+    is_pdf = image_bytes.startswith(b'%PDF-')
+    
+    filename = "page.pdf" if is_pdf else "page.png"
+    mime = "application/pdf" if is_pdf else "image/png"
+    
+    payload = {
+        "apikey": OCR_SPACE_API_KEY,
+        "language": "eng", # Engine 2 with Latin script handles Albanian diacritics (ë, ç) with high fidelity
+        "isOverlayRequired": False,
+        "OCREngine": "2",  # Engine 2 is optimized for fine print, stamps, and legal contracts
+        "scale": True,
+        "detectOrientation": True
+    }
+    
+    max_attempts = 4
+    for attempt in range(max_attempts):
         try:
-            import pandas as pd
-            return _sanitize_text("\n".join(df.to_string() for _, df in pd.read_excel(file_path, sheet_name=None).items()))
-        except Exception:
-            return ""
+            files = {"file": (filename, image_bytes, mime)}
+            response = requests.post(url, files=files, data=payload, timeout=35)
+            
+            # Auto-retry on 429 Too Many Requests
+            if response.status_code == 429 or "429" in response.text:
+                wait_seconds = 1.5 * (attempt + 1)
+                logger.warning(f"⚠️ [OCR.space 429] Rate limit hit. Backing off {wait_seconds:.1f}s before retry ({attempt + 1}/{max_attempts})...")
+                time.sleep(wait_seconds)
+                continue
 
-    return "" 
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("IsErroredOnProcessing"):
+                err_msg = result.get("ErrorMessage", ["Processing error"])
+                err_str = " ".join(err_msg) if isinstance(err_msg, list) else str(err_msg)
+                if "429" in err_str or "limit" in err_str.lower():
+                    wait_seconds = 2.0 * (attempt + 1)
+                    logger.warning(f"⚠️ [OCR.space Error 429] Backing off {wait_seconds:.1f}s...")
+                    time.sleep(wait_seconds)
+                    continue
+                logger.error(f"❌ OCR.space Internal Error: {err_str}")
+                return "", 0.0
+            
+            parsed_results = result.get("ParsedResults", [])
+            if not parsed_results:
+                return "", 0.0
+                
+            full_text = parsed_results[0].get("ParsedText", "")
+            return full_text, 0.95
+            
+        except requests.exceptions.RequestException as e:
+            if "429" in str(e) and attempt < max_attempts - 1:
+                wait_seconds = 1.8 * (attempt + 1)
+                time.sleep(wait_seconds)
+                continue
+            if attempt == max_attempts - 1:
+                logger.error(f"❌ OCR.space Request Failed after {max_attempts} attempts: {e}")
+                return "", 0.0
+            time.sleep(1.0)
+        except Exception as e:
+            logger.error(f"❌ OCR.space Unexpected Failure: {e}")
+            return "", 0.0
 
+    return "", 0.0
 
-def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
-    with tempfile.NamedTemporaryFile(suffix=f".{file_type.lower()}", delete=False) as tmp:
-        tmp.write(file_obj.getvalue())
-        path = tmp.name
-    try: 
-        return extract_text(path, file_type)
-    finally:
-        if os.path.exists(path): 
-            try:
-                os.remove(path)
-            except Exception:
-                pass
+def rule_based_correction(text: str) -> str:
+    """Corrects common OCR character confusions in legal Albanian texts."""
+    if not text: 
+        return ""
+    # Standardize Albanian judicial abbreviations and terms
+    cleaned = text
+    cleaned = re.sub(r'\bL\s*P\s*K\b', 'LPK', cleaned)
+    cleaned = re.sub(r'\bK\s*P\s*K\b', 'KPK', cleaned)
+    cleaned = re.sub(r'\bL\s*M\s*D\b', 'LMD', cleaned)
+    cleaned = re.sub(r'\bK\s*P\s*R\s*K\b', 'KPRK', cleaned)
+    cleaned = re.sub(r'\bKP\s*P\s*R\s*K\b', 'KPPRK', cleaned)
+    return cleaned.strip()
+
+def extract_text_from_image_bytes(image_bytes: bytes) -> str:
+    try:
+        if image_bytes.startswith(b'%PDF-'):
+            local_text = extract_text_from_pdf_locally(image_bytes)
+            if local_text:
+                return rule_based_correction(local_text)
+                
+        raw_text, confidence = run_ocr_space_ocr(image_bytes)
+        corrected_text = rule_based_correction(raw_text)
+        return corrected_text
+    except Exception as e:
+        logger.error(f"❌ OCR extraction failed: {e}")
+        return ""
+
+def extract_text_from_image(file_path: str) -> str:
+    if not os.path.exists(file_path): 
+        return ""
+    try:
+        with open(file_path, "rb") as f: 
+            image_bytes = f.read()
+        return extract_text_from_image_bytes(image_bytes)
+    except Exception as e:
+        logger.error(f"❌ OCR disk extraction failed: {e}")
+        return ""
+
+def preprocess_image_for_ocr(pil_image): 
+    return pil_image
+
+def clean_ocr_garbage(text): 
+    return text.strip()
+
+def extract_expense_data_from_image(image_bytes: bytes) -> Dict[str, Any]:
+    text = extract_text_from_image_bytes(image_bytes)
+    return {'success': True, 'text': text, 'structured_data': {}}
