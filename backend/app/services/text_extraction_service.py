@@ -1,5 +1,5 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V12.0 (LEGACY BINARY .DOC & MODERN .DOCX DUAL-EXTRACTOR)
+# PHOENIX PROTOCOL - OCR ENGINE V13.0 (SAFE CONCURRENCY THROTTLING & 429 IMMUNITY)
 
 import fitz
 import logging
@@ -33,17 +33,12 @@ def _strip_footer(text: str) -> str:
 
 
 def _extract_legacy_doc_text(file_path: str) -> str:
-    """
-    Extracts text from binary Word 97-2003 (.doc) files safely
-    without requiring OpenXML schemas.
-    """
+    """Extracts text from binary Word 97-2003 (.doc) files safely."""
     try:
         with open(file_path, 'rb') as f:
             content = f.read()
 
-        # Extract UTF-8 or Latin-1 text streams from binary OLE stream
         decoded_latin = content.decode('latin-1', errors='ignore')
-        # Filter sequences of readable characters
         clean_blocks = re.findall(r'[\w\s\.,;:!?\(\)\[\]\/\-\–\—\+\@\#\%\&\=\"]{4,}', decoded_latin)
         extracted = "\n".join([b.strip() for b in clean_blocks if len(b.strip()) > 5])
         
@@ -86,14 +81,14 @@ def _ocr_single_page_bytes(page_num: int, jpeg_bytes: bytes) -> Tuple[int, str]:
         return page_num, marker + "[SCANNED - NO OCR ENGINE AVAILABLE]"
 
     try:
-        logger.info(f"🔍 [Parallel OCR] Page {page_num + 1}: Dispatching Cloud OCR ({len(jpeg_bytes) / 1024:.1f} KB)...")
+        logger.info(f"🔍 [Throttled OCR] Page {page_num + 1}: Dispatching Cloud OCR ({len(jpeg_bytes) / 1024:.1f} KB)...")
         ocr_text = _sanitize_text(advanced_bytes_ocr(jpeg_bytes))
         if ocr_text and len(ocr_text.strip()) > 20:
-            logger.info(f"✅ [Parallel OCR] Page {page_num + 1}: OCR Success ({len(ocr_text)} chars)")
+            logger.info(f"✅ [Throttled OCR] Page {page_num + 1}: OCR Success ({len(ocr_text)} chars)")
             return page_num, marker + ocr_text
         return page_num, marker + "[Përmbajtja nuk u lexua dot me OCR]"
     except Exception as e:
-        logger.error(f"❌ [Parallel OCR] Page {page_num + 1} Error: {e}")
+        logger.error(f"❌ [Throttled OCR] Page {page_num + 1} Error: {e}")
         return page_num, marker + ""
 
 
@@ -105,11 +100,12 @@ def _extract_text_from_pdf(file_path: str) -> str:
             doc.close()
             return ""
         
-        logger.info(f"⚡ [OCR Engine V12.0] Starting Parallel High-Speed Extraction. Total Pages: {total}")
+        logger.info(f"⚡ [OCR Engine V13.0] Starting Extraction. Total Pages: {total}")
         
         pages_results: Dict[int, str] = {}
         pages_needing_ocr: List[Tuple[int, bytes]] = []
 
+        # Pass 1: Instant Digital Text Extraction (0.01s)
         for i in range(total):
             page = doc[i]
             digital_text = _strip_footer(_sanitize_text("\n".join([b[4] for b in sorted(page.get_text("blocks"), key=lambda b: (int(b[1]/3), int(b[0])))])))
@@ -123,9 +119,10 @@ def _extract_text_from_pdf(file_path: str) -> str:
 
         doc.close()
 
+        # Pass 2: Throttled Concurrency (max_workers=2 avoids 429 rate limits)
         if pages_needing_ocr:
-            logger.info(f"🚀 [OCR Engine V12.0] Running Parallel OCR for {len(pages_needing_ocr)} scanned pages...")
-            max_workers = min(len(pages_needing_ocr), 6)
+            logger.info(f"🚀 [OCR Engine V13.0] Running Safe Throttled OCR for {len(pages_needing_ocr)} scanned pages...")
+            max_workers = min(len(pages_needing_ocr), 2)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_page = {
                     executor.submit(_ocr_single_page_bytes, page_num, j_bytes): page_num
@@ -136,7 +133,7 @@ def _extract_text_from_pdf(file_path: str) -> str:
                     pages_results[page_num] = ocr_result
 
         ordered_text = "".join([pages_results[i] for i in range(total) if i in pages_results])
-        logger.info(f"🎉 [OCR Engine V12.0] Total Document Text Extracted: {len(ordered_text)} characters")
+        logger.info(f"🎉 [OCR Engine V13.0] Total Document Text Extracted: {len(ordered_text)} characters")
         return ordered_text
 
     except Exception as e:
