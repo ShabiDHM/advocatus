@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V12.0 (MULTI-FILE SIMULTANEOUS UPLOAD PIPELINE)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V13.0 (PRE-UPLOAD DUPLICATE GUARD & MULTI-FILE PIPELINE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -9,7 +9,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    HardDrive, FilePlus, Lock
+    HardDrive, FilePlus, Lock, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -43,7 +43,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<{ text: string; type: 'error' | 'warning' } | null>(null);
   
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
@@ -85,7 +85,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       console.error(`Failed to upload ${file.name}`, error);
-      setUploadError(`${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`);
+      const errorMsg = error?.response?.data?.detail || error?.message || `${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`;
+      setUploadNotice({ text: errorMsg, type: 'error' });
     }
   };
 
@@ -96,12 +97,42 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     const filesArray = Array.from(rawFiles).filter((f) => !f.name.startsWith('.'));
     if (filesArray.length === 0) return;
 
-    setUploadError(null);
+    setUploadNotice(null);
+
+    // 🛡️ 1. CLIENT-SIDE DUPLICATE PRE-CHECK
+    const existingFileNames = new Set(
+      documents.map((d) => (d.file_name || (d as any).title || '').toLowerCase().trim())
+    );
+
+    const nonDuplicateFiles: File[] = [];
+    const duplicateFileNames: string[] = [];
+
+    for (const file of filesArray) {
+      const normalizedName = file.name.toLowerCase().trim();
+      if (existingFileNames.has(normalizedName)) {
+        duplicateFileNames.push(file.name);
+      } else {
+        nonDuplicateFiles.push(file);
+        existingFileNames.add(normalizedName);
+      }
+    }
+
+    if (duplicateFileNames.length > 0) {
+      setUploadNotice({
+        text: `Dokumenti "${duplicateFileNames.join(', ')}" tashmë ekziston në këtë lëndë dhe u kapërcye për të parandaluar duplikimet.`,
+        type: 'warning',
+      });
+    }
+
+    if (nonDuplicateFiles.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsUploading(true);
 
     try {
-      // Process all files sequentially or in parallel batches
-      for (const file of filesArray) {
+      for (const file of nonDuplicateFiles) {
         await performUpload(file);
       }
     } finally {
@@ -308,9 +339,23 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
       </div>
 
-      {uploadError && (
-        <div className="p-3 text-xs text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl mb-4 font-medium">
-          {uploadError}
+      {uploadNotice && (
+        <div
+          className={`p-3 text-xs rounded-xl mb-4 font-medium flex items-start gap-2 border ${
+            uploadNotice.type === 'warning'
+              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+              : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+          }`}
+        >
+          <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+          <div className="flex-1">{uploadNotice.text}</div>
+          <button
+            type="button"
+            onClick={() => setUploadNotice(null)}
+            className="text-text-muted hover:text-text-primary text-xs font-bold"
+          >
+            ✕
+          </button>
         </div>
       )}
       

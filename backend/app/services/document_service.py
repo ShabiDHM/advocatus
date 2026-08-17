@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V7.0 (AUTO-CACHING B2 CLOUD FILES TO SSD FOR 0ms PREVIEWS)
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V8.0 (IDEMPOTENT DUPLICATE PREVENTION & 0ms SSD CACHE)
 
 import logging
 import datetime
@@ -10,7 +10,7 @@ from datetime import timezone
 from typing import List, Optional, Tuple, Any, Dict
 from bson import ObjectId
 import redis
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from pymongo.database import Database
 
 from ..models.document import DocumentOut, DocumentStatus
@@ -23,27 +23,47 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = os.path.join(os.getcwd(), ".file_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
+
 def create_document_record(
     db: Database, owner: UserInDB, case_id: str, file_name: str, storage_key: str, mime_type: str
 ) -> DocumentOut:
     try:
         case_object_id = ObjectId(case_id)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid Case ID format.")
+        raise HTTPException(status_code=400, detail="Format i pasaktë i ID të lëndës.")
+
+    # 🛡️ DUPLICATE PREVENTION GUARD: Check if active file with same name exists
+    existing_doc = db.documents.find_one({
+        "case_id": case_object_id,
+        "owner_id": owner.id,
+        "file_name": file_name,
+        "status": {"$ne": "DELETED"}
+    })
+    
+    if existing_doc:
+        logger.warning(f"⚠️ [Duplicate Guard] Document '{file_name}' already exists in case {case_id}.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dokumenti '{file_name}' tashmë ekziston në këtë lëndë. Fshini versionin e vjetër nëse dëshironi ta zëvendësoni."
+        )
 
     document_data = {
-        "owner_id": owner.id, "case_id": case_object_id, "file_name": file_name,
-        "storage_key": storage_key, "mime_type": mime_type,
+        "owner_id": owner.id, 
+        "case_id": case_object_id, 
+        "file_name": file_name,
+        "storage_key": storage_key, 
+        "mime_type": mime_type,
         "status": DocumentStatus.PENDING,
         "created_at": datetime.datetime.now(timezone.utc),
         "preview_storage_key": None,
     }
     insert_result = db.documents.insert_one(document_data)
     if not insert_result.inserted_id:
-        raise HTTPException(status_code=500, detail="Failed to create document record.")
+        raise HTTPException(status_code=500, detail="Dështoi krijimi i regjistrit të dokumentit.")
     
     new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
     return DocumentOut.model_validate(new_doc)
+
 
 def finalize_document_processing(
     db: Database, redis_client: redis.Redis, doc_id_str: str,
@@ -66,6 +86,7 @@ def finalize_document_processing(
         
     db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
 
+
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
     try:
         documents_cursor = db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1)
@@ -74,6 +95,7 @@ def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> Lis
     except Exception as e:
         logger.error(f"Failed to fetch documents for case {case_id}: {e}")
         return []
+
 
 def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> DocumentOut:
     try:
@@ -86,25 +108,20 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
         raise HTTPException(status_code=404, detail="Document not found.")
     return DocumentOut.model_validate(document_data)
 
+
 def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Optional[str], Any, DocumentOut, int]:
-    """
-    Checks local SSD disk cache first. If missing, downloads from B2, writes
-    to local SSD cache, and returns local file path for 0ms future previews.
-    """
     document = get_and_verify_document(db, doc_id, owner)
     storage_key = document.preview_storage_key or document.storage_key
     
     if not storage_key:
-        raise FileNotFoundError("Document content unavailable.")
+        raise FileNotFoundError("Përmbajtja e dokumentit nuk është e disponueshme.")
 
     safe_cache_name = storage_key.replace('/', '_')
     cached_path = os.path.join(CACHE_DIR, safe_cache_name)
     
-    # ⚡ 1. FAST PATH: Local SSD Cache hit (1ms)
     if os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
         return cached_path, None, document, os.path.getsize(cached_path)
 
-    # ☁️ 2. CLOUD FALLBACK + AUTO SSD CACHE WRITE: Download from B2 once and save to local disk
     try:
         s3 = storage_service.get_s3_client()
         obj = s3.get_object(Bucket=storage_service.B2_BUCKET_NAME, Key=storage_key)
@@ -120,25 +137,29 @@ def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) 
     file_stream, length = storage_service.get_file_stream_with_meta(storage_key)
     return None, file_stream, document, length
 
+
 def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut, int]:
     document = get_and_verify_document(db, doc_id, owner)
     storage_key = document.preview_storage_key or document.storage_key
     if not storage_key:
-        raise FileNotFoundError("Document content unavailable.")
+        raise FileNotFoundError("Përmbajtja e dokumentit nuk është e disponueshme.")
     stream, length = storage_service.get_file_stream_with_meta(storage_key)
     return stream, document, length
+
 
 def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
     if not document.storage_key:
-        raise HTTPException(status_code=404, detail="Original document file not found in storage.")
+        raise HTTPException(status_code=404, detail="Skedari origjinal nuk u gjet në hapësirën ruajtëse.")
     try:
         file_stream = storage_service.download_original_document_stream(document.storage_key)
-        if file_stream is None: raise FileNotFoundError
+        if file_stream is None: 
+            raise FileNotFoundError
         return file_stream, document
     except Exception as e:
         logger.error(f"Failed to download original document: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve the document file.")
+        raise HTTPException(status_code=500, detail="Nuk mund të shkarkohej skedari origjinal.")
+
 
 def get_document_content_by_key(storage_key: str) -> Optional[str]:
     try:
@@ -148,10 +169,11 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         logger.error(f"Failed to retrieve content: {e}", exc_info=True)
         return None
 
+
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
-        raise HTTPException(status_code=404, detail="Document not found.")
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
     
     doc_id_str = str(doc_id)
     storage_key = document_to_delete.get("storage_key")
@@ -162,8 +184,10 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         if k:
             cached_file = os.path.join(CACHE_DIR, k.replace('/', '_'))
             if os.path.exists(cached_file):
-                try: os.remove(cached_file)
-                except Exception: pass
+                try: 
+                    os.remove(cached_file)
+                except Exception: 
+                    pass
 
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     deleted_finding_ids = []
@@ -197,9 +221,12 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         logger.error(f"Vector store cleanup failed: {e}")
     
     try:
-        if storage_key: storage_service.delete_file(storage_key=storage_key)
-        if processed_key: storage_service.delete_file(storage_key=processed_key)
-        if preview_key: storage_service.delete_file(storage_key=preview_key)
+        if storage_key: 
+            storage_service.delete_file(storage_key=storage_key)
+        if processed_key: 
+            storage_service.delete_file(storage_key=processed_key)
+        if preview_key: 
+            storage_service.delete_file(storage_key=preview_key)
     except Exception as e:
         logger.error(f"S3 cleanup failed (non-critical): {e}")
     
@@ -214,6 +241,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         logger.error(f"SSE deletion broadcast warning: {sse_err}")
     
     return deleted_finding_ids
+
 
 def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids: List[str], owner: UserInDB) -> Dict[str, Any]:
     deleted_count = 0
