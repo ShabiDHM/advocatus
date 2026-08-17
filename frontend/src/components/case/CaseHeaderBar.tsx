@@ -1,5 +1,5 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V11.0 (EXECUTIVE NATURAL TITLE TYPOGRAPHY)
+// PHOENIX PROTOCOL - CASE HEADER BAR V12.0 (BALANCED 2-COLUMN EXECUTIVE CONTROL DOCK)
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -76,6 +76,13 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
 
   const rawTitle = caseDetails.title || (caseDetails as any).name || 'Rast pa Titull';
 
+  const roleLabel =
+    clientPosition === 'DEFENDANT'
+      ? 'ROLI: I PADITUR'
+      : clientPosition === 'PLAINTIFF'
+      ? 'ROLI: PADITËS'
+      : 'ROLI: NEUTRAL';
+
   return (
     <motion.div
       className="relative mb-4 sm:mb-6 z-[30]"
@@ -83,36 +90,19 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="bg-surface border border-main rounded-2xl p-3.5 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 sm:p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
-            <Briefcase size={20} className="sm:w-5 sm:h-5" />
+      <div className="bg-surface border border-main rounded-2xl p-4 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        
+        {/* LEFT COLUMN: Clean Case Identity */}
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
+            <Briefcase size={22} className="sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Executive natural casing title without uppercase forcing */}
-              <h1 className="text-base sm:text-xl font-bold text-text-primary tracking-tight truncate leading-snug">
-                {rawTitle}
-              </h1>
+            <h1 className="text-base sm:text-xl font-bold text-text-primary tracking-tight truncate leading-tight">
+              {rawTitle}
+            </h1>
 
-              <button
-                type="button"
-                onClick={onOpenRoleModal}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider border transition-all shadow-sm cursor-pointer ${
-                  clientPosition === 'DEFENDANT'
-                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
-                    : clientPosition === 'PLAINTIFF'
-                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
-                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                }`}
-                title="Kliko për të ndryshuar pozicionin e klientit"
-              >
-                {clientPosition === 'DEFENDANT' ? <Shield size={11} /> : clientPosition === 'PLAINTIFF' ? <Swords size={11} /> : <Scale size={11} />}
-                <span>{clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' : clientPosition === 'PLAINTIFF' ? '⚔️ PADITËSI' : '⚖️ NEUTRAL'}</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-text-muted mt-0.5 sm:mt-1 font-medium">
+            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-text-muted mt-1 font-medium">
               <span className="flex items-center gap-1">
                 <Calendar size={12} className="text-primary-start/70" />
                 {new Date(caseDetails.created_at).toLocaleDateString()}
@@ -123,13 +113,39 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
           </div>
         </div>
 
-        <div className="w-full sm:w-64 z-[60]">
-          <DocumentSelector
-            documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
-            selectedIds={selectedDocumentIds}
-            onChange={onDocumentSelectionChange}
-            disabled={!isPro}
-          />
+        {/* RIGHT COLUMN: Stacked Document Selector & Role Pill */}
+        <div className="flex flex-col items-end gap-2 w-full sm:w-auto shrink-0 z-[60]">
+          <div className="w-full sm:w-64">
+            <DocumentSelector
+              documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
+              selectedIds={selectedDocumentIds}
+              onChange={onDocumentSelectionChange}
+              disabled={!isPro}
+            />
+          </div>
+
+          {/* Role Pill directly below Document Selector, aligned right */}
+          <button
+            type="button"
+            onClick={onOpenRoleModal}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider border transition-all shadow-xs cursor-pointer ${
+              clientPosition === 'DEFENDANT'
+                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                : clientPosition === 'PLAINTIFF'
+                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+            }`}
+            title="Kliko për të ndryshuar rolin procedural të klientit"
+          >
+            {clientPosition === 'DEFENDANT' ? (
+              <Shield size={11} className="shrink-0" />
+            ) : clientPosition === 'PLAINTIFF' ? (
+              <Swords size={11} className="shrink-0" />
+            ) : (
+              <Scale size={11} className="shrink-0" />
+            )}
+            <span>{roleLabel}</span>
+          </button>
         </div>
       </div>
 
