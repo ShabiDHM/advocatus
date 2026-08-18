@@ -1,11 +1,11 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.7 (UNIFIED SEAMLESS THEME SEARCH BAR & DIALOGS)
+// PHOENIX PROTOCOL - DASHBOARD V10.0 (SOLID OPAQUE MODALS & HIGH-CONTRAST THEME SYSTEM)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
-  PartyPopper, Coffee, Timer, Trash2, Calendar, Search
+  PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
@@ -178,7 +178,8 @@ const DashboardPage: React.FC = () => {
     });
   }, [cases, searchTerm]);
 
-  const inputClasses = "w-full px-5 h-11 bg-surface border border-main rounded-xl text-text-primary placeholder:text-text-disabled text-sm focus:outline-none focus:ring-2 focus:ring-primary-start transition-all";
+  // High-contrast, theme-aware inputs
+  const inputClasses = "w-full px-4 h-11 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/40 focus:border-primary-start transition-all";
   const labelClasses = "block text-[10px] font-black text-primary-start uppercase tracking-widest mb-1.5 ml-1";
 
   const getGreeting = (): string => {
@@ -321,7 +322,7 @@ const DashboardPage: React.FC = () => {
                   <button 
                     type="button"
                     onClick={() => window.location.href = '/calendar'} 
-                    className="h-11 w-full md:w-auto px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 bg-primary-start hover:bg-opacity-95 text-white shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none"
+                    className="h-11 w-full md:w-auto px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 bg-primary-start hover:bg-opacity-95 text-white shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
                   >
                     <Calendar size={16} />
                     {t('briefing.view_calendar', 'Kalendari')}
@@ -333,6 +334,7 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Search and New Case Bar */}
       <div className="flex items-center gap-3 w-full h-11 shrink-0 mb-6 px-1">
         <div className="relative flex-1 h-11">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
@@ -347,7 +349,7 @@ const DashboardPage: React.FC = () => {
         <button 
             type="button"
             onClick={() => setShowCreateModal(true)} 
-            className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none"
+            className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none cursor-pointer"
             title={t('dashboard.newCase', 'Rast i Ri')}
         >
           <Plus size={16} strokeWidth={3} /> 
@@ -376,43 +378,81 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modals */}
+      {/* 100% SOLID OPAQUE THEME-ADAPTIVE MODALS */}
       <AnimatePresence>
+        {/* CREATE CASE MODAL */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="glass-panel w-full max-w-lg p-6 sm:p-8 rounded-[2rem] shadow-2xl border border-main bg-surface"
+              className="w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-text-primary tracking-tight uppercase">{t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}</h2>
+              <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight uppercase text-slate-900 dark:text-white">
+                  {t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}
+                </h2>
                 <button 
                   onClick={() => setShowCreateModal(false)}
-                  className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl focus:outline-none"
-                  aria-label="Close"
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  aria-label="Mbyll"
                 >
-                  ✕
+                  <X size={20} />
                 </button>
               </div>
+
               <form onSubmit={handleCreateCase} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className={labelClasses}>Lënda</label>
-                  <input required placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës')} value={newCaseData.title} onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} className={inputClasses} />
+                  <input 
+                    required 
+                    placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës')} 
+                    value={newCaseData.title} 
+                    onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} 
+                    className={inputClasses} 
+                  />
                 </div>
-                <div className="pt-4 border-t border-main space-y-4">
+
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
                   <p className={labelClasses}>Detajet e Klientit</p>
-                  <input required placeholder={t('dashboard.clientName', 'Emri i Klientit')} value={newCaseData.clientName} onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} className={inputClasses} />
+                  <input 
+                    required 
+                    placeholder={t('dashboard.clientName', 'Emri i Klientit')} 
+                    value={newCaseData.clientName} 
+                    onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
+                    className={inputClasses} 
+                  />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input placeholder={t('dashboard.clientEmail', 'Email')} value={newCaseData.clientEmail} onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} className={inputClasses} />
-                    <input placeholder={t('dashboard.clientPhone', 'Telefon')} value={newCaseData.clientPhone} onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} className={inputClasses} />
+                    <input 
+                      placeholder={t('dashboard.clientEmail', 'Email')} 
+                      value={newCaseData.clientEmail} 
+                      onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} 
+                      className={inputClasses} 
+                    />
+                    <input 
+                      placeholder={t('dashboard.clientPhone', 'Telefon')} 
+                      value={newCaseData.clientPhone} 
+                      onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} 
+                      className={inputClasses} 
+                    />
                   </div>
                 </div>
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t border-main">
-                  <button type="button" onClick={() => setShowCreateModal(false)} className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none">{t('general.cancel', 'Anulo')}</button>
-                  <button type="submit" disabled={isCreating} className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/15">
-                      {isCreating ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.create', 'Krijo')}
+
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowCreateModal(false)} 
+                    className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 transition-all focus:outline-none cursor-pointer"
+                  >
+                    {t('general.cancel', 'Anulo')}
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isCreating} 
+                    className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-bold bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center gap-2 focus:outline-none shadow-lg shadow-primary-start/20 cursor-pointer"
+                  >
+                    {isCreating ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.create', 'Krijo')}
                   </button>
                 </div>
               </form>
@@ -420,29 +460,32 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* THEME-SEAMLESS DELETION CONFIRMATION MODAL */}
+        {/* DELETE CONFIRMATION MODAL */}
         {caseToDeleteId && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[110] p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-panel w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl text-center border border-main bg-surface"
+              className="w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl text-center border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white"
             >
-              <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-rose-500/30">
-                <Trash2 className="h-8 w-8 text-rose-500" />
+              <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-500/25">
+                <Trash2 className="h-8 w-8 text-rose-600 dark:text-rose-400" />
               </div>
-              <h2 className="text-xl font-bold text-text-primary mb-2 uppercase tracking-tight">
+
+              <h2 className="text-lg sm:text-xl font-bold mb-2 uppercase tracking-tight text-slate-900 dark:text-white">
                 {t('caseDelete.confirmTitle', 'Fshij Rastin?')}
               </h2>
-              <p className="text-text-secondary text-sm mb-6 leading-relaxed italic font-medium">
+
+              <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mb-6 leading-relaxed italic font-medium">
                 {t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}
               </p>
+
               <div className="flex gap-3 justify-center">
                 <button
                   type="button"
                   onClick={() => setCaseToDeleteId(null)}
-                  className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-all focus:outline-none bg-surface"
+                  className="w-full h-11 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 transition-all focus:outline-none cursor-pointer"
                 >
                   {t('general.cancel', 'Anulo')}
                 </button>
