@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V15.0 (MINIMALIST EXECUTIVE DROPDOWN & MULTI-FILE PIPELINE)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V16.0 (ROBUST SINGLE-DOCUMENT PIPELINE & DUPLICATE GUARD)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -72,6 +72,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     if (file.name.startsWith('.')) return;
     setCurrentFileName(file.name);
     setUploadProgress(0);
+    setIsUploading(true);
+    setUploadNotice(null);
+
     try {
       const responseData = await apiService.uploadDocument(caseId, file, (percent) => setUploadProgress(percent));
       const rawData = responseData as any;
@@ -87,53 +90,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       console.error(`Failed to upload ${file.name}`, error);
       const errorMsg = error?.response?.data?.detail || error?.message || `${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`;
       setUploadNotice({ text: errorMsg, type: 'error' });
-    }
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFiles = event.target.files;
-    if (!rawFiles || rawFiles.length === 0) return;
-
-    const filesArray = Array.from(rawFiles).filter((f) => !f.name.startsWith('.'));
-    if (filesArray.length === 0) return;
-
-    setUploadNotice(null);
-
-    const existingFileNames = new Set(
-      documents.map((d) => (d.file_name || (d as any).title || '').toLowerCase().trim())
-    );
-
-    const nonDuplicateFiles: File[] = [];
-    const duplicateFileNames: string[] = [];
-
-    for (const file of filesArray) {
-      const normalizedName = file.name.toLowerCase().trim();
-      if (existingFileNames.has(normalizedName)) {
-        duplicateFileNames.push(file.name);
-      } else {
-        nonDuplicateFiles.push(file);
-        existingFileNames.add(normalizedName);
-      }
-    }
-
-    if (duplicateFileNames.length > 0) {
-      setUploadNotice({
-        text: `Dokumenti "${duplicateFileNames.join(', ')}" tashmë ekziston në këtë lëndë dhe u kapërcye për të parandaluar duplikimet.`,
-        type: 'warning',
-      });
-    }
-
-    if (nonDuplicateFiles.length === 0) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      for (const file of nonDuplicateFiles) {
-        await performUpload(file);
-      }
     } finally {
       setIsUploading(false);
       setCurrentFileName("");
@@ -141,6 +97,30 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadNotice(null);
+
+    // 🛡️ DUPLICATE PRE-CHECK: Prevent accidental re-uploads
+    const normalizedName = file.name.toLowerCase().trim();
+    const isDuplicate = documents.some(
+      (d) => (d.file_name || (d as any).title || '').toLowerCase().trim() === normalizedName
+    );
+
+    if (isDuplicate) {
+      setUploadNotice({
+        text: `Dokumenti "${file.name}" tashmë ekziston në këtë lëndë. Fshini versionin ekzistues nëse dëshironi ta zëvendësoni.`,
+        type: 'warning',
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    await performUpload(file);
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
@@ -243,7 +223,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     <>
     <div className={`glass-panel p-4 rounded-2xl flex flex-col h-full overflow-hidden bg-canvas ${className}`}>
       
-      {/* Header Bar with high-contrast selection theme */}
+      {/* Header Bar */}
       <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${
         isSelectionMode ? 'border-rose-500/30 bg-rose-500/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'
       }`}>
@@ -295,12 +275,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 ? 'bg-surface text-text-disabled cursor-not-allowed border border-main' 
                                 : 'btn-primary p-0'
                         }`}
-                        title={isSystemBusy ? "Prisni që dokumentet aktuale të procesohen..." : "Shto Dokumente"}
+                        title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
-                    {/* CLEAN MINIMALIST EXECUTIVE DROPDOWN MENU (TEXT-ONLY) */}
+                    {/* CLEAN MINIMALIST EXECUTIVE DROPDOWN MENU */}
                     <AnimatePresence>
                         {showAddMenu && !isSystemBusy && (
                             <motion.div 
@@ -318,7 +298,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
                                     className="w-full text-left px-4 py-3 hover:bg-hover text-xs font-bold uppercase tracking-wider text-text-primary transition-colors focus:outline-none cursor-pointer"
                                 >
-                                    Ngarko Dokumente
+                                    Ngarko Dokument
                                 </button>
                                 <button 
                                     onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} 
@@ -331,13 +311,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </AnimatePresence>
                 </div>
 
-                {/* MULTI-FILE UPLOAD INPUT */}
+                {/* SINGLE FILE UPLOAD INPUT */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
                   onChange={handleFileChange} 
                   className="hidden" 
-                  multiple 
                   disabled={isSystemBusy} 
                 />
             </>
