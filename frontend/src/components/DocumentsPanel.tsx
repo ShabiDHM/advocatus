@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V16.0 (ROBUST SINGLE-DOCUMENT PIPELINE & DUPLICATE GUARD)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V18.0 (SINGLE UNIFIED PROGRESS BAR • ZERO GHOST DUPLICATES)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -42,12 +42,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadNotice, setUploadNotice] = useState<{ text: string; type: 'error' | 'warning' } | null>(null);
   
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
-  const [currentFileName, setCurrentFileName] = useState<string>(""); 
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
@@ -70,20 +67,18 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const performUpload = async (file: File): Promise<void> => {
     if (file.name.startsWith('.')) return;
-    setCurrentFileName(file.name);
-    setUploadProgress(0);
     setIsUploading(true);
     setUploadNotice(null);
 
     try {
-      const responseData = await apiService.uploadDocument(caseId, file, (percent) => setUploadProgress(percent));
+      const responseData = await apiService.uploadDocument(caseId, file, () => {});
       const rawData = responseData as any;
       const newDoc: Document = {
           ...responseData,
           id: responseData.id || rawData._id, 
-          status: 'PENDING',
-          progress_percent: 0, 
-          progress_message: t('documentsPanel.statusPending', 'Duke pritur...')
+          status: 'PROCESSING',
+          progress_percent: 30, 
+          progress_message: 'Duke procesuar...'
       } as any;
       onDocumentUploaded(newDoc);
     } catch (error: any) {
@@ -92,7 +87,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setUploadNotice({ text: errorMsg, type: 'error' });
     } finally {
       setIsUploading(false);
-      setCurrentFileName("");
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -105,7 +99,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     setUploadNotice(null);
 
-    // 🛡️ DUPLICATE PRE-CHECK: Prevent accidental re-uploads
+    // Duplicate Check
     const normalizedName = file.name.toLowerCase().trim();
     const isDuplicate = documents.some(
       (d) => (d.file_name || (d as any).title || '').toLowerCase().trim() === normalizedName
@@ -147,10 +141,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const toggleSelectAll = () => {
-      if (selectedIds.size === displayDocuments.length) {
+      if (selectedIds.size === documents.length) {
           setSelectedIds(new Set()); 
       } else {
-          const allIds = displayDocuments.map(d => d.id).filter(id => id !== 'ghost-upload');
+          const allIds = documents.map(d => d.id);
           setSelectedIds(new Set(allIds));
       }
   };
@@ -205,18 +199,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  const displayDocuments = [...documents];
-  if (isUploading && currentFileName) {
-      displayDocuments.unshift({
-          id: 'ghost-upload',
-          file_name: currentFileName,
-          status: 'UPLOADING',
-          // @ts-ignore
-          progress_percent: uploadProgress,
-          created_at: new Date().toISOString()
-      } as unknown as Document);
-  }
-
   const isSelectionMode = selectedIds.size > 0;
 
   return (
@@ -233,7 +215,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setSelectedIds(new Set())} 
-                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none"
+                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer"
                         aria-label="Clear selection"
                     >
                         <XCircle size={20} />
@@ -254,10 +236,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <div className="flex items-center gap-2 min-w-0 h-11">
                     <button 
                         onClick={toggleSelectAll} 
-                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer" 
                         title="Select All"
                     >
-                        {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
+                        {documents.length > 0 && selectedIds.size === documents.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title', 'Dokumentet')}</h2>
                     <div className="flex items-center justify-center ml-1">
@@ -270,17 +252,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
                         disabled={isSystemBusy}
                         whileTap={{ scale: 0.95 }}
-                        className={`h-11 w-11 flex items-center justify-center rounded-xl shadow-sm transition-all focus:outline-none ${
+                        className={`h-11 w-11 flex items-center justify-center rounded-xl shadow-sm transition-all focus:outline-none cursor-pointer ${
                             isSystemBusy 
                                 ? 'bg-surface text-text-disabled cursor-not-allowed border border-main' 
                                 : 'btn-primary p-0'
                         }`}
-                        title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
+                        title={isSystemBusy ? "Prisni që dokumenti të procesohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
-                    {/* CLEAN MINIMALIST EXECUTIVE DROPDOWN MENU */}
                     <AnimatePresence>
                         {showAddMenu && !isSystemBusy && (
                             <motion.div 
@@ -311,7 +292,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </AnimatePresence>
                 </div>
 
-                {/* SINGLE FILE UPLOAD INPUT */}
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -343,36 +323,33 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
       )}
       
-      {/* Scrollable Container */}
+      {/* Unified Documents List - One single card per document */}
       <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-1.5 custom-finance-scroll min-h-0 bg-canvas/20 rounded-xl p-2 border border-main">
-        {displayDocuments.length === 0 && (
+        {documents.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
             <FolderOpen className="w-12 h-12 mb-3 text-text-disabled/20" />
             <p className="text-sm font-medium">{t('documentsPanel.noDocuments', 'Nuk ka dokumente në këtë lëndë.')}</p>
           </div>
         )}
         
-        {displayDocuments.map((doc) => {
-          const isUploadingState = doc.status === 'UPLOADING';
+        {documents.map((doc) => {
           const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
-          const progressPercent = doc.progress_percent || 0;
-          const barColor = "bg-primary-start";
-          const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
-          const statusTextColor = "text-primary-start";
-          const canInteract = !isUploadingState && !isProcessingState;
+          const progressPercent = isProcessingState ? (doc.progress_percent && doc.progress_percent > 10 ? doc.progress_percent : 45) : 100;
+          const statusText = isProcessingState ? (doc.progress_message || 'Duke procesuar...') : 'Gati';
+          const canInteract = !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
           return (
             <motion.div 
                 key={doc.id} 
                 layout="position" 
-                onClick={() => !isUploadingState && toggleSelect(doc.id)} 
+                onClick={() => canInteract && toggleSelect(doc.id)} 
                 className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${
                     isSelected 
                         ? 'bg-primary-start/10 border-primary-start/50 shadow-sm' 
                         : 'bg-surface/30 hover:bg-hover border-main'
                 }`}
-                initial={{ opacity: 0, y: -10 }} 
+                initial={{ opacity: 0, y: -6 }} 
                 animate={{ opacity: 1, y: 0 }}
             >
               
@@ -380,13 +357,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold truncate text-text-primary">{doc.file_name}</p>
                 </div>
-                {(isUploadingState || isProcessingState) ? (
+                {isProcessingState ? (
                     <div className="flex items-center gap-3 mt-1.5">
-                        <span className={`text-[10px] ${statusTextColor} font-bold uppercase tracking-wider w-24`}>{statusText}</span>
-                        <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden border border-main">
-                          <motion.div className={`h-full ${barColor}`} initial={isUploadingState ? { width: 0 } : false} animate={{ width: `${progressPercent}%` }} transition={{ ease: "linear", duration: 0.3 }} />
+                        <span className="text-[10px] text-primary-start font-bold uppercase tracking-wider truncate max-w-[140px] sm:max-w-[200px]">
+                          {statusText}
+                        </span>
+                        <div className="w-24 sm:w-28 h-1.5 bg-surface rounded-full overflow-hidden border border-main">
+                          <motion.div 
+                            className="h-full bg-primary-start" 
+                            animate={{ width: `${progressPercent}%` }} 
+                            transition={{ ease: "easeOut", duration: 0.3 }} 
+                          />
                         </div>
-                        <span className="text-xs text-text-muted font-mono">{progressPercent}%</span>
+                        <span className="text-xs text-text-muted font-mono font-bold">{progressPercent}%</span>
                     </div>
                 ) : (
                   <p className="text-xs text-text-muted truncate mt-0.5 font-medium font-mono">{moment(doc.created_at).format('DD MMM YYYY, HH:mm')}</p>
@@ -399,7 +382,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer" 
                         title={t('documentsPanel.rename', 'Riemërto')}
                     >
                         <Pencil size={13} />
@@ -410,7 +393,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-primary-start transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-primary-start transition-colors focus:outline-none cursor-pointer" 
                         title={t('documentsPanel.viewOriginal', 'Shiko')}
                     >
                         <Eye size={13} />
@@ -420,7 +403,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-hover rounded-lg text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer" 
                         title={t('documentsPanel.archive', 'Arkivo')}
                     >
                         {archivingId === doc.id ? <Loader2 size={13} className="animate-spin text-primary-start" /> : <Archive size={13} />}
@@ -430,7 +413,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none" 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none cursor-pointer" 
                         title={t('documentsPanel.delete', 'Fshij')}
                     >
                         <Trash size={13} />

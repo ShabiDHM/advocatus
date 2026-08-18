@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V24.0 (WINDOWS FILE-LOCK IMMUNITY & RESILIENT CLEANUP)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V26.0 (LIVE MULTI-STAGE PROGRESS BROADCASTER)
 
 import os
 import tempfile
@@ -23,34 +23,6 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-class DocumentNotFoundInDBError(Exception):
-    pass
-
-
-async def publish_sse_update_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
-    redis_client = None
-    try:
-        payload = {
-            "type": "DOCUMENT_STATUS",
-            "document_id": document_id_str,
-            "status": status,
-            "error": error
-        }
-        channel = f"user:{user_id}:updates"
-        redis_client = aioredis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_timeout=3,
-            socket_keepalive=True
-        )
-        await redis_client.publish(channel, json.dumps(payload))
-    except Exception as e:
-        logger.error(f"SSE publish error for {document_id_str}: {e}")
-    finally:
-        if redis_client:
-            await redis_client.close()
-
-
 def _safe_remove_temp_file(file_path: str):
     """Safely removes temporary files on Windows without raising WinError 32."""
     if not file_path or not os.path.exists(file_path):
@@ -63,10 +35,53 @@ def _safe_remove_temp_file(file_path: str):
         except Exception:
             time.sleep(0.1)
     try:
-        # Final attempt; ignore if still locked
         os.remove(file_path)
+    except Exception:
+        pass
+
+
+async def publish_sse_progress_async(user_id: str, document_id_str: str, percent: int, message: str):
+    """Broadcasts incremental progress percentage (e.g. 25%, 65%, 85%) to UI."""
+    try:
+        payload = {
+            "type": "DOCUMENT_PROGRESS",
+            "document_id": document_id_str,
+            "percent": percent,
+            "message": message
+        }
+        channel = f"user:{user_id}:updates"
+        redis_client = aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=1.5,
+            socket_connect_timeout=1.5
+        )
+        await redis_client.publish(channel, json.dumps(payload))
+        await redis_client.close()
     except Exception as e:
-        logger.warning(f"Non-critical: could not delete temp file '{file_path}': {e}")
+        logger.warning(f"SSE progress broadcast skipped: {e}")
+
+
+async def publish_sse_status_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
+    """Broadcasts final status (READY / FAILED) to UI."""
+    try:
+        payload = {
+            "type": "DOCUMENT_STATUS",
+            "document_id": document_id_str,
+            "status": status,
+            "error": error
+        }
+        channel = f"user:{user_id}:updates"
+        redis_client = aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=1.5,
+            socket_connect_timeout=1.5
+        )
+        await redis_client.publish(channel, json.dumps(payload))
+        await redis_client.close()
+    except Exception as e:
+        logger.warning(f"SSE status broadcast skipped: {e}")
 
 
 async def orchestrate_document_processing_mongo(
@@ -78,9 +93,9 @@ async def orchestrate_document_processing_mongo(
 ):
     """
     MASTER HYDRA ORCHESTRATOR:
-    Executes high-definition text extraction, RAG vector embeddings, and preview rendering for PDF, Images & Word docs.
+    Executes staged text extraction, vector embeddings, and emits live percentage events (25% -> 65% -> 85% -> 100%).
     """
-    logger.info(f"⚡ [Orchestrator V24.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V26.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -89,21 +104,27 @@ async def orchestrate_document_processing_mongo(
     try:
         doc_id = ObjectId(document_id_str)
     except Exception:
-        logger.error(f"Invalid Document ID format: {document_id_str}")
+        logger.error(f"Invalid Document ID: {document_id_str}")
         return
 
     document = await asyncio.to_thread(db.documents.find_one, {"_id": doc_id})
     if not document:
-        logger.error(f"Document {document_id_str} not found in database.")
+        logger.error(f"Document {document_id_str} not found in DB.")
         return
 
     user_id = str(document.get("owner_id"))
     doc_name = document.get("file_name", "Unknown Document")
     case_id_str = str(document.get("case_id"))
 
-    await publish_sse_update_async(user_id, document_id_str, "PROCESSING")
+    # Stage 1: 15% Start
+    asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 15, "Duke shkarkuar skedarin..."))
 
     temp_original_file_path = ""
+    raw_text = f"Dokument i ngarkuar: {doc_name}."
+    final_summary = "Përmbledhje e dokumentit."
+    preview_storage_key = ""
+    text_key = ""
+
     try:
         suffix = os.path.splitext(doc_name)[1] or ".pdf"
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
@@ -115,25 +136,26 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'): 
             file_stream.close()
 
-        # Step 1: High-Speed Text Extraction
-        logger.info("⚡ [Orchestrator] Step 1/3: Running Text Extraction...")
+        # Stage 2: 35% Extraction
+        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 35, "Duke lexuar tekstin & OCR..."))
+        
         try:
-            raw_text = await asyncio.wait_for(
+            extracted = await asyncio.wait_for(
                 asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", "")),
-                timeout=40.0
+                timeout=25.0
             )
-        except asyncio.TimeoutError:
-            logger.warning("⚠️ Extraction timed out. Using fallback header.")
-            raw_text = f"Dokument i ngarkuar: {doc_name}."
+            if extracted and len(extracted.strip()) > 10:
+                raw_text = extracted
+        except Exception as extract_err:
+            logger.warning(f"Extraction warning for {doc_name}: {extract_err}")
 
-        if not raw_text or not raw_text.strip():
-            raw_text = f"Dokument i ngarkuar: {doc_name}."
+        # Stage 3: 65% Vectorization & Embeddings
+        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 65, "Duke vektorizuar në RAG..."))
 
-        # Step 2: Parallel Analytical Sub-Tasks
         async def task_summary():
             try:
                 sterilized_text = llm_service.sterilize_legal_text(raw_text)
-                return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=15.0)
+                return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=12.0)
             except Exception:
                 return raw_text[:500]
 
@@ -151,9 +173,8 @@ async def orchestrate_document_processing_mongo(
                     user_id=user_id, document_id=document_id_str, case_id=case_id_str, 
                     file_name=doc_name, chunks=chunks_to_store, metadatas=metadatas_to_store
                 )
-                logger.info(f"✅ Embeddings & Graph chunks created for {doc_name}")
             except Exception as e:
-                logger.warning(f"Embeddings skipped: {e}")
+                logger.warning(f"Embedding batch warning: {e}")
 
         async def task_storage():
             try:
@@ -168,50 +189,52 @@ async def orchestrate_document_processing_mongo(
                 if pdf_path and os.path.exists(pdf_path) and pdf_path != temp_original_file_path:
                     _safe_remove_temp_file(pdf_path)
                 return key
-            except Exception as e:
-                logger.warning(f"Preview conversion error for {doc_name}: {e}")
+            except Exception:
                 return ""
+
+        # Stage 4: 85% Preview & Storage
+        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 85, "Duke përgatitur pamjen..."))
 
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(task_summary(), task_embeddings(), task_storage(), task_preview(), return_exceptions=True),
-                timeout=45.0
+                timeout=30.0
             )
-            final_summary = results[0] if isinstance(results[0], str) else raw_text[:500]
-            text_key = results[2] if isinstance(results[2], str) else ""
-            preview_storage_key = results[3] if isinstance(results[3], str) else ""
-        except asyncio.TimeoutError:
-            logger.warning("⚠️ Master parallel tasks timed out. Finalizing document safely.")
-            final_summary = raw_text[:500]
-            text_key = ""
-            preview_storage_key = ""
+            if len(results) > 0 and isinstance(results[0], str): 
+                final_summary = results[0]
+            if len(results) > 2 and isinstance(results[2], str): 
+                text_key = results[2]
+            if len(results) > 3 and isinstance(results[3], str): 
+                preview_storage_key = results[3]
+        except Exception as par_err:
+            logger.warning(f"Parallel tasks completed with fallback: {par_err}")
 
-        # PERSIST EXTRACTED TEXT & SUMMARY ON MONGO DOCUMENT
-        await asyncio.to_thread(
-            db.documents.update_one,
-            {"_id": doc_id},
-            {
-                "$set": {
-                    "extracted_text": raw_text[:15000],
-                    "summary": final_summary,
-                    "processed_text_storage_key": text_key,
-                    "preview_storage_key": preview_storage_key,
-                    "status": DocumentStatus.READY,
-                    "updated_at": datetime.now(timezone.utc)
-                }
-            }
-        )
-
-        logger.info(f"✅ [Orchestrator V24.0] SUCCESS: Document {document_id_str} is 100% Finalized!")
-        await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
-
-    except Exception as e:
-        logger.error(f"❌ [Orchestrator V24.0] Handled error on doc {document_id_str}: {e}")
-        await asyncio.to_thread(
-            db.documents.update_one, 
-            {"_id": doc_id}, 
-            {"$set": {"status": DocumentStatus.READY, "extracted_text": f"Dokument i ngarkuar: {doc_name}"}}
-        )
-        await publish_sse_update_async(user_id, document_id_str, DocumentStatus.READY)
+    except Exception as general_err:
+        logger.error(f"Orchestrator pipeline exception on {doc_name}: {general_err}")
+    
     finally:
+        # Final Stage: 100% Persist & Mark READY in MongoDB
+        try:
+            await asyncio.to_thread(
+                db.documents.update_one,
+                {"_id": doc_id},
+                {
+                    "$set": {
+                        "extracted_text": raw_text[:15000],
+                        "summary": final_summary,
+                        "processed_text_storage_key": text_key,
+                        "preview_storage_key": preview_storage_key,
+                        "status": DocumentStatus.READY,
+                        "progress_percent": 100,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+            logger.info(f"✅ [Orchestrator V26.0] Document {document_id_str} is marked 100% READY in MongoDB.")
+        except Exception as db_err:
+            logger.error(f"Failed to update MongoDB document status: {db_err}")
+
+        # Broadcast final completion to frontend
+        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 100, "Përfunduar"))
+        asyncio.create_task(publish_sse_status_async(user_id, document_id_str, DocumentStatus.READY))
         _safe_remove_temp_file(temp_original_file_path)
