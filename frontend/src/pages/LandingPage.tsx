@@ -1,426 +1,575 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V13.0 (ONTOLOGY EXCISED • 0 WARNINGS)
+// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V13.0 (GJUHË E PASTËR SHQIPE & TRANSPARENCË E PLOTË)
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-    ArrowRight, Lock, Globe, ChevronRight, 
-    Database, FileText, Swords, ShieldCheck, BarChart2, Zap,
-    Scale, FileSearch, CheckCircle2, Sparkles, Shield
+import {
+  Shield,
+  Scale,
+  Swords,
+  Sparkles,
+  FileText,
+  Search,
+  BarChart2,
+  CheckCircle2,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  ChevronRight,
+  Layers,
+  Database,
+  FileCheck2,
+  HelpCircle,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import BrandLogo from '../components/BrandLogo';
-import ProductShowcase from '../components/landing/ProductShowcase';
 
-const LandingPage: React.FC = () => {
+type RoleTab = 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL';
+
+export const LandingPage: React.FC = () => {
   const { t } = useTranslation();
-  const [selectedRole, setSelectedRole] = useState<'PLAINTIFF' | 'DEFENDANT' | 'NEUTRAL'>('DEFENDANT');
+  const navigate = useNavigate();
+  const [activeRole, setActiveRole] = useState<RoleTab>('DEFENDANT');
+
+  const trustMetrics = [
+    {
+      value: '500+ Faqe',
+      title: 'Kërkim në Fashikull',
+      desc: 'Orientim dhe analizë e shpejtë në dosje të gjata e voluminoze.',
+      icon: Layers,
+    },
+    {
+      value: '100% e Verifikueshme',
+      title: 'Burime të Qarta',
+      desc: 'Çdo përgjigje shoqërohet me referencën e nenit dhe dokumentit.',
+      icon: FileCheck2,
+    },
+    {
+      value: 'Asistencë për Avokatin',
+      title: 'Transparencë e Plotë',
+      desc: 'Mjet ndihmës që përpunon provat; vendimmarrja mbetet e juaja.',
+      icon: HelpCircle,
+    },
+    {
+      value: 'Përvojë Praktike',
+      title: 'Taktikë Procedurale',
+      desc: 'Strukturuar posaçërisht për procedurat gjyqësore në Kosovë.',
+      icon: ShieldCheck,
+    },
+  ];
 
   const rolePillars = {
-    PLAINTIFF: {
-      title: "⚔️ PADITËSI (SULM & DETYRIM LIGJOR)",
-      badge: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-      pillars: [
-        {
-          tag: "SULMI & PRETEGIMET",
-          title: "STRATEGJIA E PADISË",
-          desc: "Identifikon 3 pikat kryesore ku mbështetet kërkesëpadia dhe provat materiale që ngarkojnë palën kundërshtare.",
-          action: "Gjen shkeljet, dëmet financiare (LMD 136) dhe kërkon masë të menjëhershme sigurie."
-        },
-        {
-          tag: "LPK & KODET LIGJORE",
-          title: "BAZA LIGJORE & DETYRIMI",
-          desc: "Analizon nenet e kërkesëpadisë sipas LPK, LMD, LFK dhe kërkon kamatën ligjore prej 8% mbi dëmin.",
-          action: "Përcakton saktësisht barrën e provës dhe afatet statutore në favor të paditësit."
-        },
-        {
-          tag: "MARRJA NË PYETJE",
-          title: "PYETËSORI I SEANCËS (SULMI)",
-          desc: "Gjeneron pyetje taktike për të kryqëzuar dhe demaskuar palën e paditur gjatë dëgjimit në seancë.",
-          action: "Përfshin provën me link direkt [Dokumenti.pdf] me të cilën goditet dëshmitari nëse gënjen."
-        },
-        {
-          tag: "MEMO TEKNIKE",
-          title: "RAPORTI PËR PADITËSIN",
-          desc: "Përgatit memorandumin mbi shanset e fitimit të padisë (%), dëmet e kërkueshme dhe hapat proceduralë.",
-          action: "Gjeneron me 1-klikim Raportin Ekzekutiv PDF për arkivin e lëndës."
-        }
-      ]
-    },
     DEFENDANT: {
-      title: "🛡️ I PADITURI (MBROJTJE & PRAPËSIM)",
-      badge: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+      roleTitle: 'I PADITUR / MBROJTJE GJYQËSORE',
+      badge: 'STRATEGJIA E MBROJTJES',
+      badgeColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
+      icon: Shield,
       pillars: [
         {
-          tag: "MBROJTJA & SHFAJËSIMI",
-          title: "STRATEGJIA E MBROJTJES & PRAPËSIMIT",
-          desc: "Identifikon 3 pikat kryesore për rrëzimin e padisë dhe provat shkencore e materiale shfajësuese në fashikull.",
-          action: "Zbulon mungesën e provave të paditësit dhe përdor certifikatat zyrtare për shfajësim."
+          num: '01',
+          title: 'Zbulimi i Mospërputhjeve dhe Datave',
+          desc: 'Evidenton mospërputhjet e datave në procesverbale, tejkalimin e afateve prekluzive dhe zbatimin e rehabilitimit ligjor (Neni 93 i KPRK-së).',
+          code: 'KPRK 93 / 427',
         },
         {
-          tag: "LPK & PRAPËSIMET",
-          title: "BAZA LIGJORE & PRAPËSIMET PROCEDURALE",
-          desc: "Analizon shkeljet procedurale të paditësit, parashkrimin e afateve prekluzive dhe mungesën e legjitimitetit.",
-          action: "Kërkon hedhjen poshtë të padisë sipas neneve përkatëse të LPK-së."
+          num: '02',
+          title: 'Ballafaqimi me Shkresat e Fashikullit',
+          desc: 'Krahason raportet zyrtare dhe laboratorike me pretendimet gojore për të vërtetuar prapësimet ligjore dhe të pavërtetat.',
+          code: 'KPRK 387 / LPK',
         },
         {
-          tag: "CROSS-EXAMINATION",
-          title: "PYETËSORI I SEANCËS (MBROJTJA)",
-          desc: "Gjeneron pyetje kurth për të rrëzuar dëshmitarët e paditësit dhe demaskuar mospërputhjet e tyre.",
-          action: "Citon procesverbalet dhe provat materiale që vërtetojnë kontradiktat e dëshmisë."
+          num: '03',
+          title: 'Kryqëzimi i Dëshmitarëve (Pyetësori Taktik)',
+          desc: 'Përgatit pyetje të strukturuara për ballafaqimin e dëshmitarëve dhe ekspertëve gjatë marrjes në pyetje në seancë.',
+          code: 'SEANCA GJYQËSORE',
         },
         {
-          tag: "RAPORTI PËR KLIENTIN",
-          title: "RAPORTI PËR TË PADITURIN",
-          desc: "Përgatit memorandumin mbi rreziqet e padisë, prapësimet kryesore dhe hapat për shuarjen e saj.",
-          action: "Vlerëson shanset e mbrojtjes dhe hapat e menjëhershëm për kundërpadi."
-        }
-      ]
+          num: '04',
+          title: 'Strategjia e Prapësimit dhe Kundërpadisë',
+          desc: 'Ndërton përmbledhjen mbi prapësimet procedurale, mungesën e legjitimitetit aktiv dhe hapat për rrëzimin e kërkesëpadisë.',
+          code: 'LPK / LMD',
+        },
+      ],
+    },
+    PLAINTIFF: {
+      roleTitle: 'PADITËSI / SULMI PROCEDURAL',
+      badge: 'STRATEGJIA E PADISË',
+      badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
+      icon: Swords,
+      pillars: [
+        {
+          num: '01',
+          title: 'Përcaktimi i Përgjegjësisë dhe Detyrimit',
+          desc: 'Strukturon bazën faktike dhe provat shkresore që mbështesin kërkesëpadinë dhe vërtetojnë detyrimin e palës kundërshtare.',
+          code: 'BAZA E PADISË',
+        },
+        {
+          num: '02',
+          title: 'Kërkesat për Masa Emergjente Mbrojtëse',
+          desc: 'Formulon propozimet për masa të përkohshme të sigurisë, sigurimin e kërkesëpadisë dhe mbrojtjen e të drejtave të palës.',
+          code: 'KPPRK 188 / LPK',
+        },
+        {
+          num: '03',
+          title: 'Pyetjet Taktike për Seancë',
+          desc: 'Gjeneron pyetje të qarta të bazuara në shkresat e fashikullit për të qartësuar faktet kontestuese para gjykatës.',
+          code: 'PROVA MATRIKS',
+        },
+        {
+          num: '04',
+          title: 'Llogaritja e Dëmit dhe Përmbledhja',
+          desc: 'Ndihmon në përllogaritjen e dëmeve materiale e jomateriale sipas LMD-së dhe përgatit përmbledhjen ekzekutive.',
+          code: 'LMD 136 / DËMET',
+        },
+      ],
     },
     NEUTRAL: {
-      title: "⚖️ NEUTRAL (AUDIT I PAANSHËM & EKSPERTIZË)",
-      badge: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+      roleTitle: 'EKSPERTI / GJYKATA / NDËRMJETËSIMI',
+      badge: 'AUDITIMI OBJEKTIV',
+      badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+      icon: Scale,
       pillars: [
         {
-          tag: "AUDITI I FAKTEVE",
-          title: "AUDITI I FAKTEVE DHE PROVAVE",
-          desc: "Vlerëson në mënyrë objektive 3 provat kryesore dhe peshën e tyre ligjore në këtë dosje.",
-          action: "Ndan faktet e provuara shkencërisht nga pretendimet e njëanshme."
+          num: '01',
+          title: 'Detektori i Kontradiktave në Shkresa',
+          desc: 'Krahason pretendimet e palëve me provat e administruara dhe evidenton mospërputhjet në deklarata.',
+          code: 'KONTROLLI FAKTIK',
         },
         {
-          tag: "STATUTI & LPK",
-          title: "BARRA E PROVËS DHE STATUTI",
-          desc: "Analizon barrën e provës (Onus Probandi) dhe përputhshmërinë ligjore për të dyja palët sipas LPK.",
-          action: "Identifikon cilat pretendime janë vërtetuar dhe cilat kanë mbetur pa bazë provuese."
+          num: '02',
+          title: 'Barra e Provës dhe Ligji Procedural',
+          desc: 'Analizon paanshëm barrën e provimit (kush duhet të provojë çfarë) sipas dispozitave të procedurës kontestimore.',
+          code: 'BARRA E PROVËS',
         },
         {
-          tag: "PYETJET E GJYKATËS",
-          title: "PYETËSORI I GJYKATËS DHE EKSPERTIT",
-          desc: "Gjeneron pyetjet sqaruese për të vërtetuar faktet thelbësore kontestuese nga të dyja palët.",
-          action: "Ndihmon trupin gjykues të zbardhë të vërtetën materiale në seancë."
+          num: '03',
+          title: 'Pyetjet Sqaruese për Zbardhjen e Fakteve',
+          desc: 'Formulon pyetje objektive për të eliminuar paqartësitë dhe për të ndihmuar në administrimin e drejtë të provave.',
+          code: 'SQARIM FAKTESH',
         },
         {
-          tag: "EKSPERTIZA LIGJORE",
-          title: "RAPORTI I PAANSHËM I EKSPERTIZËS",
-          desc: "Përgatit sintezën e paanshme të dosjes dhe rekomandimet objektive ligjore për zgjidhjen e konfliktit.",
-          action: "Dokument i strukturuar për vendimmarrje gjyqësore apo ndërmjetësim."
-        }
-      ]
-    }
+          num: '04',
+          title: 'Memorandumi i Paanshëm i Çështjes',
+          desc: 'Përgatit një sintezë të balancuar për të lehtësuar vendimmarrjen gjyqësore apo marrëveshjen me ndërmjetësim.',
+          code: 'SINTEZA E LËNDËS',
+        },
+      ],
+    },
   };
 
-  return (
-    <div className="min-h-screen bg-canvas text-text-primary overflow-x-hidden relative selection:bg-primary-start/30 font-sans">
-      
-      {/* Ambient Mesh Glow */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-primary-start/10 rounded-full blur-[160px] opacity-40 animate-pulse-slow" />
-        <div className="absolute top-1/3 right-10 w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[130px] opacity-30" />
-      </div>
+  const bentoFeatures = [
+    {
+      colSpan: 'lg:col-span-8',
+      title: 'Dhoma e Luftës (Simulimi Taktik i Lëndës)',
+      subtitle: 'STRATEGJI PROCEDURALE',
+      desc: 'Parashikoni pikat e forta dhe të dobëta të të dyja palëve përpara se të hyni në seancë. Sistemi analizon rreziqet, prapësimet e mundshme dhe ndihmon në ndërtimin e argumenteve të qëndrueshme me referenca shkresore.',
+      icon: Swords,
+      gradient: 'from-primary-start/15 via-indigo-500/5 to-transparent',
+      borderColor: 'border-primary-start/30',
+    },
+    {
+      colSpan: 'lg:col-span-4',
+      title: 'Detektori i Kontradiktave në Dosje',
+      subtitle: 'BALLAFAQIM DOKUMENTESH',
+      desc: 'Zbulon mospërputhjet midis deklaratave të ndryshme, procesverbaleve të seancave dhe provave shkresore brenda fashikullit.',
+      icon: Sparkles,
+      gradient: 'from-amber-500/15 via-orange-500/5 to-transparent',
+      borderColor: 'border-amber-500/30',
+    },
+    {
+      colSpan: 'lg:col-span-4',
+      title: 'Ballafaqimi i Shkresave me Faktet',
+      subtitle: 'VERIFIKIM I PROVAVE',
+      desc: 'Krahason pretendimet e palëve me provat materiale dhe ekspertizat mjekësore apo teknike të depozituara në dosje.',
+      icon: Scale,
+      gradient: 'from-rose-500/15 via-red-500/5 to-transparent',
+      borderColor: 'border-rose-500/30',
+    },
+    {
+      colSpan: 'lg:col-span-8',
+      title: 'Leximi i Shkresave dhe Vendimeve të Skanuara',
+      subtitle: 'DIGJITALIZIM ME OCR',
+      desc: 'Përpunon dokumentet e skanuara, procesverbalet dhe vendimet e vjetra, duke i kthyer në tekst të kërkueshëm me referenca faqe-për-faqe.',
+      icon: Search,
+      gradient: 'from-blue-500/15 via-cyan-500/5 to-transparent',
+      borderColor: 'border-blue-500/30',
+    },
+    {
+      colSpan: 'lg:col-span-4',
+      title: 'Analiza e Shpenzimeve dhe Dëmeve',
+      subtitle: 'LLOGARITJE FINANCIARE',
+      desc: 'Ndihmon në regjistrimin e shpenzimeve procedurale, kalkulimin e dëmit material dhe llogaritjen e kamatës ligjore.',
+      icon: BarChart2,
+      gradient: 'from-emerald-500/15 via-teal-500/5 to-transparent',
+      borderColor: 'border-emerald-500/30',
+    },
+    {
+      colSpan: 'lg:col-span-8',
+      title: 'Ndihmës për Përpilimin e Shkresave Ligjore',
+      subtitle: 'HARTIM I STRUKTURUAR',
+      desc: 'Ndihmon në strukturimin e Padive, Përgjigjeve në Padi, Prapësimeve dhe Ankesave, të mbështetura në nenet përkatëse të ligjeve të Kosovës (LPK, KPRK, LFK, LMD).',
+      icon: FileText,
+      gradient: 'from-purple-500/15 via-pink-500/5 to-transparent',
+      borderColor: 'border-purple-500/30',
+    },
+  ];
 
-      {/* Navbar */}
-      <nav className="relative z-50 px-6 py-6 max-w-7xl mx-auto flex justify-between items-center h-20 shrink-0">
-        <BrandLogo />
-        <div className="flex gap-3 sm:gap-4 h-11 items-center">
-            <Link to="/login" className="flex items-center justify-center px-5 sm:px-6 h-11 text-xs sm:text-sm font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors focus:outline-none">
-                {t('landing.login', 'Hyrja')}
-            </Link>
-            <Link to="/register" className="flex px-5 sm:px-6 h-11 btn-primary text-xs sm:text-sm font-extrabold uppercase tracking-wider rounded-xl items-center gap-2 focus:outline-none shadow-lg shadow-primary-start/20 hover-lift">
-                <span>{t('landing.getStarted', 'Fillo Tani')}</span>
-                <ArrowRight size={15} />
-            </Link>
+  const securityFeatures = [
+    {
+      title: 'Privatësi e Plotë e të Dhënave',
+      desc: 'Dokumentet dhe shkresat e fashikullit tuaj mbeten private dhe nuk përdoren kurrë për trajnim publik.',
+      icon: Lock,
+    },
+    {
+      title: 'Enkriptim i Standardit të Lartë',
+      desc: 'Çdo skedar në fashikull dhe çdo informacion i ruajtur mbrohet me enkriptim të avancuar AES-256.',
+      icon: Shield,
+    },
+    {
+      title: 'Fshirje e Menjëhershme',
+      desc: 'Kur fshini një lëndë ose dokument, të gjitha të dhënat dhe kopjet e tyre fshihen përfundimisht nga serverët.',
+      icon: Database,
+    },
+    {
+      title: 'Përputhshmëri me Ligjin e Kosovës',
+      desc: 'Ndërtuar në respektim të plotë të Ligjit Nr. 06/L-082 për Mbrojtjen e të Dhënave Personale.',
+      icon: CheckCircle2,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-canvas text-text-primary selection:bg-primary-start selection:text-white font-sans">
+      {/* 1. TOP NAVIGATION */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-canvas/95 backdrop-blur-xl border-b border-main">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BrandLogo />
+          </div>
+
+          <div className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-text-muted">
+            <a href="#metrics" className="hover:text-text-primary transition-colors">Veçoritë</a>
+            <a href="#pillars" className="hover:text-text-primary transition-colors">4 Shtyllat</a>
+            <a href="#arsenal" className="hover:text-text-primary transition-colors">Mjetet</a>
+            <a href="#security" className="hover:text-text-primary transition-colors">Siguria</a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/login')}
+              className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-hover transition-all"
+            >
+              {t('auth.login', 'Hyr')}
+            </button>
+            <button
+              onClick={() => navigate('/register')}
+              className="px-4.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-primary-start hover:bg-primary-start/90 text-white shadow-md shadow-primary-start/20 transition-all active:scale-95 cursor-pointer"
+            >
+              Fillo Falas
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <main className="relative z-10 pt-8 sm:pt-14 pb-16 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto text-center mb-16 sm:mb-20">
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className="space-y-6"
+      {/* 2. HERO SECTION */}
+      <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-primary-start/15 blur-[120px] rounded-full pointer-events-none" />
+
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-6 sm:space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-start/10 border border-primary-start/25 text-primary-start text-[11px] sm:text-xs font-bold uppercase tracking-widest shadow-xs"
+          >
+            <Sparkles size={14} className="animate-pulse" />
+            <span>Asistenti Inteligjent për Praktikën Ligjore në Kosovë</span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-3xl sm:text-5xl md:text-6xl font-black text-text-primary tracking-tight leading-[1.15] max-w-4xl mx-auto"
+          >
+            Mburoja dhe Strategjia Procedurale e{' '}
+            <span className="bg-gradient-to-r from-primary-start via-indigo-500 to-purple-500 bg-clip-text text-transparent">
+              Zyrës Suaj Ligjore
+            </span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-sm sm:text-base md:text-lg text-text-secondary leading-relaxed max-w-3xl mx-auto font-normal"
+          >
+            Orientohuni shpejt në dosje voluminoze dhe strukturoni mbrojtjen tuaj procedurale. 
+            <strong> Juristi.tech</strong> ndihmon avokatët dhe juristët në analizën e shkresave, evidentimin e fakteve dhe përgatitjen e seancave me mbështetje në <strong>LPK, KPRK, LFK dhe LMD</strong>.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2"
+          >
+            <button
+              onClick={() => navigate('/register')}
+              className="w-full sm:w-auto h-12 px-8 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-xl shadow-primary-start/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
             >
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface border border-main text-xs font-black uppercase tracking-widest text-primary-start shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-primary-start animate-ping shrink-0" />
-                    <span>Inteligjenca Kundërshtare sipas Rolit të Avokatit</span>
-                </div>
+              <span>Provo Falas në 1 Lëndë</span>
+              <ArrowRight size={16} />
+            </button>
+            <a
+              href="#pillars"
+              className="w-full sm:w-auto h-12 px-8 rounded-2xl bg-surface hover:bg-hover text-text-primary font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-main transition-all cursor-pointer"
+            >
+              <span>Shiko 4 Shtyllat</span>
+              <ChevronRight size={16} />
+            </a>
+          </motion.div>
+        </div>
+      </section>
 
-                <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.1] text-text-primary uppercase select-none">
-                    Mburoja dhe Strategjia <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-start via-purple-500 to-primary-end">
-                        Gjyqësore e Zyrës Suaj
+      {/* 3. TRUST METRICS BANNER */}
+      <section id="metrics" className="py-12 border-y border-main bg-surface/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {trustMetrics.map((m, i) => {
+              const IconComp = m.icon;
+              return (
+                <div
+                  key={i}
+                  className="p-5 rounded-2xl bg-card border border-main shadow-xs flex items-start gap-4 hover:border-primary-start/40 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center shrink-0 border border-primary-start/20">
+                    <IconComp size={20} />
+                  </div>
+                  <div className="space-y-1 min-w-0">
+                    <span className="text-xs font-bold uppercase text-primary-start tracking-wider block">
+                      {m.value}
                     </span>
-                </h1>
-                
-                <p className="text-base sm:text-lg md:text-xl text-text-secondary max-w-3xl mx-auto leading-relaxed font-medium">
-                    Analizoni 100+ shkresa të fashikullit për një kohë të shkurtër, zbuloni kontradiktat dhe dominoni seancën gjyqësore me citime ekzakte të LPK, KPRK, LFK dhe LMD.
-                </p>
-                
-                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                    <Link to="/register" className="btn-primary px-8 py-4 rounded-2xl text-sm sm:text-base font-extrabold uppercase tracking-wider shadow-2xl shadow-primary-start/30 hover-lift flex items-center justify-center gap-2.5 focus:outline-none">
-                        <span>Përdore Falas në 1 Lëndë</span>
-                        <ChevronRight size={18} />
-                    </Link>
-                    <a href="#four-pillars" className="px-8 py-4 rounded-2xl bg-surface border border-main hover:bg-hover text-text-primary text-sm sm:text-base font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm">
-                        <Sparkles size={18} className="text-primary-start" />
-                        <span>Shiko 4 Shtyllat e Fitores</span>
-                    </a>
+                    <h4 className="text-sm font-bold text-text-primary truncate">{m.title}</h4>
+                    <p className="text-xs text-text-secondary leading-snug">{m.desc}</p>
+                  </div>
                 </div>
-            </motion.div>
-        </div>
-
-        {/* --- HIGH-TRUST METRICS BANNER --- */}
-        <div className="max-w-6xl mx-auto my-12 grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-surface/50 border border-main rounded-3xl backdrop-blur-md shadow-sm text-center">
-          <div>
-            <p className="text-2xl sm:text-3xl font-black text-primary-start font-mono">Kohë Rekord</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Analizë e 100+ Shkresave</p>
-          </div>
-          <div>
-            <p className="text-2xl sm:text-3xl font-black text-emerald-500 font-mono">100%</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Citime të Klikueshme të PDF</p>
-          </div>
-          <div>
-            <p className="text-2xl sm:text-3xl font-black text-purple-500 font-mono">ZERO</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Halucinacione (Fakte Reale)</p>
-          </div>
-          <div>
-            <p className="text-2xl sm:text-3xl font-black text-amber-500 font-mono">GDPR Safe</p>
-            <p className="text-[11px] sm:text-xs font-bold text-text-muted uppercase tracking-wider mt-1">Diskrecion & Siguri Bankare</p>
+              );
+            })}
           </div>
         </div>
+      </section>
 
-        {/* --- SECTION: THE 4 PILLARS ADAPTED BY ROLE --- */}
-        <section id="four-pillars" className="py-20 max-w-7xl mx-auto space-y-12">
+      {/* 4. THE 4 PILLARS BY PROCEDURAL ROLE */}
+      <section id="pillars" className="py-24 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-4 max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 text-primary-start text-xs font-black uppercase tracking-widest border border-primary-start/20">
-                <Shield size={14} />
-                <span>Teknologjia e Vetme e Inteligjencës Kundërshtare</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase text-text-primary">
-                  4 Shtyllat e Fitores në Gjykatë
-              </h2>
-              <p className="text-text-secondary text-sm md:text-base leading-relaxed font-medium">
-                  Sistemi nuk flet në mënyrë neutrale. Ai përshtat 100% të gjithë strategjinë, pyetësorin e seancës dhe bazën ligjore në varësi të rolit procedural që zgjidhni.
-              </p>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary-start">
+              STRUKTURA PROCEDURALE
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">
+              4 Shtyllat sipas Rolit në Çështje
+            </h2>
+            <p className="text-xs sm:text-sm text-text-secondary leading-relaxed">
+              Përshtatni këndvështrimin e analizës sipas pozitës suaj procedurale në lëndë.
+            </p>
 
-              {/* Role Switcher Tabs */}
-              <div className="flex justify-center gap-2 pt-4">
-                {(['DEFENDANT', 'PLAINTIFF', 'NEUTRAL'] as const).map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => setSelectedRole(role)}
-                    className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all border ${
-                      selectedRole === role
-                        ? 'bg-primary-start text-white border-primary-start shadow-lg shadow-primary-start/25'
-                        : 'bg-surface text-text-muted border-main hover:text-text-primary'
-                    }`}
-                  >
-                    {role === 'DEFENDANT' ? '🛡️ I Paditur' : role === 'PLAINTIFF' ? '⚔️ Paditësi' : '⚖️ Neutral'}
-                  </button>
-                ))}
-              </div>
-          </div>
-
-          {/* 4 Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {rolePillars[selectedRole].pillars.map((pillar, idx) => (
-              <div
-                key={idx}
-                className="bg-surface border border-main rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-primary-start/50 transition-all shadow-sm hover-lift group"
+            {/* Role Switcher */}
+            <div className="inline-flex p-1.5 rounded-2xl bg-surface border border-main shadow-sm gap-1.5 mt-4">
+              <button
+                onClick={() => setActiveRole('DEFENDANT')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                  activeRole === 'DEFENDANT'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
               >
-                <div className="space-y-3">
-                  <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-canvas border border-main text-primary-start">
-                    {pillar.tag}
-                  </span>
-                  <h3 className="text-base font-black uppercase text-text-primary tracking-tight group-hover:text-primary-start transition-colors">
-                    {pillar.title}
-                  </h3>
-                  <p className="text-xs text-text-secondary leading-relaxed font-medium">
-                    &quot;{pillar.desc}&quot;
-                  </p>
-                </div>
-                <div className="pt-3 border-t border-main/50 text-[11px] font-bold text-text-primary flex items-start gap-2">
-                  <CheckCircle2 size={14} className="text-primary-start shrink-0 mt-0.5" />
-                  <span>{pillar.action}</span>
-                </div>
-              </div>
-            ))}
+                <Shield size={14} /> I Paditur / Mbrojtje
+              </button>
+              <button
+                onClick={() => setActiveRole('PLAINTIFF')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                  activeRole === 'PLAINTIFF'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                <Swords size={14} /> Paditës / Sulm
+              </button>
+              <button
+                onClick={() => setActiveRole('NEUTRAL')}
+                className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                  activeRole === 'NEUTRAL'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                <Scale size={14} /> Neutral / Gjykata
+              </button>
+            </div>
           </div>
-        </section>
 
-        {/* --- PRODUCT SHOWCASE COMPONENT --- */}
-        <div id="showcase">
-          <ProductShowcase />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeRole}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              {rolePillars[activeRole].pillars.map((p, idx) => (
+                <div
+                  key={idx}
+                  className="p-6 rounded-3xl bg-card border border-main shadow-xs flex flex-col justify-between gap-6 hover:border-primary-start/50 hover:shadow-lg transition-all"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl font-black font-mono text-primary-start/40">
+                        {p.num}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase font-mono px-2 py-0.5 rounded-md bg-surface border border-main text-text-muted">
+                        {p.code}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-text-primary leading-snug">
+                      {p.title}
+                    </h3>
+                    <p className="text-xs text-text-secondary leading-relaxed font-normal">
+                      {p.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-main/60 flex items-center justify-between text-xs font-bold text-primary-start">
+                    <span>Shiko në Platformë</span>
+                    <ArrowRight size={13} />
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
         </div>
+      </section>
 
-        {/* --- ACTUAL PLATFORM CAPABILITIES SECTION --- */}
-        <section className="py-20 max-w-7xl mx-auto space-y-16">
-          <div className="text-center space-y-4 max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 text-primary-start text-xs font-black uppercase tracking-widest border border-primary-start/20">
-                <Zap size={14} />
-                <span>Inteligjencë Strategjike për Avokatë</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase text-text-primary">
-                  Arsenali i Mbrojtjes dhe Sulmit Gjyqësor
-              </h2>
-              <p className="text-text-secondary text-sm md:text-base leading-relaxed font-medium">
-                  Ndërtuar për të mbrojtur licencën dhe prestigjin e zyrës suaj: eliminon gabimet procedurale, parashikon sulmet e kundërshtarit dhe i mban avokatët në 100% kontroll.
-              </p>
+      {/* 5. ARSENALI I VEÇORIVE (BENTO GRID) */}
+      <section id="arsenal" className="py-24 border-t border-main bg-surface/30 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center space-y-3 max-w-3xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary-start">
+              VEÇORITË KRYESORE
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">
+              Mjetet për Punën Tuaj të Përditshme
+            </h2>
+            <p className="text-xs sm:text-sm text-text-secondary">
+              Teknologji e përshtatur posaçërisht për praktikat dhe shkresat ligjore në Kosovë.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[320px]">
-            
-            {/* Box 1: Dhoma e Luftës (War Room) */}
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
-                    <Swords className="w-48 h-48 text-primary-start" />
-                </div>
-                <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-primary-start/15 rounded-2xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-sm">
-                        <Swords className="w-6 h-6" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {bentoFeatures.map((b, i) => {
+              const IconComponent = b.icon;
+              return (
+                <div
+                  key={i}
+                  className={`${b.colSpan} p-7 sm:p-9 rounded-3xl bg-card border ${b.borderColor} shadow-xs relative overflow-hidden flex flex-col justify-between gap-6 hover:shadow-xl transition-all duration-300`}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${b.gradient} pointer-events-none`} />
+                  
+                  <div className="relative z-10 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-12 rounded-2xl bg-surface border border-main flex items-center justify-center text-primary-start shadow-xs">
+                        <IconComponent size={22} />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">
+                        {b.subtitle}
+                      </span>
                     </div>
-                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Dhoma e Luftës (War Room & Simulimi Adversarial)</h3>
-                    <p className="text-text-secondary leading-relaxed text-sm font-medium">
-                        Simuloni strategjinë e palës kundërshtare përpara se të hyni në seancë. AI analizon të gjitha provat e depozituara, detekton kontradiktat factual mes procesverbaleve dhe kontratave, si dhe përgatit pyetjet kryqëzuese.
+
+                    <h3 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight leading-snug">
+                      {b.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-text-secondary leading-relaxed">
+                      {b.desc}
                     </p>
-                </div>
-            </div>
+                  </div>
 
-            {/* Box 2: Zero-Hallucinations & Lawyer in Control */}
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-emerald-500/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                 <div className="w-12 h-12 bg-emerald-500/15 rounded-2xl flex items-center justify-center mb-4 text-emerald-500 border border-emerald-500/20 shadow-sm">
-                    <CheckCircle2 className="w-6 h-6" />
+                  <div className="relative z-10 pt-4 border-t border-main/60 flex items-center gap-2 text-xs font-bold text-primary-start">
+                    <span>Mëso më shumë</span>
+                    <ChevronRight size={14} />
+                  </div>
                 </div>
-                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Zero Halucinacione & Kontroll i Plotë</h3>
-                <p className="text-text-secondary text-sm leading-relaxed font-medium">
-                    Çdo citim ligjor përmban titullin dhe numrin zyrtar (LPK, LMD, LFK, KPRK). Avokati mbetet Kryeredaktori: çdo argument mund të verifikohet me klikim te skedari origjinal.
-                </p>
-            </div>
-
-            {/* Box 3: Centralized Advocate Mandate */}
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative hover:border-purple-500/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="w-12 h-12 bg-purple-500/15 rounded-2xl flex items-center justify-center mb-4 text-purple-500 border border-purple-500/30 shadow-sm">
-                    <Scale className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Mandat Dinamik i Avokatit</h3>
-                <p className="text-text-secondary text-sm leading-relaxed font-medium">
-                    Zgjidhni pozicionin e klientit tuaj (I Paditur apo Paditës). Sistemi përshtat menjëherë të gjithë inteligjencën: kërkon prapësime procedurale dhe parashkrim afatesh (LPK) ose provon detyrimin dhe dëmin (LMD).
-                </p>
-            </div>
-
-            {/* Box 4: Scanned Evidence OCR HD 10.0 */}
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-accent-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none">
-                    <FileSearch className="w-48 h-48 text-accent-start" />
-                </div>
-                <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-accent-start/15 rounded-2xl flex items-center justify-center mb-4 text-accent-start border border-accent-start/20 shadow-sm">
-                        <FileSearch className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Leximi i Shkresave dhe Provave të Skanuara (HD OCR)</h3>
-                    <p className="text-text-secondary leading-relaxed text-sm font-medium">
-                        Lexon me precizion fotokopjet e dëmtuara, vendimet e gjykatave, vulat dhe faturat në Shqip, Anglisht dhe Gjermanisht. Izolon çdo skedar për të parandaluar përzierjen e fakteve midis seancave dhe ekspertizave.
-                    </p>
-                </div>
-            </div>
-
-            {/* Box 5: Forensic Accounting */}
-            <div className="md:col-span-1 row-span-1 glass-panel p-8 relative group hover:border-status-success/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                 <div className="w-12 h-12 bg-status-success/15 rounded-2xl flex items-center justify-center mb-4 text-status-success border border-status-success/20 shadow-sm">
-                    <BarChart2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-black uppercase text-text-primary tracking-tight mb-2">Analizë Financiare Forenzike</h3>
-                <p className="text-text-secondary text-sm leading-relaxed font-medium">
-                    Auditim i librave bankarë dhe ditarit të arkës përmes Ligjit të Benfordit. Zbulon automatikisht transaksionet e dyshimta dhe parregullsitë financiare.
-                </p>
-            </div>
-
-            {/* Box 6: Context-Aware Drafting */}
-            <div className="md:col-span-2 row-span-1 glass-panel p-8 relative overflow-hidden group hover:border-primary-start/40 transition-colors border border-main bg-surface rounded-3xl shadow-sm">
-                <div className="relative z-10 h-full flex flex-col justify-end">
-                    <div className="w-12 h-12 bg-primary-start/15 rounded-2xl flex items-center justify-center mb-4 text-primary-start border border-primary-start/20 shadow-sm">
-                        <FileText className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-2xl font-black uppercase text-text-primary tracking-tight mb-2">Hartimi i Dokumenteve & Përgjigjeve në Padi</h3>
-                    <p className="text-text-secondary leading-relaxed text-sm font-medium">
-                        Gjeneroni Padi, Përgjigje në Padi, Kundërpadi apo Kallëzime Penale me ton rigorozisht profesional. Përfshin automatikisht emrat e palëve, datat dhe numrat e nenit nga fashikulli.
-                    </p>
-                </div>
-            </div>
-
+              );
+            })}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* --- HIGH-TRUST SECURITY & GDPR COMPLIANCE SECTION --- */}
-        <section className="py-20 border-t border-b border-main/60 bg-surface/20 backdrop-blur-md relative z-20">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              
-              <div className="space-y-6">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-status-success/10 text-status-success border border-status-success/20 rounded-full text-xs font-black tracking-widest uppercase">
-                      <ShieldCheck size={14} /> GDPR & SIGURIA E TË DHËNAVE
-                  </div>
-                  <h2 className="text-3xl md:text-5xl font-black text-text-primary tracking-tight uppercase">
-                      Privatësia dhe Sovraniteti i Të Dhënave
-                  </h2>
-                  <p className="text-text-secondary leading-relaxed text-sm md:text-base font-medium">
-                      Ne i trajtojmë shkresat gjyqësore dhe të dhënat tuaja me diskrecionin më të lartë bankar. Çdo linjë kodi në platformën tonë është zhvilluar në përputhje të plotë me rregulloret e GDPR dhe Ligjin për Mbrojtjen e të Dhënave Personale të Republikës së Kosovës.
-                  </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
-                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
-                          <Lock size={18} />
-                      </div>
-                      <h4 className="font-bold text-text-primary text-xs uppercase tracking-wider">Zero Retention AI</h4>
-                      <p className="text-text-secondary text-xs leading-relaxed font-medium">
-                          Dokumentet tuaja analizohen në kujtesën e përkohshme dhe nuk përdoren asnjëherë nga modelet e jashtme AI për trajnim.
-                      </p>
-                  </div>
-
-                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
-                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
-                          <ShieldCheck size={18} />
-                      </div>
-                      <h4 className="font-bold text-text-primary text-xs uppercase tracking-wider">Enkriptimi AES-256</h4>
-                      <p className="text-text-secondary text-xs leading-relaxed font-medium">
-                          Të gjitha dosjet e lëndëve tuaja ligjore dhe dëshmitë e ngarkuara enkriptohen me çelësa bankar para se të ruhen në Cloud.
-                      </p>
-                  </div>
-
-                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
-                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
-                          <Database size={18} />
-                      </div>
-                      <h4 className="font-bold text-text-primary text-xs uppercase tracking-wider">Fshirja Kaskadë</h4>
-                      <p className="text-text-secondary text-xs leading-relaxed font-medium">
-                          Kur fshini një dokument apo lëndë, sistemi ynë spastron menjëherë të gjithë ditarët, vektorët, arkivat dhe skedarët fizik në sekonda.
-                      </p>
-                  </div>
-
-                  <div className="bg-surface border border-main rounded-2xl p-6 space-y-3 hover:border-primary-start/40 transition-colors shadow-sm">
-                      <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20">
-                          <Globe size={18} />
-                      </div>
-                      <h4 className="font-bold text-text-primary text-xs uppercase tracking-wider">Ligji i Kosovës & GDPR</h4>
-                      <p className="text-text-secondary text-xs leading-relaxed font-medium">
-                          Të dhënat tuaja ruhen në përputhje të plotë me ligjet e Kosovës dhe rregulloret strikte evropiane të privatësisë (GDPR).
-                      </p>
-                  </div>
-              </div>
+      {/* 6. SECURITY & GDPR */}
+      <section id="security" className="py-24 border-t border-main bg-canvas relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center space-y-3 max-w-3xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-status-success">
+              SIGURIA DHE PRIVATËSIA
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">
+              Mbrojtja e të Dhënave dhe Konfidencialiteti
+            </h2>
+            <p className="text-xs sm:text-sm text-text-secondary">
+              Besueshmëria dhe ruajtja e sekretit profesional janë parimi ynë kryesor.
+            </p>
           </div>
-        </section>
 
-      </main>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {securityFeatures.map((sec, idx) => {
+              const SecIcon = sec.icon;
+              return (
+                <div
+                  key={idx}
+                  className="p-6 rounded-3xl bg-surface border border-main flex flex-col justify-between gap-4 hover:border-status-success/40 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-status-success/10 text-status-success flex items-center justify-center border border-status-success/20">
+                    <SecIcon size={20} />
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-bold text-text-primary">{sec.title}</h4>
+                    <p className="text-xs text-text-secondary leading-relaxed">{sec.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-      {/* Footer */}
-      <footer className="border-t border-main py-12 text-center text-text-muted text-sm relative z-10 bg-canvas/30 backdrop-blur-md">
-        <p className="select-none text-xs font-semibold">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
-        <div className="flex justify-center gap-6 mt-4 select-none text-xs font-bold uppercase tracking-wider">
-            <span className="flex items-center gap-1.5"><Lock size={12} className="text-primary-start"/> {t('footer.encryption', 'AES-256 ENCRYPTED')}</span>
-            <span className="flex items-center gap-1.5"><Globe size={12} className="text-primary-start"/> {t('footer.jurisdiction', 'REPUBLIKA E KOSOVËS')}</span>
+      {/* 7. BOTTOM CTA */}
+      <section className="py-20 border-t border-main bg-gradient-to-b from-surface/50 to-canvas text-center relative overflow-hidden">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 relative z-10">
+          <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">
+            Gati për të Filluar?
+          </h2>
+          <p className="text-xs sm:text-sm text-text-secondary max-w-xl mx-auto leading-relaxed">
+            Ngarkoni fashikullin tuaj të parë dhe eksploroni mjetet ndihmëse për analizën e shkresave të lëndës.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => navigate('/register')}
+              className="h-12 px-9 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-primary-start/30 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              Fillo Falas Tani
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 8. FOOTER */}
+      <footer className="py-8 border-t border-main bg-canvas text-center text-xs text-text-muted">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p>© {new Date().getFullYear()} Juristi.tech. Të gjitha të drejtat të rezervuara.</p>
+          <div className="flex gap-6 text-text-muted">
+            <a href="/privacy" className="hover:text-text-primary transition-colors">Privatësia</a>
+            <a href="/support" className="hover:text-text-primary transition-colors">Mbështetja</a>
+            <a href="/laws/search" className="hover:text-text-primary transition-colors">Biblioteka Ligjore</a>
+          </div>
         </div>
       </footer>
     </div>
