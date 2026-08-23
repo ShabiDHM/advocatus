@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL LEGAL AI ENGINE V75.0 (ZERO HARDCODING • PURE DYNAMIC RAG)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V78.0 (STRICT STATUTORY VERACITY & CLIENT ALIGNMENT)
 
 import os
 import sys
@@ -32,7 +32,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized.")
+            logger.info("✅ [RAG] Universal Autonomous AI Engine initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -122,7 +122,7 @@ class AlbanianRAGService:
             text_content = self._get_expanded_text(d)
             context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
 
-        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n"
+        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS (BURIMI ZYRTAR I NENEVE) >>>\n"
         for d in global_docs:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
@@ -134,15 +134,26 @@ class AlbanianRAGService:
     def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
         pos = position.upper()
         if pos == "PLAINTIFF":
-            p1 = "Identifiko 3 pikat kryesore ku mbështetet padia jonë dhe provat vendimtare në fashikull."
-        else:
-            p1 = "Identifiko 3 pikat kryesore të pretendimeve mbrojtëse dhe provat mbështetëse në të gjitha dokumentet e lëndës."
+            p1 = "Identifiko 3 shtyllat kryesore të kërkesëpadisë, përgjegjësinë e kundërshtarit dhe provat vendimtare në fashikull."
+            p2 = "Analizo bazën ligjore procedurale dhe materiale, afatet dhe zbatueshmërinë e neneve të ligjeve përkatëse të Kosovës."
+            p3 = "Gjenero pyetjet taktike të ballafaqimit për dëgjimin e palëve dhe dëshmitarëve në seancë."
+            p4 = "Përgatit një përmbledhje ekzekutive mbi rreziqet ligjore, shanset e suksesit dhe hapat e mëtejshëm proceduralë."
+        elif pos == "NEUTRAL":
+            p1 = "Analizo objektivisht gjendjen e lëndës, vendimet gjyqësore të marra dhe ballafaqimin e provave të administruara."
+            p2 = "Vlerëso ligjshmërinë e pretendimeve të palëve, arsyetimet gjyqësore dhe barrën e provës sipas ligjit në fuqi."
+            p3 = "Identifiko mospërputhjet thelbësore procedurale dhe mjetet juridike të zbatueshme në këtë fazë të lëndës."
+            p4 = "Përgatit memorandumin objektiv të auditimit ligjor mbi lëndën dhe konkluzionet e paanshme."
+        else: # DEFENDANT
+            p1 = "Analizo 3 prapësimet kryesore të mbrojtjes, kontradiktat e palës kundërshtare dhe provat shfajësuese në fashikull."
+            p2 = "Analizo bazën ligjore procedurale dhe materiale, afatet dhe zbatueshmërinë e neneve të ligjeve përkatëse të Kosovës."
+            p3 = "Gjenero pyetjet taktike dhe kundër-pyetjet për ballafaqimin e dëshmitarëve dhe ekspertëve në seancë."
+            p4 = "Përgatit një përmbledhje ekzekutive mbi rreziqet ligjore, shanset e suksesit dhe hapat e mëtejshëm proceduralë."
 
         return [
             ("PILLAR_1", p1),
-            ("PILLAR_2", "Analizo përputhshmërinë e veprimeve të palëve me nenet përkatëse të Ligjit për Procedurën Kontestimore (LPK)."),
-            ("PILLAR_3", "Gjenero pyetjet kritike dhe kundër-pyetjet taktike për dëgjimin e palëve dhe dëshmitarëve në seancë."),
-            ("PILLAR_4", "Përgatit një përmbledhje ekzekutive të strukturuar mbi rreziqet ligjore dhe hapat e mëtejshëm për informimin e klientit.")
+            ("PILLAR_2", p2),
+            ("PILLAR_3", p3),
+            ("PILLAR_4", p4)
         ]
 
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
@@ -158,16 +169,16 @@ class AlbanianRAGService:
 
         remaining = []
 
-        if not any(k in combined_text for k in ["3 pikat kryesore", "mbështetet padia", "pretendimeve mbrojtëse"]):
+        if not any(k in combined_text for k in ["3 pikat kryesore", "3 shtyllat kryesore", "3 prapësimet kryesore", "mbështetet padia", "gjendjen e lëndës"]):
             remaining.append(pillars[0][1])
 
-        if not any(k in combined_text for k in ["procedurën kontestimore", "lpk", "përputhshmërinë e veprimeve"]):
+        if not any(k in combined_text for k in ["bazën ligjore", "përputhshmërinë procedurale", "ligjshmërinë e pretendimeve"]):
             remaining.append(pillars[1][1])
 
-        if not any(k in combined_text for k in ["pyetjet kritike", "kundër-pyetjet", "dëgjimin e palëve"]):
+        if not any(k in combined_text for k in ["pyetjet taktike", "kundër-pyetjet", "mospërputhjet thelbësore", "dëgjimin e palëve"]):
             remaining.append(pillars[2][1])
 
-        if not any(k in combined_text for k in ["përmbledhje ekzekutive të strukturuar", "rreziqet ligjore", "informimin e klientit"]):
+        if not any(k in combined_text for k in ["përmbledhje ekzekutive", "memorandumin objektiv", "rreziqet ligjore"]):
             remaining.append(pillars[3][1])
 
         return remaining
@@ -230,7 +241,6 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # Llogaritja progresive e kartave (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
         
         if remaining_pills and len(remaining_pills) > 0:
@@ -241,39 +251,56 @@ class AlbanianRAGService:
         else:
             formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
-        # 🧠 UNIVERSAL JURIDICAL REASONING SYSTEM PROMPT (100% DYNAMIC • ZERO HARDCODING)
+        # RREGULLAT E ARSYETIMIT SIPAS POZICIONIT DHE FAZËS PROCEDURALE
+        if client_position == "NEUTRAL":
+            role_instructions = """
+            TI JE NË ROLIN: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM**.
+            1. PËRCAKTIMI I FAZËS PROCEDURALE TË LËNDËS:
+               - Skoni shkresat për të vërtetuar nëse lënda ka Aktgjykim të formës së prerë apo Vendim të Apelit në fashikull.
+               - Nëse lënda është vendosur nga gjykatat, analizo shkaqet juridike të refuzimit/pranimit dhe vlerëso mjetet e jashtëzakonshme (Revizion në Gjykatën Supreme, Ankesë Kushtetuese).
+            2. OBJEKTIVITETI: Mos përdor 'padia jonë' apo 'mbrojtja jonë'. Vlerëso ligjshmërinë e arsyetimeve dhe peshën e provave me paanshmëri.
+            """
+        elif client_position == "PLAINTIFF":
+            role_instructions = f"""
+            TI JE NË ROLIN: **PADITËS / SULM PROCEDURAL** (Mbro interesin e {client_name}).
+            - Thekso provat që mbështesin kërkesëpadinë, përgjegjësinë e palës kundërshtare ({opposing_name}) dhe kërkesat ligjore.
+            """
+        else:
+            role_instructions = f"""
+            TI JE NË ROLIN: **I PADITUR / MBROJTJE GJYQËSORE** (Mbro interesin e {client_name}).
+            - Thekso prapësimet procedurale, provat shfajësuese dhe kontradiktat e palës paditëse ({opposing_name}).
+            """
+
         system_prompt = f"""
         {identity_header}
 
         Ti je "Sokrati - Krye-Strategu dhe Avokati Elitar i Drejtësisë në Kosovë".
 
-        KONTEKSTI I LËNDËS:
+        METADATAT E LËNDËS:
         - TITULLI: **{case_title}**
-        - KLIENTI YNË: **{client_name}** (Pozicioni: **{client_position}**)
-        - PALA KUNDËRSHTARE: **{opposing_name}**
+        - PALËT: **{client_name}** vs. **{opposing_name}**
+        - ROLI I ZGJEDHUR I PËRDORUESIT: **{client_position}**
         {f'- PËRSHKRIMI: {case_desc}' if case_desc else ''}
 
-        REGJISTRI I SKEDARËVE REALË TË FASHIKULLIT:
+        {role_instructions}
+
+        REGJISTRI I SKEDARËVE TË FASHIKULLIT:
         {manifest_str}
 
-        DOKUMENTET DHE PROVAT E LEXUARA NGA FASHIKULLI:
+        DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        RREGULLAT KRITIKE TË ANALIZËS DHE ARSYETIMIT JURIDIK:
-        1. BESNIKËRIA NDAJ KLIENTIT ({client_name}): Ti je avokati dhe mbrojtësi i {client_name}. Analizo çdo provë në favor të interesit të tij/saj.
-        2. KUPTIMI I SAKTË I REZULTATEVE DHE DOKUMENTEVE:
-           - Lexo tekstin literal dhe empirik të dokumenteve (p.sh. nëse një test laboratorik/mjekësor ka dalë NEGATIV, analizoje si provë shfajësuese dërrmuese që rrëzon pretendimet e kundërshtarit).
-           - Nëse një dokument i palës kundërshtare përmban akuza apo raporte të kontestuara, krahasi me provat dhe shkresat e depozituara nga {client_name} për të evidentuar shkeljet, falsifikimet apo prapësimet procedurale.
-           - Nëse përmenden dënime të kaluara, verifiko nëse janë shlyer (Rehabilitimi Ligjor sipas Nenit 93 të KPRK) ose nëse janë të parashkruara.
-        3. PËRCAKTIMI I SAKTË I DEGËS SË SË DREJTËS:
-           - Nëse lënda përmban kallëzim penal, aktakuzë apo vepra penale: Përdor dispozitat e Kodit Penal (KPRK) dhe Kodit të Procedurës Penale (KPPRK).
-           - Nëse lënda është kontestuese/civile: Përdor Ligjin për Procedurën Kontestimore (LPK) dhe Ligjin për Marrëdhëniet e Detyrimeve (LMD).
-           - Nëse lënda është familjare apo trashëgimore: Përdor Ligjin për Familjen (LFK) dhe Konventat përkatëse.
-        4. RREGULLAT E CITIMIT:
+        RREGULLAT E SAKTËSISË DHE CITIMIT STATUTOR TË KOSOVËS:
+        1. VËRTETËSIA E NENEVE TË LIGJIT:
+           - Cito nene vetëm kur je 100% i sigurt për numrin e tyre të saktë nga ligjet e Kosovës (LPK, KPRK, KPPRK, LFK, LMD).
+           - NËSE nuk e ke numrin ekzakt të nenit në kontekst, cito LIGJIN ME EMËR DHE INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e LPK-së për njoftimin e rregullt të palëve', 'dispozitat e LMD-së për shpërblimin e dëmit', 'Ligji për Mbrojtjen nga Dhuna në Familje'). MOS shpik numra të pasaktë nenesh!
+        2. CITIMI I PROVEVE:
            - Çdo provë e fashikullit DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`, `Neni 424 i KPRK`). MOS përdor kllapa [ ] për nenet e ligjit.
+           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për nenet e ligjit.
+        3. BALLAFAQIMI I FAKTEVE:
+           - Krahasoni pretendimet gojore me provat shkencore e materiale (testet laboratorike, procesverbalet, datat).
 
-        STRUKTURA E PËRGJIGJES:
+        STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
         ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
         ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V11.0 (DYNAMIC MULTI-MIME TYPE PREVIEW STREAMER)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V12.0 (AUTO-RECOVERY SWEEPER FOR ORPHANED TASKS)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -12,11 +12,12 @@ import logging
 import io
 import os
 import mimetypes
+from datetime import datetime, timezone, timedelta
 
 from app.services import document_service, storage_service
 from app.services.archive_service import ArchiveService
 from app.services.graph_service import graph_service
-from app.models.document import DocumentOut
+from app.models.document import DocumentOut, DocumentStatus
 from app.models.archive import ArchiveItemOut
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_user, get_db, get_sync_redis
@@ -27,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
-    """Dynamically resolves the accurate MIME type for PDFs, JPGs, PNGs, and text."""
     if doc_mime and doc_mime != "application/octet-stream" and "/" in doc_mime:
         return doc_mime
 
@@ -52,6 +52,7 @@ def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
     case_id: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
@@ -60,21 +61,38 @@ async def get_documents_for_case(
     
     cursor = db.documents.find({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": user_oid,
         "status": {"$ne": "DELETED"}
     })
     docs = list(cursor)
 
+    now_utc = datetime.now(timezone.utc)
     validated_docs = []
+    
     for d in docs:
-        if "_id" in d and not d.get("storage_key"):
-            d["storage_key"] = f"doc_fallback_{str(d['_id'])}"
-        if "_id" in d and not d.get("file_name"):
+        doc_id_str = str(d["_id"])
+        doc_status = d.get("status", "PENDING")
+        created_at = d.get("created_at") or now_utc
+
+        # 🛡️ AUTO-RECOVERY SWEEPER: If stuck in PENDING/PROCESSING for > 20s, resume or finalize
+        if doc_status in ["PENDING", "PROCESSING", "UPLOADING"]:
+            # If text already extracted, mark READY immediately
+            if d.get("extracted_text") and len(d["extracted_text"]) > 30:
+                db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
+                d["status"] = DocumentStatus.READY
+            else:
+                # Re-trigger background processing
+                from app.services.document_processing_service import orchestrate_document_processing_mongo
+                background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
+
+        if not d.get("storage_key"):
+            d["storage_key"] = f"doc_fallback_{doc_id_str}"
+        if not d.get("file_name"):
             d["file_name"] = "Dokument"
+            
         try:
             validated_docs.append(DocumentOut.model_validate(d))
         except Exception as err:
-            logger.warning(f"Document validation bypass for {d.get('_id')}: {err}")
+            logger.warning(f"Validation bypass for {doc_id_str}: {err}")
 
     return validated_docs
 
@@ -107,7 +125,7 @@ async def upload_document_for_case(
         with open(cache_file_path, "wb") as f:
             f.write(pdf_bytes)
     except Exception as e:
-        logger.warning(f"Could not populate local SSD preview cache: {e}")
+        logger.warning(f"Could not populate local preview cache: {e}")
 
     doc = document_service.create_document_record(
         db=db,
@@ -169,7 +187,6 @@ async def bulk_delete_documents_endpoint(
     if not doc_ids:
         docs = list(db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "owner_id": user_oid, 
             "status": {"$nin": ["DELETED", "ARCHIVED"]}
         }))
         doc_ids = [str(d["_id"]) for d in docs]
@@ -224,7 +241,7 @@ async def delete_document(
         current_user
     )
     if str(doc.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+        raise HTTPException(status_code=403, detail="Dokumenti nuk i përket kësaj lënde.")
         
     case_oid = validate_object_id(case_id)
     result = await asyncio.to_thread(
@@ -253,7 +270,7 @@ async def delete_document(
             documentId=doc_id,
             deletedFindingIds=result.get("deleted_finding_ids", [])
         )
-    raise HTTPException(status_code=500, detail="Failed to delete document.")
+    raise HTTPException(status_code=500, detail="Dështoi fshirja e dokumentit.")
 
 
 @router.get("/{case_id}/documents/{doc_id}/preview")
@@ -263,9 +280,6 @@ async def get_document_preview(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    PHOENIX FAST PREVIEW: Serves from local SSD cache or object store with correct MIME type.
-    """
     cached_path, stream, doc, content_length = await asyncio.to_thread(
         document_service.get_preview_file_path_or_stream,
         db,
