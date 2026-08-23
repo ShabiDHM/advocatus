@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V26.0 (LIVE MULTI-STAGE PROGRESS BROADCASTER)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V28.0 (TRUE DATABASE PROGRESS PERSISTENCE)
 
 import os
 import tempfile
@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_remove_temp_file(file_path: str):
-    """Safely removes temporary files on Windows without raising WinError 32."""
     if not file_path or not os.path.exists(file_path):
         return
     gc.collect()
@@ -40,14 +39,34 @@ def _safe_remove_temp_file(file_path: str):
         pass
 
 
-async def publish_sse_progress_async(user_id: str, document_id_str: str, percent: int, message: str):
-    """Broadcasts incremental progress percentage (e.g. 25%, 65%, 85%) to UI."""
+async def _update_db_and_broadcast(db: Any, doc_id: ObjectId, user_id: str, document_id_str: str, percent: int, message: str, doc_status: str = "PROCESSING"):
+    """
+    SHËRIMI I SËMUNDJES:
+    Ruhet menjëherë në MongoDB dhe transmetohet në SSE. Çdo kërkesë HTTP do të marrë përqindjen më të re.
+    """
+    try:
+        # 1. Ruaj në MongoDB
+        await asyncio.to_thread(
+            db.documents.update_one,
+            {"_id": doc_id},
+            {"$set": {
+                "progress_percent": percent,
+                "progress_message": message,
+                "status": doc_status,
+                "updated_at": datetime.now(timezone.utc)
+            }}
+        )
+    except Exception as db_err:
+        logger.warning(f"MongoDB progress update error: {db_err}")
+
+    # 2. Transmeto në Redis/SSE
     try:
         payload = {
             "type": "DOCUMENT_PROGRESS",
             "document_id": document_id_str,
             "percent": percent,
-            "message": message
+            "message": message,
+            "status": doc_status
         }
         channel = f"user:{user_id}:updates"
         redis_client = aioredis.from_url(
@@ -58,30 +77,8 @@ async def publish_sse_progress_async(user_id: str, document_id_str: str, percent
         )
         await redis_client.publish(channel, json.dumps(payload))
         await redis_client.close()
-    except Exception as e:
-        logger.warning(f"SSE progress broadcast skipped: {e}")
-
-
-async def publish_sse_status_async(user_id: str, document_id_str: str, status: str, error: Optional[str] = None):
-    """Broadcasts final status (READY / FAILED) to UI."""
-    try:
-        payload = {
-            "type": "DOCUMENT_STATUS",
-            "document_id": document_id_str,
-            "status": status,
-            "error": error
-        }
-        channel = f"user:{user_id}:updates"
-        redis_client = aioredis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_timeout=1.5,
-            socket_connect_timeout=1.5
-        )
-        await redis_client.publish(channel, json.dumps(payload))
-        await redis_client.close()
-    except Exception as e:
-        logger.warning(f"SSE status broadcast skipped: {e}")
+    except Exception as sse_err:
+        logger.warning(f"SSE progress broadcast skipped: {sse_err}")
 
 
 async def orchestrate_document_processing_mongo(
@@ -91,11 +88,7 @@ async def orchestrate_document_processing_mongo(
     redis_client: Any = None,
     **kwargs
 ):
-    """
-    MASTER HYDRA ORCHESTRATOR:
-    Executes staged text extraction, vector embeddings, and emits live percentage events (25% -> 65% -> 85% -> 100%).
-    """
-    logger.info(f"⚡ [Orchestrator V26.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V28.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -116,8 +109,8 @@ async def orchestrate_document_processing_mongo(
     doc_name = document.get("file_name", "Unknown Document")
     case_id_str = str(document.get("case_id"))
 
-    # Stage 1: 15% Start
-    asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 15, "Duke shkarkuar skedarin..."))
+    # Faza 1: 30%
+    await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 30, "Duke përgatitur skedarin...")
 
     temp_original_file_path = ""
     raw_text = f"Dokument i ngarkuar: {doc_name}."
@@ -136,8 +129,8 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'): 
             file_stream.close()
 
-        # Stage 2: 35% Extraction
-        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 35, "Duke lexuar tekstin & OCR..."))
+        # Faza 2: 60% Leximi Tekstual dhe OCR
+        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin & OCR...")
         
         try:
             extracted = await asyncio.wait_for(
@@ -149,8 +142,8 @@ async def orchestrate_document_processing_mongo(
         except Exception as extract_err:
             logger.warning(f"Extraction warning for {doc_name}: {extract_err}")
 
-        # Stage 3: 65% Vectorization & Embeddings
-        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 65, "Duke vektorizuar në RAG..."))
+        # Faza 3: 80% Vektorizimi në RAG
+        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 80, "Duke indeksuar në RAG...")
 
         async def task_summary():
             try:
@@ -192,8 +185,8 @@ async def orchestrate_document_processing_mongo(
             except Exception:
                 return ""
 
-        # Stage 4: 85% Preview & Storage
-        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 85, "Duke përgatitur pamjen..."))
+        # Faza 4: 92% Përgatitja Finale
+        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 92, "Duke finalizuar...")
 
         try:
             results = await asyncio.wait_for(
@@ -213,7 +206,7 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Orchestrator pipeline exception on {doc_name}: {general_err}")
     
     finally:
-        # Final Stage: 100% Persist & Mark READY in MongoDB
+        # Faza 5: 100% Gati (Persistenca Finale)
         try:
             await asyncio.to_thread(
                 db.documents.update_one,
@@ -226,15 +219,22 @@ async def orchestrate_document_processing_mongo(
                         "preview_storage_key": preview_storage_key,
                         "status": DocumentStatus.READY,
                         "progress_percent": 100,
+                        "progress_message": "Gati",
                         "updated_at": datetime.now(timezone.utc)
                     }
                 }
             )
-            logger.info(f"✅ [Orchestrator V26.0] Document {document_id_str} is marked 100% READY in MongoDB.")
+            logger.info(f"✅ [Orchestrator V28.0] Document {document_id_str} is 100% READY in MongoDB.")
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 
-        # Broadcast final completion to frontend
-        asyncio.create_task(publish_sse_progress_async(user_id, document_id_str, 100, "Përfunduar"))
-        asyncio.create_task(publish_sse_status_async(user_id, document_id_str, DocumentStatus.READY))
+        # Njofto SSE për përfundimin 100%
+        try:
+            payload = {"type": "DOCUMENT_STATUS", "document_id": document_id_str, "status": DocumentStatus.READY}
+            redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=1.5)
+            await redis_client.publish(f"user:{user_id}:updates", json.dumps(payload))
+            await redis_client.close()
+        except Exception:
+            pass
+
         _safe_remove_temp_file(temp_original_file_path)

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V12.0 (AUTO-RECOVERY SWEEPER FOR ORPHANED TASKS)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V13.0 (SINGLE-EXECUTION CLEAN TASK ISOLATION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -12,7 +12,7 @@ import logging
 import io
 import os
 import mimetypes
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from app.services import document_service, storage_service
 from app.services.archive_service import ArchiveService
@@ -52,7 +52,6 @@ def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(
     case_id: str,
-    background_tasks: BackgroundTasks,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
@@ -65,24 +64,15 @@ async def get_documents_for_case(
     })
     docs = list(cursor)
 
-    now_utc = datetime.now(timezone.utc)
     validated_docs = []
-    
     for d in docs:
         doc_id_str = str(d["_id"])
-        doc_status = d.get("status", "PENDING")
-        created_at = d.get("created_at") or now_utc
-
-        # 🛡️ AUTO-RECOVERY SWEEPER: If stuck in PENDING/PROCESSING for > 20s, resume or finalize
-        if doc_status in ["PENDING", "PROCESSING", "UPLOADING"]:
-            # If text already extracted, mark READY immediately
-            if d.get("extracted_text") and len(d["extracted_text"]) > 30:
-                db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
-                d["status"] = DocumentStatus.READY
-            else:
-                # Re-trigger background processing
-                from app.services.document_processing_service import orchestrate_document_processing_mongo
-                background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
+        
+        # Nëse teksti është nxjerrë dhe ka përfunduar, sigurohu që statusi është READY
+        if d.get("status") in ["PENDING", "PROCESSING"] and d.get("extracted_text") and len(d["extracted_text"]) > 20:
+            db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
+            d["status"] = DocumentStatus.READY
+            d["progress_percent"] = 100
 
         if not d.get("storage_key"):
             d["storage_key"] = f"doc_fallback_{doc_id_str}"
@@ -136,6 +126,7 @@ async def upload_document_for_case(
         mime_type=content_type
     )
 
+    # 🛡️ PËRPUNOHET VETËM 1 HERË GJATË NGARKIMIT (ZERO THIRRJE TË DUPFIKUARA)
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
