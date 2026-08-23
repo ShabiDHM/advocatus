@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V81.0 (ELITE 3-ROLE PRECISION & PERFECT 4-PILLAR REASONING)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V82.0 (NON-CONCESSION DEFENSE & EVIDENTIARY CLASH PROTOCOL)
 
 import os
 import sys
@@ -32,7 +32,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized.")
+            logger.info("✅ [RAG] Universal Autonomous AI Engine initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -169,19 +169,15 @@ class AlbanianRAGService:
 
         remaining = []
 
-        # Kontrolli i Shtyllës 1
         if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
             remaining.append(pillars[0][1])
 
-        # Kontrolli i Shtyllës 2
         if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore"]):
             remaining.append(pillars[1][1])
 
-        # Kontrolli i Shtyllës 3
         if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore"]):
             remaining.append(pillars[2][1])
 
-        # Kontrolli i Shtyllës 4
         if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive"]):
             remaining.append(pillars[3][1])
 
@@ -245,7 +241,6 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # Llogaritja progresive e kartave (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
         
         if remaining_pills and len(remaining_pills) > 0:
@@ -256,29 +251,26 @@ class AlbanianRAGService:
         else:
             formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
-        # RREGULLAT E ARSYETIMIT SIPAS ROLIT PROCEDURAL
+        # RREGULLAT E ARSYETIMIT JURIDIK
         if client_position == "PLAINTIFF":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **PADITËSI / SULMI PROCEDURAL** (Përfaqësuesi i {client_name}).
-            - Ti je avokati i paditësit {client_name}.
-            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë dhe fajësinë e të paditurit ({opposing_name}), evidenton dëmet e shkaktuara dhe kërkon zbatimin e masave të menjëhershme të sigurisë.
-            - Në pyetësor: Ndërto pyetje taktike që ngarkojnë të paditurin me përgjegjësi.
+            - Ti je avokati mbrojtës i kërkesës së {client_name}.
+            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë dhe detyrimin ligjor të {opposing_name}, evidenton dëmet e pësuara dhe kërkon masa të menjëhershme sigurie.
             """
         elif client_position == "NEUTRAL":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM** (Gjykata / Eksperti).
             - Ti nuk mbron asnjërën palë. Analizon me paanshmëri dhe ftohtësi magjistrati shkresat e fashikullit.
-            - Detyra jote:
-              1. Verifiko FAZËN REALE të lëndës (a ka Aktgjykim Themelor, a ka Vendim të Apelit). Nëse lënda është vendosur nga gjykata, analizo arsyetimin e vendimit dhe mjetet ligjore pa u sjellë sikur seanca po fillon sot.
-              2. Vlerëso barrën e provës (onus probandi) dhe përputhshmërinë e pretendimeve të të dyja palëve ({client_name} dhe {opposing_name}) me ligjin.
-            - Mos përdor kurrë fjalët 'padia jonë' apo 'mbrojtja jonë'.
+            - Verifiko FAZËN REALE të lëndës (a ka Aktgjykim Themelor, a ka Vendim të Apelit).
+            - Vlerëso barrën e provës dhe ligjshmërinë e vendimeve të marra. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
             """
         else: # DEFENDANT
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE** (Përfaqësuesi i {client_name}).
+            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE** (Avokati i {client_name}).
             - Ti je avokati i të paditurit {client_name}.
-            - Detyra jote: Strukturon prapësimet procedurale e materiale, evidenton mungesën e provave të paditësit ({opposing_name}), vërteton faktet shfajësuese dhe kërkon rrëzimin ose hedhjen e padisë.
-            - Në pyetësor: Ndërto kundër-pyetje taktike për të zbuluar kontradiktat e paditësit.
+            - RREGULLI I MOS-PRANIMIT (NON-CONCESSION): Mos prano asnjë pretendim, akuzë apo diagnozë të kundërshtarit si të vërtetë. Nëse ka raporte të dyshimta mjekësore (p.sh. F60.31) apo pretendime për substanca, trajtoji si PRETEGIME TË KONTESTUARA DHE TË SAJUARA nga {opposing_name}, dhe ballafaqoji me provat shkencore e shkresore që dëshmojnë pafajësinë dhe shëndetin e plotë të {client_name}.
+            - Evidento motivin e vërtetë të kundërshtarit (tjetërsimi prindëror, lajmërimi i rremë, bllokimi i kontaktit me fëmijën).
             """
 
         system_prompt = f"""
@@ -289,7 +281,7 @@ class AlbanianRAGService:
         METADATAT E LËNDËS:
         - TITULLI: **{case_title}**
         - PALËT: **{client_name}** vs. **{opposing_name}**
-        - ROLI PROCEDURAL I ZGJEDHUR: **{client_position}**
+        - ROLI PROCEDURAL: **{client_position}**
         {f'- PËRSHKRIMI: {case_desc}' if case_desc else ''}
 
         {role_instructions}
@@ -300,16 +292,15 @@ class AlbanianRAGService:
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        RREGULLAT E HEKURTA TË SAKTËSISË DHE CITIMIT (ZERO HALLUCINATION):
-        1. NDALIM ABSOLUT I SHPIKJES SË NENEVE:
-           - NUK GUXON të shpikësh numra nenesh të paqena (si Neni 484, Neni 289, Neni 347, apo nene me pika dhjetore si 386.2).
-           - Nenet shkruhen me formatin zyrtar të Kosovës: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`.
-           - NËSE nuk e ke numrin fiks të nenit në bazën statutore, cito LIGJIN ME EMËR DHE INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e LPK-së për ftesat e rregullta', 'dispozitat e LMD-së për shpërblimin e dëmit', 'Ligji për Mbrojtjen nga Dhuna në Familje').
-        2. CITIMI I PROVEVE ME LINKE TË KLIKUESHME:
-           - Çdo provë ose dokument i dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
-        3. BALLAFAQIMI DHE PROVAT MULTIMEDIALE:
-           - Lexo tekstin literal të dokumenteve (testet mjekësore/laboratorike, procesverbalet, inqizimet audio/video) dhe ballafaqoji me pretendimet e palëve.
+        PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
+        1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
+           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK).
+           - NËSE nuk e ke numrin fiks të nenit në bazën statutore, cito LIGJIN ME EMËR DHE INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e KPPRK-së për elementet e detyrueshme të aktakuzës', 'dispozitat e LPK-së për dorëzimin e ftesave'). MOS shpik numra të pasaktë nenesh!
+           - Formati zyrtar: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
+        2. CITIMI I DOKUMENTEVE ME LINKE:
+           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
+        3. BALLAFAQIMI SHKENCOR DHE DËSHMITË:
+           - Thekso gjithmonë provat objektive (testet laboratorike negative, komunikimet shkresore, deklaratat e fëmijës) që rrëzojnë alibitë e kundërshtarit.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA

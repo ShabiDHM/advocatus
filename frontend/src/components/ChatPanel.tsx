@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V35.0 (ZERO TYPESCRIPT COMPILATION WARNINGS)
+// PHOENIX PROTOCOL - CHAT PANEL V36.0 (VERTICALLY CENTERED BALANCED WORKSPACE)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,9 +43,8 @@ interface ChatPanelProps {
   documents?: Document[];
   selectedDocumentIds?: string[];
   onDocumentSelectionChange?: (ids: string[]) => void;
-  selectedDocumentCount?: number;
   userSalutation?: string;
-  clientPosition?: 'DEFENDANT' | 'PLAINTIFF';
+  clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -133,7 +132,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         isPro={isPro}
       />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col justify-start">
+      {/* BODY: Qendërsohet në mënyrë të përsosur kur shfaqen 4 kartat */}
+      <div className={`flex-1 overflow-y-auto p-4 sm:p-6 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col ${
+        displayMessages.length === 0 ? 'justify-center items-center' : 'justify-start space-y-4'
+      }`}>
         <AnimatePresence initial={false}>
           {displayMessages.length === 0 && !isSendingMessage && (
             <CommandPaletteGrid userSalutation={userSalutation} clientPosition={clientPosition} onSendMessage={sendMessage} />
