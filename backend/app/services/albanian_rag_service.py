@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V84.0 (STRICT 4-3-2-1-0 PILLAR ENFORCEMENT)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V88.0 (UNIFIED 3-ROLE HIGH-IQ LEGAL REASONING)
 
 import os
 import sys
@@ -32,7 +32,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous AI Engine initialized.")
+            logger.info("✅ [RAG] Universal 3-Role High-IQ Engine initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -157,30 +157,30 @@ class AlbanianRAGService:
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
         pillars = self._get_role_adapted_pillars(position)
 
-        all_past_queries = []
+        all_past_user_messages = []
         if history:
             for msg in history:
                 if msg.get("role") == "user":
-                    all_past_queries.append(str(msg.get("content", "")).lower())
-        all_past_queries.append(query.lower())
-        combined_text = " ".join(all_past_queries)
+                    all_past_user_messages.append(str(msg.get("content", "")).lower())
+        all_past_user_messages.append(query.lower())
+        combined_text = " ".join(all_past_user_messages)
 
         remaining = []
 
         # Kontrolli i Shtyllës 1
-        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese", "dhunën psikike"]):
+        if not any(k in combined_text for k in ["3 prapësimet kryesore", "3 shtyllat kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
             remaining.append(pillars[0][1])
 
         # Kontrolli i Shtyllës 2
-        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore", "afatet procedurale"]):
+        if not any(k in combined_text for k in ["bazën ligjore të prapësimeve", "bazën ligjore të kërkesëpadisë", "ligjshmërinë e pretendimeve", "baza statutore"]):
             remaining.append(pillars[1][1])
 
         # Kontrolli i Shtyllës 3
-        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
+        if not any(k in combined_text for k in ["kundër-pyetjet taktike", "pyetjet taktike për të ballafaquar", "pyetjet për zbardhjen", "mospërputhjet thelbësore"]):
             remaining.append(pillars[2][1])
 
         # Kontrolli i Shtyllës 4
-        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive", "shanset e mbrojtjes"]):
+        if not any(k in combined_text for k in ["përmbledhjen ekzekutive mbi rreziqet", "llogarit dëmet e kërkuara", "memorandumin objektiv"]):
             remaining.append(pillars[3][1])
 
         return remaining
@@ -243,41 +243,47 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # Llogaritja ekzakte e kartave të mbetura (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
         
         if remaining_pills and len(remaining_pills) > 0:
             formatted_suggestions = (
-                "RREGULLI I DETYRUESHËM I SUGJERIMEVE NË FUND:\n"
-                "Në fund të përgjigjes tënde, kopjo EKSKLUZIVISHT dhe FJALË PËR FJALË këtë bllok (MOS shpik pyetje të reja):\n\n"
+                "RREGULLI I DETYRUESHËM I KARTELAVE TË MBETURA (KOPJO VETËM KËTO):\n"
+                "Vendos saktësisht këtë bllok në fund të përgjigjes tënde (MOS shpik asnjë pyetje tjetër):\n\n"
                 "Sugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
             )
         else:
             formatted_suggestions = (
                 "RREGULLI I MBARIMIT TË KARTELAVE:\n"
-                "Të 4 kartelat kanë përfunduar. MOS shto ASNJË rresht 'Sugjerime:' dhe MOS shpik asnjë pyetje në fund të përgjigjes."
+                "Të gjitha 4 kartelat e lëndës janë konsumuar. MOS SHTO ASNJË SEKSION 'Sugjerime:' dhe MOS shkruaj asnjë pyetje në fund."
             )
 
-        # RREGULLAT E ARSYETIMIT JURIDIK
+        # 🧠 PROTOKOLLET E MENÇURA PËR TË 3 ROLET (SOVEREIGN 3-ROLE COGNITION)
         if client_position == "PLAINTIFF":
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **PADITËSI / SULMI PROCEDURAL** (Përfaqësuesi i {client_name}).
-            - Ti je avokati mbrojtës i kërkesës së {client_name}.
-            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë dhe detyrimin ligjor të {opposing_name}, evidenton dëmet e pësuara dhe kërkon masa të menjëhershme sigurie.
+            PERSPEKTIVA JURIDIKE: **PADITËSI (SULMI PROCEDURAL DHE INOKULIMI TAKTIK)** — Avokati i Kërkesëpadisë.
+            Mendësia: Ndërto kërkesëpadinë më të fortë, por ji i mençur: parashiko saktësisht ku do të godasë i padituri ({opposing_name}) dhe si ta neutralizosh atë.
+            Struktura e arsyetimit:
+            1. **Shtyllat & Provat e Padisë**: Cilat janë faktet që vërtetojnë detyrimin dhe përgjegjësinë e {opposing_name}.
+            2. **Pikat e Cenueshme / Çfarë Provash ka I Padituri**: Trego hapur çfarë kundërprovash ekzistojnë në dosje (p.sh. testet negative laboratorike, mungesa e incizimeve, shkeljet e pretenduara procedurale).
+            3. **Taktika e Neutralizimit**: Si duhet të reagojë paditësi për të mbrojtur padinë e tij përballë këtyre fakteve.
             """
         elif client_position == "NEUTRAL":
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM** (Gjykata / Eksperti).
-            - Ti nuk mbron asnjërën palë. Analizon me paanshmëri dhe ftohtësi magjistrati shkresat e fashikullit.
-            - Verifiko FAZËN REALE të lëndës (a ka Aktgjykim Themelor, a ka Vendim të Apelit).
-            - Vlerëso barrën e provës dhe ligjshmërinë e vendimeve të marra. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
+            PERSPEKTIVA JURIDIKE: **NEUTRAL (AUDITOR GJYQËSOR I PAANSHËM)** — Gjykata / Magjistrati / Eksperti.
+            Mendësia: Mos merr anësi. Vendos në peshore të ftohtë pretendimet e të dyja palëve ({client_name} dhe {opposing_name}).
+            Struktura e arsyetimit:
+            1. **Faza Reale Procedurale**: Çfarë vendosi Shkalla e Parë, çfarë vendosi Apeli dhe çfarë mjetesh ligjore kanë mbetur (Revizioni, Kushtetuesja).
+            2. **Bilanci i Provave**: Prova e Paditësit vs. Kundërprova e të Paditurit (Kush e mban barrën e provës dhe cilat fakte janë provuar shkencërisht/shkresërisht).
+            3. **Konkluzioni i Paanshëm**: Vlerësimi objektiv i ligjshmërisë. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
             """
         else: # DEFENDANT
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE** (Avokati i {client_name}).
-            - Ti je avokati i të paditurit {client_name}.
-            - RREGULLI I MOS-PRANIMIT (NON-CONCESSION): Mos prano asnjë pretendim, akuzë apo diagnozë të kundërshtarit si të vërtetë. Nëse ka raporte të dyshimta mjekësore apo pretendime për substanca, trajtoji si PRETENDIME TË KONTESTUARA DHE TË SAJUARA nga {opposing_name}, dhe ballafaqoji me provat shkencore e shkresore që dëshmojnë pafajësinë dhe shëndetin e plotë të {client_name}.
-            - Evidento motivin e vërtetë të kundërshtarit (tjetërsimi prindëror, lajmërimi i rremë, bllokimi i kontaktit me fëmijën).
+            PERSPEKTIVA JURIDIKE: **I PADITUR (MBROJTJA GJYQËSORE DHE KUNDËRSULMI)** — Avokati i Mbrojtjes.
+            Mendësia: Mos qëndro pasiv. Zbulo mungesën e provave të paditësit ({opposing_name}), godit me faktet shfajësuese dhe zbulo motivin e vërtetë.
+            Struktura e arsyetimit:
+            1. **Prapësimet & Mungesa e Provave të Paditësit**: Trego mungesën e provave fizike/audio të kundërshtarit dhe shkeljet e neneve procedurale.
+            2. **Provat Shfajësuese**: Thekso testet shkencore negative, komunikimet shkresore dhe faktet që rrëzojnë alibinë e padisë.
+            3. **Zbardhja e Motivit**: Evidento arsyen pse u ngrit padia (tjetërsim prindëror, lajmërim i rremë, bllokim i padrejtë).
             """
 
         system_prompt = f"""
@@ -301,13 +307,13 @@ class AlbanianRAGService:
 
         PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
         1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
-           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2.
+           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
            - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
            - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
-        2. CITIMI I DOKUMENTEVE ME LINKE:
+        2. CITIMI I DOKUMENTEVE ME LINKE TË KLIKUESHME:
            - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-        3. BALLAFAQIMI SHKENCOR DHE DËSHMITË:
-           - Thekso gjithmonë provat objektive (testet laboratorike negative, komunikimet shkresore, deklaratat e fëmijës) që rrëzojnë alibitë e kundërshtarit.
+        3. MENÇURIA 360°:
+           - Pavarësisht nga roli, kurrë mos fshih faktet. Analizo përplasjen reale të shkresave midis dy palëve.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
