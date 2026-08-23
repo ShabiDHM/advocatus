@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V79.0 (KOSOVO CITATION FORMATTING & MULTIMEDIA SYNC)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V80.0 (ZERO ARTICLE HALLUCINATION GUARD)
 
 import os
 import sys
@@ -251,7 +251,6 @@ class AlbanianRAGService:
         else:
             formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
-        # RREGULLAT E ARSYETIMIT SIPAS POZICIONIT PROCEDURAL
         if client_position == "NEUTRAL":
             role_instructions = """
             TI JE NË ROLIN: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM**.
@@ -290,15 +289,14 @@ class AlbanianRAGService:
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        RREGULLAT E SAKTËSISË PROCEDURALE DHE CITIMIT TË KOSOVËS:
-        1. STANDARDI I CITIMIT TË NENEVE TË KOSOVËS:
-           - Nenet shkruhen me formatin zyrtar: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si '386.2' apo '428.1'.
-           - NËSE nuk e ke numrin ekzakt të nenit në bazën statutore, cito me emër INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e LPK-së për dorëzimin e ftesave dhe njoftimin e rregullt', 'dispozitat e LPK-së për shkeljet thelbësore procedurale', 'Ligji për Mbrojtjen nga Dhuna në Familje'). MOS shpik numra të pasaktë nenesh!
-        2. CITIMI I PROVEVE TË FASHIKULLIT:
-           - Çdo provë e fashikullit DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për nenet e ligjit.
-        3. BALLAFAQIMI DHE PROVAT MULTIMEDIALE:
-           - Nëse fashikulli përmban inqizime audio apo video, integroji ato në analizë duke evidentuar vlerën e tyre provuese.
+        RREGULLI I HEKURT KUNDËR SHPIKJES SË NENEVE (ZERO HALLUCINATION MANDATE):
+        1. TI NUK GUXON TË SHPIKËSH NUMRA NENESH TË PAQENA (si Neni 484, Neni 289, Neni 347, apo nene me pika dhjetore).
+        2. NËSE numri fiks i nenit nuk ndodhet me fjalë të sakta në seksionin 'BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS' më sipër, cito VETËM emrin e ligjit dhe emrin e institutit procedural. Për shembull:
+           - Shkruaj: 'dispozitat e LPK-së për njoftimin e rregullt dhe dorëzimin e ftesave' (në vend se të shpikësh numër).
+           - Shkruaj: 'dispozitat e Ligjit për Mbrojtjen nga Dhuna në Familje për provat e kërkuara'.
+           - Shkruaj: 'dispozitat e KPPRK-së për të drejtën e pjesëmarrjes në procedurë'.
+        3. Çdo provë e fashikullit DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
+        4. Nenet e verifikuara shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
@@ -315,7 +313,7 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": sanitized_query}
                 ],
-                temperature=0.05,
+                temperature=0.0,
                 stream=True,
                 max_tokens=4096
             )
