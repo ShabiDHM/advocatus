@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V78.0 (STRICT STATUTORY VERACITY & CLIENT ALIGNMENT)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V79.0 (KOSOVO CITATION FORMATTING & MULTIMEDIA SYNC)
 
 import os
 import sys
@@ -122,7 +122,7 @@ class AlbanianRAGService:
             text_content = self._get_expanded_text(d)
             context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
 
-        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS (BURIMI ZYRTAR I NENEVE) >>>\n"
+        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n"
         for d in global_docs:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number', 'N/A')
@@ -251,24 +251,24 @@ class AlbanianRAGService:
         else:
             formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
 
-        # RREGULLAT E ARSYETIMIT SIPAS POZICIONIT DHE FAZËS PROCEDURALE
+        # RREGULLAT E ARSYETIMIT SIPAS POZICIONIT PROCEDURAL
         if client_position == "NEUTRAL":
             role_instructions = """
             TI JE NË ROLIN: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM**.
-            1. PËRCAKTIMI I FAZËS PROCEDURALE TË LËNDËS:
-               - Skoni shkresat për të vërtetuar nëse lënda ka Aktgjykim të formës së prerë apo Vendim të Apelit në fashikull.
-               - Nëse lënda është vendosur nga gjykatat, analizo shkaqet juridike të refuzimit/pranimit dhe vlerëso mjetet e jashtëzakonshme (Revizion në Gjykatën Supreme, Ankesë Kushtetuese).
-            2. OBJEKTIVITETI: Mos përdor 'padia jonë' apo 'mbrojtja jonë'. Vlerëso ligjshmërinë e arsyetimeve dhe peshën e provave me paanshmëri.
+            1. PËRCAKTIMI I FAZËS PROCEDURALE:
+               - Skoni shkresat për të verifikuar nëse lënda ka Aktgjykim të shkallës së parë apo Vendim të Apelit në fashikull.
+               - Nëse lënda është vendosur nga gjykatat, analizo arsyetimin ligjor dhe mjetet e jashtëzakonshme pa marrë anësi.
+            2. OBJEKTIVITETI: Mos përdor 'padia jonë' apo 'mbrojtja jonë'. Analizo ligjshmërinë e shkresave me paanshmëri magjistrati.
             """
         elif client_position == "PLAINTIFF":
             role_instructions = f"""
             TI JE NË ROLIN: **PADITËS / SULM PROCEDURAL** (Mbro interesin e {client_name}).
-            - Thekso provat që mbështesin kërkesëpadinë, përgjegjësinë e palës kundërshtare ({opposing_name}) dhe kërkesat ligjore.
+            - Thekso provat që mbështesin kërkesën, përgjegjësinë e palës kundërshtare ({opposing_name}) dhe kërkesat ligjore.
             """
         else:
             role_instructions = f"""
             TI JE NË ROLIN: **I PADITUR / MBROJTJE GJYQËSORE** (Mbro interesin e {client_name}).
-            - Thekso prapësimet procedurale, provat shfajësuese dhe kontradiktat e palës paditëse ({opposing_name}).
+            - Thekso prapësimet procedurale, provat shfajësuese dhe kontradiktat e palës kundërshtare ({opposing_name}).
             """
 
         system_prompt = f"""
@@ -290,15 +290,15 @@ class AlbanianRAGService:
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        RREGULLAT E SAKTËSISË DHE CITIMIT STATUTOR TË KOSOVËS:
-        1. VËRTETËSIA E NENEVE TË LIGJIT:
-           - Cito nene vetëm kur je 100% i sigurt për numrin e tyre të saktë nga ligjet e Kosovës (LPK, KPRK, KPPRK, LFK, LMD).
-           - NËSE nuk e ke numrin ekzakt të nenit në kontekst, cito LIGJIN ME EMËR DHE INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e LPK-së për njoftimin e rregullt të palëve', 'dispozitat e LMD-së për shpërblimin e dëmit', 'Ligji për Mbrojtjen nga Dhuna në Familje'). MOS shpik numra të pasaktë nenesh!
-        2. CITIMI I PROVEVE:
+        RREGULLAT E SAKTËSISË PROCEDURALE DHE CITIMIT TË KOSOVËS:
+        1. STANDARDI I CITIMIT TË NENEVE TË KOSOVËS:
+           - Nenet shkruhen me formatin zyrtar: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si '386.2' apo '428.1'.
+           - NËSE nuk e ke numrin ekzakt të nenit në bazën statutore, cito me emër INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e LPK-së për dorëzimin e ftesave dhe njoftimin e rregullt', 'dispozitat e LPK-së për shkeljet thelbësore procedurale', 'Ligji për Mbrojtjen nga Dhuna në Familje'). MOS shpik numra të pasaktë nenesh!
+        2. CITIMI I PROVEVE TË FASHIKULLIT:
            - Çdo provë e fashikullit DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
            - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për nenet e ligjit.
-        3. BALLAFAQIMI I FAKTEVE:
-           - Krahasoni pretendimet gojore me provat shkencore e materiale (testet laboratorike, procesverbalet, datat).
+        3. BALLAFAQIMI DHE PROVAT MULTIMEDIALE:
+           - Nëse fashikulli përmban inqizime audio apo video, integroji ato në analizë duke evidentuar vlerën e tyre provuese.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
