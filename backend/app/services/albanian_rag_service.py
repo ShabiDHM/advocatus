@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V83.0 (MANDATORY MARKDOWN CITATION ENFORCER)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V84.0 (STRICT 4-3-2-1-0 PILLAR ENFORCEMENT)
 
 import os
 import sys
@@ -78,7 +78,7 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
-        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME (PËRDOR KËTA LINKE GJATË CITIMIT) >>>\n"]
+        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME >>>\n"]
         context = "\n<<< PËRMBAJTJA E PROVEVE TË FASHIKULLIT >>>\n"
         
         if db_documents:
@@ -167,16 +167,20 @@ class AlbanianRAGService:
 
         remaining = []
 
-        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
+        # Kontrolli i Shtyllës 1
+        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese", "dhunën psikike"]):
             remaining.append(pillars[0][1])
 
-        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore"]):
+        # Kontrolli i Shtyllës 2
+        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore", "afatet procedurale"]):
             remaining.append(pillars[1][1])
 
-        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore"]):
+        # Kontrolli i Shtyllës 3
+        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
             remaining.append(pillars[2][1])
 
-        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive"]):
+        # Kontrolli i Shtyllës 4
+        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive", "shanset e mbrojtjes"]):
             remaining.append(pillars[3][1])
 
         return remaining
@@ -239,15 +243,20 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
+        # Llogaritja ekzakte e kartave të mbetura (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
         
         if remaining_pills and len(remaining_pills) > 0:
             formatted_suggestions = (
-                "NË FUND TË PËRGJIGJES TËNDE, SHTO SAKTËSISHT KËTË BLOK SUGJERIMESH:\n"
+                "RREGULLI I DETYRUESHËM I SUGJERIMEVE NË FUND:\n"
+                "Në fund të përgjigjes tënde, kopjo EKSKLUZIVISHT dhe FJALË PËR FJALË këtë bllok (MOS shpik pyetje të reja):\n\n"
                 "Sugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
             )
         else:
-            formatted_suggestions = "MOS shto asnjë seksion Sugjerime në fund të përgjigjes."
+            formatted_suggestions = (
+                "RREGULLI I MBARIMIT TË KARTELAVE:\n"
+                "Të 4 kartelat kanë përfunduar. MOS shto ASNJË rresht 'Sugjerime:' dhe MOS shpik asnjë pyetje në fund të përgjigjes."
+            )
 
         # RREGULLAT E ARSYETIMIT JURIDIK
         if client_position == "PLAINTIFF":
@@ -290,16 +299,15 @@ class AlbanianRAGService:
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        RREGULLI I HEKURT I CITIMIT TË DOKUMENTEVE (MANDATORY MARKDOWN LINKS):
-        1. MOS SHKRUAJ KURRË NUMRA TË THJESHTË SI: '(Dokumenti #1)', '(Dokumenti #6)', apo '(Dokumenti #10)'.
-        2. ÇDO PROVË OSE SHKRESË E FASHIKULLIT DUHET TË SHKRUHET EKSKLUZIVISHT SI LINK I KLIKUESHËM MARKDOWN NGA REGJISTRI MË SIPËR:
-           - Shembull i gabuar: 'Sipas dokumentit #6...' ❌
-           - Shembull i saktë: 'Sipas [Testet e narkotikve.pdf](/documents/6a82ca0795494de39705f26a)...' ✅
-           - Shembull i saktë: 'Në aktakuzën [KERKESE PER HUDHJE Akuzes.pdf](/documents/6a82c9e295494de39705f269)...' ✅
-        3. VËRTETËSIA E NENEVE TË KOSOVËS:
+        PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
+        1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
            - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2.
            - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
            - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
+        2. CITIMI I DOKUMENTEVE ME LINKE:
+           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
+        3. BALLAFAQIMI SHKENCOR DHE DËSHMITË:
+           - Thekso gjithmonë provat objektive (testet laboratorike negative, komunikimet shkresore, deklaratat e fëmijës) që rrëzojnë alibitë e kundërshtarit.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
