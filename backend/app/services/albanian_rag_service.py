@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V82.0 (NON-CONCESSION DEFENSE & EVIDENTIARY CLASH PROTOCOL)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V83.0 (MANDATORY MARKDOWN CITATION ENFORCER)
 
 import os
 import sys
@@ -78,8 +78,8 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
-        manifest_lines = ["\n<<< REGJISTRI ZYRTAR I SKEDARËVE TË FASHIKULLIT (PËR CITIM ME LINKE) >>>\n"]
-        context = "\n<<< PËRMBAJTJA E PLOTË E PROVEVE DHE DOKUMENTEVE TË LËNDËS >>>\n"
+        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME (PËRDOR KËTA LINKE GJATË CITIMIT) >>>\n"]
+        context = "\n<<< PËRMBAJTJA E PROVEVE TË FASHIKULLIT >>>\n"
         
         if db_documents:
             for idx, doc in enumerate(db_documents, 1):
@@ -87,7 +87,7 @@ class AlbanianRAGService:
                 file_name = doc.get("file_name") or doc.get("title") or "Dokument.pdf"
                 
                 doc_clickable_link = f"[{file_name}](/documents/{doc_id})"
-                manifest_lines.append(f"{idx}. {doc_clickable_link}")
+                manifest_lines.append(f"- {doc_clickable_link}")
 
                 raw_t = (
                     doc.get("extracted_text") or 
@@ -102,18 +102,16 @@ class AlbanianRAGService:
                     summ = ""
 
                 if raw_t and summ:
-                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA E TEKSTIT:\n{raw_t[:14000]}"
+                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA:\n{raw_t[:14000]}"
                 elif raw_t:
-                    text_content = f"PËRMBAJTJA E TEKSTIT:\n{raw_t[:16000]}"
+                    text_content = f"PËRMBAJTJA:\n{raw_t[:16000]}"
                 elif summ:
                     text_content = f"PËRMBLEDHJE: {summ}"
                 else:
                     text_content = "Dokument i administruar në fashikull."
 
-                context += f"\n==================== DOKUMENTI #{idx} ====================\n"
-                context += f"CITIMI I SAKTË: {doc_clickable_link}\n"
+                context += f"\n--- SHKRESA: {doc_clickable_link} ---\n"
                 context += f"{text_content}\n"
-                context += f"===========================================================\n"
         else:
             context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
 
@@ -269,7 +267,7 @@ class AlbanianRAGService:
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE** (Avokati i {client_name}).
             - Ti je avokati i të paditurit {client_name}.
-            - RREGULLI I MOS-PRANIMIT (NON-CONCESSION): Mos prano asnjë pretendim, akuzë apo diagnozë të kundërshtarit si të vërtetë. Nëse ka raporte të dyshimta mjekësore (p.sh. F60.31) apo pretendime për substanca, trajtoji si PRETEGIME TË KONTESTUARA DHE TË SAJUARA nga {opposing_name}, dhe ballafaqoji me provat shkencore e shkresore që dëshmojnë pafajësinë dhe shëndetin e plotë të {client_name}.
+            - RREGULLI I MOS-PRANIMIT (NON-CONCESSION): Mos prano asnjë pretendim, akuzë apo diagnozë të kundërshtarit si të vërtetë. Nëse ka raporte të dyshimta mjekësore apo pretendime për substanca, trajtoji si PRETENDIME TË KONTESTUARA DHE TË SAJUARA nga {opposing_name}, dhe ballafaqoji me provat shkencore e shkresore që dëshmojnë pafajësinë dhe shëndetin e plotë të {client_name}.
             - Evidento motivin e vërtetë të kundërshtarit (tjetërsimi prindëror, lajmërimi i rremë, bllokimi i kontaktit me fëmijën).
             """
 
@@ -286,21 +284,22 @@ class AlbanianRAGService:
 
         {role_instructions}
 
-        REGJISTRI I SKEDARËVE TË FASHIKULLIT:
+        REGJISTRI I SKEDARËVE TË FASHIKULLIT ME LINKE:
         {manifest_str}
 
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
-        1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
-           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK).
-           - NËSE nuk e ke numrin fiks të nenit në bazën statutore, cito LIGJIN ME EMËR DHE INSTITUTIN PROCEDURAL (p.sh. 'dispozitat e KPPRK-së për elementet e detyrueshme të aktakuzës', 'dispozitat e LPK-së për dorëzimin e ftesave'). MOS shpik numra të pasaktë nenesh!
-           - Formati zyrtar: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
-        2. CITIMI I DOKUMENTEVE ME LINKE:
-           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-        3. BALLAFAQIMI SHKENCOR DHE DËSHMITË:
-           - Thekso gjithmonë provat objektive (testet laboratorike negative, komunikimet shkresore, deklaratat e fëmijës) që rrëzojnë alibitë e kundërshtarit.
+        RREGULLI I HEKURT I CITIMIT TË DOKUMENTEVE (MANDATORY MARKDOWN LINKS):
+        1. MOS SHKRUAJ KURRË NUMRA TË THJESHTË SI: '(Dokumenti #1)', '(Dokumenti #6)', apo '(Dokumenti #10)'.
+        2. ÇDO PROVË OSE SHKRESË E FASHIKULLIT DUHET TË SHKRUHET EKSKLUZIVISHT SI LINK I KLIKUESHËM MARKDOWN NGA REGJISTRI MË SIPËR:
+           - Shembull i gabuar: 'Sipas dokumentit #6...' ❌
+           - Shembull i saktë: 'Sipas [Testet e narkotikve.pdf](/documents/6a82ca0795494de39705f26a)...' ✅
+           - Shembull i saktë: 'Në aktakuzën [KERKESE PER HUDHJE Akuzes.pdf](/documents/6a82c9e295494de39705f269)...' ✅
+        3. VËRTETËSIA E NENEVE TË KOSOVËS:
+           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2.
+           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
+           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
