@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V4.0 (6-LEVEL TOTAL CASCADE WIPEOUT & GDPR COMPLIANCE)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V5.0 (TRUE TOTAL CASCADE WIPEOUT & VECTOR PURGE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -27,11 +27,13 @@ from app.core.config import settings
 router = APIRouter(tags=["Media Evidence"])
 logger = logging.getLogger(__name__)
 
+
 def validate_object_id(id_str: str) -> ObjectId:
     try:
         return ObjectId(id_str)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid ID format.")
+
 
 def serialize_media_doc(item: Dict[str, Any]) -> Dict[str, Any]:
     item["id"] = str(item["_id"])
@@ -44,15 +46,17 @@ def serialize_media_doc(item: Dict[str, Any]) -> Dict[str, Any]:
         item["updated_at"] = item["updated_at"].isoformat()
     return item
 
+
 async def publish_media_deletion_async(user_id: str, media_id_str: str):
     try:
         payload = {"type": "MEDIA_DELETED", "media_id": media_id_str}
         channel = f"user:{user_id}:updates"
-        redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=5)
+        redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=3)
         await redis_client.publish(channel, json.dumps(payload))
         await redis_client.close()
     except Exception as e:
-        logger.warning(f"Media deletion SSE publish failed: {e}")
+        logger.warning(f"Media deletion SSE publish skipped: {e}")
+
 
 def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
     from app.core.db import get_db_instance
@@ -113,6 +117,7 @@ def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, use
             except Exception:
                 pass
 
+
 @router.get("/{case_id}/media", response_model=List[Dict[str, Any]])
 async def get_case_media(
     case_id: str,
@@ -127,6 +132,7 @@ async def get_case_media(
     for item in cursor:
         items.append(serialize_media_doc(item))
     return items
+
 
 @router.post("/{case_id}/media/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_case_media(
@@ -158,7 +164,7 @@ async def upload_case_media(
     except Exception as e:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        raise HTTPException(status_code=500, detail=f"Failed to process uploaded file: {e}")
+        raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi i skedarit: {e}")
 
     with open(temp_path, "rb") as f:
         storage_key = storage_service.upload_bytes_as_file(
@@ -197,6 +203,7 @@ async def upload_case_media(
     serialized_doc = serialize_media_doc(media_doc)
     return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content=serialized_doc)
 
+
 @router.get("/{case_id}/media/{media_id}/stream")
 async def stream_case_media(
     case_id: str,
@@ -217,15 +224,15 @@ async def stream_case_media(
     media_oid = validate_object_id(media_id)
     media_item = db.media_evidence.find_one({"_id": media_oid})
     if not media_item:
-        raise HTTPException(status_code=404, detail="Media evidence not found.")
+        raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
 
     storage_key = media_item.get("storage_key")
     if not storage_key:
-        raise HTTPException(status_code=404, detail="File storage key missing.")
+        raise HTTPException(status_code=404, detail="Mungon çelësi i skedarit.")
 
     stream = storage_service.get_file_stream(storage_key)
     if not stream:
-        raise HTTPException(status_code=404, detail="Could not retrieve media stream.")
+        raise HTTPException(status_code=404, detail="Nuk mund të lexohej skedari.")
 
     filename = media_item.get("file_name", "media.mp4")
     mime_type = media_item.get("mime_type", "video/mp4")
@@ -239,6 +246,7 @@ async def stream_case_media(
         }
     )
 
+
 @router.delete("/{case_id}/media/{media_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case_media(
     case_id: str,
@@ -249,14 +257,16 @@ async def delete_case_media(
 ):
     """
     6-LEVEL TOTAL CASCADE WIPEOUT (GDPR COMPLIANT):
-    Asgjëson përfundimisht provën nga Cloud Storage, Vector RAG, Grafi i Lëndës dhe MongoDB.
+    Asgjëson 100% provën nga Cloud Storage, Vector RAG (user_vectors), Grafi i Lëndës dhe MongoDB.
     """
     media_oid = validate_object_id(media_id)
     user_oid = ObjectId(current_user.id)
 
     media_item = db.media_evidence.find_one({"_id": media_oid, "owner_id": user_oid})
     if not media_item:
-        raise HTTPException(status_code=404, detail="Media evidence not found.")
+        raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
+
+    file_name = media_item.get("file_name", "")
 
     # 1. Asgjësimi i Skedarit Fizik nga Backblaze B2 Cloud Storage
     storage_key = media_item.get("storage_key")
@@ -267,14 +277,23 @@ async def delete_case_media(
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # 2. Asgjësimi i Vektorëve nga Vector Database (Chroma / Atlas Vector Search)
+    # 2. 🛡️ ASGJËSIMI I PLOTË I VEKTORËVE NGA BAZA E NJOHURIVE TË AI (RAG PURGE)
     try:
-        delete_document_embeddings(document_id=media_id)
-        logger.info(f"🗑️ [Cascade 2/6] Removed vector embeddings for media {media_id}")
+        # Fshin me ID dhe me Emër Skedari
+        delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
+        db.user_vectors.delete_many({
+            "$or": [
+                {"document_id": media_id},
+                {"document_id": media_oid},
+                {"file_name": f"Media: {file_name}"},
+                {"file_name": file_name}
+            ]
+        })
+        logger.info(f"🗑️ [Cascade 2/6] Total Vector Wipeout completed for media: {file_name}")
     except Exception as e:
-        logger.warning(f"Failed to purge vector embeddings: {e}")
+        logger.error(f"Failed to purge vector embeddings: {e}")
 
-    # 3. Spastrimi i Referencave nga Harta e Provave (Case Knowledge Graph)
+    # 3. Spastrimi nga Harta e Provave (Case Knowledge Graph)
     try:
         graph_rec = db.case_graphs.find_one({"case_id": case_id})
         if graph_rec:
@@ -294,9 +313,9 @@ async def delete_case_media(
     except Exception as g_err:
         logger.warning(f"Graph cascade cleanup bypass: {g_err}")
 
-    # 4. Spastrimi nga Arkivi i Lëndës (Archives)
+    # 4. Spastrimi nga Arkivi
     try:
-        db.archives.delete_many({"case_id": case_id, "file_name": media_item.get("file_name")})
+        db.archives.delete_many({"case_id": case_id, "file_name": file_name})
         logger.info(f"🗑️ [Cascade 4/6] Purged related archive records")
     except Exception as a_err:
         logger.warning(f"Archive cascade cleanup bypass: {a_err}")
@@ -305,7 +324,7 @@ async def delete_case_media(
     db.media_evidence.delete_one({"_id": media_oid})
     logger.info(f"🗑️ [Cascade 5/6] Removed media evidence database record: {media_id}")
 
-    # 6. Njoftimi Asinkron Real-Time (SSE / Redis) për Fshirje të Menjëhershme nga Ekrani
+    # 6. Njoftimi Asinkron Real-Time (SSE / Redis)
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
     logger.info(f"⚡ [Cascade 6/6] Real-time SSE wipeout event dispatched")
 

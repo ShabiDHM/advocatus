@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V18.0 (SINGLE UNIFIED PROGRESS BAR • ZERO GHOST DUPLICATES)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V19.0 (INSTANT RESPONSIVE FEEDBACK & SEAMLESS SINGLE CARD)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -41,7 +41,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [isUploading, setIsUploading] = useState(false);
+  const [activeUpload, setActiveUpload] = useState<{ name: string; progress: number } | null>(null);
   const [uploadNotice, setUploadNotice] = useState<{ text: string; type: 'error' | 'warning' } | null>(null);
   
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
@@ -53,7 +53,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isProcessing = documents.some(d => d.status === 'PENDING' || d.status === 'PROCESSING');
-  const isSystemBusy = isUploading || isProcessing;
+  const isSystemBusy = !!activeUpload || isProcessing;
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -67,26 +67,34 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const performUpload = async (file: File): Promise<void> => {
     if (file.name.startsWith('.')) return;
-    setIsUploading(true);
+    
+    // ⚡ Shfaq menjëherë skedarin në krye të listës me 25% ngarkim
+    setActiveUpload({ name: file.name, progress: 25 });
     setUploadNotice(null);
 
     try {
-      const responseData = await apiService.uploadDocument(caseId, file, () => {});
+      const responseData = await apiService.uploadDocument(caseId, file, (percent) => {
+        setActiveUpload({ name: file.name, progress: Math.max(percent, 25) });
+      });
+
       const rawData = responseData as any;
       const newDoc: Document = {
           ...responseData,
           id: responseData.id || rawData._id, 
+          file_name: file.name,
           status: 'PROCESSING',
-          progress_percent: 30, 
-          progress_message: 'Duke procesuar...'
+          progress_percent: 60, 
+          progress_message: 'Duke procesuar tekstin...',
+          created_at: new Date().toISOString()
       } as any;
+
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       console.error(`Failed to upload ${file.name}`, error);
       const errorMsg = error?.response?.data?.detail || error?.message || `${t('documentsPanel.uploadFailed', 'Dështoi ngarkimi')}: ${file.name}`;
       setUploadNotice({ text: errorMsg, type: 'error' });
     } finally {
-      setIsUploading(false);
+      setActiveUpload(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -99,7 +107,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     setUploadNotice(null);
 
-    // Duplicate Check
+    // Kontrolli i duplikimit
     const normalizedName = file.name.toLowerCase().trim();
     const isDuplicate = documents.some(
       (d) => (d.file_name || (d as any).title || '').toLowerCase().trim() === normalizedName
@@ -141,15 +149,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const toggleSelectAll = () => {
-      if (selectedIds.size === documents.length) {
+      if (selectedIds.size === displayList.length) {
           setSelectedIds(new Set()); 
       } else {
-          const allIds = documents.map(d => d.id);
+          const allIds = displayList.map(d => d.id).filter(id => !id.startsWith('temp-upload'));
           setSelectedIds(new Set(allIds));
       }
   };
 
   const toggleSelect = (id: string) => {
+      if (id.startsWith('temp-upload')) return;
       setSelectedIds(prev => {
           const newSet = new Set(prev);
           if (newSet.has(id)) newSet.delete(id);
@@ -199,6 +208,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
+  // Ndërtojmë listën e unifikuar: Nëse ka një ngarkim aktiv, shfaqet si rresht i parë
+  const displayList: Document[] = [...documents];
+  if (activeUpload) {
+      displayList.unshift({
+          id: 'temp-upload-active',
+          file_name: activeUpload.name,
+          status: 'PROCESSING',
+          progress_percent: activeUpload.progress,
+          progress_message: 'Duke ngarkuar në server...',
+          created_at: new Date().toISOString()
+      } as unknown as Document);
+  }
+
   const isSelectionMode = selectedIds.size > 0;
 
   return (
@@ -239,7 +261,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         className="flex items-center justify-center w-11 h-11 text-text-muted hover:text-text-primary transition-colors focus:outline-none cursor-pointer" 
                         title="Select All"
                     >
-                        {documents.length > 0 && selectedIds.size === documents.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
+                        {displayList.length > 0 && selectedIds.size === displayList.length ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
                     </button>
                     <h2 className="text-base font-bold text-text-primary truncate select-none">{t('documentsPanel.title', 'Dokumentet')}</h2>
                     <div className="flex items-center justify-center ml-1">
@@ -323,19 +345,25 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
       )}
       
-      {/* Unified Documents List - One single card per document */}
+      {/* Scrollable Container */}
       <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-1.5 custom-finance-scroll min-h-0 bg-canvas/20 rounded-xl p-2 border border-main">
-        {documents.length === 0 && (
+        {displayList.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
             <FolderOpen className="w-12 h-12 mb-3 text-text-disabled/20" />
             <p className="text-sm font-medium">{t('documentsPanel.noDocuments', 'Nuk ka dokumente në këtë lëndë.')}</p>
           </div>
         )}
         
-        {documents.map((doc) => {
-          const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
-          const progressPercent = isProcessingState ? (doc.progress_percent && doc.progress_percent > 10 ? doc.progress_percent : 45) : 100;
-          const statusText = isProcessingState ? (doc.progress_message || 'Duke procesuar...') : 'Gati';
+        {displayList.map((doc) => {
+          const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING' || doc.id === 'temp-upload-active';
+          
+          let progressPercent = doc.progress_percent || 25;
+          if (isProcessingState && progressPercent < 20) progressPercent = 35;
+
+          const statusText = isProcessingState 
+            ? (doc.progress_message || t('documentsPanel.statusProcessing', 'Duke procesuar...'))
+            : 'Gati';
+
           const canInteract = !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
