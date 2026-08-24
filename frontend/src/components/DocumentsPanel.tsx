@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V21.0 (PURE REAL-TIME PROGRESS RENDERING)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V23.0 (0 TYPESCRIPT WARNINGS • UNLOCKED DELETE)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -9,7 +9,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    Lock, AlertTriangle
+    AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -52,8 +52,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [showArchiveImport, setShowArchiveImport] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isProcessing = documents.some(d => d.status === 'PENDING' || d.status === 'PROCESSING');
-  const isSystemBusy = isUploading || isProcessing;
+  const isSystemBusy = isUploading;
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -258,7 +257,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 ? 'bg-surface text-text-disabled cursor-not-allowed border border-main' 
                                 : 'btn-primary p-0'
                         }`}
-                        title={isSystemBusy ? "Prisni që dokumenti të procesohet..." : "Shto Dokument"}
+                        title={isSystemBusy ? "Prisni që dokumenti të ngarkohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin text-text-muted" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
@@ -341,14 +340,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             ? (doc.progress_message || 'Duke procesuar...')
             : 'Gati';
 
-          const canInteract = !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
 
           return (
             <motion.div 
                 key={doc.id} 
                 layout="position" 
-                onClick={() => canInteract && toggleSelect(doc.id)} 
+                onClick={() => toggleSelect(doc.id)} 
                 className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${
                     isSelected 
                         ? 'bg-primary-start/10 border-primary-start/50 shadow-sm' 
@@ -381,9 +379,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 )}
               </div>
               
-              {/* Row action tools */}
+              {/* Row action tools - ALWAYS ACCESSIBLE */}
               <div className={`flex items-center gap-1.5 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
-                {canInteract && (
+                {!isProcessingState && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} 
@@ -394,7 +392,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
                 
-                {canInteract && (
+                {!isProcessingState && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} 
@@ -404,7 +402,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         <Eye size={13} />
                     </button>
                 )}
-                {canInteract && (
+                
+                {!isProcessingState && (
                     <button 
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} 
@@ -414,19 +413,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         {archivingId === doc.id ? <Loader2 size={13} className="animate-spin text-primary-start" /> : <Archive size={13} />}
                     </button>
                 )}
-                {canInteract && (
-                    <button 
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
-                        className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none cursor-pointer" 
-                        title={t('documentsPanel.delete', 'Fshij')}
-                    >
-                        <Trash size={13} />
-                    </button>
-                )}
-                {!canInteract && (
-                    <Lock size={13} className="text-text-disabled/40 mr-2" />
-                )}
+
+                {/* DELETE BUTTON ALWAYS ACTIVE */}
+                <button 
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
+                    className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none cursor-pointer" 
+                    title={t('documentsPanel.delete', 'Fshij')}
+                >
+                    <Trash size={13} />
+                </button>
               </div>
             </motion.div>
           );
