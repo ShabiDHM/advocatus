@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V88.0 (UNIFIED 3-ROLE HIGH-IQ LEGAL REASONING)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V89.0 (AUTO-LINKING INJECTOR & DETERMINISTIC 4-3-2-1-0 PILLARS)
 
 import os
 import sys
@@ -32,7 +32,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal 3-Role High-IQ Engine initialized.")
+            logger.info("✅ [RAG] Universal Autonomous AI Engine initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -161,29 +161,58 @@ class AlbanianRAGService:
         if history:
             for msg in history:
                 if msg.get("role") == "user":
-                    all_past_user_messages.append(str(msg.get("content", "")).lower())
-        all_past_user_messages.append(query.lower())
+                    all_past_user_messages.append(str(msg.get("content", "")).lower().strip())
+        all_past_user_messages.append(query.lower().strip())
         combined_text = " ".join(all_past_user_messages)
 
         remaining = []
 
-        # Kontrolli i Shtyllës 1
-        if not any(k in combined_text for k in ["3 prapësimet kryesore", "3 shtyllat kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
+        # Shtylla 1
+        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
             remaining.append(pillars[0][1])
 
-        # Kontrolli i Shtyllës 2
-        if not any(k in combined_text for k in ["bazën ligjore të prapësimeve", "bazën ligjore të kërkesëpadisë", "ligjshmërinë e pretendimeve", "baza statutore"]):
+        # Shtylla 2
+        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve"]):
             remaining.append(pillars[1][1])
 
-        # Kontrolli i Shtyllës 3
-        if not any(k in combined_text for k in ["kundër-pyetjet taktike", "pyetjet taktike për të ballafaquar", "pyetjet për zbardhjen", "mospërputhjet thelbësore"]):
+        # Shtylla 3
+        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen"]):
             remaining.append(pillars[2][1])
 
-        # Kontrolli i Shtyllës 4
-        if not any(k in combined_text for k in ["përmbledhjen ekzekutive mbi rreziqet", "llogarit dëmet e kërkuara", "memorandumin objektiv"]):
+        # Shtylla 4
+        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv"]):
             remaining.append(pillars[3][1])
 
         return remaining
+
+    def _inject_document_links(self, text: str, db_documents: List[Dict[str, Any]]) -> str:
+        """
+        INJEKTUESI AUTOMATIK I LINKEVE (DETERMINISTIK):
+        Sa herë që në tekst shfaqet emri i një skedari, kthehet automatikisht në link Markdown [file.pdf](/documents/id).
+        """
+        if not text or not db_documents:
+            return text
+
+        result = text
+        for doc in db_documents:
+            doc_id = str(doc.get("_id", ""))
+            fname = str(doc.get("file_name") or doc.get("title") or "").strip()
+            if not fname or len(fname) < 4:
+                continue
+
+            clean_base_name = re.sub(r'\.pdf$', '', fname, flags=re.IGNORECASE).strip()
+            target_link = f"[{fname}](/documents/{doc_id})"
+
+            # Zëvendëso emrin e plotë nëse nuk është tashmë link
+            full_pattern = re.compile(rf'(?<!\[){re.escape(fname)}(?!\]\(/documents/)', re.IGNORECASE)
+            result = full_pattern.sub(target_link, result)
+
+            # Zëvendëso emrin pa .pdf nëse shfaqet i izoluar
+            if len(clean_base_name) > 6:
+                base_pattern = re.compile(rf'(?<!\[){re.escape(clean_base_name)}(?:\.pdf)?(?!\]\(/documents/)', re.IGNORECASE)
+                result = base_pattern.sub(target_link, result)
+
+        return result
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks',
@@ -243,47 +272,32 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
+        # Llogaritja e sigurt e kartave të mbetura (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
-        
-        if remaining_pills and len(remaining_pills) > 0:
-            formatted_suggestions = (
-                "RREGULLI I DETYRUESHËM I KARTELAVE TË MBETURA (KOPJO VETËM KËTO):\n"
-                "Vendos saktësisht këtë bllok në fund të përgjigjes tënde (MOS shpik asnjë pyetje tjetër):\n\n"
-                "Sugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
-            )
-        else:
-            formatted_suggestions = (
-                "RREGULLI I MBARIMIT TË KARTELAVE:\n"
-                "Të gjitha 4 kartelat e lëndës janë konsumuar. MOS SHTO ASNJË SEKSION 'Sugjerime:' dhe MOS shkruaj asnjë pyetje në fund."
-            )
 
-        # 🧠 PROTOKOLLET E MENÇURA PËR TË 3 ROLET (SOVEREIGN 3-ROLE COGNITION)
+        # RREGULLAT E ARSYETIMIT JURIDIK
         if client_position == "PLAINTIFF":
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **PADITËSI (SULMI PROCEDURAL DHE INOKULIMI TAKTIK)** — Avokati i Kërkesëpadisë.
-            Mendësia: Ndërto kërkesëpadinë më të fortë, por ji i mençur: parashiko saktësisht ku do të godasë i padituri ({opposing_name}) dhe si ta neutralizosh atë.
-            Struktura e arsyetimit:
-            1. **Shtyllat & Provat e Padisë**: Cilat janë faktet që vërtetojnë detyrimin dhe përgjegjësinë e {opposing_name}.
-            2. **Pikat e Cenueshme / Çfarë Provash ka I Padituri**: Trego hapur çfarë kundërprovash ekzistojnë në dosje (p.sh. testet negative laboratorike, mungesa e incizimeve, shkeljet e pretenduara procedurale).
-            3. **Taktika e Neutralizimit**: Si duhet të reagojë paditësi për të mbrojtur padinë e tij përballë këtyre fakteve.
+            PERSPEKTIVA JURIDIKE: **PADITËSI / SULMI PROCEDURAL DHE INOKULIMI TAKTIK** (Përfaqësuesi i {client_name}).
+            - Ti je avokati i kërkesëpadisë. Detyra jote:
+              1. **Shtyllat & Provat e Padisë**: Cilat janë faktet që vërtetojnë detyrimin dhe përgjegjësinë e {opposing_name}.
+              2. **Pikat e Cenueshme / Çfarë Provash ka I Padituri**: Trego hapur çfarë kundërprovash ekzistojnë në dosje (p.sh. testet negative laboratorike, mungesa e incizimeve).
+              3. **Taktika e Neutralizimit**: Si duhet të reagojë paditësi për të mbrojtur padinë përballë këtyre fakteve.
             """
         elif client_position == "NEUTRAL":
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **NEUTRAL (AUDITOR GJYQËSOR I PAANSHËM)** — Gjykata / Magjistrati / Eksperti.
-            Mendësia: Mos merr anësi. Vendos në peshore të ftohtë pretendimet e të dyja palëve ({client_name} dhe {opposing_name}).
-            Struktura e arsyetimit:
-            1. **Faza Reale Procedurale**: Çfarë vendosi Shkalla e Parë, çfarë vendosi Apeli dhe çfarë mjetesh ligjore kanë mbetur (Revizioni, Kushtetuesja).
-            2. **Bilanci i Provave**: Prova e Paditësit vs. Kundërprova e të Paditurit (Kush e mban barrën e provës dhe cilat fakte janë provuar shkencërisht/shkresërisht).
-            3. **Konkluzioni i Paanshëm**: Vlerësimi objektiv i ligjshmërisë. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
+            PERSPEKTIVA JURIDIKE: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM** (Gjykata / Eksperti).
+            - Analizo me paanshmëri magjistrati shkresat e fashikullit.
+            - Nxirr bilancin e provave: Prova e Paditësit vs. Kundërprova e të Paditurit.
+            - Vlerëso ligjshmërinë e vendimeve të Shkallës së Parë dhe Apelit, dhe barrën e provës sipas ligjit.
+            - Mos përdor 'padia jonë' apo 'mbrojtja jonë'.
             """
         else: # DEFENDANT
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **I PADITUR (MBROJTJA GJYQËSORE DHE KUNDËRSULMI)** — Avokati i Mbrojtjes.
-            Mendësia: Mos qëndro pasiv. Zbulo mungesën e provave të paditësit ({opposing_name}), godit me faktet shfajësuese dhe zbulo motivin e vërtetë.
-            Struktura e arsyetimit:
-            1. **Prapësimet & Mungesa e Provave të Paditësit**: Trego mungesën e provave fizike/audio të kundërshtarit dhe shkeljet e neneve procedurale.
-            2. **Provat Shfajësuese**: Thekso testet shkencore negative, komunikimet shkresore dhe faktet që rrëzojnë alibinë e padisë.
-            3. **Zbardhja e Motivit**: Evidento arsyen pse u ngrit padia (tjetërsim prindëror, lajmërim i rremë, bllokim i padrejtë).
+            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE DHE KUNDËRSULM** (Përfaqësuesi i {client_name}).
+            - Ti je avokati i të paditurit {client_name}.
+            - Detyra jote: Evidento prapësimet procedurale, zbulo mungesën e plotë të provave fizike të paditësit ({opposing_name}), dhe ballafaqoji pretendimet me provat shkencore e shkresore shfajësuese të fashikullit.
+            - Zbardh motivin e vërtetë të paditësit (lajmërimi i rremë, tjetërsimi prindëror, bllokimi i padrejtë i kontakteve).
             """
 
         system_prompt = f"""
@@ -310,17 +324,17 @@ class AlbanianRAGService:
            - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
            - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
            - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
-        2. CITIMI I DOKUMENTEVE ME LINKE TË KLIKUESHME:
-           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-        3. MENÇURIA 360°:
-           - Pavarësisht nga roli, kurrë mos fshih faktet. Analizo përplasjen reale të shkresave midis dy palëve.
+        2. CITIMI I DOKUMENTEVE:
+           - Përdor emrat ekzaktë të skedarëve të administruar në fashikull.
+        3. BALLAFAQIMI 360° I PROVEVE:
+           - Trego qartë si përplasen shkresat mes dy palëve (pretendimi vs. kundërprova).
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
         ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
         ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
 
-        {formatted_suggestions}
+        (MOS shto asnjë pyetje sugjeruese me dëshirën tënde në fund të tekstit).
         """
 
         try:
@@ -334,9 +348,19 @@ class AlbanianRAGService:
                 stream=True,
                 max_tokens=4096
             )
+            
+            full_response = ""
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                    token = chunk.choices[0].delta.content
+                    full_response += token
+                    yield token
+
+            # 🛡️ INJEKTIMI I SIGURT I KARTELAVE TË MBETURA (DETERMINISTIK NGA PYTHON)
+            if remaining_pills and len(remaining_pills) > 0:
+                pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+                yield pills_block
+
             yield AI_DISCLAIMER
         except Exception as e:
             logger.error(f"RAG Stream Failure: {e}")
