@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V14.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V15.0 (DIRECT INSERTED_ID & INSTANT ASYNC TASK TRIGGER)
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Optional
 from fastapi.responses import StreamingResponse, FileResponse
 from pymongo.database import Database
@@ -89,15 +89,16 @@ async def get_documents_for_case(
 async def upload_document_for_case(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
+    case_oid = validate_object_id(case_id)
     pdf_bytes = await file.read()
     filename = file.filename or "document.pdf"
     content_type = _resolve_media_type(filename, file.content_type)
 
+    # 1. Ngarko në Storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -115,22 +116,41 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    doc = document_service.create_document_record(
-        db=db,
-        owner=current_user,
-        case_id=case_id,
-        file_name=filename,
-        storage_key=key,
-        mime_type=content_type
-    )
+    # 2. Ruaj në MongoDB me ID ekzakte
+    existing_doc = db.documents.find_one({
+        "case_id": case_oid,
+        "owner_id": current_user.id,
+        "file_name": filename,
+        "status": {"$ne": "DELETED"}
+    })
+    
+    if existing_doc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dokumenti '{filename}' tashmë ekziston në këtë lëndë."
+        )
 
+    document_data = {
+        "owner_id": current_user.id, 
+        "case_id": case_oid, 
+        "file_name": filename,
+        "storage_key": key, 
+        "mime_type": content_type,
+        "status": DocumentStatus.PENDING,
+        "progress_percent": 25,
+        "progress_message": "Duke përgatitur skedarin...",
+        "created_at": datetime.now(timezone.utc),
+        "preview_storage_key": None,
+    }
+    insert_result = db.documents.insert_one(document_data)
+    doc_id_str = str(insert_result.inserted_id)
+
+    # 3. ⚡ NIS PROCESIMIN MENJËHERË ME ID TË VËRTETUAR (0ms ASYNC TASK)
     from app.services.document_processing_service import orchestrate_document_processing_mongo
-    background_tasks.add_task(
-        orchestrate_document_processing_mongo,
-        str(doc.id)
-    )
+    asyncio.create_task(orchestrate_document_processing_mongo(doc_id_str))
 
-    return DocumentOut.model_validate(doc)
+    new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
+    return DocumentOut.model_validate(new_doc)
 
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)
