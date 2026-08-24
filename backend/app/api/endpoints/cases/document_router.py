@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V15.0 (DIRECT INSERTED_ID & INSTANT ASYNC TASK TRIGGER)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V16.0 (GC-IMMUNE STRONG TASK RETENTION)
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
 from fastapi.responses import StreamingResponse, FileResponse
 from pymongo.database import Database
@@ -67,6 +67,7 @@ async def get_documents_for_case(
     for d in docs:
         doc_id_str = str(d["_id"])
         
+        # Nëse teksti është nxjerrë tashmë, sigurohu që statusi është READY
         if d.get("status") in ["PENDING", "PROCESSING"] and d.get("extracted_text") and len(d["extracted_text"]) > 20:
             db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
             d["status"] = DocumentStatus.READY
@@ -88,6 +89,7 @@ async def get_documents_for_case(
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_for_case(
     case_id: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     file: UploadFile = File(...),
     db: Database = Depends(get_db),
@@ -116,7 +118,7 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    # 2. Ruaj në MongoDB me ID ekzakte
+    # 2. Ruaj në MongoDB
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "owner_id": current_user.id,
@@ -137,7 +139,7 @@ async def upload_document_for_case(
         "storage_key": key, 
         "mime_type": content_type,
         "status": DocumentStatus.PENDING,
-        "progress_percent": 25,
+        "progress_percent": 30,
         "progress_message": "Duke përgatitur skedarin...",
         "created_at": datetime.now(timezone.utc),
         "preview_storage_key": None,
@@ -145,9 +147,9 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # 3. ⚡ NIS PROCESIMIN MENJËHERË ME ID TË VËRTETUAR (0ms ASYNC TASK)
+    # 3. 🛡️ EKZEKUTIM I SIGURT ME BACKGROUND_TASKS (I mbrojtur nga Garbage Collector)
     from app.services.document_processing_service import orchestrate_document_processing_mongo
-    asyncio.create_task(orchestrate_document_processing_mongo(doc_id_str))
+    background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 
     new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
     return DocumentOut.model_validate(new_doc)
