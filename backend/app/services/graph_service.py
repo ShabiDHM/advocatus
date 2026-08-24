@@ -1,5 +1,5 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V32.0 (NEO4J AURA CLOUD FULL INTEGRATION & DUAL EDGES KEY)
+# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V33.0 (ZERO IMPORT ERRORS • DUAL NEO4J & MONGODB ENGINE)
 
 import os
 import time
@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 NEO4J_URI = getattr(settings, "NEO4J_URI", None) or os.getenv("NEO4J_URI", "") or os.getenv("NEO4J_URL", "")
 NEO4J_USER = getattr(settings, "NEO4J_USER", None) or os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = getattr(settings, "NEO4J_PASSWORD", None) or os.getenv("NEO4J_PASSWORD", "")
+
+
+def normalize_text_to_albanian(text: str) -> str:
+    """Helper function imported by graph_router."""
+    return text.strip() if text else ""
 
 
 class GraphService:
@@ -172,7 +177,7 @@ class GraphService:
                 "links": graph_rec.get("edges", [])
             }
 
-        # 3. Gjenero nga shkresat e MongoDB-së
+        # 3. Gjenero automatikisht nga shkresat e MongoDB-së
         return self._generate_from_documents(case_id)
 
     def _generate_from_documents(self, case_id: str) -> Dict[str, Any]:
