@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V8.0 (IDEMPOTENT DUPLICATE PREVENTION & 0ms SSD CACHE)
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V9.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
 
 import logging
 import datetime
@@ -19,7 +19,6 @@ from . import vector_store_service, storage_service
 
 logger = logging.getLogger(__name__)
 
-# Local disk cache directory
 CACHE_DIR = os.path.join(os.getcwd(), ".file_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -32,7 +31,6 @@ def create_document_record(
     except Exception:
         raise HTTPException(status_code=400, detail="Format i pasaktë i ID të lëndës.")
 
-    # 🛡️ DUPLICATE PREVENTION GUARD: Check if active file with same name exists
     existing_doc = db.documents.find_one({
         "case_id": case_object_id,
         "owner_id": owner.id,
@@ -129,7 +127,6 @@ def get_preview_file_path_or_stream(db: Database, doc_id: str, owner: UserInDB) 
         if file_bytes:
             with open(cached_path, "wb") as f:
                 f.write(file_bytes)
-            logger.info(f"⚡ [SSD Cache Populated] Saved B2 file '{storage_key}' to local SSD cache -> {cached_path}")
             return cached_path, None, document, len(file_bytes)
     except Exception as e:
         logger.warning(f"Could not populate SSD cache from B2 stream: {e}")
@@ -207,13 +204,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
             db.alerts.delete_many(link_query)
     except Exception as e:
         logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
-
-    try:
-        graph_service_module = importlib.import_module("app.services.graph_service")
-        if hasattr(graph_service_module, "graph_service"):
-            graph_service_module.graph_service.delete_document_nodes(doc_id_str)
-    except Exception as e:
-        logger.warning(f"Graph cleanup failed (non-critical): {e}")
 
     try:
         vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)

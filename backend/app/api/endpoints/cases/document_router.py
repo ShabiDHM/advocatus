@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V13.0 (SINGLE-EXECUTION CLEAN TASK ISOLATION)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V14.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 
 from app.services import document_service, storage_service
 from app.services.archive_service import ArchiveService
-from app.services.graph_service import graph_service
 from app.models.document import DocumentOut, DocumentStatus
 from app.models.archive import ArchiveItemOut
 from app.models.user import UserInDB
@@ -68,7 +67,6 @@ async def get_documents_for_case(
     for d in docs:
         doc_id_str = str(d["_id"])
         
-        # Nëse teksti është nxjerrë dhe ka përfunduar, sigurohu që statusi është READY
         if d.get("status") in ["PENDING", "PROCESSING"] and d.get("extracted_text") and len(d["extracted_text"]) > 20:
             db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
             d["status"] = DocumentStatus.READY
@@ -126,7 +124,6 @@ async def upload_document_for_case(
         mime_type=content_type
     )
 
-    # 🛡️ PËRPUNOHET VETËM 1 HERË GJATË NGARKIMIT (ZERO THIRRJE TË DUPFIKUARA)
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
@@ -201,12 +198,8 @@ async def bulk_delete_documents_endpoint(
     if remaining_docs == 0:
         db.cases.update_one(
             {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
-            {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+            {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}}
         )
-        try:
-            await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
-        except Exception as e:
-            logger.warning(f"Failed to clear case graph nodes: {e}")
 
     return {
         "status": "success",
@@ -250,12 +243,8 @@ async def delete_document(
         if remaining_docs == 0:
             db.cases.update_one(
                 {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
-                {"$unset": {"graph_data": "", "latest_analysis": "", "latest_deep_analysis": ""}}
+                {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}}
             )
-            try:
-                await asyncio.to_thread(graph_service.delete_case_nodes, case_id)
-            except Exception as e:
-                logger.warning(f"Failed to clear case graph nodes: {e}")
             
         return DeletedDocumentResponse(
             documentId=doc_id,

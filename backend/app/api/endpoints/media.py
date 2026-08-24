@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V5.0 (TRUE TOTAL CASCADE WIPEOUT & VECTOR PURGE)
+# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V6.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -255,10 +255,6 @@ async def delete_case_media(
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_db)
 ):
-    """
-    6-LEVEL TOTAL CASCADE WIPEOUT (GDPR COMPLIANT):
-    Asgjëson 100% provën nga Cloud Storage, Vector RAG (user_vectors), Grafi i Lëndës dhe MongoDB.
-    """
     media_oid = validate_object_id(media_id)
     user_oid = ObjectId(current_user.id)
 
@@ -268,18 +264,15 @@ async def delete_case_media(
 
     file_name = media_item.get("file_name", "")
 
-    # 1. Asgjësimi i Skedarit Fizik nga Backblaze B2 Cloud Storage
     storage_key = media_item.get("storage_key")
     if storage_key:
         try:
             await asyncio.to_thread(storage_service.delete_file, storage_key)
-            logger.info(f"🗑️ [Cascade 1/6] Purged B2 storage file: {storage_key}")
+            logger.info(f"🗑️ Purged B2 storage file: {storage_key}")
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # 2. 🛡️ ASGJËSIMI I PLOTË I VEKTORËVE NGA BAZA E NJOHURIVE TË AI (RAG PURGE)
     try:
-        # Fshin me ID dhe me Emër Skedari
         delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
         db.user_vectors.delete_many({
             "$or": [
@@ -289,43 +282,15 @@ async def delete_case_media(
                 {"file_name": file_name}
             ]
         })
-        logger.info(f"🗑️ [Cascade 2/6] Total Vector Wipeout completed for media: {file_name}")
     except Exception as e:
         logger.error(f"Failed to purge vector embeddings: {e}")
 
-    # 3. Spastrimi nga Harta e Provave (Case Knowledge Graph)
-    try:
-        graph_rec = db.case_graphs.find_one({"case_id": case_id})
-        if graph_rec:
-            nodes = graph_rec.get("nodes", [])
-            edges = graph_rec.get("edges", [])
-            for n in nodes:
-                if "source_doc_ids" in n and media_id in n["source_doc_ids"]:
-                    n["source_doc_ids"].remove(media_id)
-            for e in edges:
-                if "source_doc_ids" in e and media_id in e["source_doc_ids"]:
-                    e["source_doc_ids"].remove(media_id)
-            db.case_graphs.update_one(
-                {"case_id": case_id},
-                {"$set": {"nodes": nodes, "edges": edges, "updated_at": datetime.now(timezone.utc).isoformat()}}
-            )
-            logger.info(f"🗑️ [Cascade 3/6] Cleaned media references from Case Knowledge Graph")
-    except Exception as g_err:
-        logger.warning(f"Graph cascade cleanup bypass: {g_err}")
-
-    # 4. Spastrimi nga Arkivi
     try:
         db.archives.delete_many({"case_id": case_id, "file_name": file_name})
-        logger.info(f"🗑️ [Cascade 4/6] Purged related archive records")
     except Exception as a_err:
         logger.warning(f"Archive cascade cleanup bypass: {a_err}")
 
-    # 5. Fshirja Finale nga Baza e të Dhënave MongoDB (`media_evidence`)
     db.media_evidence.delete_one({"_id": media_oid})
-    logger.info(f"🗑️ [Cascade 5/6] Removed media evidence database record: {media_id}")
-
-    # 6. Njoftimi Asinkron Real-Time (SSE / Redis)
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
-    logger.info(f"⚡ [Cascade 6/6] Real-time SSE wipeout event dispatched")
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

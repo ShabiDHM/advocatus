@@ -1,5 +1,5 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V14.0 (ZERO TYPESCRIPT COMPILATION WARNINGS)
+// PHOENIX PROTOCOL - CASE HEADER BAR V16.0 (5/7 COLUMN GEOMETRIC ALIGNMENT & EXECUTIVE DOCK)
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -12,11 +12,12 @@ import {
   Scale,
   Lock,
   Activity,
-  Network,
   RefreshCw,
   Trash2,
   ShieldCheck,
   Loader2,
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 interface CaseHeaderBarProps {
@@ -25,7 +26,6 @@ interface CaseHeaderBarProps {
   onOpenRoleModal: () => void;
   onRunAnalysis: (forceReanalyze?: boolean) => void;
   onViewExistingAnalysis: () => void;
-  onOpenOntologyModal: () => void;
   onOpenAnalystModal: () => void;
   onClearAnalysis: () => void;
   isAnalyzing: boolean;
@@ -40,7 +40,6 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
   onOpenRoleModal,
   onRunAnalysis,
   onViewExistingAnalysis,
-  onOpenOntologyModal,
   onOpenAnalystModal,
   onClearAnalysis,
   isAnalyzing,
@@ -50,26 +49,6 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
 }) => {
   const hasExistingAnalysis = !!(caseDetails as any).latest_analysis && selectedDocumentIds.length === 0;
   const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
-
-  const analyzeButtonText = isAnalyzing ? (
-    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-start shrink-0" />
-      <span className="text-primary-start truncate text-[10px] sm:text-xs">ANALIZO...</span>
-    </span>
-  ) : selectedDocumentIds.length === 0 ? (
-    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
-      <ShieldCheck size={14} className="text-primary-start shrink-0" />
-      <span className="text-primary-start truncate text-[10px] sm:text-xs">ANALIZO RASTIN</span>
-    </span>
-  ) : (
-    <span className="flex items-center justify-center gap-1 sm:gap-2 min-w-0">
-      <ShieldCheck size={14} className="text-primary-start shrink-0" />
-      <span className="text-primary-start truncate text-[10px] sm:text-xs">KRYQËZO</span>
-    </span>
-  );
-
-  const buttonBase =
-    'h-10 sm:h-11 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 rounded-xl glass-panel bg-surface border border-main shadow-sm transition-all duration-200 hover:bg-hover text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary focus:outline-none cursor-pointer';
 
   const rawTitle = caseDetails.title || (caseDetails as any).name || 'Rast pa Titull';
 
@@ -87,9 +66,8 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      {/* 1. TOP CASE IDENTITY BAR */}
       <div className="bg-surface border border-main rounded-2xl p-4 sm:p-5 shadow-sm mb-3 sm:mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        
-        {/* LEFT COLUMN: Case Identity */}
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <div className="p-3 bg-primary-start/10 text-primary-start border border-primary-start/20 rounded-2xl shrink-0">
             <Briefcase size={22} className="sm:w-6 sm:h-6" />
@@ -110,7 +88,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Right-Aligned Role Badge */}
+        {/* Right Role Switcher Button */}
         <div className="flex items-center justify-end shrink-0">
           <button
             type="button"
@@ -136,75 +114,114 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
         </div>
       </div>
 
+      {/* 2. SYMMETRIC 12-COLUMN ACTION DOCK (5-Col / 7-Col Matched with Bottom Panels) */}
       {isAdmin && (
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-3 animate-in fade-in duration-200">
-          <button
-            type="button"
-            onClick={onOpenAnalystModal}
-            disabled={!isPro}
-            className={`${buttonBase} w-full ${!isPro && 'opacity-40 cursor-not-allowed'}`}
-          >
-            {!isPro ? <Lock size={13} className="shrink-0 text-text-muted" /> : <Activity size={14} className="text-primary-start shrink-0" />}
-            <span className="truncate">FINANCAT</span>
-          </button>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 animate-in fade-in duration-200">
+          
+          {/* LEFT BUTTON: Matches 5-Col Evidence Vault Width Exactly */}
+          <div className="lg:col-span-5">
+            <button
+              type="button"
+              onClick={onOpenAnalystModal}
+              disabled={!isPro}
+              className={`w-full h-12 px-4 rounded-2xl bg-surface hover:bg-hover border border-main shadow-sm flex items-center justify-between transition-all duration-200 group focus:outline-none cursor-pointer ${
+                !isPro ? 'opacity-40 cursor-not-allowed' : 'hover:border-primary-start/50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shrink-0 group-hover:scale-105 transition-transform">
+                  {!isPro ? <Lock size={14} className="text-text-muted" /> : <Activity size={15} />}
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="text-xs font-bold text-text-primary uppercase tracking-wider block truncate">
+                    Financat e Lëndës
+                  </span>
+                  <span className="text-[10px] text-text-muted font-medium block truncate">
+                    Shpenzimet & Dëmet Financiare
+                  </span>
+                </div>
+              </div>
 
-          <button
-            type="button"
-            onClick={onOpenOntologyModal}
-            className={`${buttonBase} w-full hover:border-primary-start/80`}
-          >
-            <Network size={14} className="text-primary-start shrink-0" />
-            <span className="truncate">ONTOLOGJIA</span>
-          </button>
+              <ChevronRight size={15} className="text-text-muted group-hover:text-primary-start transition-colors shrink-0" />
+            </button>
+          </div>
 
-          <div className="w-full">
+          {/* RIGHT BUTTON: Matches 7-Col Chat Panel Width Exactly */}
+          <div className="lg:col-span-7">
             {hasExistingAnalysis ? (
-              <div className="h-10 sm:h-11 flex items-center justify-between rounded-xl glass-panel bg-surface border border-main shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-wider text-text-primary overflow-hidden w-full">
+              <div className="w-full h-12 px-2 sm:px-3 rounded-2xl bg-surface border border-main shadow-sm flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={onViewExistingAnalysis}
                   disabled={isAnalyzing}
-                  className="flex-1 h-full flex items-center justify-center px-1.5 sm:px-3 hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none min-w-0 cursor-pointer"
-                  title="Shiko Analizën ekzistuese"
+                  className="flex-1 h-full flex items-center gap-2.5 px-2 hover:bg-hover rounded-xl transition-all duration-200 focus:outline-none min-w-0 cursor-pointer text-left"
+                  title="Shiko Analizën Strategjike Ekzistuese"
                 >
-                  <span className="truncate text-primary-start font-bold">ANALIZA</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                    <Sparkles size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-primary-start uppercase tracking-wider block truncate">
+                      Analiza Strategjike
+                    </span>
+                    <span className="text-[10px] text-text-muted font-medium block truncate">
+                      Raporti i Gatshëm Ligjor
+                    </span>
+                  </div>
                 </button>
 
-                <div className="border-r border-main h-5 sm:h-6 shrink-0" />
+                <div className="flex items-center gap-1 shrink-0 border-l border-main pl-2">
+                  <button
+                    type="button"
+                    onClick={() => onRunAnalysis(false)}
+                    disabled={isAnalyzing}
+                    className="p-2 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-colors focus:outline-none cursor-pointer"
+                    title="Rianalizo Lëndën me AI"
+                  >
+                    <RefreshCw size={15} className={isAnalyzing ? 'animate-spin text-primary-start' : ''} />
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => onRunAnalysis(false)}
-                  disabled={isAnalyzing}
-                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-primary-start transition-all duration-200 focus:outline-none shrink-0 cursor-pointer"
-                  title="Rianalizo sërish me AI"
-                >
-                  <RefreshCw size={13} className={`text-text-muted shrink-0 ${isAnalyzing ? 'animate-spin text-primary-start' : ''}`} />
-                </button>
-
-                <div className="border-r border-main h-5 sm:h-6 shrink-0" />
-
-                <button
-                  type="button"
-                  onClick={onClearAnalysis}
-                  disabled={isAnalyzing}
-                  className="px-1.5 sm:px-2.5 h-full flex items-center justify-center hover:bg-hover hover:text-danger-start transition-all duration-200 focus:outline-none shrink-0 cursor-pointer"
-                  title="Fshi analizën e ruajtur"
-                >
-                  <Trash2 size={13} className="text-text-muted hover:text-rose-600 shrink-0" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={onClearAnalysis}
+                    disabled={isAnalyzing}
+                    className="p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors focus:outline-none cursor-pointer"
+                    title="Fshi Analizën e Ruajtur"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => onRunAnalysis(false)}
                 disabled={!isPro || isAnalyzing}
-                className={`${buttonBase} w-full disabled:opacity-40`}
+                className="w-full h-12 px-4 rounded-2xl bg-surface hover:bg-hover border border-main hover:border-primary-start/50 shadow-sm flex items-center justify-between transition-all duration-200 group focus:outline-none cursor-pointer disabled:opacity-40"
               >
-                {analyzeButtonText}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shrink-0 group-hover:scale-105 transition-transform">
+                    {isAnalyzing ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary-start" />
+                    ) : (
+                      <ShieldCheck size={16} />
+                    )}
+                  </div>
+                  <div className="text-left min-w-0">
+                    <span className="text-xs font-bold text-primary-start uppercase tracking-wider block truncate">
+                      {isAnalyzing ? 'Duke Analizuar...' : 'Analizo Rastin me AI'}
+                    </span>
+                    <span className="text-[10px] text-text-muted font-medium block truncate">
+                      Skanim i Thellë i Fashikullit
+                    </span>
+                  </div>
+                </div>
+
+                <ChevronRight size={15} className="text-text-muted group-hover:text-primary-start transition-colors shrink-0" />
               </button>
             )}
           </div>
+
         </div>
       )}
     </motion.div>

@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V48.0 (CONNECTED CHAT DOCUMENT SELECTOR DOCK)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V49.0 (ONTOLOGY EXCISED • CLEAN DUAL ACTION BAR)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -8,7 +8,6 @@ import { apiService, API_V1_URL } from '../services/api';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
-import OntologyModal from '../components/OntologyModal';
 import FinancialAnalystModal from '../components/FinancialAnalystModal';
 import DockedPDFViewer from '../components/DockedPDFViewer';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
@@ -25,7 +24,7 @@ import { RoleSelectionModal } from '../components/case/RoleSelectionModal';
 import { GatekeeperNoticeModal } from '../components/case/GatekeeperNoticeModal';
 
 type CaseData = { details: Case | null };
-type ActiveModal = 'none' | 'analysis' | 'ontology' | 'analyst';
+type ActiveModal = 'none' | 'analysis' | 'analyst';
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -352,7 +351,6 @@ const CaseViewPage: React.FC = () => {
           onOpenRoleModal={() => setShowRoleModal(true)}
           onRunAnalysis={handleRunAnalysis}
           onViewExistingAnalysis={() => (analysisResult || (caseData.details && (caseData.details as any).latest_analysis)) && setActiveModal('analysis')}
-          onOpenOntologyModal={() => setActiveModal('ontology')}
           onOpenAnalystModal={() => setActiveModal('analyst')}
           onClearAnalysis={handleClearAnalysis}
           isAnalyzing={isAnalyzing}
@@ -375,7 +373,6 @@ const CaseViewPage: React.FC = () => {
           />
 
           <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
-            {/* Chat Panel with integrated Document Selector in the Chat Header */}
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -390,7 +387,6 @@ const CaseViewPage: React.FC = () => {
               documents={liveDocuments}
               selectedDocumentIds={selectedDocumentIds}
               onDocumentSelectionChange={setSelectedDocumentIds}
-              selectedDocumentCount={selectedDocumentIds.length}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
             />
@@ -412,7 +408,6 @@ const CaseViewPage: React.FC = () => {
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
       {isAdmin && analysisResult && <AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} caseId={currentCaseId} isLoading={isAnalyzing} />}
-      {isAdmin && <OntologyModal isOpen={activeModal === 'ontology'} onClose={() => setActiveModal('none')} caseId={currentCaseId} caseTitle={caseData.details?.title || (caseData.details as any)?.name} clientPosition={clientPosition} />}
       {isAdmin && <FinancialAnalystModal isOpen={activeModal === 'analyst'} onClose={() => setActiveModal('none')} caseId={currentCaseId} caseTitle={caseData.details?.title || (caseData.details as any)?.name} />}
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />

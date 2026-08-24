@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.12 (GRAPH ROUTER INCLUDED)
+# PHOENIX PROTOCOL - MAIN APPLICATION V14.0 (GRAPH EXCISED • PRODUCTION STABILITY)
 
 import os
 import logging
@@ -30,7 +30,6 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
-from .api.endpoints.graph import router as graph_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,7 +77,6 @@ api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentic
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
 api_v1_router.include_router(media_router, prefix="/cases", tags=["Media Evidence"])
-api_v1_router.include_router(graph_router, prefix="/cases", tags=["Evidence Graph"])
 api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"])
 api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
@@ -100,7 +98,7 @@ app.include_router(api_v2_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.3.5"}
+    return {"status": "ok", "version": "1.4.0"}
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")

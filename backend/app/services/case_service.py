@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V10.0 (ENTERPRISE TEAM COLLABORATION & MULTI-DEVICE SYNC)
+# PHOENIX PROTOCOL - CASE SERVICE V11.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
 
 import re
 import importlib
@@ -23,11 +23,6 @@ def _safe_str(oid: Any) -> Optional[str]:
     return str(oid)
 
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
-    """
-    ENTERPRISE ACCESS GUARD:
-    Allows both the Enterprise Owner and all invited team members (up to 5 seats)
-    to collaboratively access, view, and manage all organization cases.
-    """
     org_id = getattr(user, 'org_id', None)
     
     allowed_ids = [user.id]
@@ -86,7 +81,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
 
         client_position = case_doc.get("client_position") or "DEFENDANT"
         disputed_amount = case_doc.get("disputed_amount") or case_doc.get("amount_eur") or 52000.0
-        court_name = case_doc.get("court") or case_doc.get("court_name") or "Gjykata Themelore në Prishtinë - Departamenti për Çështje Ekonomike"
+        court_name = case_doc.get("court") or case_doc.get("court_name") or "Gjykata Themelore në Prishtinë"
 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
@@ -152,7 +147,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "title": "Error Loading Case", 
             "case_number": "ERR", 
             "client_name": "Shaban Bala",
-            "opposing_party": "Getting Competent ShPK",
+            "opposing_party": "Pala Kundërshtare",
             "client_position": "DEFENDANT",
             "created_at": datetime.now(timezone.utc), 
             "updated_at": datetime.now(timezone.utc), 
@@ -247,8 +242,6 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     storage_service = importlib.import_module("app.services.storage_service")
     vector_store_service = importlib.import_module("app.services.vector_store_service")
-    graph_service_module = importlib.import_module("app.services.graph_service")
-    graph_service = getattr(graph_service_module, "graph_service")
     
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
@@ -269,10 +262,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
                 pass
         try: 
             vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
-        except Exception: 
-            pass
-        try: 
-            graph_service.delete_node(doc_id_str)
         except Exception: 
             pass
 
@@ -302,11 +291,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         db.alerts.delete_many(any_id_query)
     except Exception: 
         pass
-
-    try:
-        graph_service.delete_node(case_id_str)
-    except Exception as e:
-        print(f"Graph deletion warning: {e}")
 
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
     query_filter = _build_case_access_query(owner, case_id=case_id)
