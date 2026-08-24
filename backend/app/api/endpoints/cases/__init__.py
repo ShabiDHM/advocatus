@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/__init__.py
-# PHOENIX PROTOCOL - CASES ROUTER HUB V5.0 (GRAPH ROUTER EXCISED • ZERO 404s)
+# PHOENIX PROTOCOL - CASES ROUTER HUB V6.0 (STREAMLINED ULTRA-CLEAN WORKSPACE)
 
 from fastapi import APIRouter, Depends, status
 from typing import List, Annotated
@@ -13,7 +13,6 @@ from app.services import case_service
 
 from app.api.endpoints.cases.case_management_router import router as case_management_router
 from app.api.endpoints.cases.document_router import router as document_router
-from app.api.endpoints.cases.analysis_router import router as analysis_router
 
 router = APIRouter()
 
@@ -45,4 +44,3 @@ async def create_new_case_root(
 # 2. Përfshirja e nën-routerave aktive
 router.include_router(case_management_router)
 router.include_router(document_router)
-router.include_router(analysis_router)

@@ -1,14 +1,12 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V49.0 (ONTOLOGY EXCISED • CLEAN DUAL ACTION BAR)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V51.0 (SYMMETRIC EQUAL-HEIGHT PANELS)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
+import { Case, Document, DeletedDocumentResponse, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
 import PDFViewerModal from '../components/FileViewerModal';
-import AnalysisModal from '../components/AnalysisModal';
-import FinancialAnalystModal from '../components/FinancialAnalystModal';
 import DockedPDFViewer from '../components/DockedPDFViewer';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
@@ -21,10 +19,8 @@ import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { RoleSelectionModal } from '../components/case/RoleSelectionModal';
-import { GatekeeperNoticeModal } from '../components/case/GatekeeperNoticeModal';
 
 type CaseData = { details: Case | null };
-type ActiveModal = 'none' | 'analysis' | 'analyst';
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -37,25 +33,13 @@ const CaseViewPage: React.FC = () => {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
-  const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
-  const [gatekeeperNotice, setGatekeeperNotice] = useState<string | null>(null);
 
   const isPro = true;
-
-  const isAdmin = useMemo(() => {
-    if (!user) return false;
-    const emailStr = (user.email || '').toString().toLowerCase().trim();
-    const roleStr = (user.role || (user as any).user_type || '').toString().toUpperCase().trim();
-    return emailStr === 'shabanbala@gmail.com' || roleStr === 'SUPER_ADMIN';
-  }, [user]);
-
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
@@ -106,16 +90,6 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
-      if (details) {
-        const fullAnalysis = (details as any).latest_analysis
-          ? {
-              ...(details as any).latest_analysis,
-              latest_deep_analysis: (details as any).latest_deep_analysis || {}
-            }
-          : null;
-        setAnalysisResult(fullAnalysis);
-      }
-
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
@@ -130,7 +104,7 @@ const CaseViewPage: React.FC = () => {
         }
       }
     } catch {
-      setError(t('error.failedToLoadCase'));
+      setError(t('error.failedToLoadCase', 'Dështoi ngarkimi i lëndës.'));
     } finally {
       if (isInitialLoad) setIsLoading(false);
     }
@@ -195,59 +169,7 @@ const CaseViewPage: React.FC = () => {
       await persistChatHistory([]);
       localStorage.removeItem(`chat_${caseId}`);
     } catch {
-      alert(t('error.generic'));
-    }
-  };
-
-  const handleClearAnalysis = async () => {
-    if (!caseId) return;
-    try {
-      await apiService.clearCaseAnalysis(caseId);
-      setAnalysisResult(null);
-      setCaseData((prev) => (prev.details ? { details: { ...prev.details, latest_analysis: null } } : prev));
-    } catch {
-      alert(t('error.generic'));
-    }
-  };
-
-  const handleRunAnalysis = async (force = false) => {
-    if (!caseId) return;
-
-    setIsAnalyzing(true);
-
-    try {
-      const activeRole = clientPosition || 'DEFENDANT';
-      const result = selectedDocumentIds.length === 0
-        ? await apiService.analyzeCase(caseId, activeRole, force)
-        : await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
-
-      if (result.error) {
-        alert(result.error);
-      } else {
-        const resultWithMeta = {
-          ...result,
-          latest_deep_analysis: result.latest_deep_analysis || (result as any).deep_analysis || {},
-          analyzed_doc_ids: liveDocuments.map((d) => String(d.id)).sort(),
-          client_position: activeRole
-        };
-        setAnalysisResult(resultWithMeta);
-
-        if (result.cached) {
-          setGatekeeperNotice(
-            result.message || 'Nuk ka dokumente të reja apo të fshira në dosje. Po shfaqet analiza ekzistuese.'
-          );
-          setActiveModal('none');
-        } else {
-          setGatekeeperNotice(null);
-          setActiveModal('analysis');
-        }
-
-        setCaseData((prev) => prev.details ? { details: { ...prev.details, client_position: activeRole, latest_analysis: resultWithMeta } } : prev);
-      }
-    } catch {
-      alert(t('error.generic'));
-    } finally {
-      setIsAnalyzing(false);
+      alert(t('error.generic', 'Ndodhi një gabim.'));
     }
   };
 
@@ -333,33 +255,40 @@ const CaseViewPage: React.FC = () => {
       await apiService.renameDocument(caseId, documentToRename.id, newName);
       setLiveDocuments((p) => p.map((d) => (d.id === documentToRename.id ? { ...d, file_name: newName } : d)));
     } catch {
-      alert(t('error.generic'));
+      alert(t('error.generic', 'Ndodhi një gabim.'));
     }
   };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen bg-canvas"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div></div>;
-  if (error || !caseData.details) return <div className="p-8 text-center text-danger border border-danger/30 rounded-2xl bg-danger/5 mt-20 max-w-lg mx-auto animate-pulse"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p className="font-bold uppercase tracking-wide">{error}</p></div>;
+  if (isAuthLoading || isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-canvas">
+        <div className="w-14 h-14 border-4 border-primary-start border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error || !caseData.details) {
+    return (
+      <div className="p-8 text-center text-danger border border-danger/30 rounded-2xl bg-danger/5 mt-20 max-w-lg mx-auto animate-pulse">
+        <AlertCircle className="mx-auto h-12 w-12 mb-4" />
+        <p className="font-bold uppercase tracking-wide">{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <motion.div className="w-full min-h-screen pb-12 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8">
+    <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4">
         
-        {/* Case Header Bar with clean identity and right-aligned role badge */}
+        {/* SHIRITI I PASTAR I IDENTITETIT DHE ROLIT */}
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
           onOpenRoleModal={() => setShowRoleModal(true)}
-          onRunAnalysis={handleRunAnalysis}
-          onViewExistingAnalysis={() => (analysisResult || (caseData.details && (caseData.details as any).latest_analysis)) && setActiveModal('analysis')}
-          onOpenAnalystModal={() => setActiveModal('analyst')}
-          onClearAnalysis={handleClearAnalysis}
-          isAnalyzing={isAnalyzing}
-          isPro={isPro}
-          isAdmin={isAdmin}
-          selectedDocumentIds={selectedDocumentIds}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0">
+        {/* DY SHTYLLAT KRYESORE ME LARTËSI EKZAKTE TË BARABARTË */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
             documents={liveDocuments}
@@ -372,7 +301,7 @@ const CaseViewPage: React.FC = () => {
             t={t}
           />
 
-          <div className="lg:col-span-7 flex flex-col h-[540px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          <div className="lg:col-span-7 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-200px)] min-h-[650px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -407,20 +336,8 @@ const CaseViewPage: React.FC = () => {
       )}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
-      {isAdmin && analysisResult && <AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} caseId={currentCaseId} isLoading={isAnalyzing} />}
-      {isAdmin && <FinancialAnalystModal isOpen={activeModal === 'analyst'} onClose={() => setActiveModal('none')} caseId={currentCaseId} caseTitle={caseData.details?.title || (caseData.details as any)?.name} />}
-
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
       <RoleSelectionModal isOpen={showRoleModal} onClose={() => setShowRoleModal(false)} onSelectRole={handleRoleChosen} />
-      <GatekeeperNoticeModal
-        notice={gatekeeperNotice}
-        documentCount={liveDocuments.length}
-        onClose={() => {
-          setGatekeeperNotice(null);
-          setActiveModal('analysis');
-        }}
-        onForceReanalyze={() => handleRunAnalysis(true)}
-      />
     </motion.div>
   );
 };

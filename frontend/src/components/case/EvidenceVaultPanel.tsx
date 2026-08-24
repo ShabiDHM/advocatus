@@ -1,5 +1,5 @@
 // FILE: src/components/case/EvidenceVaultPanel.tsx
-// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V11.0 (AUDIO & VIDEO TAB UNIFICATION)
+// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V12.0 (PERFECT HEIGHT MATCH WITH CHAT PANEL)
 
 import React, { useState } from 'react';
 import { Document, DeletedDocumentResponse } from '../../data/types';
@@ -36,9 +36,9 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
   const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
 
   return (
-    <div className="lg:col-span-5 flex flex-col h-[520px] sm:h-[700px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
+    <div className="lg:col-span-5 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-200px)] min-h-[650px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
       {/* Top Segmented Sub-Tab Switcher */}
-      <div className="p-2.5 sm:p-3 bg-canvas border-b border-main flex items-center justify-between gap-2">
+      <div className="p-2.5 sm:p-3 bg-canvas border-b border-main flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-main w-full">
           <button
             type="button"
