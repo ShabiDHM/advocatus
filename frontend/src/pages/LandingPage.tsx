@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V13.0 (GJUHË E PASTËR SHQIPE & TRANSPARENCË E PLOTË)
+// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V14.0 (PURE REAL-VALUE FOCUS • ZERO SIMULATION JARGON)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,9 +10,7 @@ import {
   Scale,
   Swords,
   Sparkles,
-  FileText,
   Search,
-  BarChart2,
   CheckCircle2,
   Lock,
   ArrowRight,
@@ -22,6 +20,9 @@ import {
   Database,
   FileCheck2,
   HelpCircle,
+  Film,
+  BookOpen,
+  PenTool,
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
@@ -161,57 +162,48 @@ export const LandingPage: React.FC = () => {
   const bentoFeatures = [
     {
       colSpan: 'lg:col-span-8',
-      title: 'Dhoma e Luftës (Simulimi Taktik i Lëndës)',
-      subtitle: 'STRATEGJI PROCEDURALE',
-      desc: 'Parashikoni pikat e forta dhe të dobëta të të dyja palëve përpara se të hyni në seancë. Sistemi analizon rreziqet, prapësimet e mundshme dhe ndihmon në ndërtimin e argumenteve të qëndrueshme me referenca shkresore.',
-      icon: Swords,
+      title: 'Sokrati AI — Asistenti Inteligjent i Lëndës',
+      subtitle: '4 SHTYLLAT PROCEDURALE',
+      desc: 'Bashkëbisedoni direkt me dosjen tuaj. Sokrati nxjerr menjëherë 4 shtyllat kryesore sipas rolit tuaj procedural, analizon prapësimet dhe përgatit pyetësorët taktikë për seancë me citime ekzakte të neneve.',
+      icon: Sparkles,
       gradient: 'from-primary-start/15 via-indigo-500/5 to-transparent',
       borderColor: 'border-primary-start/30',
     },
     {
       colSpan: 'lg:col-span-4',
-      title: 'Detektori i Kontradiktave në Dosje',
-      subtitle: 'BALLAFAQIM DOKUMENTESH',
-      desc: 'Zbulon mospërputhjet midis deklaratave të ndryshme, procesverbaleve të seancave dhe provave shkresore brenda fashikullit.',
-      icon: Sparkles,
-      gradient: 'from-amber-500/15 via-orange-500/5 to-transparent',
-      borderColor: 'border-amber-500/30',
-    },
-    {
-      colSpan: 'lg:col-span-4',
-      title: 'Ballafaqimi i Shkresave me Faktet',
-      subtitle: 'VERIFIKIM I PROVAVE',
-      desc: 'Krahason pretendimet e palëve me provat materiale dhe ekspertizat mjekësore apo teknike të depozituara në dosje.',
-      icon: Scale,
-      gradient: 'from-rose-500/15 via-red-500/5 to-transparent',
-      borderColor: 'border-rose-500/30',
-    },
-    {
-      colSpan: 'lg:col-span-8',
-      title: 'Leximi i Shkresave dhe Vendimeve të Skanuara',
-      subtitle: 'DIGJITALIZIM ME OCR',
-      desc: 'Përpunon dokumentet e skanuara, procesverbalet dhe vendimet e vjetra, duke i kthyer në tekst të kërkueshëm me referenca faqe-për-faqe.',
+      title: 'Leximi OCR i Shkresave të Skanuara',
+      subtitle: 'DIGJITALIZIM NË ~3.5S',
+      desc: 'Përpunon procesverbalet, aktvendimet e vjetra dhe faturat e skanuara, duke i kthyer në tekst të kërkueshëm me referenca faqe-për-faqe.',
       icon: Search,
       gradient: 'from-blue-500/15 via-cyan-500/5 to-transparent',
       borderColor: 'border-blue-500/30',
     },
     {
       colSpan: 'lg:col-span-4',
-      title: 'Analiza e Shpenzimeve dhe Dëmeve',
-      subtitle: 'LLOGARITJE FINANCIARE',
-      desc: 'Ndihmon në regjistrimin e shpenzimeve procedurale, kalkulimin e dëmit material dhe llogaritjen e kamatës ligjore.',
-      icon: BarChart2,
-      gradient: 'from-emerald-500/15 via-teal-500/5 to-transparent',
-      borderColor: 'border-emerald-500/30',
+      title: 'Transkriptimi i Skedarëve Audio & Video',
+      subtitle: 'MULTIMEDIA EVIDENCE',
+      desc: 'Ngarkoni regjistrime audio apo video (MP3, WAV, MP4). Sistemi gjeneron transkriptin e plotë tekstual gati për referim në gjykatë.',
+      icon: Film,
+      gradient: 'from-rose-500/15 via-purple-500/5 to-transparent',
+      borderColor: 'border-rose-500/30',
     },
     {
       colSpan: 'lg:col-span-8',
-      title: 'Ndihmës për Përpilimin e Shkresave Ligjore',
-      subtitle: 'HARTIM I STRUKTURUAR',
-      desc: 'Ndihmon në strukturimin e Padive, Përgjigjeve në Padi, Prapësimeve dhe Ankesave, të mbështetura në nenet përkatëse të ligjeve të Kosovës (LPK, KPRK, LFK, LMD).',
-      icon: FileText,
+      title: 'Hartimi i Shkresave Ligjore në Word (.docx)',
+      subtitle: 'PËRPILIM ME NENE EKZAKTE',
+      desc: 'Strukturoni me shpejtësi Padi, Përgjigje në Padi, Prapësime, Masa Sigurie dhe Ankesa, të mbështetura në nenet përkatëse të ligjeve të Kosovës (LPK, KPRK, LFK, LMD).',
+      icon: PenTool,
       gradient: 'from-purple-500/15 via-pink-500/5 to-transparent',
       borderColor: 'border-purple-500/30',
+    },
+    {
+      colSpan: 'lg:col-span-12',
+      title: 'Biblioteka Ligjore e Kosovës me Kërkim Semantik',
+      subtitle: 'STATUTET ZYRTARE NË KOSOVË',
+      desc: 'Qasje e menjëhershme në ligjet zyrtare të Kosovës me të gjitha nenet e indeksuara. Çdo referencë e cituar nga Sokrati hapet direkt në shikuesin e plotë PDF me kërcim automatik te neni përkatës.',
+      icon: BookOpen,
+      gradient: 'from-emerald-500/15 via-teal-500/5 to-transparent',
+      borderColor: 'border-emerald-500/30',
     },
   ];
 
@@ -450,7 +442,7 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. ARSENALI I VEÇORIVE (BENTO GRID) */}
+      {/* 5. ARSENALI I VEÇORIVE REALE (BENTO GRID) */}
       <section id="arsenal" className="py-24 border-t border-main bg-surface/30 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
@@ -461,7 +453,7 @@ export const LandingPage: React.FC = () => {
               Mjetet për Punën Tuaj të Përditshme
             </h2>
             <p className="text-xs sm:text-sm text-text-secondary">
-              Teknologji e përshtatur posaçërisht për praktikat dhe shkresat ligjore në Kosovë.
+              Teknologji e pastër e përshtatur posaçërisht për praktikat dhe shkresat ligjore në Kosovë.
             </p>
           </div>
 
