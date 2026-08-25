@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V9.4 (DEBUG PRINT B2)
+# PHOENIX PROTOCOL - CONFIG V9.5 (EXPLICIT FRONTEND_URL & DOMAIN VALIDATION)
 
 import os
 from pathlib import Path
@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
 
+    # Frontend Domain Configuration (Strip trailing slash automatically)
+    FRONTEND_URL: str = "https://juristi.tech"
+
     DATABASE_URI: str = ""
     MONGO_DB_NAME: str = "advocatus_db"
     REDIS_URL: str = ""
@@ -45,4 +48,3 @@ class Settings(BaseSettings):
     CHROMA_PORT: int = 8000
 
 settings = Settings()
-print(f"DEBUG CONFIG -> B2_KEY_ID loaded: {bool(settings.B2_KEY_ID)}, B2_BUCKET: {settings.B2_BUCKET_NAME}")

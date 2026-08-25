@@ -1,6 +1,5 @@
 # FILE: backend/app/services/email_service.py
-# PHOENIX PROTOCOL - EMAIL SYSTEM V6.4 (HYBRID SMTP & HTTP BYPASS)
-# 1. FIX: Moved 'import os' to the global imports block to resolve all undefined 'os' Pylance warnings.
+# PHOENIX PROTOCOL - EMAIL SYSTEM V6.5 (ROBUST URL RESOLUTION & PROTOCOL COMPLIANCE)
 
 import os
 import smtplib
@@ -16,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 BRAND_COLOR = "#2563EB"  # Primary Blue
 BRAND_NAME = "Juristi.tech"
+
+def _get_clean_frontend_url() -> str:
+    """Returns the base frontend URL without any trailing slash."""
+    url = os.getenv("FRONTEND_URL") or settings.FRONTEND_URL or "https://juristi.tech"
+    return url.rstrip('/')
 
 def _create_html_wrapper(title: str, body_content: str) -> str:
     """Wraps content in a professional HTML Email Template."""
@@ -51,10 +55,9 @@ def _create_html_wrapper(title: str, body_content: str) -> str:
 
 def send_email_sync(to_email: str, subject: str, html_content: str):
     """Core function to send an email via SMTP or Resend HTTP API (Self-healing)."""
-    # Check if HTTP-based email bypass is configured
     resend_api_key = os.getenv("RESEND_API_KEY")
     
-    # --- PATH 1: RESEND HTTP API (BYPASSES HOSTING FIREWALLS ON PORT 443) ---
+    # --- PATH 1: RESEND HTTP API ---
     if resend_api_key:
         try:
             url = "https://api.resend.com/emails"
@@ -64,7 +67,6 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
             }
             
             mail_from = os.getenv("MAIL_FROM") or "info@juristi.tech"
-            # Resend sandbox requires onboarding@resend.dev sender unless custom domain is verified
             if "re_" not in resend_api_key or "onboarding" in mail_from:
                 from_sender = "Juristi AI <onboarding@resend.dev>"
             else:
@@ -84,7 +86,7 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
         except Exception as e:
             logger.error(f"❌ Resend HTTP API dispatch failed, attempting SMTP fallback: {e}")
             
-    # --- PATH 2: STANDARD SMTP (FALLBACK FOR LOCAL DEV OR UNBLOCKED SERVERS) ---
+    # --- PATH 2: STANDARD SMTP ---
     smtp_user = os.getenv("MAIL_USERNAME") or os.getenv("SMTP_USER")
     smtp_password = os.getenv("MAIL_PASSWORD") or os.getenv("SMTP_PASSWORD")
     smtp_host = os.getenv("MAIL_SERVER") or os.getenv("SMTP_HOST") or "smtp.gmail.com"
@@ -120,7 +122,7 @@ def send_email_sync(to_email: str, subject: str, html_content: str):
         
         logger.info(f"✅ Email sent via SMTP to {to_email}: {subject}")
     except Exception as e:
-        logger.error(f"❌ Failed to send email via SMTP (Note: Render Free Tier blocks SMTP ports. Please add RESEND_API_KEY to bypass): {e}")
+        logger.error(f"❌ Failed to send email via SMTP: {e}")
         raise
 
 def send_support_notification_sync(data: dict):
@@ -152,7 +154,7 @@ def send_support_notification_sync(data: dict):
 # ========== INVITATION EMAIL ==========
 def send_invitation_email(to_email: str, token: str) -> bool:
     """Send invitation email with password setup link."""
-    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = _get_clean_frontend_url()
     invite_link = f"{frontend_url}/accept-invite?token={token}&email={to_email}"
     
     subject = "Ftesë për t'u bashkuar në Juristi.tech"
@@ -180,7 +182,7 @@ def send_invitation_email(to_email: str, token: str) -> bool:
 # ========== PASSWORD RESET EMAIL ==========
 def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     """Send password reset email."""
-    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = _get_clean_frontend_url()
     reset_link = f"{frontend_url}/reset-password?token={reset_token}&email={to_email}"
     
     subject = "Rivendosja e Fjalëkalimit - Juristi.tech"
@@ -206,7 +208,7 @@ def send_password_reset_email(to_email: str, reset_token: str) -> bool:
 # ========== WELCOME EMAIL ==========
 def send_welcome_email(to_email: str, username: str) -> bool:
     """Send welcome email after account activation or registration."""
-    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = _get_clean_frontend_url()
     subject = "Mirëseardhje në Juristi.tech!"
     
     body_content = f"""
@@ -252,7 +254,7 @@ def send_support_reply(to_email: str, reply_message: str, ticket_id: Optional[st
 # ========== TEAM INVITE ACCEPTED NOTIFICATION ==========
 def send_team_invite_accepted_email(owner_email: str, new_member_email: str, new_member_name: str) -> bool:
     """Notify the organization owner that someone accepted an invitation."""
-    frontend_url = os.getenv("FRONTEND_URL") or getattr(settings, "FRONTEND_URL", "https://juristi.tech")
+    frontend_url = _get_clean_frontend_url()
     subject = f"Përdoruesi {new_member_name} iu bashkua ekipit tuaj"
     
     body_content = f"""
