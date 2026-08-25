@@ -1,10 +1,8 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V8.3 (TEAM PLAN LIMIT 5)
-# 1. UPDATED: PLAN_LIMITS for TEAM_PLAN changed from 10 to 5.
-# 2. STATUS: Aligned with user's request to reduce company size.
+# PHOENIX PROTOCOL - USER MODEL V9.0 (ENTERPRISE GRANULAR RBAC ACCESS)
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from enum import Enum
 from .common import PyObjectId
@@ -29,9 +27,11 @@ class UserBase(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100) 
     role: str = "STANDARD" 
     
-    # Organization Context
+    # Organization Context & Granular Access
     org_id: Optional[PyObjectId] = None 
     org_role: str = "OWNER" 
+    org_access_level: str = "FULL" # Mund të jetë 'FULL' (Të gjitha lëndët e firmës) ose 'SELECTIVE' (Qasje vetëm në lëndët e caktuara)
+    assigned_case_ids: List[str] = Field(default_factory=list) # Lista e lëndëve të lejuara kur org_access_level = 'SELECTIVE'
     
     # Subscription Matrix Fields
     account_type: AccountType = AccountType.SOLO
@@ -58,6 +58,8 @@ class UserUpdate(BaseModel):
     
     org_id: Optional[PyObjectId] = None
     org_role: Optional[str] = None
+    org_access_level: Optional[str] = None
+    assigned_case_ids: Optional[List[str]] = None
     
     account_type: Optional[AccountType] = None
     subscription_tier: Optional[SubscriptionTier] = None
@@ -101,8 +103,7 @@ class UserLogin(BaseModel):
     password: str
 
 # --- PHOENIX V8.3: Updated Plan Limits ---
-# CORRECTED: TEAM_PLAN now allows 5 users (reduced from 10 as per user request).
 PLAN_LIMITS = {
     ProductPlan.SOLO_PLAN: 1,
-    ProductPlan.TEAM_PLAN: 5,  # Changed from 10 to 5
+    ProductPlan.TEAM_PLAN: 5,  # 5 Enterprise Team Seats
 }

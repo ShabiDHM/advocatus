@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V11.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
+# PHOENIX PROTOCOL - CASE SERVICE V12.0 (ENTERPRISE GRANULAR RBAC ACCESS)
 
 import re
-import importlib
 import urllib.parse 
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, cast
@@ -15,6 +14,8 @@ from ..models.case import CaseCreate
 from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
+from app.services import storage_service, vector_store_service
+
 
 # --- HELPER FUNCTIONS ---
 
@@ -22,7 +23,14 @@ def _safe_str(oid: Any) -> Optional[str]:
     if not oid: return None
     return str(oid)
 
+
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
+    """
+    ENTERPRISE ACCESS GUARD (Granular RBAC):
+    - Nëse useri ka qasje 'FULL' ose është 'OWNER', sheh të gjitha lëndët e org.
+    - Nëse useri ka qasje 'SELECTIVE', sheh vetëm lëndët ku ai është pronar OSE ku id-ja e tij është në `assigned_user_ids`.
+    """
+    access_level = getattr(user, 'org_access_level', 'FULL')
     org_id = getattr(user, 'org_id', None)
     
     allowed_ids = [user.id]
@@ -34,24 +42,32 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
         except Exception:
             pass
 
+    # Kriteret bazë (Rastet e krijuara nga vetë ai)
     or_clauses: List[Dict[str, Any]] = [
         {"owner_id": {"$in": allowed_ids}},
         {"user_id": {"$in": allowed_ids}},
     ]
     
     if org_id:
-        or_clauses.extend([
-            {"org_id": org_id},
-            {"org_id": str(org_id)},
-            {"organization_id": org_id},
-            {"organization_id": str(org_id)}
-        ])
+        if access_level == "FULL" or user.org_role in ["OWNER", "ADMIN", "SUPER_ADMIN"]:
+            # Qasje në të gjitha lëndët e zyrës
+            or_clauses.extend([
+                {"org_id": org_id},
+                {"org_id": str(org_id)},
+                {"organization_id": org_id},
+                {"organization_id": str(org_id)}
+            ])
+        else:
+            # Qasje vetëm në lëndët ku i është dhënë autorizimi me dorë nga pronari
+            user_id_str = str(user.id)
+            or_clauses.append({"assigned_user_ids": user_id_str})
 
     base_query: Dict[str, Any] = {"$or": or_clauses}
     if case_id:
         base_query["_id"] = case_id
 
     return base_query
+
 
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
     try:
@@ -72,16 +88,16 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         org_id = case_doc.get("org_id")
 
         client_obj = case_doc.get("client") if isinstance(case_doc.get("client"), dict) else {}
-        client_name = case_doc.get("client_name") or client_obj.get("name") or "Shaban Bala"
+        client_name = case_doc.get("client_name") or client_obj.get("name") or "Klient"
         
         opposing_obj = case_doc.get("opposing_party")
         opposing_name = (
             opposing_obj.get("name") if isinstance(opposing_obj, dict) else opposing_obj
-        ) or "Getting Competent ShPK"
+        ) or "Pala Kundërshtare"
 
         client_position = case_doc.get("client_position") or "DEFENDANT"
-        disputed_amount = case_doc.get("disputed_amount") or case_doc.get("amount_eur") or 52000.0
-        court_name = case_doc.get("court") or case_doc.get("court_name") or "Gjykata Themelore në Prishtinë"
+        disputed_amount = case_doc.get("disputed_amount") or case_doc.get("amount_eur") or 0.0
+        court_name = case_doc.get("court") or case_doc.get("court_name") or "Gjykata Themelore"
 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
@@ -131,6 +147,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "client_position": client_position,
             "disputed_amount": disputed_amount,
             "court": court_name,
+            "assigned_user_ids": case_doc.get("assigned_user_ids", []),
             "created_at": created_at, 
             "updated_at": updated_at, 
             "chat_history": case_doc.get("chat_history", []), 
@@ -146,7 +163,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "user_id": case_doc.get("user_id") or case_doc.get("owner_id"),
             "title": "Error Loading Case", 
             "case_number": "ERR", 
-            "client_name": "Shaban Bala",
+            "client_name": "Klient",
             "opposing_party": "Pala Kundërshtare",
             "client_position": "DEFENDANT",
             "created_at": datetime.now(timezone.utc), 
@@ -172,6 +189,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         "owner_id": owner.id, 
         "user_id": owner.id,
         "org_id": org_id,
+        "assigned_user_ids": [str(owner.id)], # Autori fillestar shtohet gjithmonë
         "created_at": datetime.now(timezone.utc), 
         "updated_at": datetime.now(timezone.utc),
         "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
@@ -205,7 +223,7 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case:
-        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
+        raise HTTPException(status_code=404, detail="Rasti nuk u gjet ose nuk keni qasje.")
     
     case_id_str = str(case_id)
     doc_filter = {
@@ -240,9 +258,6 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
     return mapped_case
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    storage_service = importlib.import_module("app.services.storage_service")
-    vector_store_service = importlib.import_module("app.services.vector_store_service")
-    
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case: 
