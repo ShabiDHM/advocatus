@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V12.1 (ENTERPRISE GRANULAR RBAC ACCESS ENFORCED)
+# PHOENIX PROTOCOL - CASE SERVICE V12.2 (BULLETPROOF GRANULAR ACCESS ENFORCEMENT)
 
 import re
 import urllib.parse 
@@ -27,17 +27,17 @@ def _safe_str(oid: Any) -> Optional[str]:
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
     """
     ENTERPRISE ACCESS GUARD (Granular RBAC):
-    - Nëse useri ka qasje 'FULL' ose është 'OWNER'/'ADMIN', sheh të gjitha lëndët e firmës (org_id).
-    - Nëse useri ka qasje 'SELECTIVE', sheh EKSKLUZIVISHT:
-      1. Lëndët që i ka krijuar vetë (owner_id / user_id == user.id).
-      2. Lëndët që i janë caktuar specifikisht te `user.assigned_case_ids`.
+    - Nëse useri ka qasje 'SELECTIVE', sheh VETËM:
+      1. Lëndët ku _id është te `user.assigned_case_ids`.
+      2. Lëndët që i ka krijuar vetë (owner_id / user_id == user.id).
+    - Nëse useri ka qasje 'FULL' ose është Pronari origjinal i firmës, sheh të gjitha lëndët e zyrës.
     """
     access_level = getattr(user, 'org_access_level', 'FULL')
     org_id = getattr(user, 'org_id', None)
     user_id_obj = user.id
     user_id_str = str(user.id)
     
-    # 1. Kriteret e autorësisë personale (lëndët e krijuara nga vetë përdoruesi)
+    # 1. Kriteret e autorësisë personale (lëndët e krijuara nga vetë ky përdorues)
     personal_clauses: List[Dict[str, Any]] = [
         {"owner_id": user_id_obj},
         {"owner_id": user_id_str},
@@ -45,44 +45,41 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
         {"user_id": user_id_str}
     ]
 
-    is_org_admin = (
-        getattr(user, 'org_role', '') in ["OWNER", "ADMIN", "SUPER_ADMIN"] or
-        getattr(user, 'role', '') in ["ADMIN", "SUPER_ADMIN"]
-    )
-
-    if org_id and (access_level == "FULL" or is_org_admin):
-        # QASJE E PLOTË: Të gjitha lëndët e firmës
-        org_clauses = [
-            {"org_id": org_id},
-            {"org_id": str(org_id)},
-            {"organization_id": org_id},
-            {"organization_id": str(org_id)}
-        ]
-        if ObjectId.is_valid(str(org_id)):
-            org_clauses.extend([
-                {"org_id": ObjectId(str(org_id))},
-                {"organization_id": ObjectId(str(org_id))}
-            ])
-        query = {"$or": personal_clauses + org_clauses}
-
-    else:
-        # QASJE SELEKTIVE (E KUFIZUAR): Vetëm lëndët e autorizuara nominalisht
+    # Rregull Absolute: Nëse niveli i qasjes është SELECTIVE, zbatohet menjëherë kufizimi
+    if access_level == "SELECTIVE":
         assigned_case_ids = getattr(user, 'assigned_case_ids', []) or []
         allowed_case_oids: List[Any] = []
         for cid in assigned_case_ids:
-            if ObjectId.is_valid(str(cid)):
-                allowed_case_oids.append(ObjectId(str(cid)))
-            allowed_case_oids.append(str(cid))
+            clean_id = str(cid).strip()
+            if clean_id:
+                if ObjectId.is_valid(clean_id):
+                    allowed_case_oids.append(ObjectId(clean_id))
+                allowed_case_oids.append(clean_id)
 
         selective_clauses: List[Dict[str, Any]] = list(personal_clauses)
-        
         if allowed_case_oids:
             selective_clauses.append({"_id": {"$in": allowed_case_oids}})
-        
-        # Përputhje edhe me assigned_user_ids brenda lëndës (për backward compatibility)
         selective_clauses.append({"assigned_user_ids": user_id_str})
 
         query = {"$or": selective_clauses}
+
+    else:
+        # Përndryshe (Qasje e Plotë / Pronar)
+        if org_id:
+            org_clauses = [
+                {"org_id": org_id},
+                {"org_id": str(org_id)},
+                {"organization_id": org_id},
+                {"organization_id": str(org_id)}
+            ]
+            if ObjectId.is_valid(str(org_id)):
+                org_clauses.extend([
+                    {"org_id": ObjectId(str(org_id))},
+                    {"organization_id": ObjectId(str(org_id))}
+                ])
+            query = {"$or": personal_clauses + org_clauses}
+        else:
+            query = {"$or": personal_clauses}
 
     if case_id:
         return {"$and": [{"_id": case_id}, query]}

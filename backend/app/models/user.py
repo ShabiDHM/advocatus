@@ -1,5 +1,5 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V9.0 (ENTERPRISE GRANULAR RBAC ACCESS)
+# PHOENIX PROTOCOL - USER MODEL V9.1 (MEMBER DEFAULT RBAC ROLE)
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any, List
@@ -27,11 +27,11 @@ class UserBase(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100) 
     role: str = "STANDARD" 
     
-    # Organization Context & Granular Access
+    # Organization Context & Granular Access (Default role for users is MEMBER)
     org_id: Optional[PyObjectId] = None 
-    org_role: str = "OWNER" 
-    org_access_level: str = "FULL" # Mund të jetë 'FULL' (Të gjitha lëndët e firmës) ose 'SELECTIVE' (Qasje vetëm në lëndët e caktuara)
-    assigned_case_ids: List[str] = Field(default_factory=list) # Lista e lëndëve të lejuara kur org_access_level = 'SELECTIVE'
+    org_role: str = "MEMBER" 
+    org_access_level: str = "FULL" # 'FULL' ose 'SELECTIVE'
+    assigned_case_ids: List[str] = Field(default_factory=list)
     
     # Subscription Matrix Fields
     account_type: AccountType = AccountType.SOLO
@@ -102,8 +102,8 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-# --- PHOENIX V8.3: Updated Plan Limits ---
+# --- Plan Limits ---
 PLAN_LIMITS = {
     ProductPlan.SOLO_PLAN: 1,
-    ProductPlan.TEAM_PLAN: 5,  # 5 Enterprise Team Seats
+    ProductPlan.TEAM_PLAN: 5,
 }
