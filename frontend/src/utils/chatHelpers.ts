@@ -1,68 +1,49 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V39.0 (MULTI-ARTICLE AWARE LAW LINKER)
+// PHOENIX PROTOCOL - CHAT HELPERS V40.0 (SEAMLESS INLINE LAW MATCHER)
 
 export const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
 
-  // 1. Protect existing markdown links (documents & laws) by placeholders
+  // 1. Mbrojmë linket ekzistuese Markdown që vijnë nga backend (p.sh. Dokumentet)
   const savedLinks: string[] = [];
   let protectedText = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
     savedLinks.push(fullMatch);
     return `__MD_LINK_TOKEN_${savedLinks.length - 1}__`;
   });
 
-  // 2. Clean stray brackets around plain law citations
-  protectedText = protectedText.replace(/\[\s*(neni\s+\d+[^\]]*)\s*\]/gi, '$1');
+  // 2. Heqim kllapat katrore te neneve të mbetura gabimisht (p.sh. [Neni 424])
+  protectedText = protectedText.replace(/\[\s*(Neni\s+\d+[^\]]*)\s*\]/gi, '$1');
 
-  // 3. Strict Regex for Single and Multi-Article Kosovo statutory citations
-  // Kap shembuj si: "Neni 12 i LPK", "Nenet 424 dhe 427 të KPRK", "Neni 30, 31 dhe 32 të LMD"
-  const lawPattern = /\b(?:(Nen(?:i|et))\s+(\d+(?:\s*(?:,|dhe|e)\s*\d+)*)\s*(?:i|e|të)?\s*(Ligjit\s+të\s+Punës|LPK|LMD|KPRK|KPPRK|LFK|LSHT|Kodi\s+Penal|Kodi\s+Civil|Ligji\s+për\s+Procedurën\s+Kontestimore|Ligji\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve)?)\b/gi;
+  // 3. Kapja Inteligjente e Neneve (p.sh. "Neni 244 par. 1 i KPPRK", "Nenet 424 dhe 427 të KPRK")
+  // Ky regex kap të gjithë bllokun si një fjali të vetme.
+  const lawPattern = /\b((?:Nen(?:i|et))\s+[\d\.,\s(dhe)(e)(par)(paragrafi)\-]+\s*(?:i|e|të)?\s*(?:Ligjit\s+të\s+Punës|LPK|LMD|KPRK|KPPRK|LFK|LSHT|Kodi\s+Penal|Kodi\s+Civil|Ligji\s+për\s+Procedurën\s+Kontestimore|Ligji\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve)?)\b/gi;
 
   try {
-    protectedText = protectedText.replace(lawPattern, (match, prefix, numbersStr, lawTitle) => {
-      const finalLaw = (lawTitle || 'Ligji përkatës').trim();
+    protectedText = protectedText.replace(lawPattern, (match) => {
+      const cleanMatch = match.replace(/[\n\r]+/g, ' ').trim();
       
-      // Split the numbers string to link them individually (e.g. "424 dhe 427" -> ["424", "427"])
-      const individualNumbers = numbersStr.split(/(?:,|dhe|e)/i).map((n: string) => n.trim()).filter(Boolean);
+      // Ekstraktojmë numrin e parë që gjejmë për ta dërguar te linku
+      const firstNumMatch = cleanMatch.match(/\d+/);
+      const articleNumber = firstNumMatch ? firstNumMatch[0] : '1';
       
-      if (individualNumbers.length === 0) return match;
-
-      let linkedText = prefix + ' ';
-      individualNumbers.forEach((artNum: string, idx: number) => {
-        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(finalLaw)}&articleNumber=${encodeURIComponent(artNum)}`;
-        linkedText += `[${artNum}](${targetUrl})`;
-        
-        // Restore formatting (commas or "dhe")
-        if (idx < individualNumbers.length - 2) {
-          linkedText += ', ';
-        } else if (idx === individualNumbers.length - 2) {
-          linkedText += ' dhe ';
+      // Ekstraktojmë emrin e ligjit (p.sh. "KPRK", "LPK", "LMD")
+      let lawTitle = 'Ligji përkatës';
+      const knownLaws = ['LPK', 'KPRK', 'KPPRK', 'LMD', 'LFK', 'LSHT', 'Kodi Penal', 'Kodi Civil'];
+      for (const kl of knownLaws) {
+        if (cleanMatch.toUpperCase().includes(kl.toUpperCase())) {
+          lawTitle = kl;
+          break;
         }
-      });
-
-      if (lawTitle) {
-        linkedText += ` të ${lawTitle}`;
       }
 
-      return linkedText;
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(articleNumber)}`;
+      return `[${cleanMatch}](${targetUrl})`;
     });
   } catch (err) {
     console.error('Law citation autolinking error:', err);
   }
 
-  // 4. Fallback for "Ligji Nr. 03/L-..."
-  const fullLawPattern = /\b((?:Ligji|Kodi)\s+Nr\.\s*[\d\/L\-]+[^\n,.:;()]*)\b/gi;
-  try {
-    protectedText = protectedText.replace(fullLawPattern, (match, fullLawTitle) => {
-      if (match.includes('__MD_LINK_TOKEN_')) return match;
-      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(fullLawTitle.trim())}&articleNumber=1`;
-      return `[${match.trim()}](${targetUrl})`;
-    });
-  } catch (err) {
-    console.error('Full Law citation error:', err);
-  }
-
-  // 5. Restore protected links
+  // 4. Rikthejmë linket e mbrojtura të dokumenteve
   const restoredText = protectedText.replace(/__MD_LINK_TOKEN_(\d+)__/g, (_, idx) => {
     return savedLinks[Number(idx)] || '';
   });
@@ -114,7 +95,7 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
           .trim();
       })
       .filter((q) => q.length > 6 && !q.startsWith('---') && !q.startsWith('*'))
-      .slice(0, 4); // Lejon deri në 4 sugjerime
+      .slice(0, 4);
 
     return { cleanText, questions };
   }
