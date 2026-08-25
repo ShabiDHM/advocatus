@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V89.0 (AUTO-LINKING INJECTOR & DETERMINISTIC 4-3-2-1-0 PILLARS)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V90.0 (DYNAMIC TOKEN COMPRESSION & CONTEXT CLAMPING)
 
 import os
 import sys
@@ -21,6 +21,8 @@ LLM_TIMEOUT = 60
 
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
+# Safe absolute ceiling to prevent "max_num_tokens (32768)" crash (1 token ~ 4 chars)
+MAX_CONTEXT_CHARS = 110_000 
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
@@ -32,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous AI Engine initialized.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with Token Compression Guard.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -79,9 +81,12 @@ class AlbanianRAGService:
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
         manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME >>>\n"]
-        context = "\n<<< PËRMBAJTJA E PROVEVE TË FASHIKULLIT >>>\n"
+        context_blocks = []
         
         if db_documents:
+            # 🛡️ Dynamic truncation budget allocation
+            doc_budget = int((MAX_CONTEXT_CHARS * 0.7) / max(len(db_documents), 1))
+            
             for idx, doc in enumerate(db_documents, 1):
                 doc_id = str(doc.get("_id", ""))
                 file_name = doc.get("file_name") or doc.get("title") or "Dokument.pdf"
@@ -101,33 +106,38 @@ class AlbanianRAGService:
                 if summ == "Sinteza...":
                     summ = ""
 
-                if raw_t and summ:
-                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA:\n{raw_t[:14000]}"
-                elif raw_t:
-                    text_content = f"PËRMBAJTJA:\n{raw_t[:16000]}"
+                # 🛡️ COMPRESSION: Limit individual document text to prevent token overflow
+                clamped_raw_t = raw_t[:doc_budget] if len(raw_t) > doc_budget else raw_t
+
+                if clamped_raw_t and summ:
+                    text_content = f"PËRMBLEDHJE: {summ}\nPËRMBAJTJA:\n{clamped_raw_t}"
+                elif clamped_raw_t:
+                    text_content = f"PËRMBAJTJA:\n{clamped_raw_t}"
                 elif summ:
                     text_content = f"PËRMBLEDHJE: {summ}"
                 else:
                     text_content = "Dokument i administruar në fashikull."
 
-                context += f"\n--- SHKRESA: {doc_clickable_link} ---\n"
-                context += f"{text_content}\n"
+                context_blocks.append(f"\n--- SHKRESA: {doc_clickable_link} ---\n{text_content}\n")
         else:
-            context += "Nuk ka dokumente të bashkangjitura në fashikull.\n\n"
+            context_blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.\n\n")
 
-        context += "\n<<< PARAGRAFET SELEKTIVE NGA KËRKIMI SEMANTIK I LËNDËS >>>\n"
-        for idx, d in enumerate(case_docs):
-            text_content = self._get_expanded_text(d)
-            context += f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {text_content}\n"
+        context_blocks.append("\n<<< PARAGRAFET SELEKTIVE NGA KËRKIMI SEMANTIK I LËNDËS >>>\n")
+        for d in case_docs:
+            context_blocks.append(f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {self._get_expanded_text(d)}\n")
 
-        context += "\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n"
+        context_blocks.append("\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n")
         for d in global_docs:
-            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
-            article_num = d.get('article_number', 'N/A')
-            text_content = self._get_expanded_text(d)
-            context += f"LIGJI: {law_title}, Neni {article_num}\nPËRMBAJTJA: {text_content}\n"
+            context_blocks.append(f"LIGJI: {d.get('law_title') or 'Ligji'}, Neni {d.get('article_number', 'N/A')}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
 
-        return "\n".join(manifest_lines), context
+        full_context = "".join(context_blocks)
+        
+        # 🛡️ MASTER COMPRESSION GUARD: Final safety clamp to absolute ceiling
+        if len(full_context) > MAX_CONTEXT_CHARS:
+            logger.warning(f"⚠️ Context exceeded ceiling ({len(full_context)} chars). Truncating to {MAX_CONTEXT_CHARS}.")
+            full_context = full_context[:MAX_CONTEXT_CHARS] + "\n[TË DHËNA TË PRERA PËR SHKAK TË MADHËSISË SË FASHIKULLIT]"
+
+        return "\n".join(manifest_lines), full_context
 
     def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
         pos = position.upper()
@@ -161,58 +171,25 @@ class AlbanianRAGService:
         if history:
             for msg in history:
                 if msg.get("role") == "user":
-                    all_past_user_messages.append(str(msg.get("content", "")).lower().strip())
-        all_past_user_messages.append(query.lower().strip())
+                    all_past_user_messages.append(str(msg.get("content", "")).lower())
+        all_past_user_messages.append(query.lower())
         combined_text = " ".join(all_past_user_messages)
 
         remaining = []
 
-        # Shtylla 1
-        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
+        if not any(k in combined_text for k in ["3 prapësimet kryesore", "3 shtyllat kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
             remaining.append(pillars[0][1])
 
-        # Shtylla 2
-        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve"]):
+        if not any(k in combined_text for k in ["bazën ligjore të prapësimeve", "bazën ligjore të kërkesëpadisë", "ligjshmërinë e pretendimeve", "baza statutore"]):
             remaining.append(pillars[1][1])
 
-        # Shtylla 3
-        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen"]):
+        if not any(k in combined_text for k in ["kundër-pyetjet taktike", "pyetjet taktike për të ballafaquar", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
             remaining.append(pillars[2][1])
 
-        # Shtylla 4
-        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv"]):
+        if not any(k in combined_text for k in ["përmbledhjen ekzekutive mbi rreziqet", "llogarit dëmet e kërkuara", "memorandumin objektiv", "shanset e mbrojtjes"]):
             remaining.append(pillars[3][1])
 
         return remaining
-
-    def _inject_document_links(self, text: str, db_documents: List[Dict[str, Any]]) -> str:
-        """
-        INJEKTUESI AUTOMATIK I LINKEVE (DETERMINISTIK):
-        Sa herë që në tekst shfaqet emri i një skedari, kthehet automatikisht në link Markdown [file.pdf](/documents/id).
-        """
-        if not text or not db_documents:
-            return text
-
-        result = text
-        for doc in db_documents:
-            doc_id = str(doc.get("_id", ""))
-            fname = str(doc.get("file_name") or doc.get("title") or "").strip()
-            if not fname or len(fname) < 4:
-                continue
-
-            clean_base_name = re.sub(r'\.pdf$', '', fname, flags=re.IGNORECASE).strip()
-            target_link = f"[{fname}](/documents/{doc_id})"
-
-            # Zëvendëso emrin e plotë nëse nuk është tashmë link
-            full_pattern = re.compile(rf'(?<!\[){re.escape(fname)}(?!\]\(/documents/)', re.IGNORECASE)
-            result = full_pattern.sub(target_link, result)
-
-            # Zëvendëso emrin pa .pdf nëse shfaqet i izoluar
-            if len(clean_base_name) > 6:
-                base_pattern = re.compile(rf'(?<!\[){re.escape(clean_base_name)}(?:\.pdf)?(?!\]\(/documents/)', re.IGNORECASE)
-                result = base_pattern.sub(target_link, result)
-
-        return result
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks',
@@ -272,32 +249,37 @@ class AlbanianRAGService:
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
 
-        # Llogaritja e sigurt e kartave të mbetura (3 -> 2 -> 1 -> 0)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
+        
+        if remaining_pills and len(remaining_pills) > 0:
+            formatted_suggestions = (
+                "RREGULLI I DETYRUESHËM I KARTELAVE TË MBETURA (KOPJO VETËM KËTO):\n"
+                "Vendos saktësisht këtë bllok në fund të përgjigjes tënde (MOS shpik asnjë pyetje tjetër):\n\n"
+                "Sugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+            )
+        else:
+            formatted_suggestions = (
+                "RREGULLI I MBARIMIT TË KARTELAVE:\n"
+                "Të gjitha 4 kartelat e lëndës janë konsumuar. MOS SHTO ASNJË SEKSION 'Sugjerime:' dhe MOS shkruaj asnjë pyetje në fund."
+            )
 
-        # RREGULLAT E ARSYETIMIT JURIDIK
         if client_position == "PLAINTIFF":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **PADITËSI / SULMI PROCEDURAL DHE INOKULIMI TAKTIK** (Përfaqësuesi i {client_name}).
-            - Ti je avokati i kërkesëpadisë. Detyra jote:
-              1. **Shtyllat & Provat e Padisë**: Cilat janë faktet që vërtetojnë detyrimin dhe përgjegjësinë e {opposing_name}.
-              2. **Pikat e Cenueshme / Çfarë Provash ka I Padituri**: Trego hapur çfarë kundërprovash ekzistojnë në dosje (p.sh. testet negative laboratorike, mungesa e incizimeve).
-              3. **Taktika e Neutralizimit**: Si duhet të reagojë paditësi për të mbrojtur padinë përballë këtyre fakteve.
+            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë e të paditurit ({opposing_name}), evidenton dëmet.
+            - Parashiko pikat e dobëta dhe kundërprovat e palës kundërshtare dhe trego si t'i neutralizosh ato.
             """
         elif client_position == "NEUTRAL":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **NEUTRAL / AUDITOR GJYQËSOR I PAANSHËM** (Gjykata / Eksperti).
             - Analizo me paanshmëri magjistrati shkresat e fashikullit.
-            - Nxirr bilancin e provave: Prova e Paditësit vs. Kundërprova e të Paditurit.
-            - Vlerëso ligjshmërinë e vendimeve të Shkallës së Parë dhe Apelit, dhe barrën e provës sipas ligjit.
-            - Mos përdor 'padia jonë' apo 'mbrojtja jonë'.
+            - Vlerëso barrën e provës dhe ligjshmërinë e vendimeve të marra. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
             """
         else: # DEFENDANT
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE DHE KUNDËRSULM** (Përfaqësuesi i {client_name}).
-            - Ti je avokati i të paditurit {client_name}.
-            - Detyra jote: Evidento prapësimet procedurale, zbulo mungesën e plotë të provave fizike të paditësit ({opposing_name}), dhe ballafaqoji pretendimet me provat shkencore e shkresore shfajësuese të fashikullit.
-            - Zbardh motivin e vërtetë të paditësit (lajmërimi i rremë, tjetërsimi prindëror, bllokimi i padrejtë i kontakteve).
+            - Mbro të paditurin: evidento prapësimet procedurale, mungesën e provave të paditësit ({opposing_name}), dhe faktet shfajësuese.
+            - Zbardh motivin e vërtetë të paditësit (p.sh. lajmërimi i rremë, tjetërsimi).
             """
 
         system_prompt = f"""
@@ -309,7 +291,6 @@ class AlbanianRAGService:
         - TITULLI: **{case_title}**
         - PALËT: **{client_name}** vs. **{opposing_name}**
         - ROLI PROCEDURAL: **{client_position}**
-        {f'- PËRSHKRIMI: {case_desc}' if case_desc else ''}
 
         {role_instructions}
 
@@ -321,20 +302,17 @@ class AlbanianRAGService:
 
         PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
         1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
-           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
-           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
-           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
-        2. CITIMI I DOKUMENTEVE:
-           - Përdor emrat ekzaktë të skedarëve të administruar në fashikull.
-        3. BALLAFAQIMI 360° I PROVEVE:
-           - Trego qartë si përplasen shkresat mes dy palëve (pretendimi vs. kundërprova).
+           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore.
+           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural. MOS shpik numra të pasaktë nenesh!
+        2. CITIMI I DOKUMENTEVE ME LINKE TË KLIKUESHME:
+           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`. MOS shkruaj (Dokumenti #1).
 
         STRUKTURA E DETYRUESHME E PËRGJIGJES:
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
         ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
         ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
 
-        (MOS shto asnjë pyetje sugjeruese me dëshirën tënde në fund të tekstit).
+        {formatted_suggestions}
         """
 
         try:
@@ -348,21 +326,11 @@ class AlbanianRAGService:
                 stream=True,
                 max_tokens=4096
             )
-            
-            full_response = ""
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
-                    token = chunk.choices[0].delta.content
-                    full_response += token
-                    yield token
-
-            # 🛡️ INJEKTIMI I SIGURT I KARTELAVE TË MBETURA (DETERMINISTIK NGA PYTHON)
-            if remaining_pills and len(remaining_pills) > 0:
-                pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
-                yield pills_block
-
+                    yield chunk.choices[0].delta.content
             yield AI_DISCLAIMER
         except Exception as e:
             logger.error(f"RAG Stream Failure: {e}")
-            yield f"\n[Gabim Gjatë Gjenerimit: {str(e)}]"
+            yield f"\n[Gabim Gjatë Gjenerimit: Motori i Inteligjencës Artificiale tejkaloi kapacitetin. Ju lutem provoni përsëri.]"
             yield AI_DISCLAIMER
