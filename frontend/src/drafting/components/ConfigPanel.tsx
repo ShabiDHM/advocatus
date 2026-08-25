@@ -1,8 +1,11 @@
 // FILE: src/drafting/components/ConfigPanel.tsx
-// PHOENIX PROTOCOL - CONFIG PANEL V13.0 (EXPLICIT LAW NUMBER MANDATE IN AI ENHANCER)
+// PHOENIX PROTOCOL - CONFIG PANEL V14.1 (SAFE TYPE-CAST DYNAMIC PROPS & ZERO WARNINGS)
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, Scale, Sparkles, Landmark, Euro, Calendar, FileText } from 'lucide-react';
+import { 
+  Send, RefreshCw, ChevronDown, Briefcase, Shield, Swords, 
+  Scale, Sparkles, Landmark, Euro, Calendar, FileText, AlertOctagon 
+} from 'lucide-react';
 import { ConfigPanelProps, TemplateType } from '../types';
 import { getTemplatePlaceholder } from '../utils/templateHelpers';
 
@@ -30,6 +33,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
 
   const clientPosition = (activeCase as any)?.client_position || 'DEFENDANT';
 
+  // Safe dynamic extraction from case payload
+  const dynamicCourt = (activeCase as any)?.court || (activeCase as any)?.court_name || (activeCase as any)?.jurisdiction;
+  const dynamicValue = (activeCase as any)?.claim_value || (activeCase as any)?.value || (activeCase as any)?.dispute_value;
+  const dynamicDeadline = (activeCase as any)?.deadline || (activeCase as any)?.statute_limit;
+  const dynamicCaseNum = (activeCase as any)?.case_number || (activeCase as any)?.reference_number;
+
   // AUTO-SELECT TEMPLATE ONLY WHEN UNINITIALIZED
   useEffect(() => {
     if (!activeCase) return;
@@ -54,56 +63,101 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   }, []);
 
   const templateGroups = [
-    { label: t('drafting.groupLitigation', 'Procedura Kontestimore'), options: ['padi', 'pergjigje', 'kunderpadi', 'ankese', 'prapësim'] },
-    { label: t('drafting.groupCorporate', 'E Drejta Komerciale'), options: ['nda', 'mou', 'shareholders', 'sla'] },
-    { label: t('drafting.groupEmployment', 'E Drejta e Punës'), options: ['employment_contract', 'termination_notice', 'warning_letter'] },
-    { label: t('drafting.groupObligational', 'E Drejta Detyrimore'), options: ['lease_agreement', 'sales_purchase', 'power_of_attorney'] },
-    { label: t('drafting.groupCompliance', 'Politikat & Pajtueshmëria'), options: ['terms_conditions', 'privacy_policy'] },
+    { 
+      label: t('drafting.groupLitigation', 'Procedura Kontestimore'), 
+      options: ['padi', 'pergjigje', 'kunderpadi', 'ankese', 'prapësim'] 
+    },
+    { 
+      label: t('drafting.groupCriminal', 'E Drejta Penale'), 
+      options: ['kallezim_penal'] 
+    },
+    { 
+      label: t('drafting.groupCorporate', 'E Drejta Komerciale'), 
+      options: ['nda', 'mou', 'shareholders', 'sla'] 
+    },
+    { 
+      label: t('drafting.groupEmployment', 'E Drejta e Punës'), 
+      options: ['employment_contract', 'termination_notice', 'warning_letter'] 
+    },
+    { 
+      label: t('drafting.groupObligational', 'E Drejta Detyrimore'), 
+      options: ['lease_agreement', 'sales_purchase', 'power_of_attorney'] 
+    },
+    { 
+      label: t('drafting.groupCompliance', 'Politikat & Pajtueshmëria'), 
+      options: ['terms_conditions', 'privacy_policy'] 
+    },
   ];
 
   const getOptionLabel = (value: string) => {
     const map: Record<string, string> = {
       generic: t('drafting.templateGeneric', 'Dokument i Përgjithshëm (I lirë)'),
-      padi: t('drafting.templatePadi', 'Padi (Lawsuit)'),
+      padi: t('drafting.templatePadi', 'Padi (Kërkesëpadi)'),
       pergjigje: t('drafting.templatePergjigje', 'Përgjigje në Padi'),
       kunderpadi: t('drafting.templateKunderpadi', 'Kundërpadi'),
       ankese: t('drafting.templateAnkese', 'Ankesë'),
       prapësim: t('drafting.templatePrapësim', 'Prapësim'),
-      nda: t('drafting.templateNDA', 'Marrëveshje për Moszbulim'),
-      mou: t('drafting.templateMoU', 'Marrëveshje e Mirëkuptimit'),
+      kallezim_penal: t('drafting.templateKallezimPenal', 'Kallëzim Penal'),
+      nda: t('drafting.templateNDA', 'Marrëveshje për Moszbulim (NDA)'),
+      mou: t('drafting.templateMoU', 'Marrëveshje e Mirëkuptimit (MoU)'),
       shareholders: t('drafting.templateShareholders', 'Marrëveshje e Ortakërisë'),
-      sla: t('drafting.templateSLA', 'SLA'),
+      sla: t('drafting.templateSLA', 'SLA (Marrëveshje e Nivelit të Shërbimit)'),
       employment_contract: t('drafting.templateKontrate', 'Kontratë Pune'),
-      termination_notice: t('drafting.templateTermination', 'Vendim për Ndërprerje'),
+      termination_notice: t('drafting.templateTermination', 'Vendim për Ndërprerje të Marrëdhënies'),
       warning_letter: t('drafting.templateWarning', 'Vërejtje me Shkrim'),
       lease_agreement: t('drafting.templateLease', 'Kontratë Qiraje'),
       sales_purchase: t('drafting.templateSales', 'Kontratë Shitblerje'),
-      power_of_attorney: t('drafting.templatePoA', 'Autorizim'),
+      power_of_attorney: t('drafting.templatePoA', 'Autorizim Avokatie'),
       terms_conditions: t('drafting.templateTerms', 'Kushtet e Përdorimit'),
       privacy_policy: t('drafting.templatePrivacy', 'Politika e Privatësisë'),
     };
     return map[value] || value;
   };
 
-  // 1-CLICK PROMPT ENHANCER (MANDATES EXPLICIT LAW NUMBERS)
+  // DYNAMIC & INTELLIGENT AI PROMPT ENHANCER (NO FICTITIOUS DATA)
   const handleEnhanceWithAI = () => {
     if (!context.trim()) return;
     
-    const clientName = activeCase?.client?.name || (activeCase as any)?.client_name || 'Shaban Bala';
-    const opposingName = activeCase?.opposing_party?.name || (activeCase as any)?.opposing_party || 'Getting Competent ShPK';
-    const caseTitle = activeCase?.title || (activeCase as any)?.case_name || 'GetCom';
+    const clientName = (activeCase as any)?.client?.name || (activeCase as any)?.client_name;
+    const opposingName = (activeCase as any)?.opposing_party?.name || (activeCase as any)?.opposing_party;
+    const caseTitle = (activeCase as any)?.title || (activeCase as any)?.case_name;
+    const caseNum = dynamicCaseNum ? `(Nr. ${dynamicCaseNum})` : '';
+
+    let legalBasisDirective = '';
+    if (selectedTemplate === 'kallezim_penal') {
+      legalBasisDirective = `BAZA LIGJORE E APLIKUESHME:
+   - Kodi i Procedurës Penale të Republikës së Kosovës (KPPRK Nr. 08/L-032).
+   - Kodi Penal i Republikës së Kosovës (KPRK Nr. 06/L-074).
+   - Të identifikohet me saktësi neni i veprës penale dhe elementet e qarta të figurës së veprës penale.`;
+    } else if (['padi', 'kunderpadi', 'pergjigje', 'ankese', 'prapësim'].includes(selectedTemplate)) {
+      legalBasisDirective = `BAZA LIGJORE E APLIKUESHME:
+   - Ligji Nr. 03/L-006 për Procedurën Kontestimore të Kosovës (LPK).
+   - Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD) ose ligji përkatës material sipas natyrës së kontestit.`;
+    } else if (['employment_contract', 'termination_notice', 'warning_letter'].includes(selectedTemplate)) {
+      legalBasisDirective = `BAZA LIGJORE E APLIKUESHME:
+   - Ligji i Punës i Republikës së Kosovës (Ligji Nr. 03/L-212).`;
+    } else {
+      legalBasisDirective = `BAZA LIGJORE: Legjislacioni përkatës pozitiv në fuqi në Republikën e Kosovës.`;
+    }
+
+    const partyIntro = (clientName && opposingName)
+      ? `Në emër të [${clientName}] në raport me [${opposingName}] ${caseTitle ? `në lidhje me "${caseTitle}" ${caseNum}` : ''}:`
+      : (caseTitle ? `Lidhur me çështjen "${caseTitle}" ${caseNum}:` : `Kërkesë për hartim profesional ligjor:`);
 
     const enhanced = `[PROMPT LIGJOR I STRUKTURUAR ZYRTAR]
 
-Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
+${partyIntro}
 
-1. SHKRESA E KËRKUAR: Harto shkresën zyrtare ${getOptionLabel(selectedTemplate).toUpperCase()} për Gjykata Themelore në Prishtinë - Departamenti për Çështje Ekonomike.
-2. SUBSTANCA DHE PROVAT: ${context.trim()}
-3. BAZA E DETYRUESHME LIGJORE (CITO SAKTE ME NUMRA LIGJESH):
-   - Ligji Nr. 03/L-006 për Procedurën Kontestimore (LPK), Neni 160 dhe Neni 46.
-   - Ligji Nr. 06/L-016 për Shoqëritë Tregtare, Neni 258 dhe Neni 259.
-   - Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD), Neni 180 dhe Neni 210.
-4. DIREKTIVA BAZË: Të specifikohet kërkesëpadia (Petitumi) me shumat financiare (€52,000) me kamatë ligjore vonesore. MOS PËRDOR BLANK PLACEHOLDERS.`;
+1. LLOJI I DOKUMENTIT: ${getOptionLabel(selectedTemplate).toUpperCase()}
+2. SUBSTANCA DHE PROVAT E OFRUARA NGA KLIENTI:
+${context.trim()}
+
+3. ${legalBasisDirective}
+
+4. DIREKTIVA PROFESIONALE:
+   - Të hartohet në gjuhë standarde juridike pa asnjë gabim procedural.
+   - Për çdo element faktik të paspecifikuar përdor kllapa katrore të qarta (p.sh. [EMRI_I_PLOTË], [DATA], [NUMRI_I_XHIROLLOGARISË]).
+   - MOS përdor vija bosh si "____" dhe MOS shpik fakte jashtë udhëzimeve.`;
 
     onChangeContext(enhanced);
   };
@@ -113,7 +167,7 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
       
       <div className="flex flex-col gap-5 flex-1 min-h-0 overflow-visible">
         
-        {/* CASE SELECTION WITH CLEAN COMPACT STANCE BADGE */}
+        {/* CASE SELECTION */}
         <div className="relative flex-shrink-0 space-y-2">
           <label className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
             {t('drafting.caseLabel', 'Zgjidh rastin')}
@@ -125,15 +179,17 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
               value={selectedCaseId || ''}
               onChange={(e) => onSelectCase?.(e.target.value)}
             >
-              <option value="">{t('drafting.selectCase', 'Zgjidh rastin...')}</option>
+              <option value="">{t('drafting.selectCase', 'Zgjidh rastin (Opsionale - Hartim i Lirë)...')}</option>
               {cases.map((c: any) => (
-                <option key={c.id || c._id} value={c.id || c._id} className="bg-canvas text-text-primary">{c.title || c.case_number || c.case_name}</option>
+                <option key={c.id || c._id} value={c.id || c._id} className="bg-canvas text-text-primary">
+                  {c.title || c.case_number || c.case_name}
+                </option>
               ))}
             </select>
             <ChevronDown size={16} className="absolute right-4 text-text-muted pointer-events-none" />
           </div>
 
-          {/* CLEAN COMPACT BADGE */}
+          {/* COMPACT ROLE STANCE BADGE */}
           {activeCase && (
             <div className="pt-0.5 flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
@@ -145,8 +201,8 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
               }`}>
                 {clientPosition === 'DEFENDANT' ? <Shield size={12} /> : clientPosition === 'PLAINTIFF' ? <Swords size={12} /> : <Scale size={12} />}
                 <span>
-                  {clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR' :
-                   clientPosition === 'PLAINTIFF' ? '⚔️ PADITËSI' :
+                  {clientPosition === 'DEFENDANT' ? '🛡️ I PADITUR / I DENONCUAR' :
+                   clientPosition === 'PLAINTIFF' ? '⚔️ PADITËS / KALLËZUES' :
                    '⚖️ NEUTRAL'}
                 </span>
               </span>
@@ -155,24 +211,36 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
         </div>
 
         {/* DYNAMIC BACKGROUND EVIDENCE & FACT CHIPS */}
-        {activeCase && (
+        {activeCase && (dynamicCourt || dynamicValue || dynamicDeadline || dynamicCaseNum) && (
           <div className="p-3.5 rounded-2xl bg-surface/90 border border-border-main space-y-2 shadow-sm animate-in fade-in duration-200">
             <span className="text-[9px] font-black text-primary-start uppercase tracking-widest flex items-center gap-1">
               <FileText size={12} /> Provat & Faktet e Verifikuara nga Lënda
             </span>
             <div className="flex flex-wrap gap-2 text-[10px]">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
-                <Landmark size={12} className="text-amber-400 shrink-0" />
-                <span>Gjykata Themelore Prishtinë (Ekonomike)</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-emerald-400 font-bold font-mono">
-                <Euro size={12} className="shrink-0" />
-                <span>€52,000.00 Kontestuese</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
-                <Calendar size={12} className="text-blue-400 shrink-0" />
-                <span>Afati: 15 Ditë (LPK Neni 46)</span>
-              </div>
+              {dynamicCourt && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
+                  <Landmark size={12} className="text-amber-400 shrink-0" />
+                  <span>{dynamicCourt}</span>
+                </div>
+              )}
+              {dynamicValue && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-emerald-400 font-bold font-mono">
+                  <Euro size={12} className="shrink-0" />
+                  <span>{typeof dynamicValue === 'number' ? `€${dynamicValue.toLocaleString()}` : dynamicValue}</span>
+                </div>
+              )}
+              {dynamicDeadline && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-secondary font-medium">
+                  <Calendar size={12} className="text-blue-400 shrink-0" />
+                  <span>{dynamicDeadline}</span>
+                </div>
+              )}
+              {dynamicCaseNum && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-main text-text-muted font-mono">
+                  <AlertOctagon size={12} className="text-primary-start shrink-0" />
+                  <span>{dynamicCaseNum}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -238,7 +306,7 @@ Në emër të ${clientName} kundër ${opposingName} në lëndën "${caseTitle}":
               onClick={handleEnhanceWithAI}
               disabled={!context.trim()}
               className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 text-[10px] font-black uppercase transition-all disabled:opacity-30 cursor-pointer"
-              title="Kthen fjalët e tuaja të thjeshta në një kërkesë zyrtare të strukturuar për AI"
+              title="Kthen fjalët e thjeshta në një kërkesë zyrtare të strukturuar për AI"
             >
               <Sparkles size={11} className="animate-pulse" />
               <span>Përmirëso me AI</span>

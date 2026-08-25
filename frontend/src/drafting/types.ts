@@ -6,10 +6,11 @@ import { Case } from '../data/types';
 
 export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
-// Closed union type: Add new templates here to activate them throughout the app
+// Closed union type: Template definitions across civil, corporate, and criminal law
 export type TemplateType =
   | 'generic' 
   | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim'
+  | 'kallezim_penal'
   | 'nda' | 'mou' | 'shareholders' | 'sla'
   | 'employment_contract' | 'termination_notice' | 'warning_letter'
   | 'terms_conditions' | 'privacy_policy'

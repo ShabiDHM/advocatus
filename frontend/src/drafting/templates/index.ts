@@ -9,6 +9,7 @@ import { pergjigjeTemplate } from './litigation/pergjigje';
 import { kunderpadiTemplate } from './litigation/kunderpadi';
 import { ankeseTemplate } from './litigation/ankese';
 import { prapesimTemplate } from './litigation/prapësim';
+import { kallezimPenalTemplate } from './criminal/kallezim_penal';
 import { ndaTemplate } from './corporate/nda';
 import { mouTemplate } from './corporate/mou';
 import { shareholdersTemplate } from './corporate/shareholders';
@@ -30,6 +31,7 @@ export const templateConfigs: Record<TemplateType, TemplateConfig> = {
   kunderpadi: kunderpadiTemplate,
   ankese: ankeseTemplate,
   prapësim: prapesimTemplate,
+  kallezim_penal: kallezimPenalTemplate,
   nda: ndaTemplate,
   mou: mouTemplate,
   shareholders: shareholdersTemplate,
