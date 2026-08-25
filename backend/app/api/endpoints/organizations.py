@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/organizations.py
-# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V4.0 (GRANULAR ACCESS CONTROL IMPLEMENTED)
+# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V4.1 (ROBUST GRANULAR RBAC PERSISTENCE)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, Optional, List, Dict, Any
@@ -49,21 +49,41 @@ async def update_member_access(
     db: Database = Depends(get_db)
 ):
     """
-    Pronari i zyrës përditëson qasjen e një anëtari.
+    Pronari ose Admini i zyrës përditëson autorizimet e qasjes për anëtarin.
     """
-    if current_user.org_role != "OWNER":
-        raise HTTPException(status_code=403, detail="Vetëm Pronari mund të ndryshojë qasjen.")
+    is_owner = (
+        current_user.org_role == "OWNER" or 
+        current_user.role in ["ADMIN", "SUPER_ADMIN"]
+    )
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Vetëm Pronari ose Admini mund të ndryshojë qasjen.")
     
     try:
+        member_oid = ObjectId(member_id) if ObjectId.is_valid(member_id) else member_id
+        
+        # Pastrimi i ID-ve të lëndëve
+        clean_case_ids = [str(cid).strip() for cid in data.assigned_case_ids if str(cid).strip()]
+
+        org_id = getattr(current_user, "org_id", None)
+        org_filter_conditions = []
+        if org_id:
+            org_filter_conditions.extend([{"org_id": org_id}, {"org_id": str(org_id)}])
+            if ObjectId.is_valid(str(org_id)):
+                org_filter_conditions.append({"org_id": ObjectId(str(org_id))})
+
+        query = {"_id": member_oid}
+        if org_filter_conditions:
+            query["$or"] = org_filter_conditions
+
         # Përditësojmë MongoDB-në direkt
         db.users.update_one(
-            {"_id": ObjectId(member_id), "org_id": current_user.org_id},
+            query,
             {"$set": {
                 "org_access_level": data.org_access_level,
-                "assigned_case_ids": data.assigned_case_ids
+                "assigned_case_ids": clean_case_ids
             }}
         )
-        return {"status": "success"}
+        return {"status": "success", "org_access_level": data.org_access_level, "assigned_case_ids": clean_case_ids}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

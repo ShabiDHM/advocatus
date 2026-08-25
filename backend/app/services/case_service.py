@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V12.0 (ENTERPRISE GRANULAR RBAC ACCESS)
+# PHOENIX PROTOCOL - CASE SERVICE V12.1 (ENTERPRISE GRANULAR RBAC ACCESS ENFORCED)
 
 import re
 import urllib.parse 
@@ -27,46 +27,67 @@ def _safe_str(oid: Any) -> Optional[str]:
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
     """
     ENTERPRISE ACCESS GUARD (Granular RBAC):
-    - Nëse useri ka qasje 'FULL' ose është 'OWNER', sheh të gjitha lëndët e org.
-    - Nëse useri ka qasje 'SELECTIVE', sheh vetëm lëndët ku ai është pronar OSE ku id-ja e tij është në `assigned_user_ids`.
+    - Nëse useri ka qasje 'FULL' ose është 'OWNER'/'ADMIN', sheh të gjitha lëndët e firmës (org_id).
+    - Nëse useri ka qasje 'SELECTIVE', sheh EKSKLUZIVISHT:
+      1. Lëndët që i ka krijuar vetë (owner_id / user_id == user.id).
+      2. Lëndët që i janë caktuar specifikisht te `user.assigned_case_ids`.
     """
     access_level = getattr(user, 'org_access_level', 'FULL')
     org_id = getattr(user, 'org_id', None)
+    user_id_obj = user.id
+    user_id_str = str(user.id)
     
-    allowed_ids = [user.id]
-    if org_id:
-        try:
-            org_oid = ObjectId(org_id) if ObjectId.is_valid(str(org_id)) else org_id
-            if org_oid not in allowed_ids:
-                allowed_ids.append(org_oid)
-        except Exception:
-            pass
-
-    # Kriteret bazë (Rastet e krijuara nga vetë ai)
-    or_clauses: List[Dict[str, Any]] = [
-        {"owner_id": {"$in": allowed_ids}},
-        {"user_id": {"$in": allowed_ids}},
+    # 1. Kriteret e autorësisë personale (lëndët e krijuara nga vetë përdoruesi)
+    personal_clauses: List[Dict[str, Any]] = [
+        {"owner_id": user_id_obj},
+        {"owner_id": user_id_str},
+        {"user_id": user_id_obj},
+        {"user_id": user_id_str}
     ]
-    
-    if org_id:
-        if access_level == "FULL" or user.org_role in ["OWNER", "ADMIN", "SUPER_ADMIN"]:
-            # Qasje në të gjitha lëndët e zyrës
-            or_clauses.extend([
-                {"org_id": org_id},
-                {"org_id": str(org_id)},
-                {"organization_id": org_id},
-                {"organization_id": str(org_id)}
+
+    is_org_admin = (
+        getattr(user, 'org_role', '') in ["OWNER", "ADMIN", "SUPER_ADMIN"] or
+        getattr(user, 'role', '') in ["ADMIN", "SUPER_ADMIN"]
+    )
+
+    if org_id and (access_level == "FULL" or is_org_admin):
+        # QASJE E PLOTË: Të gjitha lëndët e firmës
+        org_clauses = [
+            {"org_id": org_id},
+            {"org_id": str(org_id)},
+            {"organization_id": org_id},
+            {"organization_id": str(org_id)}
+        ]
+        if ObjectId.is_valid(str(org_id)):
+            org_clauses.extend([
+                {"org_id": ObjectId(str(org_id))},
+                {"organization_id": ObjectId(str(org_id))}
             ])
-        else:
-            # Qasje vetëm në lëndët ku i është dhënë autorizimi me dorë nga pronari
-            user_id_str = str(user.id)
-            or_clauses.append({"assigned_user_ids": user_id_str})
+        query = {"$or": personal_clauses + org_clauses}
 
-    base_query: Dict[str, Any] = {"$or": or_clauses}
+    else:
+        # QASJE SELEKTIVE (E KUFIZUAR): Vetëm lëndët e autorizuara nominalisht
+        assigned_case_ids = getattr(user, 'assigned_case_ids', []) or []
+        allowed_case_oids: List[Any] = []
+        for cid in assigned_case_ids:
+            if ObjectId.is_valid(str(cid)):
+                allowed_case_oids.append(ObjectId(str(cid)))
+            allowed_case_oids.append(str(cid))
+
+        selective_clauses: List[Dict[str, Any]] = list(personal_clauses)
+        
+        if allowed_case_oids:
+            selective_clauses.append({"_id": {"$in": allowed_case_oids}})
+        
+        # Përputhje edhe me assigned_user_ids brenda lëndës (për backward compatibility)
+        selective_clauses.append({"assigned_user_ids": user_id_str})
+
+        query = {"$or": selective_clauses}
+
     if case_id:
-        base_query["_id"] = case_id
+        return {"$and": [{"_id": case_id}, query]}
 
-    return base_query
+    return query
 
 
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
@@ -189,7 +210,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         "owner_id": owner.id, 
         "user_id": owner.id,
         "org_id": org_id,
-        "assigned_user_ids": [str(owner.id)], # Autori fillestar shtohet gjithmonë
+        "assigned_user_ids": [str(owner.id)],
         "created_at": datetime.now(timezone.utc), 
         "updated_at": datetime.now(timezone.utc),
         "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
