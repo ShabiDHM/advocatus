@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V91.0 (STRICT RAG & DETERMINISTIC SUGGESTION FOOTER)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V92.0 (ULTIMATE STABILITY & CLAMPING)
 
 import os
 import sys
@@ -21,6 +21,7 @@ LLM_TIMEOUT = 60
 
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
+# 🛡️ MBUROJA E TOKENAVE: Siguron që asnjëherë nuk tejkalohet limiti i 32,768 tokenave
 MAX_CONTEXT_CHARS = 110_000 
 
 
@@ -34,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with Strict Footer Guard.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with Token Compression Guard.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -80,11 +81,12 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
-        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME >>>\n"]
+        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE ME LINKE TË KLIKUESHME (PËRDOR KËTO FORMATE) >>>\n"]
         context_blocks = []
         
         if db_documents:
-            doc_budget = int((MAX_CONTEXT_CHARS * 0.7) / max(len(db_documents), 1))
+            # 🛡️ KOMPRESIMI: Ndajmë buxhetin e karaktereve në mënyrë të barabartë për çdo dokument
+            doc_budget = int((MAX_CONTEXT_CHARS * 0.65) / max(len(db_documents), 1))
             
             for idx, doc in enumerate(db_documents, 1):
                 doc_id = str(doc.get("_id", ""))
@@ -105,6 +107,7 @@ class AlbanianRAGService:
                 if summ == "Sinteza...":
                     summ = ""
 
+                # Prejmë dokumentin nëse e kalon buxhetin e tij
                 clamped_raw_t = raw_t[:doc_budget] if len(raw_t) > doc_budget else raw_t
 
                 if clamped_raw_t and summ:
@@ -130,6 +133,7 @@ class AlbanianRAGService:
 
         full_context = "".join(context_blocks)
         
+        # 🛡️ MBROJTJA FINALE: Nëse konteksti total kalon tavanin absolut
         if len(full_context) > MAX_CONTEXT_CHARS:
             logger.warning(f"⚠️ Context exceeded ceiling ({len(full_context)} chars). Truncating to {MAX_CONTEXT_CHARS}.")
             full_context = full_context[:MAX_CONTEXT_CHARS] + "\n[TË DHËNA TË PRERA PËR SHKAK TË MADHËSISË SË FASHIKULLIT]"
@@ -174,16 +178,16 @@ class AlbanianRAGService:
 
         remaining = []
 
-        if not any(k in combined_text for k in ["3 prapësimet kryesore", "3 shtyllat kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
+        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
             remaining.append(pillars[0][1])
 
-        if not any(k in combined_text for k in ["bazën ligjore të prapësimeve", "bazën ligjore të kërkesëpadisë", "ligjshmërinë e pretendimeve", "baza statutore"]):
+        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore"]):
             remaining.append(pillars[1][1])
 
-        if not any(k in combined_text for k in ["kundër-pyetjet taktike", "pyetjet taktike për të ballafaquar", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
+        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
             remaining.append(pillars[2][1])
 
-        if not any(k in combined_text for k in ["përmbledhjen ekzekutive mbi rreziqet", "llogarit dëmet e kërkuara", "memorandumin objektiv", "shanset e mbrojtjes"]):
+        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive", "shanset e mbrojtjes"]):
             remaining.append(pillars[3][1])
 
         return remaining
@@ -245,36 +249,24 @@ class AlbanianRAGService:
         )
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
-
-        # HAPI KYÇ DHE DETERMINISTIK I KARTELAVE TË FUNDIT (SUGJERIMEVE)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         if client_position == "PLAINTIFF":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **PADITËSI (SULMI PROCEDURAL DHE INOKULIMI TAKTIK)** — Përfaqësuesi i {client_name}.
-            Mendësia: Ndërto kërkesëpadinë më të fortë, por ji i mençur: parashiko saktësisht ku do të godasë i padituri ({opposing_name}) dhe si ta neutralizosh atë.
-            Struktura e arsyetimit:
-            1. **Shtyllat & Provat e Padisë**: Cilat janë faktet që vërtetojnë detyrimin dhe përgjegjësinë e {opposing_name}.
-            2. **Pikat e Cenueshme / Çfarë Provash ka I Padituri**: Trego hapur çfarë kundërprovash ekzistojnë në dosje (p.sh. testet negative laboratorike, mungesa e incizimeve, shkeljet e pretenduara procedurale).
-            3. **Taktika e Neutralizimit**: Si duhet të reagojë paditësi për të mbrojtur padinë e tij përballë këtyre fakteve.
+            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë dhe fajësinë e të paditurit ({opposing_name}).
+            - Parashiko pikat e dobëta dhe kundërprovat e palës kundërshtare dhe trego si t'i neutralizosh ato.
             """
         elif client_position == "NEUTRAL":
             role_instructions = f"""
             PERSPEKTIVA JURIDIKE: **NEUTRAL (AUDITOR GJYQËSOR I PAANSHËM)** — Gjykata / Magjistrati / Eksperti.
-            Mendësia: Mos merr anësi. Vendos në peshore të ftohtë pretendimet e të dyja palëve ({client_name} dhe {opposing_name}).
-            Struktura e arsyetimit:
-            1. **Faza Reale Procedurale**: Çfarë vendosi Shkalla e Parë, çfarë vendosi Apeli dhe çfarë mjetesh ligjore kanë mbetur.
-            2. **Bilanci i Provave**: Prova e Paditësit vs. Kundërprova e të Paditurit (Kush e mban barrën e provës).
-            3. **Konkluzioni i Paanshëm**: Vlerësimi objektiv i ligjshmërisë. Mos përdor kurrë 'padia jonë' apo 'mbrojtja jonë'.
+            - Analizo me paanshmëri magjistrati shkresat e fashikullit. Vlerëso barrën e provës dhe ligjshmërinë e vendimeve të marra.
             """
         else: # DEFENDANT
             role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **I PADITUR (MBROJTJA GJYQËSORE DHE KUNDËRSULMI)** — Avokati i Mbrojtjes.
-            Mendësia: Mos qëndro pasiv. Zbulo mungesën e provave të paditësit ({opposing_name}), godit me faktet shfajësuese dhe zbulo motivin e vërtetë.
-            Struktura e arsyetimit:
-            1. **Prapësimet & Mungesa e Provave të Paditësit**: Trego mungesën e provave fizike/audio të kundërshtarit dhe shkeljet e neneve procedurale.
-            2. **Provat Shfajësuese**: Thekso testet shkencore negative, komunikimet shkresore dhe faktet që rrëzojnë alibinë e padisë.
-            3. **Zbardhja e Motivit**: Evidento arsyen pse u ngrit padia (tjetërsim prindëror, lajmërim i rremë, bllokim i padrejtë).
+            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE DHE KUNDËRSULMI)** — Avokati i {client_name}.
+            - Mbro të paditurin: evidento prapësimet procedurale, mungesën e provave të paditësit ({opposing_name}), dhe faktet shfajësuese.
+            - Zbardh motivin e vërtetë (tjetërsim prindëror, lajmërim i rremë).
             """
 
         system_prompt = f"""
@@ -286,7 +278,6 @@ class AlbanianRAGService:
         - TITULLI: **{case_title}**
         - PALËT: **{client_name}** vs. **{opposing_name}**
         - ROLI PROCEDURAL: **{client_position}**
-        {f'- PËRSHKRIMI: {case_desc}' if case_desc else ''}
 
         {role_instructions}
 
@@ -296,17 +287,18 @@ class AlbanianRAGService:
         DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
         {context_str}
 
-        PROTOKOLLI I SAKTËSISË DHE CITIMIT STATUTOR (REPUBLIKA E KOSOVËS):
+        RREGULLAT E HEKURTA TË FORMATIMIT:
         1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
-           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni [Numri]` ose `Neni [Numri], paragrafi [X]`. MOS përdor pika dhjetore si 386.2 apo 428.1.
-           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural (p.sh. 'dispozitat e KPPRK-së për hedhjen e aktakuzës').
-           - Nenet e ligjit shkruhen natyrshëm (p.sh. `Neni 12 i LPK`). MOS përdor kllapa [ ] për ligjet.
+           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni 12 i LPK`. MOS përdor pika dhjetore si 386.2 apo kllapa katrore.
+           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural. MOS shpik numra të pasaktë nenesh!
         2. CITIMI I DOKUMENTEVE ME LINKE TË KLIKUESHME:
-           - Çdo shkresë e dosjes DUHET të citohet si link i klikueshëm: `[Emri_Skedarit.pdf](/documents/ID)`.
-        3. NDALIMI I SHPIKJES SË PYETJEVE SUGJERUESE:
-           - TI NDALOHET KATEGORIKISHT TË SHKRUASH SEKSION "Pyetje Sugjeruese", "Karta të Mbetura" OSE "Sugjerime" NË FUND TË TEKSTIT TËND. Detyra jote përfundon tek hapi i tretë i strukturës. Kodi do t'i shtojë ato në mënyrë automatike pas teje.
+           - Përdor EKSKLUZIVISHT formatin Markdown: `[Emri_Skedarit.pdf](/documents/ID)` (i merr nga Regjistri më lart).
+           - NË ASNJE MËNYRË mos përdor referenca si "(Dokumenti #1)" apo "(Dokumenti #6)".
+        3. NDALIMI I SHTOJCave:
+           - TI NDALOHET KATEGORIKISHT TË SHKRUASH 'Pyetje Sugjeruese', 'Sugjerime', apo 'Karta e mbetur' NË FUND TË TEKSTIT TËND.
+           - [STOP] - Përgjigja jote MBARON TËRËSISHT tek Pika 3 ("REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM").
 
-        STRUKTURA E DETYRUESHME E PËRGJIGJES SË SOKRATIT:
+        STRUKTURA E DETYRUESHME E PËRGJIGJES (MOS SHTO ASGJË PAS PIKËS 3):
         ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
         ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
         ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
@@ -323,11 +315,12 @@ class AlbanianRAGService:
                 stream=True,
                 max_tokens=4096
             )
+            
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
-            
-            # 🛡️ DETERMINISTIC FOOTER INJECTION: Modeli nuk mund të ndërhyjë fare këtu, është pastër Python
+
+            # Këtu Python vendos vetë mekanikisht kartat pa lejuar AI-në të ndërhyjë
             if remaining_pills and len(remaining_pills) > 0:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
