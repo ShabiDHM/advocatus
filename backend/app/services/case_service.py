@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V12.2 (BULLETPROOF GRANULAR ACCESS ENFORCEMENT)
+# PHOENIX PROTOCOL - CASE SERVICE V12.3 (DYNAMIC OPPOSING PARTY PERSISTENCE & ACCESS)
 
 import re
 import urllib.parse 
@@ -37,7 +37,6 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
     user_id_obj = user.id
     user_id_str = str(user.id)
     
-    # 1. Kriteret e autorësisë personale (lëndët e krijuara nga vetë ky përdorues)
     personal_clauses: List[Dict[str, Any]] = [
         {"owner_id": user_id_obj},
         {"owner_id": user_id_str},
@@ -45,7 +44,6 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
         {"user_id": user_id_str}
     ]
 
-    # Rregull Absolute: Nëse niveli i qasjes është SELECTIVE, zbatohet menjëherë kufizimi
     if access_level == "SELECTIVE":
         assigned_case_ids = getattr(user, 'assigned_case_ids', []) or []
         allowed_case_oids: List[Any] = []
@@ -64,7 +62,6 @@ def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None)
         query = {"$or": selective_clauses}
 
     else:
-        # Përndryshe (Qasje e Plotë / Pronar)
         if org_id:
             org_clauses = [
                 {"org_id": org_id},
@@ -91,7 +88,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
     try:
         case_id_obj = case_doc["_id"]
         case_id_str = str(case_id_obj)
-        title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
+        title = case_doc.get("title") or case_doc.get("case_name") or "Lëndë pa Titull"
         case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
         
         created_at = case_doc.get("created_at")
@@ -111,7 +108,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         opposing_obj = case_doc.get("opposing_party")
         opposing_name = (
             opposing_obj.get("name") if isinstance(opposing_obj, dict) else opposing_obj
-        ) or "Pala Kundërshtare"
+        ) or case_doc.get("opponent_name") or "Pala Kundërshtare"
 
         client_position = case_doc.get("client_position") or "DEFENDANT"
         disputed_amount = case_doc.get("disputed_amount") or case_doc.get("amount_eur") or 0.0
@@ -162,9 +159,11 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "client": case_doc.get("client") or {"name": client_name},
             "client_name": client_name,
             "opposing_party": opposing_name,
+            "opponent_name": opposing_name,
             "client_position": client_position,
             "disputed_amount": disputed_amount,
             "court": court_name,
+            "court_name": court_name,
             "assigned_user_ids": case_doc.get("assigned_user_ids", []),
             "created_at": created_at, 
             "updated_at": updated_at, 
@@ -195,12 +194,18 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
 # --- CRUD OPERATIONS ---
 
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
-    case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
+    case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone", "opposingParty"})
     
     if case_in.clientName:
         clean_name = case_in.clientName.strip().title()
         case_dict["client"] = {"name": clean_name, "email": case_in.clientEmail, "phone": case_in.clientPhone}
         case_dict["client_name"] = clean_name
+
+    opposing_input = case_in.opposingParty or case_in.opposing_party or case_in.opponent_name
+    if opposing_input:
+        clean_opposing = str(opposing_input).strip()
+        case_dict["opposing_party"] = clean_opposing
+        case_dict["opponent_name"] = clean_opposing
     
     org_id = getattr(owner, "org_id", None)
     case_dict.update({
@@ -210,7 +215,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         "assigned_user_ids": [str(owner.id)],
         "created_at": datetime.now(timezone.utc), 
         "updated_at": datetime.now(timezone.utc),
-        "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
+        "case_number": case_dict.get("case_number") or f"R-{int(datetime.now(timezone.utc).timestamp()) % 1000000:06d}"
     })
 
     result = db.cases.insert_one(case_dict)

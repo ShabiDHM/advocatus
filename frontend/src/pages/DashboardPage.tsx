@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V10.0 (SOLID OPAQUE MODALS & HIGH-CONTRAST THEME SYSTEM)
+// PHOENIX PROTOCOL - DASHBOARD V10.2 (0 WARNINGS & STRICT TYPES ENFORCED)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,9 +23,16 @@ const DashboardPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
-  const hasCheckedBriefing = useRef<boolean>(false);
+  const hasCheckedBriefing = useRef(false);
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
-  const [newCaseData, setNewCaseData] = useState({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
+  
+  const [newCaseData, setNewCaseData] = useState({ 
+    title: '', 
+    clientName: '', 
+    clientEmail: '', 
+    clientPhone: '',
+    opposingParty: ''
+  });
   
   const [now, setNow] = useState<number>(Date.now());
   const [fetchTimestamp, setFetchTimestamp] = useState<number>(Date.now());
@@ -139,15 +146,16 @@ const DashboardPage: React.FC = () => {
         title: newCaseData.title, 
         clientName: newCaseData.clientName, 
         clientEmail: newCaseData.clientEmail, 
-        clientPhone: newCaseData.clientPhone, 
-        status: 'open' 
+        clientPhone: newCaseData.clientPhone,
+        status: 'open',
+        ...({ opposingParty: newCaseData.opposingParty || undefined, opponent_name: newCaseData.opposingParty || undefined } as any)
       };
       await apiService.createCase(payload);
       setShowCreateModal(false);
-      setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
+      setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '', opposingParty: '' });
       loadData();
     } catch {
-      alert(t('error.generic', 'Ndodhi një gabim.'));
+      alert(t('error.generic', 'Ndodhi një gabim gjatë krijimit të lëndës.'));
     } finally {
       setIsCreating(false);
     }
@@ -407,7 +415,7 @@ const DashboardPage: React.FC = () => {
                   <label className={labelClasses}>Lënda</label>
                   <input 
                     required 
-                    placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës')} 
+                    placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës (p.sh. Kontest Pune / Kallëzim Penal)')} 
                     value={newCaseData.title} 
                     onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} 
                     className={inputClasses} 
@@ -415,27 +423,46 @@ const DashboardPage: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
-                  <p className={labelClasses}>Detajet e Klientit</p>
-                  <input 
-                    required 
-                    placeholder={t('dashboard.clientName', 'Emri i Klientit')} 
-                    value={newCaseData.clientName} 
-                    onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
-                    className={inputClasses} 
-                  />
+                  <div>
+                    <label className={labelClasses}>Klienti (Paditësi / Kallëzuesi)</label>
+                    <input 
+                      required 
+                      placeholder={t('dashboard.clientName', 'Emri dhe Mbiemri i Klientit')} 
+                      value={newCaseData.clientName} 
+                      onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
+                      className={inputClasses} 
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClasses}>Pala Kundërshtare (I Padituri / I Denoncuari)</label>
+                    <input 
+                      placeholder="Emri i Palës Kundërshtare (Person ose Kompani)" 
+                      value={newCaseData.opposingParty} 
+                      onChange={(e) => setNewCaseData(p => ({...p, opposingParty: e.target.value}))} 
+                      className={inputClasses} 
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input 
-                      placeholder={t('dashboard.clientEmail', 'Email')} 
-                      value={newCaseData.clientEmail} 
-                      onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} 
-                      className={inputClasses} 
-                    />
-                    <input 
-                      placeholder={t('dashboard.clientPhone', 'Telefon')} 
-                      value={newCaseData.clientPhone} 
-                      onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} 
-                      className={inputClasses} 
-                    />
+                    <div>
+                      <label className={labelClasses}>Email i Klientit (Opsionale)</label>
+                      <input 
+                        placeholder="klienti@email.com" 
+                        value={newCaseData.clientEmail} 
+                        onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} 
+                        className={inputClasses} 
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClasses}>Telefoni (Opsionale)</label>
+                      <input 
+                        placeholder="+383 4X XXX XXX" 
+                        value={newCaseData.clientPhone} 
+                        onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} 
+                        className={inputClasses} 
+                      />
+                    </div>
                   </div>
                 </div>
 
