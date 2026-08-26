@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V92.0 (ULTIMATE STABILITY & CLAMPING)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V93.0 (INTELLIGENT DRAFTING & FORENSIC AUDIT DISPATCHER)
 
 import os
 import sys
@@ -19,9 +19,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 60
 
-AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
+AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
-# 🛡️ MBUROJA E TOKENAVE: Siguron që asnjëherë nuk tejkalohet limiti i 32,768 tokenave
+# 🛡️ MBUROJA E TOKENAVE
 MAX_CONTEXT_CHARS = 110_000 
 
 
@@ -35,10 +35,37 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with Token Compression Guard.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with Intelligent Intent Dispatcher.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
+
+    def _detect_user_intent(self, query: str) -> str:
+        """
+        Detects if the user wants an official legal draft, a forensic citation audit, or strategic analysis.
+        """
+        q = query.lower()
+        
+        # 1. DRAFTING INTENT (User wants a court-ready document)
+        drafting_keywords = [
+            "gjenero", "harto", "shkruaj", "përpilo", "përgatit shkresën",
+            "kallëzim penal", "kallzim penal", "kërkesëpadi", "padi", 
+            "prapësim", "prapesim", "përgjigje në padi", "pergjigje ne padi",
+            "ankesë", "ankese", "kontratë", "kontrate", "autorizim", "aktpadi"
+        ]
+        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene"]):
+            return "DRAFTING"
+        
+        # 2. LEGAL CITATION FORENSIC AUDIT INTENT
+        audit_keywords = [
+            "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
+            "direktivë e detyrueshme forenzike", "paralajmërime & sugjerime", "lapsuseve"
+        ]
+        if any(k in q for k in audit_keywords):
+            return "FORENSIC_AUDIT"
+        
+        # 3. DEFAULT: STRATEGIC ANALYSIS / ADVICE
+        return "ANALYSIS"
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -85,7 +112,6 @@ class AlbanianRAGService:
         context_blocks = []
         
         if db_documents:
-            # 🛡️ KOMPRESIMI: Ndajmë buxhetin e karaktereve në mënyrë të barabartë për çdo dokument
             doc_budget = int((MAX_CONTEXT_CHARS * 0.65) / max(len(db_documents), 1))
             
             for idx, doc in enumerate(db_documents, 1):
@@ -107,7 +133,6 @@ class AlbanianRAGService:
                 if summ == "Sinteza...":
                     summ = ""
 
-                # Prejmë dokumentin nëse e kalon buxhetin e tij
                 clamped_raw_t = raw_t[:doc_budget] if len(raw_t) > doc_budget else raw_t
 
                 if clamped_raw_t and summ:
@@ -133,7 +158,6 @@ class AlbanianRAGService:
 
         full_context = "".join(context_blocks)
         
-        # 🛡️ MBROJTJA FINALE: Nëse konteksti total kalon tavanin absolut
         if len(full_context) > MAX_CONTEXT_CHARS:
             logger.warning(f"⚠️ Context exceeded ceiling ({len(full_context)} chars). Truncating to {MAX_CONTEXT_CHARS}.")
             full_context = full_context[:MAX_CONTEXT_CHARS] + "\n[TË DHËNA TË PRERA PËR SHKAK TË MADHËSISË SË FASHIKULLIT]"
@@ -152,7 +176,7 @@ class AlbanianRAGService:
             p2 = "Vlerëso ligjshmërinë e pretendimeve të të dyja palëve, arsyetimet gjyqësore dhe barrën e provës sipas ligjit."
             p3 = "Identifiko mospërputhjet thelbësore dhe gjenero pyetje neutrale sqaruese për vërtetimin e fakteve."
             p4 = "Përgatit memorandumin objektiv të auditimit ligjor mbi lëndën dhe konkluzionet e paanshme."
-        else: # DEFENDANT
+        else:
             p1 = "Analizo 3 prapësimet kryesore të mbrojtjes, mungesën e provave të paditësit dhe faktet shfajësuese në fashikull."
             p2 = "Analizo bazën ligjore të prapësimeve, parashkrimin e afateve dhe nenet përkatëse për rrëzimin e padisë."
             p3 = "Gjenero kundër-pyetjet taktike për të zbuluar kontradiktat e paditësit dhe dëshmitarëve të tij në seancë."
@@ -237,6 +261,7 @@ class AlbanianRAGService:
             position=client_position
         )
 
+        user_intent = self._detect_user_intent(query)
         optimized_query = self._optimize_query(query)
         sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
@@ -251,58 +276,81 @@ class AlbanianRAGService:
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
-        if client_position == "PLAINTIFF":
-            role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **PADITËSI (SULMI PROCEDURAL DHE INOKULIMI TAKTIK)** — Përfaqësuesi i {client_name}.
-            - Detyra jote: Strukturon kërkesëpadinë, vërteton përgjegjësinë dhe fajësinë e të paditurit ({opposing_name}).
-            - Parashiko pikat e dobëta dhe kundërprovat e palës kundërshtare dhe trego si t'i neutralizosh ato.
+        # =========================================================================
+        # 🏛️ DEKLARIMI I SYSTEM PROMPT SIPAS INTENTIT TË PËRDORUESIT
+        # =========================================================================
+
+        if user_intent == "DRAFTING":
+            # 📜 MODALITETI: HARTIM I PLOTË I DOKUMENTIT ZYRTAR GJYQËSOR
+            system_prompt = f"""
+            {identity_header}
+
+            ROLI YT: Ti je Avokat Senior dhe Përfaqësues Ligjor në Kosovë.
+            MISIONI: Përdoruesi të kërkon të HARTOSH një akt zyrtar gjyqësor (Kallëzim Penal, Padi, Prapësim, Ankesë, Kontratë).
+            
+            RREGULLAT E HEKURTA TË HARTIMIT:
+            1. MOS gjenero përmbledhje apo analiza me 3 pika. GJENERO DOKUMENTIN E PLOTË ZYRTAR TË GATSHËM PËR PROTOKOLLIM.
+            2. STRUKTURA E DETYRUESHME E SHKRESËS ZYRTARE:
+               - KRYERRESHTI & ORGANI MARRËS (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË).
+               - PALËT E PLOTA ME IDENTITETIN DHE CILËSINË PROCEDURALE (Parashtruesi / I Dëmtuari vs Të Dyshuarit / I Padituri).
+               - TITULLI I SHKRESËS (p.sh. KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI PËR KOMPENSIM DËMI).
+               - BAZA STATUTARE & NENET E ZBATUESHME TË KOSOVËS (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
+               - DISPOSITIVI ME PIKA TË QARTA TË SHKELJEVE DHE VEPRIMEVE INKRIMINUESE.
+               - ARSYETIMI I DETAJUAR DOKTRINAR DHE ANALIZA FORENZIKE E PROVAVE TË FASHIKULLIT.
+               - PROPOZIMI / PETITUMI I DOKUMENTIT (Masat emergjente mbrojtëse, dëgjimi i dëshmitarëve, sekuestrimi i provave, ngritja e aktakuzës).
+               - INVENTARI I PROVAVE MATERIALE (Prova A-1, B-1, C-1...).
+               - REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së).
+               - NËNSHKRIMI DHE DATA.
+            3. MOS shpik fakte jashtë fashikullit. Përdor të gjitha emrat realë, provat dhe datat që gjenden në dokumente.
+
+            FASHIKULLI DHE PROVAT E ADMINISTRUARA:
+            {context_str}
             """
-        elif client_position == "NEUTRAL":
-            role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **NEUTRAL (AUDITOR GJYQËSOR I PAANSHËM)** — Gjykata / Magjistrati / Eksperti.
-            - Analizo me paanshmëri magjistrati shkresat e fashikullit. Vlerëso barrën e provës dhe ligjshmërinë e vendimeve të marra.
+        elif user_intent == "FORENSIC_AUDIT":
+            # ⚖️ MODALITETI: AUDITIM FORENZIK I NENEVE DHE LAPSUSEVE
+            system_prompt = f"""
+            {identity_header}
+
+            ROLI YT: Auditor Ligjor dhe Ekspert i së Drejtës Pozitive në Kosovë.
+            MISIONI: Kryej auditimin e saktësisë së bazës ligjore të shkresës me besnikëri 100% ndaj fashikullit.
+
+            STRUKTURA E DETYRUESHME:
+            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
+            ### 2. BAZA LIGJORE DHE KORNIZA STATUTARE (me nenet dhe ligjet e sakta)
+            ### 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE DHE DISKREPANCAVE)
+            - Audito nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë.
+            ### 4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+
+            FASHIKULLI I LEXUAR:
+            {context_str}
             """
-        else: # DEFENDANT
-            role_instructions = f"""
-            PERSPEKTIVA JURIDIKE: **I PADITUR / MBROJTJE GJYQËSORE DHE KUNDËRSULMI)** — Avokati i {client_name}.
-            - Mbro të paditurin: evidento prapësimet procedurale, mungesën e provave të paditësit ({opposing_name}), dhe faktet shfajësuese.
-            - Zbardh motivin e vërtetë (tjetërsim prindëror, lajmërim i rremë).
+        else:
+            # 💡 MODALITETI: ANALIZË DHE KËSHILLIM STRATEGJIK
+            if client_position == "PLAINTIFF":
+                role_instructions = f"PERSPEKTIVA: PADITËS / KALLËZUES (Përfaqësuesi i {client_name})."
+            elif client_position == "NEUTRAL":
+                role_instructions = "PERSPEKTIVA: NEUTRAL (Auditor / Gjykata)."
+            else:
+                role_instructions = f"PERSPEKTIVA: I PADITUR / I DENONCUAR (Mbrojtësi i {client_name})."
+
+            system_prompt = f"""
+            {identity_header}
+
+            Ti je "Sokrati - Krye-Strategu dhe Avokati Elitar i Drejtësisë në Kosovë".
+            METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
+            {role_instructions}
+
+            REGJISTRI I SKEDARËVE:
+            {manifest_str}
+
+            DOKUMENTET E FASHIKULLIT:
+            {context_str}
+
+            STRUKTURA E PËRGJIGJES:
+            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
+            ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
+            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
             """
-
-        system_prompt = f"""
-        {identity_header}
-
-        Ti je "Sokrati - Krye-Strategu dhe Avokati Elitar i Drejtësisë në Kosovë".
-
-        METADATAT E LËNDËS:
-        - TITULLI: **{case_title}**
-        - PALËT: **{client_name}** vs. **{opposing_name}**
-        - ROLI PROCEDURAL: **{client_position}**
-
-        {role_instructions}
-
-        REGJISTRI I SKEDARËVE TË FASHIKULLIT ME LINKE:
-        {manifest_str}
-
-        DOKUMENTET DHE SHKRESAT E LEXUARA NGA FASHIKULLI:
-        {context_str}
-
-        RREGULLAT E HEKURTA TË FORMATIMIT:
-        1. VËRTETËSIA DHE CITIMI I NENEVE TË KOSOVËS:
-           - Cito nene reale të ligjeve të Kosovës (KPPRK, KPRK, LPK, LMD, LFK). Formati: `Neni 12 i LPK`. MOS përdor pika dhjetore si 386.2 apo kllapa katrore.
-           - NËSE nuk e ke numrin fiks të nenit, cito ligjin me emër dhe institutin procedural. MOS shpik numra të pasaktë nenesh!
-        2. CITIMI I DOKUMENTEVE ME LINKE TË KLIKUESHME:
-           - Përdor EKSKLUZIVISHT formatin Markdown: `[Emri_Skedarit.pdf](/documents/ID)` (i merr nga Regjistri më lart).
-           - NË ASNJE MËNYRË mos përdor referenca si "(Dokumenti #1)" apo "(Dokumenti #6)".
-        3. NDALIMI I SHTOJCave:
-           - TI NDALOHET KATEGORIKISHT TË SHKRUASH 'Pyetje Sugjeruese', 'Sugjerime', apo 'Karta e mbetur' NË FUND TË TEKSTIT TËND.
-           - [STOP] - Përgjigja jote MBARON TËRËSISHT tek Pika 3 ("REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM").
-
-        STRUKTURA E DETYRUESHME E PËRGJIGJES (MOS SHTO ASGJË PAS PIKËS 3):
-        ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-        ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
-        ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
-        """
 
         try:
             response = await self.client.chat.completions.create(
@@ -320,8 +368,7 @@ class AlbanianRAGService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-            # Këtu Python vendos vetë mekanikisht kartat pa lejuar AI-në të ndërhyjë
-            if remaining_pills and len(remaining_pills) > 0:
+            if user_intent == "ANALYSIS" and remaining_pills and len(remaining_pills) > 0:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
