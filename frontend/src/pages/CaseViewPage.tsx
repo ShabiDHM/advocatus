@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V52.0 (1-CLICK LEGAL VERIFICATION DISPATCHER)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V54.0 (UNIVERSAL DOMAIN-AGNOSTIC STATUTORY AUDIT ENGINE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -236,15 +236,28 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 1-CLICK VERIFICATION HANDLER TRIGGERED BY ⚖️ ON ANY DOCUMENT
+  // 1-CLICK UNIVERSAL LEGAL VERIFICATION & STATUTORY AUDIT DISPATCHER
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
 
     const docName = doc.file_name || 'këtë dokument';
-    const prompt = `Duke u bazuar në dokumentin e zgjedhur "${docName}", analizo dhe lidh të gjitha nenet, paragrafët dhe bazën përkatëse ligjore (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa) për verifikim të drejtpërdrejtë, pa ndryshuar asnjë fakt apo emër të fashikullit.`;
+    const universalPrompt = `Duke u bazuar në përmbajtjen e dokumentit të zgjedhur "${docName}", kryej auditimin e thellë ligjor dhe verifikimin e bazës statutare sipas këtyre 4 seksioneve të detyrueshme:
 
-    handleChatSubmit(prompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
+1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
+   - Përmblidh faktet thelbësore, palët pjesëmarrëse dhe provat materiale të administruara saktësisht siç figurojnë në dokument, pa ndryshuar asnjë emër apo të dhënë faktike.
+
+2. BAZA LIGJORE DHE KORNIZA STATUTARE
+   - Identifiko dhe lidh saktë çdo nen, paragraf dhe ligj pozitiv të aplikueshëm sipas natyrës së lëndës (Penale, Civile, Kontestimore, Komerciale, të Punës, Familjare, Administrative apo Kushtetuese).
+
+3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I SAKTËSISË LIGJORE)
+   - Audito me rigorozitet nëse ndonjë nen, ligj, afat apo terminologji procedurale e cituar në këtë dokument përmban lapsus numerik, mospërputhje me dispozitën reale në fuqi, apo shmangie nga legjislacioni pozitiv i Republikës së Kosovës.
+   - Në rast mospërputhjeje, formulo paralajmërimin e qartë profesional dhe sugjero dispozitën e saktë ligjore për avokatin, duke ruajtur plotësisht të paprekur tekstin e dokumentit.
+
+4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+   - Veprimet e menjëhershme procedurale, afatet e detyrueshme dhe hapat strategjikë pranë organit apo gjykatës kompetente.`;
+
+    handleChatSubmit(universalPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
   }, [handleChatSubmit]);
 
   const handleRenameAction = async (newName: string) => {
