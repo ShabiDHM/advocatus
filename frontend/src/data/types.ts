@@ -1,5 +1,5 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V31.0 (ADDED CACHED, MESSAGE, & DEEP ANALYSIS TO CASEANALYSISRESULT)
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V32.0 (ADDED EXPLICIT PAGE_COUNT & FLEXIBLE OPPOSING PARTY)
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -13,6 +13,8 @@ export interface User {
     full_name?: string; 
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     organization_role?: 'OWNER' | 'MEMBER';
+    org_access_level?: 'FULL' | 'SELECTIVE';
+    assigned_case_ids?: string[];
     status: 'active' | 'inactive' | 'pending_invite'; 
     created_at: string; 
     token?: string; 
@@ -105,9 +107,15 @@ export interface Case {
     title: string; 
     status: 'open' | 'closed' | 'pending' | 'archived'; 
     client_position?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL';
-    client?: { name: string; phone: string; email: string; }; 
-    opposing_party?: { name: string; lawyer: string; }; 
+    client?: { name: string; phone?: string; email?: string; }; 
+    client_name?: string;
+    opposing_party?: string | { name: string; lawyer?: string; }; 
+    court?: string;
+    court_name?: string;
     court_info?: { name: string; judge: string; }; 
+    disputed_amount?: number;
+    claim_value?: number | string;
+    deadline?: string;
     description: string; 
     created_at: string; 
     updated_at: string; 
@@ -127,6 +135,8 @@ export interface CreateCaseRequest {
     clientName?: string; 
     clientEmail?: string; 
     clientPhone?: string; 
+    client_position?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL';
+    opposingParty?: string;
     status?: string; 
 }
 
@@ -157,7 +167,8 @@ export interface Document {
     file_type: string; 
     mime_type?: string; 
     storage_key: string; 
-    uploaded_by: string; 
+    uploaded_by?: string; 
+    page_count?: number;
     created_at: string; 
     status: 'UPLOADING' | 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'FAILED'; 
     summary?: string; 
@@ -368,7 +379,7 @@ export interface DeepAnalysisResult {
 export interface Organization { 
     id: string; 
     name: string; 
-    owner_email?: string;
+    owner_email?: string; 
     plan_tier: 'DEFAULT' | 'GROWTH'; 
     user_limit: number;
     current_active_users: number;

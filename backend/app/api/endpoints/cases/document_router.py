@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V16.0 (GC-IMMUNE STRONG TASK RETENTION)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V16.1 (DYNAMIC PAGE COUNT RETRIEVAL & TASK RETENTION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -73,6 +73,23 @@ async def get_documents_for_case(
             d["status"] = DocumentStatus.READY
             d["progress_percent"] = 100
 
+        # Llogaritja dinamike e numrit të faqeve për dokumentet ekzistuese
+        if not d.get("page_count") or d.get("page_count") == 0:
+            raw_text = d.get("extracted_text") or ""
+            ff_count = raw_text.count('\x0c')
+            page_markers = raw_text.count('--- Faqe') or raw_text.count('--- Page') or raw_text.count('[Faqe')
+            
+            if ff_count > 0:
+                calculated_pages = ff_count + 1
+            elif page_markers > 0:
+                calculated_pages = page_markers
+            elif len(raw_text) > 400:
+                calculated_pages = max(1, len(raw_text) // 1800 + 1)
+            else:
+                calculated_pages = d.get("pages") or d.get("total_pages") or 1
+                
+            d["page_count"] = calculated_pages
+
         if not d.get("storage_key"):
             d["storage_key"] = f"doc_fallback_{doc_id_str}"
         if not d.get("file_name"):
@@ -138,6 +155,7 @@ async def upload_document_for_case(
         "file_name": filename,
         "storage_key": key, 
         "mime_type": content_type,
+        "page_count": 1,
         "status": DocumentStatus.PENDING,
         "progress_percent": 30,
         "progress_message": "Duke përgatitur skedarin...",
@@ -147,7 +165,7 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # 3. 🛡️ EKZEKUTIM I SIGURT ME BACKGROUND_TASKS (I mbrojtur nga Garbage Collector)
+    # 3. 🛡️ EKZEKUTIM I SIGURT ME BACKGROUND_TASKS
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 

@@ -1,5 +1,5 @@
 # FILE: backend/app/models/document.py
-# PHOENIX PROTOCOL - DOCUMENT MODELS V4.0 (OPTIONAL RESILIENT FIELDS)
+# PHOENIX PROTOCOL - DOCUMENT MODELS V4.1 (ADDED EXPLICIT PAGE_COUNT & RESILIENT METRICS)
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, List, Any
@@ -19,6 +19,7 @@ class DocumentBase(BaseModel):
     status: Optional[str] = "PENDING"
     mime_type: Optional[str] = None
     summary: Optional[str] = None
+    page_count: Optional[int] = 1
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
 class DocumentInDB(DocumentBase):
@@ -30,6 +31,9 @@ class DocumentInDB(DocumentBase):
     preview_storage_key: Optional[str] = None
     error_message: Optional[str] = None
     category: Optional[str] = None
+    progress_percent: Optional[int] = 100
+    progress_message: Optional[str] = None
+    is_shared: Optional[bool] = False
     
     # PHOENIX ENGINE: Persisted Strategic Analysis
     litigation_analysis: Optional[Dict[str, Any]] = None
@@ -44,6 +48,5 @@ class DocumentInDB(DocumentBase):
         }
     )
 
-# Explicitly defining Output model to satisfy imports
 class DocumentOut(DocumentInDB):
     pass
