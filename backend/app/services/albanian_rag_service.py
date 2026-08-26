@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V102.0 (FINE-TUNED STRATEGIC ANALYSIS & VERIFICATION DISCLAIMER)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V106.0 (DUAL-TRACK CRIMINAL PROSECUTION & CIVIL REOPENING STRATEGY)
 
 import os
 import sys
@@ -7,6 +7,7 @@ import asyncio
 import logging
 import re
 from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
+from datetime import datetime, timezone
 from bson import ObjectId
 from openai import AsyncOpenAI
 from app.core.config import settings
@@ -19,7 +20,6 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 90
 
-# 🛡️ DISCLAIMER I PËRDITËSUAR ZYRTAR
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës, është për referencë dhe duhet të verifikohet.*"
 
 MAX_CONTEXT_CHARS = 110_000 
@@ -35,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine V102.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V106.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -43,16 +43,14 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        # 1. DRAFTING INTENT (Kur kërkohet eksplicit hartimi i shkresës përfundimtare)
         explicit_draft_triggers = [
             "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin", 
             "përgatit shkresën zyrtare", "harto padinë", "harto kërkesëpadinë",
-            "harto kallëzimin penal", "harto prapësimin", "harto ankesën"
+            "harto kallëzimin penal", "harto prapësimin", "harto ankesën", "harto kontratën"
         ]
         if any(k in q for k in explicit_draft_triggers):
             return "DRAFTING"
         
-        # 2. FORENSIC AUDIT INTENT (Kur klikohet ikona ⚖️)
         audit_keywords = [
             "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
             "paralajmërime & sugjerime", "lapsuseve", "shkelje procedurale"
@@ -60,7 +58,6 @@ class AlbanianRAGService:
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
         
-        # 3. DEFAULT: STRATEGJIA E 4 KARTAVE DHE ANALIZA DOKTRINARE
         return "ANALYSIS"
 
     def _optimize_query(self, query: str) -> str:
@@ -225,6 +222,8 @@ class AlbanianRAGService:
 
         from app.services import vector_store_service, llm_service
 
+        current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+
         client_position = "DEFENDANT"
         client_name = "Pala Kliente"
         opposing_name = "Pala Kundërshtare"
@@ -280,11 +279,23 @@ class AlbanianRAGService:
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
-        procedural_roles_rule = """
-        DALLIMI I DETYRUESHËM PROCEDURAL I INSTITUCIONEVE:
-        1. PROKURORIA SPECIALE E KOSOVËS (PSRK): Është Organi Marrës ku po përgatitet të dorëzohet Kallëzimi Penal. PSRK nuk ka refuzuar asgjë, pasi shkresa është në fazë përgatitore!
-        2. PROKURORIA THEMELORE (Prokurore Fikrije Sylejmani): Është organi i shkallës së parë që ka ngritur aktakuzën e mëparshme në vitin 2024.
-        3. GJYKATA THEMELORE & APELI: Janë gjykatat ku janë nxjerrë vendimet e kontestuara.
+        # =========================================================================
+        # 🏛️ DIREKTIVA E DYFISHTË: NDJEKJA PENALE DHE PËRSËRITJA E PROCEDURËS
+        # =========================================================================
+
+        dual_track_strategy_rule = f"""
+        DATA E SOTME: **{current_date_str}**
+
+        STRATEGJIA E DETYRUESHME DOKTRINARE (NDJEKJA PENALE VS PËRSËRITJA E PROCEDURËS):
+        1. NËSE AFATET E ANKESËS SË RREGULLT CIVILE KANË SKADUAR:
+           - Nëse shkresat zbulojnë falsifikime, antedatim, ekspertiza të rreme apo shkelje penale gjyqësore, STRATEGJIA KRYESORE ËSHTË:
+             * PISTA A (NDJEKJA PENALE): Inicimi i menjëhershëm i Kallëzimit Penal pranë Prokurorisë kompetente (PSRK/Themelore) për veprat penale nga KPRK.
+             * PISTA B (PËRSËRITJA E PROCEDURËS): Përdorimi i vërtetimit të veprës penale si bazë ekskluzive për Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së (që lejon anulimin e vendimeve të formës së prerë të marra mbi prova të falsifikuara).
+             * PISTA C (DËMSHPËRBLIMI): Kërkesa Pasurore-Juridike sipas Nenit 462 të KPPRK-së.
+        2. KONTROLLI I INTEGRITETIT DHE ANTEDATIMIT:
+           - Skano me imtësi përputhshmërinë e datave të seancave, protokolleve dhe vulave për të zbuluar çdo manipulim shkresor.
+        3. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
+           - Përdor vendimet parimore të Gjykatës Supreme për të treguar pse aktet e marra mbi shkelje thelbësore dhe dënime të shlyera bien poshtë.
         """
 
         if user_intent == "DRAFTING":
@@ -294,15 +305,15 @@ class AlbanianRAGService:
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
             MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            {procedural_roles_rule}
+            {dual_track_strategy_rule}
 
             STANDARDI I ARSYETIMIT JURIDIK:
-            - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, raporte), nxirr faktet nga ato dhe ndërto shkresën nga e para.
+            - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, procesverbale), nxirr faktet nga ato dhe ndërto shkresën nga e para.
             - Zbato drejtpërdrejt parimet e Gjykatës Supreme të Kosovës (të shënuara me '🔨 Praktika Gjyqësore') për të arsyetuar kërkesëpadinë apo fajësinë.
             - Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
 
             STRUKTURA E SHKRESËS ZYRTARE:
-            - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit (Neni 462 KPPRK) | Data dhe Nënshkrimi.
+            - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit | Data dhe Nënshkrimi.
 
             DOKUMENTET E NGARKUARA NË KONTEKST:
             {context_str}
@@ -314,24 +325,22 @@ class AlbanianRAGService:
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
             MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
 
-            {procedural_roles_rule}
+            {dual_track_strategy_rule}
 
             RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
-            1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera penale apo civile nëse nuk përmenden tekstualisht këtu.
-            2. Nëse dokumenti është një Aktgjykim Civil/Familjar (p.sh. LFK / LPK), audito dispozitat e LFK-së dhe LPK-së.
+            1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera nëse nuk përmenden tekstualisht këtu.
 
             STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përfshirë Ndjekjen Penale dhe Përsëritjen e Procedurës sipas Nenit 232 LPK)
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
             """
         else:
-            # 🏛️ ANALIZA DHE 4 KARTAT STRATEGJIKE ME DOKTRINË SUPREME
             if client_position == "PLAINTIFF":
                 role_instructions = f"PERSPEKTIVA JURIDIKE: **PADITËS / KALLËZUES (Përfaqësuesi i {client_name}).**"
             elif client_position == "NEUTRAL":
@@ -346,7 +355,7 @@ class AlbanianRAGService:
             METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
             {role_instructions}
 
-            {procedural_roles_rule}
+            {dual_track_strategy_rule}
 
             REGJISTRI I SKEDARËVE:
             {manifest_str}
@@ -356,13 +365,14 @@ class AlbanianRAGService:
 
             UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
             1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
-            2. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
-            3. MOS vendos kryerresht si 'KËRKESËPADI/KALLËZIM PENAL' kur pyetja është për analizë strategjike.
+            2. ZBATO STRATEGJINË E DYFISHTË: Nëse afatet civile kanë kaluar por ka vepra penale, propozo Ndjekjen Penale me Kallëzim Penal dhe Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
+            3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
+            4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
             ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
+            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM (Strategjia e Ndjekjes Penale & Përsëritjes së Procedurës)
             """
 
         try:
