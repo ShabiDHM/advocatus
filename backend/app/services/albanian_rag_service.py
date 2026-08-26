@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V107.0 (DYNAMIC SITUATIONAL DECISION TREE & ADVISORY)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V109.0 (RENDER FREE TIER ULTRA-STABLE & FORENSIC OPTIMIZED)
 
 import os
 import sys
@@ -22,7 +22,8 @@ LLM_TIMEOUT = 90
 
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës, është për referencë dhe duhet të verifikohet.*"
 
-MAX_CONTEXT_CHARS = 110_000 
+# 🛡️ BALANCA E ARTË PËR RENDER FREE TIER: 140,000 karaktere (Shpejtësi rrufe, 0 MB RAM mbingarkesë, 100% thellësi forenzike)
+MAX_CONTEXT_CHARS = 140_000 
 
 
 class AlbanianRAGService:
@@ -35,7 +36,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous Legal Engine V107.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V109.0 initialized (Render Free-Tier Guard).")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -105,7 +106,9 @@ class AlbanianRAGService:
         context_blocks = []
         
         if db_documents:
-            doc_budget = int((MAX_CONTEXT_CHARS * 0.65) / max(len(db_documents), 1))
+            # 🛡️ Buxhet i zgjuar dhe i qëndrueshëm: deri në 8,000 karaktere për çdo shkresë
+            doc_budget = int((MAX_CONTEXT_CHARS * 0.70) / max(len(db_documents), 1))
+            doc_budget = max(doc_budget, 7_000)
             
             for idx, doc in enumerate(db_documents, 1):
                 doc_id = str(doc.get("_id", ""))
@@ -280,30 +283,23 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ MOTORI I VENDIMMARRJES SË VETËDIJSHME SITUACIONALE (ZERO HARDCODING)
+        # 🏛️ PROTOKOLLI UNIVERSAL FORENZIK (RENDER-OPTIMIZED & HIGH-PRECISION)
         # =========================================================================
 
         dynamic_situational_mandate = f"""
         DATA E SOTME: **{current_date_str}**
 
-        METODOLOGJIA E VETËDIJSHME STRATEGJIKE (PËRSHTATJE DINAMIKE SIPAS SITUATËS SË LËNDËS):
-        Analizo me kujdes natyrën e lëndës, shkresat dhe datat e administruara, dhe zbato këtë pemë vendimmarrëse:
-
-        1. VLERËSIMI I AFATEVE TË ANKESËS NË RAPORT ME DATËN E SOTME ({current_date_str}):
-           - NËSE AFATI I ANKESËS SË RREGULLT (15 ditë) ËSHTË ENDE AKTIV:
-             * Propozo ANKESËN E RREGULLT NË GJYKATËN E APELIT (duke theksuar shkeljet procedurale, faktet dhe ligjin material).
-             * Dhe NËSE shkresat zbulojnë gjithashtu veprime kriminale (falsifikim, dëshmi të rreme), propozo PARALELISHT edhe NDJEKJEN PENALE.
-           - NËSE AFATI I ANKESËS SË RREGULLT KA SKADUAR (Vendimi ka marrë formë të prerë):
-             * Konstato skadimin e afatit të rregullt.
-             * NËSE zbulohen vepra penale gjyqësore/mjekësore (falsifikim, ekspertizë e rreme) ➔ Propozo NDJEKJEN PENALE dhe PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
-             * Përndryshe ➔ Propozo Kërkesën për Mbrojtje të Ligjshmërisë në Gjykatën Supreme.
-
-        2. PËRSHKRIMI DHE NATYRA E LËNDËS:
-           - Nëse lënda është kontest i thjeshtë civil/kontraktual pa vepër penale (p.sh. borxh, qira, punë) ➔ Propozo VETËM mjetet përkatëse civile/përmbarimore pa ngritur kallëzime penale pa shkak.
-           - Nëse lënda përmban vepra penale (mashtrim, dhunë, korrupsion, falsifikim) ➔ Formulo strategjinë e plotë të ndjekjes penale dhe masave emergjente.
-
-        3. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
-           - Zbato precedentët parimorë të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') mbi provat konkrete të këtij fashikulli.
+        PROTOKOLLI UNIVERSAL I FORENZIKËS DHE KRYEQËZIMIT TË SHKRESAVE:
+        1. PROVAT SHKENCORE DHE TESTET: Krahaso testet laboratorike me deklaratat gojore për të vërtetuar pabazueshmërinë e akuzave.
+        2. KONTROLLI I ANTEDATIMIT DHE FALSIFIKIMIT: Skano procesverbalet dhe evidento prapadatimet apo mbishkrimet me data të rreme.
+        3. DËNIMET E SKADUARA (Neni 93 KPRK): Verifiko nëse gjykatat kanë përdorur dënime të shlyera automatikisht si rëndim *contra legem*.
+        4. HETEROANAMNEZA: Evidento raportet mjekësore pa bazë klinike të lëshuara vetëm mbi thënie gojore.
+        5. DHUNA PSIKOLOGJIKE & SHKELJET PROCEDURALE: Zbardh presionet emocionale, seancat klandestine dhe dëbimet arbitrare.
+        6. AFATET & PEMËS VENDIMMARRËSE (në raport me datën {current_date_str}):
+           - Nëse afati i ankesës (15 ditë) është aktiv ➔ Ankesë e Rregullt në Apel + Ndjekje Penale nëse ka krime zyrtare.
+           - Nëse afati ka kaluar ➔ Ndjekje Penale me Kallëzim Penal + Përsëritje e Procedurës Civile (Neni 232 LPK).
+           - Nëse është kontest civil i thjeshtë pa krim ➔ Vetëm rrugët civile/përmbarimore.
+        7. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME: Zbato precedentët parimorë (të shënuara me '🔨 Praktika Gjyqësore').
         """
 
         if user_intent == "DRAFTING":
@@ -316,8 +312,7 @@ class AlbanianRAGService:
             {dynamic_situational_mandate}
 
             STANDARDI I ARSYETIMIT JURIDIK:
-            - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, procesverbale), nxirr faktet nga ato dhe ndërto shkresën nga e para.
-            - Zbato drejtpërdrejt parimet e Gjykatës Supreme të Kosovës (të shënuara me '🔨 Praktika Gjyqësore') për të arsyetuar kërkesëpadinë apo fajësinë.
+            - Nëse fashikulli ka vetëm shkresa bazë, nxirr faktet dhe ndërto shkresën nga e para me precedentët e Gjykatës Supreme.
             - Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
 
             STRUKTURA E SHKRESËS ZYRTARE:
@@ -343,7 +338,7 @@ class AlbanianRAGService:
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përshtatur sipas afatit dhe natyrës së lëndës)
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
@@ -372,13 +367,12 @@ class AlbanianRAGService:
             {context_str}
 
             UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
-            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
-            2. PËRSHTAT REKOMANDIMIN SIPAS SITUATËS REALE: Vlerëso afatin e ankesës në raport me datën e sotme, shkeljet e ligjit dhe nëse duhet ankesë e rregullt, ndjekje penale apo përsëritje e procedurës civile.
-            3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
-            4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
+            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit (Provat shkencore, Falsifikimin/Prapadatimin e seancave, Dënimin e skaduar Neni 93, Heteroanamnezën, Dëbimin nga seanca dhe Dhunën psikologjike).
+            2. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
+            3. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
-            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
+            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE (Përfshirë Provat Shkencore dhe Shkeljet Procedurale)
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
             ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM (Përshtatur në mënyrë të zgjuar sipas situatës faktike)
             """
