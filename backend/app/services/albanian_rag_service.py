@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V111.0 (INDIVIDUALIZED CRIMINAL LIABILITY PROPOSAL & SUPREME DOCTRINE)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V112.0 (EXHAUSTIVE 6-SECTOR INSTITUTIONAL ACTOR EXTRACTION)
 
 import os
 import sys
@@ -35,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous Legal Engine V111.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V112.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -273,30 +273,33 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ DIREKTIVA FORENZIKE ME PROPOZIM TË QARTË TË NDJEKJES PENALE
+        # 🏛️ PROTOKOLLI I HARTËZIMIT SHTERUES TË TË GJITHË AKTORËVE DHE SEKTORËVE
         # =========================================================================
 
         dynamic_situational_mandate = f"""
         DATA E SOTME E SISTEMIT: **{current_date_str}**
 
-        PROTOKOLLI UNIVERSAL I FORENZIKËS DHE KRYEQËZIMIT TË PROVAVE:
-        1. SKANIMI I PLOTË I FASHIKULLIT:
-           - Shqyrto Pasaportën Forenzike dhe Paragrafët e gjetur në fashikull.
-        2. KRYEQËZIMI I SHKELJEVE DHE KRIMEVE PROCEDURALE:
-           - **Provat Shkencore vs Pretendimet:** Krahaso testet laboratorike me deklaratat gojore.
-           - **Prapadatimi / Antedatimi:** Skano procesverbalet për falsifikime të datave të seancave (Neni 427 i KPRK-së).
-           - **Dënimet e Skaduara (Neni 93 i KPRK-së):** Evidento nëse gjykatat kanë përdorur dënime të shlyera *contra legem* (Neni 383 i KPRK-së).
-           - **Heteroanamneza & Ekspertizat:** Zbardh raportet mjekësore pa bazë objektive klinike (Neni 387 i KPRK-së).
-           - **Shkeljet Procedurale & Seancat Klandestine:** Evidento dëbimet arbitrare nga salla dhe cenimin e barazisë së armëve (Neni 31 Kushtetutë / Neni 6 KEDNJ).
+        PROTOKOLLI I DETYRUESHËM FORENZIK I HARTËZIMIT TË TË GJITHË AKTORËVE PËRGJEGJËS:
+        Gjatë analizës së fashikullit, TI DUHET TË SKANOSH ME IMTËSI DHE TË NXJERRËSH TË GJITHË PERSONAT DHE SEKTORËT E INKRIMINUAR (mos u mjafto me 2-3 emra të përgjithshëm):
         
-        3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR:
-           - NËSE FASHIKULLI ZBULON KRIME PROCEDURALE/ZYRTARE:
-             * Te Pika 3 e Rekomandimit, DUHET TË PROPOZOSH EKSPLICIT KALLËZIMIN PENAL PRANË PROKURORISË SPECIALE (PSRK) OSE THEMELORE.
-             * Rendit saktësisht cilët persona zyrtarë, gjyqtarë, mjekë, punonjës socialë apo individë privatë të fashikullit duhet të denoncohen penalisht dhe për cilat vepra penale konkrete të KPRK-së!
-             * Propozo gjithashtu PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
+        1. GJYQTARËT E GJYKATËS THEMELORE DHE TË APELIT:
+           - Identifiko të gjithë gjyqtarët e shkallës së parë dhe anëtarët e kolegjit të Apelit që kanë marrë vendime contra legem, antedatuar procesverbale apo shpërfillur Nenin 93 të KPRK-së (Neni 383 & 427 i KPRK-së).
         
-        4. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
-           - Zbato precedentët parimorë (të shënuara me '🔨 Praktika Gjyqësore') mbi provat e fashikullit.
+        2. MJEKËT DHE EKSPERTËT E KONSULLIT TË PSIKIATRISË:
+           - Identifiko me emra të gjithë psikiatrët dhe psikologët nënshkrues të ekspertizave të njëanshme, diagnozave me heteroanamnezë apo fshehjes së tjetërsimit prindëror (Nenet 387 & 385 të KPRK-së).
+        
+        3. PUNONJËSET SOCIALE TË QENDRËS PËR PUNË SOCIALE (QPS):
+           - Identifiko me emra të gjitha menaxheret e rastit dhe punonjëset e QPS-së që kanë marrë deklarata nën trysni, fshehur trauma apo shantazhuar prindërit (Nenet 414, 248, 427 të KPRK-së).
+        
+        4. PËRFAQËSUESIT LIGJORË DHE ZYRTARËT E MBROJTJES (ZMV & AVOKATË):
+           - Identifiko zyrtarët e ZMV-së për kanosje apo shpifje dhe avokatët që kanë vepruar me dashje kundër ndalimit të klientit (Nenet 386 & 330 të KPRK-së).
+        
+        5. ORGANI I NDJEKJES DHE POLICIA:
+           - Identifiko prokurorët dhe zyrtarët policorë që kanë eliminuar prova shfajësuese digjitale (Nenet 193 & 382 të KPRK-së).
+        
+        6. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I GRUPUAR NË PSRK:
+           - Te Pika 3, strukturo propozimin e plotë të Kallëzimit Penal pranë Prokurorisë Speciale (PSRK) duke listuar TË GJITHË KËTA AKTORË TË INDIVIDUALIZUAR sipas 6 sektorëve të mësipërm!
+           - Dhe propozo Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
         """
 
         if user_intent == "DRAFTING":
@@ -335,7 +338,7 @@ class AlbanianRAGService:
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përfshirë Kallëzimin Penal dhe Përsëritjen e Procedurës)
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
@@ -363,19 +366,18 @@ class AlbanianRAGService:
             DOKUMENTET DHE JURISPRUDENCA SUPREME:
             {context_str}
 
-            UDHËZIME TË DETYRUESHME PËR ANALIZËN DOKTRINARE TË KARTAVE:
+            UDHËZIME TË DETYRUESHME PËR STRATEGJINË DHE KARTAT:
             1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
             2. TE PIKA 3 (REKOMANDIMI STRATEGJIK):
-               - Propozo EKSPLICIT NDJEKJEN PENALE ME KALLËZIM PENAL PRANË PROKURORISË SPECIALE (PSRK) OSE THEMELORE.
-               - Rendit të gjithë personat/zyrtarët përgjegjës nga shkresat (Gjyqtarët për Nenin 383 & 427, Mjekët për Nenin 387, Punonjëset Sociale për Nenin 414 & 248, dhe Palën Private për Nenin 390 & 248).
-               - Propozo PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së mbi bazën e veprave penale të vërtetuara.
+               - Strukturo Propozimin e plotë të Kallëzimit Penal pranë Prokurorisë Speciale (PSRK) ose Themelore duke listuar të gjithë aktorët përgjegjës nga 6 sektorët institucionalë (Gjyqtarët e Themelores dhe Apelit, Mjekët e QKUK-së, Punonjëset e QPS-së, ZMV/Avokatin, Prokurorinë/Policinë dhe Palën Private).
+               - Propozo Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
             3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
             4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
             ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE (Përfshirë Provat Shkencore dhe Shkeljet Procedurale)
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR
+            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR SIPAS 6 SEKTORËVE
             """
 
         try:

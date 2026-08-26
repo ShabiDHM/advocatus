@@ -1,5 +1,5 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V43.1 (EXPLICIT TYPESCRIPT STRICT TYPING & ZERO WARNINGS)
+// PHOENIX PROTOCOL - CHAT HELPERS V44.0 (COLLISION-IMMUNE TOKEN REGISTRY & PERFECT INLINE CITATION LINKING)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -28,7 +28,7 @@ const STATUTES_REGISTRY: StatuteDefinition[] = [
     cleanName: 'KPPRK'
   },
   {
-    regex: /(?:KPRK|Kodi\s+Penal(?:\s+i\s+Republikës\s+së\s+Kosovës)?)/i,
+    regex: /(?:KPRK|KPK|Kodi\s+Penal(?:\s+i\s+Republikës\s+së\s+Kosovës)?)/i,
     cleanName: 'KPRK'
   },
   {
@@ -66,36 +66,42 @@ const resolveStatuteName = (rawLawString: string): string => {
 export const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
 
+  const savedTokens: string[] = [];
+
+  const createToken = (markdownLink: string): string => {
+    savedTokens.push(markdownLink);
+    return `__LAW_TOKEN_${savedTokens.length - 1}__`;
+  };
+
   // 1. Mbrojmë linket ekzistuese Markdown
-  const savedLinks: string[] = [];
-  let protectedText = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
-    savedLinks.push(fullMatch);
-    return `__MD_LINK_TOKEN_${savedLinks.length - 1}__`;
+  let processed = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
+    return createToken(fullMatch);
   });
 
   // 2. Pastrojmë kllapat katrore të mbetura gabimisht te nenet
-  protectedText = protectedText.replace(/\[\s*(Nen(?:i|et)\s+\d+[^\]]*)\s*\]/gi, '$1');
+  processed = processed.replace(/\[\s*(Nen(?:i|et)\s+\d+[^\]]*)\s*\]/gi, '$1');
 
-  // 3. PASS A: Ndarja e grupeve me shumë nene
-  const multiArticleGroupRegex = /\b(Nenet\s+([\d\s,.\-(dhe)(e)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,90}?))(?=[.,;\n\r\)]|$)/gi;
+  // 3. PASS A: Grupet me shumë nene të njëpasnjëshme (p.sh. "Nenet 31, 32, 81 dhe 427 të KPRK-së")
+  const multiArticleRegex = /\b(Nenet\s+([\d\s,.\-(dhe)(e)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,80}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
-    protectedText = protectedText.replace(multiArticleGroupRegex, (fullMatch, _p1, numbersBlock, lawCandidate) => {
+    processed = processed.replace(multiArticleRegex, (fullMatch, _p1, numbersBlock, lawCandidate) => {
+      if (fullMatch.includes('__LAW_TOKEN_')) return fullMatch;
+
       const lawName = resolveStatuteName(lawCandidate || fullMatch);
       const rawNumbers = numbersBlock.match(/\b\d+\b/g);
 
       if (!rawNumbers || rawNumbers.length === 0) return fullMatch;
 
-      // Explicit string typing to satisfy TypeScript strict mode
       const uniqueNumbers: string[] = Array.from(new Set<string>(rawNumbers));
       const sortedNumbers: string[] = uniqueNumbers.sort((a: string, b: string) => b.length - a.length || Number(b) - Number(a));
 
       let replacedNumbers = numbersBlock;
       for (const num of sortedNumbers) {
         const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(num)}`;
-        const pill = `[Neni ${num}](${targetUrl})`;
+        const token = createToken(`[Neni ${num}](${targetUrl})`);
         const numRegex = new RegExp(`(?<!\\d)${num}(?!\\d)`, 'g');
-        replacedNumbers = replacedNumbers.replace(numRegex, pill);
+        replacedNumbers = replacedNumbers.replace(numRegex, token);
       }
 
       return `Nenet ${replacedNumbers} të ${lawName}`;
@@ -104,44 +110,46 @@ export const autoLinkLegalCitations = (text: any): string => {
     console.error('Multi-article parsing error:', err);
   }
 
-  // 4. PASS B: Kapja e Neneve individuale me ose pa paragrafe
-  const singleArticleRegex = /\b(Neni\s+(\d+)(?:,?\s*(?:paragrafi|par\.?)\s*(\d+))?\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,80}?))(?=[.,;\n\r\)]|$)/gi;
+  // 4. PASS B: Nenet individuale me ose pa paragrafe (p.sh. "Neni 424, paragrafi 1 i KPRK-së", "Neni 383 (KPRK)")
+  const singleArticleRegex = /\b(Neni\s+(\d+)(?:,?\s*(?:paragrafi|par\.?)\s*(\d+))?(?:\s*\(([^)]+)\))?\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,70}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
-    protectedText = protectedText.replace(singleArticleRegex, (fullMatch, _p1, artNum, parNum, lawCandidate) => {
-      if (fullMatch.includes('__MD_LINK_TOKEN_') || fullMatch.includes('](')) return fullMatch;
+    processed = processed.replace(singleArticleRegex, (fullMatch, _p1, artNum, parNum, parenContent, lawCandidate) => {
+      if (fullMatch.includes('__LAW_TOKEN_')) return fullMatch;
 
-      const lawName = resolveStatuteName(lawCandidate || fullMatch);
+      const detectedRaw = lawCandidate || parenContent || fullMatch;
+      const lawName = resolveStatuteName(detectedRaw);
       const parLabel = parNum ? `, par. ${parNum}` : '';
       const displayLabel = `Neni ${artNum}${parLabel} (${lawName})`;
       const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(artNum)}`;
 
-      return `[${displayLabel}](${targetUrl})`;
+      return createToken(`[${displayLabel}](${targetUrl})`);
     });
   } catch (err) {
     console.error('Single article parsing error:', err);
   }
 
-  // 5. PASS C: Kapja e formatit të anasjelltë (p.sh. "KPRK Neni 387")
+  // 5. PASS C: Formati i anasjelltë (p.sh. "KPRK Neni 387")
   const reverseArticleRegex = /\b((?:KPRK|KPPRK|LPK|LMD|Kushtetuta|KEDNJ)\s+Neni\s+(\d+))(?=[.,;\n\r\)\s]|$)/gi;
 
   try {
-    protectedText = protectedText.replace(reverseArticleRegex, (fullMatch, _p1, artNum) => {
-      if (fullMatch.includes('__MD_LINK_TOKEN_') || fullMatch.includes('](')) return fullMatch;
+    processed = processed.replace(reverseArticleRegex, (fullMatch, _p1, artNum) => {
+      if (fullMatch.includes('__LAW_TOKEN_')) return fullMatch;
       const lawName = resolveStatuteName(fullMatch);
       const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(artNum)}`;
-      return `[${fullMatch}](${targetUrl})`;
+      return createToken(`[${fullMatch}](${targetUrl})`);
     });
   } catch (err) {
     console.error('Reverse article parsing error:', err);
   }
 
-  // 6. Rikthejmë linket e mbrojtura
-  const restoredText = protectedText.replace(/__MD_LINK_TOKEN_(\d+)__/g, (_, idx) => {
-    return savedLinks[Number(idx)] || '';
-  });
+  // 6. RIKTHIMI I TOKENAVE TË IZOLUAR (Zero Përplasje & Zero Korruptim Teksti)
+  let restored = processed;
+  for (let i = savedTokens.length - 1; i >= 0; i--) {
+    restored = restored.replace(new RegExp(`__LAW_TOKEN_${i}__`, 'g'), savedTokens[i]);
+  }
 
-  return restoredText;
+  return restored;
 };
 
 export const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
