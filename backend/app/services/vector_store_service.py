@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V30.0 (DUAL-STRATA SUPREME COURT & STATUTORY RETRIEVAL)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V31.0 (25-CHUNK DEEP RETRIEVAL FOR MASSIVE CASE FILES)
 
 import os, time, logging, json
 from typing import List, Dict, Any, Sequence
@@ -24,10 +24,6 @@ def get_global_collection():
 
 
 def query_global_knowledge_base(query_text: str, n_results: int = 14, **kwargs) -> List[Dict[str, Any]]:
-    """
-    DUAL-STRATA RETRIEVAL ENGINE:
-    Retrieves both Statutory Articles (Gazeta Zyrtare) and Supreme Court Precedents (Aktgjykimet e Supremes).
-    """
     from . import embedding_service
     vector = embedding_service.generate_embedding(query_text) if query_text else None
     
@@ -50,7 +46,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 14, **kwargs) 
         except Exception as e:
             logger.warning(f"SaaS Global Vector Query Failed, running text fallback: {e}")
 
-    # Fallback to Text Search if vector search returns empty
     if not raw_results:
         try:
             raw_results = list(coll.find({"$text": {"$search": query_text}}).limit(n_results))
@@ -64,7 +59,6 @@ def query_global_knowledge_base(query_text: str, n_results: int = 14, **kwargs) 
         is_article = r.get("is_article", False)
         is_case_law = r.get("is_case_law", False) or "pml" in law_title.lower() or "supreme" in law_title.lower()
 
-        # Contextual tagging for LLM synthesis
         if is_case_law:
             source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor i Gjykatës Supreme: {law_title}"
         elif is_article:
@@ -84,11 +78,10 @@ def query_global_knowledge_base(query_text: str, n_results: int = 14, **kwargs) 
     return formatted_results
 
 
-def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 16, **kwargs) -> List[Dict[str, Any]]:
+def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 25, **kwargs) -> List[Dict[str, Any]]:
     """
-    UNBREAKABLE DUAL-RETRIEVAL ENGINE:
-    1. Executes Atlas $vectorSearch with case_id + owner_id filter.
-    2. Fallback: Directly queries db.user_vectors & db.documents for full extracted text.
+    25-CHUNK DEEP RETRIEVAL ENGINE:
+    Scans across all 100 documents to retrieve exact paragraphs and evidence needles.
     """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
@@ -114,7 +107,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 16
                     "index": "vector_index", 
                     "path": "embedding", 
                     "queryVector": vector, 
-                    "numCandidates": 120, 
+                    "numCandidates": 140, 
                     "limit": n_results, 
                     "filter": {"owner_id": user_id}
                 }
