@@ -1,11 +1,12 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V10.2 (0 WARNINGS & STRICT TYPES ENFORCED)
+// PHOENIX PROTOCOL - DASHBOARD V10.3 (3-ROLE STANCE SELECTOR: PLAINTIFF, DEFENDANT, NEUTRAL)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
-  PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X
+  PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X,
+  Shield, Swords, Scale
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
@@ -14,6 +15,8 @@ import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentBriefingHoliday } from '../utils/kosovoHolidays';
+
+type ClientPositionType = 'PLAINTIFF' | 'DEFENDANT' | 'NEUTRAL';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
@@ -26,6 +29,7 @@ const DashboardPage: React.FC = () => {
   const hasCheckedBriefing = useRef(false);
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
   
+  const [clientPosition, setClientPosition] = useState<ClientPositionType>('PLAINTIFF');
   const [newCaseData, setNewCaseData] = useState({ 
     title: '', 
     clientName: '', 
@@ -148,11 +152,16 @@ const DashboardPage: React.FC = () => {
         clientEmail: newCaseData.clientEmail, 
         clientPhone: newCaseData.clientPhone,
         status: 'open',
-        ...({ opposingParty: newCaseData.opposingParty || undefined, opponent_name: newCaseData.opposingParty || undefined } as any)
+        ...({ 
+          client_position: clientPosition,
+          opposingParty: newCaseData.opposingParty || undefined, 
+          opponent_name: newCaseData.opposingParty || undefined 
+        } as any)
       };
       await apiService.createCase(payload);
       setShowCreateModal(false);
       setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '', opposingParty: '' });
+      setClientPosition('PLAINTIFF');
       loadData();
     } catch {
       alert(t('error.generic', 'Ndodhi një gabim gjatë krijimit të lëndës.'));
@@ -186,7 +195,6 @@ const DashboardPage: React.FC = () => {
     });
   }, [cases, searchTerm]);
 
-  // High-contrast, theme-aware inputs
   const inputClasses = "w-full px-4 h-11 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/40 focus:border-primary-start transition-all";
   const labelClasses = "block text-[10px] font-black text-primary-start uppercase tracking-widest mb-1.5 ml-1";
 
@@ -288,6 +296,19 @@ const DashboardPage: React.FC = () => {
     return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
   }
 
+  // Dynamic input placeholders based on selected position
+  const getClientFieldLabel = () => {
+    if (clientPosition === 'PLAINTIFF') return 'Klienti (Paditësi / Kallëzuesi)';
+    if (clientPosition === 'DEFENDANT') return 'Klienti (I Padituri / I Denoncuari)';
+    return 'Klienti (Pala A / Kërkuesi)';
+  };
+
+  const getOpposingFieldLabel = () => {
+    if (clientPosition === 'PLAINTIFF') return 'Pala Kundërshtare (I Padituri / I Denoncuari)';
+    if (clientPosition === 'DEFENDANT') return 'Pala Kundërshtare (Paditësi / Kallëzuesi)';
+    return 'Pala Tjetër (Pala B / Palë e Interesuar)';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-auto lg:h-[calc(100dvh-64px)] lg:overflow-hidden flex flex-col relative bg-canvas">
       <AnimatePresence mode="wait">
@@ -386,9 +407,8 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* 100% SOLID OPAQUE THEME-ADAPTIVE MODALS */}
+      {/* CREATE CASE MODAL (WITH 3-POSITION SELECTOR) */}
       <AnimatePresence>
-        {/* CREATE CASE MODAL */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
             <motion.div 
@@ -411,23 +431,68 @@ const DashboardPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleCreateCase} className="space-y-4">
+                {/* 3-POSITION SELECTOR */}
                 <div className="space-y-1.5">
-                  <label className={labelClasses}>Lënda</label>
+                  <label className={labelClasses}>Pozicioni i Klientit Tuaj</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClientPosition('PLAINTIFF')}
+                      className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                        clientPosition === 'PLAINTIFF'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-600/20'
+                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <Swords size={13} />
+                      <span className="truncate">Paditës</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setClientPosition('DEFENDANT')}
+                      className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                        clientPosition === 'DEFENDANT'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <Shield size={13} />
+                      <span className="truncate">I Paditur</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setClientPosition('NEUTRAL')}
+                      className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                        clientPosition === 'NEUTRAL'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <Scale size={13} />
+                      <span className="truncate">Neutral</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className={labelClasses}>Titulli i Lëndës</label>
                   <input 
                     required 
-                    placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës (p.sh. Kontest Pune / Kallëzim Penal)')} 
+                    placeholder={t('dashboard.caseTitle', 'p.sh. Padi për Dëmshpërblim / Kallëzim Penal')} 
                     value={newCaseData.title} 
                     onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} 
                     className={inputClasses} 
                   />
                 </div>
 
-                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
                   <div>
-                    <label className={labelClasses}>Klienti (Paditësi / Kallëzuesi)</label>
+                    <label className={labelClasses}>{getClientFieldLabel()}</label>
                     <input 
                       required 
-                      placeholder={t('dashboard.clientName', 'Emri dhe Mbiemri i Klientit')} 
+                      placeholder="Emri dhe Mbiemri i Klientit" 
                       value={newCaseData.clientName} 
                       onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
                       className={inputClasses} 
@@ -435,18 +500,18 @@ const DashboardPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className={labelClasses}>Pala Kundërshtare (I Padituri / I Denoncuari)</label>
+                    <label className={labelClasses}>{getOpposingFieldLabel()}</label>
                     <input 
-                      placeholder="Emri i Palës Kundërshtare (Person ose Kompani)" 
+                      placeholder="Emri i Palës Tjetër (Person ose Kompani)" 
                       value={newCaseData.opposingParty} 
                       onChange={(e) => setNewCaseData(p => ({...p, opposingParty: e.target.value}))} 
                       className={inputClasses} 
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className={labelClasses}>Email i Klientit (Opsionale)</label>
+                      <label className={labelClasses}>Email (Opsionale)</label>
                       <input 
                         placeholder="klienti@email.com" 
                         value={newCaseData.clientEmail} 
@@ -466,7 +531,7 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-5 border-t border-slate-200 dark:border-slate-800">
                   <button 
                     type="button" 
                     onClick={() => setShowCreateModal(false)} 
