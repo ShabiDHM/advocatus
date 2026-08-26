@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V29.0 (HIGH-SPEED BATCH INGESTION ACCELERATOR)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V30.0 (DUAL-STRATA SUPREME COURT & STATUTORY RETRIEVAL)
 
 import os, time, logging, json
 from typing import List, Dict, Any, Sequence
@@ -23,55 +23,68 @@ def get_global_collection():
     return None 
 
 
-def query_global_knowledge_base(query_text: str, n_results: int = 10, **kwargs) -> List[Dict[str, Any]]:
+def query_global_knowledge_base(query_text: str, n_results: int = 14, **kwargs) -> List[Dict[str, Any]]:
+    """
+    DUAL-STRATA RETRIEVAL ENGINE:
+    Retrieves both Statutory Articles (Gazeta Zyrtare) and Supreme Court Precedents (Aktgjykimet e Supremes).
+    """
     from . import embedding_service
-    vector = embedding_service.generate_embedding(query_text)
+    vector = embedding_service.generate_embedding(query_text) if query_text else None
     
     db = _get_db()
     coll = db["legal_knowledge_base"]
-    results = []
+    raw_results = []
 
     if vector:
         try:
-            pipeline = [{"$vectorSearch": {"index": "vector_index", "path": "embedding", "queryVector": vector, "numCandidates": 100, "limit": n_results}}]
-            results = list(coll.aggregate(pipeline))
+            pipeline = [{
+                "$vectorSearch": {
+                    "index": "vector_index", 
+                    "path": "embedding", 
+                    "queryVector": vector, 
+                    "numCandidates": 120, 
+                    "limit": n_results
+                }
+            }]
+            raw_results = list(coll.aggregate(pipeline))
         except Exception as e:
-            logger.warning(f"SaaS Global Vector Query Failed, running keyword fallback: {e}")
+            logger.warning(f"SaaS Global Vector Query Failed, running text fallback: {e}")
 
-    if not results:
+    # Fallback to Text Search if vector search returns empty
+    if not raw_results:
         try:
-            results = list(coll.find({"$text": {"$search": query_text}}).limit(n_results))
+            raw_results = list(coll.find({"$text": {"$search": query_text}}).limit(n_results))
         except Exception:
-            results = list(coll.find().limit(n_results))
+            raw_results = list(coll.find().limit(n_results))
 
     formatted_results = []
-    for r in results:
-        law_title = r.get("law_title", "Dokument Juridik")
+    for r in raw_results:
+        law_title = r.get("law_title") or r.get("title") or "Dokument Juridik"
         article_num = str(r.get("article_number", ""))
         is_article = r.get("is_article", False)
-        is_case_law = r.get("is_case_law", False)
+        is_case_law = r.get("is_case_law", False) or "pml" in law_title.lower() or "supreme" in law_title.lower()
 
-        # Smart Contextual Formatting to tell the LLM exactly what it is reading
+        # Contextual tagging for LLM synthesis
         if is_case_law:
-            source_tag = f"🔨 Praktika Gjyqësore (Aktgjykim): {law_title}"
+            source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor i Gjykatës Supreme: {law_title}"
         elif is_article:
             art_label = "Neni " if article_num != "0" else "Preambula"
             art_suffix = article_num if article_num != "0" else ""
-            source_tag = f"⚖️ {law_title}, {art_label}{art_suffix}"
+            source_tag = f"⚖️ Baza Statutare: {law_title}, {art_label}{art_suffix}"
         else:
             section_label = article_num if article_num else "Seksioni"
-            source_tag = f"📚 Doktrina/Manuali ({law_title}), {section_label}"
+            source_tag = f"📚 Doktrina dhe Komentari Zyrtar ({law_title}), {section_label}"
 
         formatted_results.append({
-            "text": r.get("text", ""), 
+            "text": r.get("text") or r.get("content") or "", 
             "source": source_tag, 
-            "chunk_id": str(r.get("_id"))
+            "chunk_id": str(r.get("_id", ""))
         })
 
     return formatted_results
 
 
-def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15, **kwargs) -> List[Dict[str, Any]]:
+def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 16, **kwargs) -> List[Dict[str, Any]]:
     """
     UNBREAKABLE DUAL-RETRIEVAL ENGINE:
     1. Executes Atlas $vectorSearch with case_id + owner_id filter.
@@ -93,7 +106,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
             {"case_id": ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str}
         ]
 
-    # Step 1: Vector Search if vector embedding succeeded
+    # Step 1: Vector Search
     if vector:
         try:
             pipeline = [{
@@ -101,25 +114,22 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 15
                     "index": "vector_index", 
                     "path": "embedding", 
                     "queryVector": vector, 
-                    "numCandidates": 100, 
+                    "numCandidates": 120, 
                     "limit": n_results, 
                     "filter": {"owner_id": user_id}
                 }
             }]
             results = list(coll.aggregate(pipeline))
         except Exception as e:
-            logger.warning(f"Vector search exception (falling back to direct Mongo search): {e}")
+            logger.warning(f"Vector search exception: {e}")
 
-    # Step 2: FAIL-SAFE FALLBACK (Direct Mongo Query if vector search yields 0 chunks)
+    # Step 2: Direct Fallback
     if not results:
-        logger.info(f"⚡ [VectorStore] Vector search returned 0 results. Executing Direct Mongo Ingestion Fallback for case {case_context_id}")
-        
         try:
             results = list(coll.find(case_filter).limit(n_results))
         except Exception as e:
             logger.error(f"Direct user_vectors fetch failed: {e}")
 
-        # Direct Document Text Ingestion if user_vectors is empty
         if not results and case_context_id:
             try:
                 c_oid = ObjectId(case_context_id) if ObjectId.is_valid(case_context_id) else case_context_id
@@ -151,20 +161,13 @@ def create_and_store_embeddings_from_chunks(
     chunks: List[str], 
     metadatas: Sequence[Dict[str, Any]]
 ) -> bool:
-    """
-    HIGH-SPEED BATCH INGESTION:
-    Vectorizes all chunks concurrently in 1 single HTTP request and batch-inserts into MongoDB.
-    """
     from . import embedding_service
     
     if not chunks:
         logger.warning(f"⚠️ [VectorStore] 0 chunks provided for document {document_id}")
         return False
 
-    logger.info(f"⚡ [VectorStore] Batch-vectorizing {len(chunks)} chunks for document {document_id} in 1 call...")
-    
     try:
-        # 1 single network request generates all chunk embeddings
         vectors = embedding_service.generate_embeddings_batch(chunks)
         
         coll = _get_db()["user_vectors"]
@@ -184,11 +187,9 @@ def create_and_store_embeddings_from_chunks(
         
         if docs: 
             coll.insert_many(docs)
-            logger.info(f"✅ SaaS Ingested {len(docs)} chunks for document {document_id} in ~0.3s!")
+            logger.info(f"✅ SaaS Ingested {len(docs)} chunks for document {document_id}!")
             return True
-        else:
-            logger.error(f"❌ [VectorStore] FAILURE: 0 documents prepared for {document_id}")
-            return False
+        return False
             
     except Exception as e:
         logger.error(f"SaaS Ingestion Failed: {e}")

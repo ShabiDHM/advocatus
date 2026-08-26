@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V96.0 (SUPREME COURT FORENSIC AUDITOR & 700-PAGE JURISPRUDENCE)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V98.0 (ACTIVE JURISPRUDENTIAL REASONING & SYNTHESIS)
 
 import os
 import sys
@@ -34,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with Supreme Court Jurisprudence Module.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with Active Jurisprudential Reasoning Engine.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -54,8 +54,9 @@ class AlbanianRAGService:
         
         audit_keywords = [
             "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
-            "direktivë e detyrueshme forenzike", "paralajmërime & sugjerime", 
-            "lapsuseve", "gjykata supreme", "gjykates supreme", "opinioni i gjykatës supreme"
+            "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
+            "paralajmërime & sugjerime", "lapsuseve", "gjykata supreme", "gjykates supreme", 
+            "shkelje procedurale", "shkeljeve procedurale", "opinion i gjykatës supreme"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
@@ -147,12 +148,10 @@ class AlbanianRAGService:
         for d in case_docs:
             context_blocks.append(f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {self._get_expanded_text(d)}\n")
 
-        context_blocks.append("\n<<< BAZA LIGJORE STATUTORE DHE JURISPRUDENCA E GJYKATËS SUPREME TË KOSOVËS (700+ FAQE) >>>\n")
+        context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA PARIMORE E GJYKATËS SUPREME >>>\n")
         for d in global_docs:
-            law_title = d.get('law_title') or d.get('source') or 'Jurisprudenca Supreme'
-            art_num = d.get('article_number') or d.get('precedent_number') or ''
-            art_label = f", Neni/Vendimi {art_num}" if art_num else ""
-            context_blocks.append(f"BURIMI: {law_title}{art_label}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
+            source_tag = d.get('source') or 'Burim Juridik'
+            context_blocks.append(f"BURIMI: {source_tag}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
 
         full_context = "".join(context_blocks)
         
@@ -267,16 +266,16 @@ class AlbanianRAGService:
             user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=16
         )
 
-        # 📚 KËRKIMI NË BAZËN GLOBALE TË GJYKATËS SUPREME (700+ FAQE)
+        # 📚 KËRKIMI SEMANTIK NË BAZËN GLOBALE (NENET & AKTGJYKIMET E SUPREMES)
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=sanitized_query, n_results=12
+            query_text=sanitized_query, n_results=14
         )
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROMPTIMET SIPAS INTENTIT TË PËRDORUESIT
+        # 🏛️ PROMPTIMET SIPAS INTENTIT ME ARSYETIM TË THELLË DOKTRINAR
         # =========================================================================
 
         if user_intent == "DRAFTING":
@@ -284,42 +283,46 @@ class AlbanianRAGService:
             {identity_header}
 
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
-            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
+            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            RREGULLA ABSOLUTE E PËRFUNDIMIT TË SHKRESËS:
-            1. Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
-            2. Përfshi të gjithë të dyshuarit/kundërshtarët me veprimet e tyre konkrete inkriminuese.
-            3. Përdor strukturën zyrtare gjyqësore: Organi Marrës, Palët, Titulli, Baza Statutare, Dispozitivi (SEPSE), Arsyetimi Faktiq & Forenzik, Petitumi/Kërkesa Procedurale, Inventari i Provave (A-1 deri D-1), Rezervimi i Dëmit (Neni 462 KPPRK), Data dhe Nënshkrimi.
+            STANDARDI I ARSYETIMIT JURIDIK:
+            - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, raporte), nxirr faktet nga ato dhe ndërto shkresën nga e para.
+            - Zbato drejtpërdrejt parimet e Gjykatës Supreme të Kosovës (të shënuara me '🔨 Praktika Gjyqësore') për të arsyetuar kërkesëpadinë apo fajësinë.
+            - Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
 
-            FASHIKULLI DHE PROVAT E ADMINISTRUARA:
+            STRUKTURA E SHKRESËS ZYRTARE:
+            - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit (Neni 462 KPPRK) | Data dhe Nënshkrimi.
+
+            FASHIKULLI DHE PROVAT:
             {context_str}
             """
         elif user_intent == "FORENSIC_AUDIT":
             system_prompt = f"""
             {identity_header}
 
-            ROLI YT: Auditor Ligjor dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
-            MISIONI: Kryej auditimin e thellë forenzik të dokumentit dhe vlerësimin doktrinar sipas jurisprudencës së Gjykatës Supreme të Kosovës (700+ faqe).
+            ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
+            MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural të bazuar në fashikull dhe në vendimet parimore të Gjykatës Supreme të Kosovës.
 
             STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            - Përmblidh faktet e verifikuara, dëshmitë shkencore dhe provat e këtij dokumenti pa asnjë ndryshim.
+            - Përmblidh saktësisht faktet e verifikuara, dëshmitë dhe provat materiale të këtij akti pa asnjë ndryshim.
 
-            ### 2. BAZA LIGJORE DHE KORNIZA STATUTARE
+            ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             - Lidh saktë të gjitha nenet dhe ligjet pozitive të aplikueshme (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
 
-            ### 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE DHE DISKREPANCAVE)
-            - Audito me rigorozitet nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
+            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE LAPSUSEVE STATUTARE
+            - **Shkeljet Procedurale & Prova të Papranueshme:** Audito nëse ka shkelje të rënda procedurale (seanca klandestine, dëbim arbitrar i palës Neni 31 Kushtetutë / Neni 6 KEDNJ, prapadatim aktesh, marrje deklaratash nën trysni Neni 12 i Konventës së OKB-së, shkelje të afateve prekluzive, apo prova që duhet të shpallen të papranueshme sipas Nenit 123 të KPPRK-së / LPK-së).
+            - **Lapsuset e Neneve:** Audito nëse shkresa ka lapsuse numerike të neneve apo dispozita të pasakta me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
 
-            ### 4. 🏛️ OPINIONI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS
-            - Duke u mbështetur në bazën tonë të jurisprudencës prej 700+ faqesh (Aktgjykimet e Kolegjit Penal PML, Vendimet e Kolegjit Civil, Komentarin e Prof. Dr. Fejzullah Hasanit):
-              * Analizo qëndrimin e Gjykatës Supreme mbi figurat e pretenduara (p.sh. standardi i Nenit 93 mbi Rehabilitimin Ligjor dhe papërdorshmërinë e dënimeve të shlyera, standardi i Bashkëkryerjes sipas Neneve 31/33, Falsifikimi i dokumenteve zyrtare Neni 427, dëbimi arbitrar nga seanca Neni 31 i Kushtetutës dhe Neni 6 i KEDNJ).
-              * Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e provave dhe forcën juridike të këtij akti para gjykatës.
+            ### 4. 🏛️ INTERPRETIMI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS (VENDIMET PARIMORE)
+            - Duke u mbështetur në precedentët e tërhequr më lart (të shënuar me '🔨 Praktika Gjyqësore'):
+              * Analizo si e trajton Gjykata Supreme institutin përkatës (p.sh. Neni 93 mbi Rehabilitimin Ligjor, standardi i Bashkëkryerjes sipas Neneve 31/33, Falsifikimi i dokumenteve zyrtare Neni 427, vlerësimi i dëshmive kontradiktore dhe barra e provës).
+              * Zbato këtë parim doktrinar direkt mbi faktet e këtij rasti, duke dhënë vlerësimin e Gjyqtarit Suprem mbi qëndrueshmërinë e shkresës para gjykatës.
 
             ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-            - Hapat e menjëhershëm proceduralë, masat emergjente dhe veprimet me organet kompetente.
+            - Veprimet e menjëhershme procedurale, afatet prekluzive dhe veprimet me organet kompetente.
 
-            FASHIKULLI DHE JURISPRUDENCA E SUPREMES:
+            FASHIKULLI DHE JURISPRUDENCA SUPREME:
             {context_str}
             """
         else:

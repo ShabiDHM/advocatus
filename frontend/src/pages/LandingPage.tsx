@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V15.1 (0 WARNINGS & CLEAN IMPORTS)
+// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V17.0 (AUTHORITATIVE SUPREME COURT JURISPRUDENCE & FORENSICS)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,21 +33,21 @@ export const LandingPage: React.FC = () => {
 
   const trustMetrics = [
     {
-      value: '700+ Faqe',
+      value: 'Vendimet Parimore',
       title: 'Jurisprudencë Supreme',
-      desc: 'Vendimet parimore dhe Aktgjykimet e Kolegjit Penal të Gjykatës Supreme.',
+      desc: 'Interpretimi doktrinar dhe zbatimi i Aktgjykimeve të Kolegjit Penal e Civil.',
       icon: Gavel,
     },
     {
       value: '1-Kliko ⚖️',
-      title: 'Forenzika Ligjore',
-      desc: 'Skanim i neneve, zbulimi i lapsuseve dhe verifikimi me Gazetën Zyrtare.',
+      title: 'Forenzika Procedurale',
+      desc: 'Zbulimi i shkeljeve procedurale, provave të papranueshme dhe lapsuseve.',
       icon: Scale,
     },
     {
       value: '100% e Verifikueshme',
       title: 'Burime të Qarta',
-      desc: 'Çdo përgjigje shoqërohet me referencën e nenit dhe dokumentit.',
+      desc: 'Çdo përgjigje shoqërohet me referencën e nenit, ligjit dhe dokumentit.',
       icon: FileCheck2,
     },
     {
@@ -160,9 +160,9 @@ export const LandingPage: React.FC = () => {
   const bentoFeatures = [
     {
       colSpan: 'lg:col-span-12',
-      title: '⚖️ Forenzika Ligjore me 1-Klikim & Jurisprudenca Supreme (700+ Faqe)',
-      subtitle: '1-CLICK STATUTORY FORENSICS',
-      desc: 'Klikoni mbi çdo dokument në fashikull për të kryer auditimin e thellë ligjor: sistemi skanon provat, lidh çdo shkelje me nenet përkatëse të ligjeve të Kosovës (KPRK, KPPRK, LPK, LMD), zbulon automatikisht lapsuset e neneve apo referencat e gabuara, dhe nxjerr opinionin e Gjykatës Supreme të Kosovës bazuar në 700+ faqe të vendimeve të Kolegjit Penal e Civil (Aktgjykimet PML).',
+      title: '⚖️ Forenzika Ligjore & Zbatimi i Jurisprudencës së Gjykatës Supreme',
+      subtitle: '1-CLICK LEGAL & PROCEDURAL FORENSICS',
+      desc: 'Klikoni mbi çdo dokument në fashikull për të kryer auditimin e thellë forenzik: sistemi zbulon shkeljet thelbësore procedurale (seancat klandestine, antedatimin e akteve), identifikon provat e papranueshme (Neni 123 i KPPRK-së), evidenton lapsuset e neneve dhe nxjerr opinionin e Gjykatës Supreme të Kosovës bazuar në vendimet parimore të Kolegjit Penal e Civil (Aktgjykimet PML).',
       icon: Scale,
       gradient: 'from-amber-500/20 via-primary-start/15 to-transparent',
       borderColor: 'border-amber-500/40',
@@ -293,8 +293,8 @@ export const LandingPage: React.FC = () => {
             transition={{ delay: 0.2 }}
             className="text-sm sm:text-base md:text-lg text-text-secondary leading-relaxed max-w-3xl mx-auto font-normal"
           >
-            Auditim i saktë i çdo shkrese, zbulim i lapsuseve statutare dhe lidhje e menjëhershme me <strong>700+ faqe të vendimeve të Gjykatës Supreme të Kosovës</strong>. 
-            <strong> Juristi.tech</strong> fuqizon avokatët në analizën kirurgjikale të provave dhe përgatitjen e seancave sipas <strong>KPRK, KPPRK, LPK dhe LMD</strong>.
+            Zbulim i shkeljeve thelbësore procedurale, auditim i provave të papranueshme, korrigjim i lapsuseve statutare dhe lidhje e menjëhershme me <strong>vendimet parimore të Gjykatës Supreme të Kosovës</strong>. 
+            <strong> Juristi.tech</strong> fuqizon avokatët në analizën kirurgjikale të dosjes dhe mbrojtjen procedurale sipas <strong>KPRK, KPPRK, LPK dhe LMD</strong>.
           </motion.p>
 
           <motion.div
@@ -451,7 +451,7 @@ export const LandingPage: React.FC = () => {
               Mjetet për Punën Tuaj të Përditshme
             </h2>
             <p className="text-xs sm:text-sm text-text-secondary">
-              Teknologji e avancuar forenzike e mbështetur në Gazetën Zyrtare dhe precedentët e Gjykatës Supreme të Kosovës.
+              Teknologji e avancuar forenzike e mbështetur në Gazetën Zyrtare dhe vendimet parimore të Gjykatës Supreme të Kosovës.
             </p>
           </div>
 
