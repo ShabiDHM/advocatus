@@ -1,27 +1,66 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V41.0 (INDIVIDUAL LAW ARTICLE SPLITTER & EXHAUSTIVE STATUTE RECOGNITION)
+// PHOENIX PROTOCOL - CHAT HELPERS V42.0 (EXHAUSTIVE MULTI-PASS KOSOVO STATUTORY CITATION ENGINE)
 
-const KNOWN_STATUTES = [
-  { pattern: /(?:Ligj(?:it|i)?\s+Nr\.?\s*03\/L-052(?:\s+për\s+Prokurorinë\s+Speciale(?:\s+të\s+Republikës\s+së\s+Kosovës)?)?|PSRK)/i, name: 'Ligji Nr. 03/L-052 për Prokurorinë Speciale' },
-  { pattern: /(?:Kushtetut(?:ës|a)?(?:\s+së\s+Republikës\s+së\s+Kosovës)?)/i, name: 'Kushtetuta e Republikës së Kosovës' },
-  { pattern: /(?:Konvent(?:ës|a)?\s+Evropiane\s+për\s+të\s+Drejtat\s+e\s+Njeriut|KEDNJ)/i, name: 'KEDNJ' },
-  { pattern: /(?:Konvent(?:ës|a)?(?:\s+së\s+Kombeve\s+të\s+Bashkuara|\s+së\s+OKB-së)?\s+për\s+të\s+Drejtat\s+e\s+Fëmijës)/i, name: 'Konventa për të Drejtat e Fëmijës' },
-  { pattern: /(?:KPPRK|Kodi\s+i\s+Procedurës\s+Penale)/i, name: 'KPPRK' },
-  { pattern: /(?:KPRK|Kodi\s+Penal)/i, name: 'KPRK' },
-  { pattern: /(?:LPK|Ligji\s+për\s+Procedurën\s+Kontestimore)/i, name: 'LPK' },
-  { pattern: /(?:LMD|Ligji\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve)/i, name: 'LMD' },
-  { pattern: /(?:Ligj(?:it|i)?\s+të\s+Punës)/i, name: 'Ligji i Punës' },
-  { pattern: /(?:LFK|Ligji\s+për\s+Familjen)/i, name: 'Ligji për Familjen' },
-  { pattern: /(?:LSHT|Ligji\s+për\s+Shoqëritë\s+Tregtare)/i, name: 'Ligji për Shoqëritë Tregtare' }
+interface StatuteDefinition {
+  regex: RegExp;
+  cleanName: string;
+}
+
+const STATUTES_REGISTRY: StatuteDefinition[] = [
+  {
+    regex: /(?:Ligj(?:it|i)?\s+Nr\.?\s*03\/L-052(?:\s+për\s+Prokurorinë\s+Speciale(?:\s+të\s+Republikës\s+së\s+Kosovës)?)?|PSRK)/i,
+    cleanName: 'Ligji Nr. 03/L-052 për Prokurorinë Speciale'
+  },
+  {
+    regex: /(?:Kushtetut(?:ës|a)?(?:\s+së\s+Republikës\s+së\s+Kosovës)?)/i,
+    cleanName: 'Kushtetuta e Republikës së Kosovës'
+  },
+  {
+    regex: /(?:Konvent(?:ës|a)?\s+Evropiane\s+për\s+të\s+Drejtat\s+e\s+Njeriut|KEDNJ)/i,
+    cleanName: 'KEDNJ'
+  },
+  {
+    regex: /(?:Konvent(?:ës|a)?(?:\s+së\s+Kombeve\s+të\s+Bashkuara|\s+së\s+OKB-së)?\s+për\s+të\s+Drejtat\s+e\s+Fëmijës)/i,
+    cleanName: 'Konventa për të Drejtat e Fëmijës'
+  },
+  {
+    regex: /(?:KPPRK|Kodi\s+i\s+Procedurës\s+Penale(?:\s+të\s+Republikës\s+së\s+Kosovës)?)/i,
+    cleanName: 'KPPRK'
+  },
+  {
+    regex: /(?:KPRK|Kodi\s+Penal(?:\s+i\s+Republikës\s+së\s+Kosovës)?)/i,
+    cleanName: 'KPRK'
+  },
+  {
+    regex: /(?:LPK|Ligji\s+për\s+Procedurën\s+Kontestimore)/i,
+    cleanName: 'LPK'
+  },
+  {
+    regex: /(?:LMD|Ligji\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve)/i,
+    cleanName: 'LMD'
+  },
+  {
+    regex: /(?:Ligj(?:it|i)?\s+të\s+Punës)/i,
+    cleanName: 'Ligji i Punës'
+  },
+  {
+    regex: /(?:LFK|Ligji\s+për\s+Familjen)/i,
+    cleanName: 'Ligji për Familjen'
+  },
+  {
+    regex: /(?:LSHT|Ligji\s+për\s+Shoqëritë\s+Tregtare)/i,
+    cleanName: 'Ligji për Shoqëritë Tregtare'
+  }
 ];
 
-const detectLawTitle = (contextSnippet: string): string => {
-  for (const stat of KNOWN_STATUTES) {
-    if (stat.pattern.test(contextSnippet)) {
-      return stat.name;
+const resolveStatuteName = (rawLawString: string): string => {
+  if (!rawLawString) return 'Ligji përkatës';
+  for (const item of STATUTES_REGISTRY) {
+    if (item.regex.test(rawLawString)) {
+      return item.cleanName;
     }
   }
-  return 'Ligji përkatës';
+  return rawLawString.trim() || 'Ligji përkatës';
 };
 
 export const autoLinkLegalCitations = (text: any): string => {
@@ -34,49 +73,72 @@ export const autoLinkLegalCitations = (text: any): string => {
     return `__MD_LINK_TOKEN_${savedLinks.length - 1}__`;
   });
 
-  // 2. Pastrojmë kllapat katrore të mbetura gabimisht
+  // 2. Pastrojmë kllapat katrore të mbetura gabimisht te nenet
   protectedText = protectedText.replace(/\[\s*(Nen(?:i|et)\s+\d+[^\]]*)\s*\]/gi, '$1');
 
-  // 3. RAPORT I PLOTË I NENEVE DHE LIGJEVE (Kapje Inteligjente dhe Ndarje Individuale)
-  // Shembuj: "Nenet 31, 32, 81 dhe 427 të KPRK-së", "Neni 424, paragrafi 1 i KPRK-së", "Neni 9, paragrafi 1 i Ligjit Nr. 03/L-052"
-  const multiArticlePattern = /\b((?:Nenet|Neni)\s+([\d\s,.\-(dhe)(e)(par)(paragrafi)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s]{2,80}?))(?=[.,;\n\r\)\s]|$)/gi;
+  // 3. PASS A: Kapja e formave me shumë nene të ndjekura nga një ligj
+  // P.sh.: "Nenet 31, 32, 81, 82, 83, 93, 193, 246, 248, 330, 378, 382, 383, 385, 386, 387, 390, 414, 424 dhe 427 të KPRK-së"
+  // P.sh.: "Nenet 22, 31, 53 dhe 54 të Kushtetutës së Republikës së Kosovës"
+  // P.sh.: "Nenet 6, 8 dhe 13 të KEDNJ-së"
+  const multiArticleGroupRegex = /\b(Nenet\s+([\d\s,.\-(dhe)(e)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,90}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
-    protectedText = protectedText.replace(multiArticlePattern, (fullMatch, _p1, numbersBlock, trailingLaw) => {
-      // Gjejmë ligjin
-      const lawTitle = detectLawTitle(`${fullMatch} ${trailingLaw}`);
-      
-      // Nxirr të gjithë numrat e neneve
+    protectedText = protectedText.replace(multiArticleGroupRegex, (fullMatch, _p1, numbersBlock, lawCandidate) => {
+      const lawName = resolveStatuteName(lawCandidate || fullMatch);
       const numbers = numbersBlock.match(/\b\d+\b/g);
-      if (!numbers || numbers.length === 0) {
-        return fullMatch;
-      }
 
-      // Nëse është një nen i vetëm (p.sh. "Neni 424, par. 1 i KPRK-së")
-      if (numbers.length === 1) {
-        const artNum = numbers[0];
-        const cleanDisplay = fullMatch.replace(/\s+/g, ' ').trim();
-        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(artNum)}`;
-        return `[${cleanDisplay}](${targetUrl})`;
-      }
+      if (!numbers || numbers.length === 0) return fullMatch;
 
-      // Nëse ka shumë nene të listuara (p.sh. "Nenet 31, 32, 81, 82, 83... dhe 427 të KPRK-së")
-      // I ndajmë në butona individualë të veçantë që të mos dalin kurrë jashtë kutisë!
-      let replacedNumbersBlock = numbersBlock;
+      // Krijojmë butona individualë të veçantë për çdo numër neni
+      let replacedNumbers = numbersBlock;
       for (const num of numbers) {
-        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(num)}`;
-        const singlePill = `[Neni ${num}](${targetUrl})`;
-        const regexForNum = new RegExp(`\\b${num}\\b`, 'g');
-        replacedNumbersBlock = replacedNumbersBlock.replace(regexForNum, singlePill);
+        const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(num)}`;
+        const pill = `[Neni ${num}](${targetUrl})`;
+        const numRegex = new RegExp(`\\b${num}\\b`, 'g');
+        replacedNumbers = replacedNumbers.replace(numRegex, pill);
       }
 
-      return `Nenet ${replacedNumbersBlock} ${trailingLaw ? trailingLaw.trim() : ''}`.replace(/\s+/g, ' ');
+      return `Nenet ${replacedNumbers} të ${lawName}`;
     });
   } catch (err) {
-    console.error('Law citation autolinking error:', err);
+    console.error('Multi-article parsing error:', err);
   }
 
-  // 4. Rikthejmë linket e mbrojtura
+  // 4. PASS B: Kapja e Neneve individuale me ose pa paragrafe
+  // P.sh.: "Neni 424, paragrafi 1 i KPRK-së", "Neni 9, paragrafi 1 i Ligjit Nr. 03/L-052", "Neni 387 i KPRK"
+  const singleArticleRegex = /\b(Neni\s+(\d+)(?:,?\s*(?:paragrafi|par\.?)\s*(\d+))?\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,80}?))(?=[.,;\n\r\)]|$)/gi;
+
+  try {
+    protectedText = protectedText.replace(singleArticleRegex, (fullMatch, _p1, artNum, parNum, lawCandidate) => {
+      // Nëse tashmë është brenda një linku, mos e prek
+      if (fullMatch.includes('__MD_LINK_TOKEN_') || fullMatch.includes('](')) return fullMatch;
+
+      const lawName = resolveStatuteName(lawCandidate || fullMatch);
+      const parLabel = parNum ? `, par. ${parNum}` : '';
+      const displayLabel = `Neni ${artNum}${parLabel} (${lawName})`;
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(artNum)}`;
+
+      return `[${displayLabel}](${targetUrl})`;
+    });
+  } catch (err) {
+    console.error('Single article parsing error:', err);
+  }
+
+  // 5. PASS C: Kapja e neneve me formatin e anasjelltë (p.sh. "KPRK Neni 387", "KPPRK Neni 188")
+  const reverseArticleRegex = /\b((?:KPRK|KPPRK|LPK|LMD|Kushtetuta|KEDNJ)\s+Neni\s+(\d+))(?=[.,;\n\r\)\s]|$)/gi;
+
+  try {
+    protectedText = protectedText.replace(reverseArticleRegex, (fullMatch, _p1, artNum) => {
+      if (fullMatch.includes('__MD_LINK_TOKEN_') || fullMatch.includes('](')) return fullMatch;
+      const lawName = resolveStatuteName(fullMatch);
+      const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(artNum)}`;
+      return `[${fullMatch}](${targetUrl})`;
+    });
+  } catch (err) {
+    console.error('Reverse article parsing error:', err);
+  }
+
+  // 6. Rikthejmë linket e mbrojtura
   const restoredText = protectedText.replace(/__MD_LINK_TOKEN_(\d+)__/g, (_, idx) => {
     return savedLinks[Number(idx)] || '';
   });

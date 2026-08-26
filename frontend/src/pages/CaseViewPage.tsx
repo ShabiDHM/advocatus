@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V54.0 (UNIVERSAL DOMAIN-AGNOSTIC STATUTORY AUDIT ENGINE)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V55.0 (STRICT DOCUMENT ISOLATION & ZERO-MUTATION FORENSIC ENGINE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -236,28 +236,32 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 1-CLICK UNIVERSAL LEGAL VERIFICATION & STATUTORY AUDIT DISPATCHER
+  // 1-CLICK LEGAL FORENSIC AUDITOR (STRICT ZERO-MUTATION & DOCUMENT ISOLATION)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
 
     const docName = doc.file_name || 'këtë dokument';
-    const universalPrompt = `Duke u bazuar në përmbajtjen e dokumentit të zgjedhur "${docName}", kryej auditimin e thellë ligjor dhe verifikimin e bazës statutare sipas këtyre 4 seksioneve të detyrueshme:
+    const strictForensicPrompt = `[DIREKTIVË E DETYRUESHME FORENZIKE - BESNIKËRI ABSOLUTE NDAJ DOKUMENTIT]
+Audito VETËM DHE EKSKLUZIVISHT përmbajtjen e dokumentit të zgjedhur: "${docName}".
+RREGULLA: MOS shto asnjë fakt, palë apo pretendim të ri nga jashtë këtij dokumenti. MOS ndrysho asnjë emër, datë apo provë materiale.
+
+Gjenero analizën e saktë sipas 4 seksioneve:
 
 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-   - Përmblidh faktet thelbësore, palët pjesëmarrëse dhe provat materiale të administruara saktësisht siç figurojnë në dokument, pa ndryshuar asnjë emër apo të dhënë faktike.
+   - Përmblidh saktësisht palët, veprimet dhe provat materiale të përshkruara në këtë dokument pa asnjë modifikim.
 
 2. BAZA LIGJORE DHE KORNIZA STATUTARE
-   - Identifiko dhe lidh saktë çdo nen, paragraf dhe ligj pozitiv të aplikueshëm sipas natyrës së lëndës (Penale, Civile, Kontestimore, Komerciale, të Punës, Familjare, Administrative apo Kushtetuese).
+   - Lidh saktë çdo nen, paragraf dhe ligj pozitiv të aplikueshëm sipas shkeljeve dhe natyrës së këtij akti.
 
-3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I SAKTËSISË LIGJORE)
-   - Audito me rigorozitet nëse ndonjë nen, ligj, afat apo terminologji procedurale e cituar në këtë dokument përmban lapsus numerik, mospërputhje me dispozitën reale në fuqi, apo shmangie nga legjislacioni pozitiv i Republikës së Kosovës.
-   - Në rast mospërputhjeje, formulo paralajmërimin e qartë profesional dhe sugjero dispozitën e saktë ligjore për avokatin, duke ruajtur plotësisht të paprekur tekstin e dokumentit.
+3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE)
+   - Audito me rigorozitet nëse ndonjë nen i cituar brenda këtij dokumenti ka lapsus numerik, titull të pasaktë apo mospërputhje me dispozitën reale në fuqi në Kosovë.
+   - Jep paralajmërimin e qartë dhe sugjerimin e nenit të saktë për avokatin, duke ruajtur të pandryshuar tekstin historik të dokumentit.
 
 4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-   - Veprimet e menjëhershme procedurale, afatet e detyrueshme dhe hapat strategjikë pranë organit apo gjykatës kompetente.`;
+   - Hapat e menjëhershëm proceduralë dhe afatet ligjore sipas këtij akti.`;
 
-    handleChatSubmit(universalPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
+    handleChatSubmit(strictForensicPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
   }, [handleChatSubmit]);
 
   const handleRenameAction = async (newName: string) => {
@@ -291,7 +295,7 @@ const CaseViewPage: React.FC = () => {
     <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4">
         
-        {/* SHIRITI I PASTAR I IDENTITETIT */}
+        {/* SHIRITI I IDENTITETIT */}
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
