@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V110.0 (TWO-TIER EVIDENCE PASSPORT & ZERO-BLINDNESS RAG)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V111.0 (INDIVIDUALIZED CRIMINAL LIABILITY PROPOSAL & SUPREME DOCTRINE)
 
 import os
 import sys
@@ -22,7 +22,6 @@ LLM_TIMEOUT = 90
 
 AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës, është për referencë dhe duhet të verifikohet.*"
 
-# 🛡️ PHOENIX V110.0: Kufi optimal i kontekstit me mburojë të tokenave
 MAX_CONTEXT_CHARS = 140_000 
 
 
@@ -36,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Two-Tier Autonomous Legal Engine V110.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V111.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -102,16 +101,13 @@ class AlbanianRAGService:
         ).strip()
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict], db_documents: List[Dict]) -> Tuple[str, str]:
-        """
-        🏛️ PHOENIX V110.0: TWO-TIER EVIDENCE PASSPORT & DYNAMIC CHUNK HYDRATION
-        Niveli 1: Pasaporta Forenzike e të gjitha shkresave (0% verbëri mbi 100 dokumente).
-        Niveli 2: Paragrafët e thellë semantikë nga vektorët e çdo faqeje.
-        """
         manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE DHE PASAPORTA FORENZIKE E FASHIKULLIT >>>\n"]
         context_blocks = []
         
         if db_documents:
-            # 🛡️ NIVELI 1: Përfshijmë Pasaportën Forenzike të çdo shkrese pa lënë asnjë dokument jashtë
+            doc_budget = int((MAX_CONTEXT_CHARS * 0.70) / max(len(db_documents), 1))
+            doc_budget = max(doc_budget, 7_000)
+            
             for idx, doc in enumerate(db_documents, 1):
                 doc_id = str(doc.get("_id", ""))
                 file_name = doc.get("file_name") or doc.get("title") or f"Dokument_{idx}.pdf"
@@ -129,24 +125,20 @@ class AlbanianRAGService:
                 if summ == "Sinteza...":
                     summ = ""
 
-                # Ekstraktojmë thelbin e pasaportës (1500 karaktere kyçe të çdo shkrese)
                 dense_passport = summ or raw_t[:1500] or "Shkresë e administruar në fashikull."
                 manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:400]}")
                 
-                # Nëse fashikulli ka pak dokumente, ngarkojmë më shumë tekst
-                if len(db_documents) <= 10 and raw_t:
-                    context_blocks.append(f"\n--- TEKSTI I PLOTË I SHKRESËS: {doc_clickable_link} ---\n{raw_t[:6000]}\n")
+                if len(db_documents) <= 12 and raw_t:
+                    context_blocks.append(f"\n--- TEKSTI I PLOTË I SHKRESËS: {doc_clickable_link} ---\n{raw_t[:doc_budget]}\n")
         else:
             context_blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.\n\n")
 
-        # 🛡️ NIVELI 2: Paragrafët e synuar semantikë nga kërkimi vektorial në të gjitha 100 dokumentet
         context_blocks.append("\n<<< PARAGRAFET FORENZIKE DHE PROVAT E GJETA NGA KËRKIMI SEMANTIK NË FASHIKULL >>>\n")
         for d in case_docs:
             src = d.get('source') or 'Dokument'
             page_info = f", Faqja: {d.get('page')}" if d.get('page') else ""
             context_blocks.append(f"[{src}{page_info}]:\n{self._get_expanded_text(d)}\n")
 
-        # 🛡️ NIVELI 3: Jurisprudenca Parimore e Gjykatës Supreme
         context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA PARIMORE E GJYKATËS SUPREME >>>\n")
         for d in global_docs:
             source_tag = d.get('source') or 'Burim Juridik'
@@ -269,7 +261,6 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
         sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
-        # 🔍 THELLËSI E RRITUR: Kërkojmë 25 chunks semantike nëpër të gjitha 100 dokumentet
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=25
         )
@@ -282,7 +273,7 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROTOKOLLI UNIVERSAL FORENZIK ME ZERO VERBËRI
+        # 🏛️ DIREKTIVA FORENZIKE ME PROPOZIM TË QARTË TË NDJEKJES PENALE
         # =========================================================================
 
         dynamic_situational_mandate = f"""
@@ -290,18 +281,22 @@ class AlbanianRAGService:
 
         PROTOKOLLI UNIVERSAL I FORENZIKËS DHE KRYEQËZIMIT TË PROVAVE:
         1. SKANIMI I PLOTË I FASHIKULLIT:
-           - Shqyrto Pasaportën Forenzike të të gjitha shkresave dhe Paragrafët e gjetur më poshtë.
-        2. KRYEQËZIMI I SHKELJEVE PROCEDURALE DHE PROVAVE:
+           - Shqyrto Pasaportën Forenzike dhe Paragrafët e gjetur në fashikull.
+        2. KRYEQËZIMI I SHKELJEVE DHE KRIMEVE PROCEDURALE:
            - **Provat Shkencore vs Pretendimet:** Krahaso testet laboratorike me deklaratat gojore.
-           - **Integriteti i Datave:** Skano procesverbalet për prapadatim (antedatim) të seancave apo manipulime shkresore.
-           - **Dënimet e Skaduara:** Verifiko nëse janë përdorur dënime të shlyera automatikisht (Neni 93 i KPRK-së) *contra legem*.
-           - **Heteroanamneza:** Evidento ekspertizat mjekësore të njëanshme pa ekzaminim objektiv.
-           - **Shkeljet Procedurale:** Evidento seancat klandestine, dëbimet arbitrare dhe shkeljet thelbësore.
-        3. VLERËSIMI I AFATEVE TË ANKESËS & VENDIMMARRJA ({current_date_str}):
-           - Nëse afati i ankesës (15 ditë) është aktiv ➔ Ankesë e Rregullt në Apel + Ndjekje Penale nëse ka krime.
-           - Nëse afati ka kaluar ➔ Ndjekje Penale me Kallëzim Penal + Përsëritje e Procedurës Civile (Neni 232 LPK).
-           - Nëse është kontest civil i thjeshtë pa krim ➔ Mjetet civile/përmbarimore.
-        4. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME: Zbato precedentët parimorë (të shënuara me '🔨 Praktika Gjyqësore').
+           - **Prapadatimi / Antedatimi:** Skano procesverbalet për falsifikime të datave të seancave (Neni 427 i KPRK-së).
+           - **Dënimet e Skaduara (Neni 93 i KPRK-së):** Evidento nëse gjykatat kanë përdorur dënime të shlyera *contra legem* (Neni 383 i KPRK-së).
+           - **Heteroanamneza & Ekspertizat:** Zbardh raportet mjekësore pa bazë objektive klinike (Neni 387 i KPRK-së).
+           - **Shkeljet Procedurale & Seancat Klandestine:** Evidento dëbimet arbitrare nga salla dhe cenimin e barazisë së armëve (Neni 31 Kushtetutë / Neni 6 KEDNJ).
+        
+        3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR:
+           - NËSE FASHIKULLI ZBULON KRIME PROCEDURALE/ZYRTARE:
+             * Te Pika 3 e Rekomandimit, DUHET TË PROPOZOSH EKSPLICIT KALLËZIMIN PENAL PRANË PROKURORISË SPECIALE (PSRK) OSE THEMELORE.
+             * Rendit saktësisht cilët persona zyrtarë, gjyqtarë, mjekë, punonjës socialë apo individë privatë të fashikullit duhet të denoncohen penalisht dhe për cilat vepra penale konkrete të KPRK-së!
+             * Propozo gjithashtu PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
+        
+        4. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
+           - Zbato precedentët parimorë (të shënuara me '🔨 Praktika Gjyqësore') mbi provat e fashikullit.
         """
 
         if user_intent == "DRAFTING":
@@ -320,8 +315,7 @@ class AlbanianRAGService:
             STRUKTURA E SHKRESËS ZYRTARE:
             - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit | Data dhe Nënshkrimi.
 
-            PASAPORTA FORENZIKE DHE PROVAT E FASHIKULLIT:
-            {manifest_str}
+            DOKUMENTET E NGARKUARA NË KONTEKST:
             {context_str}
             """
         elif user_intent == "FORENSIC_AUDIT":
@@ -341,7 +335,7 @@ class AlbanianRAGService:
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përfshirë Kallëzimin Penal dhe Përsëritjen e Procedurës)
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
@@ -369,15 +363,19 @@ class AlbanianRAGService:
             DOKUMENTET DHE JURISPRUDENCA SUPREME:
             {context_str}
 
-            UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
-            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit (Provat shkencore, Falsifikimin/Prapadatimin e seancave, Dënimin e skaduar Neni 93, Heteroanamnezën, Dëbimin nga seanca dhe Dhunën psikologjike).
-            2. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
-            3. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
+            UDHËZIME TË DETYRUESHME PËR ANALIZËN DOKTRINARE TË KARTAVE:
+            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
+            2. TE PIKA 3 (REKOMANDIMI STRATEGJIK):
+               - Propozo EKSPLICIT NDJEKJEN PENALE ME KALLËZIM PENAL PRANË PROKURORISË SPECIALE (PSRK) OSE THEMELORE.
+               - Rendit të gjithë personat/zyrtarët përgjegjës nga shkresat (Gjyqtarët për Nenin 383 & 427, Mjekët për Nenin 387, Punonjëset Sociale për Nenin 414 & 248, dhe Palën Private për Nenin 390 & 248).
+               - Propozo PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së mbi bazën e veprave penale të vërtetuara.
+            3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
+            4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
             ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE (Përfshirë Provat Shkencore dhe Shkeljet Procedurale)
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
+            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR
             """
 
         try:
