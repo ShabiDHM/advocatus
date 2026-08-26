@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V98.0 (ACTIVE JURISPRUDENTIAL REASONING & SYNTHESIS)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V100.0 (SEAMLESS SUPREME COURT JURISPRUDENTIAL WEAVE)
 
 import os
 import sys
@@ -19,7 +19,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 90
 
-AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës. Për përdorim profesional.*"
+AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës. Për përdorim profesional.*"
 
 MAX_CONTEXT_CHARS = 110_000 
 
@@ -34,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with Active Jurisprudential Reasoning Engine.")
+            logger.info("✅ [RAG] Universal AI Engine V100.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -55,8 +55,7 @@ class AlbanianRAGService:
         audit_keywords = [
             "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
             "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
-            "paralajmërime & sugjerime", "lapsuseve", "gjykata supreme", "gjykates supreme", 
-            "shkelje procedurale", "shkeljeve procedurale", "opinion i gjykatës supreme"
+            "paralajmërime & sugjerime", "lapsuseve", "shkelje procedurale"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
@@ -244,10 +243,17 @@ class AlbanianRAGService:
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
                     case_desc = case_doc.get("description") or ""
 
-                doc_cursor = self.db.documents.find({
+                doc_filter: Dict[str, Any] = {
                     "$or": [{"case_id": case_id}, {"case_id": c_oid}], 
                     "status": {"$ne": "DELETED"}
-                })
+                }
+
+                if document_ids and len(document_ids) > 0:
+                    doc_oids = [ObjectId(did) for did in document_ids if ObjectId.is_valid(did)]
+                    doc_strs = [str(did) for did in document_ids]
+                    doc_filter["_id"] = {"$in": doc_oids + doc_strs}
+
+                doc_cursor = self.db.documents.find(doc_filter)
                 db_documents = list(doc_cursor)
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
@@ -266,7 +272,6 @@ class AlbanianRAGService:
             user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=16
         )
 
-        # 📚 KËRKIMI SEMANTIK NË BAZËN GLOBALE (NENET & AKTGJYKIMET E SUPREMES)
         global_docs = vector_store_service.query_global_knowledge_base(
             query_text=sanitized_query, n_results=14
         )
@@ -275,7 +280,7 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROMPTIMET SIPAS INTENTIT ME ARSYETIM TË THELLË DOKTRINAR
+        # 🏛️ PROMPTIMET ME ARSYETIM DOKTRINAR TË GJYKATËS SUPREME TË KOSOVËS
         # =========================================================================
 
         if user_intent == "DRAFTING":
@@ -293,7 +298,7 @@ class AlbanianRAGService:
             STRUKTURA E SHKRESËS ZYRTARE:
             - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit (Neni 462 KPPRK) | Data dhe Nënshkrimi.
 
-            FASHIKULLI DHE PROVAT:
+            DOKUMENTET E NGARKUARA NË KONTEKST:
             {context_str}
             """
         elif user_intent == "FORENSIC_AUDIT":
@@ -301,55 +306,64 @@ class AlbanianRAGService:
             {identity_header}
 
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
-            MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural të bazuar në fashikull dhe në vendimet parimore të Gjykatës Supreme të Kosovës.
+            MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
+
+            RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
+            1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera penale apo civile nëse nuk përmenden tekstualisht këtu.
+            2. Nëse dokumenti është një Aktgjykim Civil/Familjar (p.sh. LFK / LPK), audito dispozitat e LFK-së dhe LPK-së. MOS cito procedura penale (KPPRK) përveç nëse vetë ky aktgjykim i referohet shprehimisht një lënde penale!
 
             STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            - Përmblidh saktësisht faktet e verifikuara, dëshmitë dhe provat materiale të këtij akti pa asnjë ndryshim.
+            - Gjykata, trupi gjykues, palët, lënda dhe çfarë ka vendosur dispozitivi.
+            - Provat që vetë ky aktgjykim/dokument thotë se janë administruar.
 
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
-            - Lidh saktë të gjitha nenet dhe ligjet pozitive të aplikueshme (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
+            - Nenet e sakta të ligjit pozitiv (p.sh. LFK Nenet 145, 347, LPK Neni 8, Kushtetuta, KEDNJ).
 
-            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE LAPSUSEVE STATUTARE
-            - **Shkeljet Procedurale & Prova të Papranueshme:** Audito nëse ka shkelje të rënda procedurale (seanca klandestine, dëbim arbitrar i palës Neni 31 Kushtetutë / Neni 6 KEDNJ, prapadatim aktesh, marrje deklaratash nën trysni Neni 12 i Konventës së OKB-së, shkelje të afateve prekluzive, apo prova që duhet të shpallen të papranueshme sipas Nenit 123 të KPPRK-së / LPK-së).
-            - **Lapsuset e Neneve:** Audito nëse shkresa ka lapsuse numerike të neneve apo dispozita të pasakta me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
+            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
+            - **Kundërthëniet e Vendimit:** Krahaso arsyetimin me dispozitivin (p.sh. a ka kontradiktë ku në arsyetim konstatohet raport i mirë prind-fëmijë, ndërsa në dispozitiv kufizohet kontakti në mënyrë drastike?).
+            - **Shkeljet Procedurale & Lapsuset:** Shkelje e Nenit 8 të LPK-së mbi vlerësimin e provave, mungesa e arsyetimit të duhur ligjor.
 
-            ### 4. 🏛️ INTERPRETIMI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS (VENDIMET PARIMORE)
-            - Duke u mbështetur në precedentët e tërhequr më lart (të shënuar me '🔨 Praktika Gjyqësore'):
-              * Analizo si e trajton Gjykata Supreme institutin përkatës (p.sh. Neni 93 mbi Rehabilitimin Ligjor, standardi i Bashkëkryerjes sipas Neneve 31/33, Falsifikimi i dokumenteve zyrtare Neni 427, vlerësimi i dëshmive kontradiktore dhe barra e provës).
-              * Zbato këtë parim doktrinar direkt mbi faktet e këtij rasti, duke dhënë vlerësimin e Gjyqtarit Suprem mbi qëndrueshmërinë e shkresës para gjykatës.
+            ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
+            - Zbato precedentët e Kolegjit të Gjykatës Supreme mbi çështjet përkatëse (interesi më i mirë i fëmijës, ndryshimi i vendimit të kontaktit sipas Nenit 145 LFK, dhe standardi i shqyrtimit objektiv të provave).
+            - Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e këtij aktgjykimi në Apel / Supremë.
 
             ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-            - Veprimet e menjëhershme procedurale, afatet prekluzive dhe veprimet me organet kompetente.
+            - Përgatitja e Ankesës brenda afatit ligjor prej 15 ditësh në Gjykatën e Apelit (Neni 194 dhe 208 i LPK-së).
 
-            FASHIKULLI DHE JURISPRUDENCA SUPREME:
+            DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
             """
         else:
+            # 🏛️ ANALIZA DHE 4 KARTAT STRATEGJIKE ME ZBATIMIN E GJYKATËS SUPREME
             if client_position == "PLAINTIFF":
-                role_instructions = f"PERSPEKTIVA: PADITËS / KALLËZUES (Përfaqësuesi i {client_name})."
+                role_instructions = f"PERSPEKTIVA JURIDIKE: **PADITËS / KALLËZUES (Përfaqësuesi i {client_name}).**"
             elif client_position == "NEUTRAL":
-                role_instructions = "PERSPEKTIVA: NEUTRAL (Auditor / Gjykata)."
+                role_instructions = "PERSPEKTIVA JURIDIKE: **NEUTRAL (Auditor / Kolegji Gjyqësor).**"
             else:
-                role_instructions = f"PERSPEKTIVA: I PADITUR / I DENONCUAR (Mbrojtësi i {client_name})."
+                role_instructions = f"PERSPEKTIVA JURIDIKE: **I PADITUR / I DENONCUAR (Mbrojtësi i {client_name}).**"
 
             system_prompt = f"""
             {identity_header}
 
-            Ti je "Sokrati - Krye-Strategu dhe Avokati Elitar i Drejtësisë në Kosovë".
+            Ti je "Sokrati - Krye-Strategu dhe Gjyqtari Suprem i Drejtësisë në Kosovë".
             METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
             {role_instructions}
 
             REGJISTRI I SKEDARËVE:
             {manifest_str}
 
-            DOKUMENTET E FASHIKULLIT:
+            DOKUMENTET E FASHIKULLIT DHE JURISPRUDENCA:
             {context_str}
 
-            STRUKTURA E PËRGJIGJES:
-            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            ### 2. BAZA LIGJORE DHE ANALIZA PROCEDURALE
-            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
+            UDHËZIME TË DETYRUESHME PËR STRATEGJINË DHE KARTAT:
+            1. Përgjigju thellësisht pyetjes së avokatit duke u mbështetur në provat reale të të gjithë fashikullit.
+            2. ZBATO VENDIMET PARIMORE TË GJYKATËS SUPREME:
+               - Përdor precedentët dhe qëndrimet e Kolegjeve të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') për të arsyetuar kërkesën, prapësimin, apo pyetësorët taktikë.
+            3. STRUKTURA E PËRGJIGJES:
+               ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
+               ### 2. BAZA LIGJORE DHE JURISPRUDENCA E GJYKATËS SUPREME
+               ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
             """
 
         try:
