@@ -1,5 +1,5 @@
 // FILE: src/components/chat/CommandPaletteGrid.tsx
-// PHOENIX PROTOCOL - COMMAND PALETTE GRID V44.0 (SUPREME COURT JURISPRUDENCE & FULL CASE FORENSICS)
+// PHOENIX PROTOCOL - COMMAND PALETTE GRID V45.0 (UNLIMITED EVIDENCE PILLARS & FULL CASE FORENSICS)
 
 import React, { useMemo } from 'react';
 import { ShieldCheck, Scale, Gavel, FileText, Info, ChevronRight, Swords, Shield } from 'lucide-react';
@@ -20,15 +20,15 @@ export const CommandPaletteGrid: React.FC<CommandPaletteGridProps> = ({
   const normalizedPosition = String(clientPosition || 'DEFENDANT').toUpperCase();
 
   const cards = useMemo(() => {
-    // 1. ROLI: PADITËS / KALLËZUES (Sulm Procedural & Standarti Suprem)
+    // 1. ROLI: PADITËS / KALLËZUES (Matrica e Plotë e Provave & Standardi Suprem)
     if (normalizedPosition === 'PLAINTIFF') {
       return [
         {
-          title: 'STRATEGJIA DHE PROVAT E PADISË',
+          title: 'STRATEGJIA DHE MATRICA E PROVAVE',
           badge: 'KËRKESËPADIA',
           badgeColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
           icon: Swords,
-          prompt: 'Duke u bazuar në të gjithë fashikullin e lëndës dhe në vendimet parimore të Gjykatës Supreme të Kosovës, identifiko 3 shtyllat kryesore ku mbështetet kërkesëpadia/kallëzimi ynë, provat vendimtare që ngarkojnë palën kundërshtare dhe jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e lëndës.',
+          prompt: 'Duke u bazuar në të gjithë fashikullin e lëndës dhe në vendimet parimore të Gjykatës Supreme të Kosovës, analizo dhe ndërto të gjitha shtyllat strategjike të kërkesëpadisë/kallëzimit tonë, duke përfshirë çdo provë vendimtare materiale e shkencore të administruar, dhe jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e lëndës.',
         },
         {
           title: 'BAZA STATUTORE DHE JURISPRUDENCA',
@@ -95,7 +95,7 @@ export const CommandPaletteGrid: React.FC<CommandPaletteGridProps> = ({
         badge: 'PRAPËSIMET',
         badgeColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
         icon: Shield,
-        prompt: 'Duke u bazuar në të gjithë fashikullin e lëndës dhe precedentët e Gjykatës Supreme të Kosovës, identifiko 3 prapësimet kryesore të mbrojtjes, mungesën e provave të paditësit, faktet shfajësuese dhe jep vlerësimin doktrinar të Gjyqtarit Suprem mbi rrëzimin e padisë/akuzës.',
+        prompt: 'Duke u bazuar në të gjithë fashikullin e lëndës dhe precedentët e Gjykatës Supreme të Kosovës, analizo të gjitha prapësimet e mbrojtjes, mungesën e provave të paditësit, faktet shfajësuese dhe jep vlerësimin doktrinar të Gjyqtarit Suprem mbi rrëzimin e padisë/akuzës.',
       },
       {
         title: 'BAZA PROCEDURALE DHE PRECEDENTËT',

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V100.0 (SEAMLESS SUPREME COURT JURISPRUDENTIAL WEAVE)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V101.0 (PROCEDURAL STAGE DISAMBIGUATION & ACCURATE INSTITUTION MAPPING)
 
 import os
 import sys
@@ -34,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine V100.0 initialized.")
+            logger.info("✅ [RAG] Universal AI Engine V101.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -163,7 +163,7 @@ class AlbanianRAGService:
     def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
         pos = position.upper()
         if pos == "PLAINTIFF":
-            p1 = "Identifiko 3 shtyllat kryesore ku mbështetet kërkesëpadia jonë dhe provat vendimtare që ngarkojnë të paditurin."
+            p1 = "Identifiko të gjitha shtyllat kryesore ku mbështetet kërkesëpadia/kallëzimi ynë dhe matricën e plotë të provave."
             p2 = "Analizo bazën ligjore të kërkesëpadisë, afatet procedurale dhe nenet përkatëse të ligjeve të Kosovës."
             p3 = "Gjenero pyetjet taktike për të ballafaquar të paditurin dhe dëshmitarët e tij në seancë."
             p4 = "Llogarit dëmet e kërkuara sipas ligjit dhe përgatit përmbledhjen ekzekutive mbi ecurinë e padisë."
@@ -173,7 +173,7 @@ class AlbanianRAGService:
             p3 = "Identifiko mospërputhjet thelbësore dhe gjenero pyetje neutrale sqaruese për vërtetimin e fakteve."
             p4 = "Përgatit memorandumin objektiv të auditimit ligjor mbi lëndën dhe konkluzionet e paanshme."
         else:
-            p1 = "Analizo 3 prapësimet kryesore të mbrojtjes, mungesën e provave të paditësit dhe faktet shfajësuese në fashikull."
+            p1 = "Analizo të gjitha prapësimet kryesore të mbrojtjes, mungesën e provave të paditësit dhe faktet shfajësuese në fashikull."
             p2 = "Analizo bazën ligjore të prapësimeve, parashkrimin e afateve dhe nenet përkatëse për rrëzimin e padisë."
             p3 = "Gjenero kundër-pyetjet taktike për të zbuluar kontradiktat e paditësit dhe dëshmitarëve të tij në seancë."
             p4 = "Përgatit përmbledhjen ekzekutive mbi rreziqet ligjore, shanset e mbrojtjes dhe hapat e mëtejshëm."
@@ -198,7 +198,7 @@ class AlbanianRAGService:
 
         remaining = []
 
-        if not any(k in combined_text for k in ["3 shtyllat kryesore", "3 prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese"]):
+        if not any(k in combined_text for k in ["shtyllat kryesore", "prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese", "matricën e provave"]):
             remaining.append(pillars[0][1])
 
         if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore"]):
@@ -280,8 +280,15 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROMPTIMET ME ARSYETIM DOKTRINAR TË GJYKATËS SUPREME TË KOSOVËS
+        # 🏛️ PROMPTIMET ME DALLIM TË SAKTË PROCEDURAL TË INSTITUCIONEVE
         # =========================================================================
+
+        procedural_roles_rule = """
+        DALLIMI I DETYRUESHËM PROCEDURAL I INSTITUCIONEVE (MOS I NGATËRRO):
+        1. PROKURORIA SPECIALE E KOSOVËS (PSRK): Është Organi Marrës ku po përgatitet të dorëzohet ky Kallëzim Penal. PSRK nuk ka marrë vendim dhe nuk ka refuzuar asgjë, sepse shkresa është në fazë draftimi/dorëzimi!
+        2. PROKURORIA THEMELORE (Prokurore Fikrije Sylejmani): Është organi i shkallës së parë që ka ngritur aktakuzën e kontestuar në vitin 2024 (PP.II.nr. 122/24F).
+        3. GJYKATA THEMELORE & APELI: Janë gjykatat ku janë zhvilluar procedurat e mëparshme kontestuese.
+        """
 
         if user_intent == "DRAFTING":
             system_prompt = f"""
@@ -289,6 +296,8 @@ class AlbanianRAGService:
 
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
             MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
+
+            {procedural_roles_rule}
 
             STANDARDI I ARSYETIMIT JURIDIK:
             - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, raporte), nxirr faktet nga ato dhe ndërto shkresën nga e para.
@@ -308,34 +317,23 @@ class AlbanianRAGService:
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
             MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
 
+            {procedural_roles_rule}
+
             RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
             1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera penale apo civile nëse nuk përmenden tekstualisht këtu.
-            2. Nëse dokumenti është një Aktgjykim Civil/Familjar (p.sh. LFK / LPK), audito dispozitat e LFK-së dhe LPK-së. MOS cito procedura penale (KPPRK) përveç nëse vetë ky aktgjykim i referohet shprehimisht një lënde penale!
+            2. Nëse dokumenti është një Aktgjykim Civil/Familjar (p.sh. LFK / LPK), audito dispozitat e LFK-së dhe LPK-së.
 
             STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            - Gjykata, trupi gjykues, palët, lënda dhe çfarë ka vendosur dispozitivi.
-            - Provat që vetë ky aktgjykim/dokument thotë se janë administruar.
-
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
-            - Nenet e sakta të ligjit pozitiv (p.sh. LFK Nenet 145, 347, LPK Neni 8, Kushtetuta, KEDNJ).
-
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
-            - **Kundërthëniet e Vendimit:** Krahaso arsyetimin me dispozitivin (p.sh. a ka kontradiktë ku në arsyetim konstatohet raport i mirë prind-fëmijë, ndërsa në dispozitiv kufizohet kontakti në mënyrë drastike?).
-            - **Shkeljet Procedurale & Lapsuset:** Shkelje e Nenit 8 të LPK-së mbi vlerësimin e provave, mungesa e arsyetimit të duhur ligjor.
-
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            - Zbato precedentët e Kolegjit të Gjykatës Supreme mbi çështjet përkatëse (interesi më i mirë i fëmijës, ndryshimi i vendimit të kontaktit sipas Nenit 145 LFK, dhe standardi i shqyrtimit objektiv të provave).
-            - Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e këtij aktgjykimi në Apel / Supremë.
-
             ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-            - Përgatitja e Ankesës brenda afatit ligjor prej 15 ditësh në Gjykatën e Apelit (Neni 194 dhe 208 i LPK-së).
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
             """
         else:
-            # 🏛️ ANALIZA DHE 4 KARTAT STRATEGJIKE ME ZBATIMIN E GJYKATËS SUPREME
             if client_position == "PLAINTIFF":
                 role_instructions = f"PERSPEKTIVA JURIDIKE: **PADITËS / KALLËZUES (Përfaqësuesi i {client_name}).**"
             elif client_position == "NEUTRAL":
@@ -350,6 +348,8 @@ class AlbanianRAGService:
             METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
             {role_instructions}
 
+            {procedural_roles_rule}
+
             REGJISTRI I SKEDARËVE:
             {manifest_str}
 
@@ -357,13 +357,14 @@ class AlbanianRAGService:
             {context_str}
 
             UDHËZIME TË DETYRUESHME PËR STRATEGJINË DHE KARTAT:
-            1. Përgjigju thellësisht pyetjes së avokatit duke u mbështetur në provat reale të të gjithë fashikullit.
-            2. ZBATO VENDIMET PARIMORE TË GJYKATËS SUPREME:
-               - Përdor precedentët dhe qëndrimet e Kolegjeve të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') për të arsyetuar kërkesën, prapësimin, apo pyetësorët taktikë.
-            3. STRUKTURA E PËRGJIGJES:
-               ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-               ### 2. BAZA LIGJORE DHE JURISPRUDENCA E GJYKATËS SUPREME
-               ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
+            1. Përgjigju thellësisht pyetjes së avokatit duke u mbështetur në provat reale të fashikullit.
+            2. ZBATO VENDIMET PARIMORE TË GJYKATËS SUPREME mbi provat dhe prapësimet.
+            3. MOS kufizo numrin e shtyllave: përfshi çdo provë materiale e procedurale të administruar.
+
+            STRUKTURA E PËRGJIGJES:
+            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
+            ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
+            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM
             """
 
         try:
