@@ -1,5 +1,5 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V17.0 (PURE MINIMALIST IDENTITY & RIGHT-ALIGNED ROLE PILL)
+// PHOENIX PROTOCOL - CASE HEADER BAR V18.0 (CENTRALIZED IMMUTABLE READ-ONLY ROLE BADGE)
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -15,22 +15,21 @@ import {
 interface CaseHeaderBarProps {
   caseDetails: Case;
   documents: Document[];
-  onOpenRoleModal: () => void;
+  onOpenRoleModal?: () => void; // Optional for backward compatibility
 }
 
 export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
   caseDetails,
   documents,
-  onOpenRoleModal,
 }) => {
   const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
   const rawTitle = caseDetails.title || (caseDetails as any).name || 'Rast pa Titull';
 
   const roleLabel =
     clientPosition === 'DEFENDANT'
-      ? 'ROLI: I PADITUR'
+      ? 'ROLI: I PADITUR / I DENONCUAR'
       : clientPosition === 'PLAINTIFF'
-      ? 'ROLI: PADITËS'
+      ? 'ROLI: PADITËS / KALLËZUES'
       : 'ROLI: NEUTRAL';
 
   return (
@@ -40,7 +39,7 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      {/* SHIRITI I VETËM DHE I PASTAR I IDENTITETIT TË LËNDËS */}
+      {/* SHIRITI I IDENTITETIT TË LËNDËS */}
       <div className="bg-surface border border-main rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         
         {/* MAJTAS: Identiteti i Lëndës dhe Statistikat */}
@@ -64,29 +63,26 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
           </div>
         </div>
 
-        {/* DJATHAS: Zgjedhësi i Rolit Procedural */}
-        <div className="flex items-center justify-end shrink-0">
-          <button
-            type="button"
-            onClick={onOpenRoleModal}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-wider border transition-all shadow-xs cursor-pointer ${
+        {/* DJATHAS: Badge Statik Read-Only (I Pandryshueshëm) */}
+        <div className="flex items-center justify-end shrink-0 select-none">
+          <div
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider border shadow-xs cursor-default ${
               clientPosition === 'DEFENDANT'
-                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
                 : clientPosition === 'PLAINTIFF'
-                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/20'
-                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
             }`}
-            title="Kliko për të ndryshuar rolin procedural të klientit"
           >
             {clientPosition === 'DEFENDANT' ? (
-              <Shield size={12} className="shrink-0" />
+              <Shield size={13} className="shrink-0" />
             ) : clientPosition === 'PLAINTIFF' ? (
-              <Swords size={12} className="shrink-0" />
+              <Swords size={13} className="shrink-0" />
             ) : (
-              <Scale size={12} className="shrink-0" />
+              <Scale size={13} className="shrink-0" />
             )}
             <span>{roleLabel}</span>
-          </button>
+          </div>
         </div>
       </div>
     </motion.div>
