@@ -1,5 +1,5 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V14.0 (ZERO BLEED-THROUGH IN LIGHT & DARK THEMES)
+// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V16.0 (STRICT ADMIN-ONLY DRAFTING & NAVIGATION)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -26,18 +26,26 @@ const Header: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
+  const isAdmin = user?.role === 'ADMIN';
+
+  // 1. LISTA BAZË E NAVIGIMIT PËR TË GJITHË PËRDORUESIT (PA HARTIM)
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
-    { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  if (user?.role === 'ADMIN') {
+  // 2. VETËM NËSE PËRDORUESI ËSHTË SUPER ADMIN SHTOHEN ADMIN & HARTIMI
+  if (isAdmin) {
     navItems.splice(1, 0, {
       icon: Shield,
       label: t('sidebar.adminPanel', 'Admin'),
       path: '/admin',
+    });
+    navItems.push({
+      icon: FileText,
+      label: t('sidebar.drafting', 'Hartimi'),
+      path: '/drafting',
     });
   }
 
@@ -115,7 +123,7 @@ const Header: React.FC = () => {
 
   return (
     <>
-      {/* 100% OPAQUE SOLID HEADER (NO TRANSPARENCY - ZERO BLEED-THROUGH) */}
+      {/* 100% OPAQUE SOLID HEADER */}
       <header 
         className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 border-b border-main shadow-sm transition-colors duration-200"
         style={{
@@ -127,7 +135,7 @@ const Header: React.FC = () => {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button 
             onClick={() => setIsMobileMenuOpen(true)} 
-            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-hover rounded-xl transition-colors focus:outline-none"
+            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-hover rounded-xl transition-colors focus:outline-none cursor-pointer"
             aria-label={t('header.menu', 'Menu')}
           >
             <Menu size={22} />
@@ -167,7 +175,7 @@ const Header: React.FC = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={toggleTheme} 
-            className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none"
+            className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none cursor-pointer"
             aria-label={theme === 'dark' ? t('theme.light', 'Dritë') : t('theme.dark', 'Errët')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -188,7 +196,7 @@ const Header: React.FC = () => {
             <button
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none"
+              className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none cursor-pointer"
               style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
             >
               <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
@@ -209,20 +217,20 @@ const Header: React.FC = () => {
 
                 <button 
                   onClick={() => { setIsProfileOpen(false); navigate('/account'); }} 
-                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors"
+                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors cursor-pointer"
                 >
                   <UserIcon size={16} className="mr-3 text-primary-start" />{t('sidebar.account', 'Llogaria')}
                 </button>
                 <button 
                   onClick={() => { setIsProfileOpen(false); navigate('/support'); }} 
-                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors"
+                  className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors cursor-pointer"
                 >
                   <MessageSquare size={16} className="mr-3 text-primary-start" />{t('sidebar.support', 'Ndihma')}
                 </button>
                 <div className="h-px bg-border-main my-1"></div>
                 <button 
                   onClick={() => { setIsProfileOpen(false); logout(); }} 
-                  className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 >
                   <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
                 </button>
@@ -256,7 +264,7 @@ const Header: React.FC = () => {
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors focus:outline-none"
+              className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors focus:outline-none cursor-pointer"
               aria-label={t('general.close', 'Mbyll')}
             >
               <X size={22} />
