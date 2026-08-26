@@ -1,5 +1,5 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V43.0 (CLEAN REGEX MATCHER & ZERO SUBSTRING CORRUPTION)
+// PHOENIX PROTOCOL - CHAT HELPERS V43.1 (EXPLICIT TYPESCRIPT STRICT TYPING & ZERO WARNINGS)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -77,7 +77,6 @@ export const autoLinkLegalCitations = (text: any): string => {
   protectedText = protectedText.replace(/\[\s*(Nen(?:i|et)\s+\d+[^\]]*)\s*\]/gi, '$1');
 
   // 3. PASS A: Ndarja e grupeve me shumë nene
-  // P.sh.: "Nenet 31, 32, 81, 82, 83, 93, 193, 246, 248, 330, 378, 382, 383, 385, 386, 387, 390, 414, 424 dhe 427 të KPRK-së"
   const multiArticleGroupRegex = /\b(Nenet\s+([\d\s,.\-(dhe)(e)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,90}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
@@ -87,8 +86,9 @@ export const autoLinkLegalCitations = (text: any): string => {
 
       if (!rawNumbers || rawNumbers.length === 0) return fullMatch;
 
-      // Rendisim numrat nga më i gjati te më i shkurtri për të mos prishur nën-vargjet (p.sh. 424 para 4)
-      const sortedNumbers = Array.from(new Set(rawNumbers)).sort((a, b) => b.length - a.length || Number(b) - Number(a));
+      // Explicit string typing to satisfy TypeScript strict mode
+      const uniqueNumbers: string[] = Array.from(new Set<string>(rawNumbers));
+      const sortedNumbers: string[] = uniqueNumbers.sort((a: string, b: string) => b.length - a.length || Number(b) - Number(a));
 
       let replacedNumbers = numbersBlock;
       for (const num of sortedNumbers) {
@@ -105,7 +105,6 @@ export const autoLinkLegalCitations = (text: any): string => {
   }
 
   // 4. PASS B: Kapja e Neneve individuale me ose pa paragrafe
-  // P.sh.: "Neni 424, paragrafi 1 i KPRK-së", "Neni 9, paragrafi 1 i Ligjit Nr. 03/L-052"
   const singleArticleRegex = /\b(Neni\s+(\d+)(?:,?\s*(?:paragrafi|par\.?)\s*(\d+))?\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,80}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
