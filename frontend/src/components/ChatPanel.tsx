@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V37.0 (PERFECT TRUE VERTICAL CENTERING • 0 SCROLL BUG)
+// PHOENIX PROTOCOL - CHAT PANEL V38.0 (DYNAMIC SCOPE-AWARE COMMAND PALETTE)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -132,13 +132,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         isPro={isPro}
       />
 
-      {/* BODY CONTEXT: 100% TRUE VERTICAL CENTERING */}
+      {/* BODY CONTEXT */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
         {displayMessages.length === 0 && !isSendingMessage ? (
           <div className="flex-1 min-h-full flex items-center justify-center w-full">
             <CommandPaletteGrid
               userSalutation={userSalutation}
               clientPosition={clientPosition}
+              selectedDocumentIds={selectedDocumentIds}
+              documents={documents}
               onSendMessage={sendMessage}
             />
           </div>
