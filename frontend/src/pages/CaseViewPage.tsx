@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V51.0 (SYMMETRIC EQUAL-HEIGHT PANELS)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V52.0 (1-CLICK LEGAL VERIFICATION DISPATCHER)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -18,7 +18,6 @@ import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelp
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
-import { RoleSelectionModal } from '../components/case/RoleSelectionModal';
 
 type CaseData = { details: Case | null };
 
@@ -37,7 +36,6 @@ const CaseViewPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [showRoleModal, setShowRoleModal] = useState(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -173,18 +171,7 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handleRoleChosen = async (selectedRole: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL') => {
-    if (!caseId) return;
-    setShowRoleModal(false);
-    setCaseData((prev) => (prev.details ? { details: { ...prev.details, client_position: selectedRole } } : prev));
-    try {
-      await apiService.updateCasePosition(caseId, selectedRole);
-    } catch (e) {
-      console.warn('Failed to persist position update:', e);
-    }
-  };
-
-  const handleChatSubmit = async (
+  const handleChatSubmit = useCallback(async (
     text: string, 
     mode: ChatMode, 
     reasoning: ReasoningMode, 
@@ -247,7 +234,18 @@ const CaseViewPage: React.FC = () => {
     } finally {
       setIsSendingMessage(false);
     }
-  };
+  }, [caseId, persistChatHistory]);
+
+  // 1-CLICK VERIFICATION HANDLER TRIGGERED BY ⚖️ ON ANY DOCUMENT
+  const handleVerifyDocumentLaws = useCallback((doc: Document) => {
+    const docIdStr = String(doc.id);
+    setSelectedDocumentIds([docIdStr]);
+
+    const docName = doc.file_name || 'këtë dokument';
+    const prompt = `Duke u bazuar në dokumentin e zgjedhur "${docName}", analizo dhe lidh të gjitha nenet, paragrafët dhe bazën përkatëse ligjore (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa) për verifikim të drejtpërdrejtë, pa ndryshuar asnjë fakt apo emër të fashikullit.`;
+
+    handleChatSubmit(prompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
+  }, [handleChatSubmit]);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -280,14 +278,13 @@ const CaseViewPage: React.FC = () => {
     <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4">
         
-        {/* SHIRITI I PASTAR I IDENTITETIT DHE ROLIT */}
+        {/* SHIRITI I PASTAR I IDENTITETIT */}
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
-          onOpenRoleModal={() => setShowRoleModal(true)}
         />
 
-        {/* DY SHTYLLAT KRYESORE ME LARTËSI EKZAKTE TË BARABARTË */}
+        {/* DY SHTYLLAT KRYESORE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
@@ -298,6 +295,7 @@ const CaseViewPage: React.FC = () => {
             onDocumentDeleted={handleDocumentDeleted}
             onViewOriginal={handleViewOriginal}
             onRenameDocument={setDocumentToRename}
+            onVerifyDocumentLaws={handleVerifyDocumentLaws}
             t={t}
           />
 
@@ -337,7 +335,6 @@ const CaseViewPage: React.FC = () => {
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
-      <RoleSelectionModal isOpen={showRoleModal} onClose={() => setShowRoleModal(false)} onSelectRole={handleRoleChosen} />
     </motion.div>
   );
 };

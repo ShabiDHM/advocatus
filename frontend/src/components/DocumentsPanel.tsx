@@ -1,5 +1,5 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V23.0 (0 TYPESCRIPT WARNINGS • UNLOCKED DELETE)
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V24.0 (ADDED 1-CLICK LEGAL VERIFICATION ICON ⚖️)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -9,7 +9,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    AlertTriangle
+    AlertTriangle, Scale
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -23,6 +23,7 @@ interface DocumentsPanelProps {
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
+  onVerifyDocumentLaws?: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void; 
   className?: string;
@@ -36,6 +37,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   onDocumentUploaded,
   onViewOriginal,
   onRename,
+  onVerifyDocumentLaws,
   t,
   className
 }) => {
@@ -379,8 +381,21 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 )}
               </div>
               
-              {/* Row action tools - ALWAYS ACCESSIBLE */}
-              <div className={`flex items-center gap-1.5 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
+              {/* Row action tools */}
+              <div className={`flex items-center gap-1 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
+                
+                {/* 1-CLICK LEGAL CITATIONS VERIFIER BUTTON ⚖️ */}
+                {!isProcessingState && onVerifyDocumentLaws && (
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onVerifyDocumentLaws(doc); }} 
+                        className="flex items-center justify-center w-8 h-8 hover:bg-primary-start/15 rounded-lg text-primary-start hover:text-primary-start transition-colors focus:outline-none cursor-pointer" 
+                        title="Lidh dhe Verifiko Nenet Ligjore me Sokratin"
+                    >
+                        <Scale size={14} />
+                    </button>
+                )}
+
                 {!isProcessingState && (
                     <button 
                         type="button"
@@ -414,7 +429,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
 
-                {/* DELETE BUTTON ALWAYS ACTIVE */}
+                {/* DELETE BUTTON */}
                 <button 
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 

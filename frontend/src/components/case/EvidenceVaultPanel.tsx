@@ -1,5 +1,5 @@
 // FILE: src/components/case/EvidenceVaultPanel.tsx
-// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V12.0 (PERFECT HEIGHT MATCH WITH CHAT PANEL)
+// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V13.0 (INTEGRATED 1-CLICK LEGAL AUDIT PROP)
 
 import React, { useState } from 'react';
 import { Document, DeletedDocumentResponse } from '../../data/types';
@@ -19,6 +19,7 @@ interface EvidenceVaultPanelProps {
   onDocumentDeleted: (res: DeletedDocumentResponse) => void;
   onViewOriginal: (doc: Document) => void;
   onRenameDocument: (doc: Document) => void;
+  onVerifyDocumentLaws?: (doc: Document) => void;
   t: TFunction;
 }
 
@@ -31,6 +32,7 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
   onDocumentDeleted,
   onViewOriginal,
   onRenameDocument,
+  onVerifyDocumentLaws,
   t,
 }) => {
   const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
@@ -81,6 +83,7 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
             onDocumentDeleted={onDocumentDeleted}
             onViewOriginal={onViewOriginal}
             onRename={onRenameDocument}
+            onVerifyDocumentLaws={onVerifyDocumentLaws}
             className="h-full w-full bg-transparent border-0 rounded-none"
           />
         ) : (
