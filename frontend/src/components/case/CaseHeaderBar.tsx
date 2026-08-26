@@ -1,7 +1,7 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V18.0 (CENTRALIZED IMMUTABLE READ-ONLY ROLE BADGE)
+// PHOENIX PROTOCOL - CASE HEADER BAR V19.0 (DOCUMENT & TOTAL PAGE COUNT METRICS)
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Case, Document } from '../../data/types';
 import {
@@ -9,18 +9,19 @@ import {
   Calendar,
   Shield,
   Swords,
-  Scale
+  Scale,
+  FileText
 } from 'lucide-react';
 
 interface CaseHeaderBarProps {
   caseDetails: Case;
   documents: Document[];
-  onOpenRoleModal?: () => void; // Optional for backward compatibility
+  onOpenRoleModal?: () => void;
 }
 
 export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
   caseDetails,
-  documents,
+  documents = [],
 }) => {
   const clientPosition = (caseDetails as any).client_position || 'DEFENDANT';
   const rawTitle = caseDetails.title || (caseDetails as any).name || 'Rast pa Titull';
@@ -31,6 +32,19 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
       : clientPosition === 'PLAINTIFF'
       ? 'ROLI: PADITËS / KALLËZUES'
       : 'ROLI: NEUTRAL';
+
+  // Llogaritja e numrit total të faqeve nga të gjitha dokumentet e lëndës
+  const totalPages = useMemo(() => {
+    return documents.reduce((acc, doc) => {
+      const count = 
+        (doc as any).page_count || 
+        (doc as any).pages || 
+        (doc as any).total_pages || 
+        (doc as any).num_pages || 
+        0;
+      return acc + (typeof count === 'number' ? count : parseInt(String(count), 10) || 0);
+    }, 0);
+  }, [documents]);
 
   return (
     <motion.div
@@ -52,13 +66,26 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
               {rawTitle}
             </h1>
 
-            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-text-muted mt-1 font-medium">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-text-muted mt-1 font-medium">
               <span className="flex items-center gap-1">
                 <Calendar size={12} className="text-primary-start/70" />
                 {new Date(caseDetails.created_at).toLocaleDateString()}
               </span>
+
               <span>•</span>
-              <span className="font-mono text-text-secondary">{documents.length} Dok</span>
+              <span className="font-mono text-text-secondary flex items-center gap-1">
+                <FileText size={12} className="text-text-muted" />
+                {documents.length} Dok
+              </span>
+
+              {totalPages > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="font-mono text-text-secondary font-semibold">
+                    {totalPages} Faqe
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
