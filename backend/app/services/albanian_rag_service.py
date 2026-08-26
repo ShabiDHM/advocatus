@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V93.0 (INTELLIGENT DRAFTING & FORENSIC AUDIT DISPATCHER)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V94.0 (EXHAUSTIVE HIGH-TIER DRAFTING & FORENSICS)
 
 import os
 import sys
@@ -21,7 +21,6 @@ LLM_TIMEOUT = 60
 
 AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
-# 🛡️ MBUROJA E TOKENAVE
 MAX_CONTEXT_CHARS = 110_000 
 
 
@@ -35,28 +34,24 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with Intelligent Intent Dispatcher.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with High-Tier Legal Drafting Engine.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
 
     def _detect_user_intent(self, query: str) -> str:
-        """
-        Detects if the user wants an official legal draft, a forensic citation audit, or strategic analysis.
-        """
         q = query.lower()
         
-        # 1. DRAFTING INTENT (User wants a court-ready document)
         drafting_keywords = [
             "gjenero", "harto", "shkruaj", "përpilo", "përgatit shkresën",
             "kallëzim penal", "kallzim penal", "kërkesëpadi", "padi", 
             "prapësim", "prapesim", "përgjigje në padi", "pergjigje ne padi",
-            "ankesë", "ankese", "kontratë", "kontrate", "autorizim", "aktpadi"
+            "kundërpadi", "kunderpadi", "ankesë", "ankese", "kontratë", "kontrate", 
+            "autorizim", "aktpadi", "shkresë gjyqësore", "shkrese gjyqesore"
         ]
-        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene"]):
+        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene", "vetem nene"]):
             return "DRAFTING"
         
-        # 2. LEGAL CITATION FORENSIC AUDIT INTENT
         audit_keywords = [
             "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
             "direktivë e detyrueshme forenzike", "paralajmërime & sugjerime", "lapsuseve"
@@ -64,7 +59,6 @@ class AlbanianRAGService:
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
         
-        # 3. DEFAULT: STRATEGIC ANALYSIS / ADVICE
         return "ANALYSIS"
 
     def _optimize_query(self, query: str) -> str:
@@ -277,37 +271,41 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ DEKLARIMI I SYSTEM PROMPT SIPAS INTENTIT TË PËRDORUESIT
+        # 🏛️ SYSTEM PROMPT I DRAFTIMIT ZYRTAR TË NIVELIT TË LARTË (SENIOR ADVOCATE)
         # =========================================================================
 
         if user_intent == "DRAFTING":
-            # 📜 MODALITETI: HARTIM I PLOTË I DOKUMENTIT ZYRTAR GJYQËSOR
             system_prompt = f"""
             {identity_header}
 
-            ROLI YT: Ti je Avokat Senior dhe Përfaqësues Ligjor në Kosovë.
-            MISIONI: Përdoruesi të kërkon të HARTOSH një akt zyrtar gjyqësor (Kallëzim Penal, Padi, Prapësim, Ankesë, Kontratë).
-            
-            RREGULLAT E HEKURTA TË HARTIMIT:
-            1. MOS gjenero përmbledhje apo analiza me 3 pika. GJENERO DOKUMENTIN E PLOTË ZYRTAR TË GATSHËM PËR PROTOKOLLIM.
-            2. STRUKTURA E DETYRUESHME E SHKRESËS ZYRTARE:
-               - KRYERRESHTI & ORGANI MARRËS (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË).
-               - PALËT E PLOTA ME IDENTITETIN DHE CILËSINË PROCEDURALE (Parashtruesi / I Dëmtuari vs Të Dyshuarit / I Padituri).
-               - TITULLI I SHKRESËS (p.sh. KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI PËR KOMPENSIM DËMI).
-               - BAZA STATUTARE & NENET E ZBATUESHME TË KOSOVËS (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
-               - DISPOSITIVI ME PIKA TË QARTA TË SHKELJEVE DHE VEPRIMEVE INKRIMINUESE.
-               - ARSYETIMI I DETAJUAR DOKTRINAR DHE ANALIZA FORENZIKE E PROVAVE TË FASHIKULLIT.
-               - PROPOZIMI / PETITUMI I DOKUMENTIT (Masat emergjente mbrojtëse, dëgjimi i dëshmitarëve, sekuestrimi i provave, ngritja e aktakuzës).
-               - INVENTARI I PROVAVE MATERIALE (Prova A-1, B-1, C-1...).
-               - REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së).
-               - NËNSHKRIMI DHE DATA.
-            3. MOS shpik fakte jashtë fashikullit. Përdor të gjitha emrat realë, provat dhe datat që gjenden në dokumente.
+            ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
+            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor profesional (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
+
+            UDHËZIME DHE STANDARDE TË HEKURTA TË HARTIMIT ZYRTAR:
+            1. MOS bëj përmbledhje të shkurtra me 3 pika. Shkruaj aktin e plotë, të detajuar, të artikuluar me elegancë dhe autoritet juridik të gatshëm për dorëzim në Gjykatë/Prokurori.
+            2. STRUKTURA DHE PËRMBAJTJA E DETYRUESHME E SHKRESËS:
+               - **KRYERRESHTI & ORGANI MARRËS:** (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË - DEPARTAMENTI PËRKATËS).
+               - **PËR DIJENI:** (Organeve mbikëqyrëse nëse aplikohet).
+               - **PALËT DHE IDENTITETI PROCEDURAL:** Emrat, numrat personalë, adresat dhe cilësia procedurale (Parashtruesi / I Dëmtuari vs Të Dyshuarit / I Padituri).
+               - **TITULLI I AKTIT:** (p.sh. KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI PËR PËRMBUSHJE DETYRIMI DHE DËMSHPËRBLIM).
+               - **BAZA STATUTARE & JURISDIKSIONI:** Cito nenet themelore të kompetencës dhe ligjet përkatëse (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
+               - **DISPOZITIVI ME PIKA TË DETAJUARA (S E P S E):** 
+                 Përshkruaj me prozë të plotë faktike veprimet e secilit person/palë (koha, vendi, mënyra e kryerjes, dashja e drejtpërdrejtë dhe pasojat e shkaktuara).
+               - **ARSYETIMI I THELLË DOKTRINAR & ANALIZA FORENZIKE E PROVAVE:** 
+                 Analizo hollësisht provat shkencore (testet laboratorike), shkresat zyrtare, procesverbalet, dëshmitë audio/video dhe shkeljet materiale.
+               - **KËRKESA & PROPOZIMI PROCEDURAL (PETITUMI):**
+                 Pikat konkrete çfarë kërkohet nga Gjykata/Prokuroria (Urdhëresë emergjente për masa mbrojtëse, fillim hetimesh, sekuestrim forenzik i metadatave, dëgjim dëshmitarësh, ngritje aktakuze, kompensim dëmi me kamatë ligjore 8%).
+               - **INVENTARI I PLOTË I PROVAVE MATERIALE (CORPUS DELICTI):** Renditja me Prova A-1, A-2, B-1, C-1...
+               - **REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së ose dispozita përkatëse civile).**
+               - **VENDI, DATA DHE NËNSHKRIMI I PALËS / PËRFAQËSUESIT LIGJOR.**
+
+            3. BESNIKËRIA NDAJ FASHIKULLIT:
+               Përdor të gjitha faktet, datat, emrat dhe numrat e referencave që gjenden në fashikull pa shpikur të dhëna fiktive.
 
             FASHIKULLI DHE PROVAT E ADMINISTRUARA:
             {context_str}
             """
         elif user_intent == "FORENSIC_AUDIT":
-            # ⚖️ MODALITETI: AUDITIM FORENZIK I NENEVE DHE LAPSUSEVE
             system_prompt = f"""
             {identity_header}
 
@@ -318,14 +316,13 @@ class AlbanianRAGService:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
             ### 2. BAZA LIGJORE DHE KORNIZA STATUTARE (me nenet dhe ligjet e sakta)
             ### 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE DHE DISKREPANCAVE)
-            - Audito nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë.
+            - Audito me saktësi nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
             ### 4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
 
             FASHIKULLI I LEXUAR:
             {context_str}
             """
         else:
-            # 💡 MODALITETI: ANALIZË DHE KËSHILLIM STRATEGJIK
             if client_position == "PLAINTIFF":
                 role_instructions = f"PERSPEKTIVA: PADITËS / KALLËZUES (Përfaqësuesi i {client_name})."
             elif client_position == "NEUTRAL":
@@ -359,7 +356,7 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": sanitized_query}
                 ],
-                temperature=0.0,
+                temperature=0.1,
                 stream=True,
                 max_tokens=4096
             )
