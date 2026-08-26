@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V95.0 (8192 MAX TOKENS & 21-SUSPECT EXHAUSTIVE DRAFTING)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V96.0 (SUPREME COURT FORENSIC AUDITOR & 700-PAGE JURISPRUDENCE)
 
 import os
 import sys
@@ -19,7 +19,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 90
 
-AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
+AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës. Për përdorim profesional.*"
 
 MAX_CONTEXT_CHARS = 110_000 
 
@@ -34,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with 8192 Token Output Capacity.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with Supreme Court Jurisprudence Module.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -49,12 +49,13 @@ class AlbanianRAGService:
             "kundërpadi", "kunderpadi", "ankesë", "ankese", "kontratë", "kontrate", 
             "autorizim", "aktpadi", "shkresë gjyqësore", "shkrese gjyqesore"
         ]
-        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene", "vetem nene"]):
+        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene", "vetem nene", "gjykata supreme"]):
             return "DRAFTING"
         
         audit_keywords = [
             "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
-            "direktivë e detyrueshme forenzike", "paralajmërime & sugjerime", "lapsuseve"
+            "direktivë e detyrueshme forenzike", "paralajmërime & sugjerime", 
+            "lapsuseve", "gjykata supreme", "gjykates supreme", "opinioni i gjykatës supreme"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
@@ -146,9 +147,12 @@ class AlbanianRAGService:
         for d in case_docs:
             context_blocks.append(f"[{d.get('source') or 'Dokument'}, FAQJA: {d.get('page') or 'N/A'}]: {self._get_expanded_text(d)}\n")
 
-        context_blocks.append("\n<<< BAZA LIGJORE STATUTORE E REPUBLIKËS SË KOSOVËS >>>\n")
+        context_blocks.append("\n<<< BAZA LIGJORE STATUTORE DHE JURISPRUDENCA E GJYKATËS SUPREME TË KOSOVËS (700+ FAQE) >>>\n")
         for d in global_docs:
-            context_blocks.append(f"LIGJI: {d.get('law_title') or 'Ligji'}, Neni {d.get('article_number', 'N/A')}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
+            law_title = d.get('law_title') or d.get('source') or 'Jurisprudenca Supreme'
+            art_num = d.get('article_number') or d.get('precedent_number') or ''
+            art_label = f", Neni/Vendimi {art_num}" if art_num else ""
+            context_blocks.append(f"BURIMI: {law_title}{art_label}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
 
         full_context = "".join(context_blocks)
         
@@ -263,15 +267,16 @@ class AlbanianRAGService:
             user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=16
         )
 
+        # 📚 KËRKIMI NË BAZËN GLOBALE TË GJYKATËS SUPREME (700+ FAQE)
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=sanitized_query, n_results=8
+            query_text=sanitized_query, n_results=12
         )
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROMPTIMI I AVANCUAR I DRAFTIMIT ZYRTAR (COMPLETE EXHAUSTIVE DRAFT)
+        # 🏛️ PROMPTIMET SIPAS INTENTIT TË PËRDORUESIT
         # =========================================================================
 
         if user_intent == "DRAFTING":
@@ -281,21 +286,10 @@ class AlbanianRAGService:
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
             MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            RREGULLA ABSOLUTE E PËRFUNDIMIT TË SHKRESËS (NON-TRUNCATION MANDATE):
-            1. SHKRESA DUHET TË RRJEDHË E PLOTË NGA KRYERRESHTI DERI TE NËNSHKRIMI PËRFUNDIMTAR PA U NDËRPRERË NË MES!
-            2. PËRFSHI TË GJITHË 21 TË DYSHUARIT/KUNDËRSHTARËT NË DISPOZITIV DHE ARSYETIM (mund t'i gruposh me strukturë elegante: I. Kabineti i MD-së, II. Persona privatë, III. Gjyqtarët e Themelores & Apelit, IV. Konsulli i Psikiatrisë së QKUK-së, V. Shërbimi Social QPS, VI. Organi i Ndjekjes Polici/Prokurori).
-            3. STRUKTURA E DETYRUESHME E SHKRESËS ZYRTARE:
-               - **KRYERRESHTI & ORGANI MARRËS:** (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË).
-               - **PËR DIJENI:** (Organeve mbikëqyrëse).
-               - **PALËT E PLOTA:** (Parashtruesi / I Dëmtuari vs Të Dyshuarit me detaje).
-               - **TITULLI I AKTIT:** (p.sh. KALLËZIM PENAL I UNIFIKUAR ME DISPOZITIV TË DETAJUAR).
-               - **BAZA STATUTARE DHE JURISDIKSIONI:** (Ligji 03/L-052, KPPRK, KPRK, Kushtetutë, KEDNJ, Konventa e OKB-së).
-               - **DISPOZITIVI ME PIKA TË QARTA (S E P S E):** Përshkrimi i saktë i veprimeve për secilin grup të dyshuarish me nenet konkrete penale.
-               - **ARSYETIMI FAKTIK & FORENSIK I PROVAVE:** Analiza e Certifikatës së Koslaborit (Prova A-1), Raporteve të Konsullit (Prova A-2, A-3), Deklaratave në QPS (Prova B-3), Skedarit Audio (Prova B-7), Procesverbaleve të prapadatuara (Prova C-1) dhe Aktgjykimit të shlyer (Prova D-1).
-               - **KËRKESA & PROPOZIMI PROCEDURAL (PETITUMI):** Masat emergjente mbrojtëse (Nenet 188 & 221 KPPRK brenda 24 orëve), fillimi i hetimeve, sekuestrimi forenzik i metadatave (Nenet 112 & 118), dëgjimi i dëshmitarëve dhe ngritja e aktakuzës.
-               - **INVENTARI I PROVAVE MATERIALE (CORPUS DELICTI):** Renditja e plotë e provave A-1 deri D-1.
-               - **REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së).**
-               - **DATA, VENDI DHE NËNSHKRIMI ZYRTAR.**
+            RREGULLA ABSOLUTE E PËRFUNDIMIT TË SHKRESËS:
+            1. Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
+            2. Përfshi të gjithë të dyshuarit/kundërshtarët me veprimet e tyre konkrete inkriminuese.
+            3. Përdor strukturën zyrtare gjyqësore: Organi Marrës, Palët, Titulli, Baza Statutare, Dispozitivi (SEPSE), Arsyetimi Faktiq & Forenzik, Petitumi/Kërkesa Procedurale, Inventari i Provave (A-1 deri D-1), Rezervimi i Dëmit (Neni 462 KPPRK), Data dhe Nënshkrimi.
 
             FASHIKULLI DHE PROVAT E ADMINISTRUARA:
             {context_str}
@@ -304,17 +298,28 @@ class AlbanianRAGService:
             system_prompt = f"""
             {identity_header}
 
-            ROLI YT: Auditor Ligjor dhe Ekspert i së Drejtës Pozitive në Kosovë.
-            MISIONI: Kryej auditimin e saktësisë së bazës ligjore të shkresës me besnikëri 100% ndaj fashikullit.
+            ROLI YT: Auditor Ligjor dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
+            MISIONI: Kryej auditimin e thellë forenzik të dokumentit dhe vlerësimin doktrinar sipas jurisprudencës së Gjykatës Supreme të Kosovës (700+ faqe).
 
-            STRUKTURA E DETYRUESHME:
+            STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
             ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            ### 2. BAZA LIGJORE DHE KORNIZA STATUTARE (me nenet dhe ligjet e sakta)
-            ### 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE DHE DISKREPANCAVE)
-            - Audito me saktësi nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
-            ### 4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+            - Përmblidh faktet e verifikuara, dëshmitë shkencore dhe provat e këtij dokumenti pa asnjë ndryshim.
 
-            FASHIKULLI I LEXUAR:
+            ### 2. BAZA LIGJORE DHE KORNIZA STATUTARE
+            - Lidh saktë të gjitha nenet dhe ligjet pozitive të aplikueshme (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
+
+            ### 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE DHE DISKREPANCAVE)
+            - Audito me rigorozitet nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
+
+            ### 4. 🏛️ OPINIONI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS
+            - Duke u mbështetur në bazën tonë të jurisprudencës prej 700+ faqesh (Aktgjykimet e Kolegjit Penal PML, Vendimet e Kolegjit Civil, Komentarin e Prof. Dr. Fejzullah Hasanit):
+              * Analizo qëndrimin e Gjykatës Supreme mbi figurat e pretenduara (p.sh. standardi i Nenit 93 mbi Rehabilitimin Ligjor dhe papërdorshmërinë e dënimeve të shlyera, standardi i Bashkëkryerjes sipas Neneve 31/33, Falsifikimi i dokumenteve zyrtare Neni 427, dëbimi arbitrar nga seanca Neni 31 i Kushtetutës dhe Neni 6 i KEDNJ).
+              * Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e provave dhe forcën juridike të këtij akti para gjykatës.
+
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+            - Hapat e menjëhershëm proceduralë, masat emergjente dhe veprimet me organet kompetente.
+
+            FASHIKULLI DHE JURISPRUDENCA E SUPREMES:
             {context_str}
             """
         else:
@@ -353,7 +358,7 @@ class AlbanianRAGService:
                 ],
                 temperature=0.1,
                 stream=True,
-                max_tokens=8192  # 🛡️ PHOENIX UPGRADE: 8192 Output Tokens for full document completion
+                max_tokens=8192
             )
             
             async for chunk in response:

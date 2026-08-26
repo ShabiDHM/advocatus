@@ -1,12 +1,12 @@
 // FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V14.0 (100% REAL-VALUE SUITE • ZERO SIMULATION JARGON)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V15.1 (0 WARNINGS & STRICT CLEAN IMPORTS)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    FileText, BrainCircuit, 
-    PenTool, Sparkles, ChevronRight,
-    Scale, CheckCircle2, Zap, Film, BookOpen} from 'lucide-react';
+    FileText, Sparkles, ChevronRight,
+    Scale, CheckCircle2, Zap, Film, BookOpen, AlertTriangle, Gavel 
+} from 'lucide-react';
 
 const ProductShowcase: React.FC = () => {
     const [activeTab, setActiveTab] = useState(0);
@@ -14,6 +14,15 @@ const ProductShowcase: React.FC = () => {
     const features = [
         {
             id: 0,
+            title: "Forenzika Ligjore ⚖️ & Gjykata Supreme",
+            desc: "Klikoni mbi çdo dokument për auditim forenzik: lidh automatikisht nenet, zbulon lapsuset e shkresave dhe nxjerr opinionin e Gjykatës Supreme nga 700+ faqe jurisprudencë.",
+            icon: <Scale className="w-5 h-5 text-amber-400" />,
+            badge: "AUDITIM ME 1-KLIKIM",
+            color: "from-amber-600 via-orange-600 to-primary-start",
+            mockup: <ForensicAuditMockup />
+        },
+        {
+            id: 1,
             title: "Sokrati AI — 4 Shtyllat Procedurale",
             desc: "Përgatitje e menjëhershme e lëndës sipas rolit (Paditës, I Paditur apo Neutral): Strategjia, Baza Ligjore, Pyetësori i Seancës dhe Raporti Ekzekutiv.",
             icon: <Sparkles className="w-5 h-5" />,
@@ -22,7 +31,7 @@ const ProductShowcase: React.FC = () => {
             mockup: <FourPillarsMockup />
         },
         {
-            id: 1,
+            id: 2,
             title: "Fashikulli i Provave & Leximi OCR (~3.5s)",
             desc: "Digjitalizim i shpejtë i shkresave dhe vendimeve të skanuara me njohje të plotë të karaktereve shqipe dhe referenca faqe-për-faqe.",
             icon: <Zap className="w-5 h-5" />,
@@ -31,7 +40,7 @@ const ProductShowcase: React.FC = () => {
             mockup: <SpeedScanMockup />
         },
         {
-            id: 2,
+            id: 3,
             title: "Transkriptimi i Skedarëve Audio & Video",
             desc: "Ngarkoni regjistrime audio apo video të bisedave e dëshmive. Sistemi nxjerr menjëherë transkriptin e plotë me minuta për përdorim në seancë.",
             icon: <Film className="w-5 h-5" />,
@@ -40,17 +49,8 @@ const ProductShowcase: React.FC = () => {
             mockup: <MediaTranscriptMockup />
         },
         {
-            id: 3,
-            title: "Hartimi i Shkresave Ligjore në Word (.docx)",
-            desc: "Përpilim i shpejtë i Padive, Përgjigjeve në Padi, Prapësimeve dhe Ankesave, të mbështetura në nenet përkatëse të ligjeve të Kosovës.",
-            icon: <PenTool className="w-5 h-5" />,
-            badge: "HARTIM I STRUKTURUAR",
-            color: "from-cyan-600 to-blue-600",
-            mockup: <DraftingMockup />
-        },
-        {
             id: 4,
-            title: "Biblioteka Ligjore e Kosovës",
+            title: "Biblioteka Ligjore e Kosovës me Kërkim Semantik",
             desc: "Qasje e drejtpërdrejtë në ligjet zyrtare (LPK, KPRK, KPPRK, LFK, LMD) me nene të verifikuara dhe lexim të plotë të PDF-së origjinale.",
             icon: <BookOpen className="w-5 h-5" />,
             badge: "STATUTET E KOSOVËS",
@@ -74,8 +74,8 @@ const ProductShowcase: React.FC = () => {
                 
                 <div className="text-center mb-12 lg:mb-16 space-y-4">
                     <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 border border-primary-start/20 text-primary-start text-xs font-bold uppercase tracking-widest">
-                        <Sparkles size={13} />
-                        <span>Mjedisi i Punës për Avokatë dhe Juristë</span>
+                        <Scale size={13} className="text-amber-500" />
+                        <span>Forenzikë Ligjore & Jurisprudencë Supreme për Avokatë</span>
                     </div>
                     <h2 className="text-3xl sm:text-5xl font-black text-text-primary tracking-tight uppercase">
                         Mjetet e Punës së Përditshme Ligjore
@@ -192,7 +192,39 @@ const ProductShowcase: React.FC = () => {
     );
 };
 
-// --- MOCKUP COMPONENTS (100% REAL FEATURES) ---
+// --- MOCKUP COMPONENTS ---
+
+const ForensicAuditMockup = () => (
+    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
+        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between mb-1">
+            <span className="flex items-center gap-2"><Scale size={16} /> Forenzika Ligjore (1-Kliko ⚖️)</span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">100% E VERIFIKUAR</span>
+        </div>
+
+        <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                <AlertTriangle size={13} className="shrink-0" />
+                <span>⚠️ Zbulimi i Lapsusit Statutar:</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+                Në shkresë citohet <strong>Neni 250</strong> i KPRK-së (që në ligj është <em>Mosveprimi gjatë epidemisë</em>). 
+                <span className="text-emerald-400 font-bold ml-1">➔ Sugjerohet Neni 247 i KPRK-së (Keqtrajtimi i fëmijës).</span>
+            </p>
+        </div>
+
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+            <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-amber-400 flex items-center gap-1">
+                    <Gavel size={13} /> Gjykata Supreme e Kosovës (700+ Faqe)
+                </span>
+                <span className="text-[9px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">PML.Nr.85/2025</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed font-serif">
+                &quot;Ndalohet zbatimi i ligjit penal në dëm të palës duke përdorur dënime të shlyera automatikisht sipas <strong>Nenit 93 të KPRK-së</strong>.&quot;
+            </p>
+        </div>
+    </div>
+);
 
 const FourPillarsMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
@@ -275,33 +307,6 @@ const MediaTranscriptMockup = () => (
                 <p><span className="text-primary-start font-bold">[00:14]</span> &quot;Biseda u zhvillua pa asnjë ofendim apo kërcënim...&quot;</p>
                 <p><span className="text-primary-start font-bold">[01:22]</span> &quot;Palët ranë dakord për zbatimin e marrëveshjes me shkrim...&quot;</p>
             </div>
-        </div>
-    </div>
-);
-
-const DraftingMockup = () => (
-    <div className="h-full flex flex-col justify-between animate-in fade-in duration-500 font-sans">
-        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
-            <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-                <PenTool size={16} /> Moduli i Hartimit të Shkresave
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">FORMATI .DOCX / WORD</span>
-        </div>
-
-        <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 text-xs text-slate-300 font-serif leading-relaxed my-1.5 space-y-1.5">
-            <p className="font-bold uppercase text-center text-slate-100 border-b border-slate-800 pb-1.5 text-[11px]">
-                GJYKATA THEMELORE NË PRISHTINË — DEPARTAMENTI PËR ÇËSHTJE EKONOMIKE
-            </p>
-            <p className="italic text-slate-400 text-[11px]">
-                Lënda: Përgjigje në Padi me Prapësim Procedural dhe Kërkesë për Shpërblim Dëmi...
-            </p>
-        </div>
-
-        <div className="p-2.5 bg-cyan-950/40 border border-cyan-800/50 rounded-xl flex items-center gap-3">
-            <BrainCircuit size={18} className="text-cyan-400 shrink-0" />
-            <p className="text-xs text-cyan-200 font-medium leading-tight">
-                Sistemi strukturon automatikisht faktet dhe nenet statutore të Kosovës direkt në Word.
-            </p>
         </div>
     </div>
 );

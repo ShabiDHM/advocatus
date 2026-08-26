@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V55.0 (STRICT DOCUMENT ISOLATION & ZERO-MUTATION FORENSIC ENGINE)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V56.0 (SUPREME COURT JURISPRUDENCE & FORENSIC AUDIT DISPATCHER)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -236,32 +236,32 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 1-CLICK LEGAL FORENSIC AUDITOR (STRICT ZERO-MUTATION & DOCUMENT ISOLATION)
+  // 1-CLICK SUPREME COURT FORENSIC AUDITOR (700+ PAGE JURISPRUDENCE GROUNDING)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
 
     const docName = doc.file_name || 'këtë dokument';
-    const strictForensicPrompt = `[DIREKTIVË E DETYRUESHME FORENZIKE - BESNIKËRI ABSOLUTE NDAJ DOKUMENTIT]
-Audito VETËM DHE EKSKLUZIVISHT përmbajtjen e dokumentit të zgjedhur: "${docName}".
-RREGULLA: MOS shto asnjë fakt, palë apo pretendim të ri nga jashtë këtij dokumenti. MOS ndrysho asnjë emër, datë apo provë materiale.
-
-Gjenero analizën e saktë sipas 4 seksioneve:
+    const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
+Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprudencës të Gjykatës Supreme të Kosovës (700+ faqe), kryej auditimin e plotë forenzik ligjor sipas 5 seksioneve të detyrueshme:
 
 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-   - Përmblidh saktësisht palët, veprimet dhe provat materiale të përshkruara në këtë dokument pa asnjë modifikim.
+   - Përmblidh saktësisht faktet e verifikuara dhe provat e këtij akti pa asnjë ndryshim.
 
 2. BAZA LIGJORE DHE KORNIZA STATUTARE
-   - Lidh saktë çdo nen, paragraf dhe ligj pozitiv të aplikueshëm sipas shkeljeve dhe natyrës së këtij akti.
+   - Lidh çdo nen, paragraf dhe ligj pozitiv të aplikueshëm (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
 
 3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE)
-   - Audito me rigorozitet nëse ndonjë nen i cituar brenda këtij dokumenti ka lapsus numerik, titull të pasaktë apo mospërputhje me dispozitën reale në fuqi në Kosovë.
-   - Jep paralajmërimin e qartë dhe sugjerimin e nenit të saktë për avokatin, duke ruajtur të pandryshuar tekstin historik të dokumentit.
+   - Audito me saktësi nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
 
-4. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-   - Hapat e menjëhershëm proceduralë dhe afatet ligjore sipas këtij akti.`;
+4. 🏛️ OPINIONI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS (700+ FAQE JURISPRUDENCË)
+   - Cito qëndrimet doktrinare dhe precedentët e Kolegjit Penal/Civil të Gjykatës Supreme të Kosovës (Aktgjykimet PML, komentarin e Prof. Dr. Fejzullah Hasanit mbi figurat e veprave, rehabilitimin ligjor Neni 93, bashkëkryerjen, dhe ligjshmërinë e provave).
+   - Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë ligjore të kësaj shkrese.
 
-    handleChatSubmit(strictForensicPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
+5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+   - Hapat e menjëhershëm proceduralë dhe veprimet me organet kompetente.`;
+
+    handleChatSubmit(supremeAuditPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
   }, [handleChatSubmit]);
 
   const handleRenameAction = async (newName: string) => {

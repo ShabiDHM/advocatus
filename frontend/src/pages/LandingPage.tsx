@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V14.0 (PURE REAL-VALUE FOCUS • ZERO SIMULATION JARGON)
+// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V15.1 (0 WARNINGS & CLEAN IMPORTS)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,13 +16,11 @@ import {
   ArrowRight,
   ShieldCheck,
   ChevronRight,
-  Layers,
   Database,
   FileCheck2,
-  HelpCircle,
   Film,
   BookOpen,
-  PenTool,
+  Gavel
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
@@ -35,10 +33,16 @@ export const LandingPage: React.FC = () => {
 
   const trustMetrics = [
     {
-      value: '500+ Faqe',
-      title: 'Kërkim në Fashikull',
-      desc: 'Orientim dhe analizë e shpejtë në dosje të gjata e voluminoze.',
-      icon: Layers,
+      value: '700+ Faqe',
+      title: 'Jurisprudencë Supreme',
+      desc: 'Vendimet parimore dhe Aktgjykimet e Kolegjit Penal të Gjykatës Supreme.',
+      icon: Gavel,
+    },
+    {
+      value: '1-Kliko ⚖️',
+      title: 'Forenzika Ligjore',
+      desc: 'Skanim i neneve, zbulimi i lapsuseve dhe verifikimi me Gazetën Zyrtare.',
+      icon: Scale,
     },
     {
       value: '100% e Verifikueshme',
@@ -47,14 +51,8 @@ export const LandingPage: React.FC = () => {
       icon: FileCheck2,
     },
     {
-      value: 'Asistencë për Avokatin',
-      title: 'Transparencë e Plotë',
-      desc: 'Mjet ndihmës që përpunon provat; vendimmarrja mbetet e juaja.',
-      icon: HelpCircle,
-    },
-    {
-      value: 'Përvojë Praktike',
-      title: 'Taktikë Procedurale',
+      value: 'Taktikë Procedurale',
+      title: 'Përvojë Praktike',
       desc: 'Strukturuar posaçërisht për procedurat gjyqësore në Kosovë.',
       icon: ShieldCheck,
     },
@@ -161,6 +159,15 @@ export const LandingPage: React.FC = () => {
 
   const bentoFeatures = [
     {
+      colSpan: 'lg:col-span-12',
+      title: '⚖️ Forenzika Ligjore me 1-Klikim & Jurisprudenca Supreme (700+ Faqe)',
+      subtitle: '1-CLICK STATUTORY FORENSICS',
+      desc: 'Klikoni mbi çdo dokument në fashikull për të kryer auditimin e thellë ligjor: sistemi skanon provat, lidh çdo shkelje me nenet përkatëse të ligjeve të Kosovës (KPRK, KPPRK, LPK, LMD), zbulon automatikisht lapsuset e neneve apo referencat e gabuara, dhe nxjerr opinionin e Gjykatës Supreme të Kosovës bazuar në 700+ faqe të vendimeve të Kolegjit Penal e Civil (Aktgjykimet PML).',
+      icon: Scale,
+      gradient: 'from-amber-500/20 via-primary-start/15 to-transparent',
+      borderColor: 'border-amber-500/40',
+    },
+    {
       colSpan: 'lg:col-span-8',
       title: 'Sokrati AI — Asistenti Inteligjent i Lëndës',
       subtitle: '4 SHTYLLAT PROCEDURALE',
@@ -189,15 +196,6 @@ export const LandingPage: React.FC = () => {
     },
     {
       colSpan: 'lg:col-span-8',
-      title: 'Hartimi i Shkresave Ligjore në Word (.docx)',
-      subtitle: 'PËRPILIM ME NENE EKZAKTE',
-      desc: 'Strukturoni me shpejtësi Padi, Përgjigje në Padi, Prapësime, Masa Sigurie dhe Ankesa, të mbështetura në nenet përkatëse të ligjeve të Kosovës (LPK, KPRK, LFK, LMD).',
-      icon: PenTool,
-      gradient: 'from-purple-500/15 via-pink-500/5 to-transparent',
-      borderColor: 'border-purple-500/30',
-    },
-    {
-      colSpan: 'lg:col-span-12',
       title: 'Biblioteka Ligjore e Kosovës me Kërkim Semantik',
       subtitle: 'STATUTET ZYRTARE NË KOSOVË',
       desc: 'Qasje e menjëhershme në ligjet zyrtare të Kosovës me të gjitha nenet e indeksuara. Çdo referencë e cituar nga Sokrati hapet direkt në shikuesin e plotë PDF me kërcim automatik te neni përkatës.',
@@ -242,14 +240,14 @@ export const LandingPage: React.FC = () => {
           <div className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-text-muted">
             <a href="#metrics" className="hover:text-text-primary transition-colors">Veçoritë</a>
             <a href="#pillars" className="hover:text-text-primary transition-colors">4 Shtyllat</a>
-            <a href="#arsenal" className="hover:text-text-primary transition-colors">Mjetet</a>
+            <a href="#arsenal" className="hover:text-text-primary transition-colors">Forenzika</a>
             <a href="#security" className="hover:text-text-primary transition-colors">Siguria</a>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/login')}
-              className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-hover transition-all"
+              className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-hover transition-all cursor-pointer"
             >
               {t('auth.login', 'Hyr')}
             </button>
@@ -273,8 +271,8 @@ export const LandingPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-start/10 border border-primary-start/25 text-primary-start text-[11px] sm:text-xs font-bold uppercase tracking-widest shadow-xs"
           >
-            <Sparkles size={14} className="animate-pulse" />
-            <span>Asistenti Inteligjent për Praktikën Ligjore në Kosovë</span>
+            <Scale size={14} className="animate-pulse text-amber-500" />
+            <span>Forenzikë Ligjore & Jurisprudenca e Gjykatës Supreme të Kosovës</span>
           </motion.div>
 
           <motion.h1
@@ -283,8 +281,8 @@ export const LandingPage: React.FC = () => {
             transition={{ delay: 0.1 }}
             className="text-3xl sm:text-5xl md:text-6xl font-black text-text-primary tracking-tight leading-[1.15] max-w-4xl mx-auto"
           >
-            Mburoja dhe Strategjia Procedurale e{' '}
-            <span className="bg-gradient-to-r from-primary-start via-indigo-500 to-purple-500 bg-clip-text text-transparent">
+            Forenzika dhe Strategjia Procedurale e{' '}
+            <span className="bg-gradient-to-r from-primary-start via-indigo-500 to-amber-500 bg-clip-text text-transparent">
               Zyrës Suaj Ligjore
             </span>
           </motion.h1>
@@ -295,8 +293,8 @@ export const LandingPage: React.FC = () => {
             transition={{ delay: 0.2 }}
             className="text-sm sm:text-base md:text-lg text-text-secondary leading-relaxed max-w-3xl mx-auto font-normal"
           >
-            Orientohuni shpejt në dosje voluminoze dhe strukturoni mbrojtjen tuaj procedurale. 
-            <strong> Juristi.tech</strong> ndihmon avokatët dhe juristët në analizën e shkresave, evidentimin e fakteve dhe përgatitjen e seancave me mbështetje në <strong>LPK, KPRK, LFK dhe LMD</strong>.
+            Auditim i saktë i çdo shkrese, zbulim i lapsuseve statutare dhe lidhje e menjëhershme me <strong>700+ faqe të vendimeve të Gjykatës Supreme të Kosovës</strong>. 
+            <strong> Juristi.tech</strong> fuqizon avokatët në analizën kirurgjikale të provave dhe përgatitjen e seancave sipas <strong>KPRK, KPPRK, LPK dhe LMD</strong>.
           </motion.p>
 
           <motion.div
@@ -313,11 +311,11 @@ export const LandingPage: React.FC = () => {
               <ArrowRight size={16} />
             </button>
             <a
-              href="#pillars"
+              href="#arsenal"
               className="w-full sm:w-auto h-12 px-8 rounded-2xl bg-surface hover:bg-hover text-text-primary font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-main transition-all cursor-pointer"
             >
-              <span>Shiko 4 Shtyllat</span>
-              <ChevronRight size={16} />
+              <Scale size={16} className="text-amber-500" />
+              <span>Shiko Forenzikën ⚖️</span>
             </a>
           </motion.div>
         </div>
@@ -442,18 +440,18 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. ARSENALI I VEÇORIVE REALE (BENTO GRID) */}
+      {/* 5. ARSENALI I VEÇORIVE REALE */}
       <section id="arsenal" className="py-24 border-t border-main bg-surface/30 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-primary-start">
-              VEÇORITË KRYESORE
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">
+              VEÇORITË KRYESORE FORENZIKE
             </span>
             <h2 className="text-2xl sm:text-4xl font-black text-text-primary tracking-tight">
               Mjetet për Punën Tuaj të Përditshme
             </h2>
             <p className="text-xs sm:text-sm text-text-secondary">
-              Teknologji e pastër e përshtatur posaçërisht për praktikat dhe shkresat ligjore në Kosovë.
+              Teknologji e avancuar forenzike e mbështetur në Gazetën Zyrtare dhe precedentët e Gjykatës Supreme të Kosovës.
             </p>
           </div>
 
@@ -470,7 +468,7 @@ export const LandingPage: React.FC = () => {
                   <div className="relative z-10 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="w-12 h-12 rounded-2xl bg-surface border border-main flex items-center justify-center text-primary-start shadow-xs">
-                        <IconComponent size={22} />
+                        <IconComponent size={22} className={b.subtitle.includes('FORENSICS') ? 'text-amber-500' : ''} />
                       </div>
                       <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">
                         {b.subtitle}
