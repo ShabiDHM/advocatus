@@ -1,5 +1,5 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V42.0 (EXHAUSTIVE MULTI-PASS KOSOVO STATUTORY CITATION ENGINE)
+// PHOENIX PROTOCOL - CHAT HELPERS V43.0 (CLEAN REGEX MATCHER & ZERO SUBSTRING CORRUPTION)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -76,25 +76,25 @@ export const autoLinkLegalCitations = (text: any): string => {
   // 2. Pastrojmë kllapat katrore të mbetura gabimisht te nenet
   protectedText = protectedText.replace(/\[\s*(Nen(?:i|et)\s+\d+[^\]]*)\s*\]/gi, '$1');
 
-  // 3. PASS A: Kapja e formave me shumë nene të ndjekura nga një ligj
+  // 3. PASS A: Ndarja e grupeve me shumë nene
   // P.sh.: "Nenet 31, 32, 81, 82, 83, 93, 193, 246, 248, 330, 378, 382, 383, 385, 386, 387, 390, 414, 424 dhe 427 të KPRK-së"
-  // P.sh.: "Nenet 22, 31, 53 dhe 54 të Kushtetutës së Republikës së Kosovës"
-  // P.sh.: "Nenet 6, 8 dhe 13 të KEDNJ-së"
   const multiArticleGroupRegex = /\b(Nenet\s+([\d\s,.\-(dhe)(e)]+)\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,90}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
     protectedText = protectedText.replace(multiArticleGroupRegex, (fullMatch, _p1, numbersBlock, lawCandidate) => {
       const lawName = resolveStatuteName(lawCandidate || fullMatch);
-      const numbers = numbersBlock.match(/\b\d+\b/g);
+      const rawNumbers = numbersBlock.match(/\b\d+\b/g);
 
-      if (!numbers || numbers.length === 0) return fullMatch;
+      if (!rawNumbers || rawNumbers.length === 0) return fullMatch;
 
-      // Krijojmë butona individualë të veçantë për çdo numër neni
+      // Rendisim numrat nga më i gjati te më i shkurtri për të mos prishur nën-vargjet (p.sh. 424 para 4)
+      const sortedNumbers = Array.from(new Set(rawNumbers)).sort((a, b) => b.length - a.length || Number(b) - Number(a));
+
       let replacedNumbers = numbersBlock;
-      for (const num of numbers) {
+      for (const num of sortedNumbers) {
         const targetUrl = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(num)}`;
         const pill = `[Neni ${num}](${targetUrl})`;
-        const numRegex = new RegExp(`\\b${num}\\b`, 'g');
+        const numRegex = new RegExp(`(?<!\\d)${num}(?!\\d)`, 'g');
         replacedNumbers = replacedNumbers.replace(numRegex, pill);
       }
 
@@ -105,12 +105,11 @@ export const autoLinkLegalCitations = (text: any): string => {
   }
 
   // 4. PASS B: Kapja e Neneve individuale me ose pa paragrafe
-  // P.sh.: "Neni 424, paragrafi 1 i KPRK-së", "Neni 9, paragrafi 1 i Ligjit Nr. 03/L-052", "Neni 387 i KPRK"
+  // P.sh.: "Neni 424, paragrafi 1 i KPRK-së", "Neni 9, paragrafi 1 i Ligjit Nr. 03/L-052"
   const singleArticleRegex = /\b(Neni\s+(\d+)(?:,?\s*(?:paragrafi|par\.?)\s*(\d+))?\s*(?:i|e|të)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,80}?))(?=[.,;\n\r\)]|$)/gi;
 
   try {
     protectedText = protectedText.replace(singleArticleRegex, (fullMatch, _p1, artNum, parNum, lawCandidate) => {
-      // Nëse tashmë është brenda një linku, mos e prek
       if (fullMatch.includes('__MD_LINK_TOKEN_') || fullMatch.includes('](')) return fullMatch;
 
       const lawName = resolveStatuteName(lawCandidate || fullMatch);
@@ -124,7 +123,7 @@ export const autoLinkLegalCitations = (text: any): string => {
     console.error('Single article parsing error:', err);
   }
 
-  // 5. PASS C: Kapja e neneve me formatin e anasjelltë (p.sh. "KPRK Neni 387", "KPPRK Neni 188")
+  // 5. PASS C: Kapja e formatit të anasjelltë (p.sh. "KPRK Neni 387")
   const reverseArticleRegex = /\b((?:KPRK|KPPRK|LPK|LMD|Kushtetuta|KEDNJ)\s+Neni\s+(\d+))(?=[.,;\n\r\)\s]|$)/gi;
 
   try {

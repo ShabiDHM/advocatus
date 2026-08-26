@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V94.0 (EXHAUSTIVE HIGH-TIER DRAFTING & FORENSICS)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V95.0 (8192 MAX TOKENS & 21-SUSPECT EXHAUSTIVE DRAFTING)
 
 import os
 import sys
@@ -17,7 +17,7 @@ logger.setLevel(logging.DEBUG)
 API_KEY = settings.OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
-LLM_TIMEOUT = 60
+LLM_TIMEOUT = 90
 
 AI_DISCLAIMER = "\n\n---\n*Kjo shkresë / analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e administruara të fashikullit. Për përdorim profesional.*"
 
@@ -34,7 +34,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine initialized with High-Tier Legal Drafting Engine.")
+            logger.info("✅ [RAG] Universal AI Engine initialized with 8192 Token Output Capacity.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -271,7 +271,7 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ SYSTEM PROMPT I DRAFTIMIT ZYRTAR TË NIVELIT TË LARTË (SENIOR ADVOCATE)
+        # 🏛️ PROMPTIMI I AVANCUAR I DRAFTIMIT ZYRTAR (COMPLETE EXHAUSTIVE DRAFT)
         # =========================================================================
 
         if user_intent == "DRAFTING":
@@ -279,28 +279,23 @@ class AlbanianRAGService:
             {identity_header}
 
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
-            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor profesional (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
+            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            UDHËZIME DHE STANDARDE TË HEKURTA TË HARTIMIT ZYRTAR:
-            1. MOS bëj përmbledhje të shkurtra me 3 pika. Shkruaj aktin e plotë, të detajuar, të artikuluar me elegancë dhe autoritet juridik të gatshëm për dorëzim në Gjykatë/Prokurori.
-            2. STRUKTURA DHE PËRMBAJTJA E DETYRUESHME E SHKRESËS:
-               - **KRYERRESHTI & ORGANI MARRËS:** (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË - DEPARTAMENTI PËRKATËS).
-               - **PËR DIJENI:** (Organeve mbikëqyrëse nëse aplikohet).
-               - **PALËT DHE IDENTITETI PROCEDURAL:** Emrat, numrat personalë, adresat dhe cilësia procedurale (Parashtruesi / I Dëmtuari vs Të Dyshuarit / I Padituri).
-               - **TITULLI I AKTIT:** (p.sh. KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI PËR PËRMBUSHJE DETYRIMI DHE DËMSHPËRBLIM).
-               - **BAZA STATUTARE & JURISDIKSIONI:** Cito nenet themelore të kompetencës dhe ligjet përkatëse (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
-               - **DISPOZITIVI ME PIKA TË DETAJUARA (S E P S E):** 
-                 Përshkruaj me prozë të plotë faktike veprimet e secilit person/palë (koha, vendi, mënyra e kryerjes, dashja e drejtpërdrejtë dhe pasojat e shkaktuara).
-               - **ARSYETIMI I THELLË DOKTRINAR & ANALIZA FORENZIKE E PROVAVE:** 
-                 Analizo hollësisht provat shkencore (testet laboratorike), shkresat zyrtare, procesverbalet, dëshmitë audio/video dhe shkeljet materiale.
-               - **KËRKESA & PROPOZIMI PROCEDURAL (PETITUMI):**
-                 Pikat konkrete çfarë kërkohet nga Gjykata/Prokuroria (Urdhëresë emergjente për masa mbrojtëse, fillim hetimesh, sekuestrim forenzik i metadatave, dëgjim dëshmitarësh, ngritje aktakuze, kompensim dëmi me kamatë ligjore 8%).
-               - **INVENTARI I PLOTË I PROVAVE MATERIALE (CORPUS DELICTI):** Renditja me Prova A-1, A-2, B-1, C-1...
-               - **REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së ose dispozita përkatëse civile).**
-               - **VENDI, DATA DHE NËNSHKRIMI I PALËS / PËRFAQËSUESIT LIGJOR.**
-
-            3. BESNIKËRIA NDAJ FASHIKULLIT:
-               Përdor të gjitha faktet, datat, emrat dhe numrat e referencave që gjenden në fashikull pa shpikur të dhëna fiktive.
+            RREGULLA ABSOLUTE E PËRFUNDIMIT TË SHKRESËS (NON-TRUNCATION MANDATE):
+            1. SHKRESA DUHET TË RRJEDHË E PLOTË NGA KRYERRESHTI DERI TE NËNSHKRIMI PËRFUNDIMTAR PA U NDËRPRERË NË MES!
+            2. PËRFSHI TË GJITHË 21 TË DYSHUARIT/KUNDËRSHTARËT NË DISPOZITIV DHE ARSYETIM (mund t'i gruposh me strukturë elegante: I. Kabineti i MD-së, II. Persona privatë, III. Gjyqtarët e Themelores & Apelit, IV. Konsulli i Psikiatrisë së QKUK-së, V. Shërbimi Social QPS, VI. Organi i Ndjekjes Polici/Prokurori).
+            3. STRUKTURA E DETYRUESHME E SHKRESËS ZYRTARE:
+               - **KRYERRESHTI & ORGANI MARRËS:** (p.sh. PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS / GJYKATËS THEMELORE NË PRISHTINË).
+               - **PËR DIJENI:** (Organeve mbikëqyrëse).
+               - **PALËT E PLOTA:** (Parashtruesi / I Dëmtuari vs Të Dyshuarit me detaje).
+               - **TITULLI I AKTIT:** (p.sh. KALLËZIM PENAL I UNIFIKUAR ME DISPOZITIV TË DETAJUAR).
+               - **BAZA STATUTARE DHE JURISDIKSIONI:** (Ligji 03/L-052, KPPRK, KPRK, Kushtetutë, KEDNJ, Konventa e OKB-së).
+               - **DISPOZITIVI ME PIKA TË QARTA (S E P S E):** Përshkrimi i saktë i veprimeve për secilin grup të dyshuarish me nenet konkrete penale.
+               - **ARSYETIMI FAKTIK & FORENSIK I PROVAVE:** Analiza e Certifikatës së Koslaborit (Prova A-1), Raporteve të Konsullit (Prova A-2, A-3), Deklaratave në QPS (Prova B-3), Skedarit Audio (Prova B-7), Procesverbaleve të prapadatuara (Prova C-1) dhe Aktgjykimit të shlyer (Prova D-1).
+               - **KËRKESA & PROPOZIMI PROCEDURAL (PETITUMI):** Masat emergjente mbrojtëse (Nenet 188 & 221 KPPRK brenda 24 orëve), fillimi i hetimeve, sekuestrimi forenzik i metadatave (Nenet 112 & 118), dëgjimi i dëshmitarëve dhe ngritja e aktakuzës.
+               - **INVENTARI I PROVAVE MATERIALE (CORPUS DELICTI):** Renditja e plotë e provave A-1 deri D-1.
+               - **REZERVIMI I KËRKESËS PASURORE-JURIDIKE (Neni 462 i KPPRK-së).**
+               - **DATA, VENDI DHE NËNSHKRIMI ZYRTAR.**
 
             FASHIKULLI DHE PROVAT E ADMINISTRUARA:
             {context_str}
@@ -358,7 +353,7 @@ class AlbanianRAGService:
                 ],
                 temperature=0.1,
                 stream=True,
-                max_tokens=4096
+                max_tokens=8192  # 🛡️ PHOENIX UPGRADE: 8192 Output Tokens for full document completion
             )
             
             async for chunk in response:
