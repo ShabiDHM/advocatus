@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V112.0 (EXHAUSTIVE 6-SECTOR INSTITUTIONAL ACTOR EXTRACTION)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V113.0 (100% UNIVERSAL & DOMAIN-AGNOSTIC ACTOR EXTRACTION)
 
 import os
 import sys
@@ -35,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous Legal Engine V112.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V113.0 initialized (Pure Dynamic Intelligence).")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -273,33 +273,32 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ PROTOKOLLI I HARTËZIMIT SHTERUES TË TË GJITHË AKTORËVE DHE SEKTORËVE
+        # 🏛️ MOTORI UNIVERSAL I IDENTIFIKIMIT TË TË GJITHË AKTORËVE (100% DINAMIK)
         # =========================================================================
 
-        dynamic_situational_mandate = f"""
-        DATA E SOTME E SISTEMIT: **{current_date_str}**
+        universal_forensic_mandate = f"""
+        DATA E SOTME: **{current_date_str}**
 
-        PROTOKOLLI I DETYRUESHËM FORENZIK I HARTËZIMIT TË TË GJITHË AKTORËVE PËRGJEGJËS:
-        Gjatë analizës së fashikullit, TI DUHET TË SKANOSH ME IMTËSI DHE TË NXJERRËSH TË GJITHË PERSONAT DHE SEKTORËT E INKRIMINUAR (mos u mjafto me 2-3 emra të përgjithshëm):
-        
-        1. GJYQTARËT E GJYKATËS THEMELORE DHE TË APELIT:
-           - Identifiko të gjithë gjyqtarët e shkallës së parë dhe anëtarët e kolegjit të Apelit që kanë marrë vendime contra legem, antedatuar procesverbale apo shpërfillur Nenin 93 të KPRK-së (Neni 383 & 427 i KPRK-së).
-        
-        2. MJEKËT DHE EKSPERTËT E KONSULLIT TË PSIKIATRISË:
-           - Identifiko me emra të gjithë psikiatrët dhe psikologët nënshkrues të ekspertizave të njëanshme, diagnozave me heteroanamnezë apo fshehjes së tjetërsimit prindëror (Nenet 387 & 385 të KPRK-së).
-        
-        3. PUNONJËSET SOCIALE TË QENDRËS PËR PUNË SOCIALE (QPS):
-           - Identifiko me emra të gjitha menaxheret e rastit dhe punonjëset e QPS-së që kanë marrë deklarata nën trysni, fshehur trauma apo shantazhuar prindërit (Nenet 414, 248, 427 të KPRK-së).
-        
-        4. PËRFAQËSUESIT LIGJORË DHE ZYRTARËT E MBROJTJES (ZMV & AVOKATË):
-           - Identifiko zyrtarët e ZMV-së për kanosje apo shpifje dhe avokatët që kanë vepruar me dashje kundër ndalimit të klientit (Nenet 386 & 330 të KPRK-së).
-        
-        5. ORGANI I NDJEKJES DHE POLICIA:
-           - Identifiko prokurorët dhe zyrtarët policorë që kanë eliminuar prova shfajësuese digjitale (Nenet 193 & 382 të KPRK-së).
-        
-        6. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I GRUPUAR NË PSRK:
-           - Te Pika 3, strukturo propozimin e plotë të Kallëzimit Penal pranë Prokurorisë Speciale (PSRK) duke listuar TË GJITHË KËTA AKTORË TË INDIVIDUALIZUAR sipas 6 sektorëve të mësipërm!
-           - Dhe propozo Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
+        METODOLOGJIA UNIVERSALE E FORENZIKËS DHE IDENTIFIKIMIT TË TË GJITHË AKTORËVE:
+        Skano me imtësi Pasaportën Forenzike dhe të gjitha shkresat e fashikullit për të kryer auditimin e plotë:
+
+        1. IDENTIFIKIMI SHTERUES I TË GJITHË PERSONAVE DHE AKTORËVE PËRGJEGJËS:
+           - Skano nënshkrimet, vulat, procesverbalet dhe vendimet në fashikull.
+           - Nxirr ME EMRAT DHE POZITAT REALE çdo zyrtar publik, gjyqtar, prokuror, ekspert mjekësor/psikiatrik, punonjës social, noter, përfaqësues kompanie apo individ privat që ka marrë vendime të paligjshme, prapadatuar akte, dhënë ekspertiza të rreme apo shkelur të drejtat e palës.
+           - MOS u mjafto vetëm me 2-3 emra: rendit të gjithë personat përgjegjës të fashikullit!
+
+        2. KRYEQËZIMI I SHKELJEVE PROCEDURALE DHE PROVAVE:
+           - Krahaso testet laboratorike shkencore me deklaratat gojore për të zbardhur të pavërtetat.
+           - Evidento çdo prapadatim (antedatim) të datave të seancave apo manipulim shkresor.
+           - Verifiko nëse janë përdorur dënime apo prova të shlyera/skaduara ligjërisht *contra legem*.
+           - Zbardh seancat klandestine, dëbimet arbitrare dhe shkeljet e barazisë së armëve.
+
+        3. REKOMANDIMI STRATEGJIK DHE NDJEKJA PENALE SIPAS SITUATËS:
+           - NËSE zbulohen krime zyrtare/procedurale nga aktorët e identifikuar më lart ➔ Propozo KALLËZIMIN PENAL INDIVIDUAL DHE TË GRUPUAR pranë Prokurorisë kompetente (PSRK/Themelore) dhe PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
+           - NËSE është çështje e pastër civile/kontraktuale ➔ Propozo mjetet përkatëse civile/përmbarimore.
+
+        4. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
+           - Zbato precedentët parimorë të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') mbi provat e fashikullit.
         """
 
         if user_intent == "DRAFTING":
@@ -309,7 +308,7 @@ class AlbanianRAGService:
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
             MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            {dynamic_situational_mandate}
+            {universal_forensic_mandate}
 
             STANDARDI I ARSYETIMIT JURIDIK:
             - Nëse fashikulli ka vetëm shkresa bazë, nxirr faktet dhe ndërto shkresën nga e para me precedentët e Gjykatës Supreme.
@@ -328,7 +327,7 @@ class AlbanianRAGService:
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
             MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
 
-            {dynamic_situational_mandate}
+            {universal_forensic_mandate}
 
             RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
             1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera nëse nuk përmenden tekstualisht këtu.
@@ -358,7 +357,7 @@ class AlbanianRAGService:
             METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
             {role_instructions}
 
-            {dynamic_situational_mandate}
+            {universal_forensic_mandate}
 
             PASAPORTA FORENZIKE E TË GJITHA SHKRESAVE TË FASHIKULLIT:
             {manifest_str}
@@ -366,18 +365,18 @@ class AlbanianRAGService:
             DOKUMENTET DHE JURISPRUDENCA SUPREME:
             {context_str}
 
-            UDHËZIME TË DETYRUESHME PËR STRATEGJINË DHE KARTAT:
+            UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
             1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
             2. TE PIKA 3 (REKOMANDIMI STRATEGJIK):
-               - Strukturo Propozimin e plotë të Kallëzimit Penal pranë Prokurorisë Speciale (PSRK) ose Themelore duke listuar të gjithë aktorët përgjegjës nga 6 sektorët institucionalë (Gjyqtarët e Themelores dhe Apelit, Mjekët e QKUK-së, Punonjëset e QPS-së, ZMV/Avokatin, Prokurorinë/Policinë dhe Palën Private).
-               - Propozo Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
+               - Nxirr dhe rendit të gjithë personat/zyrtarët përgjegjës nga shkresat e fashikullit me veprat penale konkrete.
+               - Propozo Kallëzimin Penal pranë Prokurorisë kompetente dhe Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
             3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
             4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
-            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE (Përfshirë Provat Shkencore dhe Shkeljet Procedurale)
+            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR SIPAS 6 SEKTORËVE
+            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR I AKTORËVE PËRGJEGJËS
             """
 
         try:
