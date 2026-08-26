@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V106.0 (DUAL-TRACK CRIMINAL PROSECUTION & CIVIL REOPENING STRATEGY)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V107.0 (DYNAMIC SITUATIONAL DECISION TREE & ADVISORY)
 
 import os
 import sys
@@ -35,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous Legal Engine V106.0 initialized.")
+            logger.info("✅ [RAG] Universal Autonomous Legal Engine V107.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -280,22 +280,30 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ DIREKTIVA E DYFISHTË: NDJEKJA PENALE DHE PËRSËRITJA E PROCEDURËS
+        # 🏛️ MOTORI I VENDIMMARRJES SË VETËDIJSHME SITUACIONALE (ZERO HARDCODING)
         # =========================================================================
 
-        dual_track_strategy_rule = f"""
+        dynamic_situational_mandate = f"""
         DATA E SOTME: **{current_date_str}**
 
-        STRATEGJIA E DETYRUESHME DOKTRINARE (NDJEKJA PENALE VS PËRSËRITJA E PROCEDURËS):
-        1. NËSE AFATET E ANKESËS SË RREGULLT CIVILE KANË SKADUAR:
-           - Nëse shkresat zbulojnë falsifikime, antedatim, ekspertiza të rreme apo shkelje penale gjyqësore, STRATEGJIA KRYESORE ËSHTË:
-             * PISTA A (NDJEKJA PENALE): Inicimi i menjëhershëm i Kallëzimit Penal pranë Prokurorisë kompetente (PSRK/Themelore) për veprat penale nga KPRK.
-             * PISTA B (PËRSËRITJA E PROCEDURËS): Përdorimi i vërtetimit të veprës penale si bazë ekskluzive për Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së (që lejon anulimin e vendimeve të formës së prerë të marra mbi prova të falsifikuara).
-             * PISTA C (DËMSHPËRBLIMI): Kërkesa Pasurore-Juridike sipas Nenit 462 të KPPRK-së.
-        2. KONTROLLI I INTEGRITETIT DHE ANTEDATIMIT:
-           - Skano me imtësi përputhshmërinë e datave të seancave, protokolleve dhe vulave për të zbuluar çdo manipulim shkresor.
+        METODOLOGJIA E VETËDIJSHME STRATEGJIKE (PËRSHTATJE DINAMIKE SIPAS SITUATËS SË LËNDËS):
+        Analizo me kujdes natyrën e lëndës, shkresat dhe datat e administruara, dhe zbato këtë pemë vendimmarrëse:
+
+        1. VLERËSIMI I AFATEVE TË ANKESËS NË RAPORT ME DATËN E SOTME ({current_date_str}):
+           - NËSE AFATI I ANKESËS SË RREGULLT (15 ditë) ËSHTË ENDE AKTIV:
+             * Propozo ANKESËN E RREGULLT NË GJYKATËN E APELIT (duke theksuar shkeljet procedurale, faktet dhe ligjin material).
+             * Dhe NËSE shkresat zbulojnë gjithashtu veprime kriminale (falsifikim, dëshmi të rreme), propozo PARALELISHT edhe NDJEKJEN PENALE.
+           - NËSE AFATI I ANKESËS SË RREGULLT KA SKADUAR (Vendimi ka marrë formë të prerë):
+             * Konstato skadimin e afatit të rregullt.
+             * NËSE zbulohen vepra penale gjyqësore/mjekësore (falsifikim, ekspertizë e rreme) ➔ Propozo NDJEKJEN PENALE dhe PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
+             * Përndryshe ➔ Propozo Kërkesën për Mbrojtje të Ligjshmërisë në Gjykatën Supreme.
+
+        2. PËRSHKRIMI DHE NATYRA E LËNDËS:
+           - Nëse lënda është kontest i thjeshtë civil/kontraktual pa vepër penale (p.sh. borxh, qira, punë) ➔ Propozo VETËM mjetet përkatëse civile/përmbarimore pa ngritur kallëzime penale pa shkak.
+           - Nëse lënda përmban vepra penale (mashtrim, dhunë, korrupsion, falsifikim) ➔ Formulo strategjinë e plotë të ndjekjes penale dhe masave emergjente.
+
         3. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
-           - Përdor vendimet parimore të Gjykatës Supreme për të treguar pse aktet e marra mbi shkelje thelbësore dhe dënime të shlyera bien poshtë.
+           - Zbato precedentët parimorë të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') mbi provat konkrete të këtij fashikulli.
         """
 
         if user_intent == "DRAFTING":
@@ -305,7 +313,7 @@ class AlbanianRAGService:
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
             MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
 
-            {dual_track_strategy_rule}
+            {dynamic_situational_mandate}
 
             STANDARDI I ARSYETIMIT JURIDIK:
             - Nëse fashikulli ka vetëm shkresa bazë (kontrata, fatura, komunikime, procesverbale), nxirr faktet nga ato dhe ndërto shkresën nga e para.
@@ -325,7 +333,7 @@ class AlbanianRAGService:
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
             MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
 
-            {dual_track_strategy_rule}
+            {dynamic_situational_mandate}
 
             RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
             1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera nëse nuk përmenden tekstualisht këtu.
@@ -335,7 +343,7 @@ class AlbanianRAGService:
             ### 2. BAZA STATUTARE DHE NENET E LIDHURA
             ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
             ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përfshirë Ndjekjen Penale dhe Përsëritjen e Procedurës sipas Nenit 232 LPK)
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË (Përshtatur sipas afatit dhe natyrës së lëndës)
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
@@ -355,7 +363,7 @@ class AlbanianRAGService:
             METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
             {role_instructions}
 
-            {dual_track_strategy_rule}
+            {dynamic_situational_mandate}
 
             REGJISTRI I SKEDARËVE:
             {manifest_str}
@@ -365,14 +373,14 @@ class AlbanianRAGService:
 
             UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
             1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
-            2. ZBATO STRATEGJINË E DYFISHTË: Nëse afatet civile kanë kaluar por ka vepra penale, propozo Ndjekjen Penale me Kallëzim Penal dhe Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
+            2. PËRSHTAT REKOMANDIMIN SIPAS SITUATËS REALE: Vlerëso afatin e ankesës në raport me datën e sotme, shkeljet e ligjit dhe nëse duhet ankesë e rregullt, ndjekje penale apo përsëritje e procedurës civile.
             3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
             4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
             ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
             ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM (Strategjia e Ndjekjes Penale & Përsëritjes së Procedurës)
+            ### 3. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM (Përshtatur në mënyrë të zgjuar sipas situatës faktike)
             """
 
         try:
