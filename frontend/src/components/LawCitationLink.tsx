@@ -1,5 +1,5 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - SOLID OPAQUE INLINE LAW CITATION LINK V10.0 (ZERO TRANSPARENCY & ZERO WARNINGS)
+// PHOENIX PROTOCOL - SOLID OPAQUE INLINE LAW CITATION LINK V11.0 (RESPONSIVE WRAP & ZERO OVERFLOW)
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -179,16 +179,17 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   return (
     <span
       ref={containerRef}
-      className={`inline-flex items-center gap-1 align-baseline mx-0.5 my-0.5 ${className}`}
+      className={`inline-flex items-center align-baseline mx-0.5 my-0.5 max-w-full ${className}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <Link
         to={targetUrl}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/25 text-primary-start font-semibold text-xs transition-all hover:underline"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/25 text-primary-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full"
+        title={`Verifiko Nenin ${articleNum} të ${lawTitle}`}
       >
         <Scale size={11} className="shrink-0 opacity-80" />
-        <span className="truncate">{cleanDisplayLabel}</span>
+        <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanDisplayLabel}</span>
       </Link>
 
       {createPortal(tooltipContent, document.body)}

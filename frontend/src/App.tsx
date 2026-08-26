@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.9 (ADDED ADMIN SUPPORT PAGE)
+// PHOENIX PROTOCOL - ROUTING V5.1 (CORRECT ROOT IMPORTS & ADMIN DRAFTING GUARD)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
-import AdminSupportPage from './pages/AdminSupportPage';   // NEW
+import AdminSupportPage from './pages/AdminSupportPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
@@ -35,7 +35,11 @@ import ChatPage from './pages/ChatPage';
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen bg-background-dark"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-canvas">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div>
+      </div>
+    );
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
@@ -46,7 +50,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen bg-background-dark"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-canvas">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div>
+      </div>
+    );
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
@@ -75,12 +83,12 @@ const AppRoutes: React.FC = () => {
       
       <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />
 
+      {/* Rrugët e Mbrojtura për të Gjithë Përdoruesit e Kyçur */}
       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/cases/:caseId" element={<CaseViewPage />} />
         <Route path="/cases/:caseId/chat" element={<ChatPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/drafting" element={<DraftingPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/business" element={<BusinessPage />} />
         <Route path="/account" element={<AccountPage />} />
@@ -90,9 +98,11 @@ const AppRoutes: React.FC = () => {
         <Route path="/laws/:chunkId" element={<LawViewerPage />} />
       </Route>
 
+      {/* Rrugët Ekskluzive VETËM PËR ADMIN */}
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
         <Route path="/admin" element={<AdminDashboardPage />} />
-        <Route path="/admin/support" element={<AdminSupportPage />} />   {/* NEW */}
+        <Route path="/admin/support" element={<AdminSupportPage />} />
+        <Route path="/drafting" element={<DraftingPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />
