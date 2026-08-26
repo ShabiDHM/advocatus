@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V101.0 (PROCEDURAL STAGE DISAMBIGUATION & ACCURATE INSTITUTION MAPPING)
+# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V102.0 (FINE-TUNED STRATEGIC ANALYSIS & VERIFICATION DISCLAIMER)
 
 import os
 import sys
@@ -19,7 +19,8 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 90
 
-AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës. Për përdorim profesional.*"
+# 🛡️ DISCLAIMER I PËRDITËSUAR ZYRTAR
+AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës, është për referencë dhe duhet të verifikohet.*"
 
 MAX_CONTEXT_CHARS = 110_000 
 
@@ -34,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal AI Engine V101.0 initialized.")
+            logger.info("✅ [RAG] Universal AI Engine V102.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -42,24 +43,24 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        drafting_keywords = [
-            "gjenero", "harto", "shkruaj", "përpilo", "përgatit shkresën",
-            "kallëzim penal", "kallzim penal", "kërkesëpadi", "padi", 
-            "prapësim", "prapesim", "përgjigje në padi", "pergjigje ne padi",
-            "kundërpadi", "kunderpadi", "ankesë", "ankese", "kontratë", "kontrate", 
-            "autorizim", "aktpadi", "shkresë gjyqësore", "shkrese gjyqesore"
+        # 1. DRAFTING INTENT (Kur kërkohet eksplicit hartimi i shkresës përfundimtare)
+        explicit_draft_triggers = [
+            "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin", 
+            "përgatit shkresën zyrtare", "harto padinë", "harto kërkesëpadinë",
+            "harto kallëzimin penal", "harto prapësimin", "harto ankesën"
         ]
-        if any(k in q for k in drafting_keywords) and not any(k in q for k in ["analizo dhe lidh", "auditim", "vetëm nene", "vetem nene", "gjykata supreme"]):
+        if any(k in q for k in explicit_draft_triggers):
             return "DRAFTING"
         
+        # 2. FORENSIC AUDIT INTENT (Kur klikohet ikona ⚖️)
         audit_keywords = [
-            "analizo dhe lidh të gjitha nenet", "verifikim të drejtpërdrejtë",
             "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
             "paralajmërime & sugjerime", "lapsuseve", "shkelje procedurale"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
         
+        # 3. DEFAULT: STRATEGJIA E 4 KARTAVE DHE ANALIZA DOKTRINARE
         return "ANALYSIS"
 
     def _optimize_query(self, query: str) -> str:
@@ -279,15 +280,11 @@ class AlbanianRAGService:
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
-        # =========================================================================
-        # 🏛️ PROMPTIMET ME DALLIM TË SAKTË PROCEDURAL TË INSTITUCIONEVE
-        # =========================================================================
-
         procedural_roles_rule = """
-        DALLIMI I DETYRUESHËM PROCEDURAL I INSTITUCIONEVE (MOS I NGATËRRO):
-        1. PROKURORIA SPECIALE E KOSOVËS (PSRK): Është Organi Marrës ku po përgatitet të dorëzohet ky Kallëzim Penal. PSRK nuk ka marrë vendim dhe nuk ka refuzuar asgjë, sepse shkresa është në fazë draftimi/dorëzimi!
-        2. PROKURORIA THEMELORE (Prokurore Fikrije Sylejmani): Është organi i shkallës së parë që ka ngritur aktakuzën e kontestuar në vitin 2024 (PP.II.nr. 122/24F).
-        3. GJYKATA THEMELORE & APELI: Janë gjykatat ku janë zhvilluar procedurat e mëparshme kontestuese.
+        DALLIMI I DETYRUESHËM PROCEDURAL I INSTITUCIONEVE:
+        1. PROKURORIA SPECIALE E KOSOVËS (PSRK): Është Organi Marrës ku po përgatitet të dorëzohet Kallëzimi Penal. PSRK nuk ka refuzuar asgjë, pasi shkresa është në fazë përgatitore!
+        2. PROKURORIA THEMELORE (Prokurore Fikrije Sylejmani): Është organi i shkallës së parë që ka ngritur aktakuzën e mëparshme në vitin 2024.
+        3. GJYKATA THEMELORE & APELI: Janë gjykatat ku janë nxjerrë vendimet e kontestuara.
         """
 
         if user_intent == "DRAFTING":
@@ -334,6 +331,7 @@ class AlbanianRAGService:
             {context_str}
             """
         else:
+            # 🏛️ ANALIZA DHE 4 KARTAT STRATEGJIKE ME DOKTRINË SUPREME
             if client_position == "PLAINTIFF":
                 role_instructions = f"PERSPEKTIVA JURIDIKE: **PADITËS / KALLËZUES (Përfaqësuesi i {client_name}).**"
             elif client_position == "NEUTRAL":
@@ -356,10 +354,10 @@ class AlbanianRAGService:
             DOKUMENTET E FASHIKULLIT DHE JURISPRUDENCA:
             {context_str}
 
-            UDHËZIME TË DETYRUESHME PËR STRATEGJINË DHE KARTAT:
-            1. Përgjigju thellësisht pyetjes së avokatit duke u mbështetur në provat reale të fashikullit.
-            2. ZBATO VENDIMET PARIMORE TË GJYKATËS SUPREME mbi provat dhe prapësimet.
-            3. MOS kufizo numrin e shtyllave: përfshi çdo provë materiale e procedurale të administruar.
+            UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
+            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
+            2. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
+            3. MOS vendos kryerresht si 'KËRKESËPADI/KALLËZIM PENAL' kur pyetja është për analizë strategjike.
 
             STRUKTURA E PËRGJIGJES:
             ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
