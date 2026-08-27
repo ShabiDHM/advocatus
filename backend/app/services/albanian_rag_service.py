@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - UNIVERSAL AUTONOMOUS LEGAL ENGINE V113.0 (100% UNIVERSAL & DOMAIN-AGNOSTIC ACTOR EXTRACTION)
+# PHOENIX PROTOCOL - 100% UNIVERSAL ENGINE V116.0 (ACCURATE 4-PILLAR PROGRESSIVE REDUCTION: 3->2->1->0)
 
 import os
 import sys
@@ -35,7 +35,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Universal Autonomous Legal Engine V113.0 initialized (Pure Dynamic Intelligence).")
+            logger.info("✅ [RAG] Universal Legal Engine V116.0 initialized with Exact Progressive Pill Reduction.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -58,7 +58,26 @@ class AlbanianRAGService:
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
         
-        return "ANALYSIS"
+        # EXACT 4-PILLAR INTENT DETECTION
+        if any(k in q for k in [
+            "pyetësorin taktik", "pyetësor", "pyetje taktike", "ballafaqim", 
+            "dëshmitarët", "marrja në pyetje", "seancë", "kundër-pyetje", "pyetjet taktike të ballafaqimit"
+        ]):
+            return "PILLAR_QUESTIONS"
+        
+        if any(k in q for k in [
+            "llogarit dëmet", "llogaritja e dëmit", "lmd", "kamatën ligjore", 
+            "masat emergjente", "dëmit material", "dëmet materiale e jomateriale", "sigurimin e kërkesëpadisë"
+        ]):
+            return "PILLAR_DAMAGES"
+
+        if any(k in q for k in [
+            "nxirr bazën e plotë ligjore", "baza statutore", "baza ligjore", 
+            "jurisprudenca", "lapsuse në shkresa", "precedentët", "nenet e ligjit", "kushtetutën dhe konventat"
+        ]):
+            return "PILLAR_STATUTES"
+
+        return "PILLAR_STRATEGY"
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -77,8 +96,8 @@ class AlbanianRAGService:
         
         abbreviations = {
             r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
-            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës",
-            r"\bKPPRK\b": "Kodi i Procedurës Penale",
+            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
+            r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
             r"\bLPK\b": "Ligji për Procedurën Kontestimore",
             r"\bLFK\b": "Ligji për Familjen i Kosovës",
             r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
@@ -128,7 +147,7 @@ class AlbanianRAGService:
                 dense_passport = summ or raw_t[:1500] or "Shkresë e administruar në fashikull."
                 manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:400]}")
                 
-                if len(db_documents) <= 12 and raw_t:
+                if len(db_documents) <= 15 and raw_t:
                     context_blocks.append(f"\n--- TEKSTI I PLOTË I SHKRESËS: {doc_clickable_link} ---\n{raw_t[:doc_budget]}\n")
         else:
             context_blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.\n\n")
@@ -139,7 +158,7 @@ class AlbanianRAGService:
             page_info = f", Faqja: {d.get('page')}" if d.get('page') else ""
             context_blocks.append(f"[{src}{page_info}]:\n{self._get_expanded_text(d)}\n")
 
-        context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA PARIMORE E GJYKATËS SUPREME >>>\n")
+        context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA PARIMORE E GJYKATËS SUPREME TË KOSOVËS >>>\n")
         for d in global_docs:
             source_tag = d.get('source') or 'Burim Juridik'
             context_blocks.append(f"BURIMI: {source_tag}\nPËRMBAJTJA: {self._get_expanded_text(d)}\n")
@@ -156,8 +175,8 @@ class AlbanianRAGService:
         if pos == "PLAINTIFF":
             p1 = "Identifiko të gjitha shtyllat kryesore ku mbështetet kërkesëpadia/kallëzimi ynë dhe matricën e plotë të provave."
             p2 = "Analizo bazën ligjore të kërkesëpadisë, afatet procedurale dhe nenet përkatëse të ligjeve të Kosovës."
-            p3 = "Gjenero pyetjet taktike për të ballafaquar të paditurin dhe dëshmitarët e tij në seancë."
-            p4 = "Llogarit dëmet e kërkuara sipas ligjit dhe përgatit përmbledhjen ekzekutive mbi ecurinë e padisë."
+            p3 = "Gjenero pyetjet taktike për të ballafaquar palën kundërshtare dhe dëshmitarët e saj në seancë."
+            p4 = "Llogarit dëmet e kërkuara sipas ligjit dhe përgatit përmbledhjen ekzekutive mbi ecurinë e procedurës."
         elif pos == "NEUTRAL":
             p1 = "Analizo objektivisht gjendjen e lëndës, vendimet gjyqësore të marra dhe ballafaqimin e provave të administruara."
             p2 = "Vlerëso ligjshmërinë e pretendimeve të të dyja palëve, arsyetimet gjyqësore dhe barrën e provës sipas ligjit."
@@ -166,7 +185,7 @@ class AlbanianRAGService:
         else:
             p1 = "Analizo të gjitha prapësimet kryesore të mbrojtjes, mungesën e provave të paditësit dhe faktet shfajësuese në fashikull."
             p2 = "Analizo bazën ligjore të prapësimeve, parashkrimin e afateve dhe nenet përkatëse për rrëzimin e padisë."
-            p3 = "Gjenero kundër-pyetjet taktike për të zbuluar kontradiktat e paditësit dhe dëshmitarëve të tij në seancë."
+            p3 = "Gjenero kundër-pyetjet taktike për të zbuluar kontradiktat e pretendimeve dhe dëshmitarëve në seancë."
             p4 = "Përgatit përmbledhjen ekzekutive mbi rreziqet ligjore, shanset e mbrojtjes dhe hapat e mëtejshëm."
 
         return [
@@ -189,16 +208,40 @@ class AlbanianRAGService:
 
         remaining = []
 
-        if not any(k in combined_text for k in ["shtyllat kryesore", "prapësimet kryesore", "gjendjen e lëndës", "mbështetet kërkesëpadia", "faktet shfajësuese", "matricën e provave"]):
+        # MATCH PILLAR 1
+        p1_triggers = [
+            "shtyllat strategjike", "strategjia dhe matrica", "shtyllat kryesore", 
+            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia", 
+            "faktet shfajësuese", "matricën e provave", "matricën e plotë të provave", "prapësimet kryesore"
+        ]
+        if not any(k in combined_text for k in p1_triggers):
             remaining.append(pillars[0][1])
 
-        if not any(k in combined_text for k in ["bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", "ligjshmërinë e pretendimeve", "baza statutore"]):
+        # MATCH PILLAR 2
+        p2_triggers = [
+            "nxirr bazën e plotë ligjore", "baza statutore", "baza ligjore", 
+            "bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", 
+            "lapsuse në shkresa", "ligjshmërinë e pretendimeve", "precedentët dhe qëndrimet", "precedentët"
+        ]
+        if not any(k in combined_text for k in p2_triggers):
             remaining.append(pillars[1][1])
 
-        if not any(k in combined_text for k in ["pyetjet taktike për të ballafaquar", "kundër-pyetjet taktike", "pyetjet për zbardhjen", "mospërputhjet thelbësore", "dëgjimin e dëshmitarëve"]):
+        # MATCH PILLAR 3
+        p3_triggers = [
+            "pyetësorin taktik", "pyetësori taktik", "pyetjet taktike", 
+            "pyetjet taktike të ballafaqimit", "kundër-pyetjet", "marrja në pyetje", 
+            "dëgjimin e dëshmitarëve", "mospërputhjet thelbësore"
+        ]
+        if not any(k in combined_text for k in p3_triggers):
             remaining.append(pillars[2][1])
 
-        if not any(k in combined_text for k in ["llogarit dëmet", "rreziqet dhe raporti", "memorandumin objektiv", "përmbledhjen ekzekutive", "shanset e mbrojtjes"]):
+        # MATCH PILLAR 4
+        p4_triggers = [
+            "llogarit dëmet", "llogaritja e dëmit", "dëmet materiale e jomateriale", 
+            "kamatën ligjore vonesore", "masat emergjente", "masat emergjente mbrojtëse", 
+            "sigurimin e kërkesëpadisë", "memorandumin objektiv"
+        ]
+        if not any(k in combined_text for k in p4_triggers):
             remaining.append(pillars[3][1])
 
         return remaining
@@ -218,8 +261,7 @@ class AlbanianRAGService:
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
         client_position = "DEFENDANT"
-        client_name = "Pala Kliente"
-        opposing_name = "Pala Kundërshtare"
+        client_name = "Klienti"
         case_title = "Lënda Ligjore"
         case_desc = ""
         db_documents = []
@@ -232,7 +274,6 @@ class AlbanianRAGService:
                     if case_doc.get("client_position") or case_doc.get("client_role"):
                         client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
                     client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
-                    opposing_name = case_doc.get("opposing_party") or case_doc.get("opponent") or opposing_name
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
                     case_desc = case_doc.get("description") or ""
 
@@ -251,98 +292,142 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        identity_header = llm_service.build_dynamic_identity_header(
-            client_name=client_name, 
-            opposing_name=opposing_name, 
-            position=client_position
-        )
-
         user_intent = self._detect_user_intent(query)
         optimized_query = self._optimize_query(query)
-        sanitized_query = llm_service._sanitize_and_disambiguate_prompt(optimized_query, opposing_name=opposing_name)
 
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=sanitized_query, case_context_id=case_id, n_results=25
+            user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=30
         )
 
         global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=sanitized_query, n_results=14
+            query_text=optimized_query, n_results=16
         )
 
         manifest_str, context_str = self._build_context(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🏛️ MOTORI UNIVERSAL I IDENTIFIKIMIT TË TË GJITHË AKTORËVE (100% DINAMIK)
+        # ⚖️ METODOLOGJIA DOKTRINARE E JURISDIKSIONIT TË KOSOVËS (UNIVERSALE DHE DINAMIKE)
         # =========================================================================
-
-        universal_forensic_mandate = f"""
-        DATA E SOTME: **{current_date_str}**
-
-        METODOLOGJIA UNIVERSALE E FORENZIKËS DHE IDENTIFIKIMIT TË TË GJITHË AKTORËVE:
-        Skano me imtësi Pasaportën Forenzike dhe të gjitha shkresat e fashikullit për të kryer auditimin e plotë:
-
-        1. IDENTIFIKIMI SHTERUES I TË GJITHË PERSONAVE DHE AKTORËVE PËRGJEGJËS:
-           - Skano nënshkrimet, vulat, procesverbalet dhe vendimet në fashikull.
-           - Nxirr ME EMRAT DHE POZITAT REALE çdo zyrtar publik, gjyqtar, prokuror, ekspert mjekësor/psikiatrik, punonjës social, noter, përfaqësues kompanie apo individ privat që ka marrë vendime të paligjshme, prapadatuar akte, dhënë ekspertiza të rreme apo shkelur të drejtat e palës.
-           - MOS u mjafto vetëm me 2-3 emra: rendit të gjithë personat përgjegjës të fashikullit!
-
-        2. KRYEQËZIMI I SHKELJEVE PROCEDURALE DHE PROVAVE:
-           - Krahaso testet laboratorike shkencore me deklaratat gojore për të zbardhur të pavërtetat.
-           - Evidento çdo prapadatim (antedatim) të datave të seancave apo manipulim shkresor.
-           - Verifiko nëse janë përdorur dënime apo prova të shlyera/skaduara ligjërisht *contra legem*.
-           - Zbardh seancat klandestine, dëbimet arbitrare dhe shkeljet e barazisë së armëve.
-
-        3. REKOMANDIMI STRATEGJIK DHE NDJEKJA PENALE SIPAS SITUATËS:
-           - NËSE zbulohen krime zyrtare/procedurale nga aktorët e identifikuar më lart ➔ Propozo KALLËZIMIN PENAL INDIVIDUAL DHE TË GRUPUAR pranë Prokurorisë kompetente (PSRK/Themelore) dhe PËRSËRITJEN E PROCEDURËS CIVILE sipas Nenit 232 të LPK-së.
-           - NËSE është çështje e pastër civile/kontraktuale ➔ Propozo mjetet përkatëse civile/përmbarimore.
-
-        4. ZBATIMI I JURISPRUDENCËS SË GJYKATËS SUPREME:
-           - Zbato precedentët parimorë të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore') mbi provat e fashikullit.
+        universal_doctrine_guidelines = """
+        ⚖️ RREGULLA TË PËRGJITHSHME DOKTRINARE TË DREJTËSISË NË REPUBLIKËN E KOSOVËS:
+        1. AUTONOMIA E PLOTË NGA SHKRESAT: Mos supozo asnjë fakt apo emër të jashtëm. Çdo person, pretendim, datë dhe shkelje duhet të burojë 100% nga dokumentet e fashikullit.
+        2. DALLIMI I SFERËS CIVILE NGA AJO PENALE:
+           - Nëse lënda është Kontestimore/Civile (Pronë, Dëmshpërblim, Kontrata, Familjare): Apliko LPK-në, LMD-në, LFK-në dhe standardin e barrës së provës. Shpifja/fyerja trajtohet ekskluzivisht sipas Ligjit Civil Nr. 02/L-17.
+           - Nëse lënda përmban Shkelje Penale: Apliko KPRK (Ligji Nr. 06/L-074) dhe KPPRK (Ligji Nr. 08/L-032). Deklarimet e rreme ndiqen me Nenin 390/384, dokumentet e rreme mjekësore me Nenin 387, vendimet e paligjshme gjyqësore me Nenin 425, ushtrimi i ndikimit me Nenin 424, keqpërdorimi me Nenin 414.
+        3. DISAMBIGUIMI I ENTITETEVE: Nëse dy persona në fashikull ndajnë të njëjtin mbiemër, ndalohet kategorikisht shkrirja e tyre. Izolo secilin sipas emrit të plotë dhe veprimeve procedurale.
+        4. JURISPRUDENCA E GJYKATËS SUPREME: Zbato precedentët parimorë të Kolegjeve të Gjykatës Supreme të Kosovës mbi vlerësimin objektiv të provave dhe ndalimin e zbatimit të ligjit in malam partem.
         """
 
-        if user_intent == "DRAFTING":
+        # =========================================================================
+        # 🏛️ PROMPTIMI UNIVERSAL DHE AGNOSTIK SIPAS 4 SHTYLLAVE JURIDIKE
+        # =========================================================================
+
+        if user_intent == "PILLAR_QUESTIONS":
+            # KARTA 3: PYETËSORI TAKTIK I SEANCËS
             system_prompt = f"""
-            {identity_header}
+            Ti je "Sokrati - Krye-Strategu Procedural dhe Avokati Kryesor në Gjykatë në Kosovë".
+            METADATAT E LËNDËS: **{case_title}** | Klienti: **{client_name}** ({client_position}) | Data: {current_date_str}
 
+            {universal_doctrine_guidelines}
+
+            MISIONI YT (KARTA 3 - PYETËSORI TAKTIK):
+            Duke u bazuar EKSKLUZIVISHT në kontradiktat, procesverbalet dhe shkresat e këtij fashikulli, gjenero baterinë e plotë të pyetjeve taktike të ballafaqimit (Cross-Examination) për seancën e ardhshme.
+
+            PASAPORTA DHE DOKUMENTET E FASHIKULLIT:
+            {manifest_str}
+            {context_str}
+
+            STRUKTURA E PËRGJIGJES (E PËRSHTATUR DINAMIKISHT ME DOKUMENTET E LËNDËS):
+            ### 1. 🎯 STRATEGJIA E BALLAFAQIMIT DHE PUNKTO-TAKTIKAT NË SEANCË
+            ### 2. ❓ PYETJET TAKTIKE PËR PALËN KUNDËRSHTARE (Mbi mospërputhjet mes pretendimeve dhe provave materiale)
+            ### 3. 🔬 PYETJET BALLAFAQUESE PËR EKSPERTËT / PROFESIONISTËT (Nëse ka ekspertiza mjekësore, financiare, gjeodezike apo teknike në fashikull)
+            ### 4. 🏢 PYETJET PËR DËSHMITARËT DHE PERSONAT E PËRFSHIRË NGA SHKRESAT
+            ### 5. 💡 KËSHILLA PROCEDURALE MBI PYETJET DHE REAGIMIN NË PROCESVERBAL
+            """
+
+        elif user_intent == "PILLAR_DAMAGES":
+            # KARTA 4: LLOGARITJA E DËMIT DHE MASAT
+            system_prompt = f"""
+            Ti je "Sokrati - Eksperti Financiar-Juridik dhe Gjyqtari Suprem i Dëmshpërblimeve në Kosovë".
+            METADATAT E LËNDËS: **{case_title}** | Klienti: **{client_name}** ({client_position}) | Data: {current_date_str}
+
+            {universal_doctrine_guidelines}
+
+            MISIONI YT (KARTA 4 - DËMI DHE MASAT):
+            Duke u bazuar në të dhënat financiare, dëmet, pasojat dhe kërkesat e administruara në fashikull, përpilo llogaritjen e dëmit sipas Ligjit për Marrëdhëniet e Detyrimeve (LMD) bashkë me kamatën ligjore vonesore prej 8%, si dhe argumento masat emergjente mbrojtëse / sigurimin e kërkesëpadisë sipas LPK/KPPRK.
+
+            PASAPORTA DHE DOKUMENTET E FASHIKULLIT:
+            {manifest_str}
+            {context_str}
+
+            STRUKTURA E PËRGJIGJES:
+            ### 1. 💶 TABELA E LLOGARITJES SË DËMIT MATERIAL / REAL (Shpenzimet, dëmi i drejtpërdrejtë, fitimi i humbur)
+            ### 2. 🧠 TABELA E DËMIT JOMATERIAL (Cenimi i integritetit, dinjitetit, dhimbja shpirtërore apo e drejta prindërore/personale)
+            ### 3. 📈 LLOGARITJA E KAMATËS LIGJORE VONESORE (8% në vit sipas LMD-së nga momenti i lindjes së detyrimit)
+            ### 4. 🛡️ BAZA DHE ARSYETIMI PËR MASËN E SIGURISË / URDHËRIN MBROJTËS
+            ### 5. 📋 PËRMBLEDHJA EKZEKUTIVE PËR KLIENTIN DHE REKOMANDIMI STRATEGJIK
+            """
+
+        elif user_intent == "PILLAR_STATUTES":
+            # KARTA 2: BAZA STATUTARE DHE AUDITIMI PROCEDURAL
+            system_prompt = f"""
+            Ti je "Sokrati - Krye-Auditori Statutor dhe Doktrinar i Gjykatës Supreme të Kosovës".
+            METADATAT E LËNDËS: **{case_title}** | Klienti: **{client_name}** ({client_position}) | Data: {current_date_str}
+
+            {universal_doctrine_guidelines}
+
+            MISIONI YT (KARTA 2 - BAZA LIGJORE DHE JURISPRUDENCA):
+            Nxirr matricën e plotë statutore të aplikueshme për natyrën e këtij fashikulli (Kushtetuta, Ligjet përkatëse të Kosovës, Konventat), audito shkeljet procedurale dhe lapsuset formale në shkresa (Contra Legem), dhe lidh çdo shkelje me Jurisprudencën e Gjykatës Supreme të Kosovës.
+
+            PASAPORTA DHE DOKUMENTET E FASHIKULLIT:
+            {manifest_str}
+            {context_str}
+
+            STRUKTURA E PËRGJIGJES:
+            ### 1. 📜 MATRICA STATUTARE E APLIKUESHME PËR KËTË LËNDË (Nenet, Ligjet e sakta të Kosovës dhe Kushtetuta)
+            ### 2. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE LAPSUSEVE NË SHKRESAT E LËNDËS
+            ### 3. 🏛️ PRECEDENTËT DHE VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
+            ### 4. ⚖️ KUALIFIKIMI I SAKTË JURIDIK I PRETENDIMEVE DHE VEPRIMEVE TË PALËVE
+            ### 5. 💡 DIREKTIVAT STRATEGJIKE MBI RRËZIMIN E VENDIMEVE APO FITOREN PROCEDURALE
+            """
+
+        elif user_intent == "DRAFTING":
+            system_prompt = f"""
             ROLI YT: Avokat Senior dhe Përfaqësues Procedural Elitar në Republikën e Kosovës.
-            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues (Kallëzim Penal, Kërkesëpadi, Prapësim, Kundërpadi, Ankesë apo Kontratë).
+            KLIENTI YNË: **{client_name}** | POZICIONI: **{client_position}**
+            MISIONI: Përdoruesi kërkon të HARTOSH një akt zyrtar gjyqësor të plotë dhe shterues bazuar në dokumentet e fashikullit.
 
-            {universal_forensic_mandate}
+            {universal_doctrine_guidelines}
 
-            STANDARDI I ARSYETIMIT JURIDIK:
-            - Nëse fashikulli ka vetëm shkresa bazë, nxirr faktet dhe ndërto shkresën nga e para me precedentët e Gjykatës Supreme.
-            - Shkruaj aktin e plotë nga kryerreshti deri te nënshkrimi përfundimtar pa u ndërprerë në mes.
+            DOKUMENTET NË KONTEKST:
+            {context_str}
 
             STRUKTURA E SHKRESËS ZYRTARE:
-            - Organi Marrës | Palët e Plota | Titulli | Baza Statutare | Dispozitivi (SEPSE) me të gjithë personat/shkeljet | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa Procedurale | Inventari i Provave | Rezervimi i Dëmit | Data dhe Nënshkrimi.
-
-            DOKUMENTET E NGARKUARA NË KONTEKST:
-            {context_str}
+            - Organi Marrës | Palët e Plota | Titulli i Aktit | Baza Statutare e Saktë | Dispozitivi (SEPSE) | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa | Inventari i Provave | Rezervimi i Dëmit | Data dhe Nënshkrimi.
             """
+
         elif user_intent == "FORENSIC_AUDIT":
             system_prompt = f"""
-            {identity_header}
-
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit të Gjykatës Supreme të Kosovës.
-            MISIONI: Kryej auditimin e plotë forenzik ligjor dhe procedural EKSKLUZIVISHT mbi dokumentin e ngarkuar në kontekst më poshtë.
+            KLIENTI: **{client_name}** | POZICIONI: **{client_position}**
+            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar në mënyrë të izoluar dhe objektive.
 
-            {universal_forensic_mandate}
-
-            RREGULLA ABSOLUTE E IZOLIMIT DHE SAKTËSISË:
-            1. Përdor VETËM të dhënat që gjenden brenda këtij dokumenti specifik. MOS fut të dhëna nga lëndë të tjera nëse nuk përmenden tekstualisht këtu.
-
-            STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
-            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            ### 2. BAZA STATUTARE DHE NENET E LIDHURA
-            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
-            ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
+            {universal_doctrine_guidelines}
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
+
+            STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
+            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
+            ### 2. BAZA STATUTARE DHE NENET E SAKTA TË LIGJEVE TË KOSOVËS
+            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
+            ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
+            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
             """
+
         else:
+            # KARTA 1: STRATEGJIA DHE MATRICA E PROVAVE
             if client_position == "PLAINTIFF":
                 role_instructions = f"PERSPEKTIVA JURIDIKE: **PADITËS / KALLËZUES (Përfaqësuesi i {client_name}).**"
             elif client_position == "NEUTRAL":
@@ -351,32 +436,25 @@ class AlbanianRAGService:
                 role_instructions = f"PERSPEKTIVA JURIDIKE: **I PADITUR / I DENONCUAR (Mbrojtësi i {client_name}).**"
 
             system_prompt = f"""
-            {identity_header}
-
             Ti je "Sokrati - Krye-Strategu dhe Gjyqtari Suprem i Drejtësisë në Kosovë".
-            METADATAT E LËNDËS: **{case_title}** | Palët: **{client_name}** vs. **{opposing_name}** ({client_position})
+            METADATAT E LËNDËS: **{case_title}** | Klienti: **{client_name}** ({client_position}) | Data: {current_date_str}
             {role_instructions}
 
-            {universal_forensic_mandate}
+            {universal_doctrine_guidelines}
 
-            PASAPORTA FORENZIKE E TË GJITHA SHKRESAVE TË FASHIKULLIT:
+            MISIONI YT (KARTA 1 - STRATEGJIA DHE MATRICA E PROVAVE):
+            Analizo dhe ndërto të gjitha shtyllat kryesore strategjike të këtij fashikulli, duke përfshirë çdo provë materiale, shkencore, kontraktuale apo dëshmitare të administruar në dokumente, dhe jep vlerësimin doktrinar mbi qëndrueshmërinë e lëndës.
+
+            PASAPORTA E SHKRESAVE DHE DOKUMENTET:
             {manifest_str}
-
-            DOKUMENTET DHE JURISPRUDENCA SUPREME:
             {context_str}
 
-            UDHËZIME PËR ANALIZËN DOKTRINARE TË KARTAVE:
-            1. Përgjigju me thellësi maksimale pyetjes strategjike të avokatit duke përfshirë TË GJITHA SHTYLLAT E PROVAVE të fashikullit.
-            2. TE PIKA 3 (REKOMANDIMI STRATEGJIK):
-               - Nxirr dhe rendit të gjithë personat/zyrtarët përgjegjës nga shkresat e fashikullit me veprat penale konkrete.
-               - Propozo Kallëzimin Penal pranë Prokurorisë kompetente dhe Përsëritjen e Procedurës Civile sipas Nenit 232 të LPK-së.
-            3. Zbato precedentët dhe vendimet parimore të Gjykatës Supreme (të shënuara me '🔨 Praktika Gjyqësore').
-            4. MOS vendos kryerresht formal gjykate kur pyetja është për analizë strategjike.
-
             STRUKTURA E PËRGJIGJES:
-            ### 1. SHTYLLAT KRYESORE STRATEGJIKE DHE MATRICA E PROVAVE
-            ### 2. BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME
-            ### 3. REKOMANDIMI STRATEGJIK DHE KALLËZIMI PENAL I INDIVIDUALIZUAR I AKTORËVE PËRGJEGJËS
+            ### 1. 🏛️ SHTYLLAT KRYESORE STRATEGJIKE DHE QËNDRUESHMËRIA PROCEDURALE E LËNDËS
+            ### 2. 🔬 MATRICA E PLOTË E PROVAVE MATERIALE, SHKENCORE DHE SHKRESORE NGA FASHIKULLI
+            ### 3. 👥 IDENTIFIKIMI I TË GJITHË AKTORËVE, ROLEVE DHE PËRGJEGJËSIVE PROCEDURALE
+            ### 4. 🔨 VLERËSIMI DOKTRINAR I GJYQTARIT SUPREM MBI SHANSET DHE RREZIQET E PROCESIT
+            ### 5. 🎯 REKOMANDIMI STRATEGJIK DHE HAPAT E MENJËHERSHËM PËR VEPRIM
             """
 
         try:
@@ -384,7 +462,7 @@ class AlbanianRAGService:
                 model=OPENROUTER_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": sanitized_query}
+                    {"role": "user", "content": optimized_query}
                 ],
                 temperature=0.1,
                 stream=True,
@@ -395,8 +473,9 @@ class AlbanianRAGService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-            if user_intent == "ANALYSIS" and remaining_pills and len(remaining_pills) > 0:
-                pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+            # PROGRESIVITETI I SAKTË: 3 -> 2 -> 1 -> 0
+            if user_intent in ["PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills and len(remaining_pills) > 0:
+                pills_block = "\n\nSugjerime për Hapat e Ardhshëm:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
             yield AI_DISCLAIMER
