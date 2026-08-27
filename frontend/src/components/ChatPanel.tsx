@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V38.0 (DYNAMIC SCOPE-AWARE COMMAND PALETTE)
+// PHOENIX PROTOCOL - CHAT PANEL V38.1 (SMOOTH FRAMER-MOTION WAVE THINKING DOTS)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { autoLinkLegalCitations, extractFollowUpQuestions } from '../utils/chatHelpers';
-import { ThinkingDots } from './chat/ThinkingDots';
 import { MessageCopyButton } from './chat/MessageCopyButton';
 import { FeedbackButtons } from './chat/FeedbackButtons';
 import { buildMarkdownComponents } from './chat/MarkdownRenderer';
@@ -235,16 +234,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 );
               })}
 
+              {/* SMOOTH ANIMATED THINKING BUBBLE */}
               {isAwaitingFirstToken && (
-                <motion.div key="thinking" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
+                <motion.div 
+                  key="thinking" 
+                  initial={{ opacity: 0, y: 5 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex items-start gap-3"
+                >
                   <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
                     <BrainCircuit size={16} className="animate-pulse" />
                   </div>
-                  <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
+                  <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2.5">
                     <span className="text-xs font-bold text-primary-start tracking-wide">
                       Sokrati duke menduar
                     </span>
-                    <ThinkingDots />
+                    <div className="flex items-center gap-1 ml-0.5">
+                      <motion.span
+                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0 }}
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
+                      />
+                      <motion.span
+                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.2 }}
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
+                      />
+                      <motion.span
+                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.4 }}
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
+                      />
+                    </div>
                   </div>
                 </motion.div>
               )}
