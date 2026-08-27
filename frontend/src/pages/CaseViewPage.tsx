@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V56.0 (SUPREME COURT JURISPRUDENCE & FORENSIC AUDIT DISPATCHER)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V57.0 (REAL-TIME AUTO-SYNC & ZERO-MANUAL-REFRESH ENGINE)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -111,6 +111,28 @@ const CaseViewPage: React.FC = () => {
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
+
+  // AUTO-SYNC POLLING: PËRDITËSIM AUTOMATIK LIVE KUR DOKUMENTI ËSHTË NË PROCESIM
+  useEffect(() => {
+    const hasProcessingDocs = liveDocuments.some(
+      (doc) => doc.status === 'PROCESSING' || doc.status === 'PENDING'
+    );
+
+    if (!hasProcessingDocs || !caseId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const latestDocs = await apiService.getDocuments(caseId);
+        if (Array.isArray(latestDocs)) {
+          setLiveDocuments(latestDocs.map(sanitizeDocument));
+        }
+      } catch (err) {
+        console.warn('Auto-sync documents polling error:', err);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [liveDocuments, caseId, setLiveDocuments]);
 
   const handleDocumentUploaded = (newDoc: Document) => setLiveDocuments((p) => [sanitizeDocument(newDoc), ...p]);
   const handleDocumentDeleted = (res: DeletedDocumentResponse) => setLiveDocuments((p) => p.filter((d) => String(d.id) !== String(res.documentId)));
@@ -236,7 +258,6 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 1-CLICK SUPREME COURT FORENSIC AUDITOR (700+ PAGE JURISPRUDENCE GROUNDING)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
@@ -295,13 +316,11 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
     <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4">
         
-        {/* SHIRITI I IDENTITETIT */}
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
         />
 
-        {/* DY SHTYLLAT KRYESORE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}

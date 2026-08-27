@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V29.0 (RELIABLE OCR, ZERO-TRUNCATION & GUARANTEED 100% COMPLETION)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V30.0 (EXACT REAL PAGE COUNT & ZERO TRUNCATION)
 
 import os
 import tempfile
@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
 import redis.asyncio as aioredis
+import fitz  # PyMuPDF për numërimin e faqeve
 
 from app.services import storage_service, llm_service, text_extraction_service, conversion_service
 from app.services.albanian_document_processor import EnhancedDocumentProcessor
@@ -82,7 +83,7 @@ async def orchestrate_document_processing_mongo(
     redis_client: Any = None,
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V29.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V30.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -111,6 +112,7 @@ async def orchestrate_document_processing_mongo(
     final_summary = "Përmbledhje e dokumentit."
     preview_storage_key = ""
     text_key = ""
+    real_page_count = 1
 
     try:
         suffix = os.path.splitext(doc_name)[1] or ".pdf"
@@ -123,7 +125,16 @@ async def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'): 
             file_stream.close()
 
-        # Faza 2: 60% Leximi me OCR (Koha e Zgjeruar në 90 Sekonda)
+        # Numërimi Ekzakt i Faqeve Reale të PDF-së
+        try:
+            pdf_doc = fitz.open(temp_original_file_path)
+            real_page_count = max(len(pdf_doc), 1)
+            pdf_doc.close()
+        except Exception as page_err:
+            logger.warning(f"Could not calculate page count for {doc_name}: {page_err}")
+            real_page_count = 1
+
+        # Faza 2: 60% Leximi me OCR
         await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin & OCR...")
         
         try:
@@ -150,7 +161,7 @@ async def orchestrate_document_processing_mongo(
             try:
                 enriched_chunks = await asyncio.to_thread(
                     EnhancedDocumentProcessor.process_document, 
-                    text_content=raw_text, document_metadata={'file_name': doc_name}
+                    text_content=raw_text, document_metadata={'file_name': doc_name, 'pages': real_page_count}
                 )
                 chunks_to_store = [c.content for c in enriched_chunks] if enriched_chunks else [raw_text[i:i+1500] for i in range(0, len(raw_text), 1200)]
                 metadatas_to_store = [c.metadata for c in enriched_chunks] if enriched_chunks else [{"page": 1, "source": doc_name} for _ in chunks_to_store]
@@ -200,14 +211,16 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Orchestrator pipeline exception on {doc_name}: {general_err}")
     
     finally:
-        # Faza 5: 100% GATI (Ruhet i Gjithë Teksti pa u Cunguar)
+        # Faza 5: 100% GATI (Ruhet Numri Real i Faqeve dhe Teksti i Plotë)
         try:
             await asyncio.to_thread(
                 db.documents.update_one,
                 {"_id": doc_id},
                 {
                     "$set": {
-                        "extracted_text": raw_text,  # RUHET I PLOTË PA LIMIT 15K
+                        "page_count": real_page_count,
+                        "pages": real_page_count,
+                        "extracted_text": raw_text,
                         "summary": final_summary,
                         "processed_text_storage_key": text_key,
                         "preview_storage_key": preview_storage_key,
@@ -218,13 +231,18 @@ async def orchestrate_document_processing_mongo(
                     }
                 }
             )
-            logger.info(f"✅ [Orchestrator V29.0] Document {document_id_str} is 100% READY.")
+            logger.info(f"✅ [Orchestrator V30.0] Document {document_id_str} ({real_page_count} pages) is 100% READY.")
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 
         # Njofto SSE për përfundimin 100%
         try:
-            payload = {"type": "DOCUMENT_STATUS", "document_id": document_id_str, "status": DocumentStatus.READY}
+            payload = {
+                "type": "DOCUMENT_STATUS", 
+                "document_id": document_id_str, 
+                "status": DocumentStatus.READY,
+                "page_count": real_page_count
+            }
             redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=1.0)
             await redis_client.publish(f"user:{user_id}:updates", json.dumps(payload))
             await redis_client.close()
