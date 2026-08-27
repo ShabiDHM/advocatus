@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR MULTI-AGENT ROUTER V119.0 (4 ISOLATED PILLARS + FREE-FORM GENERAL CHAT)
+# PHOENIX PROTOCOL - MODULAR MULTI-AGENT ROUTER V120.0 (STRICT CLIENT-ANCHORED DRAFTING & 4 ISOLATED PILLARS)
 
 import os
 import sys
@@ -41,7 +41,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Modular Multi-Agent Router V119.0 initialized (4 Isolated Pillars + Free Chat).")
+            logger.info("✅ [RAG] Modular Multi-Agent Router V120.0 initialized with Strict Client-Anchored Drafting.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -49,16 +49,17 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        # 1. HARTIM I AKTEVE (DRAFTING)
+        # 1. HARTIM I AKTEVE ZYRTARE (DRAFTING)
         explicit_draft_triggers = [
             "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin", 
             "përgatit shkresën zyrtare", "harto padinë", "harto kërkesëpadinë",
-            "harto kallëzimin penal", "harto prapësimin", "harto ankesën", "harto kontratën"
+            "harto kallëzimin penal", "harto prapësimin", "harto ankesën", "harto kontratën",
+            "harto një kallxim penal", "harto kallxim penal", "harto një padi", "harto padi"
         ]
         if any(k in q for k in explicit_draft_triggers):
             return "DRAFTING"
         
-        # 2. AUDITIM FORENZIK I NJË DOKUMENTI TË VETËM
+        # 2. AUDITIM FORENZIK I NJË DOKUMENTI
         audit_keywords = [
             "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
             "paralajmërime & sugjerime", "lapsuseve", "shkelje procedurale"
@@ -95,7 +96,7 @@ class AlbanianRAGService:
         ]):
             return "PILLAR_STRATEGY"
 
-        # 7. ÇDO PYETJE TJETËR E LIRË E PËRDORUESIT (GENERAL / FREE CHAT)
+        # 7. CHAT I LIRË
         return "GENERAL_CHAT"
 
     def _optimize_query(self, query: str) -> str:
@@ -330,7 +331,6 @@ class AlbanianRAGService:
         # =========================================================================
 
         if user_intent == "PILLAR_STRATEGY":
-            # MODULI I KARTËS 1
             system_prompt = Pillar1StrategyService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -341,7 +341,6 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "PILLAR_STATUTES":
-            # MODULI I KARTËS 2
             system_prompt = Pillar2StatutesService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -352,7 +351,6 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "PILLAR_QUESTIONS":
-            # MODULI I KARTËS 3
             system_prompt = Pillar3QuestionsService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -363,7 +361,6 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "PILLAR_DAMAGES":
-            # MODULI I KARTËS 4
             system_prompt = Pillar4DamagesService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -374,24 +371,48 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "DRAFTING":
-            # HARTIM ZYRTAR I AKTEVE PROCEDURALE
+            # 🏛️ HARTIM I BLINDUAR ME BESNIKËRI NDAJ KLIENTIT
             system_prompt = f"""
-            ROLI YT: Avokat Senior Elitar në Republikën e Kosovës në përfaqësim të: **{client_name}** ({client_position}).
-            MISIONI: Harto aktin zyrtar të plotë dhe shterues bazuar në dokumentet e fashikullit.
+            Ti je Avokati Senior Elitar në Republikën e Kosovës në përfaqësim ekskluziv të: **{client_name}**.
+            LËNDA: **{case_title}** | DATA: {current_date_str}
 
-            DOKUMENTET NË KONTEKST:
+            RREGULLA SUPREME E HARTIMIT:
+            1. PARASHTRUESI I KËTIJ AKTI ËSHTË VETËM: **{client_name}** (ose Avokati i autorizuar nga {client_name}).
+            2. TË DYSHUARIT / PALA KUNDËRSHTARE: Janë personat e denoncuar nga shkresat e fashikullit (p.sh. Sanije Bala për Nenin 390/248, Nazlie Bala për Nenin 424/32, mjekët për Nenin 387, zyrtarët/gjyqtarët për Nenet 414/425).
+            3. NDALOHET KATEGORIKISHT të hartohet akt apo kallëzim penal KUNDËR {client_name}! {client_name} është PALA E DËMTUAR / PARASHTRUESI.
+
+            STRUKTURA E DETYRUESHME E SHKRESËS (FORMAT GJYQËSOR FORMAL):
+            DREJTUAR:
+            PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS (PSRK) / GJYKATËS THEMELORE NË PRISHTINË
+
+            PARASHTRUESI:
+            {client_name}, me cilësinë e Palës së Dëmtuar / Mbrojtësit Ligjor
+
+            LËNDA: KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI
+            (Baza Statutare: Nenet e sakta të KPRK 06/L-074, KPPRK 08/L-032 ose LPK)
+
+            KUNDËR TË DYSHUARVE:
+            (Nxirr me emra dhe mbiemra të saktë të gjithë personat përgjegjës nga fashikulli me veprat penale konkrete)
+
+            S E P S E (DISPOZITIVI ME PIKA PËR SECILIN TË DYSHUAR)
+            P R O P O Z O J (KËRKESA PROCEDURALE DHE MASAT)
+            A R S Y E T I M I (ARSYETIMI FAKTIQ DHE PRECEDENTËT E GJYKATËS SUPREME)
+            INVENTARI I PROVAVE MATERIALE DHE SHKENCORE (CORPUS DELICTI)
+
+            PARASHTRUESI:
+            {client_name}
+            Prishtinë, Kosovë
+
+            DOKUMENTET E LËNDËS:
+            {manifest_str}
             {context_str}
-
-            STRUKTURA E SHKRESËS ZYRTARE:
-            - Organi Marrës | Palët e Plota | Titulli i Aktit | Baza Statutare | Dispozitivi (SEPSE) | Arsyetimi Faktiq & Doktrinar | Petitumi/Kërkesa | Inventari i Provave | Nënshkrimi.
             """
 
         elif user_intent == "FORENSIC_AUDIT":
-            # AUDITIM FORENZIK I NJË SHKRESE SPECIFIKE
             system_prompt = f"""
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit Suprem të Kosovës.
-            Lënda: **{case_title}** | Pozicioni: {client_position}
-            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar në mënyrë të izoluar.
+            LËNDA: **{case_title}** | PËRFAQËSIMI: {client_name}
+            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar.
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
@@ -405,7 +426,6 @@ class AlbanianRAGService:
             """
 
         else:
-            # CHAT I LIRË ME PËRDORUESIN (GENERAL CONVERSATIONAL Q&A)
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
@@ -434,7 +454,6 @@ class AlbanianRAGService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-            # SUGJERIMET QË KTHEHEN NË BUTONA TË KLIKUESHËM NË FRONTEND
             if user_intent in ["PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills and len(remaining_pills) > 0:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
