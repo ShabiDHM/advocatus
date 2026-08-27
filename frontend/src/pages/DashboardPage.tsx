@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V10.3 (3-ROLE STANCE SELECTOR: PLAINTIFF, DEFENDANT, NEUTRAL)
+// PHOENIX PROTOCOL - DASHBOARD V10.5 (ZERO-FRICTION CLIENT-FIRST MODAL)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -34,8 +34,7 @@ const DashboardPage: React.FC = () => {
     title: '', 
     clientName: '', 
     clientEmail: '', 
-    clientPhone: '',
-    opposingParty: ''
+    clientPhone: ''
   });
   
   const [now, setNow] = useState<number>(Date.now());
@@ -153,14 +152,12 @@ const DashboardPage: React.FC = () => {
         clientPhone: newCaseData.clientPhone,
         status: 'open',
         ...({ 
-          client_position: clientPosition,
-          opposingParty: newCaseData.opposingParty || undefined, 
-          opponent_name: newCaseData.opposingParty || undefined 
+          client_position: clientPosition
         } as any)
       };
       await apiService.createCase(payload);
       setShowCreateModal(false);
-      setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '', opposingParty: '' });
+      setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
       setClientPosition('PLAINTIFF');
       loadData();
     } catch {
@@ -296,17 +293,10 @@ const DashboardPage: React.FC = () => {
     return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
   }
 
-  // Dynamic input placeholders based on selected position
   const getClientFieldLabel = () => {
-    if (clientPosition === 'PLAINTIFF') return 'Klienti (Paditësi / Kallëzuesi)';
-    if (clientPosition === 'DEFENDANT') return 'Klienti (I Padituri / I Denoncuari)';
-    return 'Klienti (Pala A / Kërkuesi)';
-  };
-
-  const getOpposingFieldLabel = () => {
-    if (clientPosition === 'PLAINTIFF') return 'Pala Kundërshtare (I Padituri / I Denoncuari)';
-    if (clientPosition === 'DEFENDANT') return 'Pala Kundërshtare (Paditësi / Kallëzuesi)';
-    return 'Pala Tjetër (Pala B / Palë e Interesuar)';
+    if (clientPosition === 'PLAINTIFF') return 'Klienti Juaj (Paditësi / Kallëzuesi)';
+    if (clientPosition === 'DEFENDANT') return 'Klienti Juaj (I Padituri / I Denoncuari)';
+    return 'Klienti Juaj (Pala A / Kërkuesi)';
   };
 
   return (
@@ -320,7 +310,6 @@ const DashboardPage: React.FC = () => {
           >
             <div className="p-5 sm:p-8 bg-gradient-to-br from-primary-start/5 to-transparent">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                {/* Left: Greeting */}
                 <div className="flex items-start gap-4">
                   <div className="p-3 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
                     {theme.icon}
@@ -341,12 +330,10 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Middle: Risk/Events content */}
                 <div className="w-full md:max-w-xs">
                   {getMainContent()}
                 </div>
 
-                {/* Right: Calendar Button */}
                 <div className="shrink-0 w-full md:w-auto">
                   <button 
                     type="button"
@@ -363,7 +350,6 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Search and New Case Bar */}
       <div className="flex items-center gap-3 w-full h-11 shrink-0 mb-6 px-1">
         <div className="relative flex-1 h-11">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-text-muted" size={18} />
@@ -407,7 +393,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* CREATE CASE MODAL (WITH 3-POSITION SELECTOR) */}
+      {/* ZERO-FRICTION MODAL (NO MANUAL OPPONENT INPUT) */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
@@ -480,7 +466,7 @@ const DashboardPage: React.FC = () => {
                   <label className={labelClasses}>Titulli i Lëndës</label>
                   <input 
                     required 
-                    placeholder={t('dashboard.caseTitle', 'p.sh. Padi për Dëmshpërblim / Kallëzim Penal')} 
+                    placeholder={t('dashboard.caseTitle', 'p.sh. Padi Civile / Kallëzim Penal')} 
                     value={newCaseData.title} 
                     onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} 
                     className={inputClasses} 
@@ -495,16 +481,6 @@ const DashboardPage: React.FC = () => {
                       placeholder="Emri dhe Mbiemri i Klientit" 
                       value={newCaseData.clientName} 
                       onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} 
-                      className={inputClasses} 
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClasses}>{getOpposingFieldLabel()}</label>
-                    <input 
-                      placeholder="Emri i Palës Tjetër (Person ose Kompani)" 
-                      value={newCaseData.opposingParty} 
-                      onChange={(e) => setNewCaseData(p => ({...p, opposingParty: e.target.value}))} 
                       className={inputClasses} 
                     />
                   </div>
