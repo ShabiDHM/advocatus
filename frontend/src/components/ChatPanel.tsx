@@ -1,9 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V43.0 (CLEAN, ULTRA-RESPONSIVE, UNIFIED CONVERSATIONAL UI)
+// PHOENIX PROTOCOL - CHAT PANEL V45.0 (CLEAN BADGES FOR ALL 4 PILLARS & FORENSIC AUDIT)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, BrainCircuit, User, RefreshCw, Sparkles } from 'lucide-react';
+import { 
+  Send, BrainCircuit, User, RefreshCw, Sparkles, 
+  Scale, Swords, BookOpen, HelpCircle, Coins 
+} from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
@@ -45,6 +48,66 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
+
+// Funksion inteligjent për formatimin vizual të mesazheve të Kartave dhe Forenzikës në UI
+const formatUserDisplayMessage = (content: string) => {
+  // 1. BUTONI I FORENZIKËS LIGJORE NË DOKUMENT (⚖️)
+  if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
+    const docMatch = content.match(/"([^"]+)"/);
+    const docName = docMatch ? docMatch[1] : 'Dokumentit të Zgjedhur';
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <Scale size={15} className="text-primary-start shrink-0" />
+        <span>Forenzika Ligjore:</span>
+        <span className="text-primary-start italic truncate">{docName}</span>
+      </div>
+    );
+  }
+
+  // 2. KARTA 1: STRATEGJIA DHE MATRICA E PROVAVE
+  if (content.includes('shtyllat strategjike të kërkesëpadisë') || content.includes('shtyllat kryesore ku mbështetet')) {
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <Swords size={15} className="text-purple-500 shrink-0" />
+        <span>Strategjia dhe Matrica e Provave</span>
+        <span className="text-text-muted text-[10px] uppercase font-mono">(E gjithë Lënda)</span>
+      </div>
+    );
+  }
+
+  // 3. KARTA 2: BAZA STATUTARE DHE JURISPRUDENCA
+  if (content.includes('nxirr bazën e plotë ligjore') || content.includes('baza statutore dhe jurisprudenca')) {
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <BookOpen size={15} className="text-blue-500 shrink-0" />
+        <span>Baza Statutare dhe Jurisprudenca e Gjykatës Supreme</span>
+      </div>
+    );
+  }
+
+  // 4. KARTA 3: PYETËSORI TAKTIK PËR SEANCË
+  if (content.includes('pyetësorin taktik të ballafaqimit') || content.includes('pyetjet taktike për të ballafaquar')) {
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <HelpCircle size={15} className="text-amber-500 shrink-0" />
+        <span>Pyetësori Taktik për Seancë (Cross-Examination)</span>
+      </div>
+    );
+  }
+
+  // 5. KARTA 4: LLOGARITJA E DËMIT DHE MASAT EMERGJENTE
+  if (content.includes('llogarit dëmet materiale e jomateriale') || content.includes('kamatën ligjore vonesore 8%')) {
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <Coins size={15} className="text-emerald-500 shrink-0" />
+        <span>Llogaritja e Dëmit LMD (8%) & Masat Emergjente</span>
+      </div>
+    );
+  }
+
+  // Mesazh normal i shkruar nga përdoruesi
+  return content;
+};
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   messages = [],
@@ -150,6 +213,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
                 const autoLinkedText = autoLinkLegalCitations(cleanText);
 
+                const isSpecialCommand = msg.role === 'user' && (
+                  msg.content.startsWith('[DIREKTIVË') || 
+                  msg.content.includes('shtyllat strategjike') ||
+                  msg.content.includes('nxirr bazën e plotë ligjore') ||
+                  msg.content.includes('pyetësorin taktik') ||
+                  msg.content.includes('llogarit dëmet materiale')
+                );
+
                 return (
                   <motion.div
                     key={idx}
@@ -161,25 +232,31 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
                         msg.role === 'ai'
                           ? 'bg-primary-start text-white border-primary-start'
-                          : 'bg-surface border-main text-text-secondary'
+                          : isSpecialCommand
+                            ? 'bg-primary-start/20 border-primary-start text-primary-start'
+                            : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
+                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <Sparkles size={16} /> : <User size={16} />}
                     </div>
 
-                    {/* UNIFIED STREAMLINED CHAT BUBBLE FOR ALL MESSAGES */}
                     <div
                       className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
                         msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
                       }`}
                     >
-                      {msg.content && <MessageCopyButton text={msg.content} />}
+                      {msg.content && !isSpecialCommand && <MessageCopyButton text={msg.content} />}
 
-                      <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                          {autoLinkedText}
-                        </ReactMarkdown>
-                      </div>
+                      {/* USER MESSAGE VS AI MESSAGE */}
+                      {msg.role === 'user' ? (
+                        formatUserDisplayMessage(msg.content)
+                      ) : (
+                        <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {autoLinkedText}
+                          </ReactMarkdown>
+                        </div>
+                      )}
 
                       {/* CLICKABLE SUGGESTED QUESTIONS */}
                       {msg.role === 'ai' &&
@@ -236,7 +313,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 );
               })}
 
-              {/* SMOOTH ANIMATED THINKING BUBBLE */}
+              {/* ANIMATED THINKING BUBBLE */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 

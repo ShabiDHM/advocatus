@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - 100% MODULAR MULTI-AGENT ROUTER V125.0 (6 ISOLATED SPECIALIST ENGINES)
+# PHOENIX PROTOCOL - SEAMLESS 4->3->2->1->0 PROGRESSIVE PILLAR REDUCTION V126.0
 
 import os
 import sys
@@ -43,7 +43,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] 6-Pillar Modular Architecture V125.0 initialized.")
+            logger.info("✅ [RAG] Progressive Flow Engine V126.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -55,7 +55,7 @@ class AlbanianRAGService:
         audit_keywords = [
             "direktivë forenzike e gjykatës supreme", "direktivë e forenzikës ligjore", 
             "direktivë e detyrueshme forenzike", "auditimin e plotë forenzik ligjor", 
-            "paralajmërime & sugjerime statutare", "lapsuseve", "shkelje procedurale"
+            "paralajmërime & sugjerime statutare"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
@@ -86,16 +86,15 @@ class AlbanianRAGService:
 
         # 5. KARTA 2: BAZA STATUTARE
         if any(k in q for k in [
-            "nxirr bazën e plotë ligjore", "baza statutore", "baza ligjore", 
-            "jurisprudenca", "lapsuse në shkresa", "precedentët", "nenet e ligjit", "kushtetutën dhe konventat"
+            "nxirr bazën e plotë ligjore", "baza statutore dhe jurisprudenca", 
+            "lapsuse në shkresa", "precedentët dhe qëndrimet e gjykatës supreme"
         ]):
             return "PILLAR_STATUTES"
 
         # 6. KARTA 1: STRATEGJIA DHE MATRICA
         if any(k in q for k in [
-            "shtyllat strategjike", "strategjia dhe matrica", "shtyllat kryesore", 
-            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia", 
-            "faktet shfajësuese", "matricën e provave", "matricën e plotë të provave"
+            "shtyllat strategjike të kërkesëpadisë", "strategjia dhe matrica e provave", 
+            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia"
         ]):
             return "PILLAR_STRATEGY"
 
@@ -193,54 +192,45 @@ class AlbanianRAGService:
         return "\n".join(manifest_lines), full_context
 
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        pillars = [
-            ("PILLAR_1", "Identifiko të gjitha shtyllat kryesore strategjike të mbrojtjes dhe çmontimit të pretendimeve kundërshtare."),
-            ("PILLAR_2", "Nxirr bazën e plotë ligjore, shkeljet procedurale në dëm të klientit dhe precedentët e Gjykatës Supreme."),
-            ("PILLAR_3", "Gjenero pyetjet taktike të ballafaqimit për të zbuluar kontradiktat e palës kundërshtare dhe dëshmitarëve."),
-            ("PILLAR_4", "Llogarit dëmet materiale/jomateriale sipas LMD-së dhe arsyeto masat e menjëhershme mbrojtëse.")
+        all_pillars = [
+            ("PILLAR_1", "Duke u bazuar në të gjithë fashikullin e lëndës dhe në vendimet parimore të Gjykatës Supreme të Kosovës, analizo dhe ndërto të gjitha shtyllat strategjike të kërkesëpadisë/kallëzimit tonë, duke përfshirë çdo provë vendimtare materiale e shkencore të administruar, dhe jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë e lëndës."),
+            ("PILLAR_2", "Analizo të gjithë fashikullin e lëndës: nxirr bazën e plotë ligjore (nenet, ligjet, Kushtetutën dhe Konventat), audito me saktësi nëse ka lapsuse në shkresa dhe lidhe çdo shkelje me precedentët dhe qëndrimet e Gjykatës Supreme të Kosovës."),
+            ("PILLAR_3", "Duke u bazuar në kontradiktat e shkresave të fashikullit dhe standardin e vlerësimit të dëshmive të Gjykatës Supreme, gjenero pyetësorin taktik të ballafaqimit për të zbuluar të pavërtetat e palës kundërshtare dhe dëshmitarëve të saj në seancë."),
+            ("PILLAR_4", "Analizo të gjithë fashikullin: llogarit dëmet materiale e jomateriale sipas LMD-së bashkë me kamatën ligjore vonesore 8%, arsyeto masat emergjente mbrojtëse / sigurimin e kërkesëpadisë dhe përgatit përmbledhjen ekzekutive për klientin.")
         ]
 
-        all_past_user_messages = []
+        # Pastrojmë historikun e mesazheve vetëm për ekzekutimin real të Kartave 1-4 (injorojmë tekstin e direktivës së dokumenteve ⚖️)
+        past_user_texts = []
         if history:
             for msg in history:
                 if msg.get("role") == "user":
-                    all_past_user_messages.append(str(msg.get("content", "")).lower())
-        all_past_user_messages.append(query.lower())
-        combined_text = " ".join(all_past_user_messages)
+                    raw = str(msg.get("content", ""))
+                    if not raw.startswith("[DIREKTIVË"):
+                        past_user_texts.append(raw.lower())
+
+        current_q = query.lower()
+        if not current_q.startswith("[direktivë"):
+            past_user_texts.append(current_q)
+
+        combined_text = " ".join(past_user_texts)
 
         remaining = []
 
-        p1_triggers = [
-            "shtyllat strategjike", "strategjia dhe matrica", "shtyllat kryesore", 
-            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia", 
-            "faktet shfajësuese", "matricën e provave", "matricën e plotë të provave"
-        ]
-        if not any(k in combined_text for k in p1_triggers):
-            remaining.append(pillars[0][1])
+        # P1 Match
+        if not ("shtyllat strategjike të kërkesëpadisë" in combined_text or "strategjia dhe matrica" in combined_text):
+            remaining.append(all_pillars[0][1])
 
-        p2_triggers = [
-            "nxirr bazën e plotë ligjore", "baza statutore", "baza ligjore", 
-            "bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", 
-            "lapsuse në shkresa", "ligjshmërinë e pretendimeve", "precedentët"
-        ]
-        if not any(k in combined_text for k in p2_triggers):
-            remaining.append(pillars[1][1])
+        # P2 Match
+        if not ("nxirr bazën e plotë ligjore" in combined_text or "baza statutore dhe jurisprudenca" in combined_text):
+            remaining.append(all_pillars[1][1])
 
-        p3_triggers = [
-            "pyetësorin taktik", "pyetësor", "pyetje taktike", 
-            "pyetjet taktike të ballafaqimit", "kundër-pyetjet", "marrja në pyetje", 
-            "dëgjimin e dëshmitarëve", "mospërputhjet thelbësore"
-        ]
-        if not any(k in combined_text for k in p3_triggers):
-            remaining.append(pillars[2][1])
+        # P3 Match
+        if not ("pyetësorin taktik" in combined_text or "pyetjet taktike të ballafaqimit" in combined_text):
+            remaining.append(all_pillars[2][1])
 
-        p4_triggers = [
-            "llogarit dëmet", "llogaritja e dëmit", "dëmet materiale e jomateriale", 
-            "kamatën ligjore vonesore", "masat emergjente", "masat emergjente mbrojtëse", 
-            "sigurimin e kërkesëpadisë", "memorandumin objektiv"
-        ]
-        if not any(k in combined_text for k in p4_triggers):
-            remaining.append(pillars[3][1])
+        # P4 Match
+        if not ("llogarit dëmet materiale" in combined_text or "kamatën ligjore vonesore 8%" in combined_text):
+            remaining.append(all_pillars[3][1])
 
         return remaining
 
@@ -303,11 +293,11 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🔀 DELEGIMI TE 6 MODU蕪AT E IZOLUARA
+        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA
         # =========================================================================
 
         if user_intent == "FORENSIC_AUDIT":
-            # MODULI 5: FORENZIKA LIGJORE E DOKUMENTIT (⚖️)
+            # MODULI I FORENZIKËS SË DOKUMENTIT (BUTONI ⚖️)
             system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -317,7 +307,7 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "DRAFTING":
-            # MODULI 6: HARTIMI I PLOTË I AKTEVE ZYRTARE
+            # MODULI I HARTIMIT TË AKTEVE
             system_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -329,19 +319,14 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "PILLAR_STRATEGY":
-            # MODULI 1: STRATEGJIA & MATRICA E PROVAVE
             system_prompt = Pillar1StrategyService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_STATUTES":
-            # MODULI 2: BAZA STATUTARE & JURISPRUDENCA
             system_prompt = Pillar2StatutesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_QUESTIONS":
-            # MODULI 3: PYETËSORI TAKTIK I SEANCËS
             system_prompt = Pillar3QuestionsService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_DAMAGES":
-            # MODULI 4: LLOGARITJA E DËMIT LMD & MASAT
             system_prompt = Pillar4DamagesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         else:
-            # CHAT I LIRË ME PËRDORUESIN
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
@@ -367,7 +352,8 @@ class AlbanianRAGService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-            if user_intent in ["PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills and len(remaining_pills) > 0:
+            # SUGJERIMET INTERAKTIVE (SHFAQEN EDHE PAS FORENZIKËS ⚖️, EDHE PAS KARTELAVE 1-4)
+            if user_intent in ["FORENSIC_AUDIT", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills and len(remaining_pills) > 0:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
