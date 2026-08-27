@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V38.1 (SMOOTH FRAMER-MOTION WAVE THINKING DOTS)
+// PHOENIX PROTOCOL - CHAT PANEL V39.1 (CLEANED TYPESCRIPT IMPORTS & A4 LEGAL CANVAS RENDERING)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, BrainCircuit, User, RefreshCw, Sparkles } from 'lucide-react';
+import { Send, BrainCircuit, User, RefreshCw, Sparkles, FileText } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
@@ -45,6 +45,16 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
+
+const isOfficialLegalDraft = (content: string): boolean => {
+  if (!content || typeof content !== 'string') return false;
+  const draftTriggers = [
+    /(?:DREJTUAR:\s*\n|GJYKAT(?:A|ËS)\s+THEMELORE|PROKURORI(?:A|SË)\s+SPECIALE|PROKURORI(?:A|SË)\s+THEMELORE)/i,
+    /(?:KALLËZIM\s+PENAL\s+I\s+UNIFIKUAR|KALLËZIM\s+PENAL|KËRKESËPADI|KUNDËRPADI|PRAPËSIM\s+KUNDËR|ANKESË\s+KUNDËR)/i,
+    /(?:PARASHTRUESI:|LËNDA:\s*KALLËZIM|LËNDA:\s*PADI|LËNDA:\s*PRAPËSIM)/i
+  ];
+  return draftTriggers.some((regex) => regex.test(content));
+};
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   messages = [],
@@ -144,11 +154,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             />
           </div>
         ) : (
-          <div className="space-y-4 w-full">
+          <div className="space-y-6 w-full">
             <AnimatePresence initial={false}>
               {displayMessages.map((msg, idx) => {
                 const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
                 const autoLinkedText = autoLinkLegalCitations(cleanText);
+                const isDraft = msg.role === 'ai' && isOfficialLegalDraft(cleanText);
 
                 return (
                   <motion.div
@@ -160,33 +171,67 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
                         msg.role === 'ai'
-                          ? 'bg-primary-start text-white border-primary-start'
+                          ? isDraft
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-500/20'
+                            : 'bg-primary-start text-white border-primary-start'
                           : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
+                      {msg.role === 'ai' ? (
+                        isDraft ? <FileText size={16} /> : <BrainCircuit size={16} />
+                      ) : (
+                        <User size={16} />
+                      )}
                     </div>
 
+                    {/* DUAL-MODE RENDERING: A4 OFFICIAL PAPER FOR DRAFTS vs MODERN CHAT BUBBLE FOR ANALYSIS */}
                     <div
-                      className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
-                        msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                      className={`relative transition-all ${
+                        isDraft
+                          ? 'w-full max-w-4xl bg-white text-slate-900 rounded-2xl p-6 sm:p-10 shadow-2xl border border-slate-300 dark:border-slate-700 my-2'
+                          : `max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+                              msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                            }`
                       }`}
                     >
-                      {msg.content && <MessageCopyButton text={msg.content} />}
+                      {/* HEADER FOR A4 LEGAL CANVAS */}
+                      {isDraft && (
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-6">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                              DOKUMENT ZYRTAR GJYQËSOR (A4 CANVAS)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {msg.content && <MessageCopyButton text={msg.content} />}
+                          </div>
+                        </div>
+                      )}
 
-                      <div className="markdown-content select-text prose prose-slate max-w-none prose-sm leading-relaxed">
+                      {!isDraft && msg.content && <MessageCopyButton text={msg.content} />}
+
+                      {/* MARKDOWN BODY */}
+                      <div
+                        className={`markdown-content select-text prose max-w-none leading-relaxed ${
+                          isDraft
+                            ? 'prose-slate text-slate-900 text-sm sm:text-[15px] font-sans'
+                            : 'prose-slate dark:prose-invert prose-sm text-text-primary'
+                        }`}
+                      >
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                           {autoLinkedText}
                         </ReactMarkdown>
                       </div>
 
+                      {/* CLICKABLE SUGGESTED QUESTIONS */}
                       {msg.role === 'ai' &&
                         idx === displayMessages.length - 1 &&
                         !isSendingMessage &&
                         suggestedQuestions.length > 0 && (
-                          <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-main animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
-                              <Sparkles size={11} className="text-primary-start animate-pulse" />{' '}
+                          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+                              <Sparkles size={12} className="text-primary-start animate-pulse" />
                               {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
                             </span>
                             <div className="flex flex-col sm:flex-row flex-wrap gap-2">
@@ -195,10 +240,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                   key={qIdx}
                                   type="button"
                                   onClick={() => sendMessage(q)}
-                                  className="px-3 py-2 bg-surface border border-main hover:border-primary-start/40 text-text-secondary hover:text-text-primary rounded-xl text-xs font-semibold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                  className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
                                 >
-                                  <span className="w-1.5 h-1.5 bg-primary-start/40 rounded-full shrink-0" />
-                                  {q}
+                                  <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
+                                  <span>{q}</span>
                                 </button>
                               ))}
                             </div>
@@ -210,12 +255,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         typeof msg.content === 'string' &&
                         msg.content.trim() !== '' &&
                         !msg.content.startsWith('[Gabim Teknik') && (
-                          <FeedbackButtons
-                            messageIndex={idx}
-                            caseId={activeContextId}
-                            onFeedback={(i) => handleFeedback(i)}
-                            disabled={feedbackGiven.has(idx)}
-                          />
+                          <div className={isDraft ? 'mt-6 pt-3 border-t border-slate-200' : ''}>
+                            <FeedbackButtons
+                              messageIndex={idx}
+                              caseId={activeContextId}
+                              onFeedback={(i) => handleFeedback(i)}
+                              disabled={feedbackGiven.has(idx)}
+                            />
+                          </div>
                         )}
 
                       {msg.role === 'ai' &&
