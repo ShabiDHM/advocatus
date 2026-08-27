@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V16.1 (DYNAMIC PAGE COUNT RETRIEVAL & TASK RETENTION)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V17.0 (AUTO-HEALING REAL PAGE COUNT CALCULATOR)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
 from typing import List, Annotated, Optional
@@ -55,7 +55,6 @@ async def get_documents_for_case(
     db: Database = Depends(get_db)
 ):
     case_oid = validate_object_id(case_id)
-    user_oid = ObjectId(current_user.id)
     
     cursor = db.documents.find({
         "$or": [{"case_id": case_id}, {"case_id": case_oid}],
@@ -67,28 +66,59 @@ async def get_documents_for_case(
     for d in docs:
         doc_id_str = str(d["_id"])
         
-        # Nëse teksti është nxjerrë tashmë, sigurohu që statusi është READY
+        # 1. Nëse teksti është nxjerrë, sigurohu që statusi është READY
         if d.get("status") in ["PENDING", "PROCESSING"] and d.get("extracted_text") and len(d["extracted_text"]) > 20:
             db.documents.update_one({"_id": d["_id"]}, {"$set": {"status": DocumentStatus.READY, "progress_percent": 100}})
             d["status"] = DocumentStatus.READY
             d["progress_percent"] = 100
 
-        # Llogaritja dinamike e numrit të faqeve për dokumentet ekzistuese
-        if not d.get("page_count") or d.get("page_count") == 0:
+        # 2. AUTO-HEALING: Llogaritja reale e faqeve për të gjitha dokumentet ekzistuese
+        current_page_count = d.get("page_count") or d.get("pages") or 0
+        if current_page_count <= 1:
             raw_text = d.get("extracted_text") or ""
-            ff_count = raw_text.count('\x0c')
-            page_markers = raw_text.count('--- Faqe') or raw_text.count('--- Page') or raw_text.count('[Faqe')
             
-            if ff_count > 0:
-                calculated_pages = ff_count + 1
-            elif page_markers > 0:
-                calculated_pages = page_markers
-            elif len(raw_text) > 400:
-                calculated_pages = max(1, len(raw_text) // 1800 + 1)
+            # Kontrollojmë numrin maksimal të faqeve nga user_vectors
+            max_vector_page = 0
+            try:
+                vector_chunks = list(db.user_vectors.find({"document_id": doc_id_str}, {"page": 1}))
+                if vector_chunks:
+                    for vc in vector_chunks:
+                        p_val = vc.get("page", 1)
+                        if isinstance(p_val, int) and p_val > max_vector_page:
+                            max_vector_page = p_val
+                        elif isinstance(p_val, str) and p_val.isdigit() and int(p_val) > max_vector_page:
+                            max_vector_page = int(p_val)
+            except Exception:
+                pass
+
+            if max_vector_page > 1:
+                calculated_pages = max_vector_page
             else:
-                calculated_pages = d.get("pages") or d.get("total_pages") or 1
-                
-            d["page_count"] = calculated_pages
+                ff_count = raw_text.count('\x0c')
+                page_markers = raw_text.count('--- Faqe') or raw_text.count('--- Page') or raw_text.count('[Faqe')
+                if ff_count > 0:
+                    calculated_pages = ff_count + 1
+                elif page_markers > 0:
+                    calculated_pages = page_markers
+                elif len(raw_text) > 800:
+                    calculated_pages = max(1, len(raw_text) // 1400 + 1)
+                else:
+                    calculated_pages = max(1, current_page_count)
+
+            if calculated_pages > current_page_count:
+                d["page_count"] = calculated_pages
+                d["pages"] = calculated_pages
+                try:
+                    db.documents.update_one(
+                        {"_id": d["_id"]}, 
+                        {"$set": {"page_count": calculated_pages, "pages": calculated_pages}}
+                    )
+                except Exception:
+                    pass
+            else:
+                d["page_count"] = current_page_count if current_page_count > 0 else 1
+        else:
+            d["page_count"] = current_page_count
 
         if not d.get("storage_key"):
             d["storage_key"] = f"doc_fallback_{doc_id_str}"
@@ -165,7 +195,7 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # 3. 🛡️ EKZEKUTIM I SIGURT ME BACKGROUND_TASKS
+    # 3. 🛡️ EKZEKUTIM ME BACKGROUND_TASKS
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 
@@ -206,7 +236,6 @@ async def bulk_delete_documents_endpoint(
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     case_oid = validate_object_id(case_id)
-    user_oid = ObjectId(current_user.id)
     
     doc_ids = []
     if body:
