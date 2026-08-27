@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V40.0 (INSTANT A4 LEGAL CANVAS & PERFECT DRAFT RENDERING)
+// PHOENIX PROTOCOL - CHAT PANEL V41.0 (NATIVE INTEGRATION OF DRAFT_RESULT_RENDERER & REAL A4 PAPER CANVAS)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,9 @@ import { FeedbackButtons } from './chat/FeedbackButtons';
 import { buildMarkdownComponents } from './chat/MarkdownRenderer';
 import { CommandPaletteGrid } from './chat/CommandPaletteGrid';
 import { ChatHeader } from './chat/ChatHeader';
+
+// IMPORTIMI I DREJTPËRDREJTË I RENDERUESIT TË HARTIMIT
+import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -46,7 +49,7 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
 
-// Kap çdo lloj drafti gjyqësor me besueshmëri 100%
+// Detektor universal për aktet zyrtare gjyqësore
 const isOfficialLegalDraft = (content: string): boolean => {
   if (!content || typeof content !== 'string') return false;
   const lower = content.toLowerCase();
@@ -61,7 +64,9 @@ const isOfficialLegalDraft = (content: string): boolean => {
     lower.includes('drejtuar:') ||
     lower.includes('organi marrës:') ||
     lower.includes('prokurorisë speciale') ||
-    lower.includes('gjykatës themelore')
+    lower.includes('gjykatës themelore') ||
+    lower.includes('gjykata themelore') ||
+    lower.includes('parashtruesi:')
   );
 };
 
@@ -193,78 +198,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       )}
                     </div>
 
-                    {/* DUAL-MODE: WHITE A4 LEGAL SHEET FOR DRAFTS vs CHAT BUBBLE FOR REGULAR Q&A */}
-                    <div
-                      className={`relative transition-all ${
-                        isDraft
-                          ? 'w-full max-w-4xl bg-white text-slate-900 rounded-3xl p-6 sm:p-12 shadow-2xl border border-slate-300 dark:border-slate-700 my-3'
-                          : `max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
-                              msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
-                            }`
-                      }`}
-                    >
-                      {/* OFFICIAL A4 DOCUMENT CANVAS HEADER */}
-                      {isDraft && (
-                        <div className="flex items-center justify-between border-b-2 border-slate-900/10 pb-4 mb-8">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-700">
+                    {/* DUAL-MODE CONTAINER */}
+                    {isDraft ? (
+                      /* 🏛️ REAL A4 LEGAL PAPER CANVAS (EXACT MATCH ME MODULIN HARTIMI) */
+                      <div className="w-full max-w-[21cm] my-2">
+                        <div className="bg-white text-black p-8 sm:p-14 shadow-[0_0_40px_rgba(0,0,0,0.12)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]">
+                          
+                          {/* Header Bar */}
+                          <div className="flex justify-between items-center border-b border-gray-200 pb-3 mb-8 font-sans">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                               DOKUMENT ZYRTAR GJYQËSOR (A4 CANVAS)
                             </span>
+                            <MessageCopyButton text={msg.content} />
                           </div>
-                          <div className="flex items-center gap-2">
-                            {msg.content && <MessageCopyButton text={msg.content} />}
+
+                          {/* Native Draft Result Renderer */}
+                          <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
+                            <DraftResultRenderer text={autoLinkedText} t={t} />
                           </div>
                         </div>
-                      )}
 
-                      {!isDraft && msg.content && <MessageCopyButton text={msg.content} />}
-
-                      {/* MARKDOWN CONTENT */}
-                      <div
-                        className={`markdown-content select-text prose max-w-none leading-relaxed ${
-                          isDraft
-                            ? 'prose-slate text-slate-900 text-sm sm:text-base font-sans'
-                            : 'prose-slate dark:prose-invert prose-sm text-text-primary'
-                        }`}
-                      >
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                          {autoLinkedText}
-                        </ReactMarkdown>
-                      </div>
-
-                      {/* CLICKABLE SUGGESTED QUESTIONS */}
-                      {msg.role === 'ai' &&
-                        idx === displayMessages.length - 1 &&
-                        !isSendingMessage &&
-                        suggestedQuestions.length > 0 && (
-                          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles size={12} className="text-primary-start animate-pulse" />
-                              {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
-                            </span>
-                            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                              {suggestedQuestions.map((q, qIdx) => (
-                                <button
-                                  key={qIdx}
-                                  type="button"
-                                  onClick={() => sendMessage(q)}
-                                  className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
-                                >
-                                  <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
-                                  <span>{q}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                      {msg.role === 'ai' &&
-                        activeContextId !== 'general' &&
-                        typeof msg.content === 'string' &&
-                        msg.content.trim() !== '' &&
-                        !msg.content.startsWith('[Gabim Teknik') && (
-                          <div className={isDraft ? 'mt-8 pt-4 border-t border-slate-200' : ''}>
+                        {/* Optional Feedback Buttons */}
+                        {activeContextId !== 'general' && (
+                          <div className="mt-3 flex justify-end">
                             <FeedbackButtons
                               messageIndex={idx}
                               caseId={activeContextId}
@@ -273,19 +230,74 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             />
                           </div>
                         )}
+                      </div>
+                    ) : (
+                      /* 💬 STANDARD CONVERSATIONAL CHAT BUBBLE */
+                      <div
+                        className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+                          msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                        }`}
+                      >
+                        {msg.content && <MessageCopyButton text={msg.content} />}
 
-                      {msg.role === 'ai' &&
-                        typeof msg.content === 'string' &&
-                        msg.content.startsWith('[Gabim Teknik') && (
-                          <button
-                            type="button"
-                            onClick={handleRetry}
-                            className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
-                          >
-                            <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
-                          </button>
-                        )}
-                    </div>
+                        <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {autoLinkedText}
+                          </ReactMarkdown>
+                        </div>
+
+                        {/* Suggested Questions (Clickable Action Buttons) */}
+                        {msg.role === 'ai' &&
+                          idx === displayMessages.length - 1 &&
+                          !isSendingMessage &&
+                          suggestedQuestions.length > 0 && (
+                            <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles size={12} className="text-primary-start animate-pulse" />
+                                {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
+                              </span>
+                              <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                                {suggestedQuestions.map((q, qIdx) => (
+                                  <button
+                                    key={qIdx}
+                                    type="button"
+                                    onClick={() => sendMessage(q)}
+                                    className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
+                                    <span>{q}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        {msg.role === 'ai' &&
+                          activeContextId !== 'general' &&
+                          typeof msg.content === 'string' &&
+                          msg.content.trim() !== '' &&
+                          !msg.content.startsWith('[Gabim Teknik') && (
+                            <FeedbackButtons
+                              messageIndex={idx}
+                              caseId={activeContextId}
+                              onFeedback={(i) => handleFeedback(i)}
+                              disabled={feedbackGiven.has(idx)}
+                            />
+                          )}
+
+                        {msg.role === 'ai' &&
+                          typeof msg.content === 'string' &&
+                          msg.content.startsWith('[Gabim Teknik') && (
+                            <button
+                              type="button"
+                              onClick={handleRetry}
+                              className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
+                            >
+                              <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
+                            </button>
+                          )}
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}
