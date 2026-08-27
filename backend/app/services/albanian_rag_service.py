@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - 100% DYNAMIC & DOMAIN-AGNOSTIC ROUTER V121.0 (ZERO HARDCODED NAMES)
+# PHOENIX PROTOCOL - 100% MODULAR MULTI-AGENT ROUTER V124.0 (ISOLATED PILLARS & ISOLATED FORENSICS)
 
 import os
 import sys
@@ -12,11 +12,12 @@ from bson import ObjectId
 from openai import AsyncOpenAI
 from app.core.config import settings
 
-# Importimi i 4 Moduleve të Izoluara të Kartave
+# Importimi i Moduleve të Izoluara
 from app.services.pillars.pillar_1_strategy import Pillar1StrategyService
 from app.services.pillars.pillar_2_statutes import Pillar2StatutesService
 from app.services.pillars.pillar_3_questions import Pillar3QuestionsService
 from app.services.pillars.pillar_4_damages import Pillar4DamagesService
+from app.services.pillars.forensic_audit_service import ForensicAuditService
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -41,7 +42,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Modular Multi-Agent Router V121.0 initialized (100% Pure Dynamic Extraction).")
+            logger.info("✅ [RAG] Fully Decoupled Multi-Agent Router V124.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -49,7 +50,16 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        # 1. HARTIM I AKTEVE ZYRTARE (DRAFTING)
+        # 1. DIREKTIVA E FORENZIKËS LIGJORE PËR NJË DOKUMENT (BUTONI ⚖️)
+        audit_keywords = [
+            "direktivë forenzike e gjykatës supreme", "direktivë e forenzikës ligjore", 
+            "direktivë e detyrueshme forenzike", "auditimin e plotë forenzik ligjor", 
+            "paralajmërime & sugjerime statutare", "lapsuseve", "shkelje procedurale"
+        ]
+        if any(k in q for k in audit_keywords):
+            return "FORENSIC_AUDIT"
+
+        # 2. HARTIM I AKTEVE ZYRTARE (DRAFTING)
         explicit_draft_triggers = [
             "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin", 
             "përgatit shkresën zyrtare", "harto padinë", "harto kërkesëpadinë",
@@ -58,14 +68,6 @@ class AlbanianRAGService:
         ]
         if any(k in q for k in explicit_draft_triggers):
             return "DRAFTING"
-        
-        # 2. AUDITIM FORENZIK I NJË DOKUMENTI
-        audit_keywords = [
-            "direktivë e forenzikës ligjore", "direktivë e detyrueshme forenzike", 
-            "paralajmërime & sugjerime", "lapsuseve", "shkelje procedurale"
-        ]
-        if any(k in q for k in audit_keywords):
-            return "FORENSIC_AUDIT"
         
         # 3. KARTA 3: PYETËSORI TAKTIK
         if any(k in q for k in [
@@ -96,7 +98,6 @@ class AlbanianRAGService:
         ]):
             return "PILLAR_STRATEGY"
 
-        # 7. CHAT I LIRË
         return "GENERAL_CHAT"
 
     def _optimize_query(self, query: str) -> str:
@@ -190,33 +191,13 @@ class AlbanianRAGService:
 
         return "\n".join(manifest_lines), full_context
 
-    def _get_role_adapted_pillars(self, position: str) -> List[Tuple[str, str]]:
-        pos = position.upper()
-        if pos == "PLAINTIFF":
-            p1 = "Identifiko të gjitha shtyllat kryesore ku mbështetet kërkesëpadia/kallëzimi ynë dhe matricën e plotë të provave."
-            p2 = "Analizo bazën ligjore të kërkesëpadisë, afatet procedurale dhe nenet përkatëse të ligjeve të Kosovës."
-            p3 = "Gjenero pyetjet taktike për të ballafaquar palën kundërshtare dhe dëshmitarët e saj në seancë."
-            p4 = "Llogarit dëmet e kërkuara sipas ligjit dhe përgatit përmbledhjen ekzekutive mbi ecurinë e procedurës."
-        elif pos == "NEUTRAL":
-            p1 = "Analizo objektivisht gjendjen e lëndës, vendimet gjyqësore të marra dhe ballafaqimin e provave të administruara."
-            p2 = "Vlerëso ligjshmërinë e pretendimeve të të dyja palëve, arsyetimet gjyqësore dhe barrën e provës sipas ligjit."
-            p3 = "Identifiko mospërputhjet thelbësore dhe gjenero pyetje neutrale sqaruese për vërtetimin e fakteve."
-            p4 = "Përgatit memorandumin objektiv të auditimit ligjor mbi lëndën dhe konkluzionet e paanshme."
-        else:
-            p1 = "Identifiko të gjitha shtyllat kryesore strategjike të mbrojtjes dhe çmontimit të pretendimeve kundërshtare."
-            p2 = "Nxirr bazën e plotë ligjore, shkeljet procedurale në dëm të klientit dhe precedentët e Gjykatës Supreme."
-            p3 = "Gjenero pyetjet taktike të ballafaqimit për të zbuluar kontradiktat e palës kundërshtare dhe dëshmitarëve."
-            p4 = "Llogarit dëmet materiale/jomateriale sipas LMD-së dhe arsyeto masat e menjëhershme mbrojtëse."
-
-        return [
-            ("PILLAR_1", p1),
-            ("PILLAR_2", p2),
-            ("PILLAR_3", p3),
-            ("PILLAR_4", p4)
-        ]
-
     def _determine_remaining_pills(self, query: str, position: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        pillars = self._get_role_adapted_pillars(position)
+        pillars = [
+            ("PILLAR_1", "Identifiko të gjitha shtyllat kryesore strategjike të mbrojtjes dhe çmontimit të pretendimeve kundërshtare."),
+            ("PILLAR_2", "Nxirr bazën e plotë ligjore, shkeljet procedurale në dëm të klientit dhe precedentët e Gjykatës Supreme."),
+            ("PILLAR_3", "Gjenero pyetjet taktike të ballafaqimit për të zbuluar kontradiktat e palës kundërshtare dhe dëshmitarëve."),
+            ("PILLAR_4", "Llogarit dëmet materiale/jomateriale sipas LMD-së dhe arsyeto masat e menjëhershme mbrojtëse.")
+        ]
 
         all_past_user_messages = []
         if history:
@@ -228,34 +209,30 @@ class AlbanianRAGService:
 
         remaining = []
 
-        # MATCH PILLAR 1
         p1_triggers = [
             "shtyllat strategjike", "strategjia dhe matrica", "shtyllat kryesore", 
             "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia", 
-            "faktet shfajësuese", "matricën e provave", "matricën e plotë të provave", "prapësimet kryesore"
+            "faktet shfajësuese", "matricën e provave", "matricën e plotë të provave"
         ]
         if not any(k in combined_text for k in p1_triggers):
             remaining.append(pillars[0][1])
 
-        # MATCH PILLAR 2
         p2_triggers = [
             "nxirr bazën e plotë ligjore", "baza statutore", "baza ligjore", 
             "bazën ligjore të kërkesëpadisë", "bazën ligjore të prapësimeve", 
-            "lapsuse në shkresa", "ligjshmërinë e pretendimeve", "precedentët dhe qëndrimet", "precedentët"
+            "lapsuse në shkresa", "ligjshmërinë e pretendimeve", "precedentët"
         ]
         if not any(k in combined_text for k in p2_triggers):
             remaining.append(pillars[1][1])
 
-        # MATCH PILLAR 3
         p3_triggers = [
-            "pyetësorin taktik", "pyetësori taktik", "pyetjet taktike", 
+            "pyetësorin taktik", "pyetësor", "pyetje taktike", 
             "pyetjet taktike të ballafaqimit", "kundër-pyetjet", "marrja në pyetje", 
             "dëgjimin e dëshmitarëve", "mospërputhjet thelbësore"
         ]
         if not any(k in combined_text for k in p3_triggers):
             remaining.append(pillars[2][1])
 
-        # MATCH PILLAR 4
         p4_triggers = [
             "llogarit dëmet", "llogaritja e dëmit", "dëmet materiale e jomateriale", 
             "kamatën ligjore vonesore", "masat emergjente", "masat emergjente mbrojtëse", 
@@ -273,10 +250,7 @@ class AlbanianRAGService:
         
         if not self.client:
             yield "Sistemi AI nuk është aktiv. Kontrolloni çelësat në Render."
-            yield AI_DISCLAIMER
             return
-
-        from app.services import vector_store_service, llm_service
 
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -312,6 +286,7 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
+        from app.services import vector_store_service
         user_intent = self._detect_user_intent(query)
         optimized_query = self._optimize_query(query)
 
@@ -327,111 +302,57 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🔀 DELEGIMI TE MODULI I SPECIALIZUAR SIPAS KARTAVE OSE TE CHAT-I I LIRË
+        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA
         # =========================================================================
 
-        if user_intent == "PILLAR_STRATEGY":
-            system_prompt = Pillar1StrategyService.build_prompt(
+        if user_intent == "FORENSIC_AUDIT":
+            # MODULI I IZOLUAR I FORENZIKËS LIGJORE (BUTONI ⚖️)
+            system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
                 client_position=client_position,
                 current_date_str=current_date_str,
-                manifest_str=manifest_str,
                 context_str=context_str
             )
 
+        elif user_intent == "PILLAR_STRATEGY":
+            system_prompt = Pillar1StrategyService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_STATUTES":
-            system_prompt = Pillar2StatutesService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=context_str
-            )
-
+            system_prompt = Pillar2StatutesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_QUESTIONS":
-            system_prompt = Pillar3QuestionsService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=context_str
-            )
-
+            system_prompt = Pillar3QuestionsService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_DAMAGES":
-            system_prompt = Pillar4DamagesService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=context_str
-            )
-
+            system_prompt = Pillar4DamagesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "DRAFTING":
-            # 🏛️ HARTIM UNIVERSAL I BLINDUAR ME BESNIKËRI NDAJ KLIENTIT
             system_prompt = f"""
-            Ti je Avokati Senior Elitar në Republikën e Kosovës në përfaqësim ekskluziv të: **{client_name}**.
+            Ti je Avokati Senior Elitar në Republikën e Kosovës në përfaqësim ekskluziv të klientit tonë: **{client_name}**.
             LËNDA: **{case_title}** | DATA: {current_date_str}
 
-            RREGULLA SUPREME E HARTIMIT:
-            1. PARASHTRUESI / PADITËSI I KËTIJ AKTI ËSHTË VETËM: **{client_name}** (ose Avokati i autorizuar nga {client_name}).
-            2. TË DYSHUARIT / PALA KUNDËRSHTARE: Janë personat, subjektet apo institucionet përgjegjëse të identifikuara nga dokumentet e fashikullit, të ngarkuara me shkeljet konkrete.
-            3. NDALOHET KATEGORIKISHT të hartohet akt apo kallëzim penal KUNDËR {client_name}! {client_name} është PALA QË KËRKON DREJTËSI / PARASHTRUESI.
+            RREGULLA KRITIKE TË HARTIMIT:
+            1. PARASHTRUESI / PADITËSI: Është gjithmonë {client_name} (në cilësinë e Palës së Dëmtuar dhe Prindit Mbrojtës Ligjor).
+            2. MBROJTJA E TË MITURVE: Fëmijët janë VIKTIMA TË MBROJTURA dhe ndalohet rreptësisht të vendosen te të dyshuarit.
+            3. TË DYSHUARIT: Janë personat e denoncuar nga shkresat (pala kundërshtare për Nenet 390/248, zyrtarët për Nenet 424/32, mjekët për Nenin 387, gjyqtarët/zyrtarët për Nenet 414/425).
 
-            STRUKTURA E DETYRUESHME E SHKRESËS (FORMAT GJYQËSOR FORMAL):
-            DREJTUAR:
-            PROKURORISË / GJYKATËS KOMPETENTE NË REPUBLIKËN E KOSOVËS
-
-            PARASHTRUESI:
-            {client_name}, në cilësinë procedurale përkatëse
-
-            LËNDA: (Titulli i saktë i aktit: KALLËZIM PENAL / KËRKESËPADI / PRAPËSIM / ANKESË)
-            (Baza Statutare sipas legjislacionit në fuqi të Kosovës)
-
-            KUNDËR:
-            (Rendit të gjithë personat/subjektet përgjegjëse të nxjerra nga dokumentet)
-
-            S E P S E (DISPOZITIVI ME PIKA PËR SECILËN SHKELJE)
-            P R O P O Z O J (KËRKESA PROCEDURALE DHE PETITUMI)
-            A R S Y E T I M I (ARSYETIMI FAKTIQ DHE JURISPRUDENCA E GJYKATËS SUPREME)
-            INVENTARI I PROVAVE MATERIALE DHE SHKENCORE (CORPUS DELICTI)
-
-            PARASHTRUESI:
-            {client_name}
-            Prishtinë, Republika e Kosovës
+            STRUKTURA:
+            # KALLËZIM PENAL / KËRKESËPADI
+            **DREJTUAR:** PROKURORISË / GJYKATËS KOMPETENTE
+            **PARASHTRUESI:** {client_name}
+            **LËNDA:** (Titulli i Aktit dhe Baza Ligjore)
+            **KUNDËR TË DYSHUARVE:** (Personat përgjegjës nga fashikulli)
+            ## S E P S E (DISPOZITIVI ME PIKA)
+            ## P R O P O Z O J (KËRKESA PROCEDURALE)
+            ## A R S Y E T I M I (FAKTET DHE JURISPRUDENCA SUPREME)
+            ## INVENTARI I PROVAVE (CORPUS DELICTI)
+            **PARASHTRUESI:** {client_name}
 
             DOKUMENTET E LËNDËS:
             {manifest_str}
             {context_str}
             """
-
-        elif user_intent == "FORENSIC_AUDIT":
-            system_prompt = f"""
-            ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit Suprem të Kosovës.
-            LËNDA: **{case_title}** | PËRFAQËSIMI: {client_name}
-            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar në mënyrë të izoluar.
-
-            DOKUMENTI I IZOLUAR PËR AUDITIM:
-            {context_str}
-
-            STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK ME 5 SEKSIONE:
-            ### 1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-            ### 2. BAZA STATUTARE DHE NENET E SAKTA TË LIGJEVE TË KOSOVËS
-            ### 3. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE KONTRASTET NË VENDIM
-            ### 4. 🏛️ VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS
-            ### 5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-            """
-
         else:
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
-
-            MISIONI:
-            Përgjigju në mënyrë të drejtpërdrejtë, të saktë dhe profesionale pyetjes së avokatit/përdoruesit duke u bazuar në ligjet e Kosovës dhe shkresat e fashikullit.
 
             DOKUMENTET E LËNDËS:
             {manifest_str}
@@ -458,8 +379,9 @@ class AlbanianRAGService:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
-            yield AI_DISCLAIMER
+            if user_intent not in ["DRAFTING", "FORENSIC_AUDIT"]:
+                yield AI_DISCLAIMER
+
         except Exception as e:
             logger.error(f"RAG Stream Failure: {e}")
             yield f"\n[Gabim Gjatë Gjenerimit: Motori i Inteligjencës Artificiale tejkaloi kapacitetin. Ju lutem provoni përsëri.]"
-            yield AI_DISCLAIMER
