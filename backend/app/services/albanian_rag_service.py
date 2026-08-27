@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR MULTI-AGENT ROUTER V120.0 (STRICT CLIENT-ANCHORED DRAFTING & 4 ISOLATED PILLARS)
+# PHOENIX PROTOCOL - 100% DYNAMIC & DOMAIN-AGNOSTIC ROUTER V121.0 (ZERO HARDCODED NAMES)
 
 import os
 import sys
@@ -41,7 +41,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Modular Multi-Agent Router V120.0 initialized with Strict Client-Anchored Drafting.")
+            logger.info("✅ [RAG] Modular Multi-Agent Router V121.0 initialized (100% Pure Dynamic Extraction).")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -371,37 +371,37 @@ class AlbanianRAGService:
             )
 
         elif user_intent == "DRAFTING":
-            # 🏛️ HARTIM I BLINDUAR ME BESNIKËRI NDAJ KLIENTIT
+            # 🏛️ HARTIM UNIVERSAL I BLINDUAR ME BESNIKËRI NDAJ KLIENTIT
             system_prompt = f"""
             Ti je Avokati Senior Elitar në Republikën e Kosovës në përfaqësim ekskluziv të: **{client_name}**.
             LËNDA: **{case_title}** | DATA: {current_date_str}
 
             RREGULLA SUPREME E HARTIMIT:
-            1. PARASHTRUESI I KËTIJ AKTI ËSHTË VETËM: **{client_name}** (ose Avokati i autorizuar nga {client_name}).
-            2. TË DYSHUARIT / PALA KUNDËRSHTARE: Janë personat e denoncuar nga shkresat e fashikullit (p.sh. Sanije Bala për Nenin 390/248, Nazlie Bala për Nenin 424/32, mjekët për Nenin 387, zyrtarët/gjyqtarët për Nenet 414/425).
-            3. NDALOHET KATEGORIKISHT të hartohet akt apo kallëzim penal KUNDËR {client_name}! {client_name} është PALA E DËMTUAR / PARASHTRUESI.
+            1. PARASHTRUESI / PADITËSI I KËTIJ AKTI ËSHTË VETËM: **{client_name}** (ose Avokati i autorizuar nga {client_name}).
+            2. TË DYSHUARIT / PALA KUNDËRSHTARE: Janë personat, subjektet apo institucionet përgjegjëse të identifikuara nga dokumentet e fashikullit, të ngarkuara me shkeljet konkrete.
+            3. NDALOHET KATEGORIKISHT të hartohet akt apo kallëzim penal KUNDËR {client_name}! {client_name} është PALA QË KËRKON DREJTËSI / PARASHTRUESI.
 
             STRUKTURA E DETYRUESHME E SHKRESËS (FORMAT GJYQËSOR FORMAL):
             DREJTUAR:
-            PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS (PSRK) / GJYKATËS THEMELORE NË PRISHTINË
+            PROKURORISË / GJYKATËS KOMPETENTE NË REPUBLIKËN E KOSOVËS
 
             PARASHTRUESI:
-            {client_name}, me cilësinë e Palës së Dëmtuar / Mbrojtësit Ligjor
+            {client_name}, në cilësinë procedurale përkatëse
 
-            LËNDA: KALLËZIM PENAL I UNIFIKUAR / KËRKESËPADI
-            (Baza Statutare: Nenet e sakta të KPRK 06/L-074, KPPRK 08/L-032 ose LPK)
+            LËNDA: (Titulli i saktë i aktit: KALLËZIM PENAL / KËRKESËPADI / PRAPËSIM / ANKESË)
+            (Baza Statutare sipas legjislacionit në fuqi të Kosovës)
 
-            KUNDËR TË DYSHUARVE:
-            (Nxirr me emra dhe mbiemra të saktë të gjithë personat përgjegjës nga fashikulli me veprat penale konkrete)
+            KUNDËR:
+            (Rendit të gjithë personat/subjektet përgjegjëse të nxjerra nga dokumentet)
 
-            S E P S E (DISPOZITIVI ME PIKA PËR SECILIN TË DYSHUAR)
-            P R O P O Z O J (KËRKESA PROCEDURALE DHE MASAT)
-            A R S Y E T I M I (ARSYETIMI FAKTIQ DHE PRECEDENTËT E GJYKATËS SUPREME)
+            S E P S E (DISPOZITIVI ME PIKA PËR SECILËN SHKELJE)
+            P R O P O Z O J (KËRKESA PROCEDURALE DHE PETITUMI)
+            A R S Y E T I M I (ARSYETIMI FAKTIQ DHE JURISPRUDENCA E GJYKATËS SUPREME)
             INVENTARI I PROVAVE MATERIALE DHE SHKENCORE (CORPUS DELICTI)
 
             PARASHTRUESI:
             {client_name}
-            Prishtinë, Kosovë
+            Prishtinë, Republika e Kosovës
 
             DOKUMENTET E LËNDËS:
             {manifest_str}
@@ -412,7 +412,7 @@ class AlbanianRAGService:
             system_prompt = f"""
             ROLI YT: Auditor i Forenzikës Ligjore dhe Gjyqtar i Kolegjit Suprem të Kosovës.
             LËNDA: **{case_title}** | PËRFAQËSIMI: {client_name}
-            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar.
+            MISIONI: Kryej auditimin e plotë forenzik ligjor mbi dokumentin e ngarkuar në mënyrë të izoluar.
 
             DOKUMENTI I IZOLUAR PËR AUDITIM:
             {context_str}
