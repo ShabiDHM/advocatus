@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V41.0 (NATIVE INTEGRATION OF DRAFT_RESULT_RENDERER & REAL A4 PAPER CANVAS)
+// PHOENIX PROTOCOL - CHAT PANEL V43.0 (CLEAN, ULTRA-RESPONSIVE, UNIFIED CONVERSATIONAL UI)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, BrainCircuit, User, RefreshCw, Sparkles, FileText } from 'lucide-react';
+import { Send, BrainCircuit, User, RefreshCw, Sparkles } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
@@ -15,9 +15,6 @@ import { FeedbackButtons } from './chat/FeedbackButtons';
 import { buildMarkdownComponents } from './chat/MarkdownRenderer';
 import { CommandPaletteGrid } from './chat/CommandPaletteGrid';
 import { ChatHeader } from './chat/ChatHeader';
-
-// IMPORTIMI I DREJTPËRDREJTË I RENDERUESIT TË HARTIMIT
-import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -48,27 +45,6 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
-
-// Detektor universal për aktet zyrtare gjyqësore
-const isOfficialLegalDraft = (content: string): boolean => {
-  if (!content || typeof content !== 'string') return false;
-  const lower = content.toLowerCase();
-  return (
-    lower.includes('kallëzim penal') ||
-    lower.includes('kallzim penal') ||
-    lower.includes('kërkesëpadi') ||
-    lower.includes('padi civile') ||
-    lower.includes('kundërpadi') ||
-    lower.includes('prapësim') ||
-    lower.includes('d r e j t u a r') ||
-    lower.includes('drejtuar:') ||
-    lower.includes('organi marrës:') ||
-    lower.includes('prokurorisë speciale') ||
-    lower.includes('gjykatës themelore') ||
-    lower.includes('gjykata themelore') ||
-    lower.includes('parashtruesi:')
-  );
-};
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   messages = [],
@@ -168,12 +144,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             />
           </div>
         ) : (
-          <div className="space-y-6 w-full">
+          <div className="space-y-4 w-full">
             <AnimatePresence initial={false}>
               {displayMessages.map((msg, idx) => {
                 const { cleanText, questions: suggestedQuestions } = extractFollowUpQuestions(msg.content);
                 const autoLinkedText = autoLinkLegalCitations(cleanText);
-                const isDraft = msg.role === 'ai' && isOfficialLegalDraft(cleanText);
 
                 return (
                   <motion.div
@@ -185,124 +160,83 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <div
                       className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
                         msg.role === 'ai'
-                          ? isDraft
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-500/20'
-                            : 'bg-primary-start text-white border-primary-start'
+                          ? 'bg-primary-start text-white border-primary-start'
                           : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? (
-                        isDraft ? <FileText size={16} /> : <BrainCircuit size={16} />
-                      ) : (
-                        <User size={16} />
-                      )}
+                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : <User size={16} />}
                     </div>
 
-                    {/* DUAL-MODE CONTAINER */}
-                    {isDraft ? (
-                      /* 🏛️ REAL A4 LEGAL PAPER CANVAS (EXACT MATCH ME MODULIN HARTIMI) */
-                      <div className="w-full max-w-[21cm] my-2">
-                        <div className="bg-white text-black p-8 sm:p-14 shadow-[0_0_40px_rgba(0,0,0,0.12)] rounded-sm min-h-[29.7cm] border border-gray-200 font-serif leading-relaxed text-[11pt]">
-                          
-                          {/* Header Bar */}
-                          <div className="flex justify-between items-center border-b border-gray-200 pb-3 mb-8 font-sans">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              DOKUMENT ZYRTAR GJYQËSOR (A4 CANVAS)
+                    {/* UNIFIED STREAMLINED CHAT BUBBLE FOR ALL MESSAGES */}
+                    <div
+                      className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+                        msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                      }`}
+                    >
+                      {msg.content && <MessageCopyButton text={msg.content} />}
+
+                      <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {autoLinkedText}
+                        </ReactMarkdown>
+                      </div>
+
+                      {/* CLICKABLE SUGGESTED QUESTIONS */}
+                      {msg.role === 'ai' &&
+                        idx === displayMessages.length - 1 &&
+                        !isSendingMessage &&
+                        suggestedQuestions.length > 0 && (
+                          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+                              <Sparkles size={12} className="text-primary-start animate-pulse" />
+                              {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
                             </span>
-                            <MessageCopyButton text={msg.content} />
-                          </div>
-
-                          {/* Native Draft Result Renderer */}
-                          <div className="text-black prose-p:text-black prose-headings:text-black prose-strong:text-black">
-                            <DraftResultRenderer text={autoLinkedText} t={t} />
-                          </div>
-                        </div>
-
-                        {/* Optional Feedback Buttons */}
-                        {activeContextId !== 'general' && (
-                          <div className="mt-3 flex justify-end">
-                            <FeedbackButtons
-                              messageIndex={idx}
-                              caseId={activeContextId}
-                              onFeedback={(i) => handleFeedback(i)}
-                              disabled={feedbackGiven.has(idx)}
-                            />
+                            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                              {suggestedQuestions.map((q, qIdx) => (
+                                <button
+                                  key={qIdx}
+                                  type="button"
+                                  onClick={() => sendMessage(q)}
+                                  className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
+                                >
+                                  <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
+                                  <span>{q}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      /* 💬 STANDARD CONVERSATIONAL CHAT BUBBLE */
-                      <div
-                        className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
-                          msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
-                        }`}
-                      >
-                        {msg.content && <MessageCopyButton text={msg.content} />}
 
-                        <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                            {autoLinkedText}
-                          </ReactMarkdown>
-                        </div>
+                      {msg.role === 'ai' &&
+                        activeContextId !== 'general' &&
+                        typeof msg.content === 'string' &&
+                        msg.content.trim() !== '' &&
+                        !msg.content.startsWith('[Gabim Teknik') && (
+                          <FeedbackButtons
+                            messageIndex={idx}
+                            caseId={activeContextId}
+                            onFeedback={(i) => handleFeedback(i)}
+                            disabled={feedbackGiven.has(idx)}
+                          />
+                        )}
 
-                        {/* Suggested Questions (Clickable Action Buttons) */}
-                        {msg.role === 'ai' &&
-                          idx === displayMessages.length - 1 &&
-                          !isSendingMessage &&
-                          suggestedQuestions.length > 0 && (
-                            <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                                <Sparkles size={12} className="text-primary-start animate-pulse" />
-                                {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
-                              </span>
-                              <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                                {suggestedQuestions.map((q, qIdx) => (
-                                  <button
-                                    key={qIdx}
-                                    type="button"
-                                    onClick={() => sendMessage(q)}
-                                    className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
-                                    <span>{q}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                        {msg.role === 'ai' &&
-                          activeContextId !== 'general' &&
-                          typeof msg.content === 'string' &&
-                          msg.content.trim() !== '' &&
-                          !msg.content.startsWith('[Gabim Teknik') && (
-                            <FeedbackButtons
-                              messageIndex={idx}
-                              caseId={activeContextId}
-                              onFeedback={(i) => handleFeedback(i)}
-                              disabled={feedbackGiven.has(idx)}
-                            />
-                          )}
-
-                        {msg.role === 'ai' &&
-                          typeof msg.content === 'string' &&
-                          msg.content.startsWith('[Gabim Teknik') && (
-                            <button
-                              type="button"
-                              onClick={handleRetry}
-                              className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
-                            >
-                              <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
-                            </button>
-                          )}
-                      </div>
-                    )}
+                      {msg.role === 'ai' &&
+                        typeof msg.content === 'string' &&
+                        msg.content.startsWith('[Gabim Teknik') && (
+                          <button
+                            type="button"
+                            onClick={handleRetry}
+                            className="mt-3 px-3 py-2 bg-danger-start/10 text-danger-start border border-danger-start/20 rounded-lg text-[10px] font-semibold uppercase flex items-center gap-1.5 hover:bg-danger-start/20 transition-all hover-lift focus:outline-none cursor-pointer"
+                          >
+                            <RefreshCw size={12} /> {t('chat.retry', 'Riprovo')}
+                          </button>
+                        )}
+                    </div>
                   </motion.div>
                 );
               })}
 
-              {/* ANIMATED THINKING BUBBLE */}
+              {/* SMOOTH ANIMATED THINKING BUBBLE */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 
