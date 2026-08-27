@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - 100% MODULAR MULTI-AGENT ROUTER V124.0 (ISOLATED PILLARS & ISOLATED FORENSICS)
+# PHOENIX PROTOCOL - 100% MODULAR MULTI-AGENT ROUTER V125.0 (6 ISOLATED SPECIALIST ENGINES)
 
 import os
 import sys
@@ -12,12 +12,13 @@ from bson import ObjectId
 from openai import AsyncOpenAI
 from app.core.config import settings
 
-# Importimi i Moduleve të Izoluara
+# Importimi i 6 Moduleve të Pavarura
 from app.services.pillars.pillar_1_strategy import Pillar1StrategyService
 from app.services.pillars.pillar_2_statutes import Pillar2StatutesService
 from app.services.pillars.pillar_3_questions import Pillar3QuestionsService
 from app.services.pillars.pillar_4_damages import Pillar4DamagesService
 from app.services.pillars.forensic_audit_service import ForensicAuditService
+from app.services.pillars.legal_drafting_service import LegalDraftingService
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,7 +43,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Fully Decoupled Multi-Agent Router V124.0 initialized.")
+            logger.info("✅ [RAG] 6-Pillar Modular Architecture V125.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -50,7 +51,7 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        # 1. DIREKTIVA E FORENZIKËS LIGJORE PËR NJË DOKUMENT (BUTONI ⚖️)
+        # 1. FORENZIKA LIGJORE E DOKUMENTIT (BUTONI ⚖️)
         audit_keywords = [
             "direktivë forenzike e gjykatës supreme", "direktivë e forenzikës ligjore", 
             "direktivë e detyrueshme forenzike", "auditimin e plotë forenzik ligjor", 
@@ -302,11 +303,11 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA
+        # 🔀 DELEGIMI TE 6 MODU蕪AT E IZOLUARA
         # =========================================================================
 
         if user_intent == "FORENSIC_AUDIT":
-            # MODULI I IZOLUAR I FORENZIKËS LIGJORE (BUTONI ⚖️)
+            # MODULI 5: FORENZIKA LIGJORE E DOKUMENTIT (⚖️)
             system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -315,41 +316,32 @@ class AlbanianRAGService:
                 context_str=context_str
             )
 
+        elif user_intent == "DRAFTING":
+            # MODULI 6: HARTIMI I PLOTË I AKTEVE ZYRTARE
+            system_prompt = LegalDraftingService.build_prompt(
+                case_title=case_title,
+                client_name=client_name,
+                client_position=client_position,
+                current_date_str=current_date_str,
+                manifest_str=manifest_str,
+                context_str=context_str,
+                query=optimized_query
+            )
+
         elif user_intent == "PILLAR_STRATEGY":
+            # MODULI 1: STRATEGJIA & MATRICA E PROVAVE
             system_prompt = Pillar1StrategyService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_STATUTES":
+            # MODULI 2: BAZA STATUTARE & JURISPRUDENCA
             system_prompt = Pillar2StatutesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_QUESTIONS":
+            # MODULI 3: PYETËSORI TAKTIK I SEANCËS
             system_prompt = Pillar3QuestionsService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_DAMAGES":
+            # MODULI 4: LLOGARITJA E DËMIT LMD & MASAT
             system_prompt = Pillar4DamagesService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
-        elif user_intent == "DRAFTING":
-            system_prompt = f"""
-            Ti je Avokati Senior Elitar në Republikën e Kosovës në përfaqësim ekskluziv të klientit tonë: **{client_name}**.
-            LËNDA: **{case_title}** | DATA: {current_date_str}
-
-            RREGULLA KRITIKE TË HARTIMIT:
-            1. PARASHTRUESI / PADITËSI: Është gjithmonë {client_name} (në cilësinë e Palës së Dëmtuar dhe Prindit Mbrojtës Ligjor).
-            2. MBROJTJA E TË MITURVE: Fëmijët janë VIKTIMA TË MBROJTURA dhe ndalohet rreptësisht të vendosen te të dyshuarit.
-            3. TË DYSHUARIT: Janë personat e denoncuar nga shkresat (pala kundërshtare për Nenet 390/248, zyrtarët për Nenet 424/32, mjekët për Nenin 387, gjyqtarët/zyrtarët për Nenet 414/425).
-
-            STRUKTURA:
-            # KALLËZIM PENAL / KËRKESËPADI
-            **DREJTUAR:** PROKURORISË / GJYKATËS KOMPETENTE
-            **PARASHTRUESI:** {client_name}
-            **LËNDA:** (Titulli i Aktit dhe Baza Ligjore)
-            **KUNDËR TË DYSHUARVE:** (Personat përgjegjës nga fashikulli)
-            ## S E P S E (DISPOZITIVI ME PIKA)
-            ## P R O P O Z O J (KËRKESA PROCEDURALE)
-            ## A R S Y E T I M I (FAKTET DHE JURISPRUDENCA SUPREME)
-            ## INVENTARI I PROVAVE (CORPUS DELICTI)
-            **PARASHTRUESI:** {client_name}
-
-            DOKUMENTET E LËNDËS:
-            {manifest_str}
-            {context_str}
-            """
         else:
+            # CHAT I LIRË ME PËRDORUESIN
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
