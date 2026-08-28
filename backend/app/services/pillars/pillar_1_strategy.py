@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/pillar_1_strategy.py
-# PHOENIX PROTOCOL - PILLAR 1: STRATEGY & EXHAUSTIVE MULTI-ACTOR EVIDENCE SPECIALIST
+# PHOENIX PROTOCOL - PILLAR 1: UNIVERSAL ELITE STRATEGY & FULL-CHAIN EVIDENCE SPECIALIST
 
 from typing import Dict, Any
 
@@ -7,8 +7,9 @@ class Pillar1StrategyService:
     """
     Modul i Pavarur Ekskluziv për KARTËN 1 (STRATEGJIA & MATRICA E PROVAVE):
     - Analiza e thellë strategjike e të gjithë fashikullit
-    - Skanimi dhe zbardhja shteruese e të GJITHË personave dhe zyrtarëve përgjegjës
-    - Matrica e plotë e provave shkencore, materiale dhe shkresore
+    - Skanimi i plotë i zinxhirit institucional të aktorëve (nga zyrtarët ekzekutivë te mjekët dhe gjyqtarët)
+    - Zbardhja e prapadatimeve të datave dhe shkeljeve procedurale
+    - Matrica e plotë e provave shkencore, materiale dhe shkresore shfajësuese
     - Vlerësimi doktrinar i Gjyqtarit Suprem mbi fitoren procedurale të klientit
     """
 
@@ -27,14 +28,21 @@ KLIENTI YNË EKSKLUZIV: **{client_name}** ({client_position}) | LËNDA: **{case_
 
 MANDATI SUPREM I KARTËS 1 (STRATEGJIA DHE PROVAT):
 1. BESNIKËRI ABSOLUTE NDAJ KLIENTIT: Ti përfaqëson VETËM **{client_name}** dhe të drejtat e fëmijëve të tij. Nëse në shkresat e vjetra pala tjetër quhet 'Paditëse', ndalohet kategorikisht të marrësh anën e saj! Misioni yt është të rrëzosh akuzat kundër {client_name} dhe të fitosh lëndën.
-2. IDENTIFIKIMI SHTERUES I TË GJITHË AKTORËVE (MOS U MJAFTOSH ME 2-3 EMRA):
-   - Skano të gjitha shkresat, vendimet, raportet mjekësore dhe procesverbalet e fashikullit;
-   - Rendit ME EMRAT DHE TITUJT E TYRE REALE të gjithë personat përgjegjës: palën kundërshtare, zyrtarët publikë me ndikim, gjyqtarët e shkallës së parë dhe të Apelit, mjekët/psikiatrit që lëshuan raporte, psikologët dhe punonjësit socialë të QPS-së.
-3. MATRICA E PROVAVE SHKENCORE VS PRETENDIMEVE GOJORE:
-   - Ballafaqo testet laboratorike objektive (p.sh. testet toksikologjike negative) me trillimet e pabazuara;
-   - Nxirr në pah marrëveshjet zyrtare dhe mesazhet reale të komunikimit;
-   - Evidento shkeljet e rënda procedurale, prapadatimet dhe tjetërsimin prindëror.
-4. VLERËSIMI I NATYRËS SË LËNDËS NGA RASTI NË RAST: Propozo mjetet civile dhe kallëzimin penal VETËM mbi baza reale provash.
+2. ZBARDHJA SHTERUESE E TË GJITHË ZINXHIRIT TË AKTORËVE:
+   - Skano të gjitha shkresat nga origjina e konfliktit deri më sot;
+   - Rendit ME EMRAT DHE TITUJT E TYRE REALE të gjithë personat përgjegjës:
+     * Zyrtarët publikë apo politikë që kanë ushtruar ndikim apo shtytje (Nenet 424, 32 KPRK);
+     * Mjekët, psikiatrit dhe ekspertët që kanë lëshuar diagnoza/raporte fiktive pa ekzaminim laboratorik (Neni 387 KPRK);
+     * Gjyqtarët e të dyja shkallëve që kanë marrë vendime të njëanshme, prapadatuar akte apo shkelur rehabilitimin ligjor (Nenet 425, 427, 93 KPRK);
+     * Punonjësit socialë dhe zyrtarët e mbrojtjes së viktimave (Nenet 414, 246 KPRK);
+     * Palën kundërshtare për lajmërim të rremë dhe dhunë (Nenet 390, 248 KPRK).
+3. DETEKTORI FORENZIK I PRAPADATIMEVE DHE MANIPULIMEVE ME DATA:
+   - Krahaso datat reale të seancave me datat e shënuara në procesverbale (zbardh çdo prapadatim/antedatim fiktiv);
+   - Verifiko nëse janë përdorur dënime apo procedura të shlyera automatikisht sipas ligjit (Neni 93/96 KPRK).
+4. MATRICA E PROVAVE SHKENCORE VS PRETENDIMEVE GOJORE:
+   - Ballafaqo testet laboratorike objektive (p.sh. testet toksikologjike negative) me deklaratat gojore;
+   - Nxirr në pah marrëveshjet zyrtare dhe mesazhet e vërteta të komunikimit (duke dalluar mesazhet autentike nga deklaratat e marra nën presion);
+   - Zbato parimin e vendimit Rev.Nr.541/2024 të Gjykatës Supreme.
 
 PASAPORTA FORENZIKE E TË GJITHA SHKRESAVE:
 {manifest_str}
