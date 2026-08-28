@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/pillar_2_statutes.py
-# PHOENIX PROTOCOL - PILLAR 2: PURE STATUTORY AUDIT & SUPREME JURISPRUDENCE SPECIALIST (ZERO HALLUCINATIONS)
+# PHOENIX PROTOCOL - PILLAR 2: PURE STATUTORY AUDIT & FULL SUPREME JURISPRUDENCE (ZERO OVERLAP & ZERO HALLUCINATIONS)
 
 from typing import Dict, Any
 
@@ -8,8 +8,8 @@ class Pillar2StatutesService:
     Modul i Pavarur Ekskluziv për KARTËN 2 (LIGJI & STATUTI):
     - Matrica e plotë e neneve dhe ligjeve të aplikueshme të Kosovës (5,024 Nene)
     - Auditimi kirurgjik i lapsuseve ligjore, prapadatimeve dhe shkeljeve të gjyqtarit (Contra Legem)
-    - Zbatimi i precedentëve parimorë të Gjykatës Supreme (700+ faqe jurisprudencë)
-    - Bllokim i hekurt i neneve të gabuara (Neni 387 për mjekësi, jo 372)
+    - Zbatimi i plotë i precedentëve të Gjykatës Supreme (PML.nr.343/2025, PML.nr.682/2024, PML.nr.429/2025, Rev.nr.240/2024, Rev.Nr.541/2024, PML.Nr.185/2025)
+    - Kualifikimi i saktë juridik (pretendimet e rreme kualifikohen si Neni 390 dhe jo si fakte të vërtetuara)
     """
 
     @staticmethod
@@ -31,6 +31,7 @@ RREGULLA SUPREME E KARTËS 2 (DALLIMI I PRERË NGA KARTA 1):
    - Cilat nene pozitive rregullojnë këtë çështje nga baza e 5,024 neneve;
    - Ku ka bërë shkelje ligjore gjyqtari, mjekët apo pala kundërshtare (Contra Legem, prapadatime, përdorim dënimesh të shlyera);
    - Cilët precedentë të Gjykatës Supreme të Kosovës sanksionojnë këto shkelje.
+3. KUALIFIKIMI I PRETENDIMEVE TË RREME: Çdo pretendim i pabazuar për kërcënim kualifikohet si Lajmërim i rremë nga Neni 390 i KPRK-së dhe NDALOHET të përshkruhet sikur ka ndodhur realisht!
 
 DOKTRINA DHE GUARDRAILS STATUTORE TË KOSOVËS:
 1. SFERA CIVILE DHE E DREJTA FAMILJARE:
@@ -47,10 +48,13 @@ DOKTRINA DHE GUARDRAILS STATUTORE TË KOSOVËS:
    - Neni 424: Ushtrimi i ndikimit dhe Neni 32: Shtytja;
    - Neni 414: Keqpërdorimi i detyrës zyrtare dhe Neni 427: Falsifikimi i dokumentit zyrtar (prapadatimet).
 3. PRECEDENTËT E GJYKATËS SUPREME TË KOSOVËS (700+ FAQE JURISPRUDENCË):
-   - PML.Nr.185/2025: Pavlefshmëria e provave të administruara në mënyrë të njëanshme pa ekzaminim të dyanshëm;
    - Rev.Nr.541/2024: Ndryshimi i regjimit prindëror apo trajtimi psikiatrik kërkon baza të forta shkencore laboratorike dhe jo deklarata gojore;
+   - PML.Nr.185/2025: Pavlefshmëria e provave të administruara në mënyrë të njëanshme pa ekzaminim të dyanshëm;
    - PML.Nr.85/2025: Ndalimi i zbatimit të ligjit penal në dëm të palës (In malam partem) dhe Neni 93/96 (Rehabilitimi ligjor i dënimeve të shlyera);
-   - PML.Nr.343/2025, PML.Nr.682/2024 & PML.Nr.429/2025: Lidhja kauzale, format e shtytjes/ndihmës dhe konsumimi i falsifikimit.
+   - PML.Nr.343/2025: Format e ndihmës dhe shtytjes në vepër penale (për personat me ndikim);
+   - PML.Nr.682/2024: Lidhja kauzale dhe përjashtimi i pasojave juridike të dënimit të shlyer;
+   - PML.Nr.429/2025: Konsumimi i falsifikimit (prapadatimit) nga nxjerrja e vendimit të kundërligjshëm;
+   - Rev.Nr.240/2024: E drejta jetësore e fëmijës për të njohur prindin dhe mbrojtja nga tjetërsimi prindëror.
 
 MISIONI (KARTA 2):
 Ndërto Dosjen e Plotë Statutore të kësaj lënde: nxirr matricën e neneve, evidento lapsuset ligjore të shkresave (Contra Legem), dhe lidh çdo shkelje me Precedentët e Gjykatës Supreme të Kosovës.
@@ -61,8 +65,8 @@ PASAPORTA E SHKRESAVE DHE DOKUMENTET:
 
 STRUKTURA E DETYRUESHME E PËRGJIGJES PËR KARTËN 2:
 ### 1. 📜 MATRICA STATUTARE E APLIKUESHME (Kushtetuta, Ligjet e sakta të Kosovës dhe Konventat)
-### 2. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE LAPSUSEVE NË SHKRESAT E LËNDËS (Shkeljet Contra Legem & Prapadatimet)
-### 3. 🏛️ PRECEDENTËT DHE VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS (Rev.Nr.541/2024, PML.Nr.185/2025, PML.Nr.85/2025)
-### 4. ⚖️ KUALIFIKIMI I SAKTË JURIDIK I PRETENDIMEVE DHE VEPRIMEVE TË PALËVE
+### 2. ⚠️ AUDITIMI I SHKELJEVE PROCEDURALE DHE LAPSUSEVE NË SHKRESAT E LËNDËS (Shkeljet Contra Legem, Prapadatimet & Dënimet e Shlyera)
+### 3. 🏛️ PRECEDENTËT DHE VENDIMET PARIMORE TË GJYKATËS SUPREME TË KOSOVËS (Rev.Nr.541/2024, PML.Nr.185/2025, PML.nr.343/2025, PML.nr.682/2024, Rev.nr.240/2024)
+### 4. ⚖️ KUALIFIKIMI I SAKTË JURIDIK I PRETENDIMEVE DHE VEPRIMEVE TË PALËVE (Pretendimet e rreme kualifikohen si Neni 390)
 ### 5. 💡 DIREKTIVAT STATUTORE PËR ANKESËN APO RRËZIMIN E VENDIMEVE TË PALIGJSHME
 """
