@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V70.0 (ROBUST ACRONYM RESOLVER & SAFE BOUNDS)
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V71.0 (STRICT 3-WAY CATEGORY SEGREGATION: STATUTES / CASELAW / ACADEMIC)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Set, List
@@ -81,25 +81,60 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         from app.core.db import get_db_instance
         db = get_db_instance()
         
-        academic_db_sources = db.legal_knowledge_base.distinct("source", {"category": "academic"})
+        # 1. AKADEMIA JURIDIKE
+        academic_filter = {
+            "$or": [
+                {"category": "academic"},
+                {"is_academic": True},
+                {"source": {"$regex": "akademia|doracak|komentar", "$options": "i"}}
+            ]
+        }
+        academic_db_sources = db.legal_knowledge_base.distinct("source", academic_filter)
+        academic_db_titles = db.legal_knowledge_base.distinct("law_title", academic_filter)
         b2_academic = _get_b2_filenames("academic/")
         
         raw_academic_sources = set([
-            s.strip() for s in (academic_db_sources + b2_academic) 
-            if s and s.strip() and s.lower().endswith('.pdf')
+            s.strip() for s in (academic_db_sources + academic_db_titles + b2_academic) 
+            if s and s.strip()
         ])
         clean_academic = sorted(list(raw_academic_sources))
 
-        caselaw_db_titles = db.legal_knowledge_base.distinct("law_title", {"category": "caselaw"})
-        caselaw_db_sources = db.legal_knowledge_base.distinct("source", {"category": "caselaw"})
+        # 2. AKTGJYKIMET E GJYKATËS SUPREME
+        caselaw_filter = {
+            "$or": [
+                {"category": "caselaw"},
+                {"is_case_law": True},
+                {"case_number": {"$exists": True, "$ne": None, "$ne": ""}},
+                {"law_title": {"$regex": r"Gjykata\s+Supreme|PML|REV|PA1|PKR", "$options": "i"}}
+            ]
+        }
+        caselaw_db_titles = db.legal_knowledge_base.distinct("law_title", caselaw_filter)
+        caselaw_db_sources = db.legal_knowledge_base.distinct("source", caselaw_filter)
         b2_caselaw = _get_b2_filenames("case_law/")
 
         raw_caselaw = set([t.strip() for t in (caselaw_db_titles + caselaw_db_sources + b2_caselaw) if t and t.strip()])
         clean_caselaw = sorted(list(raw_caselaw))
 
-        all_titles = db.legal_knowledge_base.distinct("law_title", {"category": {"$nin": ["academic", "caselaw"]}})
-        all_sources = db.legal_knowledge_base.distinct("source", {"category": {"$nin": ["academic", "caselaw"]}})
-        raw_statutes = [t.strip() for t in (all_titles + all_sources) if t and t.strip() and not t.lower().endswith('.pdf')]
+        # 3. KODET DHE LIGJET STATUTORE (VETËM 19 LIGJET E KOSOVËS)
+        statutes_filter = {
+            "is_article": True,
+            "$nor": [
+                {"category": "caselaw"},
+                {"is_case_law": True},
+                {"category": "academic"},
+                {"is_academic": True},
+                {"law_title": {"$regex": r"Gjykata\s+Supreme|PML|REV|PA1|PKR", "$options": "i"}}
+            ]
+        }
+        all_statute_titles = db.legal_knowledge_base.distinct("law_title", statutes_filter)
+        
+        # Pastrim i pastër: vetëm emrat e ligjeve pa prapashtesa PDF dhe pa vendime gjykatash
+        raw_statutes = []
+        for t in all_statute_titles:
+            t_clean = t.strip()
+            if t_clean and not t_clean.lower().endswith('.pdf') and not CASE_NO_REGEX.search(t_clean) and "supreme" not in t_clean.lower():
+                raw_statutes.append(t_clean)
+
         clean_statutes = sorted(list(set(raw_statutes)))
 
         return {
@@ -181,7 +216,7 @@ async def get_law_article(
         if clean_law_title.lower().startswith("neni") or clean_law_title == clean_art or clean_law_title == "Ligji përkatës":
             fallback_doc = db.legal_knowledge_base.find_one({
                 "article_number": clean_art,
-                "category": {"$nin": ["academic", "caselaw"]}
+                "is_article": True
             })
             if fallback_doc and fallback_doc.get("law_title"):
                 clean_law_title = fallback_doc.get("law_title")
@@ -195,7 +230,7 @@ async def get_law_article(
         if not statute_docs or len(statute_docs) == 0:
             fallback_docs = list(db.legal_knowledge_base.find({
                 "article_number": clean_art,
-                "category": {"$nin": ["academic", "caselaw"]}
+                "is_article": True
             }).limit(5))
             if fallback_docs:
                 statute_docs = fallback_docs
