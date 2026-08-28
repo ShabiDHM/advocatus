@@ -1,11 +1,15 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V28.0 (PINNED COMPACT LAYOUT WITH INTERNAL SCROLL & INSTANT ARTICLE SEARCH)
+// PHOENIX PROTOCOL - LAW OVERVIEW V29.0 (DYNAMIC FULL-SCREEN EXPAND TOGGLE & ULTRA-WIDE VIEW)
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Scale, Calendar, FileText, AlertCircle, BookOpen, GraduationCap, ExternalLink, Search, X } from 'lucide-react';
+import { 
+  ArrowLeft, Scale, Calendar, FileText, AlertCircle, 
+  BookOpen, GraduationCap, ExternalLink, Search, X,
+  Maximize2, Minimize2
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
 
@@ -26,6 +30,7 @@ export default function LawOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const [showPdfModal, setShowPdfModal] = useState(false);
 
@@ -107,17 +112,19 @@ export default function LawOverviewPage() {
 
   return (
     <motion.div
-      className="w-full min-h-screen pb-12 bg-canvas text-text-primary"
+      className="w-full min-h-screen pb-12 bg-canvas text-text-primary transition-all duration-300"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24">
+      <div className={`w-full mx-auto pt-20 sm:pt-24 transition-all duration-300 ${
+        isExpanded ? 'max-w-[98vw] px-2 sm:px-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8'
+      }`}>
         
         {/* Butoni Kthehu */}
         <button
           onClick={() => navigate('/laws/search')}
-          className="group mb-5 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
+          className="group mb-4 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
         >
           <div className="p-2 rounded-xl bg-surface border border-main group-hover:border-primary-start transition-colors">
             <ArrowLeft size={16} className="text-primary-start" />
@@ -125,8 +132,8 @@ export default function LawOverviewPage() {
           <span>{t('general.back', 'Kthehu te Biblioteka')}</span>
         </button>
 
-        {/* Paneli Kryesor Kompakt */}
-        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface">
+        {/* Paneli Kryesor */}
+        <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface transition-all duration-300">
           
           {/* Header Bar */}
           <div className="bg-canvas px-6 sm:px-10 py-6 border-b border-main relative overflow-hidden">
@@ -139,17 +146,30 @@ export default function LawOverviewPage() {
                   </span>
                 </div>
 
-                {pdfUrl && (
+                <div className="flex items-center gap-2">
+                  {/* EXPAND / FULLSCREEN TOGGLE BUTTON */}
                   <button
                     type="button"
-                    onClick={() => setShowPdfModal(true)}
-                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center gap-2 bg-surface hover:bg-hover text-text-primary border border-main px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer shadow-sm"
+                    title={isExpanded ? "Zvogëlo pamjen" : "Zmadho në ekran të plotë"}
                   >
-                    <FileText size={14} />
-                    <span>Shiko PDF të Plotë</span>
-                    <ExternalLink size={12} />
+                    {isExpanded ? <Minimize2 size={14} className="text-primary-start" /> : <Maximize2 size={14} className="text-primary-start" />}
+                    <span className="hidden sm:inline">{isExpanded ? "Zvogëlo" : "Zmadho Ekranin"}</span>
                   </button>
-                )}
+
+                  {pdfUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPdfModal(true)}
+                      className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer shadow-sm"
+                    >
+                      <FileText size={14} />
+                      <span className="hidden sm:inline">Shiko PDF të Plotë</span>
+                      <ExternalLink size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <h1 className="text-xl sm:text-3xl font-black text-text-primary leading-tight tracking-tight">
@@ -169,24 +189,24 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
-          {/* Trupi me Kërkim dhe Scroll të Brendshëm */}
-          <div className="bg-canvas/30 px-6 sm:px-10 py-6 flex flex-col">
+          {/* Trupi me Rrjetën Dinamike */}
+          <div className="bg-canvas/30 px-4 sm:px-8 py-6 flex flex-col">
             
-            {/* Shiriti i Kërkimit të Shpejtë të Nenit */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-5">
+            {/* Shiriti i Kërkimit dhe Statistikat */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <BookOpen size={16} className="text-primary-start" />
                 Përmbajtja e Neneve ({filteredArticles.length})
               </h2>
 
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-full sm:w-72">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary-start pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Kërko nenin (p.sh. 390)..."
                   value={articleSearchQuery}
                   onChange={(e) => setArticleSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-surface border border-main rounded-xl text-xs font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 transition-all"
+                  className="w-full pl-9 pr-8 py-2.5 bg-surface border border-main rounded-xl text-xs font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 transition-all"
                 />
                 {articleSearchQuery && (
                   <button
@@ -200,14 +220,20 @@ export default function LawOverviewPage() {
               </div>
             </div>
 
-            {/* KUTIA ME SCROLL TË BRENDSHËM (ZERO PAGE STRETCHING) */}
-            <div className="max-h-[55vh] overflow-y-auto custom-finance-scroll p-3 sm:p-4 rounded-2xl border border-main bg-surface/50 shadow-inner">
+            {/* KUTIA ME LARTËSI DINAMIKE DHE SCROLL */}
+            <div className={`overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-2xl border border-main bg-surface/50 shadow-inner transition-all duration-300 ${
+              isExpanded ? 'max-h-[75vh]' : 'max-h-[55vh]'
+            }`}>
               {filteredArticles.length === 0 ? (
                 <div className="py-12 text-center text-xs font-bold text-text-muted">
                   Nuk u gjet asnjë nen për kërkimin "{articleSearchQuery}"
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+                <div className={`grid gap-2.5 sm:gap-3 ${
+                  isExpanded
+                    ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10'
+                    : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
+                }`}>
                   {filteredArticles.map((article) => {
                     const cleanArt = article.replace(/\.$/, '').trim();
                     const isPreamble =
@@ -224,7 +250,7 @@ export default function LawOverviewPage() {
                             )}`
                           )
                         }
-                        className="flex items-center justify-center gap-2 px-3 py-3 bg-canvas hover:bg-primary-start hover:text-white border border-main hover:border-primary-start rounded-xl transition-all text-xs font-bold text-text-primary hover-lift active:scale-95 cursor-pointer shadow-xs"
+                        className="flex items-center justify-center gap-2 px-3 py-3.5 bg-canvas hover:bg-primary-start hover:text-white border border-main hover:border-primary-start rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover-lift active:scale-95 cursor-pointer shadow-xs"
                       >
                         <span className="truncate">{label}</span>
                       </button>
@@ -245,6 +271,10 @@ export default function LawOverviewPage() {
               <ArrowLeft size={14} />
               {t('lawOverview.backToSearch', 'Kthehu te Biblioteka')}
             </button>
+
+            <span className="text-[11px] font-bold text-text-muted">
+              {data.article_count} Nene të Disponueshme
+            </span>
           </div>
         </div>
       </div>
