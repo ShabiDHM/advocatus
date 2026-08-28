@@ -1,11 +1,11 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V45.0 (CLEAN BADGES FOR ALL 4 PILLARS & FORENSIC AUDIT)
+// PHOENIX PROTOCOL - CHAT PANEL V46.0 (EXECUTIVE CARD-TITLED SUGGESTION BUTTONS)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, BrainCircuit, User, RefreshCw, Sparkles, 
-  Scale, Swords, BookOpen, HelpCircle, Coins 
+  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight 
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -49,9 +49,8 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
 
-// Funksion inteligjent për formatimin vizual të mesazheve të Kartave dhe Forenzikës në UI
+// Funksion për formatimin vizual të mesazheve të dërguara në UI
 const formatUserDisplayMessage = (content: string) => {
-  // 1. BUTONI I FORENZIKËS LIGJORE NË DOKUMENT (⚖️)
   if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
     const docMatch = content.match(/"([^"]+)"/);
     const docName = docMatch ? docMatch[1] : 'Dokumentit të Zgjedhur';
@@ -64,7 +63,6 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  // 2. KARTA 1: STRATEGJIA DHE MATRICA E PROVAVE
   if (content.includes('shtyllat strategjike të kërkesëpadisë') || content.includes('shtyllat kryesore ku mbështetet')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
@@ -75,7 +73,6 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  // 3. KARTA 2: BAZA STATUTARE DHE JURISPRUDENCA
   if (content.includes('nxirr bazën e plotë ligjore') || content.includes('baza statutore dhe jurisprudenca')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
@@ -85,7 +82,6 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  // 4. KARTA 3: PYETËSORI TAKTIK PËR SEANCË
   if (content.includes('pyetësorin taktik të ballafaqimit') || content.includes('pyetjet taktike për të ballafaquar')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
@@ -95,7 +91,6 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  // 5. KARTA 4: LLOGARITJA E DËMIT DHE MASAT EMERGJENTE
   if (content.includes('llogarit dëmet materiale e jomateriale') || content.includes('kamatën ligjore vonesore 8%')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
@@ -105,8 +100,50 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  // Mesazh normal i shkruar nga përdoruesi
   return content;
+};
+
+// Formatimi i titullit dhe nëntitullit të butonave të sugjeruar
+const resolveSuggestionCardUI = (query: string) => {
+  const q = query.toLowerCase();
+
+  if (q.includes('nxirr bazën e plotë ligjore') || q.includes('baza statutore')) {
+    return {
+      title: 'Baza Statutare dhe Jurisprudenca',
+      desc: 'Auditimi i neneve, lapsuseve dhe precedentëve të Gjykatës Supreme.',
+      icon: <BookOpen size={16} className="text-blue-500 shrink-0 mt-0.5" />
+    };
+  }
+
+  if (q.includes('pyetësorin taktik') || q.includes('ballafaqimit')) {
+    return {
+      title: 'Pyetësori Taktik për Seancë',
+      desc: 'Pyetjet kirurgjike të ballafaqimit (Cross-Examination) për sallën e gjyqit.',
+      icon: <HelpCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+    };
+  }
+
+  if (q.includes('llogarit dëmet') || q.includes('kamatën ligjore')) {
+    return {
+      title: 'Llogaritja e Dëmit LMD (8%) & Masat',
+      desc: 'Tabela financiare e dëmit me kamatë 8% dhe masat emergjente mbrojtëse.',
+      icon: <Coins size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+    };
+  }
+
+  if (q.includes('shtyllat strategjike') || q.includes('matrica e provave')) {
+    return {
+      title: 'Strategjia dhe Matrica e Provave',
+      desc: 'Analiza e thellë e të gjitha shkresave të fashikullit dhe provave shkencore.',
+      icon: <Swords size={16} className="text-purple-500 shrink-0 mt-0.5" />
+    };
+  }
+
+  return {
+    title: 'Vazhdo me Analizën',
+    desc: query,
+    icon: <Sparkles size={16} className="text-primary-start shrink-0 mt-0.5" />
+  };
 };
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -258,28 +295,42 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         </div>
                       )}
 
-                      {/* CLICKABLE SUGGESTED QUESTIONS */}
+                      {/* EXECUTIVE SUGGESTION ACTION BUTTONS WITH TITLES & SUBTITLES */}
                       {msg.role === 'ai' &&
                         idx === displayMessages.length - 1 &&
                         !isSendingMessage &&
                         suggestedQuestions.length > 0 && (
-                          <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+                          <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-1.5 ml-1">
                               <Sparkles size={12} className="text-primary-start animate-pulse" />
-                              {t('chat.suggestedFollowUps', 'Pyetje Sugjeruese')}
+                              {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar')}
                             </span>
-                            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                              {suggestedQuestions.map((q, qIdx) => (
-                                <button
-                                  key={qIdx}
-                                  type="button"
-                                  onClick={() => sendMessage(q)}
-                                  className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-xs font-bold text-left transition-all hover-lift focus:outline-none shadow-sm flex items-center gap-2 cursor-pointer"
-                                >
-                                  <span className="w-2 h-2 bg-primary-start rounded-full shrink-0" />
-                                  <span>{q}</span>
-                                </button>
-                              ))}
+                            
+                            <div className="flex flex-col gap-2 w-full">
+                              {suggestedQuestions.map((q, qIdx) => {
+                                const cardInfo = resolveSuggestionCardUI(q);
+                                return (
+                                  <button
+                                    key={qIdx}
+                                    type="button"
+                                    onClick={() => sendMessage(q)}
+                                    className="w-full p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-2xl text-left transition-all hover-lift focus:outline-none shadow-sm flex items-start justify-between gap-3 group cursor-pointer"
+                                  >
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      {cardInfo.icon}
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-xs text-text-primary group-hover:text-primary-start transition-colors">
+                                          {cardInfo.title}
+                                        </p>
+                                        <p className="text-[11px] text-text-muted mt-0.5 line-clamp-1 leading-snug">
+                                          {cardInfo.desc}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <ArrowRight size={14} className="text-text-muted group-hover:text-primary-start group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
