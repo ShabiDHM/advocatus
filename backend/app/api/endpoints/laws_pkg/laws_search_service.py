@@ -1,8 +1,12 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_search_service.py
+# PHOENIX PROTOCOL - LAWS SEARCH SERVICE V20.0 (REMOVED 100-ARTICLE CAP - FULL EXHAUSTIVE RETRIEVAL)
+
 import re
 import os
 from typing import List, Optional, Tuple, Dict, Any
 from app.api.endpoints.laws_pkg.laws_dictionary import _is_academic_file, _normalize_hallucinated_title, _strip_alpha
+
+MAX_STATUTE_ARTICLES = 3000
 
 def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -> List[dict]:
     title = raw_title.strip()
@@ -29,7 +33,7 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
                     ]
                 })
         if acad_conditions:
-            docs = list(db.legal_knowledge_base.find({"$and": acad_conditions}, projection).limit(100))
+            docs = list(db.legal_knowledge_base.find({"$and": acad_conditions}, projection).limit(MAX_STATUTE_ARTICLES))
             if docs: return docs
 
         docs = list(db.legal_knowledge_base.find({
@@ -37,7 +41,7 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
                 {"source": {"$regex": "AKADEMIA|Case_Law|Udhezues", "$options": "i"}},
                 {"law_title": {"$regex": "AKADEMIA|Case_Law|Udhezues", "$options": "i"}}
             ]
-        }, projection).limit(100))
+        }, projection).limit(MAX_STATUTE_ARTICLES))
         if docs: return docs
 
     if words:
@@ -63,7 +67,7 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
                     ]
                 })
 
-        docs = list(db.legal_knowledge_base.find({"$and": word_conditions}, projection).limit(100))
+        docs = list(db.legal_knowledge_base.find({"$and": word_conditions}, projection).limit(MAX_STATUTE_ARTICLES))
         if docs: return docs
 
     clean_escaped = re.escape(title)
@@ -72,7 +76,7 @@ def find_documents_by_title(db, raw_title: str, fields: Optional[dict] = None) -
             {"law_title": {"$regex": clean_escaped, "$options": "i"}},
             {"source": {"$regex": clean_escaped, "$options": "i"}}
         ]
-    }, projection).limit(100))
+    }, projection).limit(MAX_STATUTE_ARTICLES))
     if docs: return docs
 
     return []
@@ -118,7 +122,7 @@ def find_law_documents(db, raw_law_title: str, raw_article_num: str) -> Tuple[Li
                     {"article_number": {"$regex": f"{case_num}\\b", "$options": "i"}}
                 ],
                 "source": {"$regex": "AKADEMIA|Case_Law", "$options": "i"}
-            }).sort("chunk_index", 1).limit(10))
+            }).sort("chunk_index", 1).limit(20))
 
             if case_docs:
                 return case_docs, None, {
