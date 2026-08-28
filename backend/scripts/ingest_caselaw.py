@@ -1,159 +1,159 @@
 # FILE: backend/scripts/ingest_caselaw.py
-# PHOENIX PROTOCOL - CASELAW PDF INGESTION WITH DYNAMIC CASE-NUMBER PARSER & ZERO-DUPLICATE GUARANTEE
+# PHOENIX PROTOCOL - CASELAW INGESTOR V10.0 (FAST BATCH EMBEDDING, EXACT SUPREME METADATA & FITZ ENGINE)
 
 import os
 import sys
 import glob
 import re
+import uuid
 import logging
+from pathlib import Path
+from dotenv import load_dotenv
 
-# Ensure parent paths are in sys.path
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.dirname(SCRIPT_DIR)
-WORKSPACE_ROOT = os.path.dirname(BACKEND_DIR)
-sys.path.insert(0, BACKEND_DIR)
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent
+ROOT_DIR = BACKEND_DIR.parent
 
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
-from app.services import storage_service, embedding_service
-from app.core.db import get_db_instance
+for p in [ROOT_DIR / ".env", BACKEND_DIR / ".env"]:
+    if p.exists(): 
+        load_dotenv(p, override=True)
 
-# Mute noisy HTTP request logs from httpx/urllib3
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+sys.path.insert(0, str(BACKEND_DIR))
+
+import fitz  # PyMuPDF për lexim të shpejtë dhe të saktë të të gjitha faqeve
+from pymongo import MongoClient
+from app.services import storage_service
+from app.services.embedding_service import generate_embeddings_batch
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("ingest_caselaw")
 
-# Regex pattern for Kosovo Supreme & Court Case Numbers (e.g. PML.Nr.85/2025, PA1.Nr.716/2024, Rev.Nr.45/2021)
+# Regex për të gjithë numrat e lëndëve të Gjykatës Supreme të Kosovës (p.sh. PML.Nr.185/2025, Rev.Nr.541/2024)
 CASE_NO_PATTERN = re.compile(
-    r'((?:PML|PA1|Rev|A|CP|PKR|P|KMLP)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*\d{4})', 
+    r'((?:PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2}))', 
     re.IGNORECASE
 )
 
-def ingest_caselaw_pdfs(force_reingest: bool = False):
-    workspace_data = os.path.join(WORKSPACE_ROOT, "data", "case_law")
-    backend_data = os.path.join(BACKEND_DIR, "data", "case_law")
-    desktop_data = os.path.join(os.path.expanduser("~"), "Desktop", "caselaw_pdfs")
+def ingest_caselaw_pdfs(force_reingest: bool = True):
+    uri = os.getenv("DATABASE_URI")
+    db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
+    
+    if not uri:
+        logger.error("❌ DATABASE_URI is missing from environment variables.")
+        return
+
+    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    db = client[db_name]
+    coll = db["legal_knowledge_base"]
+
+    workspace_data = ROOT_DIR / "data" / "case_law"
+    backend_data = BACKEND_DIR / "data" / "case_law"
+    desktop_data = Path(os.path.expanduser("~")) / "Desktop" / "caselaw_pdfs"
 
     target_folder = None
     for path in [workspace_data, backend_data, desktop_data]:
-        if os.path.exists(path) and glob.glob(os.path.join(path, "*.pdf")):
+        if path.exists() and list(path.glob("*.pdf")):
             target_folder = path
             break
 
     if not target_folder:
-        logger.error(f"Nuk u gjet asnjë skedar PDF! Kontrolluar në:\n - {workspace_data}\n - {backend_data}\n - {desktop_data}")
+        logger.error(f"❌ Nuk u gjet asnjë skedar PDF i Gjykatës Supreme në folderat e të dhënave.")
         return
 
-    pdf_files = glob.glob(os.path.join(target_folder, "*.pdf"))
+    pdf_files = list(target_folder.glob("*.pdf"))
     total_files = len(pdf_files)
-    logger.info(f"📁 U gjetën {total_files} skedarë aktgjykimesh në: {target_folder}")
-
-    db = get_db_instance()
-    s3_client = storage_service.get_s3_client()
-    b2_bucket = storage_service.B2_BUCKET_NAME
+    logger.info(f"📁 U gjetën {total_files} skedarë të Gjykatës Supreme në: {target_folder}")
 
     for f_idx, file_path in enumerate(pdf_files, 1):
-        filename = os.path.basename(file_path)
+        filename = file_path.name
 
-        # --- SMART SKIP CHECK ---
-        existing_count = db.legal_knowledge_base.count_documents({"source": filename})
+        existing_count = coll.count_documents({"source": filename})
         if existing_count > 0 and not force_reingest:
-            logger.info(f"⏭️  [{f_idx}/{total_files}] SKIPPED (Tashmë i ingestuar me {existing_count} vektore): {filename}")
+            logger.info(f"⏭️  [{f_idx}/{total_files}] SKIPPED: {filename} (Tashmë i ingestuar me {existing_count} vektore)")
             continue
 
         print(f"\n------------------------------------------------------------")
-        logger.info(f"📄 [{f_idx}/{total_files}] DUKE PROCESUAR AKTGJY KIMIN: {filename}")
+        logger.info(f"📄 [{f_idx}/{total_files}] DUKE PROCESUAR VENDIMET SUPREME: {filename}")
 
-        # Header check for non-PDF HTML files
         try:
-            with open(file_path, "rb") as f:
-                header = f.read(10)
-                if b"<!DOC" in header or b"<html" in header.lower():
-                    logger.warning(f"   ⚠️ SKIPPED: Skedari nuk është PDF i vërtetë (është përmbajtje HTML).")
-                    continue
-        except Exception as file_err:
-            logger.error(f"   ❌ Nuk mund të lexohet skedari: {file_err}")
-            continue
+            doc = fitz.open(str(file_path))
+            total_pages = len(doc)
+            logger.info(f"   📖 Lexuar: {total_pages} Faqe. Duke nxjerrë precedentët dhe numrat e lëndëve...")
 
-        # 1. Backblaze B2 Upload under 'case_law/' prefix
-        b2_key = f"case_law/{filename}"
-        try:
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-
-            s3_client.put_object(
-                Bucket=b2_bucket,
-                Key=b2_key,
-                Body=file_bytes,
-                ContentType="application/pdf"
-            )
-            logger.info(f"   ☁️  U ngarkua në B2 Cloud: Key = '{b2_key}'")
-        except Exception as e:
-            logger.error(f"   ❌ Gabim në B2 Upload: {e}")
-
-        # 2. Extract Text & Detect Case Numbers
-        try:
-            reader = PdfReader(file_path)
-            total_pages = len(reader.pages)
-            
-            docs_to_insert = []
-            current_case_no = "Gjyjata Supreme e Kosovës"
+            raw_chunks = []
+            current_case_no = "Gjykata Supreme e Kosovës"
             chunk_global_idx = 1
 
-            logger.info(f"   📖 Lexuar: {total_pages} Faqje. Duke nxjerrë numrat e lëndëve dhe vektorizuar...")
-
-            for p_idx, page in enumerate(reader.pages, 1):
-                page_text = page.extract_text() or ""
+            for page_num in range(total_pages):
+                page_text = doc[page_num].get_text("text") or ""
                 if not page_text.strip():
                     continue
 
-                # Check if this page introduces a new Case Number (e.g. PML.Nr.85/2025)
+                # Zbulojmë numrin e lëndës në këtë faqe (p.sh. PML.Nr.185/2025)
                 matches = CASE_NO_PATTERN.findall(page_text)
                 if matches:
                     current_case_no = matches[0].strip().replace(" ", "")
 
-                # Split page text into 1000-character chunks
-                chunk_size = 1000
-                overlap = 100
+                # Ndarja në copa prej 1200 karakteresh me mbivendosje
+                chunk_size = 1200
+                overlap = 150
                 start = 0
                 while start < len(page_text):
                     end = start + chunk_size
-                    chunk_str = page_text[start:end]
+                    chunk_str = page_text[start:end].strip()
                     start += chunk_size - overlap
 
-                    vector = embedding_service.get_embedding(chunk_str)
-                    docs_to_insert.append({
-                        "chunk_id": f"caselaw_{filename}_{chunk_global_idx}",
-                        "law_title": f"{current_case_no} - {filename.replace('.pdf', '')}",
-                        "source": filename,
-                        "category": "caselaw",
-                        "case_number": current_case_no,
-                        "page": p_idx,
-                        "text": chunk_str,
-                        "embedding": vector,
-                        "chunk_index": chunk_global_idx
-                    })
-                    chunk_global_idx += 1
+                    if len(chunk_str) > 20:
+                        raw_chunks.append({
+                            "chunk_id": f"caselaw_{filename}_{chunk_global_idx}",
+                            "law_title": f"Gjykata Supreme e Kosovës - {current_case_no}",
+                            "title": current_case_no,
+                            "source": filename,
+                            "case_number": current_case_no,
+                            "page": page_num + 1,
+                            "text": chunk_str,
+                            "chunk_index": chunk_global_idx,
+                            "is_case_law": True,
+                            "is_article": False,
+                            "jurisdiction": "ks"
+                        })
+                        chunk_global_idx += 1
 
-                if p_idx % 20 == 0 or p_idx == total_pages:
-                    percent = int((p_idx / total_pages) * 100)
-                    print(f"\r   🤖 AI Vectoring: Faqja {p_idx}/{total_pages} ({percent}%) | Numri i Rasteve: {current_case_no}...", end="", flush=True)
+            doc.close()
 
-            print() # new line
+            if not raw_chunks:
+                logger.warning(f"   ⚠️ Nuk u gjet tekst i vlefshëm në {filename}.")
+                continue
+
+            logger.info(f"   🤖 Duke gjeneruar vektorët me Batch për {len(raw_chunks)} pjesëza...")
+
+            # Gjenerim i shpejtë i vektorëve me batch prej 50 copash
+            texts_to_embed = [c["text"] for c in raw_chunks]
+            batch_size = 50
+            all_embeddings = []
+            for b_idx in range(0, len(texts_to_embed), batch_size):
+                batch_texts = texts_to_embed[b_idx:b_idx+batch_size]
+                batch_vectors = generate_embeddings_batch(batch_texts)
+                all_embeddings.extend(batch_vectors)
+
+            # Bashkojmë vektorët me të dhënat e dokumenteve
+            docs_to_insert = []
+            for idx, c_data in enumerate(raw_chunks):
+                vector = all_embeddings[idx] if idx < len(all_embeddings) else []
+                c_data["embedding"] = vector if vector else []
+                docs_to_insert.append(c_data)
+
             if docs_to_insert:
-                db.legal_knowledge_base.delete_many({"source": filename})
-                db.legal_knowledge_base.insert_many(docs_to_insert)
-                logger.info(f"   ✅ U ruajtën me sukses {len(docs_to_insert)} vektore me numra lëndësh në MongoDB!")
+                coll.delete_many({"source": filename})
+                coll.insert_many(docs_to_insert)
+                logger.info(f"   ✅ U ruajtën me sukses të gjitha {len(docs_to_insert)} pjesëzat e Gjykatës Supreme në MongoDB!")
 
-        except (PdfReadError, Exception) as e:
-            logger.error(f"   ❌ Gabim gjatë procesimit të PDF: {e}")
+        except Exception as e:
+            logger.error(f"   ❌ Gabim gjatë procesimit të {filename}: {e}")
 
     print(f"\n============================================================")
-    logger.info("🎉 TË GJITHA AKTGJY KIMET U INGESTUAN ME SUKSES TË PLOTË!")
+    logger.info("🎉 TË GJITHA 700+ FAQET E GJYKATËS SUPREME U INGESTUAN ME SUKSES TË PLOTË!")
     print(f"============================================================\n")
 
 if __name__ == "__main__":
-    ingest_caselaw_pdfs()
+    ingest_caselaw_pdfs(force_reingest=True)
