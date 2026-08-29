@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/pillar_1_strategy.py
-# PHOENIX PROTOCOL - PILLAR 1: 100% UNIVERSAL TIME-AWARE STRATEGY SPECIALIST (ZERO HARDCODING)
+
 
 from typing import Dict, Any
 
