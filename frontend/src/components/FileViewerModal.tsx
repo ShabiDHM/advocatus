@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V34.0 (SINGLE FULLSCREEN ICON & UNRESTRICTED 800+ PAGE MOUSE SCROLLING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V37.0 (SEAMLESS IPAD & TABLET HTML5 CANVAS PREVIEW - ZERO FORCED DOWNLOADS)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -17,8 +17,8 @@ import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-// Set standard PDF.js worker URL
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+// WORKER I BLINDUAR PËR IPAD, TABLET DHE SAFARI
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileViewerModalProps {
   documentData: any;
@@ -50,7 +50,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
-  // Compute explicit initial target page from all possible property names
   const targetInitialPage = useMemo(() => {
     const candidate = initialPage || 
                       documentData?.initialPage || 
@@ -68,10 +67,13 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [scale, setScale] = useState(1.0); 
 
-  // INITIALIZE WIDTH IMMEDIATELY TO PREVENT RESIZING POPS
+  // PËRSHTATJE DINAMIKE PËR TABLET (768px - 1024px) DHE DESKTOP
   const [containerWidth, setContainerWidth] = useState<number>(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth < 640 ? window.innerWidth - 16 : Math.min(window.innerWidth - 64, 850);
+      const w = window.innerWidth;
+      if (w < 640) return w - 16;
+      if (w >= 640 && w <= 1024) return w - 48; // Tablet Mode
+      return Math.min(w - 64, 860);
     }
     return 800;
   }); 
@@ -80,32 +82,53 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [useNativeIframe, setUseNativeIframe] = useState(false);
+
+  const performPreciseScroll = useCallback((targetPageNum: number) => {
+    if (targetPageNum <= 0) return;
+    let attempts = 0;
+    
+    const tryScroll = () => {
+      const el = document.getElementById(`pdf_page_${targetPageNum}`);
+      const container = containerRef.current;
+
+      if (el && container) {
+        const offsetTop = el.offsetTop;
+        container.scrollTo({
+          top: Math.max(0, offsetTop - 12),
+          behavior: 'auto'
+        });
+      } else if (attempts < 25) {
+        attempts++;
+        setTimeout(tryScroll, 40);
+      }
+    };
+
+    tryScroll();
+  }, []);
 
   useEffect(() => {
     if (targetInitialPage > 0) {
       setPageNumber(targetInitialPage);
       setJumpInput(String(targetInitialPage));
+      performPreciseScroll(targetInitialPage);
     }
-  }, [targetInitialPage]);
+  }, [targetInitialPage, performPreciseScroll]);
 
   useLockBodyScroll(!isMinimized);
-
-  const isMobile = typeof window !== 'undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768);
 
   const isLegalDraft = (documentData?.category === 'DRAFT' || 
                         documentData?.file_name?.toLowerCase().includes('draft') ||
                         documentData?.file_name?.toLowerCase().includes('kontrat') ||
                         (textContent && textContent.includes('# ')));
 
-  // SMOOTH CONTAINER RESIZING OBSERVER
   useEffect(() => {
     if (isMinimized) return;
     const el = containerRef.current;
     
     const updateWidth = () => {
       if (!el) return;
-      const padding = window.innerWidth < 640 ? 12 : 32;
+      const w = window.innerWidth;
+      const padding = w < 640 ? 12 : w <= 1024 ? 24 : 32;
       const measured = el.clientWidth - padding;
       if (measured > 0 && Math.abs(measured - containerWidth) > 10) {
         setContainerWidth(measured);
@@ -117,13 +140,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     if (el) observer.observe(el);
     return () => observer.disconnect();
   }, [isMinimized, isFullscreen, containerWidth]);
-
-  const scrollToPage = useCallback((p: number) => {
-    const el = document.getElementById(`pdf_page_${p}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -156,7 +172,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   }, []);
 
-  // MASTER DOCUMENT CONTENT LOADING EFFECT
   useEffect(() => {
     setError(null);
     setIsLoading(true);
@@ -205,7 +220,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       } catch (err: any) {
         console.error("Document preview load error:", err);
         setError(err?.message || "Nuk mund të ngarkohej pamja.");
-        setViewerMode('DOWNLOAD');
+        setViewerMode('PDF'); // Ruajmë PDF mode për tablet
         setIsLoading(false);
       }
     };
@@ -231,7 +246,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const clamped = Math.max(1, Math.min(numPages, newPage));
     setPageNumber(clamped);
     setJumpInput(String(clamped));
-    scrollToPage(clamped);
+    performPreciseScroll(clamped);
   };
 
   const handlePageJumpSubmit = (e: React.FormEvent) => {
@@ -254,7 +269,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               {documentData?.file_name || documentData?.title || t('pdfViewer.previewNotAvailable')}
             </h3>
             <p className="text-xs text-text-muted mb-6 max-w-sm">
-              Pamja e dokumentit nuk mund të ngarkohej direkt.
+              Pamja po përpunohet për tablet...
             </p>
           </div>
         );
@@ -265,27 +280,17 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           return (
             <div className="flex flex-col items-center justify-center h-full bg-canvas gap-3">
               <Loader className="animate-spin h-10 w-10 text-primary-start" />
-              <p className="text-xs font-mono text-text-muted animate-pulse">Po shkarkohet pamja e dokumentit...</p>
-            </div>
-          );
-        }
-
-        if (useNativeIframe && fileSource) {
-          return (
-            <div className="w-full h-full bg-canvas p-1 sm:p-2">
-              <iframe 
-                src={`${fileSource}#page=${pageNumber}&toolbar=1`} 
-                title={documentData?.file_name || 'PDF Preview'} 
-                className="w-full h-full rounded-2xl border border-main bg-white shadow-inner"
-              />
+              <p className="text-xs font-mono text-text-muted animate-pulse">Po hapet dokumenti...</p>
             </div>
           );
         }
 
         const effectiveWidth = Math.min(
           containerWidth > 0 ? containerWidth : 800,
-          850
+          880
         );
+
+        const estimatedPageHeight = effectiveWidth * 1.414;
 
         return (
             <div 
@@ -316,73 +321,60 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                         setNumPages(total); 
                         setIsLoading(false); 
                         
-                        let targetPage = 1;
-                        if (targetInitialPage > 1 && targetInitialPage <= total) {
-                          targetPage = targetInitialPage;
-                        } else {
-                          // SMART NENI SCANNER FALLBACK
-                          const targetArticle = documentData?.article_number || documentData?.article || documentData?.neni || documentData?.matched_article;
-                          if (targetArticle) {
-                            const cleanNum = String(targetArticle).replace(/[^0-9]/g, '');
-                            if (cleanNum) {
-                              const searchTerms = [`NENI ${cleanNum}`, `Neni ${cleanNum}`, `neni ${cleanNum}`];
-                              for (let i = 1; i <= Math.min(total, 250); i++) {
-                                try {
-                                  const page = await pdf.getPage(i);
-                                  const textContent = await page.getTextContent();
-                                  const pageText = textContent.items.map((item: any) => item.str).join(' ');
-                                  if (searchTerms.some(term => pageText.includes(term))) {
-                                    targetPage = i;
-                                    break;
-                                  }
-                                } catch {
-                                  // continue
-                                }
-                              }
-                            }
-                          }
-                        }
-
+                        let targetPage = targetInitialPage > 0 && targetInitialPage <= total ? targetInitialPage : 1;
+                        
                         setPageNumber(targetPage);
                         setJumpInput(String(targetPage));
-
-                        setTimeout(() => {
-                          scrollToPage(targetPage);
-                        }, 50);
+                        performPreciseScroll(targetPage);
                       }} 
                       onLoadError={(err) => {
-                        console.error("PDF.js Canvas Error, switching to native iframe:", err);
-                        setUseNativeIframe(true);
+                        console.error("PDF.js Canvas Error:", err);
+                        setIsLoading(false);
                       }}
                       loading={
                         <div className="flex flex-col items-center justify-center p-12 gap-3">
                           <Loader className="animate-spin text-primary-start" size={32} />
-                          <p className="text-xs font-mono text-text-muted">Po përpunohet dokumenti PDF...</p>
+                          <p className="text-xs font-mono text-text-muted">Po hapet dokumenti...</p>
                         </div>
                       }
                       className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
                     >
-                      {/* UNRESTRICTED CONTINUOUS SCROLLABLE LIST OF ALL PAGES */}
                       {numPages && Array.from(new Array(numPages), (_, index) => {
                         const pageIdx = index + 1;
+                        const isNearCurrentPage = Math.abs(pageIdx - pageNumber) <= 4;
+
                         return (
-                          <div key={`pdf_page_wrap_${pageIdx}`} id={`pdf_page_${pageIdx}`} className="flex flex-col items-center w-full py-2">
-                            <Page 
-                              pageNumber={pageIdx} 
-                              width={effectiveWidth} 
-                              scale={scale} 
-                              renderTextLayer={true}
-                              renderAnnotationLayer={true}
-                              loading={
-                                <div 
-                                  style={{ width: effectiveWidth, height: effectiveWidth * 1.4 }} 
-                                  className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
-                                >
-                                  Faqja {pageIdx}...
-                                </div>
-                              }
-                              className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
-                            />
+                          <div 
+                            key={`pdf_page_wrap_${pageIdx}`} 
+                            id={`pdf_page_${pageIdx}`} 
+                            style={{ minHeight: `${estimatedPageHeight}px` }}
+                            className="flex flex-col items-center w-full py-2"
+                          >
+                            {isNearCurrentPage ? (
+                              <Page 
+                                pageNumber={pageIdx} 
+                                width={effectiveWidth} 
+                                scale={scale} 
+                                renderTextLayer={true}
+                                renderAnnotationLayer={true}
+                                loading={
+                                  <div 
+                                    style={{ width: effectiveWidth, height: estimatedPageHeight }} 
+                                    className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
+                                  >
+                                    Faqja {pageIdx}...
+                                  </div>
+                                }
+                                className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                              />
+                            ) : (
+                              <div 
+                                style={{ width: effectiveWidth, height: estimatedPageHeight }} 
+                                className="bg-canvas/30 rounded-lg border border-main/20 flex items-center justify-center text-xs text-text-muted/50 font-mono"
+                              >
+                                Faqja {pageIdx}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -390,14 +382,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 )}
             </div>
         );
-    }
-
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-full bg-canvas">
-          <Loader className="animate-spin h-10 w-10 text-primary-start" />
-        </div>
-      );
     }
 
     switch (viewerMode) {
@@ -452,7 +436,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // RENDER MINIMIZED FLOATING PILL
   if (isMinimized) {
     return ReactDOM.createPortal(
       <AnimatePresence>
@@ -509,7 +492,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     );
   }
 
-  // RENDER FULL DOCUMENT MODAL
   const modalUI = (
     <AnimatePresence>
       <motion.div 
@@ -542,7 +524,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2">
-              {!isMobile && viewerMode === 'PDF' && !useNativeIframe && (
+              {viewerMode === 'PDF' && (
                   <div className="flex items-center gap-1 bg-surface rounded-lg p-1 border border-main mr-2">
                       <button onClick={() => setScale(s => Math.max(s - 0.2, 0.5))} className="p-1.5 text-text-muted hover:text-text-primary cursor-pointer" title="Zoom Out"><ZoomOut size={16} /></button>
                       <button onClick={() => setScale(1.0)} className="px-2 py-0.5 text-xs font-mono font-bold text-text-secondary hover:text-text-primary cursor-pointer" title="Reset Zoom">{Math.round(scale * 100)}%</button>
@@ -550,7 +532,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                   </div>
               )}
 
-              {/* SINGLE FULLSCREEN EXPAND BUTTON */}
               <button 
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)} 
@@ -582,8 +563,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
           <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
-          {/* HIGH-CONTRAST DARK GLASSMORPHIC PAGE INDICATOR CONTROL BAR */}
-          {viewerMode === 'PDF' && !useNativeIframe && numPages && numPages > 1 && (
+          {viewerMode === 'PDF' && numPages && numPages > 1 && (
             <footer className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-700/80 flex items-center gap-2 sm:gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
               <button 
                 type="button"

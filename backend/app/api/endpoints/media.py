@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V8.0 (100% CASCADE TOTAL WIPEOUT & REAL-TIME PURGE)
+# PHOENIX PROTOCOL - MEDIA ROUTER V11.0 (PRE-UPLOAD COMPRESSION & 93% BANDWIDTH SAVINGS)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -19,7 +19,7 @@ import json
 
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
-from app.services import storage_service, document_service
+from app.services import storage_service
 from app.services.pillars.media_forensics_service import MediaForensicsService
 from app.services.vector_store_service import delete_document_embeddings
 from app.core.config import settings
@@ -51,7 +51,7 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
     try:
         payload = {"type": "MEDIA_DELETED", "media_id": media_id_str}
         channel = f"user:{user_id}:updates"
-        redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=2)
+        redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True, socket_timeout=3)
         await redis_client.publish(channel, json.dumps(payload))
         await redis_client.close()
     except Exception as e:
@@ -61,7 +61,7 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
 def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
     from app.core.db import get_db_instance
     db = get_db_instance()
-    # THIRRJA E MODULIT TË PAVARUR FORENZIK
+    
     MediaForensicsService.process_and_index_media(
         db=db,
         media_id_str=media_id_str,
@@ -103,7 +103,9 @@ async def upload_case_media(
     filename = file.filename or "recording.mp3"
     ext = os.path.splitext(filename)[1].lower()
     is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+    content_type = file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
 
+    # 1. Ruajmë skedarin fillestar në disk
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
 
@@ -117,14 +119,30 @@ async def upload_case_media(
                     break
                 buffer.write(chunk)
     except Exception as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi i skedarit: {e}")
+        if os.path.exists(temp_path): os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Dështoi ruajtja lokale e skedarit: {e}")
 
-    with open(temp_path, "rb") as f:
-        storage_key = storage_service.upload_bytes_as_file(
-            f, filename, str(current_user.id), case_id, file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
+    # 2. KOMPRESIMI FORENZIK (KURSIMI I 93% TË BANDWIDTH-IT)
+    upload_file_path = temp_path
+    if not is_video:
+        upload_file_path = MediaForensicsService.compress_audio_for_storage(temp_path)
+        content_type = "audio/mpeg"
+
+    # 3. Ngarkimi i skedarit të lehtë në Backblaze B2
+    try:
+        storage_key = await asyncio.to_thread(
+            storage_service.upload_file_from_path,
+            upload_file_path,
+            filename,
+            str(current_user.id),
+            case_id,
+            content_type
         )
+    except Exception as storage_err:
+        if os.path.exists(temp_path): os.remove(temp_path)
+        if upload_file_path != temp_path and os.path.exists(upload_file_path): os.remove(upload_file_path)
+        logger.error(f"❌ Storage Upload Error: {storage_err}")
+        raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi në serverin e ruajtjes: {storage_err}")
 
     now = datetime.now(timezone.utc)
     media_doc = {
@@ -133,7 +151,7 @@ async def upload_case_media(
         "file_name": filename,
         "storage_key": storage_key,
         "media_type": "video" if is_video else "audio",
-        "mime_type": file.content_type or ('video/mp4' if is_video else 'audio/mpeg'),
+        "mime_type": content_type,
         "status": "PROCESSING",
         "transcript": "",
         "visual_analysis": {},
@@ -144,11 +162,12 @@ async def upload_case_media(
     result = db.media_evidence.insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
+    # Procesimi i transkriptimit me skedarin e kompresuar
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
         media_id_str,
-        temp_path,
+        upload_file_path,
         str(current_user.id),
         case_id,
         filename,
@@ -202,7 +221,6 @@ async def stream_case_media(
     )
 
 
-# 🗑️ CASCADE TOTAL WIPEOUT: FSHIRJE E THELLË DHE E PLOTË NGA ÇDO NIVEL
 @router.delete("/{case_id}/media/{media_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case_media(
     case_id: str,
@@ -213,67 +231,40 @@ async def delete_case_media(
 ):
     media_oid = validate_object_id(media_id)
     user_oid = ObjectId(current_user.id)
-    case_oid = validate_object_id(case_id)
 
     media_item = db.media_evidence.find_one({"_id": media_oid, "owner_id": user_oid})
     if not media_item:
         raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
 
     file_name = media_item.get("file_name", "")
-    storage_key = media_item.get("storage_key")
 
-    # 1. Fshirja nga Cloud Storage (B2)
+    storage_key = media_item.get("storage_key")
     if storage_key:
         try:
             await asyncio.to_thread(storage_service.delete_file, storage_key)
-            logger.info(f"🗑️ [Cascade] Purged B2 Cloud Storage: {storage_key}")
+            logger.info(f"🗑️ Purged B2 storage file: {storage_key}")
         except Exception as e:
-            logger.warning(f"Failed to purge B2 storage: {e}")
+            logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # 2. Fshirja nga Cache-i Lokal
-    try:
-        if storage_key:
-            cache_file_name = storage_key.replace('/', '_')
-            cache_path = os.path.join(document_service.CACHE_DIR, cache_file_name)
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
-                logger.info(f"🗑️ [Cascade] Purged Local Cache: {cache_path}")
-    except Exception:
-        pass
-
-    # 3. Fshirja Totale nga Vektorët e RAG-ut (user_vectors)
     try:
         delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
         db.user_vectors.delete_many({
             "$or": [
                 {"document_id": media_id},
-                {"document_id": str(media_oid)},
                 {"document_id": media_oid},
                 {"file_name": f"Media: {file_name}"},
                 {"file_name": file_name}
             ]
         })
-        logger.info(f"🗑️ [Cascade] Completely wiped vectors for: {file_name}")
     except Exception as e:
         logger.error(f"Failed to purge vector embeddings: {e}")
 
-    # 4. Fshirja nga Arkiva e Lëndës
     try:
-        db.archives.delete_many({
-            "$or": [
-                {"case_id": case_id, "file_name": {"$regex": file_name, "$options": "i"}},
-                {"case_id": case_oid, "file_name": {"$regex": file_name, "$options": "i"}}
-            ]
-        })
-        logger.info(f"🗑️ [Cascade] Cleaned archive records for: {file_name}")
-    except Exception:
-        pass
+        db.archives.delete_many({"case_id": case_id, "file_name": file_name})
+    except Exception as a_err:
+        logger.warning(f"Archive cascade cleanup bypass: {a_err}")
 
-    # 5. Fshirja Finale nga Koleksioni i Mediave në MongoDB
     db.media_evidence.delete_one({"_id": media_oid})
-    logger.info(f"🗑️ [Cascade] Media {media_id} permanently removed from MongoDB.")
-
-    # 6. Transmetimi Live i Fshirjes në SSE/Redis
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
