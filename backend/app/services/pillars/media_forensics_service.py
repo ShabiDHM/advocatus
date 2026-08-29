@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/media_forensics_service.py
-# PHOENIX PROTOCOL - UNBREAKABLE LONG-AUDIO CHUNKING & VERBATIM TRANSCRIPTION ENGINE V16.0
+# PHOENIX PROTOCOL - STRICT ALBANIAN TRANSCRIPTION & CODE-SWITCHING ENGINE V17.0
 
 import os
 import re
@@ -26,18 +26,20 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
 WHISPER_FALLBACK_MODEL = "openai/whisper-1"
 
-WHISPER_INITIAL_PROMPT = (
-    "Transkriptim forenzik fjalë-për-fjalë (verbatim) në gjuhën shqipe dhe anglishte bisedore: "
-    "bisedë direkte, dialog, fjalët e sakta të folësve, 'babi', 'mami', 'boring', 'stres'."
+# PROMPT-I I FORCUAR NË GJUHËN SHQIPE
+WHISPER_ALBANIAN_PROMPT = (
+    "Transkriptim në gjuhën shqipe: bisedë direkte, 'Qysh i ke thonë?', 'musafir', "
+    "'babi', 'mami', 'shkollë', 'angry issues', 'pretend', 'boring', 'stres'."
 )
 
 class MediaForensicsService:
     """
-    Modul i Pavarur Ekskluziv për PROVAT AUDIO DHE VIDEO TË GJATA:
-    - Mbështet skedarë të pakufizuar në kohë (10 min deri 3+ orë) përmes Auto-Chunking
-    - Kompresim 32kbps me FFmpeg për reduktimin 15x të madhësisë
-    - 100% Verbatim (Fjalë për Fjalë) me shënues kohe të pandërprerë [MM:SS - MM:SS]
-    - Indeksim i plotë në RAG (user_vectors) si provë materiale e pakontestueshme
+    Modul i Pavarur Ekskluziv për PROVAT AUDIO DHE VIDEO:
+    - Transkriptim 100% në gjuhën shqipe me parameter të detyruar language='sq'
+    - Ruajtja e fjalëve origjinale shqipe dhe termave të fëmijës në anglisht pa përkthim
+    - Auto-Chunking për skedarë të gjatë dhe kompresim 32kbps
+    - Shënues kohe ekzaktë [MM:SS - MM:SS]
+    - Indeksim në RAG si provë materiale gjyqësore
     """
 
     @staticmethod
@@ -52,7 +54,7 @@ class MediaForensicsService:
 
     @classmethod
     def convert_and_compress_audio(cls, input_path: str) -> str:
-        """Kompreson audion në 16,000Hz Mono MP3 me 32kbps (redukton madhësinë 15 herë pa humbur fjalët)."""
+        """Kompreson audion në 16,000Hz Mono MP3 me 32kbps me FFmpeg."""
         output_mp3 = f"{input_path}_compressed.mp3"
         try:
             cmd = [
@@ -73,7 +75,6 @@ class MediaForensicsService:
 
     @classmethod
     def get_audio_duration_seconds(cls, file_path: str) -> float:
-        """Merr kohëzgjatjen ekzakte të skedarit në sekonda me ffprobe."""
         try:
             cmd = [
                 "ffprobe", "-v", "error",
@@ -90,7 +91,6 @@ class MediaForensicsService:
 
     @classmethod
     def split_audio_into_chunks(cls, file_path: str, segment_seconds: int = 600) -> List[Tuple[str, float]]:
-        """Ndan audion e gjatë në pjesë 10-minutëshe për të mos u bllokuar kurrë nga limiti 25MB."""
         duration = cls.get_audio_duration_seconds(file_path)
         if duration <= segment_seconds:
             return [(file_path, 0.0)]
@@ -122,14 +122,14 @@ class MediaForensicsService:
             return raw_segments_text
 
         system_prompt = """
-        Ti je një Procesmbajtës Zyrtar i Gjykatës.
+        Ti je një Procesmbajtës Zyrtar i Gjykatës në Kosovë.
         DETYRA JOTE: Ky është një transkript audio me sekonda [MM:SS - MM:SS].
         
         RREGULLAT E HEKURTA TË PROCESVERBALIT:
-        1. RUAJ 100% FJALËT EKZAKTE QË JANË FOLUR. Ndalohet kategorikisht të ndryshosh kuptimin apo të parafrazosh.
-        2. RUAJ TË GJITHA SEKONDAT [MM:SS - MM:SS] ekzakte në fillim të çdo rreshti.
-        3. RUAJ fjalët e folura në anglisht pa i përkthyer.
-        4. FSHIJ fjalët e huaja halucinative të zhurmës së sfondit (p.sh. 'Hvala').
+        1. GJUHA KRYESORE ËSHTË SHQIP. RUAJ 100% fjalët ekzakte shqipe që janë folur.
+        2. RUAJ fjalët bisedore në anglisht të përdorura nga fëmija (p.sh. 'angry issues', 'boring', 'pretend') pa i përkthyer dhe pa i hequr.
+        3. RUAJ TË GJITHA SEKONDAT [MM:SS - MM:SS] ekzakte në fillim të çdo rreshti.
+        4. FSHIJ fjalët e huaja sllave/turke të zhurmës së sfondit (p.sh. 'Hvala').
         5. NDALOHET KATEGORIKISHT të shtosh analiza, komente apo mendime të tuat! Kthe VETËM dialogun fjalë për fjalë.
         """
         try:
@@ -150,10 +150,12 @@ class MediaForensicsService:
         response_data = None
         try:
             with open(audio_path, "rb") as af:
+                # E DETYROJMË NË GJUHËN SHQIPE ME LANGUAGE="sq"
                 response_data = client.audio.transcriptions.create(
                     model=WHISPER_TURBO_MODEL,
                     file=af,
-                    prompt=WHISPER_INITIAL_PROMPT,
+                    language="sq",
+                    prompt=WHISPER_ALBANIAN_PROMPT,
                     response_format="verbose_json"
                 )
         except Exception as e:
@@ -162,7 +164,8 @@ class MediaForensicsService:
                 response_data = client.audio.transcriptions.create(
                     model=WHISPER_FALLBACK_MODEL,
                     file=af,
-                    prompt=WHISPER_INITIAL_PROMPT,
+                    language="sq",
+                    prompt=WHISPER_ALBANIAN_PROMPT,
                     response_format="verbose_json"
                 )
 
@@ -226,7 +229,7 @@ class MediaForensicsService:
     ):
         media_oid = ObjectId(media_id_str)
         try:
-            logger.info(f"🎙️ [Media Forensics] Duke transkriptuar skedarin: {file_name}")
+            logger.info(f"🎙️ [Media Forensics] Duke transkriptuar në Shqip (Verbatim): {file_name}")
             transcript = cls.transcribe_audio_file(file_path)
 
             visual_data = {}
@@ -251,7 +254,7 @@ class MediaForensicsService:
                 }}
             )
 
-            combined_rag_text = f"PROVA MATERIALE AUDIO/VIDEO ({file_name}):\n\nTRANSKRIPTI ZYRTAR ME KOHË:\n{transcript}\n"
+            combined_rag_text = f"PROVA MATERIALE AUDIO/VIDEO ({file_name}):\n\nTRANSKRIPTI ZYRTAR VERBATIM NË SHQIP ME KOHË:\n{transcript}\n"
 
             create_and_store_embeddings_from_chunks(
                 user_id=user_id_str,
@@ -261,7 +264,7 @@ class MediaForensicsService:
                 chunks=[combined_rag_text],
                 metadatas=[{'file_name': f"Media: {file_name}", 'category': 'audio_evidence'}]
             )
-            logger.info(f"✅ [Media Forensics] Transkripti verbatim u indeksua në RAG për {file_name}!")
+            logger.info(f"✅ [Media Forensics] Transkripti shqip u indeksua në RAG për {file_name}!")
 
         except Exception as e:
             logger.error(f"❌ [Media Forensics] Dështoi: {e}")
