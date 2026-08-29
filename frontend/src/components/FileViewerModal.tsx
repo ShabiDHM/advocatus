@@ -1,11 +1,11 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V40.0 (CLEAN 0-WARNING TYPESCRIPT & LIGHTNING FAST PDF STREAMING)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V41.0 (DIRECT DETERMINISTIC PAGE RENDER - ZERO BLANK SCREENS & ZERO PAGE-1 JUMPS)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService } from '../services/api';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
     ZoomIn, ZoomOut, Maximize2, Minus, FileText, Table as TableIcon
@@ -49,6 +49,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
+  // Llogaritja e saktë e faqes fillestare
   const targetInitialPage = useMemo(() => {
     const candidate = initialPage || 
                       documentData?.initialPage || 
@@ -74,30 +75,17 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     return Math.min(w - 96, 850);
   }, []);
 
-  const estimatedPageHeight = useMemo(() => effectiveWidth * 1.414 + 16, [effectiveWidth]);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('PDF');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const jumpDirectToPage = useCallback((targetPageNum: number) => {
-    if (targetPageNum <= 0) return;
-    setPageNumber(targetPageNum);
-    setJumpInput(String(targetPageNum));
-
-    const container = containerRef.current;
-    if (container) {
-      const scrollPos = (targetPageNum - 1) * estimatedPageHeight;
-      container.scrollTop = Math.max(0, scrollPos);
-    }
-  }, [estimatedPageHeight]);
-
   useEffect(() => {
     if (targetInitialPage > 0) {
-      jumpDirectToPage(targetInitialPage);
+      setPageNumber(targetInitialPage);
+      setJumpInput(String(targetInitialPage));
     }
-  }, [targetInitialPage, jumpDirectToPage]);
+  }, [targetInitialPage]);
 
   useLockBodyScroll(!isMinimized);
 
@@ -152,10 +140,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     const loadData = async () => {
       try {
         if (activeUrl && targetMode === 'PDF') {
-          setFileSource({
-            url: activeUrl,
-            withCredentials: true
-          });
+          setFileSource({ url: activeUrl, withCredentials: true });
           setIsLoading(false);
           return;
         }
@@ -218,7 +203,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const handlePageChange = (newPage: number) => {
     if (!numPages) return;
     const clamped = Math.max(1, Math.min(numPages, newPage));
-    jumpDirectToPage(clamped);
+    setPageNumber(clamped);
+    setJumpInput(String(clamped));
   };
 
   const handlePageJumpSubmit = (e: React.FormEvent) => {
@@ -232,16 +218,15 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  const handleScrollUpdate = useCallback(() => {
-    const container = containerRef.current;
-    if (!container || !estimatedPageHeight) return;
-    const currentScroll = container.scrollTop;
-    const computedPage = Math.floor(currentScroll / estimatedPageHeight) + 1;
-    if (computedPage > 0 && (!numPages || computedPage <= numPages) && computedPage !== pageNumber) {
-      setPageNumber(computedPage);
-      setJumpInput(String(computedPage));
+  // Navigimi me rrotën e miut (Mouse Wheel) për ndërrimin e faqeve
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!numPages || numPages <= 1) return;
+    if (e.deltaY > 50 && pageNumber < numPages) {
+      handlePageChange(pageNumber + 1);
+    } else if (e.deltaY < -50 && pageNumber > 1) {
+      handlePageChange(pageNumber - 1);
     }
-  }, [estimatedPageHeight, numPages, pageNumber]);
+  };
 
   const renderContent = () => {
     if (viewerMode === 'ERROR') {
@@ -270,9 +255,9 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     if (viewerMode === 'PDF') {
       return (
         <div 
-          className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-4 sm:pt-6 pb-36 custom-finance-scroll" 
+          className="flex flex-col items-center justify-start w-full h-full bg-canvas/20 overflow-y-auto pt-4 sm:pt-6 pb-28 custom-finance-scroll" 
           ref={containerRef}
-          onScroll={handleScrollUpdate}
+          onWheel={handleWheel}
         >
           <style>{`
             .react-pdf__Page__textLayer {
@@ -290,6 +275,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               margin: 0 auto !important;
             }
           `}</style>
+
           {fileSource && (
             <PdfDocument 
               file={fileSource} 
@@ -299,7 +285,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
                 setIsLoading(false); 
                 
                 let targetPage = targetInitialPage > 0 && targetInitialPage <= total ? targetInitialPage : 1;
-                jumpDirectToPage(targetPage);
+                setPageNumber(targetPage);
+                setJumpInput(String(targetPage));
               }} 
               onLoadError={(err) => {
                 console.error("PDF.js Stream Error:", err);
@@ -315,45 +302,24 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               }
               className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
             >
-              {numPages && Array.from(new Array(numPages), (_, index) => {
-                const pageIdx = index + 1;
-                const isNearCurrentPage = Math.abs(pageIdx - pageNumber) <= 2;
-
-                return (
-                  <div 
-                    key={`pdf_page_wrap_${pageIdx}`} 
-                    id={`pdf_page_${pageIdx}`} 
-                    style={{ height: `${estimatedPageHeight}px` }}
-                    className="flex flex-col items-center w-full py-2 shrink-0"
-                  >
-                    {isNearCurrentPage ? (
-                      <Page 
-                        pageNumber={pageIdx} 
-                        width={effectiveWidth} 
-                        scale={scale} 
-                        renderTextLayer={true}
-                        renderAnnotationLayer={true}
-                        loading={
-                          <div 
-                            style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
-                            className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
-                          >
-                            Duke vizatuar faqen {pageIdx}...
-                          </div>
-                        }
-                        className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
-                      />
-                    ) : (
-                      <div 
-                        style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
-                        className="bg-canvas/40 rounded-lg border border-main/20 flex items-center justify-center text-xs text-text-muted/40 font-mono"
-                      >
-                        Faqja {pageIdx}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {/* VIZATIM I DREJTPËRDREJTË DHE I PASTËR I FAQES SË KËRKUAR */}
+              <div className="shadow-2xl rounded-lg overflow-hidden border border-main bg-white text-left max-w-full my-2">
+                <Page 
+                  pageNumber={pageNumber} 
+                  width={effectiveWidth} 
+                  scale={scale} 
+                  renderTextLayer={true}
+                  renderAnnotationLayer={true}
+                  loading={
+                    <div 
+                      style={{ width: effectiveWidth, height: effectiveWidth * 1.414 }} 
+                      className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
+                    >
+                      Duke vizatuar faqen {pageNumber}...
+                    </div>
+                  }
+                />
+              </div>
             </PdfDocument>
           )}
         </div>
@@ -415,10 +381,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   if (isMinimized) {
     return ReactDOM.createPortal(
       <AnimatePresence>
-        <motion.div 
-          initial={{ opacity: 0, y: 30, scale: 0.9 }} 
-          animate={{ opacity: 1, y: 0, scale: 1 }} 
-          exit={{ opacity: 0, y: 30, scale: 0.9 }} 
+        <div 
           className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl text-white max-w-sm sm:max-w-md cursor-pointer hover:border-sky-500/50 hover:shadow-sky-500/10 transition-all group"
           onClick={() => setIsMinimized(false)}
         >
@@ -461,7 +424,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <X size={16} />
             </button>
           </div>
-        </motion.div>
+        </div>
       </AnimatePresence>,
       document.body
     );
@@ -528,6 +491,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
         <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
+        {/* SHIRITI KONTROLLUES I FAQEVE NË FUND */}
         {viewerMode === 'PDF' && numPages && numPages > 1 && (
           <footer className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-700/80 flex items-center gap-2 sm:gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
             <button 
