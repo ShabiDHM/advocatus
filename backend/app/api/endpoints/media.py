@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA EVIDENCE ROUTER V6.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
+# PHOENIX PROTOCOL - MEDIA ROUTER V7.0 (DELEGATED TO ISOLATED MEDIA_FORENSICS_SERVICE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -19,9 +19,9 @@ import json
 
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
-from app.services import storage_service, transcription_service
-from app.services.video_forensic_service import video_forensic_service
-from app.services.vector_store_service import create_and_store_embeddings_from_chunks, delete_document_embeddings
+from app.services import storage_service
+from app.services.pillars.media_forensics_service import MediaForensicsService
+from app.services.vector_store_service import delete_document_embeddings
 from app.core.config import settings
 
 router = APIRouter(tags=["Media Evidence"])
@@ -61,61 +61,16 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
 def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
     from app.core.db import get_db_instance
     db = get_db_instance()
-    media_oid = ObjectId(media_id_str)
-
-    try:
-        logger.info(f"🎙️ [Media] Starting forensic audio transcription for: {file_name}")
-        transcript = transcription_service.transcribe_media_file(file_path)
-
-        visual_data = {}
-        if is_video:
-            logger.info(f"📹 [Media Vision] Starting Video Forensic AI Analysis for: {file_name}")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                visual_data = loop.run_until_complete(
-                    video_forensic_service.analyze_video_evidence_async(file_path, file_name)
-                )
-            finally:
-                loop.close()
-
-        update_fields = {
-            "transcript": transcript,
-            "visual_analysis": visual_data,
-            "status": "READY",
-            "updated_at": datetime.now(timezone.utc)
-        }
-        db.media_evidence.update_one({"_id": media_oid}, {"$set": update_fields})
-        logger.info(f"✅ [Media] Audio & Visual analysis successfully saved for: {file_name}")
-
-        combined_rag_text = f"PROVA AUDIO/VIDEO: {file_name}\n\nTRANSKRIPTI I BISEDËS:\n{transcript}\n"
-        if visual_data and visual_data.get("video_forensic_log"):
-            combined_rag_text += "\nDITARI I FAKTEVE VIZUALE NGA VIDEOJA:\n"
-            for log in visual_data["video_forensic_log"]:
-                combined_rag_text += f"- [{log.get('timestamp_video', '00:00')}]: {log.get('visual_evidence', '')} (Vlera: {log.get('evidentiary_value', '')})\n"
-
-        create_and_store_embeddings_from_chunks(
-            user_id=user_id_str,
-            document_id=media_id_str,
-            case_id=case_id_str,
-            file_name=f"Media: {file_name}",
-            chunks=[combined_rag_text],
-            metadatas=[{'file_name': f"Media: {file_name}"}]
-        )
-        logger.info(f"🧠 [Media] Evidence successfully indexed for Chat & Strategy RAG!")
-
-    except Exception as e:
-        logger.error(f"❌ [Media] Analysis failed for {file_name}: {e}")
-        db.media_evidence.update_one(
-            {"_id": media_oid},
-            {"$set": {"status": "FAILED", "transcript": f"Dështoi analiza: {str(e)}"}}
-        )
-    finally:
-        if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception:
-                pass
+    # THIRRJA E MODULIT TË PAVARUR FORENZIK
+    MediaForensicsService.process_and_index_media(
+        db=db,
+        media_id_str=media_id_str,
+        file_path=file_path,
+        user_id_str=user_id_str,
+        case_id_str=case_id_str,
+        file_name=file_name,
+        is_video=is_video
+    )
 
 
 @router.get("/{case_id}/media", response_model=List[Dict[str, Any]])
@@ -284,11 +239,6 @@ async def delete_case_media(
         })
     except Exception as e:
         logger.error(f"Failed to purge vector embeddings: {e}")
-
-    try:
-        db.archives.delete_many({"case_id": case_id, "file_name": file_name})
-    except Exception as a_err:
-        logger.warning(f"Archive cascade cleanup bypass: {a_err}")
 
     db.media_evidence.delete_one({"_id": media_oid})
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)

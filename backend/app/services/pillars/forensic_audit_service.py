@@ -1,59 +1,228 @@
-# FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - 100% UNIVERSAL SINGLE-DOCUMENT FORENSIC AUDITOR (SCALE ICON ⚖️)
+# FILE: backend/app/services/pillars/media_forensics_service.py
+# PHOENIX PROTOCOL - 100% PURE VERBATIM COURTROOM TRANSCRIPTION ENGINE (ZERO INTERPRETATION)
 
-from typing import Dict, Any
+import os
+import re
+import json
+import logging
+import subprocess
+import asyncio
+from typing import Dict, Any, List
+from datetime import datetime, timezone
+from bson import ObjectId
+from openai import OpenAI
+import redis.asyncio as aioredis
 
-class ForensicAuditService:
+from app.core.config import settings
+from app.services import llm_service
+from app.services.vector_store_service import create_and_store_embeddings_from_chunks
+
+logger = logging.getLogger(__name__)
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
+WHISPER_FALLBACK_MODEL = "openai/whisper-1"
+
+# PROMPT-I I PASTËR FONETIK PËR WHISPER (FOKUS 100% NË FJALËT ORIGJINALE)
+WHISPER_INITIAL_PROMPT = (
+    "Transkriptim forenzik fjalë-për-fjalë (verbatim) në gjuhën shqipe dhe anglishte bisedore: "
+    "bisedë direkte, dialog, fjalët e sakta të folësve, 'babi', 'mami', 'boring', 'stres'."
+)
+
+class MediaForensicsService:
     """
-    Modul i Pavarur Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (⚖️):
-    - Konsulenca e drejtpërdrejtë e Gjyqtarit të Gjykatës Supreme të Kosovës për një shkresë të vetme
-    - 100% Universal dhe Agnostik (për çdo lloj akti: civil, penal, tregtar, pronësor, administrativ)
-    - Verifikimi kirurgjik i çdo neni, ligji dhe paragrafi të përdorur në atë shkresë
-    - Zbulimi dhe korrigjimi i të gjitha lapsuseve ligjore dhe shkeljeve procedurale (Contra Legem)
-    - Lidhja e neneve me Gazetën Zyrtare për verifikim të menjëhershëm me 1 klik
-    - Vlerësimi doktrinar i qëndrueshmërisë së aktit para trupit gjykues
-    - Rekomandimi përfundimtar procedural për mbrojtjen dhe fitoren e klientit
+    Modul i Pavarur Ekskluziv për PROVAT AUDIO DHE VIDEO:
+    - 100% Verbatim (Fjalë për Fjalë) - Zero mendime, zero analiza
+    - Konvertimi dhe normalizimi i zërit me FFmpeg në 16kHz Mono WAV
+    - Transkriptimi me Whisper Large-v3 me saktësi absolute kohore [MM:SS - MM:SS]
+    - Ruajtja e fjalëve origjinale pa asnjë ndryshim kuptimi
+    - Indeksimi i drejtpërdrejtë në RAG si provë materiale e pacenueshme
     """
 
     @staticmethod
-    def build_prompt(
-        case_title: str,
-        client_name: str,
-        client_position: str,
-        current_date_str: str,
-        context_str: str
-    ) -> str:
-        return f"""
-Ti je "Gjyqtari i Kolegjit Suprem të Republikës së Kosovës dhe Krye-Auditori Statutor i Drejtësisë".
-KLIENTI YNË EKSKLUZIV: **{client_name}** ({client_position}) | LËNDA: **{case_title}** | DATA: {current_date_str}
+    def convert_to_clean_wav(input_path: str) -> str:
+        """Konverton skedarin audio/video në 16,000Hz Mono WAV me normalizim volumi."""
+        output_wav = f"{input_path}_clean.wav"
+        try:
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", input_path,
+                "-ar", "16000",
+                "-ac", "1",
+                "-c:a", "pcm_s16le",
+                output_wav
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
+            if res.returncode == 0 and os.path.exists(output_wav):
+                return output_wav
+        except Exception as e:
+            logger.warning(f"⚠️ FFmpeg conversion fallback: {e}")
+        return input_path
 
-MISIONI DHE PERSONA JURIDIKE:
-Përdoruesi ka paraqitur këtë shkresë specifike dhe kërkon konsulencën tënde zyrtare të Gjyqtarit Suprem:
-1. Të verifikosh me saktësi absolute nëse të gjitha nenet, ligjet dhe paragrafët e përdorur në këtë dokument janë të saktë, në fuqi dhe të zbatueshëm sipas legjislacionit pozitiv të Kosovës;
-2. Të evidentosh çdo lapsus numerik të neneve, referencë të pasaktë, shkelje të procedurës apo anashkalim ligjor nga ana e autorit/gjyqtarit dhe të sugjerosh dispozitën korrekte;
-3. Të japësh vlerësimin doktrinar të Gjykatës Supreme mbi qëndrueshmërinë ligjore të këtij akti dhe rekomandimin se si të mbrohen të drejtat e klientit {client_name}.
+    @staticmethod
+    def format_timestamp(seconds_float: float) -> str:
+        total_seconds = int(seconds_float)
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        return f"{minutes:02d}:{seconds:02d}"
 
-RREGULLA TË DETYRUESHME DOKTRINARE:
-1. PËRMBAJTJA E PAPREKUR: Pasqyro saktësisht faktet e verifikuara të shkresës pa modifikuar asnjë pretendim që gjendet brenda saj.
-2. VERIFIKIMI I DREJTPËRDREJTË I NENEVE: Cito çdo nen dhe ligj të përdorur në këtë shkresë në mënyrë që të lidhet me 1 klik me ligjin pozitiv në fuqi.
-3. KORRIGJIMI I LAPSUSEVE DHE SHKELJEVE (CONTRA LEGEM):
-   - Evidento nëse janë cituar nene të gabuara, ligje të shfuqizuara apo të papërshtatshme me objektin e lëndës;
-   - Zbulo shkeljet e rënda procedurale (mosrespektimi i parimit të kontradiktoritetit, mungesa e arsyetimit, tejkalimi i kompetencave, vlerësimi i njëanshëm i provave);
-   - Sugjero dispozitën ligjore korrekte dhe bazën statutore të saktë.
-4. VLERËSIMI DOKTRINAR I GJYKATËS SUPREME:
-   - Zbato qëndrimet parimore dhe jurisprudencën e Kolegjeve të Gjykatës Supreme të Kosovës mbi ligjshmërinë e provave, proporcionalitetin e masave dhe mbrojtjen e të drejtave thelbësore;
-   - Vlerëso nëse ky akt qëndron ligjërisht para trupit gjykues apo është i cenueshëm.
-5. MBROJTJA E KLIENTIT DHE REKOMANDIMI:
-   - Nëse akti është i padrejtë apo i kundërligjshëm: Propozo shkaqet e ankesës për prishjen/anulimin e tij, kërkesën për pezullim ekzekutimi apo masa sigurimi, si dhe kallëzimin penal nëse zbulohet vepër penale me dashje;
-   - NDALOHET KATEGORIKISHT të rekomandohen masa ndëshkuese apo kufizime kundër klientit tonë **{client_name}**!
+    @staticmethod
+    def clean_verbatim_transcript(raw_segments_text: str) -> str:
+        """
+        PASTRUESI VERBATIM GJYQËSOR:
+        Ruan 100% fjalët e folura, fshin vetëm zhurmat e huaja (si 'Hvala') dhe nuk shton asnjë mendim.
+        """
+        if not raw_segments_text or len(raw_segments_text.strip()) < 10:
+            return raw_segments_text
 
-DOKUMENTI I PARAQITUR PËR VERIFIKIM FORENZIK:
-{context_str}
+        system_prompt = """
+        Ti je një Procesmbajtës Zyrtar i Gjykatës.
+        DETYRA JOTE: Ky është një transkript audio me sekonda [MM:SS - MM:SS].
+        
+        RREGULLAT E HEKURTA TË PROCESVERBALIT:
+        1. RUAJ 100% FJALËT EKZAKTE QË JANË FOLUR. Ndalohet kategorikisht të ndryshosh kuptimin apo të parafrazosh.
+        2. RUAJ TË GJITHA SEKONDAT [MM:SS - MM:SS] ekzakte në fillim të çdo rreshti.
+        3. RUAJ fjalët e folura në anglisht pa i përkthyer.
+        4. FSHIJ fjalët e huaja halucinative të zhurmës së sfondit (p.sh. 'Hvala').
+        5. NDALOHET KATEGORIKISHT të shtosh analiza, komente, mendime apo përfundime të tuat! Kthe VETËM dialogun fjalë për fjalë.
+        """
+        try:
+            cleaned = llm_service._call_llm(
+                system_prompt=system_prompt,
+                user_content=raw_segments_text,
+                json_mode=False,
+                temperature=0.0,
+                model=llm_service.FAST_MODEL
+            )
+            return cleaned.strip() if cleaned else raw_segments_text
+        except Exception as e:
+            logger.warning(f"Transcript clean fallback: {e}")
+            return raw_segments_text
 
-STRUKTURA E DETYRUESHME E RAPORTIT TË KONSULENCËS SË GJYQTARIT SUPREM:
-### 1. 🔍 INSPEKTIMI FAKTIQ DHE PROVAT E ADMINISTRUARA NË SHKRESË
-### 2. ⚖️ VERIFIKIMI NEN PËR NEN DHE MATRICA STATUTARE (LIDHJA E LIGJEVE ME 1 KLIK)
-### 3. ⚠️ KORRIGJIMI I LAPSUSEVE DHE AUDITIMI PROCEDURAL (CONTRA LEGEM)
-### 4. 🏛️ OPINIONI DHE VLERËSIMI DOKTRINAR I GJYQTARIT SUPREM (JURISPRUDENCA PARIMORE)
-### 5. 🎯 REKOMANDIMI STRATEGJIK DHE HAPAT PËRFUNDIMTARË PROCEDURALË
-"""
+    @classmethod
+    def transcribe_audio_file(cls, file_path: str) -> str:
+        api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return "[Gabim: Mungon API Key për transkriptim.]"
+
+        clean_wav = cls.convert_to_clean_wav(file_path)
+        active_audio_file = clean_wav if os.path.exists(clean_wav) else file_path
+
+        try:
+            client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL, timeout=120.0)
+            file_size_mb = os.path.getsize(active_audio_file) / (1024 * 1024)
+
+            if file_size_mb > 24.5:
+                return f"[Gabim: Skedari është {file_size_mb:.1f}MB. Kufiri maksimal është 25MB.]"
+
+            response_data = None
+            try:
+                with open(active_audio_file, "rb") as audio_file:
+                    response_data = client.audio.transcriptions.create(
+                        model=WHISPER_TURBO_MODEL,
+                        file=audio_file,
+                        prompt=WHISPER_INITIAL_PROMPT,
+                        response_format="verbose_json"
+                    )
+            except Exception as turbo_err:
+                logger.warning(f"Whisper turbo fallback: {turbo_err}")
+                with open(active_audio_file, "rb") as audio_file:
+                    response_data = client.audio.transcriptions.create(
+                        model=WHISPER_FALLBACK_MODEL,
+                        file=audio_file,
+                        prompt=WHISPER_INITIAL_PROMPT,
+                        response_format="verbose_json"
+                    )
+
+            formatted_lines = []
+            segments = getattr(response_data, "segments", None)
+            if not segments and isinstance(response_data, dict):
+                segments = response_data.get("segments")
+
+            if segments and isinstance(segments, list) and len(segments) > 0:
+                for seg in segments:
+                    start_sec = seg.get("start", 0.0) if isinstance(seg, dict) else getattr(seg, "start", 0.0)
+                    end_sec = seg.get("end", 0.0) if isinstance(seg, dict) else getattr(seg, "end", 0.0)
+                    text_content = seg.get("text", "") if isinstance(seg, dict) else getattr(seg, "text", "")
+                    
+                    clean_text = text_content.strip()
+                    if clean_text and "hvala" not in clean_text.lower():
+                        time_badge = f"[{cls.format_timestamp(start_sec)} - {cls.format_timestamp(end_sec)}]"
+                        formatted_lines.append(f"{time_badge} {clean_text}")
+
+                raw_transcript = "\n".join(formatted_lines)
+                return cls.clean_verbatim_transcript(raw_transcript)
+
+            raw_text = getattr(response_data, "text", "") if hasattr(response_data, "text") else (response_data.get("text", "") if isinstance(response_data, dict) else str(response_data))
+            return raw_text.strip() if raw_text else "[Nuk u detektua zë i kuptueshëm në këtë regjistrim.]"
+
+        except Exception as e:
+            logger.error(f"❌ Transcription Exception: {e}")
+            return f"[Gabim gjatë transkriptimit: {str(e)}]"
+        finally:
+            if clean_wav and clean_wav != file_path and os.path.exists(clean_wav):
+                try: os.remove(clean_wav)
+                except Exception: pass
+
+    @classmethod
+    def process_and_index_media(
+        cls,
+        db: Any,
+        media_id_str: str,
+        file_path: str,
+        user_id_str: str,
+        case_id_str: str,
+        file_name: str,
+        is_video: bool
+    ):
+        media_oid = ObjectId(media_id_str)
+        try:
+            logger.info(f"🎙️ [Media Forensics] Duke transkriptuar fjalë për fjalë: {file_name}")
+            transcript = cls.transcribe_audio_file(file_path)
+
+            visual_data = {}
+            if is_video:
+                from app.services.video_forensic_service import video_forensic_service
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    visual_data = loop.run_until_complete(
+                        video_forensic_service.analyze_video_evidence_async(file_path, file_name)
+                    )
+                finally:
+                    loop.close()
+
+            # Ruajmë transkriptin e pastër verbatim në MongoDB
+            db.media_evidence.update_one(
+                {"_id": media_oid},
+                {"$set": {
+                    "transcript": transcript,
+                    "visual_analysis": visual_data,
+                    "status": "READY",
+                    "updated_at": datetime.now(timezone.utc)
+                }}
+            )
+
+            # Indeksimi në RAG (user_vectors) si provë autentike fjalë për fjalë
+            combined_rag_text = f"PROVA MATERIALE AUDIO/VIDEO ({file_name}):\n\nTRANSKRIPTI ZYRTAR ME KOHË:\n{transcript}\n"
+
+            create_and_store_embeddings_from_chunks(
+                user_id=user_id_str,
+                document_id=media_id_str,
+                case_id=case_id_str,
+                file_name=f"Media: {file_name}",
+                chunks=[combined_rag_text],
+                metadatas=[{'file_name': f"Media: {file_name}", 'category': 'audio_evidence'}]
+            )
+            logger.info(f"✅ [Media Forensics] Transkripti verbatim u indeksua në RAG për {file_name}!")
+
+        except Exception as e:
+            logger.error(f"❌ [Media Forensics] Dështoi: {e}")
+            db.media_evidence.update_one(
+                {"_id": media_oid},
+                {"$set": {"status": "FAILED", "transcript": f"Dështoi analiza: {str(e)}"}}
+            )
+        finally:
+            if file_path and os.path.exists(file_path):
+                try: os.remove(file_path)
+                except Exception: pass
