@@ -1,11 +1,11 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V39.0 (BYTE-RANGE HTTP STREAMING & 0.2S INSTANT RENDER)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V40.0 (CLEAN 0-WARNING TYPESCRIPT & LIGHTNING FAST PDF STREAMING)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService } from '../services/api';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
     ZoomIn, ZoomOut, Maximize2, Minus, FileText, Table as TableIcon
@@ -30,7 +30,7 @@ interface FileViewerModalProps {
   initialPage?: number;
 }
 
-type ViewerMode = 'PDF' | 'TEXT' | 'IMAGE' | 'CSV' | 'DOWNLOAD';
+type ViewerMode = 'PDF' | 'TEXT' | 'IMAGE' | 'CSV' | 'ERROR';
 
 const FileViewerModal: React.FC<FileViewerModalProps> = ({ 
   documentData, 
@@ -46,7 +46,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
   const targetInitialPage = useMemo(() => {
@@ -137,9 +137,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   }, []);
 
-  // BYTE-RANGE HTTP STREAMING: Nuk shkarkon të gjithë skedarin 80MB, por vetëm faqen e nevojshme!
   useEffect(() => {
-    setError(null);
+    setErrorMsg(null);
     setIsLoading(true);
 
     const targetMode = getTargetMode(
@@ -152,7 +151,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadData = async () => {
       try {
-        // PËR PDF ME DIRECT URL: Kalojmë direkt URL-në për HTTP Range Streaming (0.2s load)
         if (activeUrl && targetMode === 'PDF') {
           setFileSource({
             url: activeUrl,
@@ -195,8 +193,8 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         setIsLoading(false);
       } catch (err: any) {
         console.error("Document preview load error:", err);
-        setError(err?.message || "Nuk mund të ngarkohej pamja.");
-        setViewerMode('PDF');
+        setErrorMsg(err?.message || "Nuk mund të ngarkohej pamja.");
+        setViewerMode('ERROR');
         setIsLoading(false);
       }
     };
@@ -246,96 +244,120 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   }, [estimatedPageHeight, numPages, pageNumber]);
 
   const renderContent = () => {
-    if (viewerMode === 'PDF') {
-        return (
-            <div 
-              className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-4 sm:pt-6 pb-36 custom-finance-scroll" 
-              ref={containerRef}
-              onScroll={handleScrollUpdate}
-            >
-                <style>{`
-                  .react-pdf__Page__textLayer {
-                    text-align: left !important;
-                    word-spacing: normal !important;
-                    letter-spacing: normal !important;
-                  }
-                  .react-pdf__Page__textLayer span {
-                    word-spacing: normal !important;
-                    letter-spacing: normal !important;
-                  }
-                  .react-pdf__Page__canvas {
-                    max-width: 100% !important;
-                    height: auto !important;
-                    margin: 0 auto !important;
-                  }
-                `}</style>
-                {fileSource && (
-                    <PdfDocument 
-                      file={fileSource} 
-                      onLoadSuccess={(pdf) => { 
-                        const total = pdf.numPages;
-                        setNumPages(total); 
-                        setIsLoading(false); 
-                        
-                        let targetPage = targetInitialPage > 0 && targetInitialPage <= total ? targetInitialPage : 1;
-                        jumpDirectToPage(targetPage);
-                      }} 
-                      onLoadError={(err) => {
-                        console.error("PDF.js Stream Error:", err);
-                        setIsLoading(false);
-                      }}
-                      loading={
-                        <div className="flex flex-col items-center justify-center p-12 gap-3">
-                          <Loader className="animate-spin text-primary-start" size={32} />
-                          <p className="text-xs font-mono text-text-muted">Duke hapur faqen e kërkuar...</p>
-                        </div>
-                      }
-                      className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
-                    >
-                      {/* VIRTUAL WINDOWING I SHPEJTË: VIZATON VETËM FAQET AFËR POZICIONIT */}
-                      {numPages && Array.from(new Array(numPages), (_, index) => {
-                        const pageIdx = index + 1;
-                        const isNearCurrentPage = Math.abs(pageIdx - pageNumber) <= 2;
+    if (viewerMode === 'ERROR') {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-6 sm:p-8 bg-canvas">
+          <AlertTriangle size={56} className="text-amber-500/70 mb-4 animate-pulse" />
+          <h3 className="text-lg sm:text-xl font-bold text-text-primary mb-2 max-w-md">
+            {documentData?.file_name || documentData?.title || t('pdfViewer.previewNotAvailable', 'Pamja nuk është e disponueshme')}
+          </h3>
+          <p className="text-xs text-text-muted mb-6 max-w-sm">
+            {errorMsg || 'Dokumenti nuk mund të ngarkohej në këtë çast.'}
+          </p>
+        </div>
+      );
+    }
 
-                        return (
+    if (isLoading && !fileSource) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-canvas gap-3">
+          <Loader className="animate-spin h-10 w-10 text-primary-start" />
+          <p className="text-xs font-mono text-text-muted animate-pulse">Po hapet dokumenti...</p>
+        </div>
+      );
+    }
+
+    if (viewerMode === 'PDF') {
+      return (
+        <div 
+          className="flex flex-col items-center w-full h-full bg-canvas/20 overflow-x-hidden overflow-y-auto pt-4 sm:pt-6 pb-36 custom-finance-scroll" 
+          ref={containerRef}
+          onScroll={handleScrollUpdate}
+        >
+          <style>{`
+            .react-pdf__Page__textLayer {
+              text-align: left !important;
+              word-spacing: normal !important;
+              letter-spacing: normal !important;
+            }
+            .react-pdf__Page__textLayer span {
+              word-spacing: normal !important;
+              letter-spacing: normal !important;
+            }
+            .react-pdf__Page__canvas {
+              max-width: 100% !important;
+              height: auto !important;
+              margin: 0 auto !important;
+            }
+          `}</style>
+          {fileSource && (
+            <PdfDocument 
+              file={fileSource} 
+              onLoadSuccess={(pdf) => { 
+                const total = pdf.numPages;
+                setNumPages(total); 
+                setIsLoading(false); 
+                
+                let targetPage = targetInitialPage > 0 && targetInitialPage <= total ? targetInitialPage : 1;
+                jumpDirectToPage(targetPage);
+              }} 
+              onLoadError={(err) => {
+                console.error("PDF.js Stream Error:", err);
+                setIsLoading(false);
+                setErrorMsg("Gabim gjatë leximit të PDF-së.");
+                setViewerMode('ERROR');
+              }}
+              loading={
+                <div className="flex flex-col items-center justify-center p-12 gap-3">
+                  <Loader className="animate-spin text-primary-start" size={32} />
+                  <p className="text-xs font-mono text-text-muted">Duke hapur faqen e kërkuar...</p>
+                </div>
+              }
+              className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
+            >
+              {numPages && Array.from(new Array(numPages), (_, index) => {
+                const pageIdx = index + 1;
+                const isNearCurrentPage = Math.abs(pageIdx - pageNumber) <= 2;
+
+                return (
+                  <div 
+                    key={`pdf_page_wrap_${pageIdx}`} 
+                    id={`pdf_page_${pageIdx}`} 
+                    style={{ height: `${estimatedPageHeight}px` }}
+                    className="flex flex-col items-center w-full py-2 shrink-0"
+                  >
+                    {isNearCurrentPage ? (
+                      <Page 
+                        pageNumber={pageIdx} 
+                        width={effectiveWidth} 
+                        scale={scale} 
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        loading={
                           <div 
-                            key={`pdf_page_wrap_${pageIdx}`} 
-                            id={`pdf_page_${pageIdx}`} 
-                            style={{ height: `${estimatedPageHeight}px` }}
-                            className="flex flex-col items-center w-full py-2 shrink-0"
+                            style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
+                            className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
                           >
-                            {isNearCurrentPage ? (
-                              <Page 
-                                pageNumber={pageIdx} 
-                                width={effectiveWidth} 
-                                scale={scale} 
-                                renderTextLayer={true}
-                                renderAnnotationLayer={true}
-                                loading={
-                                  <div 
-                                    style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
-                                    className="bg-white rounded-lg border border-main shadow-md flex items-center justify-center text-xs text-text-muted font-mono"
-                                  >
-                                    Duke vizatuar faqen {pageIdx}...
-                                  </div>
-                                }
-                                className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
-                              />
-                            ) : (
-                              <div 
-                                style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
-                                className="bg-canvas/40 rounded-lg border border-main/20 flex items-center justify-center text-xs text-text-muted/40 font-mono"
-                              >
-                                Faqja {pageIdx}
-                              </div>
-                            )}
+                            Duke vizatuar faqen {pageIdx}...
                           </div>
-                        );
-                      })}
-                    </PdfDocument>
-                )}
-            </div>
-        );
+                        }
+                        className="shadow-2xl rounded-lg overflow-hidden border border-main max-w-full bg-white text-left" 
+                      />
+                    ) : (
+                      <div 
+                        style={{ width: effectiveWidth, height: estimatedPageHeight - 16 }} 
+                        className="bg-canvas/40 rounded-lg border border-main/20 flex items-center justify-center text-xs text-text-muted/40 font-mono"
+                      >
+                        Faqja {pageIdx}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </PdfDocument>
+          )}
+        </div>
+      );
     }
 
     switch (viewerMode) {
@@ -397,7 +419,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
           initial={{ opacity: 0, y: 30, scale: 0.9 }} 
           animate={{ opacity: 1, y: 0, scale: 1 }} 
           exit={{ opacity: 0, y: 30, scale: 0.9 }} 
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl text-white max-w-sm sm:max-w-md cursor-pointer hover:border-sky-500/50 hover:shadow-sky-500/10 transition-all group"
           onClick={() => setIsMinimized(false)}
         >
