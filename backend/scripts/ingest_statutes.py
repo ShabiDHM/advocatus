@@ -1,5 +1,5 @@
 # FILE: backend/scripts/ingest_statutes.py
-# PHOENIX PROTOCOL - STATUTORY LAW INGESTOR V9.0 (COMPLETE 435-ARTICLE EXHAUSTIVE INGESTION)
+# PHOENIX PROTOCOL - STATUTORY INGESTOR V10.1 (CLEAN SYNTAX & ZERO-DUPLICATE DEDUPLICATION)
 
 import os
 import sys
@@ -22,33 +22,31 @@ for p in [ROOT_DIR / ".env", BACKEND_DIR / ".env"]:
 
 sys.path.insert(0, str(BACKEND_DIR))
 
-import fitz  # PyMuPDF për lexim të garantuar faqe për faqe
+import fitz  # PyMuPDF
 from pymongo import MongoClient
 from app.services.embedding_service import generate_embeddings_batch
 
-print("--- [PHOENIX] Starting Exhaustive Statutory Law Ingestor V9.0 ---")
+print("--- [PHOENIX] Starting Clean Deduplicated Statutory Law Ingestor V10.1 ---")
 
 
-def calculate_file_hash(filepath: str) -> str:
-    hasher = hashlib.md5()
-    try:
-        with open(filepath, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hasher.update(chunk)
-        return hasher.hexdigest()
-    except Exception:
-        return ""
-
-
-def clean_law_title(filename: str) -> str:
+def clean_canonical_law_title(filename: str) -> str:
+    """Standardizon emrin e ligjit duke hequr prapashtesat si (konsoliduar), .pdf, etj."""
     clean = filename.replace(".pdf", "").replace("_", " ").replace("-", " ")
+    clean = re.sub(r'\(konsoliduar\)', '', clean, flags=re.IGNORECASE)
+    clean = re.sub(r'\s+', ' ', clean).strip()
     return " ".join(word.capitalize() for word in unicodedata.normalize('NFC', clean).split())
 
 
+def get_law_canonical_id(filename: str) -> str:
+    """Nxjerr numrin e ligjit (p.sh. 06/L-074) për të parandaluar ngarkimin e dyfishtë."""
+    match = re.search(r'(\d+[\/_]L[\-_]\d+)', filename, re.IGNORECASE)
+    if match:
+        return match.group(1).upper().replace("_", "-").replace("/", "-")
+    clean = re.sub(r'[^a-zA-Z0-9]', '', filename.lower())
+    return clean[:20]
+
+
 def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
-    """
-    Lexon të gjithë PDF-në faqe për faqe dhe nxjerr çdo nen nga Neni 1 deri te neni i fundit.
-    """
     doc = fitz.open(filepath)
     full_text_pages = []
     
@@ -57,7 +55,6 @@ def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
         full_text_pages.append((page_idx + 1, page_text))
     doc.close()
 
-    # Bashkojmë tekstin duke ruajtur shënuesit e faqeve
     combined_lines = []
     for page_num, text in full_text_pages:
         for line in text.split("\n"):
@@ -69,14 +66,12 @@ def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
     current_lines = []
     current_page = 1
 
-    # Regex i fuqishëm për të kapur çdo variant të "Neni 1", "Neni 390.", "NENI 424"
     article_header_regex = re.compile(r'^\s*(?:Neni|NENI|Artikulli|ARTIKULLI)\s+(\d+[a-zA-Z]?)\.?\s*(.*)$')
 
     for page_num, line in combined_lines:
         stripped = line.strip()
         match = article_header_regex.match(stripped)
 
-        # Kontrollojmë që nuk është thjesht një referencë në mes të fjalisë
         if match and not stripped.startswith("(") and not stripped.endswith(")"):
             if current_lines:
                 full_content = "\n".join(current_lines).strip()
@@ -108,7 +103,7 @@ def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
     return articles
 
 
-def ingest_statutes():
+def ingest_statutes_clean():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
     
@@ -127,26 +122,42 @@ def ingest_statutes():
         if ldir.exists():
             all_files.extend(list(ldir.rglob("*.pdf")))
 
-    seen = set()
-    files = []
+    # Deduplikimi: Mbajmë vetëm 1 skedar për çdo ligj kanonik
+    canonical_files_map = {}
     for f in all_files:
-        if f.name not in seen and not any(kw in f.name.upper() for kw in ["AKADEMIA", "KOMMENTAR", "DORACAK"]):
-            seen.add(f.name)
-            files.append(f)
+        if any(kw in f.name.upper() for kw in ["AKADEMIA", "KOMMENTAR", "DORACAK"]):
+            continue
+        
+        cid = get_law_canonical_id(f.name)
+        if cid not in canonical_files_map:
+            canonical_files_map[cid] = f
+        else:
+            if "konsoliduar" in f.name.lower() and "konsoliduar" not in canonical_files_map[cid].name.lower():
+                canonical_files_map[cid] = f
 
-    if not files:
-        print(f"⚠️ No Statutory Law PDFs found in data/laws.")
+    unique_files = list(canonical_files_map.values())
+
+    if not unique_files:
+        print("⚠️ No Statutory Law PDFs found in data/laws.")
         return
 
-    print(f"🚀 Found {len(files)} Statutory Law files. Starting complete ingestion...")
+    print("🧹 PASTRIMI I MBETURINAVE: Duke fshirë nenet e dyfishuara nga MongoDB...")
+    deleted_old = coll.delete_many({
+        "$or": [
+            {"is_article": True},
+            {"category": "statute"}
+        ]
+    })
+    print(f"   🗑️ U fshinë {deleted_old.deleted_count} rekorde të vjetra me sukses.")
+
+    print(f"\n🚀 Duke procesuar {len(unique_files)} Ligje Kanonike pa asnjë duplikatë...")
     stats = {"processed": 0, "articles_total": 0, "failed": 0}
 
-    for file_path in files:
+    for file_path in unique_files:
         fname = file_path.name
-        law_title = clean_law_title(fname)
-        current_hash = calculate_file_hash(str(file_path))
+        law_title = clean_canonical_law_title(fname)
 
-        print(f"\n⚖️ Parsing Law: {fname} ({law_title})...")
+        print(f"\n⚖️ Parsing Law: {law_title} (Skedari: {fname})...")
         
         parsed_articles = extract_all_articles_from_pdf(str(file_path))
         if not parsed_articles:
@@ -156,10 +167,6 @@ def ingest_statutes():
 
         print(f"   📄 Extracted {len(parsed_articles)} articles. Generating embeddings in batches...")
 
-        # Pastrojmë versionet e vjetra jo të plota të këtij ligji
-        coll.delete_many({"source": fname})
-
-        # Gjenerimi i vektorëve me batch
         texts_to_embed = [art["text"][:3500] for art in parsed_articles]
         
         batch_size = 50
@@ -186,23 +193,24 @@ def ingest_statutes():
                 "page": art["page"],
                 "jurisdiction": "ks",
                 "is_article": True,
-                "file_hash": current_hash,
-                "processor_version": "V9.0-EXHAUSTIVE"
+                "is_case_law": False,
+                "category": "statute",
+                "processor_version": "V10.1-DEDUPLICATED"
             })
 
         if docs_to_insert:
             coll.insert_many(docs_to_insert)
-            print(f"   ✅ Successfully indexed ALL {len(docs_to_insert)} articles for: {law_title}")
+            print(f"   ✅ Indexed ALL {len(docs_to_insert)} unique articles for: {law_title}")
             stats["processed"] += 1
             stats["articles_total"] += len(docs_to_insert)
 
     print("\n" + "="*50)
-    print(f"🏁 Complete Statutory Ingestion Finished:")
-    print(f"   Laws Fully Ingested:   {stats['processed']}")
-    print(f"   Total Articles Stored: {stats['articles_total']}")
-    print(f"   Failed Files:          {stats['failed']}")
+    print("🏁 Clean Ingestion Finished (Zero Duplicates):")
+    print(f"   Canonical Laws Ingested: {stats['processed']}")
+    print(f"   Unique Articles Stored:  {stats['articles_total']}")
+    print(f"   Failed Files:            {stats['failed']}")
     print("="*50)
 
 
 if __name__ == "__main__":
-    ingest_statutes()
+    ingest_statutes_clean()

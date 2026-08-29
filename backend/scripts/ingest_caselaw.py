@@ -1,5 +1,5 @@
 # FILE: backend/scripts/ingest_caselaw.py
-# PHOENIX PROTOCOL - CASELAW INGESTOR V10.0 (FAST BATCH EMBEDDING, EXACT SUPREME METADATA & FITZ ENGINE)
+# PHOENIX PROTOCOL - CASELAW INGESTOR V11.0 (CLEAN DATABASE WIPE & FRESH CANONICAL INGESTION)
 
 import os
 import sys
@@ -20,7 +20,7 @@ for p in [ROOT_DIR / ".env", BACKEND_DIR / ".env"]:
 
 sys.path.insert(0, str(BACKEND_DIR))
 
-import fitz  # PyMuPDF për lexim të shpejtë dhe të saktë të të gjitha faqeve
+import fitz  # PyMuPDF
 from pymongo import MongoClient
 from app.services import storage_service
 from app.services.embedding_service import generate_embeddings_batch
@@ -28,13 +28,13 @@ from app.services.embedding_service import generate_embeddings_batch
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("ingest_caselaw")
 
-# Regex për të gjithë numrat e lëndëve të Gjykatës Supreme të Kosovës (p.sh. PML.Nr.185/2025, Rev.Nr.541/2024)
+# Regex për të gjithë numrat e lëndëve të Gjykatës Supreme të Kosovës
 CASE_NO_PATTERN = re.compile(
     r'((?:PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2}))', 
     re.IGNORECASE
 )
 
-def ingest_caselaw_pdfs(force_reingest: bool = True):
+def ingest_caselaw_clean():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
     
@@ -57,23 +57,28 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
             break
 
     if not target_folder:
-        logger.error(f"❌ Nuk u gjet asnjë skedar PDF i Gjykatës Supreme në folderat e të dhënave.")
+        logger.error("❌ Nuk u gjet asnjë skedar PDF i Gjykatës Supreme në data/case_law.")
         return
 
     pdf_files = list(target_folder.glob("*.pdf"))
     total_files = len(pdf_files)
     logger.info(f"📁 U gjetën {total_files} skedarë të Gjykatës Supreme në: {target_folder}")
 
+    # 1. PASTRIMI TOTAL I VENDIMEVE TË VJETRA NGA MONGODB
+    print("🧹 PASTRIMI I MBETURINAVE: Duke fshirë të gjitha vendimet e vjetra nga MongoDB...")
+    deleted_old = coll.delete_many({
+        "$or": [
+            {"is_case_law": True},
+            {"category": "caselaw"},
+            {"category": "case_law"}
+        ]
+    })
+    print(f"   🗑️ U fshinë {deleted_old.deleted_count} rekorde të vjetra të Gjykatës Supreme me sukses.\n")
+
     for f_idx, file_path in enumerate(pdf_files, 1):
         filename = file_path.name
-
-        existing_count = coll.count_documents({"source": filename})
-        if existing_count > 0 and not force_reingest:
-            logger.info(f"⏭️  [{f_idx}/{total_files}] SKIPPED: {filename} (Tashmë i ingestuar me {existing_count} vektore)")
-            continue
-
-        print(f"\n------------------------------------------------------------")
-        logger.info(f"📄 [{f_idx}/{total_files}] DUKE PROCESUAR VENDIMET SUPREME: {filename}")
+        print(f"------------------------------------------------------------")
+        logger.info(f"📄 [{f_idx}/{total_files}] DUKE PROCESUAR: {filename}")
 
         try:
             doc = fitz.open(str(file_path))
@@ -89,12 +94,10 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
                 if not page_text.strip():
                     continue
 
-                # Zbulojmë numrin e lëndës në këtë faqe (p.sh. PML.Nr.185/2025)
                 matches = CASE_NO_PATTERN.findall(page_text)
                 if matches:
                     current_case_no = matches[0].strip().replace(" ", "")
 
-                # Ndarja në copa prej 1200 karakteresh me mbivendosje
                 chunk_size = 1200
                 overlap = 150
                 start = 0
@@ -115,6 +118,7 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
                             "chunk_index": chunk_global_idx,
                             "is_case_law": True,
                             "is_article": False,
+                            "category": "caselaw",
                             "jurisdiction": "ks"
                         })
                         chunk_global_idx += 1
@@ -127,7 +131,6 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
 
             logger.info(f"   🤖 Duke gjeneruar vektorët me Batch për {len(raw_chunks)} pjesëza...")
 
-            # Gjenerim i shpejtë i vektorëve me batch prej 50 copash
             texts_to_embed = [c["text"] for c in raw_chunks]
             batch_size = 50
             all_embeddings = []
@@ -136,7 +139,6 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
                 batch_vectors = generate_embeddings_batch(batch_texts)
                 all_embeddings.extend(batch_vectors)
 
-            # Bashkojmë vektorët me të dhënat e dokumenteve
             docs_to_insert = []
             for idx, c_data in enumerate(raw_chunks):
                 vector = all_embeddings[idx] if idx < len(all_embeddings) else []
@@ -144,16 +146,15 @@ def ingest_caselaw_pdfs(force_reingest: bool = True):
                 docs_to_insert.append(c_data)
 
             if docs_to_insert:
-                coll.delete_many({"source": filename})
                 coll.insert_many(docs_to_insert)
-                logger.info(f"   ✅ U ruajtën me sukses të gjitha {len(docs_to_insert)} pjesëzat e Gjykatës Supreme në MongoDB!")
+                logger.info(f"   ✅ U ruajtën me sukses {len(docs_to_insert)} pjesëza me etiketën 'category: caselaw'!")
 
         except Exception as e:
             logger.error(f"   ❌ Gabim gjatë procesimit të {filename}: {e}")
 
     print(f"\n============================================================")
-    logger.info("🎉 TË GJITHA 700+ FAQET E GJYKATËS SUPREME U INGESTUAN ME SUKSES TË PLOTË!")
+    logger.info("🎉 TË GJITHA VENDIMET E GJYKATËS SUPREME U RI-INGESTUAN TË PASTRA NË MONGODB!")
     print(f"============================================================\n")
 
 if __name__ == "__main__":
-    ingest_caselaw_pdfs(force_reingest=True)
+    ingest_caselaw_clean()
