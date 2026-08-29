@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V38.0 (GRID 3-COLUMN MOBILE TABS WITH ZERO SCROLLING)
+// PHOENIX PROTOCOL - LAW SEARCH V39.0 (100% DATABASE-DRIVEN & ZERO HARDCODED ARRAYS)
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,26 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
-
-const OFFICIAL_STATUTORY_LAWS = [
-  "KUSHTETUTA E REPUBLIKËS SË KOSOVËS",
-  "KODI NR. 06/L-074 KODI PENAL I REPUBLIKËS SË KOSOVËS",
-  "KODI NR. 08/L-032 I PROCEDURËS PENALE",
-  "KODI NR. 06/L-006 I DREJTËSISË PËR TË MITUR",
-  "LIGJI NR. 03/L-006 PËR PROCEDURËN KONTESTIMORE",
-  "LIGJI NR. 04/L-077 PËR MARRËDHËNIET E DETYRIMEVE",
-  "LIGJI NR. 04/L-139 PËR PROCEDURËN PËRMBARIMORE",
-  "LIGJI NR. 04/L-161 PËR SIGURINË DHE SHËNDETIN NË PUNË",
-  "LIGJI NR. 05/L-029 PËR TATIMIN NË TË ARDHURAT E KORPORATAVE",
-  "LIGJI NR. 06/L-016 PËR SHOQËRITË TREGTARE",
-  "LIGJI NR. 06/L-082 PËR MBROJTJEN E TË DHËNAVE PERSONALE",
-  "LIGJI NR. 06/L-084 PËR MBROJTJEN E FËMIJËS",
-  "LIGJI NR. 08/L-257 PËR ADMINISTRIMIN E PROCEDURAVE TATIMORE",
-  "LIGJI NR. 2004/32 LIGJI PËR FAMILJEN I KOSOVËS",
-  "LIGJI NR. 03/L-212 I PUNËS"
-];
-
-const DEFAULT_ACADEMIC_LAWS: string[] = [];
 
 function normalizeForDisplay(title: string): string {
   return title.trim().replace(/\s+/g, ' ');
@@ -39,8 +19,10 @@ export default function LawSearchPage() {
   
   const [activeTab, setActiveTab] = useState<'statutes' | 'academic' | 'caselaw'>('statutes');
   const [filterQuery, setFilterQuery] = useState('');
-  const [statuteTitles, setStatuteTitles] = useState<string[]>(OFFICIAL_STATUTORY_LAWS);
-  const [academicTitles, setAcademicTitles] = useState<string[]>(DEFAULT_ACADEMIC_LAWS);
+  
+  // Të dhënat vijnë 100% LIVE nga baza e të dhënave pa asnjë hardcoding
+  const [statuteTitles, setStatuteTitles] = useState<string[]>([]);
+  const [academicTitles, setAcademicTitles] = useState<string[]>([]);
   const [caselawTitles, setCaselawTitles] = useState<string[]>([]);
   
   const [isOpen, setIsOpen] = useState(false);
@@ -54,8 +36,8 @@ export default function LawSearchPage() {
     apiService.getLawTitles()
       .then((res: any) => {
         if (res) {
-          if (res.statutes && res.statutes.length > 0) {
-            setStatuteTitles(Array.from(new Set([...res.statutes, ...OFFICIAL_STATUTORY_LAWS])));
+          if (res.statutes && Array.isArray(res.statutes)) {
+            setStatuteTitles(res.statutes);
           }
           if (res.academic_manuals && Array.isArray(res.academic_manuals)) {
             setAcademicTitles(res.academic_manuals);
@@ -66,7 +48,7 @@ export default function LawSearchPage() {
         }
       })
       .catch((err) => {
-        console.warn("[LawSearchPage] Using default Kosovo statutes fallback:", err);
+        console.error("[LawSearchPage] Error loading database titles:", err);
       });
   }, []);
 
@@ -171,7 +153,7 @@ export default function LawSearchPage() {
           </div>
         </div>
 
-        {/* ⚡ PERFECT 3-COLUMN EQUAL GRID TABS (ZERO HORIZONTAL SCROLLING ON MOBILE) */}
+        {/* 3-COLUMN EQUAL GRID TABS */}
         <div className="grid grid-cols-3 w-full gap-1.5 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
@@ -299,7 +281,6 @@ export default function LawSearchPage() {
 
       </div>
 
-      {/* UNIFIED CANVAS PDF ENGINE WITH EXACT STARTING PAGE JUMP */}
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{

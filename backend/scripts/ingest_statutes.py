@@ -1,5 +1,5 @@
 # FILE: backend/scripts/ingest_statutes.py
-# PHOENIX PROTOCOL - STATUTORY INGESTOR V10.1 (CLEAN SYNTAX & ZERO-DUPLICATE DEDUPLICATION)
+# PHOENIX PROTOCOL - EXACT DIRECTORY INGESTOR V11.0 (DATA/LAWS/KS CANONICAL INGESTION)
 
 import os
 import sys
@@ -26,24 +26,15 @@ import fitz  # PyMuPDF
 from pymongo import MongoClient
 from app.services.embedding_service import generate_embeddings_batch
 
-print("--- [PHOENIX] Starting Clean Deduplicated Statutory Law Ingestor V10.1 ---")
+print("--- [PHOENIX] Starting 19-Law Canonical Ingestor from data/laws/ks ---")
 
 
-def clean_canonical_law_title(filename: str) -> str:
-    """Standardizon emrin e ligjit duke hequr prapashtesat si (konsoliduar), .pdf, etj."""
-    clean = filename.replace(".pdf", "").replace("_", " ").replace("-", " ")
-    clean = re.sub(r'\(konsoliduar\)', '', clean, flags=re.IGNORECASE)
+def clean_law_title_from_filename(filename: str) -> str:
+    """Konverton emrin e skedarit në Titull Zyrtar të Pastër."""
+    clean = filename.replace(".pdf", "").replace(".PDF", "").replace("_", " ").replace("-", " ")
+    clean = re.sub(r'\(konsoliduar\)', '(Konsoliduar)', clean, flags=re.IGNORECASE)
     clean = re.sub(r'\s+', ' ', clean).strip()
-    return " ".join(word.capitalize() for word in unicodedata.normalize('NFC', clean).split())
-
-
-def get_law_canonical_id(filename: str) -> str:
-    """Nxjerr numrin e ligjit (p.sh. 06/L-074) për të parandaluar ngarkimin e dyfishtë."""
-    match = re.search(r'(\d+[\/_]L[\-_]\d+)', filename, re.IGNORECASE)
-    if match:
-        return match.group(1).upper().replace("_", "-").replace("/", "-")
-    clean = re.sub(r'[^a-zA-Z0-9]', '', filename.lower())
-    return clean[:20]
+    return clean.upper()
 
 
 def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
@@ -103,7 +94,7 @@ def extract_all_articles_from_pdf(filepath: str) -> list[dict]:
     return articles
 
 
-def ingest_statutes_clean():
+def ingest_19_laws():
     uri = os.getenv("DATABASE_URI")
     db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
     
@@ -115,60 +106,49 @@ def ingest_statutes_clean():
     db = client[db_name]
     coll = db["legal_knowledge_base"]
 
-    laws_dirs = [ROOT_DIR / "data" / "laws", BACKEND_DIR / "data" / "laws"]
-    
-    all_files = []
-    for ldir in laws_dirs:
-        if ldir.exists():
-            all_files.extend(list(ldir.rglob("*.pdf")))
+    # Targetojmë EKZAKTSISHT folderin data/laws/ks
+    target_dir = ROOT_DIR / "data" / "laws" / "ks"
+    if not target_dir.exists():
+        target_dir = BACKEND_DIR / "data" / "laws" / "ks"
 
-    # Deduplikimi: Mbajmë vetëm 1 skedar për çdo ligj kanonik
-    canonical_files_map = {}
-    for f in all_files:
-        if any(kw in f.name.upper() for kw in ["AKADEMIA", "KOMMENTAR", "DORACAK"]):
-            continue
-        
-        cid = get_law_canonical_id(f.name)
-        if cid not in canonical_files_map:
-            canonical_files_map[cid] = f
-        else:
-            if "konsoliduar" in f.name.lower() and "konsoliduar" not in canonical_files_map[cid].name.lower():
-                canonical_files_map[cid] = f
-
-    unique_files = list(canonical_files_map.values())
-
-    if not unique_files:
-        print("⚠️ No Statutory Law PDFs found in data/laws.")
+    if not target_dir.exists():
+        print(f"❌ Folderi data/laws/ks nuk u gjet në {target_dir}")
         return
 
-    print("🧹 PASTRIMI I MBETURINAVE: Duke fshirë nenet e dyfishuara nga MongoDB...")
+    files = sorted(list(target_dir.glob("*.pdf")) + list(target_dir.glob("*.PDF")))
+    if not files:
+        print(f"⚠️ Nuk u gjet asnjë skedar PDF në {target_dir}")
+        return
+
+    print(f"📁 U gjetën ekzaktësisht {len(files)} skedarë ligjesh në: {target_dir}")
+
+    # 1. PASTRIMI TOTAL I NENEVE TË VJETRA STATUTORE NGA MONGODB
+    print("🧹 Duke fshirë të gjitha nenet e vjetra statutore nga MongoDB...")
     deleted_old = coll.delete_many({
         "$or": [
             {"is_article": True},
             {"category": "statute"}
         ]
     })
-    print(f"   🗑️ U fshinë {deleted_old.deleted_count} rekorde të vjetra me sukses.")
+    print(f"   🗑️ U fshinë {deleted_old.deleted_count} rekorde të vjetra me sukses.\n")
 
-    print(f"\n🚀 Duke procesuar {len(unique_files)} Ligje Kanonike pa asnjë duplikatë...")
     stats = {"processed": 0, "articles_total": 0, "failed": 0}
 
-    for file_path in unique_files:
+    for file_path in files:
         fname = file_path.name
-        law_title = clean_canonical_law_title(fname)
+        law_title = clean_law_title_from_filename(fname)
 
-        print(f"\n⚖️ Parsing Law: {law_title} (Skedari: {fname})...")
-        
+        print(f"⚖️ Duke procesuar [{stats['processed']+1}/{len(files)}]: {law_title}")
+
         parsed_articles = extract_all_articles_from_pdf(str(file_path))
         if not parsed_articles:
-            print(f"   ⚠️ Could not extract articles from {fname}. Skipping.")
+            print(f"   ⚠️ Nuk u nxorën nene nga {fname}. Skipping.")
             stats["failed"] += 1
             continue
 
-        print(f"   📄 Extracted {len(parsed_articles)} articles. Generating embeddings in batches...")
+        print(f"   📄 U nxorën {len(parsed_articles)} nene. Duke gjeneruar vektorët me batch...")
 
         texts_to_embed = [art["text"][:3500] for art in parsed_articles]
-        
         batch_size = 50
         all_embeddings = []
         for b_idx in range(0, len(texts_to_embed), batch_size):
@@ -195,22 +175,21 @@ def ingest_statutes_clean():
                 "is_article": True,
                 "is_case_law": False,
                 "category": "statute",
-                "processor_version": "V10.1-DEDUPLICATED"
+                "processor_version": "V11.0-CANONICAL-KS"
             })
 
         if docs_to_insert:
             coll.insert_many(docs_to_insert)
-            print(f"   ✅ Indexed ALL {len(docs_to_insert)} unique articles for: {law_title}")
+            print(f"   ✅ U indeksuan të gjitha {len(docs_to_insert)} nenet për: {law_title}\n")
             stats["processed"] += 1
             stats["articles_total"] += len(docs_to_insert)
 
-    print("\n" + "="*50)
-    print("🏁 Clean Ingestion Finished (Zero Duplicates):")
-    print(f"   Canonical Laws Ingested: {stats['processed']}")
-    print(f"   Unique Articles Stored:  {stats['articles_total']}")
-    print(f"   Failed Files:            {stats['failed']}")
+    print("="*50)
+    print(f"🏁 Përfundoi Ingestion-i i Pastër i 19 Ligjeve të Kosovës:")
+    print(f"   Ligje të Plotësuara: {stats['processed']}/{len(files)}")
+    print(f"   Nene Gjithsej:       {stats['articles_total']}")
     print("="*50)
 
 
 if __name__ == "__main__":
-    ingest_statutes_clean()
+    ingest_19_laws()
