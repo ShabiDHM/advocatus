@@ -1,5 +1,5 @@
 // FILE: src/components/BrandLogo.tsx
-// PHOENIX PROTOCOL - PLATFORM IDENTITY V8.0 (DATA & HUMAN MANAGEMENT TYPOGRAPHY)
+// PHOENIX PROTOCOL - PLATFORM IDENTITY V9.0 (NDIHMË JURIDIKE - DATA & HUMAN MANAGEMENT)
 
 import React from 'react';
 import { Scale } from 'lucide-react';
@@ -21,7 +21,7 @@ const BrandLogo: React.FC<BrandLogoProps> = ({ className = "", showText = true }
       {showText && (
         <div className="flex flex-col text-left justify-center min-w-0">
           <span className="text-base sm:text-lg font-black tracking-tight leading-tight bg-gradient-to-r from-primary-start via-primary-start to-indigo-500 bg-clip-text text-transparent whitespace-nowrap select-none">
-            Juristi Virtual
+            Ndihmë Juridike
           </span>
           <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.14em] text-text-muted dark:text-text-secondary whitespace-nowrap leading-none mt-0.5 select-none">
             Data and Human Management

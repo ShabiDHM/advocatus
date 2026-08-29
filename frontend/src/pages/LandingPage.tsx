@@ -1,5 +1,5 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - JURISTI.TECH LANDING PAGE V17.0 (AUTHORITATIVE SUPREME COURT JURISPRUDENCE & FORENSICS)
+// PHOENIX PROTOCOL - LANDING PAGE V18.0 (FULL MULTIMEDIA FORENSICS & DUAL-LANGUAGE AUDIO SPOTLIGHT)
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,13 +14,14 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
-  ShieldCheck,
   ChevronRight,
   Database,
   FileCheck2,
   Film,
   BookOpen,
-  Gavel
+  Gavel,
+  Mic,
+  Volume2
 } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
@@ -35,26 +36,26 @@ export const LandingPage: React.FC = () => {
     {
       value: 'Vendimet Parimore',
       title: 'Jurisprudencë Supreme',
-      desc: 'Interpretimi doktrinar dhe zbatimi i Aktgjykimeve të Kolegjit Penal e Civil.',
+      desc: 'Zbatimi i Aktgjykimeve dhe qëndrimeve doktrinare të Kolegjit Penal e Civil.',
       icon: Gavel,
     },
     {
       value: '1-Kliko ⚖️',
-      title: 'Forenzika Procedurale',
-      desc: 'Zbulimi i shkeljeve procedurale, provave të papranueshme dhe lapsuseve.',
+      title: 'Forenzika e Dokumentit',
+      desc: 'Verifikimi i neneve, shkeljeve procedurale dhe zbulimi i prapadatimeve.',
       icon: Scale,
     },
     {
-      value: '100% e Verifikueshme',
-      title: 'Burime të Qarta',
-      desc: 'Çdo përgjigje shoqërohet me referencën e nenit, ligjit dhe dokumentit.',
-      icon: FileCheck2,
+      value: 'Audio & Video 🎙️',
+      title: 'Forenzikë Multimediale',
+      desc: 'Transkriptim fjalë-për-fjalë me sekonda dhe njohje dygjuhëshe (Shqip + Anglisht).',
+      icon: Mic,
     },
     {
-      value: 'Taktikë Procedurale',
-      title: 'Përvojë Praktike',
-      desc: 'Strukturuar posaçërisht për procedurat gjyqësore në Kosovë.',
-      icon: ShieldCheck,
+      value: '100% e Verifikueshme',
+      title: '5,024 Nene të Plota',
+      desc: 'Çdo citim ligjor lidhet drejtpërdrejt me Gazetën Zyrtare të Kosovës.',
+      icon: FileCheck2,
     },
   ];
 
@@ -67,27 +68,27 @@ export const LandingPage: React.FC = () => {
       pillars: [
         {
           num: '01',
-          title: 'Zbulimi i Mospërputhjeve dhe Datave',
-          desc: 'Evidenton mospërputhjet e datave në procesverbale, tejkalimin e afateve prekluzive dhe zbatimin e rehabilitimit ligjor (Neni 93 i KPRK-së).',
-          code: 'KPRK 93 / 427',
+          title: 'Zbulimi i Prapadatimeve dhe Afateve',
+          desc: 'Evidenton mospërputhjet e datave në procesverbale (Neni 427), tejkalimin e afateve dhe shkeljen e rehabilitimit ligjor (Neni 93/96 KPRK).',
+          code: 'KPRK 427 / 96',
         },
         {
           num: '02',
-          title: 'Ballafaqimi me Shkresat e Fashikullit',
-          desc: 'Krahason raportet zyrtare dhe laboratorike me pretendimet gojore për të vërtetuar prapësimet ligjore dhe të pavërtetat.',
+          title: 'Ballafaqimi me Provat Shkencore',
+          desc: 'Krahason raportet zyrtare dhe laboratorike (p.sh. testet toksikologjike) me pretendimet gojore për të vërtetuar prapësimet ligjore.',
           code: 'KPRK 387 / LPK',
         },
         {
           num: '03',
-          title: 'Kryqëzimi i Dëshmitarëve (Pyetësori Taktik)',
-          desc: 'Përgatit pyetje të strukturuara për ballafaqimin e dëshmitarëve dhe ekspertëve gjatë marrjes në pyetje në seancë.',
-          code: 'SEANCA GJYQËSORE',
+          title: 'Pyetësori Taktik për Seancë (Cross-Exam)',
+          desc: 'Përgatit pyetje kirurgjike të strukturuara në thonjëza për ballafaqimin e palës kundërshtare, dëshmitarëve dhe mjekëve.',
+          code: 'SALLA E GJYQIT',
         },
         {
           num: '04',
-          title: 'Strategjia e Prapësimit dhe Kundërpadisë',
-          desc: 'Ndërton përmbledhjen mbi prapësimet procedurale, mungesën e legjitimitetit aktiv dhe hapat për rrëzimin e kërkesëpadisë.',
-          code: 'LPK / LMD',
+          title: 'Përsëritja e Procedurës (Neni 232 LPK)',
+          desc: 'Aktivizon mjetet e jashtëzakonshme për prishjen e vendimeve të padrejta dhe ngritjen e kallëzimit penal pranë Prokurorisë.',
+          code: 'NENI 232 LPK / PSRK',
         },
       ],
     },
@@ -99,27 +100,27 @@ export const LandingPage: React.FC = () => {
       pillars: [
         {
           num: '01',
-          title: 'Përcaktimi i Përgjegjësisë dhe Detyrimit',
-          desc: 'Strukturon bazën faktike dhe provat shkresore që mbështesin kërkesëpadinë dhe vërtetojnë detyrimin e palës kundërshtare.',
+          title: 'Ndërtimi i Padisë dhe Përgjegjësisë',
+          desc: 'Strukturon bazën faktike, dëmet e shkaktuara dhe provat shkresore që vërtetojnë detyrimin e palës kundërshtare.',
           code: 'BAZA E PADISË',
         },
         {
           num: '02',
           title: 'Kërkesat për Masa Emergjente Mbrojtëse',
-          desc: 'Formulon propozimet për masa të përkohshme të sigurisë, sigurimin e kërkesëpadisë dhe mbrojtjen e të drejtave të palës.',
-          code: 'KPPRK 188 / LPK',
+          desc: 'Formulon propozimet për sigurimin e kërkesëpadisë (Neni 297 LPK) dhe urdhrat emergjentë mbrojtës (Neni 188/221 KPPRK).',
+          code: 'MASAT E SIGURIMIT',
         },
         {
           num: '03',
-          title: 'Pyetjet Taktike për Seancë',
-          desc: 'Gjeneron pyetje të qarta të bazuara në shkresat e fashikullit për të qartësuar faktet kontestuese para gjykatës.',
-          code: 'PROVA MATRIKS',
+          title: 'Pyetjet Taktike për Zbardhjen e Fakteve',
+          desc: 'Gjeneron pyetje të qarta të bazuara në shkresat e fashikullit për të ekspozuar mashtrimin para trupit gjykues.',
+          code: 'PYETËSORI',
         },
         {
           num: '04',
-          title: 'Llogaritja e Dëmit dhe Përmbledhja',
-          desc: 'Ndihmon në përllogaritjen e dëmeve materiale e jomateriale sipas LMD-së dhe përgatit përmbledhjen ekzekutive.',
-          code: 'LMD 136 / DËMET',
+          title: 'Llogaritja e Dëmit me Kamatë 8% (LMD)',
+          desc: 'Llogarit saktë dëmet materiale dhe jomateriale sipas LMD-së bashkë me kamatën ligjore vonesore prej 8% në vit.',
+          code: 'LMD / KAMATA 8%',
         },
       ],
     },
@@ -131,25 +132,25 @@ export const LandingPage: React.FC = () => {
       pillars: [
         {
           num: '01',
-          title: 'Detektori i Kontradiktave në Shkresa',
-          desc: 'Krahason pretendimet e palëve me provat e administruara dhe evidenton mospërputhjet në deklarata.',
+          title: 'Detektori i Kontradiktave në Dosje',
+          desc: 'Krahason pretendimet e palëve me provat shkencore dhe evidenton mospërputhjet kronologjike.',
           code: 'KONTROLLI FAKTIK',
         },
         {
           num: '02',
-          title: 'Barra e Provës dhe Ligji Procedural',
-          desc: 'Analizon paanshëm barrën e provimit (kush duhet të provojë çfarë) sipas dispozitave të procedurës kontestimore.',
+          title: 'Vlerësimi i Barrës së Provës',
+          desc: 'Analizon paanshëm ligjshmërinë e administrimit të provave sipas dispozitave të LPK-së dhe KPPRK-së.',
           code: 'BARRA E PROVËS',
         },
         {
           num: '03',
-          title: 'Pyetjet Sqaruese për Zbardhjen e Fakteve',
-          desc: 'Formulon pyetje objektive për të eliminuar paqartësitë dhe për të ndihmuar në administrimin e drejtë të provave.',
+          title: 'Pyetjet Sqaruese Doktrinare',
+          desc: 'Formulon pyetje objektive për të eliminuar paqartësitë dhe për të garantuar administrimin e drejtë të provave.',
           code: 'SQARIM FAKTESH',
         },
         {
           num: '04',
-          title: 'Memorandumi i Paanshëm i Çështjes',
+          title: 'Memorandumi Objektiv i Çështjes',
           desc: 'Përgatit një sintezë të balancuar për të lehtësuar vendimmarrjen gjyqësore apo marrëveshjen me ndërmjetësim.',
           code: 'SINTEZA E LËNDËS',
         },
@@ -162,16 +163,25 @@ export const LandingPage: React.FC = () => {
       colSpan: 'lg:col-span-12',
       title: '⚖️ Forenzika Ligjore & Zbatimi i Jurisprudencës së Gjykatës Supreme',
       subtitle: '1-CLICK LEGAL & PROCEDURAL FORENSICS',
-      desc: 'Klikoni mbi çdo dokument në fashikull për të kryer auditimin e thellë forenzik: sistemi zbulon shkeljet thelbësore procedurale (seancat klandestine, antedatimin e akteve), identifikon provat e papranueshme (Neni 123 i KPPRK-së), evidenton lapsuset e neneve dhe nxjerr opinionin e Gjykatës Supreme të Kosovës bazuar në vendimet parimore të Kolegjit Penal e Civil (Aktgjykimet PML).',
+      desc: 'Klikoni mbi çdo dokument në fashikull për të kryer auditimin e thellë forenzik: sistemi zbulon shkeljet thelbësore procedurale (seancat klandestine, antedatimin e akteve), identifikon provat e papranueshme, evidenton lapsuset e neneve dhe nxjerr opinionin e Gjykatës Supreme të Kosovës bazuar në 700+ faqe vendime parimore (Aktgjykimet PML dhe Revizone).',
       icon: Scale,
       gradient: 'from-amber-500/20 via-primary-start/15 to-transparent',
       borderColor: 'border-amber-500/40',
     },
     {
-      colSpan: 'lg:col-span-8',
-      title: 'Sokrati AI — Asistenti Inteligjent i Lëndës',
-      subtitle: '4 SHTYLLAT PROCEDURALE',
-      desc: 'Bashkëbisedoni direkt me dosjen tuaj. Sokrati nxjerr menjëherë 4 shtyllat kryesore sipas rolit tuaj procedural, analizon prapësimet dhe përgatit pyetësorët taktikë për seancë me citime ekzakte të neneve.',
+      colSpan: 'lg:col-span-6',
+      title: '🎙️ Forenzika & Transkriptimi i Provave Audio dhe Video',
+      subtitle: 'VERBATIM MULTIMEDIA FORENSICS',
+      desc: 'Ngarkoni regjistrime audio nga xhepi, telefonata, video apo seanca gjyqësore deri në 3+ orë. Motori Whisper i avancuar gjeneron transkriptin 100% fjalë për fjalë (Verbatim) me shënues kohe [MM:SS], pastron zhurmën dhe kupton me saktësi gjuhën e përzier shqip-anglisht të fëmijëve pa asnjë deformim fonetik.',
+      icon: Film,
+      gradient: 'from-rose-500/20 via-purple-500/10 to-transparent',
+      borderColor: 'border-rose-500/40',
+    },
+    {
+      colSpan: 'lg:col-span-6',
+      title: 'Sokrati AI — Asistenti dhe Krye-Strategu i Lëndës',
+      subtitle: '4 SHTYLLAT STRATEGJIKE',
+      desc: 'Bashkëbisedoni direkt me dosjen tuaj. Sokrati analizon të gjitha shkresat e fashikullit, zbulon personat përgjegjës, ndërton planin e veprimit (Kallëzim Penal & Neni 232 LPK), dhe përgatit pyetësorët taktikë të ballafaqimit për seancë gjyqësore.',
       icon: Sparkles,
       gradient: 'from-primary-start/15 via-indigo-500/5 to-transparent',
       borderColor: 'border-primary-start/30',
@@ -179,26 +189,17 @@ export const LandingPage: React.FC = () => {
     {
       colSpan: 'lg:col-span-4',
       title: 'Leximi OCR i Shkresave të Skanuara',
-      subtitle: 'DIGJITALIZIM NË ~3.5S',
-      desc: 'Përpunon procesverbalet, aktvendimet e vjetra dhe faturat e skanuara, duke i kthyer në tekst të kërkueshëm me referenca faqe-për-faqe.',
+      subtitle: 'DIGJITALIZIM ME PYMUPDF',
+      desc: 'Përpunon procesverbalet, aktvendimet e vjetra dhe provat e skanuara, duke i kthyer në tekst të kërkueshëm me referenca ekzakte faqe-për-faqe.',
       icon: Search,
       gradient: 'from-blue-500/15 via-cyan-500/5 to-transparent',
       borderColor: 'border-blue-500/30',
     },
     {
-      colSpan: 'lg:col-span-4',
-      title: 'Transkriptimi i Skedarëve Audio & Video',
-      subtitle: 'MULTIMEDIA EVIDENCE',
-      desc: 'Ngarkoni regjistrime audio apo video (MP3, WAV, MP4). Sistemi gjeneron transkriptin e plotë tekstual gati për referim në gjykatë.',
-      icon: Film,
-      gradient: 'from-rose-500/15 via-purple-500/5 to-transparent',
-      borderColor: 'border-rose-500/30',
-    },
-    {
       colSpan: 'lg:col-span-8',
-      title: 'Biblioteka Ligjore e Kosovës me Kërkim Semantik',
-      subtitle: 'STATUTET ZYRTARE NË KOSOVË',
-      desc: 'Qasje e menjëhershme në ligjet zyrtare të Kosovës me të gjitha nenet e indeksuara. Çdo referencë e cituar nga Sokrati hapet direkt në shikuesin e plotë PDF me kërcim automatik te neni përkatës.',
+      title: 'Biblioteka Ligjore e Kosovës me 5,024 Nene të Plota',
+      subtitle: '19 LIGJET KANONIKE & STATUTET',
+      desc: 'Qasje e menjëhershme në 19 Ligjet dhe Kodet kryesore të Kosovës (KPRK, KPPRK, LPK, LMD, LFK). Çdo referencë ligjore bëhet me link të kaltër të klikueshëm me kërcim të drejtpërdrejtë te neni përkatës.',
       icon: BookOpen,
       gradient: 'from-emerald-500/15 via-teal-500/5 to-transparent',
       borderColor: 'border-emerald-500/30',
@@ -213,12 +214,12 @@ export const LandingPage: React.FC = () => {
     },
     {
       title: 'Enkriptim i Standardit të Lartë',
-      desc: 'Çdo skedar në fashikull dhe çdo informacion i ruajtur mbrohet me enkriptim të avancuar AES-256.',
+      desc: 'Çdo skedar në fashikull dhe çdo regjistrim audio/video mbrohet me enkriptim të avancuar AES-256.',
       icon: Shield,
     },
     {
       title: 'Fshirje e Menjëhershme',
-      desc: 'Kur fshini një lëndë ose dokument, të gjitha të dhënat dhe kopjet e tyre fshihen përfundimisht nga serverët.',
+      desc: 'Kur fshini një lëndë ose provë multimediale, të gjitha të dhënat dhe vektorët fshihen përfundimisht nga serverët.',
       icon: Database,
     },
     {
@@ -240,7 +241,7 @@ export const LandingPage: React.FC = () => {
           <div className="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-text-muted">
             <a href="#metrics" className="hover:text-text-primary transition-colors">Veçoritë</a>
             <a href="#pillars" className="hover:text-text-primary transition-colors">4 Shtyllat</a>
-            <a href="#arsenal" className="hover:text-text-primary transition-colors">Forenzika</a>
+            <a href="#arsenal" className="hover:text-text-primary transition-colors">Forenzika & Audio</a>
             <a href="#security" className="hover:text-text-primary transition-colors">Siguria</a>
           </div>
 
@@ -272,7 +273,7 @@ export const LandingPage: React.FC = () => {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-start/10 border border-primary-start/25 text-primary-start text-[11px] sm:text-xs font-bold uppercase tracking-widest shadow-xs"
           >
             <Scale size={14} className="animate-pulse text-amber-500" />
-            <span>Forenzikë Ligjore & Jurisprudenca e Gjykatës Supreme të Kosovës</span>
+            <span>Forenzikë Ligjore, Audio & Jurisprudencë e Gjykatës Supreme</span>
           </motion.div>
 
           <motion.h1
@@ -281,7 +282,7 @@ export const LandingPage: React.FC = () => {
             transition={{ delay: 0.1 }}
             className="text-3xl sm:text-5xl md:text-6xl font-black text-text-primary tracking-tight leading-[1.15] max-w-4xl mx-auto"
           >
-            Forenzika dhe Strategjia Procedurale e{' '}
+            Forenzika, Audio Transkriptimi dhe Strategjia e{' '}
             <span className="bg-gradient-to-r from-primary-start via-indigo-500 to-amber-500 bg-clip-text text-transparent">
               Zyrës Suaj Ligjore
             </span>
@@ -293,8 +294,8 @@ export const LandingPage: React.FC = () => {
             transition={{ delay: 0.2 }}
             className="text-sm sm:text-base md:text-lg text-text-secondary leading-relaxed max-w-3xl mx-auto font-normal"
           >
-            Zbulim i shkeljeve thelbësore procedurale, auditim i provave të papranueshme, korrigjim i lapsuseve statutare dhe lidhje e menjëhershme me <strong>vendimet parimore të Gjykatës Supreme të Kosovës</strong>. 
-            <strong> Juristi.tech</strong> fuqizon avokatët në analizën kirurgjikale të dosjes dhe mbrojtjen procedurale sipas <strong>KPRK, KPPRK, LPK dhe LMD</strong>.
+            Zbulim i shkeljeve thelbësore procedurale, transkriptim forenzik i regjistrimeve audio/video me sekonda, auditim i provave të njëanshme dhe lidhje e drejtpërdrejtë me <strong>vendimet parimore të Gjykatës Supreme të Kosovës</strong>. 
+            Platforma fuqizon avokatët në analizën kirurgjikale të dosjes dhe mbrojtjen procedurale sipas <strong>KPRK, KPPRK, LPK dhe LMD</strong>.
           </motion.p>
 
           <motion.div
@@ -314,8 +315,8 @@ export const LandingPage: React.FC = () => {
               href="#arsenal"
               className="w-full sm:w-auto h-12 px-8 rounded-2xl bg-surface hover:bg-hover text-text-primary font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-main transition-all cursor-pointer"
             >
-              <Scale size={16} className="text-amber-500" />
-              <span>Shiko Forenzikën ⚖️</span>
+              <Volume2 size={16} className="text-rose-500" />
+              <span>Shiko Provat Audio & Forenzikën ⚖️</span>
             </a>
           </motion.div>
         </div>
@@ -440,7 +441,7 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. ARSENALI I VEÇORIVE REALE */}
+      {/* 5. ARSENALI I VEÇORIVE REALE ME SPOTLIGHT PËR AUDION */}
       <section id="arsenal" className="py-24 border-t border-main bg-surface/30 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3 max-w-3xl mx-auto">
@@ -468,7 +469,7 @@ export const LandingPage: React.FC = () => {
                   <div className="relative z-10 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="w-12 h-12 rounded-2xl bg-surface border border-main flex items-center justify-center text-primary-start shadow-xs">
-                        <IconComponent size={22} className={b.subtitle.includes('FORENSICS') ? 'text-amber-500' : ''} />
+                        <IconComponent size={22} className={b.subtitle.includes('FORENSICS') ? 'text-amber-500' : b.subtitle.includes('MULTIMEDIA') ? 'text-rose-500' : ''} />
                       </div>
                       <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">
                         {b.subtitle}
@@ -554,7 +555,7 @@ export const LandingPage: React.FC = () => {
       {/* 8. FOOTER */}
       <footer className="py-8 border-t border-main bg-canvas text-center text-xs text-text-muted">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© {new Date().getFullYear()} Juristi.tech. Të gjitha të drejtat të rezervuara.</p>
+          <p>© {new Date().getFullYear()} Ndihmë Juridike. Të gjitha të drejtat të rezervuara.</p>
           <div className="flex gap-6 text-text-muted">
             <a href="/privacy" className="hover:text-text-primary transition-colors">Privatësia</a>
             <a href="/support" className="hover:text-text-primary transition-colors">Mbështetja</a>
