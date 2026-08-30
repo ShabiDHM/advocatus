@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v5.3 (HIGH-PERFORMANCE CONTENT-LENGTH METADATA STREAM)
+# PHOENIX PROTOCOL - STORAGE SERVICE v5.4 (HIGH-PERFORMANCE CONTENT-LENGTH METADATA STREAM + FILE PATH UPLOAD)
 
 import os
 import boto3
@@ -98,6 +98,43 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     except Exception as e:
         logger.error(f"Raw upload failed: {e}")
         raise e
+
+def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: str = "application/octet-stream") -> str:
+    """
+    PHOENIX PROTOCOL - NEW FUNCTION:
+    Uploads a file from a local disk path directly to Backblaze B2.
+    Used for media evidence after FFmpeg compression.
+    
+    Args:
+        file_path: Absolute path to the local file
+        filename: Original filename for storage key
+        user_id: Owner ID for folder structure
+        case_id: Case ID for folder structure
+        content_type: MIME type of the file
+    
+    Returns:
+        storage_key: The B2 storage key for retrieval
+    """
+    s3_client = get_s3_client()
+    storage_key = f"{user_id}/{case_id}/{filename}"
+    
+    try:
+        logger.info(f"--- [Storage] Uploading FILE PATH: {storage_key} ({content_type}) ---")
+        s3_client.upload_file(
+            file_path,
+            B2_BUCKET_NAME,
+            storage_key,
+            ExtraArgs={'ContentType': content_type},
+            Config=transfer_config
+        )
+        logger.info(f"--- [Storage] Successfully uploaded: {storage_key} ---")
+        return storage_key
+    except (BotoCoreError, ClientError) as e:
+        logger.error(f"!!! ERROR: File Path Upload failed: {storage_key}, Reason: {e}")
+        raise HTTPException(status_code=500, detail="Could not upload file from path.")
+    except Exception as e:
+        logger.error(f"!!! ERROR: Unexpected upload failure for {storage_key}: {e}")
+        raise HTTPException(status_code=500, detail="Unexpected error during file upload.")
 
 def get_file_stream(storage_key: str) -> Any:
     """

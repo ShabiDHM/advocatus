@@ -1,5 +1,5 @@
 # FILE: backend/app/services/video_forensic_service.py
-# PHOENIX PROTOCOL - VIDEO FORENSIC VISION SERVICE V1.0 (LICENSE PLATES • OCR TIMESTAMPS • ACTION LOG)
+# PHOENIX PROTOCOL - VIDEO FORENSIC VISION SERVICE V1.1 (ACCURATE TIMESTAMPS & MODEL FALLBACK)
 
 import os
 import json
@@ -8,6 +8,7 @@ import logging
 import tempfile
 import subprocess
 import asyncio
+import re
 from typing import List, Dict, Any, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
@@ -27,8 +28,12 @@ def _get_async_client() -> AsyncOpenAI:
 
 def extract_video_keyframes(video_path: str, max_frames: int = 16, interval_seconds: int = 2) -> List[Dict[str, Any]]:
     """
-    Nxjerr kuadrot (fotot) kryesore nga skedari video me FFmpeg në mënyrë të shpejtë dhe pa ngarkuar memorien.
-    Kthen një listë objektesh: [{'timestamp_str': '00:04', 'base64_data': '...'}]
+    PHOENIX PROTOCOL - FIXED:
+    Nxjerr kuadrot (fotot) kryesore nga skedari video me FFmpeg.
+    Tani kthen kohën e SAKTË të çdo kuadri duke lexuar numrin e frame-it nga emri i skedarit.
+    
+    Returns:
+        List of dicts: [{'timestamp_str': 'MM:SS', 'seconds': float, 'base64_data': '...'}]
     """
     frames_data = []
     temp_dir = tempfile.mkdtemp(prefix="video_frames_")
@@ -40,7 +45,7 @@ def extract_video_keyframes(video_path: str, max_frames: int = 16, interval_seco
             "ffmpeg",
             "-y",
             "-i", video_path,
-            "-vf", f"fps=1/{interval_seconds},scale=640:-1",  # Zvogëlon madhësinë për shpejtësi maksimale
+            "-vf", f"fps=1/{interval_seconds},scale=640:-1",
             "-q:v", "4",
             output_pattern
         ]
@@ -53,11 +58,23 @@ def extract_video_keyframes(video_path: str, max_frames: int = 16, interval_seco
         step = max(1, len(frame_files) // max_frames)
         selected_files = frame_files[::step][:max_frames]
 
-        for idx, fname in enumerate(selected_files):
+        for fname in selected_files:
             fpath = os.path.join(temp_dir, fname)
-            sec_offset = idx * interval_seconds * step
-            minutes = sec_offset // 60
-            seconds = sec_offset % 60
+            
+            # PHOENIX FIX: Extract the frame number from filename (frame_0001.jpg -> 1)
+            match = re.search(r'frame_(\d+)\.jpg', fname)
+            if match:
+                frame_num = int(match.group(1))
+                # PHOENIX FIX: Correct timestamp calculation
+                # Frame 1 = 0 seconds (start), Frame 2 = interval_seconds, etc.
+                sec_offset = (frame_num - 1) * interval_seconds
+            else:
+                # Fallback: use index-based calculation
+                idx = selected_files.index(fname)
+                sec_offset = idx * interval_seconds * step
+            
+            minutes = int(sec_offset) // 60
+            seconds = int(sec_offset) % 60
             time_str = f"{minutes:02d}:{seconds:02d}"
 
             with open(fpath, "rb") as img_file:
@@ -95,7 +112,7 @@ class VideoForensicService:
         if not key:
             return {"error": "Mungon API Key."}
 
-        # 1. Nxjerrja e kuadrove me sekonda
+        # 1. Nxjerrja e kuadrove me sekonda të sakta
         keyframes = await asyncio.to_thread(extract_video_keyframes, video_path, max_frames=16, interval_seconds=2)
         if not keyframes:
             return {
@@ -152,27 +169,38 @@ class VideoForensicService:
                 }
             })
 
-        # 3. Thirrja e Modelit Vision në OpenRouter
-        try:
-            res = await client.chat.completions.create(
-                model=VISION_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content_payload}
-                ],
-                temperature=0.0,
-                max_tokens=4096,
-                response_format={"type": "json_object"}
-            )
-            raw_text = res.choices[0].message.content or "{}"
-            parsed = json.loads(raw_text)
-            return parsed
-        except Exception as e:
-            logger.error(f"❌ Video Vision Forensic Analysis Error ({VISION_MODEL}): {e}")
-            return {
-                "visual_summary": "Dështoi analiza automatike vizuale e videos.",
-                "video_forensic_log": [],
-                "error": str(e)
-            }
+        # 3. Thirrja e Modelit Vision në OpenRouter me FALLBACK
+        models_to_try = [VISION_MODEL, VISION_FALLBACK_MODEL]
+        last_error = None
+        
+        for model_name in models_to_try:
+            try:
+                logger.info(f"🎥 [Video Forensic] Duke analizuar me modelin: {model_name}")
+                res = await client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content_payload}
+                    ],
+                    temperature=0.0,
+                    max_tokens=4096,
+                    response_format={"type": "json_object"}
+                )
+                raw_text = res.choices[0].message.content or "{}"
+                parsed = json.loads(raw_text)
+                return parsed
+            except Exception as e:
+                last_error = e
+                logger.warning(f"⚠️ Vision model {model_name} dështoi: {e}")
+                # Vazhdo te modeli tjetër
+                continue
+        
+        # Nëse të dy modelet dështuan
+        logger.error(f"❌ Video Vision Forensic Analysis Error (të dy modelet dështuan): {last_error}")
+        return {
+            "visual_summary": "Dështoi analiza automatike vizuale e videos.",
+            "video_forensic_log": [],
+            "error": str(last_error)
+        }
 
 video_forensic_service = VideoForensicService()

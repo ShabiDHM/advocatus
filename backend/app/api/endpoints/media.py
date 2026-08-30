@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V12.0 (PRE-UPLOAD COMPRESSION, B2 OPTIMIZATION & ZERO-LEAK LIFECYCLE)
+# PHOENIX PROTOCOL - MEDIA ROUTER V12.1 (AUTHORIZATION ENFORCED & DIRECT DB PASS-THROUGH)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -13,7 +13,7 @@ import tempfile
 import os
 import shutil
 from datetime import datetime, timezone
-from jose import jwt
+from jose import jwt, JWTError
 import redis.asyncio as aioredis
 import json
 
@@ -59,7 +59,7 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
 
 
 def orchestrate_media_analysis(
-    db_client,
+    db_client: Database,
     media_id_str: str,
     file_path: str,
     user_id_str: str,
@@ -67,11 +67,13 @@ def orchestrate_media_analysis(
     file_name: str,
     is_video: bool
 ):
-    from app.core.db import get_db_instance
-    db = get_db_instance()
-    
+    """
+    PHOENIX PROTOCOL - FIXED:
+    Now accepts db_client directly from the route handler.
+    No circular import needed - uses the passed database instance.
+    """
     MediaForensicsService.process_and_index_media(
-        db=db,
+        db=db_client,
         media_id_str=media_id_str,
         file_path=file_path,
         user_id_str=user_id_str,
@@ -90,6 +92,11 @@ async def get_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
     
+    # PHOENIX FIX: Verify case ownership before returning media
+    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
+    
     cursor = db.media_evidence.find({"case_id": case_oid, "owner_id": user_oid}).sort("created_at", -1)
     items = []
     for item in cursor:
@@ -107,6 +114,11 @@ async def upload_case_media(
 ):
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
+    
+    # PHOENIX FIX: Verify case ownership before upload
+    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
 
     filename = file.filename or "recording.mp3"
     ext = os.path.splitext(filename)[1].lower()
@@ -185,6 +197,7 @@ async def upload_case_media(
     media_id_str = str(result.inserted_id)
 
     # 4. Transkriptimi dhe Indeksimi Forenzik në Background
+    # PHOENIX FIX: Pass db directly, no circular import
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
@@ -207,18 +220,59 @@ async def stream_case_media(
     token: Optional[str] = Query(None),
     db: Database = Depends(get_db)
 ):
+    """
+    PHOENIX PROTOCOL - FIXED:
+    - Verifies JWT token expiration
+    - Verifies case ownership
+    - Verifies media belongs to the case
+    """
+    user_id_str = None
+    user_oid = None
+    
     if token:
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            user_id = payload.get("sub") or payload.get("id")
-            if not user_id:
+            
+            # PHOENIX FIX: Verify token expiration
+            exp = payload.get("exp")
+            if exp:
+                from datetime import datetime as dt
+                exp_dt = dt.fromtimestamp(exp, tz=timezone.utc)
+                if dt.now(timezone.utc) > exp_dt:
+                    raise HTTPException(status_code=401, detail="Token i skaduar.")
+            
+            user_id_str = payload.get("sub") or payload.get("id")
+            if not user_id_str:
                 raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
-        except Exception as e:
+            
+            user_oid = ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else None
+            if not user_oid:
+                raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
+                
+        except JWTError as e:
             logger.warning(f"Token decode failed for media stream: {e}")
             raise HTTPException(status_code=401, detail="I paautorizuar.")
+        except Exception as e:
+            logger.warning(f"Token validation error for media stream: {e}")
+            raise HTTPException(status_code=401, detail="I paautorizuar.")
+    else:
+        # PHOENIX FIX: If no token provided, deny access
+        raise HTTPException(status_code=401, detail="Kërkohet token për qasje në media.")
 
+    case_oid = validate_object_id(case_id)
     media_oid = validate_object_id(media_id)
-    media_item = db.media_evidence.find_one({"_id": media_oid})
+    
+    # PHOENIX FIX: Verify case ownership
+    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
+    
+    # PHOENIX FIX: Verify media belongs to the case and user
+    media_item = db.media_evidence.find_one({
+        "_id": media_oid,
+        "case_id": case_oid,
+        "owner_id": user_oid
+    })
     if not media_item:
         raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
 
@@ -252,9 +306,19 @@ async def delete_case_media(
     db: Database = Depends(get_db)
 ):
     media_oid = validate_object_id(media_id)
+    case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
 
-    media_item = db.media_evidence.find_one({"_id": media_oid, "owner_id": user_oid})
+    # PHOENIX FIX: Verify case ownership
+    case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
+
+    media_item = db.media_evidence.find_one({
+        "_id": media_oid,
+        "case_id": case_oid,
+        "owner_id": user_oid
+    })
     if not media_item:
         raise HTTPException(status_code=404, detail="Regjistrimi nuk u gjet.")
 

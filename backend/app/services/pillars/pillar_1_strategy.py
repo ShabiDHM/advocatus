@@ -1,7 +1,11 @@
 # FILE: backend/app/services/pillars/pillar_1_strategy.py
-# PHOENIX PROTOCOL - PILLAR 1: ROLE-AWARE FORENSIC STRATEGY (PLAINTIFF / DEFENDANT / NEUTRAL V22.0)
+# PHOENIX PROTOCOL - PILLAR 1: ROLE-AWARE FORENSIC STRATEGY V23.0 (RAG INTEGRATED & DOMAIN-AGNOSTIC)
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from app.services.pillars.base_pillar_service import BasePillarService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Pillar1StrategyService:
     """
@@ -10,6 +14,8 @@ class Pillar1StrategyService:
       * PLAINTIFF (Paditës): Ndërtimi i strategjisë sulmuese, provimi i fakteve dhe fitimi i kërkesës.
       * DEFENDANT (I Paditur): Mbrojtja e hekurt, shfajësimi dhe rrëzimi i pretendimeve.
       * NEUTRAL (I Paanshëm): Vlerësim objektiv gjyqësor i të dyja palëve pa anësi.
+    - 100% agnostik ndaj domeneve (PENAL, CIVIL, KOMERCIAL, PRONËSOR, PUNËS, FAMILJAR, ADMINISTRATIV, KUSHTETUES)
+    - RAG integration për zero halucinacione
     """
 
     @staticmethod
@@ -19,9 +25,30 @@ class Pillar1StrategyService:
         client_position: str,
         current_date_str: str,
         manifest_str: str,
-        context_str: str
+        context_str: str,
+        case_domain: Optional[str] = None,
+        query_text: Optional[str] = None,
+        user_id: Optional[str] = None,
+        case_id: Optional[str] = None
     ) -> str:
         pos = (client_position or "DEFENDANT").upper()
+        
+        # PHOENIX FIX: Zbulo domenin nëse nuk është dhënë
+        if not case_domain:
+            case_domain = BasePillarService.detect_case_domain(
+                case_title=case_title,
+                context_str=context_str,
+                manifest_str=manifest_str
+            )
+        
+        # PHOENIX FIX: Kërko në RAG për kontekst ligjor
+        search_query = query_text or f"Strategjia ligjore për çështjen: {case_title}. Klienti: {client_name}. Pozicioni: {pos}. Lëmia: {case_domain}"
+        rag_context, case_rag_context = BasePillarService.get_rag_context(
+            user_id=user_id or "",
+            case_id=case_id or "",
+            query_text=search_query,
+            n_results=25
+        )
 
         if pos in ["PLAINTIFF", "PADITËS", "KALLËZUES"]:
             stance_instruction = f"""
@@ -53,22 +80,53 @@ class Pillar1StrategyService:
             section_1_title = f"### 1. 🏛️ ANALIZA FORENZIKE E TË GJITHË FASHIKULLIT: ÇKA KA NDODHUR ({client_name})?"
             section_5_title = f"### 5. 🎯 ÇFARË DUHET TË BËJË ({client_name}) TASH: PLANI I VEPRIMIT DHE HAPAT PROCEDURALË"
 
+        # PHOENIX FIX: Përdor BasePillarService për pjesën e përbashkët
+        base_prompt = BasePillarService.build_base_prompt(
+            case_title=case_title,
+            client_name=client_name,
+            client_position=pos,
+            current_date_str=current_date_str,
+            manifest_str=manifest_str,
+            context_str=context_str,
+            case_domain=case_domain,
+            rag_context=rag_context,
+            case_rag_context=case_rag_context
+        )
+
         return f"""
 Ti je "Sokrati - Krye-Strategu Procedural dhe Auditori Ligjor në Republikën e Kosovës".
+DEGË E SË DREJTËS: {case_domain}
 KLIENTI / PËRDORUESI: **{client_name}** | ROLI ZYRTAR NË LËNDË: **{pos}** | LËNDA: **{case_title}** | DATA: {current_date_str}
 
 {stance_instruction}
 
 RREGULLA TË PËRGJITHSHME:
 1. Përshtat gjuhën, strategjinë dhe matricën e provave me rolin ({pos});
-2. Analizo afatet procedurale në bazë të datës së sotme ({current_date_str});
-3. Fëmijët trajtohen vetëm si Palë e Dëmtuar/Viktima;
-4. Ndalohen kategorikisht nënshkrimet fiktive apo inicialet në fund.
+2. Përshtat analizën me lëminë specifike: {case_domain};
+3. Analizo afatet procedurale në bazë të datës së sotme ({current_date_str});
+4. Fëmijët trajtohen vetëm si Palë e Dëmtuar/Viktima;
+5. Ndalohen kategorikisht nënshkrimet fiktive apo inicialet në fund;
+6. PËRDOR VETËM ligjet dhe nenet nga KONTEKSTI LIGJOR I VERIFIKUAR më poshtë;
+7. NËSE nuk gjen një nen specifik në RAG context, thuaj: "Nuk u gjet referencë e saktë në bazën statutore për këtë pikë" — MOS e shpik!
 
+{'='*60}
+KONTEKSTI LIGJOR I VERIFIKUAR NGA BAZA STATUTORE E KOSOVËS (RAG):
+{'='*60}
+{rag_context if rag_context else "Nuk u gjet asnjë referencë specifike në bazën statutore. Përdor vetëm parime të përgjithshme ligjore."}
+
+{'='*60}
+KONTEKSTI NGA DOKUMENTET E ÇËSHTJES (RAG):
+{'='*60}
+{case_rag_context if case_rag_context else "Nuk u gjetën dokumente shtesë në bazën e çështjes."}
+
+{'='*60}
 PASAPORTA E SHKRESAVE:
+{'='*60}
 {manifest_str}
 
+{'='*60}
 DOKUMENTET E PLOTA:
+{'='*60}
 {context_str}
 
 STRUKTURA E DETYRUESHME E PËRGJIGJES:

@@ -1,7 +1,5 @@
 # FILE: backend/app/core/db.py
-# PHOENIX PROTOCOL - DATABASE CORE V5.3 (SETTINGS ALIGNED)
-# 1. FIX: Uses Pydantic 'settings' for DATABASE_URI and MONGO_DB_NAME instead of raw os.getenv().
-# 2. STATUS: Clean, robust, and aligned with dependencies.py.
+# PHOENIX PROTOCOL - DATABASE CORE V5.4 (NO CIRCULAR IMPORT - GLOBAL INSTANCE)
 
 import os
 import logging
@@ -16,10 +14,11 @@ logger = logging.getLogger(__name__)
 # --- GLOBAL CONNECTION POOLS ---
 _mongo_client = None
 _redis_client = None
+_mongo_db_instance = None  # PHOENIX FIX: Global reference to avoid circular import
 
 # --- MONGODB CONNECTION ---
 def connect_to_mongo() -> tuple[MongoClient, Database]:
-    global _mongo_client
+    global _mongo_client, _mongo_db_instance
     uri = settings.DATABASE_URI
     db_name = settings.MONGO_DB_NAME or "advocatus_db"
     if not uri: raise ValueError("DATABASE_URI missing.")
@@ -27,16 +26,19 @@ def connect_to_mongo() -> tuple[MongoClient, Database]:
         if _mongo_client is None:
             _mongo_client = MongoClient(uri, maxPoolSize=50, serverSelectionTimeoutMS=5000)
             _mongo_client.admin.command('ping')
-        return _mongo_client, _mongo_client[db_name]
+        # PHOENIX FIX: Store the database instance globally
+        _mongo_db_instance = _mongo_client[db_name]
+        return _mongo_client, _mongo_db_instance
     except Exception as e:
         logger.error(f"❌ Failed to connect to MongoDB: {e}")
         raise e
 
 def close_mongo_connections():
-    global _mongo_client
+    global _mongo_client, _mongo_db_instance
     if _mongo_client:
         _mongo_client.close()
         _mongo_client = None
+        _mongo_db_instance = None
 
 # --- REDIS CONNECTION ---
 def connect_to_redis() -> redis.Redis:
@@ -62,13 +64,15 @@ def close_redis_connection():
 def get_db() -> Database:
     """Dependency for FastAPI route handlers (MongoDB)."""
     try:
+        # PHOENIX FIX: Return the global instance if available, otherwise connect
+        if _mongo_db_instance is not None:
+            return _mongo_db_instance
         _, db = connect_to_mongo()
         return db
     except Exception as e:
         logger.error(f"Database dependency error: {e}")
         raise
 
-# PHOENIX FIX: Converted to Generator to satisfy next() calls in dependencies.py
 def get_redis_client():
     """Generator dependency for FastAPI route handlers (Redis)."""
     try:
@@ -80,9 +84,32 @@ def get_redis_client():
 
 # --- SAAS DIRECT ACCESS HELPER ---
 def get_db_instance() -> Database:
-    """Helper for direct access during SaaS operations without FastAPI requests."""
-    from ..main import app
-    if hasattr(app.state, "mongo_db") and app.state.mongo_db is not None:
-        return app.state.mongo_db
-    _, db = connect_to_mongo()
-    return db
+    """
+    PHOENIX PROTOCOL - FIXED:
+    Helper for direct access during SaaS operations without FastAPI requests.
+    No circular import - uses global instance stored in connect_to_mongo().
+    """
+    global _mongo_db_instance
+    
+    # 1. If the global instance already exists, return it immediately
+    if _mongo_db_instance is not None:
+        return _mongo_db_instance
+    
+    # 2. Otherwise, establish a new connection
+    try:
+        _, db = connect_to_mongo()
+        _mongo_db_instance = db
+        return db
+    except Exception as e:
+        logger.error(f"Failed to get database instance: {e}")
+        raise
+
+def set_db_instance(db: Database):
+    """
+    PHOENIX PROTOCOL - NEW FUNCTION:
+    Allows lifespan.py to set the database instance during startup.
+    This ensures all modules use the same connection pool.
+    """
+    global _mongo_db_instance
+    _mongo_db_instance = db
+    logger.info("✅ Database instance set globally for SaaS operations.")

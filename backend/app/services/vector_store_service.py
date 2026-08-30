@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V32.0 (STRICT CASE-ISOLATION & DETERMINISTIC HYBRID LEGAL RETRIEVAL)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V32.1 (SETTINGS ALIGNED & SAFE COPY)
 
 import os
 import time
@@ -9,6 +9,8 @@ import re
 from typing import List, Dict, Any, Sequence, Optional
 from pymongo import MongoClient
 from bson import ObjectId
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,18 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _get_db():
-    uri = os.getenv("DATABASE_URI")
-    db_name = os.getenv("MONGO_DB_NAME", "advocatus_db")
+    """
+    PHOENIX PROTOCOL - FIXED:
+    Now uses Pydantic settings instead of raw os.getenv().
+    This ensures the .env file is properly loaded.
+    """
+    uri = settings.DATABASE_URI or os.getenv("DATABASE_URI")
+    db_name = settings.MONGO_DB_NAME or os.getenv("MONGO_DB_NAME", "advocatus_db")
+    
+    if not uri:
+        logger.error("❌ DATABASE_URI is empty in vector_store_service._get_db()")
+        raise ValueError("DATABASE_URI is not configured.")
+    
     return MongoClient(uri)[db_name]
 
 
@@ -279,9 +291,18 @@ def delete_document_embeddings(user_id: str, document_id: str):
 
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):
+    """
+    PHOENIX PROTOCOL - FIXED:
+    Now checks if 'existing' is empty before calling insert_many().
+    """
     try:
         db = _get_db()
         existing = list(db["user_vectors"].find({"document_id": str(source_document_id)}))
+        
+        if not existing:
+            logger.warning(f"⚠️ No embeddings found for source document {source_document_id}")
+            return
+        
         for doc in existing:
             doc.pop("_id", None)
             doc.update({
@@ -289,7 +310,8 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
                 "owner_id": target_user_id, 
                 "case_id": str(target_case_id)
             })
-        if existing: 
-            db["user_vectors"].insert_many(existing)
-    except Exception: 
-        pass
+        
+        db["user_vectors"].insert_many(existing)
+        logger.info(f"✅ Copied {len(existing)} embeddings from {source_document_id} to {target_document_id}")
+    except Exception as e:
+        logger.error(f"❌ Failed to copy document embeddings: {e}")

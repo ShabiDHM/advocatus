@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - DEPENDENCIES V3.0 (GATEKEEPER & EXPIRATION ENFORCED)
+# PHOENIX PROTOCOL - DEPENDENCIES V3.1 (EMPTY STRING HANDLING & REDIS FIX)
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 import logging
 import redis
 
-# PHOENIX FIX: Removed get_async_db
 from ...core.db import get_db, get_redis_client
 from ...core.config import settings
 from ...services import user_service
@@ -27,10 +26,20 @@ class TokenData(BaseModel):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 def get_sync_redis() -> Generator[redis.Redis, None, None]:
-    client = next(get_redis_client())
-    if client is None:
-         raise HTTPException(status_code=500, detail="Redis client not initialized.")
-    yield client
+    """
+    PHOENIX PROTOCOL - FIXED:
+    Now properly handles Redis connection errors.
+    """
+    try:
+        client = next(get_redis_client())
+        if client is None:
+            raise HTTPException(status_code=500, detail="Redis client not initialized.")
+        yield client
+    except StopIteration:
+        raise HTTPException(status_code=500, detail="Redis client not available.")
+    except Exception as e:
+        logger.error(f"Redis connection error: {e}")
+        raise HTTPException(status_code=500, detail="Redis client not available.")
 
 def is_subscription_expired(expiry_val) -> bool:
     """Helper function to check if subscription date has passed (UTC aware)."""
@@ -73,7 +82,9 @@ def get_current_user(
     try:
         payload = jwt.decode(token, secret_key, algorithms=[settings.ALGORITHM])
         user_id_str: Optional[str] = payload.get("sub") or payload.get("id")
-        if user_id_str is None:
+        
+        # PHOENIX FIX: Check for empty string, not just None
+        if not user_id_str:
             raise credentials_exception
         
         try:
@@ -157,7 +168,9 @@ def get_current_refresh_user(
         if payload.get("type") != "refresh":
             raise credentials_exception
         user_id_str: Optional[str] = payload.get("sub") or payload.get("id")
-        if user_id_str is None:
+        
+        # PHOENIX FIX: Check for empty string, not just None
+        if not user_id_str:
             raise credentials_exception
         
         try:
@@ -197,7 +210,9 @@ async def get_current_user_ws(
     try:
         payload = jwt.decode(token, secret_key, algorithms=[settings.ALGORITHM])
         user_id_str: Optional[str] = payload.get("sub") or payload.get("id")
-        if user_id_str is None:
+        
+        # PHOENIX FIX: Check for empty string, not just None
+        if not user_id_str:
             raise credentials_exception
         
         try:

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/media_forensics_service.py
-# PHOENIX PROTOCOL - MEDIA FORENSICS V17.0 (AUTOMATIC AUDIO/VIDEO FFmpeg EXTRACTION & VERBATIM RAG ENGINE)
+# PHOENIX PROTOCOL - MEDIA FORENSICS V18.0 (ASYNC-SAFE & RAG-ENHANCED)
 
 import os
 import re
@@ -17,6 +17,7 @@ import redis.asyncio as aioredis
 from app.core.config import settings
 from app.services import llm_service
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks
+from app.services.pillars.base_pillar_service import BasePillarService
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,10 @@ class MediaForensicsService:
             cmd = [
                 "ffmpeg", "-y",
                 "-i", input_path,
-                "-vn",                 # Pa rrjedhë video
-                "-ar", "16000",        # 16kHz standardi i njohjes së zërit
-                "-ac", "1",            # Mono kanal
-                "-b:a", "32k",         # 32kbps bitrate optimal
+                "-vn",
+                "-ar", "16000",
+                "-ac", "1",
+                "-b:a", "32k",
                 compressed_out
             ]
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
@@ -122,12 +123,13 @@ class MediaForensicsService:
         5. NDALOHET KATEGORIKISHT të shtosh analiza, komente, mendime apo përfundime të tuat! Kthe VETËM dialogun fjalë për fjalë.
         """
         try:
+            # PHOENIX FIX: Përdor DEEP_MODEL për pastrim më të saktë
             cleaned = llm_service._call_llm(
                 system_prompt=system_prompt,
                 user_content=raw_segments_text,
                 json_mode=False,
                 temperature=0.0,
-                model=llm_service.FAST_MODEL
+                model=llm_service.DEEP_MODEL
             )
             return cleaned.strip() if cleaned else raw_segments_text
         except Exception as e:
@@ -140,7 +142,6 @@ class MediaForensicsService:
         if not api_key:
             return "[Gabim: Mungon API Key për transkriptim.]"
 
-        # Nxjerrim audio të optimizuar për të parandaluar tejkalimin e kufirit 25MB të Whisper
         whisper_audio_path = cls.extract_audio_for_whisper(file_path) or file_path
         created_temp = (whisper_audio_path != file_path)
 
@@ -203,7 +204,7 @@ class MediaForensicsService:
                     pass
 
     @classmethod
-    def process_and_index_media(
+    async def process_and_index_media_async(
         cls,
         db: Any,
         media_id_str: str,
@@ -211,30 +212,30 @@ class MediaForensicsService:
         user_id_str: str,
         case_id_str: str,
         file_name: str,
-        is_video: bool
+        is_video: bool,
+        case_domain: Optional[str] = None
     ):
+        """
+        PHOENIX PROTOCOL - ASYNC VERSION:
+        Përdor asyncio direkt pa krijuar event loop të ri.
+        """
         media_oid = ObjectId(media_id_str)
         try:
             logger.info(f"🎙️ [Media Forensics] Duke transkriptuar fjalë për fjalë: {file_name}")
-            transcript = cls.transcribe_audio_file(file_path)
+            
+            # Transkriptimi është sinkron (Whisper API), kështu që përdorim to_thread
+            transcript = await asyncio.to_thread(cls.transcribe_audio_file, file_path)
 
             visual_data = {}
             if is_video:
                 try:
                     from app.services.video_forensic_service import video_forensic_service
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        visual_data = loop.run_until_complete(
-                            video_forensic_service.analyze_video_evidence_async(file_path, file_name)
-                        )
-                    finally:
-                        loop.close()
+                    visual_data = await video_forensic_service.analyze_video_evidence_async(file_path, file_name)
                 except Exception as v_err:
                     logger.warning(f"Visual forensic analysis skipped/failed: {v_err}")
 
             # 1. Ruajtja e transkriptit zyrtar në MongoDB
-            db.media_evidence.update_one(
+            update_result = db.media_evidence.update_one(
                 {"_id": media_oid},
                 {"$set": {
                     "transcript": transcript,
@@ -243,12 +244,17 @@ class MediaForensicsService:
                     "updated_at": datetime.now(timezone.utc)
                 }}
             )
+            
+            # PHOENIX FIX: Kontrollo nëse dokumenti u përditësua
+            if update_result.modified_count == 0:
+                logger.warning(f"⚠️ [Media Forensics] Nuk u përditësua asnjë dokument për media_id: {media_id_str}")
 
             # 2. Indeksimi elitar në RAG (user_vectors) si PROVË MATERIALE
             media_type_label = "VIDEO-REGJISTRIM" if is_video else "FONOGRAM / AUDIO-REGJISTRIM"
             combined_rag_text = (
                 f"PROVA MATERIALE E PAPËRGJËGJSHME ({media_type_label}): {file_name}\n"
-                f"Lloji i Provës: Provë Materiale / Fonogram Forenzik\n\n"
+                f"Lloji i Provës: Provë Materiale / Fonogram Forenzik\n"
+                f"Lëmia: {case_domain or 'E PAZBUluar'}\n\n"
                 f"TRANSKRIPTI ZYRTAR VERBATIM ME KOHËMATJE [MM:SS - MM:SS]:\n"
                 f"{transcript}\n"
             )
@@ -256,6 +262,7 @@ class MediaForensicsService:
             if visual_data and visual_data.get("visual_summary"):
                 combined_rag_text += f"\nPËRMBLEDHJA E KONTROLLIT VIZUAL:\n{visual_data['visual_summary']}\n"
 
+            # PHOENIX FIX: Shto case_domain në metadatë
             create_and_store_embeddings_from_chunks(
                 user_id=user_id_str,
                 document_id=media_id_str,
@@ -266,7 +273,8 @@ class MediaForensicsService:
                     'file_name': f"Media: {file_name}",
                     'category': 'audio_evidence',
                     'evidence_type': 'material_evidence',
-                    'is_physical_evidence': True
+                    'is_physical_evidence': True,
+                    'case_domain': case_domain or 'UNKNOWN'
                 }]
             )
             logger.info(f"✅ [Media Forensics] Transkripti u indeksua me sukses në RAG si Provë Materiale për {file_name}!")
@@ -283,3 +291,45 @@ class MediaForensicsService:
                     os.remove(file_path)
                 except Exception:
                     pass
+
+    @classmethod
+    def process_and_index_media(
+        cls,
+        db: Any,
+        media_id_str: str,
+        file_path: str,
+        user_id_str: str,
+        case_id_str: str,
+        file_name: str,
+        is_video: bool,
+        case_domain: Optional[str] = None
+    ):
+        """
+        PHOENIX PROTOCOL - SYNC WRAPPER:
+        Ruan përputhshmërinë me thirrjet ekzistuese sinkrone.
+        """
+        try:
+            asyncio.run(cls.process_and_index_media_async(
+                db=db,
+                media_id_str=media_id_str,
+                file_path=file_path,
+                user_id_str=user_id_str,
+                case_id_str=case_id_str,
+                file_name=file_name,
+                is_video=is_video,
+                case_domain=case_domain
+            ))
+        except RuntimeError as e:
+            # Nëse tashmë jemi në event loop, përdor run_until_complete
+            logger.warning(f"⚠️ RuntimeError në asyncio.run, duke provuar run_until_complete: {e}")
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(cls.process_and_index_media_async(
+                db=db,
+                media_id_str=media_id_str,
+                file_path=file_path,
+                user_id_str=user_id_str,
+                case_id_str=case_id_str,
+                file_name=file_name,
+                is_video=is_video,
+                case_domain=case_domain
+            ))

@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V9.0 (HIGH-CLASS FORENSIC AUDIO/VIDEO TRANSCRIPTION SYSTEM)
+// PHOENIX PROTOCOL - MEDIA PANEL V9.1 (FILE SIZE VALIDATION & PROPER ARCHIVE ENDPOINT)
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
@@ -9,6 +9,10 @@ import {
     Video, Film, Eye, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Maximum allowed file size: 250MB
+const MAX_FILE_SIZE_MB = 250;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface ForensicLogItem {
     timestamp_video: string;
@@ -57,7 +61,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const loadMedia = async () => {
+    const loadMedia = useCallback(async () => {
         try {
             const res = await apiService.axiosInstance.get(`/cases/${caseId}/media`);
             setMediaItems(res.data || []);
@@ -66,13 +70,13 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [caseId]);
 
     const isProcessing = useMemo(() => mediaItems.some(item => item.status === 'PROCESSING'), [mediaItems]);
 
     useEffect(() => {
         loadMedia();
-    }, [caseId]);
+    }, [loadMedia]);
 
     useEffect(() => {
         if (!isProcessing) return;
@@ -80,11 +84,26 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             loadMedia();
         }, 3000);
         return () => clearInterval(interval);
-    }, [isProcessing]);
+    }, [isProcessing, loadMedia]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // PHOENIX FIX: Validate file size before upload
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            alert(`Skedari është shumë i madh. Madhësia maksimale e lejuar është ${MAX_FILE_SIZE_MB}MB.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        // PHOENIX FIX: Validate file type
+        const validExtensions = /\.(mp3|wav|m4a|ogg|aac|mp4|mov|avi|mkv|webm)$/i;
+        if (!validExtensions.test(file.name)) {
+            alert("Formati i skedarit nuk mbështetet. Ju lutem përdorni MP3, WAV, M4A, MP4, MOV, AVI, MKV, ose WEBM.");
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
 
         setIsUploading(true);
         setUploadProgress(15);
@@ -134,11 +153,22 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         setIsArchiving(true);
         setArchiveSuccess(false);
         try {
-            await apiService.archiveForensicReport(
-                caseId, 
-                `Transkript: ${item.file_name}`, 
-                item.transcript
+            // PHOENIX FIX: Use proper archive upload endpoint
+            const formData = new FormData();
+            const blob = new Blob([item.transcript], { type: 'text/plain;charset=utf-8' });
+            const transcriptFile = new File([blob], `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`, { type: 'text/plain' });
+            formData.append('file', transcriptFile);
+            formData.append('title', `Transkript: ${item.file_name}`);
+            formData.append('category', 'media_transcript');
+            formData.append('case_id', caseId);
+            
+            await apiService.uploadArchiveItem(
+                transcriptFile,
+                `Transkript: ${item.file_name}`,
+                'media_transcript',
+                caseId
             );
+            
             setArchiveSuccess(true);
             setTimeout(() => setArchiveSuccess(false), 3000);
         } catch (err: any) {
@@ -197,6 +227,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                     <Film size={32} className="mx-auto mb-2 text-text-muted opacity-70" />
                     <p className="text-text-primary text-xs font-bold">Nuk ka ende skedarë audio apo video në këtë lëndë.</p>
                     <p className="text-[11px] text-text-muted mt-0.5 font-medium font-mono">Mbështet MP3, WAV, M4A, MP4, MOV, AVI (kompresim automatik).</p>
+                    <p className="text-[10px] text-text-muted mt-1 font-medium">Madhësia maksimale: {MAX_FILE_SIZE_MB}MB</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
