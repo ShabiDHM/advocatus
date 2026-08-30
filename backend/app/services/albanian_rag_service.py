@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V133.0 (COMPREHENSIVE ANALYSIS ADDED)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V134.0 (GENERAL CHAT OPTIMIZED — NO MASS SCAN)
 
 import os
 import logging
@@ -39,13 +39,14 @@ MANDATORY_LEGAL_DISCLAIMER = (
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V133.0 Modular me Comprehensive Analysis.
+    Shërbimi Kryesor RAG — V134.0 Modular me Comprehensive Analysis.
+    Ndryshimi kryesor: GENERAL_CHAT nuk e ngarkon më të gjithë fashikullin.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V133.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V134.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -149,14 +150,36 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=30
-        )
-        global_docs = vector_store_service.query_global_knowledge_base(
-            query_text=optimized_query, n_results=16
-        )
+        # 🔥 PHOENIX FIX: GENERAL_CHAT nuk e ngarkon më të gjithë fashikullin
+        # Vetëm intents specifike e bëjnë kërkimin e plotë në knowledge base
+        if user_intent == "GENERAL_CHAT":
+            # Për pyetje të lira si "më trego për kundërpadinë", përdor vetëm global knowledge base
+            # dhe NUK e ngarkon fashikullin e plotë të lëndës
+            case_docs = []
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=8
+            )
+            manifest_str = ""
+            context_str = ContextBuilder.build(case_docs, global_docs, [])[1]
+        elif user_intent == "COMPREHENSIVE_ANALYSIS":
+            # Vetëm këtu e ngarkojmë të gjithë fashikullin
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=30
+            )
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=16
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+        else:
+            # Për intents të tjera specifike, përdorim një numër të moderuar rezultatesh
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
+            )
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=10
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
-        manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, history=history)
 
         if user_intent == "COMPREHENSIVE_ANALYSIS":
@@ -167,7 +190,10 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 manifest_str=manifest_str,
                 context_str=context_str,
-                db=self.db
+                db=self.db,
+                query_text=optimized_query,
+                user_id=user_id,
+                case_id=case_id
             )
         elif user_intent == "FORENSIC_AUDIT":
             system_prompt = ForensicAuditService.build_prompt(
@@ -204,12 +230,12 @@ class AlbanianRAGService:
                 case_title, client_name, client_position, current_date_str, manifest_str, context_str
             )
         else:
+            # GENERAL_CHAT — përgjigje e shpejtë pa fashikull të plotë
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
-            DOKUMENTET E LËNDËS:
-            {manifest_str}
+            KONTEXSTI LIGJOR:
             {context_str}
             """
 
