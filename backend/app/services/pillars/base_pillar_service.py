@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V5.0 (RAG-ONLY TRUTH ENGINE)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V6.0 (SUPREME JUDGE PROTOCOL)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -58,7 +58,7 @@ DOMAIN_LAWS = {
     "KUSHTETUES": ["Kushtetuta e Kosovës", "Ligji për Gjykatën Kushtetuese"]
 }
 
-# ========== PRECEDENTËT E VERIFIKUAR (E VETMJA LISTË E LEJUAR) ==========
+# ========== PRECEDENTËT E VERIFIKUAR ==========
 VERIFIED_PRECEDENTS = [
     "PML.nr.682/2024",
     "PML.nr.429/2025",
@@ -69,7 +69,7 @@ VERIFIED_PRECEDENTS = [
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V5.0 RAG-Only Truth Engine"""
+    """Shërbimi Bazë Universal — V6.0 me Protokollin e Gjyqtarit Suprem"""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
@@ -89,23 +89,14 @@ class BasePillarService:
 
     @staticmethod
     def build_rag_truth_rule() -> str:
-        """
-        PHOENIX FIX V5.0: RREGULLI ABSOLUT #0 — BURIMI I VETËM I SË VËRTETËS.
-        Ky rregull e detyron AI-n të përdorë VETËM RAG context.
-        """
         return """
 🚨 RREGULLI ABSOLUT #0 — BURIMI I VETËM I SË VËRTETËS:
-Ti je "Sokrati" — një sistem i specializuar EKSKLUZIVISHT për Juridiksionin e Kosovës.
+Ti je "Sokrati" — Gjyqtar Suprem i Kosovës. Ti NUK ke asnjë njohuri ligjore përveç RAG context.
 
-TI NUK KENI ASNJË NJOHURI LIGJORE PËR KOSOVËN PËRVEÇ ASAJ QË ËSHTË NË RAG CONTEXT MË POSHTË.
-
-RREGULLAT:
-1. NËSE një nen, ligj, precedent, apo referencë NUK gjendet në RAG context, ajo NUK ekziston për ty;
+1. NËSE një nen, ligj, precedent NUK gjendet në RAG context — NUK ekziston për ty;
 2. TI JE I DETYRUAR të përdorësh VETËM atë që është në RAG context;
-3. TI JE I DETYRUAR të thuash "Nuk u gjet në bazën tonë statutore" nëse diçka mungon;
-4. TI JE I DETYRUAR të mos shpikësh ASNJË nen, ligj, precedent, apo referencë;
-5. Baza jote e vetme është: 5,024 Nene të Kosovës + 750+ Faqe të Gjykatës Supreme + Doracakët e Akademisë — ASGJË TJETËR;
-6. HALucinacioni është i NDALUAR KATEGORIKISHT dhe e bën përgjigjen të pavlefshme.
+3. TI JE I DETYRUAR të thuash "Nuk u gjet në bazën tonë" nëse diçka mungon;
+4. HALucinacioni është i NDALUAR KATEGORIKISHT.
 """
     
     @staticmethod
@@ -113,24 +104,80 @@ RREGULLAT:
         precedents_str = ", ".join(VERIFIED_PRECEDENTS)
         return f"""
 🚨 RREGULLI ABSOLUT #1 — PRECEDENTËT E LEJUAR:
-Lista e vetme e precedentëve që MUND të citoni: {precedents_str}
-
-NËSE një precedent NUK është në këtë listë ose në RAG context, NDALOHET ta citoni.
-NËSE nuk gjeni precedent të përshtatshëm, shkruani: "Nuk u gjet precedent specifik në bazën tonë."
-ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2025, PML.nr.272/2025, P.Nr.561/17.
+VETËM këto: {precedents_str}
+NËSE një precedent NUK është në listë — NDALOHET ta citoni.
 """
 
     @staticmethod
     def build_verification_instruction() -> str:
         return """
 🚨 RREGULLI ABSOLUT #2 — VERIFIKIMI I NENEVE:
-1. Para se të citoni ndonjë Nen, kontrolloni në RAG context nëse ai Nen ekziston;
-2. Para se të citoni ndonjë paragraf, kontrolloni në RAG context nëse ai paragraf ekziston;
-3. NËSE një Nen nuk gjendet në RAG context, shkruani: "Nuk u gjet referencë e saktë në bazën statutore";
-4. MOS citoni asnjë Nen nga memorja — VETËM nga RAG context;
-5. NËSE citoni një Nen që NUK ekziston në RAG context, kjo është HALUCINACION.
+Kontrollo në RAG context para se të citosh ndonjë Nen ose paragraf.
 """
 
+    @staticmethod
+    def build_supreme_judge_protocol() -> str:
+        """
+        PHOENIX FIX V6.0: Protokolli i plotë i Gjyqtarit Suprem.
+        """
+        return """
+🚨 RREGULLI ABSOLUT #3 — PROTOKOLLI I GJYQTARIT SUPREM:
+Ti je Gjyqtari më me përvojë i Gjykatës Supreme të Kosovës. Fashikulli është në tavolinën tënde.
+
+NDIQ KËTË PROTOKOLL SAKTËSISHT:
+
+📋 HAPI 1 — LEXO ÇDO DOKUMENT NË REND KRONOLOGJIK:
+- Renditi të gjitha shkresat sipas datës
+- Lexo nga më e vjetra te më e reja
+- Shëno: datën, dokumentin, palët, vendimin
+- Kërko: Rrjedhën kohore të ngjarjeve
+
+📋 HAPI 2 — KRAHASO DATAT DHE DOKUMENTET:
+- A përputhen datat në procesverbale me seancat?
+- A ka dokumente me data të njëjta por përmbajtje të ndryshme?
+- A ka nënshkrime që mungojnë?
+- A ka vula që nuk përputhen?
+- A ka numra lëndësh që nuk korrespondojnë?
+- Kërko: Prapadatime, falsifikime, mospërputhje
+
+📋 HAPI 3 — VERIFIKO LIGJSHMËRINË E ÇDO VENDIMI:
+- A është vendimi i bazuar në ligjin e saktë?
+- A janë cituar nenet e sakta?
+- A janë respektuar afatet?
+- A u dëgjuan të dyja palët?
+- A u vlerësuan të gjitha provat?
+- Kërko: Shkelje procedurale, zbatim të gabuar, injorim provash
+
+📋 HAPI 4 — KONTROLLO PROVAT:
+- A u administruan të gjitha provat materiale?
+- A u vlerësuan provat shkencore?
+- A u morën parasysh provat shfajësuese?
+- A ka prova që u refuzuan pa arsye?
+- Kërko: Prova të injoruara, prova të manipuluara, ekspertiza të njëanshme
+
+📋 HAPI 5 — IDENTIFIKO VEPRIMET PENALE:
+- A ka elemente të falsifikimit? (Neni 427 KPRK)
+- A ka keqpërdorim të pozitës? (Neni 414 KPRK)
+- A ka ushtrim të ndikimit? (Neni 424 KPRK)
+- A ka shkelje të rehabilitimit? (Neni 96 KPRK)
+- A ka nxjerrje të kundërligjshme vendimesh? (Neni 425 KPRK)
+- Kërko: Çdo veprim që përbën vepër penale
+
+📋 HAPI 6 — VLERËSO QËNDRUESHMËRINË:
+- A qëndron ky vendim para trupit gjykues?
+- A ka bazë për ankim?
+- A ka bazë për kallëzim penal?
+- Cilat janë shkeljet më të rënda?
+
+📋 HAPI 7 — JEP OPINIONIN PËRFUNDIMTAR:
+- Përmbledh shkeljet e gjetura
+- Kualifiko ligjërisht çdo shkelje
+- Rekomando hapat e ardhshëm
+- Trego çfarë duhet të bëjë pala
+
+BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
+"""
+    
     @staticmethod
     def get_rag_context(
         user_id: str = "",
@@ -170,7 +217,7 @@ ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2
                     case_rag_context = "\n\n".join(case_parts)
                     
         except ImportError as e:
-            logger.warning(f"⚠️ [RAG] vector_store_service nuk u importua: {e}")
+            logger.warning(f"⚠️ [RAG] nuk u importua: {e}")
         except Exception as e:
             logger.error(f"❌ [RAG] Gabim: {e}")
         
@@ -182,8 +229,7 @@ ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2
             from app.services.pillars.timeline_service import TimelineService
             timeline_data = TimelineService.build_case_timeline(db, case_id, user_id)
             return TimelineService.build_timeline_prompt(timeline_data)
-        except ImportError as e:
-            logger.warning(f"⚠️ [Timeline] nuk u importua: {e}")
+        except ImportError:
             return ""
         except Exception as e:
             logger.error(f"❌ [Timeline] Gabim: {e}")
@@ -218,9 +264,6 @@ ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2
         case_rag_context: str = "",
         timeline_context: str = ""
     ) -> str:
-        """
-        PHOENIX FIX V5.0: Rregulli #0 në fillim — RAG-ONLY TRUTH.
-        """
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
                 case_title=case_title,
@@ -231,6 +274,7 @@ ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2
         rag_truth_rule = BasePillarService.build_rag_truth_rule()
         precedent_instruction = BasePillarService.build_precedent_instruction()
         verification_instruction = BasePillarService.build_verification_instruction()
+        supreme_protocol = BasePillarService.build_supreme_judge_protocol()
         role_guard = BasePillarService.get_role_guard(client_position, client_name)
         role_tone = BasePillarService.get_role_tone(client_position)
         
@@ -240,6 +284,8 @@ ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2
 {precedent_instruction}
 
 {verification_instruction}
+
+{supreme_protocol}
 
 {role_guard}
 
@@ -251,8 +297,8 @@ DEGË: {case_domain} | KLIENTI: **{client_name}** | ROLI: **{(client_position or
 📅 KRONOLOGJIA E RASTIT:
 {timeline_context if timeline_context else "Nuk u ndërtua kronologjia."}
 
-📚 RAG — BAZA STATUTORE (BURIMI YT I VETËM I SË VËRTETËS):
-{rag_context if rag_context else "Nuk u gjet asnjë referencë në bazën statutore. THUAJ: 'Nuk u gjet në bazën tonë statutore' për çdo gjë që nuk mund të verifikosh."}
+📚 RAG — BAZA STATUTORE (BURIMI YT I VETËM):
+{rag_context if rag_context else "Nuk u gjet asnjë referencë në bazën statutore."}
 
 📄 RAG — DOKUMENTET E ÇËSHTJES:
 {case_rag_context if case_rag_context else "Nuk u gjetën dokumente shtesë."}
