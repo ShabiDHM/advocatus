@@ -1,8 +1,5 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V26.0 (UNIFIED - NO FAST/DEEP SPLIT)
-# 1. REMOVED: mode parameter and all conditional logic.
-# 2. UNIFIED: Every request now uses AlbanianRAGService.chat() exclusively.
-# 3. RETAINED: Multi-document support, history sync, jurisdiction, domain.
+# PHOENIX PROTOCOL - CHAT SERVICE V28.0 (UNIFIED & STREAMING SYNC)
 
 from __future__ import annotations
 import logging
@@ -28,8 +25,8 @@ async def stream_chat_response(
     domain: Optional[str] = 'automatic'
 ) -> AsyncGenerator[str, None]:
     """
-    Unified chat endpoint. Every request uses the hardened AlbanianRAGService.chat()
-    with full context grounding, citation mapping, and refusal rules.
+    Unified chat endpoint. Uses AlbanianRAGService.chat() exclusively
+    with full context grounding and automatic legal disclaimer integration.
     """
     try:
         oid, user_oid = ObjectId(case_id), ObjectId(user_id)
@@ -51,11 +48,9 @@ async def stream_chat_response(
         full_response = ""
         yield " "  # Keep-alive
 
-        # Get conversation history for context
         chat_history = case.get("chat_history", [])
         recent_history = chat_history[-10:]  # last 5 exchanges
 
-        # UNIFIED: Always use the hardened RAG service
         agent_service = AlbanianRAGService(db=db)
         async for token in agent_service.chat(
             query=user_query,
@@ -69,7 +64,7 @@ async def stream_chat_response(
             full_response += token
             yield token
 
-        # Sync AI Message to History
+        # Sync AI Message to History (përmban edhe Klauzolën e Përgjegjësisë Ligjore)
         if full_response.strip():
             db.cases.update_one(
                 {"_id": oid}, 

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - SEAMLESS 4->3->2->1->0 PROGRESSIVE PILLAR REDUCTION V126.0
+# PHOENIX PROTOCOL - SEAMLESS 4->3->2->1->0 PROGRESSIVE PILLAR REDUCTION & MANDATORY UNIVERSAL DISCLAIMER V128.0
 
 import os
 import sys
@@ -28,7 +28,14 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 90
 
-AI_DISCLAIMER = "\n\n---\n*Kjo analizë ligjore është gjeneruar nga Juristi AI bazuar në shkresat e fashikullit dhe Jurisprudencën e Gjykatës Supreme të Kosovës, është për referencë dhe duhet të verifikohet.*"
+MANDATORY_LEGAL_DISCLAIMER = (
+    "\n\n---\n"
+    "⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n"
+    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Sokrati (Juristi AI) për qëllime informative, "
+    "kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i "
+    "Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin "
+    "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
+)
 
 MAX_CONTEXT_CHARS = 140_000 
 
@@ -43,7 +50,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Progressive Flow Engine V126.0 initialized.")
+            logger.info("✅ [RAG] Progressive Flow Engine V128.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -199,7 +206,6 @@ class AlbanianRAGService:
             ("PILLAR_4", "Analizo të gjithë fashikullin: llogarit dëmet materiale e jomateriale sipas LMD-së bashkë me kamatën ligjore vonesore 8%, arsyeto masat emergjente mbrojtëse / sigurimin e kërkesëpadisë dhe përgatit përmbledhjen ekzekutive për klientin.")
         ]
 
-        # Pastrojmë historikun e mesazheve vetëm për ekzekutimin real të Kartave 1-4 (injorojmë tekstin e direktivës së dokumenteve ⚖️)
         past_user_texts = []
         if history:
             for msg in history:
@@ -213,22 +219,17 @@ class AlbanianRAGService:
             past_user_texts.append(current_q)
 
         combined_text = " ".join(past_user_texts)
-
         remaining = []
 
-        # P1 Match
         if not ("shtyllat strategjike të kërkesëpadisë" in combined_text or "strategjia dhe matrica" in combined_text):
             remaining.append(all_pillars[0][1])
 
-        # P2 Match
         if not ("nxirr bazën e plotë ligjore" in combined_text or "baza statutore dhe jurisprudenca" in combined_text):
             remaining.append(all_pillars[1][1])
 
-        # P3 Match
         if not ("pyetësorin taktik" in combined_text or "pyetjet taktike të ballafaqimit" in combined_text):
             remaining.append(all_pillars[2][1])
 
-        # P4 Match
         if not ("llogarit dëmet materiale" in combined_text or "kamatën ligjore vonesore 8%" in combined_text):
             remaining.append(all_pillars[3][1])
 
@@ -293,11 +294,10 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA
+        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA (100% UNIVERSALE)
         # =========================================================================
 
         if user_intent == "FORENSIC_AUDIT":
-            # MODULI I FORENZIKËS SË DOKUMENTIT (BUTONI ⚖️)
             system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -305,9 +305,7 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 context_str=context_str
             )
-
         elif user_intent == "DRAFTING":
-            # MODULI I HARTIMIT TË AKTEVE
             system_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -317,7 +315,6 @@ class AlbanianRAGService:
                 context_str=context_str,
                 query=optimized_query
             )
-
         elif user_intent == "PILLAR_STRATEGY":
             system_prompt = Pillar1StrategyService.build_prompt(case_title, client_name, client_position, current_date_str, manifest_str, context_str)
         elif user_intent == "PILLAR_STATUTES":
@@ -352,13 +349,13 @@ class AlbanianRAGService:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-            # SUGJERIMET INTERAKTIVE (SHFAQEN EDHE PAS FORENZIKËS ⚖️, EDHE PAS KARTELAVE 1-4)
+            # SUGJERIMET INTERAKTIVE (1-4)
             if user_intent in ["FORENSIC_AUDIT", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills and len(remaining_pills) > 0:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
-            if user_intent not in ["DRAFTING", "FORENSIC_AUDIT"]:
-                yield AI_DISCLAIMER
+            # KLAUZOLA E DETYRUESHME LIGJORE (SHFAQET NË 100% TË RASTEVE)
+            yield MANDATORY_LEGAL_DISCLAIMER
 
         except Exception as e:
             logger.error(f"RAG Stream Failure: {e}")
