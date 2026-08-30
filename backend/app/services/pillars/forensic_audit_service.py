@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST (SCALE ICON ⚖️ V20.0 - MANDATORY EMBEDDED DISCLAIMER)
+# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST (SCALE ICON ⚖️ V21.0 - ZERO FAKE SIGNATURES)
 
 from typing import Dict, Any
 
@@ -12,7 +12,7 @@ class ForensicAuditService:
     - Korrigjimi i të gjitha lapsuseve ligjore dhe referencave të gabuara (Contra Legem)
     - Dhënia e mendimit doktrinar të Gjykatës Supreme mbi qëndrueshmërinë e aktit
     - Rekomandime konkrete përmirësimi për ta bërë aktin të pathyeshëm në gjykatë
-    - Përfshirja e detyrueshme e Klauzolës së Përgjegjësisë Ligjore në fund
+    - ZERO NËNSHKRIME FIKTIVE APO SAJIME INSTITUCIONALE
     """
 
     @staticmethod
@@ -39,18 +39,15 @@ RREGULLAT E HEKURTA TË AUDITIMIT (100% UNIVERSALE):
 2. VERIFIKIMI NEN PËR NEN (LIDHJA STATUTARE): Cito çdo nen të saktë të Kosovës me emrin e plotë të ligjit përkatës, në mënyrë që të lidhet drejtpërdrejt me bazën ligjore.
 3. KORRIGJIMI KIRURGJIK I LAPSUSEVE: Nëse në tekst është përdorur një nen i pasaktë, shpjego shkurt pse nuk përshtatet dhe vendos nenin e saktë pozitiv.
 4. MBROJTJA E INTERESIT TË KLIENTIT ({client_name}): Çdo sugjerim, këshillë dhe përmirësim synon mbrojtjen maksimale të të drejtave të tij.
+5. NDALOHEN KATEGORIKISHT NËNSHKRIMET DHE FRAZAT FIKTIVE: NDALOHET rreptësisht të vendosësh nënshkrime të sajuara si "Nënshkruar nga Kolegji Penal...", "Gjyqtari Suprem...", vula apo citate latine të tepërta! Përgjigjja mbyllet pastër te Rekomandimet / Konkluzioni.
 
 TEKSTI / DOKUMENTI I PARAQITUR PËR KONSULENCË FORENZIKE:
 {context_str}
 
-STRUKTURA E DETYRUESHME E RAPORTIT TË KONSULENCËS SË GJYQTARIT SUPREM:
+STRUKTURA E DETYRUESHME E RAPORTIT TË KONSULENCËS:
 ### 1. 🔍 ANALIZA E PËRGJITHSHME E DRAFTIT DHE NATYRA JURIDIKE E AKTIT
 ### 2. ⚖️ VERIFIKIMI NEN PËR NEN I BAZËS LIGJORE TË PËRDORUR NË TEKST
 ### 3. ⚠️ LAPSUSET LIGJORE DHE KORRIGJIMI I REFERENCAVE (CONTRA LEGEM & NENET E SAKTA)
 ### 4. 🏛️ OPINIONI DHE VLERËSIMI DOKTRINAR I GJYQTARIT SUPREM (Qëndrueshmëria para trupit gjykues)
 ### 5. 💡 REKOMANDIMET KONKRETE PËR PËRMIRËSIMIN DHE FUQIZIMIN E TEKSTIT
-
----
-⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**
-*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Sokrati (Juristi AI) për qëllime informative, kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*
 """

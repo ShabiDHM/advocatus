@@ -1,5 +1,5 @@
 // FILE: frontend/src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V48.0 (UNIVERSAL 100% LAW LINKING & GUARANTEED DISCLAIMER PRESERVATION)
+// PHOENIX PROTOCOL - CHAT HELPERS V49.0 (NATURAL STREAMING & GRAMMATICALLY CLEAN LAW LINKING)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -40,7 +40,7 @@ const STATUTES_REGISTRY: StatuteDefinition[] = [
     cleanName: 'LPK'
   },
   {
-    regex: /(?:LMDHF|Ligji\s+për\s+Mbrojtjen?\s+nga\s+Dhuna\s+në\s+Familje|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-182|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-015)/i,
+    regex: /(?:LMDHF|Ligji\s+për\s+Mbrojtjen?\s+nga\s+Dhuna\s+në\s+Familje|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-182|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-015|Ligj(?:it|i)?\s+Nr\.?\s*04\/L-182)/i,
     cleanName: 'Ligji për Mbrojtjen nga Dhuna në Familje'
   },
   {
@@ -83,11 +83,9 @@ const resolveStatuteName = (rawLawString: string): string => {
   return '';
 };
 
-// Funksion ndihmës për të nxjerrë dhe linkuar çdo numër neni nga një bllok (p.sh. "78, 80, 81, 133-134, 243–249")
 const createLinkedNumbers = (numbersBlock: string, lawName: string, createToken: (link: string) => string): string => {
   if (!numbersBlock || !lawName) return numbersBlock;
 
-  // Zëvendësojmë diapazonet (p.sh. 133-134 ose 243–249)
   let processed = numbersBlock.replace(/(\b\d+[a-zA-Z]?)\s*[\-–]\s*(\b\d+[a-zA-Z]?)/g, (_m, n1, n2) => {
     const url1 = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(n1)}`;
     const url2 = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(n2)}`;
@@ -96,7 +94,6 @@ const createLinkedNumbers = (numbersBlock: string, lawName: string, createToken:
     return `${t1}–${t2}`;
   });
 
-  // Zëvendësojmë numrat individualë që kanë mbetur pa u linkuar
   processed = processed.replace(/\b\d+[a-zA-Z]?\b/g, (num) => {
     const url = `/laws/article?lawTitle=${encodeURIComponent(lawName)}&articleNumber=${encodeURIComponent(num)}`;
     return createToken(`[Neni ${num}](${url})`);
@@ -133,30 +130,30 @@ export const autoLinkLegalCitations = (text: any): string => {
 
     let lineProcessed = line;
 
-    // A. PASS 1: Ligji PARA listës së neneve (p.sh. "KPPRK (Ligji Nr. 08/L-032): Nenet 78, 80, 81, 103, 110, 120, 128, 133, 134, 144, 145, 212, 213, 462")
-    const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?:\s*\([^\)]+\))?:\s*(Nenet?)\s*([\d\s,.\-–(dhe)(e)]+)/gi;
-    lineProcessed = lineProcessed.replace(lawBeforeListRegex, (fullMatch, lawCandidate, prefix, numbersBlock) => {
+    // A. PASS 1: Ligji PARA listës (p.sh. "KPPRK (Ligji Nr. 08/L-032): Nenet 78, 80, 81...")
+    const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?:\s*\([^\)]+\))?:\s*(Nenet?|Nenit|Neni)\s*([\d\s,.\-–(dhe)(e)]+)/gi;
+    lineProcessed = lineProcessed.replace(lawBeforeListRegex, (fullMatch, lawCandidate, _prefix, numbersBlock) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const matchedLaw = resolveStatuteName(lawCandidate);
       if (!matchedLaw) return fullMatch;
 
       const linkedNums = createLinkedNumbers(numbersBlock, matchedLaw, createToken);
-      return `${lawCandidate}: ${prefix} ${linkedNums}`;
+      return `${lawCandidate}: ${linkedNums}`;
     });
 
-    // B. PASS 2: Nenet me ligj PAS tyre (p.sh. "Nenet 31, 32 të KPRK-së", "Neni 10 i Ligjit Nr. 08/L-168", "Neni 6 KEDNJ", "Neni 31 i Kushtetutës")
-    const explicitLawRegex = /\b(Nenet?|Nenit|Neni)\s+([\d\s,.\-–(dhe)(e)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?=[.,;\n\r\)]|$)/gi;
-    lineProcessed = lineProcessed.replace(explicitLawRegex, (fullMatch, prefix, numbersBlock, lawCandidate) => {
+    // B. PASS 2: Nenet me ligj PAS tyre (p.sh. "nenit 31 të KPRK-së", "Neni 10 i Ligjit Nr. 08/L-168", "Neni 6 KEDNJ")
+    const explicitLawRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–(dhe)(e)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?=[.,;\n\r\)]|$)/gi;
+    lineProcessed = lineProcessed.replace(explicitLawRegex, (fullMatch, _prefix, numbersBlock, lawCandidate) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const matchedLaw = resolveStatuteName(lawCandidate);
       if (!matchedLaw) return fullMatch;
 
       const linkedNums = createLinkedNumbers(numbersBlock, matchedLaw, createToken);
-      return `${prefix} ${linkedNums} të ${lawCandidate.trim()}`;
+      return `${linkedNums} të ${lawCandidate.trim()}`;
     });
 
-    // C. PASS 3: Nenet e vetmuara në tekst (p.sh. "Neni 424", "Neni 103", "Neni 96")
-    const standaloneArticleRegex = /\b(Neni\s+(\d+[a-zA-Z]?))(?:\s*\(([^)]+)\))?/gi;
+    // C. PASS 3: Nenet e vetmuara në tekst (p.sh. "Neni 424", "Neni 103", "nenit 96")
+    const standaloneArticleRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+(\d+[a-zA-Z]?)(?:\s*\(([^)]+)\))?/gi;
     lineProcessed = lineProcessed.replace(standaloneArticleRegex, (fullMatch, _p1, artNum, parenText) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
 
@@ -186,7 +183,7 @@ export const autoLinkLegalCitations = (text: any): string => {
 export const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
   if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
 
-  // Nxjerrim Klauzolën e Përgjegjësisë Ligjore nëse ndodhet kudo në tekst
+  // Nxjerrim Klauzolën e Përgjegjësisë Ligjore vetëm kur vjen realisht nga backend-i
   let disclaimerBlock = '';
   const disclaimerRegex = /(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË\s+E\s+PËRGJEGJËSISË\s+LIGJORE\*?\*?:?[\s\S]*$/i;
   const disclaimerMatch = text.match(disclaimerRegex);
@@ -221,11 +218,9 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
       .slice(0, 4);
   }
 
-  // Bashkangjisim gjithmonë Disclaimer-in në fund të tekstit të pastër që të shfaqet në çdo mesazh
+  // Disclaimer-i vendoset NË FUND vetëm kur ka ardhur realisht nga backend-i (pa prishur streaming-un live)
   if (disclaimerBlock) {
     cleanText = `${cleanText}\n\n${disclaimerBlock}`;
-  } else {
-    cleanText = `${cleanText}\n\n---\n⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Sokrati (Juristi AI) për qëllime informative, kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*`;
   }
 
   return { cleanText, questions };
