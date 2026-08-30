@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V41.0 (DIRECT DETERMINISTIC PAGE RENDER - ZERO BLANK SCREENS & ZERO PAGE-1 JUMPS)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V42.0 (DRAFTING EXCISED)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +11,7 @@ import {
     ZoomIn, ZoomOut, Maximize2, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
-import { DraftResultRenderer } from '../drafting/components/DraftResultRenderer';
+// PHOENIX FIX: DraftResultRenderer u hoq (drafting u fshi)
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -49,7 +49,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
-  // Llogaritja e saktë e faqes fillestare
   const targetInitialPage = useMemo(() => {
     const candidate = initialPage || 
                       documentData?.initialPage || 
@@ -89,10 +88,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
   useLockBodyScroll(!isMinimized);
 
-  const isLegalDraft = (documentData?.category === 'DRAFT' || 
-                        documentData?.file_name?.toLowerCase().includes('draft') ||
-                        documentData?.file_name?.toLowerCase().includes('kontrat') ||
-                        (textContent && textContent.includes('# ')));
+  // PHOENIX FIX: isLegalDraft u thjeshtua — pa DraftResultRenderer
 
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
@@ -218,7 +214,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     }
   };
 
-  // Navigimi me rrotën e miut (Mouse Wheel) për ndërrimin e faqeve
   const handleWheel = (e: React.WheelEvent) => {
     if (!numPages || numPages <= 1) return;
     if (e.deltaY > 50 && pageNumber < numPages) {
@@ -302,7 +297,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               }
               className="flex flex-col items-center w-full px-1 sm:px-0 text-left max-w-full"
             >
-              {/* VIZATIM I DREJTPËRDREJTË DHE I PASTËR I FAQES SË KËRKUAR */}
               <div className="shadow-2xl rounded-lg overflow-hidden border border-main bg-white text-left max-w-full my-2">
                 <Page 
                   pageNumber={pageNumber} 
@@ -330,15 +324,10 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       case 'TEXT':
         return (
           <div className="p-4 sm:p-10 h-full overflow-auto bg-canvas/40 flex justify-center custom-finance-scroll">
-            {isLegalDraft ? (
-               <div className="w-full max-w-[21cm] bg-white text-black p-8 sm:p-16 shadow-2xl rounded-sm min-h-[29.7cm] border border-main">
-                  <DraftResultRenderer text={textContent || ''} t={t} />
-               </div>
-            ) : (
-                <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface text-left">
-                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed text-left">{textContent}</pre>
-                </div>
-            )}
+            {/* PHOENIX FIX: DraftResultRenderer u hoq — përdoret pre i thjeshtë */}
+            <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface text-left">
+                <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed text-left">{textContent}</pre>
+            </div>
           </div>
         );
       case 'CSV':
@@ -394,7 +383,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
             <div className="flex items-center gap-2 mt-0.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-[10px] font-mono text-sky-400/90 font-medium uppercase tracking-wider">
-                {isLegalDraft ? 'LEGAL DRAFT' : viewerMode} • I MINIMIZUAR
+                {viewerMode} • I MINIMIZUAR
               </span>
             </div>
           </div>
@@ -447,7 +436,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
               </div>
               <div className="min-w-0">
                   <h2 className="text-xs sm:text-sm font-bold text-text-primary truncate max-w-[140px] sm:max-w-md">{documentData?.file_name || documentData?.title}</h2>
-                  <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest block truncate">{isLegalDraft ? 'LEGAL DRAFT MODE' : `${viewerMode} MODE`}</span>
+                  <span className="text-[9px] font-mono text-text-muted uppercase tracking-widest block truncate">{viewerMode} MODE</span>
               </div>
           </div>
 
@@ -491,7 +480,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
         <div className="flex-grow relative overflow-hidden bg-canvas">{renderContent()}</div>
 
-        {/* SHIRITI KONTROLLUES I FAQEVE NË FUND */}
         {viewerMode === 'PDF' && numPages && numPages > 1 && (
           <footer className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-slate-700/80 flex items-center gap-2 sm:gap-3 backdrop-blur-2xl z-[100] shadow-2xl">
             <button 

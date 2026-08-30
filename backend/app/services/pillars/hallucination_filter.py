@@ -1,78 +1,132 @@
-# FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V3.1 (UPDATED WARNING TEXT)
+# FILE: backend/app/services/pillars/hallucination_filter.py
+# PHOENIX PROTOCOL - HALLUCINATION FILTER V4.2 (SELF-IMPORT FIX)
 
+import re
 import logging
-from typing import Optional, List, Dict, Any, AsyncGenerator
-from openai import AsyncOpenAI
-from app.core.config import settings
-from app.services.pillars.hallucination_filter import HallucinationFilter
+from typing import Dict, Any, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
-LLM_TIMEOUT = 90
+# ========== PRECEDENTËT E VERIFIKUAR (E VETMJA LISTË E LEJUAR) ==========
+VERIFIED_PRECEDENTS = [
+    "PML.nr.682/2024",
+    "PML.nr.429/2025",
+    "Rev.nr.240/2024",
+    "Rev.Nr.541/2024",
+    "PML.Nr.185/2025"
+]
 
-class ResponseGenerator:
+# ========== TEKSTI ZËVENDËSUES PËR HALUCINACIONET ==========
+REPLACEMENT_TEXT = "[Precedent i paverifikuar — hiqeni këtë referencë]"
+
+
+class HallucinationFilter:
     """
-    Thërret LLM, mbledh përgjigjen, FILTRON, dhe pastaj yield-on.
-    Gjithashtu tregon saktësisht cilët precedentë duhet të hiqen.
+    Filtri i Halucinacioneve V4.2 — WHITELIST ONLY:
+    - Çdo precedent që NUK është në listën e verifikuar, zëvendësohet me tekst të qartë
+    - Kthen edhe listën e saktë të precedentëve të zëvendësuar
     """
 
-    def __init__(self):
-        api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=OPENROUTER_BASE_URL,
-            timeout=LLM_TIMEOUT
+    @staticmethod
+    def normalize_precedent(text: str) -> str:
+        """Normalizon formatin e precedentit për krahasim."""
+        return text.replace(" ", "").replace("Nr", "nr").replace("nr", "nr").upper()
+
+    @staticmethod
+    def is_verified_precedent(precedent: str) -> bool:
+        """Kontrollon nëse precedenti është në whitelist."""
+        normalized = HallucinationFilter.normalize_precedent(precedent)
+        
+        for verified in VERIFIED_PRECEDENTS:
+            if HallucinationFilter.normalize_precedent(verified) == normalized:
+                return True
+        
+        return False
+
+    @staticmethod
+    def filter_precedents(text: str) -> str:
+        """
+        Zëvendëson çdo precedent që NUK është në whitelist.
+        Kthen vetëm tekstin e pastruar.
+        """
+        filtered_text, _ = HallucinationFilter.filter_precedents_with_details(text)
+        return filtered_text
+
+    @staticmethod
+    def filter_precedents_with_details(text: str) -> Tuple[str, List[str]]:
+        """
+        Kthen tekstin e filtruar dhe listën e precedentëve të zëvendësuar.
+        """
+        if not text:
+            return text, []
+        
+        filtered_text = text
+        replaced_precedents = []
+        
+        # Pattern i gjerë për të kapur çdo format të mundshëm
+        precedent_patterns = [
+            re.compile(r'PML\.?(?:nr|Nr)\.?\s*\d+/\d+'),
+            re.compile(r'Rev\.?(?:nr|Nr)\.?\s*\d+/\d+'),
+            re.compile(r'P\.?(?:Nr|nr)\.?\s*\d+/\d+'),
+            re.compile(r'PKR\.?(?:Nr|nr)\.?\s*\d+/\d+'),
+        ]
+        
+        found_precedents = set()
+        for pattern in precedent_patterns:
+            found_precedents.update(pattern.findall(filtered_text))
+        
+        for found in found_precedents:
+            if not HallucinationFilter.is_verified_precedent(found):
+                logger.warning(f"🚨 [Filter] Precedent i PALEJUAR u zëvendësua: {found}")
+                filtered_text = filtered_text.replace(
+                    found,
+                    REPLACEMENT_TEXT
+                )
+                replaced_precedents.append(found)
+        
+        return filtered_text, replaced_precedents
+
+    @staticmethod
+    def clean_response(
+        text: str,
+        verified_articles: Optional[Set[str]] = None
+    ) -> str:
+        """
+        Pastron të gjithë përgjigjen e LLM.
+        """
+        if not text:
+            return text
+        
+        # 1. Filtro precedentët — VETËM whitelist lejohet
+        text = HallucinationFilter.filter_precedents(text)
+        
+        # 2. Hiq nënshkrimet fiktive
+        text = re.sub(
+            r'Nënshkruar nga:.*?(?=\n|$)',
+            '',
+            text,
+            flags=re.IGNORECASE
         )
+        
+        # 3. Hiq inicialet fiktive (p.sh. "J.D.")
+        text = re.sub(
+            r'\b[A-Z]\.[A-Z]\.\b',
+            '',
+            text
+        )
+        
+        return text.strip()
 
-    async def generate_stream(
-        self,
-        system_prompt: str,
-        user_query: str
-    ) -> AsyncGenerator[str, None]:
+    @staticmethod
+    def validate_and_clean(
+        response_text: str,
+        rag_context: str = ""
+    ) -> str:
         """
-        PHOENIX FIX V3.1: Buffer + Filter + Yield + Paralajmërim i përditësuar.
+        Funksioni kryesor — pastron përgjigjen e LLM.
         """
-        try:
-            response = await self.client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ],
-                temperature=0.1,
-                stream=True,
-                max_tokens=8192
-            )
-            
-            # 1. Mbledhim të gjithë përgjigjen
-            full_text = ""
-            async for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    full_text += chunk.choices[0].delta.content
-            
-            # 2. Filtrojmë dhe marrim listën e halucinacioneve
-            filtered_text, replaced_precedents = HallucinationFilter.filter_precedents_with_details(full_text)
-            
-            # 3. Yield-ojmë tekstin e pastruar
-            yield filtered_text
-            
-            # 4. Nëse ka halucinacione, tregojmë saktësisht cilat DUHET TË HIQEN
-            if replaced_precedents:
-                details = "\n".join([f"   • {p}" for p in replaced_precedents])
-                warning = f"""
----
-⚠️ **KUJDES I VEÇANTË:**
-Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
+        return HallucinationFilter.clean_response(response_text)
 
-{details}
 
-Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
-"""
-                yield warning
-                
-        except Exception as e:
-            logger.error(f"❌ Response generation failed: {e}")
-            yield f"\n[Gabim Gjatë Gjenerimit: {e}]"
+# Singleton instance
+hallucination_filter = HallucinationFilter()
