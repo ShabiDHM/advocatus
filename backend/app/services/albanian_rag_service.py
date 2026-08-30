@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V134.0 (GENERAL CHAT OPTIMIZED — NO MASS SCAN)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V135.0 (ANTI-HALUCINATION + OPTIMIZED)
 
 import os
 import logging
@@ -36,17 +36,26 @@ MANDATORY_LEGAL_DISCLAIMER = (
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
 )
 
+# UDHËZIM KUNDËR HALUCINACIONEVE — detyron LLM të jetë i saktë
+ANTI_HALLUCINATION_INSTRUCTION = """
+RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
+1. CITO NENET VETËM NËSE i sheh në kontekstin e dhënë ose i di me siguri absolute.
+2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]" në vend që të improvizosh.
+3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
+4. Nëse konteksti nuk përmban informacion të mjaftueshëm për pyetjen, THUAJ QARTË: "Nuk kam informacion të mjaftueshëm në fashikull për këtë pyetje."
+5. Përdor VETËM ligjet e Kosovës: KPRK (Kodi Penal), KPPRK (Kodi i Procedurës Penale), LPK (Ligji për Procedurën Kontestimore), LMD (Ligji për Marrëdhëniet e Detyrimeve), LFK (Ligji për Familjen).
+"""
+
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V134.0 Modular me Comprehensive Analysis.
-    Ndryshimi kryesor: GENERAL_CHAT nuk e ngarkon më të gjithë fashikullin.
+    Shërbimi Kryesor RAG — V135.0 me Anti-Halucination.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V134.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V135.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -150,17 +159,17 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # 🔥 PHOENIX FIX: GENERAL_CHAT nuk e ngarkon më të gjithë fashikullin
-        # Vetëm intents specifike e bëjnë kërkimin e plotë në knowledge base
+        # 🔥 PHOENIX FIX V135.0: Optimizuar për saktësi maksimale
         if user_intent == "GENERAL_CHAT":
-            # Për pyetje të lira si "më trego për kundërpadinë", përdor vetëm global knowledge base
-            # dhe NUK e ngarkon fashikullin e plotë të lëndës
-            case_docs = []
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=8
+            # Për pyetje të lira, përdor më shumë rezultate nga global knowledge base
+            # për të siguruar kontekst të mjaftueshëm ligjor
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
             )
-            manifest_str = ""
-            context_str = ContextBuilder.build(case_docs, global_docs, [])[1]
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=20
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
         elif user_intent == "COMPREHENSIVE_ANALYSIS":
             # Vetëm këtu e ngarkojmë të gjithë fashikullin
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -171,7 +180,7 @@ class AlbanianRAGService:
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
         else:
-            # Për intents të tjera specifike, përdorim një numër të moderuar rezultatesh
+            # Për intents të tjera specifike
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
             )
@@ -230,12 +239,15 @@ class AlbanianRAGService:
                 case_title, client_name, client_position, current_date_str, manifest_str, context_str
             )
         else:
-            # GENERAL_CHAT — përgjigje e shpejtë pa fashikull të plotë
+            # GENERAL_CHAT — me udhëzim anti-halucinacion
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
-            KONTEXSTI LIGJOR:
+            {ANTI_HALLUCINATION_INSTRUCTION}
+
+            DOKUMENTET E LËNDËS:
+            {manifest_str}
             {context_str}
             """
 

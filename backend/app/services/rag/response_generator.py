@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V6.0 (STREAMING + FILTER + WARNING)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V7.0 (ANTI-HALUCINATION + STREAMING)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -17,10 +17,7 @@ MAX_CHUNK_CHARS = 40_000
 
 class ResponseGenerator:
     """
-    V6.0: Streaming me filtër në fund.
-    - Përdoruesi sheh përgjigjen duke u gjeneruar
-    - Në fund, filtri kontrollon dhe tregon cilat precedentë janë të paverifikuar
-    - Paralajmërimi shfaqet me listën e saktë të halucinacioneve
+    V7.0: Streaming me filtër në fund + udhëzim anti-halucinacion.
     """
 
     def __init__(self):
@@ -77,6 +74,11 @@ NXIRR:
 - Provat e rëndësishme
 - Aktorët dhe rolet e tyre
 
+RREGULLAT:
+- CITO VETËM nenet që i sheh në dokumente.
+- MOS shpik asnjë nen, ligj, apo precedent.
+- Nëse nuk ke informacion, shkruaj "Nuk kam informacion të mjaftueshëm".
+
 Përgjigju shkurt, me pika. JO analiza të gjata.
 """
 
@@ -89,15 +91,13 @@ Këtu janë analizat e pjesëve të veçanta të fashikullit:
 
 {system_prompt}
 
-Tani përpilo raportin e plotë dhe të strukturuar me të 5 pikat e detyrueshme.
+Tani përpilo raportin e plotë dhe të strukturuar.
 BAZOHU VETËM në analizat e mësipërme dhe në dokumentet e fashikullit.
 MOS shpik asgjë që nuk është në analiza ose në RAG context.
+CITO NENET VETËM NËSE i ke parë në dokumente ose i di me siguri absolute.
 """
 
     def _build_warning(self, replaced_precedents: List[str]) -> str:
-        """
-        PHOENIX FIX V6.0: Paralajmërimi me listën e saktë.
-        """
         if not replaced_precedents:
             return ""
         
@@ -124,10 +124,22 @@ Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
                 # STREAMING për kontekst të vogël
                 full_text = ""
                 
+                # PHOENIX FIX V7.0: Shto udhëzim anti-halucinacion direkt në messages
+                enhanced_system_prompt = f"""
+{system_prompt}
+
+RREGULLAT E HEKURTA:
+1. CITO NENET VETËM NËSE i sheh në kontekst ose i di me siguri absolute.
+2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]".
+3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
+4. Përdor VETËM ligjet e Kosovës: KPRK, KPPRK, LPK, LMD, LFK.
+5. Nëse konteksti nuk përmban informacion, THUAJ QARTË se nuk ke informacion të mjaftueshëm.
+"""
+                
                 response = await self.client.chat.completions.create(
                     model=OPENROUTER_MODEL,
                     messages=[
-                        {"role": "system", "content": system_prompt[:10_000]},
+                        {"role": "system", "content": enhanced_system_prompt[:15_000]},
                         {"role": "user", "content": user_query}
                     ],
                     temperature=0.1,
