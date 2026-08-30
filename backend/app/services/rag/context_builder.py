@@ -1,167 +1,86 @@
-# FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V4.0 (CHUNKED PROCESSING - FULL CONTEXT)
+# FILE: backend/app/services/rag/context_builder.py
+# PHOENIX PROTOCOL - CONTEXT BUILDER V2.0 (FULL CONTEXT - NO BLINDNESS)
 
 import logging
-from typing import Optional, List, Dict, Any, AsyncGenerator
-from openai import AsyncOpenAI
-from app.core.config import settings
-from app.services.pillars.hallucination_filter import HallucinationFilter
+from typing import List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
-LLM_TIMEOUT = 120
+# PHOENIX FIX: Konteksti i plotë — AI i sheh të gjitha dokumentet
+MAX_CONTEXT_CHARS = 140_000
+MAX_DOC_BUDGET = 15_000  # Maksimumi për çdo dokument individual
 
-# PHOENIX FIX: Kufiri i sigurt i token-ve
-MAX_CHUNK_CHARS = 20_000  # ~5,000 token per chunk
-
-class ResponseGenerator:
+class ContextBuilder:
     """
-    V4.0: Përpunim me chunks — AI i sheh të gjitha dokumentet.
+    Ndërton kontekstin e plotë nga dokumentet — V2.0.
+    Nuk e shkurton kontekstin — ResponseGenerator do ta ndajë në chunks nëse duhet.
     """
 
-    def __init__(self):
-        api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=OPENROUTER_BASE_URL,
-            timeout=LLM_TIMEOUT
-        )
+    @staticmethod
+    def _get_expanded_text(d: Dict[str, Any]) -> str:
+        metadata = d.get('metadata') or {}
+        return (
+            d.get('parent_text') or
+            metadata.get('parent_text') or
+            d.get('text') or
+            metadata.get('text') or
+            d.get('content') or
+            metadata.get('content') or
+            ""
+        ).strip()
 
-    def _split_context_into_chunks(self, context: str, chunk_size: int = MAX_CHUNK_CHARS) -> List[str]:
-        """Ndan kontekstin në chunks të menaxhueshëm."""
-        if len(context) <= chunk_size:
-            return [context]
+    @staticmethod
+    def build(
+        case_docs: List[Dict],
+        global_docs: List[Dict],
+        db_documents: List[Dict]
+    ) -> Tuple[str, str]:
+        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE DHE PASAPORTA FORENZIKE E FASHIKULLIT >>>\n"]
+        context_blocks = []
         
-        chunks = []
-        paragraphs = context.split('\n\n')
-        current_chunk = ""
-        
-        for para in paragraphs:
-            if len(current_chunk) + len(para) + 2 > chunk_size:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = para
-            else:
-                if current_chunk:
-                    current_chunk += "\n\n" + para
-                else:
-                    current_chunk = para
-        
-        if current_chunk:
-            chunks.append(current_chunk)
-        
-        return chunks
-
-    async def generate_stream(
-        self,
-        system_prompt: str,
-        user_query: str,
-        context: str = ""
-    ) -> AsyncGenerator[str, None]:
-        """
-        V4.0: Përpunon dokumentet në chunks dhe përmbledh në fund.
-        """
-        try:
-            # 1. Ndan kontekstin në chunks
-            chunks = self._split_context_into_chunks(context)
+        if db_documents:
+            doc_budget = int((MAX_CONTEXT_CHARS * 0.70) / max(len(db_documents), 1))
+            doc_budget = max(doc_budget, 7_000)
             
-            if len(chunks) <= 1:
-                # Konteksti është mjaft i vogël — përpuno direkt
-                response = await self.client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_query}
-                    ],
-                    temperature=0.1,
-                    stream=False,
-                    max_tokens=8192
-                )
+            for idx, doc in enumerate(db_documents, 1):
+                doc_id = str(doc.get("_id", ""))
+                file_name = doc.get("file_name") or doc.get("title") or f"Dokument_{idx}.pdf"
+                doc_clickable_link = f"[{file_name}](/documents/{doc_id})"
                 
-                full_text = response.choices[0].message.content or ""
-                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(full_text)
-                yield filtered_text
+                raw_t = (
+                    doc.get("extracted_text") or
+                    doc.get("text_content") or
+                    doc.get("text") or
+                    doc.get("content") or
+                    ""
+                ).strip()
                 
-                if replaced:
-                    details = "\n".join([f"   • {p}" for p in replaced])
-                    yield f"\n\n---\n⚠️ **KUJDES I VEÇANTË:**\nPrecedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:\n\n{details}\n"
+                summ = (doc.get("summary") or "").strip()
+                if summ == "Sinteza...":
+                    summ = ""
+
+                dense_passport = summ or raw_t[:1500] or "Shkresë e administruar në fashikull."
+                manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:400]}")
                 
-            else:
-                # Konteksti është i madh — përpuno në chunks
-                yield "📋 Duke analizuar të gjitha dokumentet e fashikullit...\n\n"
-                
-                chunk_analyses = []
-                
-                for i, chunk in enumerate(chunks, 1):
-                    chunk_prompt = f"""
-                    Analizo Pjesën {i}/{len(chunks)} të dokumenteve.
-                    
-                    {system_prompt}
-                    
-                    DOKUMENTET (Pjesa {i}):
-                    {chunk}
-                    
-                    Nxjerr:
-                    1. Faktet kryesore
-                    2. Shkeljet ligjore
-                    3. Provat e rëndësishme
-                    4. Aktorët
-                    
-                    Përgjigju shkurt dhe me pika.
-                    """
-                    
-                    response = await self.client.chat.completions.create(
-                        model=OPENROUTER_MODEL,
-                        messages=[
-                            {"role": "system", "content": chunk_prompt},
-                            {"role": "user", "content": user_query}
-                        ],
-                        temperature=0.1,
-                        stream=False,
-                        max_tokens=4096
-                    )
-                    
-                    chunk_analysis = response.choices[0].message.content or ""
-                    chunk_analyses.append(f"### PJESA {i}:\n{chunk_analysis}")
-                    yield f"✅ Pjesa {i}/{len(chunks)} u analizua.\n"
-                
-                # 2. Përmbledhja finale
-                yield "\n🔗 Duke përmbledhur të gjitha analizat...\n"
-                
-                combined_analyses = "\n\n".join(chunk_analyses)
-                
-                final_prompt = f"""
-                    Ti je Sokrati — Gjyqtari Suprem i Kosovës.
-                    
-                    Këtu janë analizat e pjesëve të veçanta të fashikullit:
-                    
-                    {combined_analyses}
-                    
-                    Përpilo një raport të plotë dhe të strukturuar me të 5 pikat e detyrueshme.
-                    Përgjigju në gjuhën shqipe juridike.
-                    """
-                
-                final_response = await self.client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=[
-                        {"role": "system", "content": final_prompt},
-                        {"role": "user", "content": user_query}
-                    ],
-                    temperature=0.1,
-                    stream=False,
-                    max_tokens=8192
-                )
-                
-                final_text = final_response.choices[0].message.content or ""
-                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(final_text)
-                yield filtered_text
-                
-                if replaced:
-                    details = "\n".join([f"   • {p}" for p in replaced])
-                    yield f"\n\n---\n⚠️ **KUJDES I VEÇANTË:**\nPrecedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:\n\n{details}\n"
-                
-        except Exception as e:
-            logger.error(f"❌ Response generation failed: {e}")
-            yield f"\n[Gabim Gjatë Gjenerimit: {e}]"
+                if len(db_documents) <= 15 and raw_t:
+                    context_blocks.append(f"\n--- TEKSTI I PLOTË I SHKRESËS: {doc_clickable_link} ---\n{raw_t[:doc_budget]}\n")
+        else:
+            context_blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.\n\n")
+
+        context_blocks.append("\n<<< PARAGRAFET FORENZIKE NGA KËRKIMI SEMANTIK NË FASHIKULL >>>\n")
+        for d in case_docs:
+            src = d.get('source') or 'Dokument'
+            page_info = f", Faqja: {d.get('page')}" if d.get('page') else ""
+            context_blocks.append(f"[{src}{page_info}]:\n{ContextBuilder._get_expanded_text(d)}\n")
+
+        context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME >>>\n")
+        for d in global_docs:
+            source_tag = d.get('source') or 'Burim Juridik'
+            context_blocks.append(f"BURIMI: {source_tag}\nPËRMBAJTJA: {ContextBuilder._get_expanded_text(d)}\n")
+
+        full_context = "".join(context_blocks)
+        
+        if len(full_context) > MAX_CONTEXT_CHARS:
+            full_context = full_context[:MAX_CONTEXT_CHARS] + "\n[TË DHËNA TË PRERA PËR SHKAK TË MADHËSISË SË FASHIKULLIT]"
+
+        return "\n".join(manifest_lines), full_context

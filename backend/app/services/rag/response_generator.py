@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V3.0 (DETAILED HALLUCINATION WARNING)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V4.0 (CHUNKED PROCESSING - FULL CONTEXT)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -11,12 +11,14 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
-LLM_TIMEOUT = 90
+LLM_TIMEOUT = 120
+
+# PHOENIX FIX: Kufiri i sigurt i token-ve
+MAX_CHUNK_CHARS = 20_000  # ~5,000 token per chunk
 
 class ResponseGenerator:
     """
-    Thërret LLM, mbledh përgjigjen, FILTRON, dhe pastaj yield-on.
-    Gjithashtu tregon saktësisht cilët precedentë u zëvendësuan.
+    V4.0: Përpunim me chunks — AI i sheh të gjitha dokumentet.
     """
 
     def __init__(self):
@@ -27,51 +29,160 @@ class ResponseGenerator:
             timeout=LLM_TIMEOUT
         )
 
+    def _split_context_into_chunks(self, context: str, chunk_size: int = MAX_CHUNK_CHARS) -> List[str]:
+        """Ndan kontekstin në chunks të menaxhueshëm."""
+        if not context:
+            return []
+        
+        if len(context) <= chunk_size:
+            return [context]
+        
+        chunks = []
+        paragraphs = context.split('\n\n')
+        current_chunk = ""
+        
+        for para in paragraphs:
+            if len(current_chunk) + len(para) + 2 > chunk_size:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = para
+            else:
+                if current_chunk:
+                    current_chunk += "\n\n" + para
+                else:
+                    current_chunk = para
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        logger.info(f"📋 [Chunked] Konteksti u nda në {len(chunks)} pjesë.")
+        return chunks
+
     async def generate_stream(
         self,
         system_prompt: str,
-        user_query: str
+        user_query: str,
+        context: str = ""
     ) -> AsyncGenerator[str, None]:
         """
-        PHOENIX FIX V3.0: Buffer + Filter + Yield + Detajet e halucinacioneve.
+        V4.0: Përpunon dokumentet në chunks dhe përmbledh në fund.
         """
         try:
-            response = await self.client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ],
-                temperature=0.1,
-                stream=True,
-                max_tokens=8192
-            )
+            # 1. Ndan kontekstin në chunks
+            chunks = self._split_context_into_chunks(context)
             
-            # 1. Mbledhim të gjithë përgjigjen
-            full_text = ""
-            async for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    full_text += chunk.choices[0].delta.content
-            
-            # 2. Filtrojmë dhe marrim listën e halucinacioneve
-            filtered_text, replaced_precedents = HallucinationFilter.filter_precedents_with_details(full_text)
-            
-            # 3. Yield-ojmë tekstin e pastruar
-            yield filtered_text
-            
-            # 4. Nëse ka halucinacione, tregojmë saktësisht cilat
-            if replaced_precedents:
-                details = "\n".join([f"   • {p}" for p in replaced_precedents])
-                warning = f"""
+            if len(chunks) <= 1:
+                # Konteksti është mjaft i vogël — përpuno direkt
+                response = await self.client.chat.completions.create(
+                    model=OPENROUTER_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_query}
+                    ],
+                    temperature=0.1,
+                    stream=False,
+                    max_tokens=8192
+                )
+                
+                full_text = response.choices[0].message.content or ""
+                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(full_text)
+                yield filtered_text
+                
+                if replaced:
+                    details = "\n".join([f"   • {p}" for p in replaced])
+                    warning = f"""
 ---
 ⚠️ **KUJDES I VEÇANTË:**
-Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR në bazën tonë dhe u zëvendësuan me '[Nuk u gjet ky precedent në bazën tonë]':
+Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
 
 {details}
 
 Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
 """
-                yield warning
+                    yield warning
+                
+            else:
+                # Konteksti është i madh — përpuno në chunks
+                yield "📋 Duke analizuar të gjitha dokumentet e fashikullit...\n\n"
+                
+                chunk_analyses = []
+                
+                for i, chunk in enumerate(chunks, 1):
+                    chunk_prompt = f"""
+                    Analizo Pjesën {i}/{len(chunks)} të dokumenteve.
+                    
+                    {system_prompt}
+                    
+                    DOKUMENTET (Pjesa {i}):
+                    {chunk}
+                    
+                    Nxjerr:
+                    1. Faktet kryesore
+                    2. Shkeljet ligjore
+                    3. Provat e rëndësishme
+                    4. Aktorët
+                    
+                    Përgjigju shkurt dhe me pika.
+                    """
+                    
+                    response = await self.client.chat.completions.create(
+                        model=OPENROUTER_MODEL,
+                        messages=[
+                            {"role": "system", "content": chunk_prompt},
+                            {"role": "user", "content": user_query}
+                        ],
+                        temperature=0.1,
+                        stream=False,
+                        max_tokens=4096
+                    )
+                    
+                    chunk_analysis = response.choices[0].message.content or ""
+                    chunk_analyses.append(f"### PJESA {i}:\n{chunk_analysis}")
+                    yield f"✅ Pjesa {i}/{len(chunks)} u analizua.\n"
+                
+                # 2. Përmbledhja finale
+                yield "\n🔗 Duke përmbledhur të gjitha analizat...\n"
+                
+                combined_analyses = "\n\n".join(chunk_analyses)
+                
+                final_prompt = f"""
+                    Ti je Sokrati — Gjyqtari Suprem i Kosovës.
+                    
+                    Këtu janë analizat e pjesëve të veçanta të fashikullit:
+                    
+                    {combined_analyses}
+                    
+                    Përpilo një raport të plotë dhe të strukturuar me të 5 pikat e detyrueshme.
+                    Përgjigju në gjuhën shqipe juridike.
+                    """
+                
+                final_response = await self.client.chat.completions.create(
+                    model=OPENROUTER_MODEL,
+                    messages=[
+                        {"role": "system", "content": final_prompt},
+                        {"role": "user", "content": user_query}
+                    ],
+                    temperature=0.1,
+                    stream=False,
+                    max_tokens=8192
+                )
+                
+                final_text = final_response.choices[0].message.content or ""
+                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(final_text)
+                yield filtered_text
+                
+                if replaced:
+                    details = "\n".join([f"   • {p}" for p in replaced])
+                    warning = f"""
+---
+⚠️ **KUJDES I VEÇANTË:**
+Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
+
+{details}
+
+Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
+"""
+                    yield warning
                 
         except Exception as e:
             logger.error(f"❌ Response generation failed: {e}")
