@@ -1,5 +1,5 @@
-# FILE: app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - LLM CLIENT V27.0 (HIGH-SPEED BATCH EMBEDDINGS & ROBUST PARSER)
+# FILE: backend/app/services/llm/llm_client.py
+# PHOENIX PROTOCOL - LLM CLIENT V28.0 (HALLUCINATION FILTER INTEGRATED)
 
 import os
 import json
@@ -37,25 +37,31 @@ def _get_async_client() -> AsyncOpenAI:
     key = _get_api_key()
     return AsyncOpenAI(api_key=key, base_url=OPENROUTER_URL, timeout=60.0)
 
+def _apply_hallucination_filter(text: str) -> str:
+    """
+    PHOENIX FIX V28.0: Aplikon filtrin e halucinacioneve në çdo përgjigje.
+    """
+    try:
+        from app.services.pillars.hallucination_filter import HallucinationFilter
+        return HallucinationFilter.filter_precedents(text)
+    except ImportError:
+        return text
+    except Exception as e:
+        logger.warning(f"⚠️ [Filter] Gabim gjatë filtrimit: {e}")
+        return text
+
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """
-    Pastron dhe dekodon përgjigjen JSON me mbrojtje absolute nga gabimet.
-    Largon tag-et e arsyetimit <think>, blloqet markdown dhe nxjerr strukturen JSON.
-    """
     if not text:
         return {}
     
-    # 1. Hiq tag-et e mendimit të DeepSeek R1 / V3
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     cleaned = cleaned.strip()
     
-    # 2. Provo parsese direkte
     try:
         return json.loads(cleaned)
     except Exception:
         pass
 
-    # 3. Kërko bllokun ```json ... ``` kudo në tekst
     json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', cleaned, re.DOTALL)
     if json_block_match:
         try:
@@ -63,7 +69,6 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 4. Kërko çdo objekt JSON midis kllapave { ... } me përputhje më të gjerë
     try:
         first_brace = cleaned.find('{')
         last_brace = cleaned.rfind('}')
@@ -71,13 +76,12 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
             candidate = cleaned[first_brace:last_brace + 1]
             return json.loads(candidate)
     except Exception as parse_err:
-        logger.warning(f"⚠️ JSON parsing extraction fallback failed: {parse_err} | Raw: {cleaned[:200]}")
+        logger.warning(f"⚠️ JSON parsing extraction fallback failed: {parse_err}")
         pass
 
     return {}
 
 def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje sinkrone e sigurt me auto-retry."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
@@ -106,7 +110,9 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
             res = client.chat.completions.create(**kwargs)
             if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
                 msg = res.choices[0].message
-                return getattr(msg, 'content', '') or ""
+                raw_content = getattr(msg, 'content', '') or ""
+                # PHOENIX FIX: Aplikoni filtrin
+                return _apply_hallucination_filter(raw_content)
             return ""
         except Exception as e:
             if "429" in str(e) and attempt < 2:
@@ -118,7 +124,6 @@ def _call_llm(system_prompt: str, user_content: str, json_mode: bool = False, te
     return ""
 
 async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool = False, temperature: float = 0.0, model: str = FAST_MODEL) -> str:
-    """Thirrje asinkrone e sigurt pa gabime NoneType dhe me auto-retry."""
     key = _get_api_key()
     if not key:
         logger.error("❌ Mungon OPENROUTER_API_KEY")
@@ -149,7 +154,8 @@ async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool
                 msg = res.choices[0].message
                 content = getattr(msg, 'content', '') or ""
                 if content:
-                    return content
+                    # PHOENIX FIX: Aplikoni filtrin
+                    return _apply_hallucination_filter(content)
             logger.warning(f"⚠️ Empty choice response on attempt {attempt + 1}")
         except Exception as e:
             if "429" in str(e) and attempt < 2:
@@ -160,7 +166,6 @@ async def _call_llm_async(system_prompt: str, user_content: str, json_mode: bool
     return ""
 
 def get_embedding(text: str) -> List[float]:
-    """Generates embedding for a single text."""
     key = _get_api_key()
     if not text or not key: 
         return [0.0] * 1536
@@ -173,10 +178,6 @@ def get_embedding(text: str) -> List[float]:
         return [0.0] * 1536
 
 def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
-    """
-    HIGH-SPEED BATCH EMBEDDING:
-    Vectorizes an entire array of chunks in 1 single HTTP request (< 0.4s).
-    """
     key = _get_api_key()
     if not texts or not key: 
         return [[0.0] * 1536 for _ in texts]
@@ -187,7 +188,6 @@ def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
         return [item.embedding for item in res.data]
     except Exception as e:
         logger.error(f"❌ Batch Embedding Failure: {e}")
-        # Fallback to single calls if batch fails
         return [get_embedding(t) for t in texts]
 
 async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.05, model: str = FAST_MODEL) -> AsyncGenerator[str, None]:
