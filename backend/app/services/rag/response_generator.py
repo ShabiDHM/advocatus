@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V5.0 (SHORT CHUNK PROMPTS + FULL PROTOCOL IN FINAL)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V5.1 (FASTER CHUNKS - 40K)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -13,11 +13,12 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 LLM_TIMEOUT = 120
 
-MAX_CHUNK_CHARS = 15_000  # Reduktuar për të shmangur tejkalimin e token-ve
+MAX_CHUNK_CHARS = 40_000  # PHOENIX FIX V5.1: Chunks më të mëdha për shpejtësi
 
 class ResponseGenerator:
     """
-    V5.0: Chunks me prompt të shkurtër, Protokolli i plotë në përmbledhjen finale.
+    V5.1: Chunks më të mëdha (40K) për shpejtësi.
+    Më pak thirrje te LLM = më pak kohë pritjeje.
     """
 
     def __init__(self):
@@ -57,8 +58,7 @@ class ResponseGenerator:
 
     def _build_short_chunk_prompt(self, chunk: str, chunk_num: int, total_chunks: int) -> str:
         """
-        PHOENIX FIX V5.0: Prompt i SHKURTËR për çdo chunk.
-        Pa protokollin e plotë — vetëm udhëzime të shkurtra.
+        Prompt i SHKURTËR për çdo chunk.
         """
         return f"""
 LEXO me kujdes këto dokumente (Pjesa {chunk_num}/{total_chunks}) dhe ZBULO VETË:
@@ -83,7 +83,7 @@ Përgjigju shkurt, me pika. JO analiza të gjata.
 
     def _build_final_prompt(self, combined_analyses: str, system_prompt: str, user_query: str) -> str:
         """
-        PHOENIX FIX V5.0: Përmbledhja finale me protokollin e plotë.
+        Përmbledhja finale me protokollin e plotë.
         """
         return f"""
 Ti je Sokrati — Gjyqtari Suprem i Kosovës.
