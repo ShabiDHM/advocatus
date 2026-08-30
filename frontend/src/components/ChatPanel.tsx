@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V47.0 (ANALIZO RASTIN - ONE-CLICK COMPREHENSIVE REPORT)
+// PHOENIX PROTOCOL - CHAT PANEL V48.0 (ANALIZO RASTIN BUTTON IN HEADER)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,10 +62,10 @@ const formatUserDisplayMessage = (content: string) => {
     );
   }
 
-  if (content.includes('ANALIZO RASTIN') || content.includes('analizo rastin')) {
+  if (content.toUpperCase().includes('ANALIZO RASTIN')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <Gavel size={15} className="text-primary-start shrink-0" />
+        <Gavel size={15} className="text-amber-500 shrink-0" />
         <span>⚖️ Analizo Rastin — Raporti i Plotë Forenzik</span>
       </div>
     );
@@ -118,7 +118,7 @@ const resolveSuggestionCardUI = (query: string) => {
     return {
       title: '⚖️ Analizo Rastin',
       desc: 'Raporti i plotë forenzik — 10 seksione me shkeljet, provat, nenet, planin e veprimit.',
-      icon: <Gavel size={16} className="text-primary-start shrink-0 mt-0.5" />
+      icon: <Gavel size={16} className="text-amber-500 shrink-0 mt-0.5" />
     };
   }
 
@@ -126,7 +126,7 @@ const resolveSuggestionCardUI = (query: string) => {
     return {
       title: '🔍 Audito Dokumentin',
       desc: 'Kontrolli forenzik i një dokumenti specifik.',
-      icon: <Scale size={16} className="text-purple-500 shrink-0 mt-0.5" />
+      icon: <Scale size={16} className="text-blue-500 shrink-0 mt-0.5" />
     };
   }
 
@@ -135,30 +135,6 @@ const resolveSuggestionCardUI = (query: string) => {
       title: 'Baza Statutare dhe Jurisprudenca',
       desc: 'Auditimi i neneve, lapsuseve dhe precedentëve të Gjykatës Supreme.',
       icon: <BookOpen size={16} className="text-blue-500 shrink-0 mt-0.5" />
-    };
-  }
-
-  if (q.includes('pyetësorin taktik') || q.includes('ballafaqimit')) {
-    return {
-      title: 'Pyetësori Taktik për Seancë',
-      desc: 'Pyetjet kirurgjike të ballafaqimit (Cross-Examination) për sallën e gjyqit.',
-      icon: <HelpCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-    };
-  }
-
-  if (q.includes('llogarit dëmet') || q.includes('kamatën ligjore')) {
-    return {
-      title: 'Llogaritja e Dëmit LMD (8%) & Masat',
-      desc: 'Tabela financiare e dëmit me kamatë 8% dhe masat emergjente mbrojtëse.',
-      icon: <Coins size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-    };
-  }
-
-  if (q.includes('shtyllat strategjike') || q.includes('matrica e provave')) {
-    return {
-      title: 'Strategjia dhe Matrica e Provave',
-      desc: 'Analiza e thellë e të gjitha shkresave të fashikullit dhe provave shkencore.',
-      icon: <Swords size={16} className="text-purple-500 shrink-0 mt-0.5" />
     };
   }
 
@@ -252,6 +228,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         selectedDocumentIds={selectedDocumentIds}
         onDocumentSelectionChange={onDocumentSelectionChange}
         isPro={isPro}
+        onAnalyzeCase={() => sendMessage("ANALIZO RASTIN")}
       />
 
       {/* BODY CONTEXT */}
@@ -294,11 +271,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         msg.role === 'ai'
                           ? 'bg-primary-start text-white border-primary-start'
                           : isSpecialCommand
-                            ? 'bg-primary-start/20 border-primary-start text-primary-start'
+                            ? 'bg-amber-500/20 border-amber-500/30 text-amber-500'
                             : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <Sparkles size={16} /> : <User size={16} />}
+                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <Gavel size={16} /> : <User size={16} />}
                     </div>
 
                     <div
@@ -402,21 +379,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       Sokrati duke menduar
                     </span>
                     <div className="flex items-center gap-1 ml-0.5">
-                      <motion.span
-                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0 }}
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
-                      />
-                      <motion.span
-                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.2 }}
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
-                      />
-                      <motion.span
-                        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
-                        transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.4 }}
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block"
-                      />
+                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
+                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
+                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
                     </div>
                   </div>
                 </motion.div>
