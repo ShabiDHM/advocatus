@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V2.0 (ROLE GUARD INTEGRATED)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V3.0 (TIMELINE INTEGRATED & ROLE GUARD)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -82,6 +82,15 @@ DOMAIN_LAWS = {
     ]
 }
 
+# ========== PRECEDENTËT E VERIFIKUAR ==========
+VERIFIED_PRECEDENTS = [
+    "PML.nr.682/2024",
+    "PML.nr.429/2025",
+    "Rev.nr.240/2024",
+    "Rev.Nr.541/2024",
+    "PML.Nr.185/2025"
+]
+
 
 class BasePillarService:
     """
@@ -91,6 +100,8 @@ class BasePillarService:
     - Eliminimi i halucinacioneve me verifikim nen-për-nen
     - 100% agnostik ndaj domeneve
     - ROLE GUARD: Mbrojtja absolute e rolit të klientit
+    - TIMELINE: Kronologjia e saktë e rastit me afate ligjore
+    - ZERO HALUCINACION PRECEDENTËSH: Vetëm precedentët e verifikuar
     """
 
     @staticmethod
@@ -99,10 +110,7 @@ class BasePillarService:
         context_str: str = "",
         manifest_str: str = ""
     ) -> str:
-        """
-        Zbulon automatikisht llojin e çështjes bazuar në titull, dokumente dhe manifest.
-        Returns: "PENAL", "CIVIL", "KOMERCIAL", "PRONËSOR", "PUNËS", "FAMILJAR", "ADMINISTRATIV", "KUSHTETUES"
-        """
+        """Zbulon automatikisht llojin e çështjes."""
         combined_text = f"{case_title} {context_str[:5000]} {manifest_str[:2000]}".lower()
         
         domain_scores: Dict[str, int] = {}
@@ -122,12 +130,12 @@ class BasePillarService:
 
     @staticmethod
     def get_domain_laws(case_domain: str) -> List[str]:
-        """Kthen ligjet përkatëse për domenin e zbuluar."""
+        """Kthen ligjet përkatëse për domenin."""
         return DOMAIN_LAWS.get(case_domain, DOMAIN_LAWS["CIVIL"])
 
     @staticmethod
     def build_domain_instruction(case_domain: str) -> str:
-        """Gjeneron udhëzime specifike për lëminë e çështjes."""
+        """Gjeneron udhëzime specifike për lëminë."""
         laws = BasePillarService.get_domain_laws(case_domain)
         laws_str = ", ".join(laws)
         
@@ -145,16 +153,32 @@ RREGULLAT E HEKURTA TË DOMENIT:
 """
 
     @staticmethod
+    def build_precedent_instruction() -> str:
+        """
+        PHOENIX FIX: Rregulli i hekurt i precedentëve — eliminon halucinacionet.
+        """
+        precedents_str = ", ".join(VERIFIED_PRECEDENTS)
+        return f"""
+RREGULLI ABSOLUT I PRECEDENTËVE TË GJYKATËS SUPREME:
+Precedentët e verifikuar në bazën tonë janë VETËM këta:
+{precedents_str}
+
+RREGULLAT:
+1. Citoni VETËM precedentë nga kjo listë;
+2. NËSE një precedent NUK gjendet në këtë listë, thuaj: "Nuk u gjet precedent specifik në bazën tonë për këtë pikë" — MOS e shpik!
+3. MOS cito asnjë numër precedenti nga memorja — VETËM nga kjo listë;
+4. NËSE RAG context përmban precedentë shtesë, ato janë të verifikuar dhe mund të citohen;
+5. HALUCINACIONI I PRECEDENTËVE ËSHTË I NDALUAR KATEGORIKISHT.
+"""
+
+    @staticmethod
     def get_rag_context(
         user_id: str = "",
         case_id: str = "",
         query_text: str = "",
         n_results: int = 20
     ) -> Tuple[str, str]:
-        """
-        Kërkon në legal_knowledge_base dhe user_vectors për të marrë kontekst ligjor.
-        Returns: (global_rag_context, case_rag_context)
-        """
+        """Kërkon në legal_knowledge_base dhe user_vectors."""
         global_rag_context = ""
         case_rag_context = ""
         
@@ -196,27 +220,38 @@ RREGULLAT E HEKURTA TË DOMENIT:
         return global_rag_context, case_rag_context
 
     @staticmethod
-    def get_role_guard(
-        role: str,
-        client_name: str
+    def get_timeline_context(
+        db: Any,
+        case_id: str,
+        user_id: str = ""
     ) -> str:
         """
-        PHOENIX FIX: Kthen bllokun e mbrojtjes së rolit.
+        PHOENIX FIX: Kthen kronologjinë e rastit si tekst për prompt.
         """
+        try:
+            from app.services.pillars.timeline_service import TimelineService
+            timeline_data = TimelineService.build_case_timeline(db, case_id, user_id)
+            return TimelineService.build_timeline_prompt(timeline_data)
+        except ImportError as e:
+            logger.warning(f"⚠️ [Timeline] timeline_service nuk u importua: {e}")
+            return ""
+        except Exception as e:
+            logger.error(f"❌ [Timeline] Gabim gjatë ndërtimit të kronologjisë: {e}")
+            return ""
+
+    @staticmethod
+    def get_role_guard(role: str, client_name: str) -> str:
+        """Kthen bllokun e mbrojtjes së rolit."""
         try:
             from app.services.pillars.role_guard_service import RoleGuardService
             return RoleGuardService.build_role_guard(role, client_name)
         except ImportError:
-            logger.warning("⚠️ [RoleGuard] role_guard_service nuk u importua. Duke përdorur default.")
+            logger.warning("⚠️ [RoleGuard] role_guard_service nuk u importua.")
             return ""
 
     @staticmethod
-    def get_role_tone(
-        role: str
-    ) -> str:
-        """
-        PHOENIX FIX: Kthen tonin e përgjigjes sipas rolit.
-        """
+    def get_role_tone(role: str) -> str:
+        """Kthen tonin e përgjigjes sipas rolit."""
         try:
             from app.services.pillars.role_guard_service import RoleGuardService
             return RoleGuardService.get_role_specific_tone(role)
@@ -233,12 +268,12 @@ RREGULLAT E HEKURTA TË DOMENIT:
         context_str: str,
         case_domain: str = "",
         rag_context: str = "",
-        case_rag_context: str = ""
+        case_rag_context: str = "",
+        timeline_context: str = ""
     ) -> str:
         """
-        Ndërton pjesën e përbashkët të prompt-it që përdoret nga të 6 shërbimet.
+        Ndërton pjesën e përbashkët të prompt-it me të gjitha komponentët.
         """
-        # Zbulo domenin nëse nuk është dhënë
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
                 case_title=case_title,
@@ -247,8 +282,7 @@ RREGULLAT E HEKURTA TË DOMENIT:
             )
         
         domain_instruction = BasePillarService.build_domain_instruction(case_domain)
-        
-        # PHOENIX FIX: Shto Role Guard
+        precedent_instruction = BasePillarService.build_precedent_instruction()
         role_guard = BasePillarService.get_role_guard(client_position, client_name)
         role_tone = BasePillarService.get_role_tone(client_position)
         
@@ -260,6 +294,13 @@ KLIENTI / PËRDORUESI: **{client_name}** | ROLI: **{(client_position or 'DEFENDA
 {domain_instruction}
 
 {role_tone}
+
+{precedent_instruction}
+
+{'='*60}
+📅 KRONOLOGJIA E RASTIT DHE AFATET LIGJORE:
+{'='*60}
+{timeline_context if timeline_context else "Nuk u ndërtua kronologjia e rastit. Analizo dokumentet e fashikullit për datat dhe afatet."}
 
 {'='*60}
 KONTEKSTI LIGJOR I VERIFIKUAR NGA BAZA STATUTORE E KOSOVËS (RAG):
