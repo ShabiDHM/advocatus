@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V2.0 (BUFFER & FILTER BEFORE YIELD)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V3.0 (DETAILED HALLUCINATION WARNING)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -13,16 +13,10 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 LLM_TIMEOUT = 90
 
-HALLUCINATION_WARNING = (
-    "\n\n---\n"
-    "⚠️ **KUJDES I VEÇANTË:**\n"
-    "*Disa precedentë në këtë përgjigje u identifikuan si të paverifikuar në bazën tonë dhe u zëvendësuan me '[Nuk u gjet ky precedent në bazën tonë]'. "
-    "Ju lutem verifikoni çdo referencë para përdorimit zyrtar.*"
-)
-
 class ResponseGenerator:
     """
     Thërret LLM, mbledh përgjigjen, FILTRON, dhe pastaj yield-on.
+    Gjithashtu tregon saktësisht cilët precedentë u zëvendësuan.
     """
 
     def __init__(self):
@@ -39,8 +33,7 @@ class ResponseGenerator:
         user_query: str
     ) -> AsyncGenerator[str, None]:
         """
-        PHOENIX FIX V2.0: Buffer + Filter + Yield.
-        Mbledhim të gjithë përgjigjen, filtrojmë, pastaj yield-ojmë të pastruar.
+        PHOENIX FIX V3.0: Buffer + Filter + Yield + Detajet e halucinacioneve.
         """
         try:
             response = await self.client.chat.completions.create(
@@ -60,15 +53,25 @@ class ResponseGenerator:
                 if chunk.choices and chunk.choices[0].delta.content:
                     full_text += chunk.choices[0].delta.content
             
-            # 2. Filtrojmë përgjigjen e plotë
-            filtered_text = HallucinationFilter.filter_precedents(full_text)
+            # 2. Filtrojmë dhe marrim listën e halucinacioneve
+            filtered_text, replaced_precedents = HallucinationFilter.filter_precedents_with_details(full_text)
             
             # 3. Yield-ojmë tekstin e pastruar
             yield filtered_text
             
-            # 4. Nëse filtri ndryshoi diçka, shto paralajmërim
-            if filtered_text != full_text:
-                yield HALLUCINATION_WARNING
+            # 4. Nëse ka halucinacione, tregojmë saktësisht cilat
+            if replaced_precedents:
+                details = "\n".join([f"   • {p}" for p in replaced_precedents])
+                warning = f"""
+---
+⚠️ **KUJDES I VEÇANTË:**
+Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR në bazën tonë dhe u zëvendësuan me '[Nuk u gjet ky precedent në bazën tonë]':
+
+{details}
+
+Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
+"""
+                yield warning
                 
         except Exception as e:
             logger.error(f"❌ Response generation failed: {e}")

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V32.1 (SETTINGS ALIGNED & SAFE COPY)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V33.0 (CASE_ID FILTER FIX - NO ATLAS INDEX NEEDED)
 
 import os
 import time
@@ -23,11 +23,6 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _get_db():
-    """
-    PHOENIX PROTOCOL - FIXED:
-    Now uses Pydantic settings instead of raw os.getenv().
-    This ensures the .env file is properly loaded.
-    """
     uri = settings.DATABASE_URI or os.getenv("DATABASE_URI")
     db_name = settings.MONGO_DB_NAME or os.getenv("MONGO_DB_NAME", "advocatus_db")
     
@@ -43,17 +38,13 @@ def get_global_collection():
 
 
 def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) -> List[Dict[str, Any]]:
-    """
-    KËRKIM HIBRID NË DITURINË GLOBALE:
-    Kombinon Kërkimin Vektorial Semantik me Kërkimin e Drejtpërdrejtë të Neneve dhe Precedentëve të Gjykatës Supreme.
-    """
     from . import embedding_service
     db = _get_db()
     coll = db["legal_knowledge_base"]
     raw_results = []
     seen_ids = set()
 
-    # 1. KËRKIM I DREJTPËRDREJTË PËR NENE APO PRECEDENTË TË PËRMENDUR NË QUERY
+    # 1. KËRKIM I DREJTPËRDREJTË
     article_matches = re.findall(r'\b(?:Neni|Nenit|Nenin)\s*(\d+)\b', query_text, re.IGNORECASE)
     case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A)\.?\s*Nr\.?\s*(\d+/\d+)\b', query_text, re.IGNORECASE)
 
@@ -80,7 +71,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
         except Exception as ex:
             logger.warning(f"Direct statute search fallback error: {ex}")
 
-    # 2. KËRKIMI VEKTORIAL SEMANTIK NË MONGODB ATLAS
+    # 2. KËRKIMI VEKTORIAL SEMANTIK
     vector = embedding_service.generate_embedding(query_text) if query_text else None
     if vector:
         try:
@@ -102,7 +93,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
         except Exception as e:
             logger.warning(f"Global Vector Search failed, running text fallback: {e}")
 
-    # 3. TEXT / KEYWORD SEARCH FALLBACK NËSE VEKTORËT DËSHTOJNË
+    # 3. TEXT SEARCH FALLBACK
     if len(raw_results) < n_results:
         try:
             clean_q = re.sub(r'[^\w\s]', ' ', query_text).strip()
@@ -116,7 +107,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
         except Exception:
             pass
 
-    # 4. FORMATIMI DHE STRUKTURIMI PËR PROMPT
+    # 4. FORMATIMI
     formatted_results = []
     for r in raw_results[:n_results]:
         law_title = r.get("law_title") or r.get("title") or "Dokument Juridik"
@@ -145,8 +136,9 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
 
 def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30, **kwargs) -> List[Dict[str, Any]]:
     """
-    KËRKIMI SHUTERUES I IZOLUAR PËR LËNDËN (STRICT CASE-LEVEL RETRIEVAL):
-    Garanton që asnjë dokument i një lënde tjetër nuk përzihet në kërkim.
+    PHOENIX PROTOCOL V33.0 - FIXED:
+    Përdor VETËM owner_id si filter në $vectorSearch (indeksuar tashmë).
+    case_id filtrohet PAS marrjes së rezultateve — nuk kërkon index shtesë.
     """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
@@ -156,46 +148,54 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
     results = []
     seen_chunk_ids = set()
 
-    # NDËRTIMI I FILTRIT TË BLINDUAR PËR CASE_ID DHE OWNER_ID
-    case_filter: Dict[str, Any] = {"owner_id": user_id}
-    if case_context_id:
-        case_id_str = str(case_context_id)
-        case_filter["$or"] = [
-            {"case_id": case_id_str},
-            {"case_id": ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str}
-        ]
-
     vector = embedding_service.generate_embedding(query_text) if query_text else None
 
-    # 1. KËRKIMI ME VEKTORË NË ATLAS ME FILTER TË PLOTË CASE_ID
+    # 1. KËRKIMI ME VEKTORË — VETËM me owner_id (i indeksuar tashmë)
     if vector:
         try:
             vector_filter: Dict[str, Any] = {"owner_id": user_id}
-            if case_context_id:
-                vector_filter["case_id"] = str(case_context_id)
-
+            
             pipeline = [{
                 "$vectorSearch": {
                     "index": "vector_index", 
                     "path": "embedding", 
                     "queryVector": vector, 
-                    "numCandidates": 160, 
-                    "limit": n_results, 
+                    "numCandidates": 200, 
+                    "limit": n_results * 2,  # Merr dyfish për filtrim të mëvonshëm
                     "filter": vector_filter
                 }
             }]
             vector_results = list(coll.aggregate(pipeline))
+            
+            # PHOENIX FIX: Filtro me case_id pas marrjes së rezultateve
             for r in vector_results:
                 r_id = str(r.get("_id", ""))
+                r_case_id = str(r.get("case_id", ""))
+                
+                # Nëse kemi case_context_id, filtro sipas tij
+                if case_context_id:
+                    case_id_str = str(case_context_id)
+                    if r_case_id != case_id_str and r_case_id != str(ObjectId(case_id_str)) if ObjectId.is_valid(case_id_str) else False:
+                        continue
+                
                 if r_id not in seen_chunk_ids:
                     seen_chunk_ids.add(r_id)
                     results.append(r)
+                    
         except Exception as e:
             logger.warning(f"Case vector search error: {e}")
 
-    # 2. NËSE VEKTORËT NUK KTHYEN MJAFTUESHËM, TËRHEQ TË GJITHA PJESËZAT E KËTIJ RASTI NGA USER_VECTORS
+    # 2. FALLBACK: Tërhiq direkt nga user_vectors me case_filter
     if len(results) < n_results:
         try:
+            case_filter: Dict[str, Any] = {"owner_id": user_id}
+            if case_context_id:
+                case_id_str = str(case_context_id)
+                case_filter["$or"] = [
+                    {"case_id": case_id_str},
+                    {"case_id": ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str}
+                ]
+            
             direct_chunks = list(coll.find(case_filter).limit(n_results))
             for r in direct_chunks:
                 r_id = str(r.get("_id", ""))
@@ -205,7 +205,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
         except Exception as e:
             logger.error(f"Direct user_vectors fetch error: {e}")
 
-    # 3. NËSE EDHE USER_VECTORS ËSHTË BOSH, LEXO DREJTPËRDREJT NGA TABELA E DOKUMENTEVE (FALLBACK)
+    # 3. FALLBACK: Lexo nga documents
     if not results and case_context_id:
         try:
             c_oid = ObjectId(case_context_id) if ObjectId.is_valid(case_context_id) else case_context_id
@@ -235,7 +235,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
             "source": r.get("file_name", "Dokument"), 
             "page": r.get("page", 1)
         } 
-        for r in results
+        for r in results[:n_results]
         if r.get("text")
     ]
 
@@ -291,10 +291,6 @@ def delete_document_embeddings(user_id: str, document_id: str):
 
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):
-    """
-    PHOENIX PROTOCOL - FIXED:
-    Now checks if 'existing' is empty before calling insert_many().
-    """
     try:
         db = _get_db()
         existing = list(db["user_vectors"].find({"document_id": str(source_document_id)}))
