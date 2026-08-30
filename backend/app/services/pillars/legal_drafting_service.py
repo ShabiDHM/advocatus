@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/legal_drafting_service.py
-# PHOENIX PROTOCOL - PILLAR 6: 100% UNIVERSAL & DOMAIN-AGNOSTIC LEGAL DRAFTING SPECIALIST
+# PHOENIX PROTOCOL - PILLAR 6: 100% UNIVERSAL & DOMAIN-AGNOSTIC LEGAL DRAFTING SPECIALIST (V17.0)
 
 from typing import Dict, Any
 
@@ -10,6 +10,7 @@ class LegalDraftingService:
     - Kallëzime Penale (drejtuar Prokurorisë Speciale apo Themelore sipas KPPRK/KPRK)
     - Prapësime, Kundërpadi dhe Ankesa në Gjykatën e Apelit
     - Kontrata dhe Marrëveshje Zyrtare
+    - Inventarizimi i Provave Shkencore dhe Transkripteve Audio/Video (Corpus Delicti)
     - Zero emra të shpikur, zero numra personalë të sajuar, zero rrjedhje të prompt-it
     """
 
@@ -37,17 +38,17 @@ DOKUMENTET DHE PROVAT E ADMINISTRUARA NË KËTË FASHIKULL:
 RREGULLA SUPREME TË DREJTËSISË DHE HARTIMIT TË AKTEVE NË KOSOVË:
 1. DALLIMI I SFERËS CIVILE NGA SFERA PENALE (DREJTIMI I SAKTË I AKTIT):
    - NËSE PËRDORUESI KËRKON "PADI / KËRKESËPADI / KUNDËRPADI / PRAPËSIM":
-     * Akti është 100% CIVIL/KONTRACTUAL/TREGTAR/FAMILJAR;
+     * Akti është 100% CIVIL / KONTRAKTUAL / TREGTAR / FAMILJAR / PRONËSOR;
      * I drejtohet: **GJYKATËS THEMELORE NË [QYTETIN KOMPETENT] - DEPARTAMENTI PËRKATËS (Civil / Përgjithshëm / Ekonomik)**;
      * Baza ligjore: LPK (Ligji Nr. 03/L-006), LMD (Ligji Nr. 04/L-077), LFK (Ligji Nr. 2004/32), ose Ligji për Shoqëritë Tregtare;
-     * Petitumi kërkon: Dëmshpërblim, vërtetim të drejte, kthim pasurie, shfuqizim vendimi, etj.
+     * Petitumi kërkon: Dëmshpërblim, vërtetim pronësie/të drejte, shfuqizim akti, masa sigurimi sipas Nenit 297 LPK, etj.
    - NËSE PËRDORUESI KËRKON "KALLËZIM PENAL":
      * Akti është 100% PENAL;
-     * I drejtohet: **PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS (PSRK)** ose **PROKURORISË THEMELORE**;
+     * I drejtohet: **PROKURORISË SPECIALE TË REPUBLIKËS SË KOSOVËS (PSRK)** ose **PROKURORISË THEMELORE KOMPETENTE**;
      * Baza ligjore: KPPRK (Ligji Nr. 08/L-032) dhe KPRK (Ligji Nr. 06/L-074);
-     * Petitumi kërkon: Fillimin e hetimeve penale, masat emergjente dhe ngritjen e aktakuzës.
+     * Petitumi kërkon: Fillimin e hetimeve penale, masat emergjente (Nenet 188, 221 KPPRK) dhe ngritjen e aktakuzës.
    - NËSE KËRKOHET "ANKESË":
-     * I drejtohet: **GJYKATËS SË APELIT TË KOSOVËS**.
+     * I drejtohet: **GJYKATËS SË APELIT TË KOSOVËS** (përmes Gjykatës Themelore).
 
 2. BESNIKËRIA NDAJ KLIENTIT DHE MBROJTJA E TË MITURVE:
    - Parashtruesi/Paditësi/Kallëzuesi është GJITHMONË: **{client_name}**;
@@ -59,9 +60,12 @@ RREGULLA SUPREME TË DREJTËSISË DHE HARTIMIT TË AKTEVE NË KOSOVË:
    - NDALOHET KATEGORIKISHT shpikja e emrave të paqenë, adresave fiktive apo numrave personalë të rremë;
    - Nëse një e dhënë mungon në dokumente, shënoje pastër: [Adresa e plotë] ose [Numri Personal sipas ID].
 
-4. FORMATIMI I PASTËR DHE MBYLLJA:
+4. PROVAT AUDIO/VIDEO SI CORPUS DELICTI:
+   - Kur në fashikull ekzistojnë transkripte audio/video, citoji në dispozitiv, arsyetim dhe te inventari i provave me sekonda [MM:SS - MM:SS] si prova materiale të pakontestueshme shkencore.
+
+5. FORMATIMI I PASTËR DHE MBYLLJA:
    - Fillo direkt me titullin e aktit dhe organin marrës;
-   - Shkruaj aktin të plotë pa u ndërprerë;
+   - Shkruaj aktin të plotë, të detajuar, pa u ndërprerë;
    - Mbylle aktin te nënshkrimi përfundimtar pa printuar asnjë tekst tjetër pas tij!
 
 STRUKTURA E DETYRUESHME E AKTIT:
@@ -72,9 +76,9 @@ STRUKTURA E DETYRUESHME E AKTIT:
 **LËNDA:** (Objekti i kërkesës dhe Baza Statutare e saktë pozitive)
 **KUNDËR TË PADITURVE / TË DYSHUARVE:** (Personat dhe subjektet reale përgjegjëse nga fashikulli)
 
-## S E P S E (DISPOZITIVI ME PIKA TË QARTA)
+## S E P S E (DISPOZITIVI ME PIKA TË QARTA DHE VEPRIMET E PALIGJSHME)
 ## P R O P O Z O J / K Ë R K O J (PETITUMI DHE MASAT E KËRKUARA)
-## A R S Y E T I M I (FAKTET E VËRTETUARA, PROVAT DHE PRECEDENTËT E GJYKATËS SUPREME)
+## A R S Y E T I M I (FAKTET E VËRTETUARA, PROVAT, DOKTRINA DHE PRECEDENTËT E GJYKATËS SUPREME)
 ## INVENTARI I PROVAVE MATERIALE DHE SHKENCORE (CORPUS DELICTI)
 
 **PARASHTRUESI I AKTIT:**

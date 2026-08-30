@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V11.0 (PRE-UPLOAD COMPRESSION & 93% BANDWIDTH SAVINGS)
+# PHOENIX PROTOCOL - MEDIA ROUTER V12.0 (PRE-UPLOAD COMPRESSION, B2 OPTIMIZATION & ZERO-LEAK LIFECYCLE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -32,7 +32,7 @@ def validate_object_id(id_str: str) -> ObjectId:
     try:
         return ObjectId(id_str)
     except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid ID format.")
+        raise HTTPException(status_code=400, detail="ID e pavlefshme.")
 
 
 def serialize_media_doc(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -58,7 +58,15 @@ async def publish_media_deletion_async(user_id: str, media_id_str: str):
         logger.warning(f"Media deletion SSE publish skipped: {e}")
 
 
-def orchestrate_media_analysis(db_client, media_id_str: str, file_path: str, user_id_str: str, case_id_str: str, file_name: str, is_video: bool):
+def orchestrate_media_analysis(
+    db_client,
+    media_id_str: str,
+    file_path: str,
+    user_id_str: str,
+    case_id_str: str,
+    file_name: str,
+    is_video: bool
+):
     from app.core.db import get_db_instance
     db = get_db_instance()
     
@@ -105,7 +113,7 @@ async def upload_case_media(
     is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
     content_type = file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
 
-    # 1. Ruajmë skedarin fillestar në disk
+    # 1. Ruajtja fillestare e skedarit në diskun e përkohshëm
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
 
@@ -119,16 +127,27 @@ async def upload_case_media(
                     break
                 buffer.write(chunk)
     except Exception as e:
-        if os.path.exists(temp_path): os.remove(temp_path)
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=f"Dështoi ruajtja lokale e skedarit: {e}")
 
-    # 2. KOMPRESIMI FORENZIK (KURSIMI I 93% TË BANDWIDTH-IT)
+    # 2. KOMPRESIMI FORENZIK PËR SKEDARËT AUDIO (KURSIM 93% I BANDWIDTH-IT NË B2)
     upload_file_path = temp_path
     if not is_video:
-        upload_file_path = MediaForensicsService.compress_audio_for_storage(temp_path)
+        compressed_path = MediaForensicsService.compress_audio_for_storage(temp_path)
+        if compressed_path != temp_path:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            upload_file_path = compressed_path
         content_type = "audio/mpeg"
 
-    # 3. Ngarkimi i skedarit të lehtë në Backblaze B2
+    # 3. Ngarkimi në Backblaze B2 Storage
     try:
         storage_key = await asyncio.to_thread(
             storage_service.upload_file_from_path,
@@ -139,8 +158,11 @@ async def upload_case_media(
             content_type
         )
     except Exception as storage_err:
-        if os.path.exists(temp_path): os.remove(temp_path)
-        if upload_file_path != temp_path and os.path.exists(upload_file_path): os.remove(upload_file_path)
+        if os.path.exists(upload_file_path):
+            try:
+                os.remove(upload_file_path)
+            except Exception:
+                pass
         logger.error(f"❌ Storage Upload Error: {storage_err}")
         raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi në serverin e ruajtjes: {storage_err}")
 
@@ -162,7 +184,7 @@ async def upload_case_media(
     result = db.media_evidence.insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # Procesimi i transkriptimit me skedarin e kompresuar
+    # 4. Transkriptimi dhe Indeksimi Forenzik në Background
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
@@ -190,10 +212,10 @@ async def stream_case_media(
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             user_id = payload.get("sub") or payload.get("id")
             if not user_id:
-                raise HTTPException(status_code=401, detail="Invalid token subject")
+                raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
         except Exception as e:
             logger.warning(f"Token decode failed for media stream: {e}")
-            raise HTTPException(status_code=401, detail="Unauthorized")
+            raise HTTPException(status_code=401, detail="I paautorizuar.")
 
     media_oid = validate_object_id(media_id)
     media_item = db.media_evidence.find_one({"_id": media_oid})
@@ -202,11 +224,11 @@ async def stream_case_media(
 
     storage_key = media_item.get("storage_key")
     if not storage_key:
-        raise HTTPException(status_code=404, detail="Mungon çelësi i skedarit.")
+        raise HTTPException(status_code=404, detail="Mungon çelësi i skedarit në ruajtje.")
 
     stream = storage_service.get_file_stream(storage_key)
     if not stream:
-        raise HTTPException(status_code=404, detail="Nuk mund të lexohej skedari.")
+        raise HTTPException(status_code=404, detail="Nuk mund të lexohej skedari nga serveri.")
 
     filename = media_item.get("file_name", "media.mp4")
     mime_type = media_item.get("mime_type", "video/mp4")
@@ -238,6 +260,7 @@ async def delete_case_media(
 
     file_name = media_item.get("file_name", "")
 
+    # Fshirja nga Backblaze B2
     storage_key = media_item.get("storage_key")
     if storage_key:
         try:
@@ -246,6 +269,7 @@ async def delete_case_media(
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
+    # Fshirja e embeddings nga Vector Store
     try:
         delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
         db.user_vectors.delete_many({
@@ -259,8 +283,9 @@ async def delete_case_media(
     except Exception as e:
         logger.error(f"Failed to purge vector embeddings: {e}")
 
+    # Fshirja e raporteve të lidhura në Arkivë
     try:
-        db.archives.delete_many({"case_id": case_id, "file_name": file_name})
+        db.archives.delete_many({"case_id": case_id, "file_name": f"Transkript: {file_name}"})
     except Exception as a_err:
         logger.warning(f"Archive cascade cleanup bypass: {a_err}")
 

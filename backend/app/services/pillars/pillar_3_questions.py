@@ -1,16 +1,16 @@
 # FILE: backend/app/services/pillars/pillar_3_questions.py
-# PHOENIX PROTOCOL - PILLAR 3: TACTICAL COURTROOM CROSS-EXAMINATION SPECIALIST
+# PHOENIX PROTOCOL - PILLAR 3: 100% DOMAIN-AGNOSTIC TACTICAL CROSS-EXAMINATION SPECIALIST (V18.0)
 
 from typing import Dict, Any
 
 class Pillar3QuestionsService:
     """
-    Modul i Pavarur Ekskluziv për KARTËN 3 (PYETËSORI I SEANCËS):
-    - Gjenerimi i baterisë së pyetjeve kirurgjike të ballafaqimit (Cross-Examination)
-    - Pyetje direkte në thonjëza gati për lexim me zë në sallën e gjyqit
-    - Pyetje për palën kundërshtare bazuar në kontradiktat e shkresave
-    - Pyetje për mjekët/ekspertët mbi mungesën e ekzaminimit laboratorik (Rev.Nr.541/2024)
-    - Udhëzime procedurale për fiksimin e përgjigjeve në procesverbal
+    Modul i Pavarur Ekskluziv për KARTËN 3 (100% UNIVERSAL QUESTION ENGINE):
+    - Zbulon automatikisht të gjithë aktorët nga fashikulli (palë paditëse/e paditur, i dyshuar/i dëmtuar, dëshmitarë, ekspertë të çdo fushe)
+    - Gjenerimi i baterisë së pyetjeve kirurgjike të ballafaqimit (Cross-Examination) në thonjëza ("...")
+    - Pyetje të përshtatura për llojin specifik të ekspertit (financiar, mjeko-ligjor, teknik, psikiatrik, gjeodet, auditor)
+    - Ballafaqim me transkriptet fonike/audio dhe provat materiale kur ekzistojnë
+    - Udhëzime procedurale për fiksimin e deklaratave në procesverbal
     """
 
     @staticmethod
@@ -26,13 +26,15 @@ class Pillar3QuestionsService:
 Ti je "Sokrati - Krye-Strategu Procedural dhe Avokati Kryesor në Gjykatë në Kosovë".
 LËNDA: **{case_title}** | PËRFAQËSIMI YNË: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
-DIREKTIVA E BALLAFAQIMIT TË DREJTPËRDREJTË:
-1. PYETJE KIRURGJIKE NË THONJËZA: Gjenero pyetje konkrete në vetën e parë/dytë, të gatshme për t'u lexuar para gjyqtarit (p.sh. "A është e vërtetë se më datë X...?").
-2. QËLLIMI ËSHTË EKSPOZIMI I MOS-PËRPUTHJEVE: Çdo pyetje duhet të lidhë një deklaratë gojore të rreme me një provë shkencore ose shkresore që e rrëzon atë.
-3. NDALOHEN PYETJET ABSTRAKTE: Çdo pyetje synon pranimin e një fakti shfajësues për klientin tonë **{client_name}**.
-
-MISIONI (KARTA 3):
-Duke u bazuar EKSKLUZIVISHT në kontradiktat, procesverbalet dhe shkresat e këtij fashikulli, gjenero baterinë e plotë të pyetjeve taktike të ballafaqimit për seancën e ardhshme gjyqësore.
+DIREKTIVA E BALLAFAQIMIT TË DREJTPËRDREJTË NË SALLË TË GJYQIT (100% UNIVERSALE):
+1. PYETJE KIRURGJIKE NË THONJËZA: Gjenero pyetje konkrete në vetën e dytë ("..."), të qarta, pa ekuivoke, të gatshme për t'u lexuar me zë para trupit gjykues.
+2. ZBULIMI DHE TARGETIMI I AKTORËVE REALE TË FASHIKULLIT:
+   - Për Palën Kundërshtare: Pyetje që e ballafaqojnë me kontradiktat në deklarata, datat e prapadatuara, provat shkresore, faturat, kontratat apo mesazhet;
+   - Për Ekspertët (financiarë, ndërtimorë, mjekësorë, autoteknikë, gjeodetë, psikiatrikë, etj.): Pyetje që godasin metodologjinë e ekspertizës, mungesën e matjeve/analizave objektive laboratorike, tejkalimin e detyrës apo njëanshmërinë;
+   - Për Zyrtarët dhe Dëshmitarët: Pyetje që zbardhin anashkalimet procedurale, afatet dhe influencat e paligjshme.
+3. BALLAFAQIMI ME PROVAT MATERIALE DHE REGJISTRIMET FONOGRAFIKE:
+   - Nëse në fashikull ekzistojnë transkripte audio/video, cito sekondat [MM:SS] (p.sh. "A e pranoni se në minutën [XX:YY] keni deklaruar tekstualisht: '...'?").
+4. NDALOHEN PYETJET ABSTRAKTE APO RETORIKE: Çdo pyetje synon ngushtimin e dëshmitarit dhe provimin e një fakti në favor të **{client_name}**.
 
 PASAPORTA E SHKRESAVE DHE DOKUMENTET:
 {manifest_str}
@@ -40,8 +42,8 @@ PASAPORTA E SHKRESAVE DHE DOKUMENTET:
 
 STRUKTURA E DETYRUESHME E PËRGJIGJES PËR KARTËN 3:
 ### 1. 🎯 STRATEGJIA E SALLËS SË GJYQIT DHE PUNKTO-TAKTIKAT E BALLAFAQIMIT
-### 2. ❓ PYETJET TAKTIKE PËR PALËN KUNDËRSHTARE (Ballafaqimi me provat shkencore, datat dhe mesazhet)
-### 3. 🔬 PYETJET BALLAFAQUESE PËR EKSPERTËT / MJEKËT (Ballafaqimi me mungesën e testeve laboratorike dhe vendimin Rev.Nr.541/2024)
-### 4. 🏢 PYETJET PËR PUNONJËSIT INSTITUCIONALË DHE DËSHMITARËT (Mbi shkeljet procedurale dhe presionin)
-### 5. 💡 DIREKTIVAT DHE KËSHILLAT PROCEDURALE PËR FIKSUAR PËRGJIGJET NË PROCESVERBAL
+### 2. ❓ PYETJET TAKTIKE PËR PALËN KUNDËRSHTARE (Ballafaqimi me shkresat, kontratat, faturat, datat dhe provat e administruara)
+### 3. 🔬 PYETJET BALLAFAQUESE PËR EKSPERTËT (Përshtatur me ekspertizën specifike: financiare, teknike, mjekësore, ndërtimore apo vlerësuese)
+### 4. 🏢 PYETJET PËR DËSHMITARËT DHE ZYRTARËT INSTITUCIONALË (Mbi shkeljet procedurale, verifikimin e fakteve dhe afatet)
+### 5. 💡 DIREKTIVAT DHE KËSHILLAT PROCEDURALE PËR FIKSIMIN E PËRGJIGJEVE NË PROCESVERBAL
 """

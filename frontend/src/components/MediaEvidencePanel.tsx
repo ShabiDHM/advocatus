@@ -1,5 +1,5 @@
-// FILE: src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V8.0 (HIGH-CLASS MINIMALIST TRANSCRIPTION SYSTEM)
+// FILE: frontend/src/components/MediaEvidencePanel.tsx
+// PHOENIX PROTOCOL - MEDIA PANEL V9.0 (HIGH-CLASS FORENSIC AUDIO/VIDEO TRANSCRIPTION SYSTEM)
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -78,7 +78,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         if (!isProcessing) return;
         const interval = setInterval(() => {
             loadMedia();
-        }, 4000);
+        }, 3000);
         return () => clearInterval(interval);
     }, [isProcessing]);
 
@@ -87,12 +87,12 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         if (!file) return;
 
         setIsUploading(true);
-        setUploadProgress(10);
+        setUploadProgress(15);
         try {
             const formData = new FormData();
             formData.append('file', file);
 
-            setUploadProgress(40);
+            setUploadProgress(45);
             await apiService.axiosInstance.post(`/cases/${caseId}/media/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
@@ -109,7 +109,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     };
 
     const handleDelete = async (mediaId: string) => {
-        if (!window.confirm("A jeni të sigurt që dëshironi ta fshini këtë skedar?")) return;
+        if (!window.confirm("A jeni të sigurt që dëshironi ta fshini këtë provë materiale?")) return;
         try {
             await apiService.axiosInstance.delete(`/cases/${caseId}/media/${mediaId}`);
             setMediaItems(prev => prev.filter(m => m.id !== mediaId));
@@ -121,7 +121,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const handleDownloadTranscript = (item: MediaItem) => {
         const element = document.createElement("a");
-        let content = `${item.transcript}\n`;
+        const content = `PROVA MATERIALE AUDIO/VIDEO: ${item.file_name}\nSTATUSI: Transkript Zyrtar Verbatim\n\n${item.transcript}\n`;
         const file = new Blob([content], { type: 'text/plain;charset=utf-8' });
         element.href = URL.createObjectURL(file);
         element.download = `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`;
@@ -152,15 +152,15 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     return (
         <div className="space-y-4 font-sans">
-            {/* HEADER - HIGH CLASS MINIMALIST */}
+            {/* KOKA E PANELIT */}
             <div className="flex items-center justify-between gap-3 border-b border-main pb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
                         <Film size={16} />
                     </div>
                     <div className="min-w-0">
-                        <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Audio & Video</h2>
-                        <p className="text-[10px] text-text-muted font-medium truncate">Transkript</p>
+                        <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio & Video</h2>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim Verbatim Forenzik</p>
                     </div>
                 </div>
 
@@ -196,7 +196,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
                     <Film size={32} className="mx-auto mb-2 text-text-muted opacity-70" />
                     <p className="text-text-primary text-xs font-bold">Nuk ka ende skedarë audio apo video në këtë lëndë.</p>
-                    <p className="text-[11px] text-text-muted mt-0.5 font-medium font-mono">Mbështet MP3, WAV, M4A, MP4, MOV, AVI.</p>
+                    <p className="text-[11px] text-text-muted mt-0.5 font-medium font-mono">Mbështet MP3, WAV, M4A, MP4, MOV, AVI (kompresim automatik).</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
@@ -265,7 +265,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         }}
                                         className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
                                     >
-                                        <FileText size={14} /> Shiko Transkriptin
+                                        <FileText size={14} /> Shiko Transkriptin Zyrtar
                                     </button>
                                 )}
                             </div>
@@ -274,7 +274,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL - "TRANSKRIPTI" */}
+            {/* MODAL - TRANSKRIPTI FORENZIK */}
             <AnimatePresence>
                 {selectedMedia && (
                     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
@@ -293,7 +293,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
-                                            Transkripti
+                                            Transkripti Forenzik Zyrtar
                                         </h3>
                                         <p className="text-xs text-text-muted font-medium truncate mt-0.5">{selectedMedia.file_name}</p>
                                     </div>
@@ -315,7 +315,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                 : 'bg-surface border border-main text-text-muted hover:text-text-primary'
                                         }`}
                                     >
-                                        <Mic size={13} /> Transkripti
+                                        <Mic size={13} /> Transkripti Audio
                                     </button>
                                     <button
                                         type="button"
