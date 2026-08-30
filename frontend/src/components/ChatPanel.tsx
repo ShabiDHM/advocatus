@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V52.0 (ISOLATED ANALYSIS POPUP TRIGGER)
+// PHOENIX PROTOCOL - CHAT PANEL V53.0 (PASS THROUGH isAnalyzingCase)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -48,6 +48,7 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onOpenCaseAnalysis?: () => void;
+  isAnalyzingCase?: boolean;
 }
 
 const formatUserDisplayMessage = (content: string) => {
@@ -163,6 +164,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     clientPosition = 'DEFENDANT',
     isPro = true,
     onOpenCaseAnalysis,
+    isAnalyzingCase = false,
   } = props;
 
   const [input, setInput] = useState('');
@@ -228,13 +230,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         onExportChat={onExportChat}
         t={t}
         isPro={isPro}
-        onAnalyzeCase={() => {
-          if (onOpenCaseAnalysis) {
-            onOpenCaseAnalysis();
-          } else {
-            sendMessage("ANALIZO RASTIN");
-          }
-        }}
+        onAnalyzeCase={onOpenCaseAnalysis}
+        isAnalyzingCase={isAnalyzingCase}
       />
 
       {/* BODY CONTEXT */}

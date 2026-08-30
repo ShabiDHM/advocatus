@@ -1,8 +1,8 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V14.0 (TYPE SAFE & CLEAN INTERFACE)
+// PHOENIX PROTOCOL - CHAT HEADER V17.0 (BACKGROUND ANALYSIS LOADER STATE)
 
 import React from 'react';
-import { Download, Trash2, FileSearch } from 'lucide-react';
+import { Download, Trash2, FileSearch, Loader2 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -13,7 +13,7 @@ interface ChatHeaderProps {
   t: TFunction;
   isPro?: boolean;
   onAnalyzeCase?: () => void;
-  // Opsionale për përputhshmëri të plotë
+  isAnalyzingCase?: boolean;
   documents?: any[];
   selectedDocumentIds?: string[];
   onDocumentSelectionChange?: (ids: string[]) => void;
@@ -25,10 +25,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onExportChat,
   t,
   onAnalyzeCase,
+  isAnalyzingCase = false,
 }) => {
   return (
     <div className="flex flex-row items-center justify-between px-3.5 sm:px-5 py-2.5 border-b border-main bg-surface z-50 shrink-0 h-13 min-h-[52px]">
-      {/* Left: Chat Agent Title & LED status light */}
+      {/* Left: Titulli i Agjentit dhe LED Drita e Statusit */}
       <div className="flex items-center gap-2 min-w-0">
         <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none truncate">
           {t('chatPanel.title', 'Asistenti Sokratik')}
@@ -44,22 +45,32 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: ANALIZO RASTIN + Action Buttons */}
+      {/* Right: Butoni Theme-Aware ANALIZO RASTIN + Veprimet */}
       <div className="flex items-center justify-end gap-2 shrink-0">
         <button
           type="button"
           onClick={onAnalyzeCase}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-primary-start text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider shadow-md shadow-amber-500/20 hover:brightness-110 active:scale-95 transition-all focus:outline-none cursor-pointer"
+          disabled={isAnalyzingCase}
+          className="h-8 px-3.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 disabled:opacity-80 cursor-pointer border border-primary-start/30"
         >
-          <FileSearch size={15} />
-          <span>⚖️ Analizo Rastin</span>
+          {isAnalyzingCase ? (
+            <>
+              <Loader2 size={14} className="text-white animate-spin shrink-0" />
+              <span className="text-white font-bold whitespace-nowrap animate-pulse">Duke analizuar...</span>
+            </>
+          ) : (
+            <>
+              <FileSearch size={14} className="text-white shrink-0" />
+              <span className="text-white font-bold whitespace-nowrap">Analizo Rastin</span>
+            </>
+          )}
         </button>
 
         {onExportChat && (
           <button
             type="button"
             onClick={onExportChat}
-            className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-primary-start hover:bg-hover rounded-xl transition-all focus:outline-none cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-primary-start hover:bg-hover rounded-lg transition-all focus:outline-none cursor-pointer"
             title="Shkarko Bisedën"
           >
             <Download size={15} />
@@ -69,7 +80,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <button
           type="button"
           onClick={onClearChat}
-          className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-all focus:outline-none cursor-pointer"
+          className="flex items-center justify-center w-8 h-8 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-all focus:outline-none cursor-pointer"
           title="Pastro Bisedën"
         >
           <Trash2 size={15} />

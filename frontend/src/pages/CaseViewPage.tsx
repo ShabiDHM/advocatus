@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V58.0 (ISOLATED POPUP CASE ANALYSIS INTEGRATION)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V59.0 (BACKGROUND ANALYSIS & POST-COMPLETION MODAL TRIGGER)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -37,7 +37,11 @@ const CaseViewPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+
+  // Background Case Analysis State
+  const [isAnalyzingCase, setIsAnalyzingCase] = useState<boolean>(false);
+  const [analysisResultText, setAnalysisResultText] = useState<string>('');
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -45,9 +49,9 @@ const CaseViewPage: React.FC = () => {
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
   const userSalutation = useMemo(() => getUserSalutation(user), [user]);
-  const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
   const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
   const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
+  const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -262,6 +266,40 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
+  // EKZEKUTIMI NË PRAPAVIJË I ANALIZËS SË LËNDËS — HAPJA AUTOMATIKE VETËM NË PËRFUNDIM
+  const handleStartBackgroundCaseAnalysis = useCallback(async () => {
+    if (!caseId || isAnalyzingCase) return;
+
+    // Nëse e kemi tashmë gati raportin, e hapim direkt
+    if (analysisResultText.length > 100) {
+      setIsAnalysisModalOpen(true);
+      return;
+    }
+
+    setIsAnalyzingCase(true);
+    setAnalysisResultText('');
+
+    try {
+      const prompt = "ANALIZO RASTIN — Gjenero raportin e plotë forenzik të gjithë fashikullit me të gjitha seksionet: analiza e thellë forenzike, matrica e provave, identifikimi i aktorëve, baza statutore, opinioni i gjyqtarit suprem, llogaritja e dëmeve me kamatë 8% dhe plani i veprimit.";
+      const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic');
+      
+      let accumulated = '';
+      for await (const chunk of stream) {
+        accumulated += chunk;
+      }
+
+      if (accumulated.trim().length > 0) {
+        setAnalysisResultText(accumulated);
+        setIsAnalysisModalOpen(true); // HAPET VETËM TANI KUR ËSHTË 100% GATI!
+      }
+    } catch (err) {
+      console.error("Case Background Analysis Error:", err);
+      alert("Ndodhi një gabim gjatë gjenerimit të raportit. Ju lutem provoni përsëri.");
+    } finally {
+      setIsAnalyzingCase(false);
+    }
+  }, [caseId, isAnalyzingCase, analysisResultText]);
+
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
@@ -356,7 +394,8 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onOpenCaseAnalysis={() => setIsAnalysisModalOpen(true)}
+              onOpenCaseAnalysis={handleStartBackgroundCaseAnalysis}
+              isAnalyzingCase={isAnalyzingCase}
             />
           </div>
         </div>
@@ -377,14 +416,14 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* POP-UP I DEDIKUAR PËR ANALIZËN FORENZIKE TË LËNDËS */}
+      {/* POP-UP I DEDIKUAR I CILI HAPET VETËM PASI TË KETË PËRFUNDUAR ANALIZA */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
+        analysisText={analysisResultText}
         caseId={currentCaseId}
         caseTitle={caseTitle}
         clientName={clientName}
-        clientPosition={clientPosition}
       />
     </motion.div>
   );
