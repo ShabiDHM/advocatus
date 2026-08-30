@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V131.0 (INTENT + CONTEXT + RESPONSE)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V132.0 (CHUNKED PROCESSING ENABLED)
 
 import os
 import logging
@@ -38,16 +38,16 @@ MANDATORY_LEGAL_DISCLAIMER = (
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V131.0 Modular:
+    Shërbimi Kryesor RAG — V132.0 Modular me Chunked Processing:
     - IntentDetector: Zbulon çfarë kërkon përdoruesi
     - ContextBuilder: Ndërton kontekstin nga dokumentet
-    - ResponseGenerator: Thërret LLM + Filtron halucinacionet
+    - ResponseGenerator: Thërret LLM + Filtron halucinacionet + Chunked Processing
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V131.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V132.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         """Pastron query-n nga fjalë hyrëse dhe zgjeron shkurtesat."""
@@ -215,8 +215,8 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # 6. Gjenero përgjigjen me streaming + filtër
-        async for content in self.response_generator.generate_stream(system_prompt, optimized_query):
+        # 6. PHOENIX FIX: Gjenero përgjigjen me chunked processing
+        async for content in self.response_generator.generate_stream(system_prompt, optimized_query, context_str):
             yield content
 
         # 7. Sugjerimet interaktive
