@@ -1,5 +1,5 @@
-// FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V57.0 (REAL-TIME AUTO-SYNC & ZERO-MANUAL-REFRESH ENGINE)
+// FILE: frontend/src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - CASE VIEW PAGE V58.0 (ISOLATED POPUP CASE ANALYSIS INTEGRATION)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -18,6 +18,7 @@ import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelp
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
+import { CaseAnalysisModal } from '../components/case/CaseAnalysisModal';
 
 type CaseData = { details: Case | null };
 
@@ -36,6 +37,7 @@ const CaseViewPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -44,6 +46,8 @@ const CaseViewPage: React.FC = () => {
 
   const userSalutation = useMemo(() => getUserSalutation(user), [user]);
   const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
+  const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
+  const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -112,7 +116,7 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // AUTO-SYNC POLLING: PËRDITËSIM AUTOMATIK LIVE KUR DOKUMENTI ËSHTË NË PROCESIM
+  // AUTO-SYNC POLLING: PËRDITËSIM LIVE I DOKUMENTEVE
   useEffect(() => {
     const hasProcessingDocs = liveDocuments.some(
       (doc) => doc.status === 'PROCESSING' || doc.status === 'PENDING'
@@ -352,6 +356,7 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
+              onOpenCaseAnalysis={() => setIsAnalysisModalOpen(true)}
             />
           </div>
         </div>
@@ -371,6 +376,16 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
+
+      {/* POP-UP I DEDIKUAR PËR ANALIZËN FORENZIKE TË LËNDËS */}
+      <CaseAnalysisModal
+        isOpen={isAnalysisModalOpen}
+        onClose={() => setIsAnalysisModalOpen(false)}
+        caseId={currentCaseId}
+        caseTitle={caseTitle}
+        clientName={clientName}
+        clientPosition={clientPosition}
+      />
     </motion.div>
   );
 };

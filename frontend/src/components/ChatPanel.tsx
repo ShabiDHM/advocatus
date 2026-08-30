@@ -1,11 +1,11 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V50.0 (ZERO TS WARNINGS & ZERO UNUSED VARIABLES)
+// PHOENIX PROTOCOL - CHAT PANEL V52.0 (ISOLATED ANALYSIS POPUP TRIGGER)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, BrainCircuit, User, RefreshCw, Sparkles, 
-  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight, Gavel
+  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight, FileSearch
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -47,6 +47,7 @@ interface ChatPanelProps {
   onDocumentSelectionChange?: (ids: string[]) => void;
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
+  onOpenCaseAnalysis?: () => void;
 }
 
 const formatUserDisplayMessage = (content: string) => {
@@ -65,8 +66,8 @@ const formatUserDisplayMessage = (content: string) => {
   if (content.toUpperCase().includes('ANALIZO RASTIN')) {
     return (
       <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <Gavel size={15} className="text-amber-500 shrink-0" />
-        <span>⚖️ Analizo Rastin — Raporti i Plotë Forenzik</span>
+        <FileSearch size={15} className="text-primary-start shrink-0" />
+        <span>Analizo Rastin — Raporti i Plotë Forenzik</span>
       </div>
     );
   }
@@ -116,15 +117,15 @@ const resolveSuggestionCardUI = (query: string) => {
 
   if (q.includes('analizo rastin') || q.includes('raport i plotë')) {
     return {
-      title: '⚖️ Analizo Rastin',
+      title: 'Analizo Rastin',
       desc: 'Raporti i plotë forenzik — 10 seksione me shkeljet, provat, nenet, planin e veprimit.',
-      icon: <Gavel size={16} className="text-amber-500 shrink-0 mt-0.5" />
+      icon: <FileSearch size={16} className="text-primary-start shrink-0 mt-0.5" />
     };
   }
 
   if (q.includes('audito') || q.includes('kontroll forenzik')) {
     return {
-      title: '🔍 Audito Dokumentin',
+      title: 'Audito Dokumentin',
       desc: 'Kontrolli forenzik i një dokumenti specifik.',
       icon: <Scale size={16} className="text-blue-500 shrink-0 mt-0.5" />
     };
@@ -161,6 +162,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     userSalutation = 'Avokat',
     clientPosition = 'DEFENDANT',
     isPro = true,
+    onOpenCaseAnalysis,
   } = props;
 
   const [input, setInput] = useState('');
@@ -226,7 +228,13 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         onExportChat={onExportChat}
         t={t}
         isPro={isPro}
-        onAnalyzeCase={() => sendMessage("ANALIZO RASTIN")}
+        onAnalyzeCase={() => {
+          if (onOpenCaseAnalysis) {
+            onOpenCaseAnalysis();
+          } else {
+            sendMessage("ANALIZO RASTIN");
+          }
+        }}
       />
 
       {/* BODY CONTEXT */}
@@ -269,11 +277,11 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                         msg.role === 'ai'
                           ? 'bg-primary-start text-white border-primary-start'
                           : isSpecialCommand
-                            ? 'bg-amber-500/20 border-amber-500/30 text-amber-500'
+                            ? 'bg-primary-start/10 border-primary-start/20 text-primary-start'
                             : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <Gavel size={16} /> : <User size={16} />}
+                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <FileSearch size={16} /> : <User size={16} />}
                     </div>
 
                     <div
