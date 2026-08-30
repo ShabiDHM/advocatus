@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V3.0 (TIMELINE INTEGRATED & ROLE GUARD)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V5.0 (RAG-ONLY TRUTH ENGINE)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -48,41 +48,17 @@ DOMAIN_KEYWORDS = {
 
 # ========== LIGJET SIPAS DOMENIT ==========
 DOMAIN_LAWS = {
-    "PENAL": [
-        "KPPRK (Ligji Nr. 08/L-032 për Procedurën Penale)",
-        "KPRK (Kodi Penal i Republikës së Kosovës, Nr. 06/L-074)"
-    ],
-    "CIVIL": [
-        "LPK (Ligji Nr. 03/L-006 për Procedurën Kontestimore)",
-        "LMD (Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve)"
-    ],
-    "KOMERCIAL": [
-        "Ligji për Gjykatën Komerciale (Nr. 08/L-015)",
-        "Ligji për Shoqëritë Tregtare"
-    ],
-    "PRONËSOR": [
-        "Ligji për Pronësinë dhe të Drejtat Tjera Sendore (Nr. 03/L-154)",
-        "Ligji për Kadastër"
-    ],
-    "PUNËS": [
-        "Ligji i Punës (Nr. 03/L-212)",
-        "Ligji për Sigurime Pensionale"
-    ],
-    "FAMILJAR": [
-        "Ligji për Familjen (Nr. 2004/32)",
-        "Ligji për Trashëgiminë"
-    ],
-    "ADMINISTRATIV": [
-        "Ligji për Konfliktet Administrative (Nr. 03/L-202)",
-        "Ligji për Procedurën e Përgjithshme Administrative"
-    ],
-    "KUSHTETUES": [
-        "Kushtetuta e Republikës së Kosovës",
-        "Ligji për Gjykatën Kushtetuese"
-    ]
+    "PENAL": ["KPPRK (Nr. 08/L-032)", "KPRK (Nr. 06/L-074)"],
+    "CIVIL": ["LPK (Nr. 03/L-006)", "LMD (Nr. 04/L-077)"],
+    "KOMERCIAL": ["Ligji për Gjykatën Komerciale (Nr. 08/L-015)", "Ligji për Shoqëritë Tregtare"],
+    "PRONËSOR": ["Ligji për Pronësinë (Nr. 03/L-154)", "Ligji për Kadastër"],
+    "PUNËS": ["Ligji i Punës (Nr. 03/L-212)", "Ligji për Sigurime Pensionale"],
+    "FAMILJAR": ["Ligji për Familjen (Nr. 2004/32)", "Ligji për Trashëgiminë"],
+    "ADMINISTRATIV": ["Ligji për Konfliktet Administrative (Nr. 03/L-202)", "LPA"],
+    "KUSHTETUES": ["Kushtetuta e Kosovës", "Ligji për Gjykatën Kushtetuese"]
 }
 
-# ========== PRECEDENTËT E VERIFIKUAR ==========
+# ========== PRECEDENTËT E VERIFIKUAR (E VETMJA LISTË E LEJUAR) ==========
 VERIFIED_PRECEDENTS = [
     "PML.nr.682/2024",
     "PML.nr.429/2025",
@@ -93,82 +69,66 @@ VERIFIED_PRECEDENTS = [
 
 
 class BasePillarService:
-    """
-    Shërbimi Bazë Universal për të 6 Shtyllat:
-    - Zbulimi automatik i llojit të çështjes (case_domain)
-    - Integrimi me RAG (legal_knowledge_base + user_vectors)
-    - Eliminimi i halucinacioneve me verifikim nen-për-nen
-    - 100% agnostik ndaj domeneve
-    - ROLE GUARD: Mbrojtja absolute e rolit të klientit
-    - TIMELINE: Kronologjia e saktë e rastit me afate ligjore
-    - ZERO HALUCINACION PRECEDENTËSH: Vetëm precedentët e verifikuar
-    """
+    """Shërbimi Bazë Universal — V5.0 RAG-Only Truth Engine"""
 
     @staticmethod
-    def detect_case_domain(
-        case_title: str = "",
-        context_str: str = "",
-        manifest_str: str = ""
-    ) -> str:
-        """Zbulon automatikisht llojin e çështjes."""
+    def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
         combined_text = f"{case_title} {context_str[:5000]} {manifest_str[:2000]}".lower()
-        
-        domain_scores: Dict[str, int] = {}
+        domain_scores = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw.lower() in combined_text)
             domain_scores[domain] = score
-        
         best_domain = max(domain_scores, key=domain_scores.get)
-        best_score = domain_scores[best_domain]
-        
-        if best_score == 0:
-            logger.info("⚠️ [BasePillar] Nuk u zbulua domeni specifik. Duke përdorur CIVIL si default.")
+        if domain_scores[best_domain] == 0:
             return "CIVIL"
-        
-        logger.info(f"✅ [BasePillar] Domeni i zbuluar: {best_domain} (score: {best_score})")
         return best_domain
 
     @staticmethod
     def get_domain_laws(case_domain: str) -> List[str]:
-        """Kthen ligjet përkatëse për domenin."""
         return DOMAIN_LAWS.get(case_domain, DOMAIN_LAWS["CIVIL"])
 
     @staticmethod
-    def build_domain_instruction(case_domain: str) -> str:
-        """Gjeneron udhëzime specifike për lëminë."""
-        laws = BasePillarService.get_domain_laws(case_domain)
-        laws_str = ", ".join(laws)
-        
-        return f"""
-DEGË E SË DREJTËS: {case_domain}
-LEGJISLACIONI POZITIV I ZBATUESHËM PËR KËTË LËNDË:
-{laws_str}
+    def build_rag_truth_rule() -> str:
+        """
+        PHOENIX FIX V5.0: RREGULLI ABSOLUT #0 — BURIMI I VETËM I SË VËRTETËS.
+        Ky rregull e detyron AI-n të përdorë VETËM RAG context.
+        """
+        return """
+🚨 RREGULLI ABSOLUT #0 — BURIMI I VETËM I SË VËRTETËS:
+Ti je "Sokrati" — një sistem i specializuar EKSKLUZIVISHT për Juridiksionin e Kosovës.
 
-RREGULLAT E HEKURTA TË DOMENIT:
-1. Zbato VETËM ligjet e lartpërmendura dhe nenet e tyre të verifikuara;
-2. NËSE një nen nuk ekziston në bazën ligjore, thuaj: "Nuk u gjet referencë e saktë në bazën statutore për këtë pikë";
-3. MOS cito asnjë ligj apo nen nga memorja — VETËM nga RAG context i ofruar;
-4. Përshtat terminologjinë juridike me {case_domain};
-5. Precedentët e Gjykatës Supreme zbatohen sipas lëmisë specifike.
+TI NUK KENI ASNJË NJOHURI LIGJORE PËR KOSOVËN PËRVEÇ ASAJ QË ËSHTË NË RAG CONTEXT MË POSHTË.
+
+RREGULLAT:
+1. NËSE një nen, ligj, precedent, apo referencë NUK gjendet në RAG context, ajo NUK ekziston për ty;
+2. TI JE I DETYRUAR të përdorësh VETËM atë që është në RAG context;
+3. TI JE I DETYRUAR të thuash "Nuk u gjet në bazën tonë statutore" nëse diçka mungon;
+4. TI JE I DETYRUAR të mos shpikësh ASNJË nen, ligj, precedent, apo referencë;
+5. Baza jote e vetme është: 5,024 Nene të Kosovës + 750+ Faqe të Gjykatës Supreme + Doracakët e Akademisë — ASGJË TJETËR;
+6. HALucinacioni është i NDALUAR KATEGORIKISHT dhe e bën përgjigjen të pavlefshme.
+"""
+    
+    @staticmethod
+    def build_precedent_instruction() -> str:
+        precedents_str = ", ".join(VERIFIED_PRECEDENTS)
+        return f"""
+🚨 RREGULLI ABSOLUT #1 — PRECEDENTËT E LEJUAR:
+Lista e vetme e precedentëve që MUND të citoni: {precedents_str}
+
+NËSE një precedent NUK është në këtë listë ose në RAG context, NDALOHET ta citoni.
+NËSE nuk gjeni precedent të përshtatshëm, shkruani: "Nuk u gjet precedent specifik në bazën tonë."
+ASNJËHERË mos shpikni numra precedentësh. ASNJËHERË mos citoni PML.nr.259/2025, PML.nr.272/2025, P.Nr.561/17.
 """
 
     @staticmethod
-    def build_precedent_instruction() -> str:
-        """
-        PHOENIX FIX: Rregulli i hekurt i precedentëve — eliminon halucinacionet.
-        """
-        precedents_str = ", ".join(VERIFIED_PRECEDENTS)
-        return f"""
-RREGULLI ABSOLUT I PRECEDENTËVE TË GJYKATËS SUPREME:
-Precedentët e verifikuar në bazën tonë janë VETËM këta:
-{precedents_str}
-
-RREGULLAT:
-1. Citoni VETËM precedentë nga kjo listë;
-2. NËSE një precedent NUK gjendet në këtë listë, thuaj: "Nuk u gjet precedent specifik në bazën tonë për këtë pikë" — MOS e shpik!
-3. MOS cito asnjë numër precedenti nga memorja — VETËM nga kjo listë;
-4. NËSE RAG context përmban precedentë shtesë, ato janë të verifikuar dhe mund të citohen;
-5. HALUCINACIONI I PRECEDENTËVE ËSHTË I NDALUAR KATEGORIKISHT.
+    def build_verification_instruction() -> str:
+        return """
+🚨 RREGULLI ABSOLUT #2 — VERIFIKIMI I NENEVE:
+1. Para se të citoni ndonjë Nen, kontrolloni në RAG context nëse ai Nen ekziston;
+2. Para se të citoni ndonjë paragraf, kontrolloni në RAG context nëse ai paragraf ekziston;
+3. NËSE një Nen nuk gjendet në RAG context, shkruani: "Nuk u gjet referencë e saktë në bazën statutore";
+4. MOS citoni asnjë Nen nga memorja — VETËM nga RAG context;
+5. NËSE citoni një Nen që NUK ekziston në RAG context, kjo është HALUCINACION.
 """
 
     @staticmethod
@@ -178,7 +138,6 @@ RREGULLAT:
         query_text: str = "",
         n_results: int = 20
     ) -> Tuple[str, str]:
-        """Kërkon në legal_knowledge_base dhe user_vectors."""
         global_rag_context = ""
         case_rag_context = ""
         
@@ -198,7 +157,6 @@ RREGULLAT:
                         if text:
                             global_parts.append(f"📌 {source}:\n{text}")
                     global_rag_context = "\n\n".join(global_parts)
-                    logger.info(f"✅ [RAG] U gjetën {len(global_results)} rezultate nga baza statutore.")
             
             if user_id and query_text:
                 case_results = query_case_knowledge_base(user_id, query_text, n_results=n_results, case_id=case_id)
@@ -210,48 +168,37 @@ RREGULLAT:
                         if text:
                             case_parts.append(f"📄 {source}:\n{text}")
                     case_rag_context = "\n\n".join(case_parts)
-                    logger.info(f"✅ [RAG] U gjetën {len(case_results)} rezultate nga dokumentet e lëndës.")
                     
         except ImportError as e:
             logger.warning(f"⚠️ [RAG] vector_store_service nuk u importua: {e}")
         except Exception as e:
-            logger.error(f"❌ [RAG] Gabim gjatë kërkimit: {e}")
+            logger.error(f"❌ [RAG] Gabim: {e}")
         
         return global_rag_context, case_rag_context
 
     @staticmethod
-    def get_timeline_context(
-        db: Any,
-        case_id: str,
-        user_id: str = ""
-    ) -> str:
-        """
-        PHOENIX FIX: Kthen kronologjinë e rastit si tekst për prompt.
-        """
+    def get_timeline_context(db: Any, case_id: str, user_id: str = "") -> str:
         try:
             from app.services.pillars.timeline_service import TimelineService
             timeline_data = TimelineService.build_case_timeline(db, case_id, user_id)
             return TimelineService.build_timeline_prompt(timeline_data)
         except ImportError as e:
-            logger.warning(f"⚠️ [Timeline] timeline_service nuk u importua: {e}")
+            logger.warning(f"⚠️ [Timeline] nuk u importua: {e}")
             return ""
         except Exception as e:
-            logger.error(f"❌ [Timeline] Gabim gjatë ndërtimit të kronologjisë: {e}")
+            logger.error(f"❌ [Timeline] Gabim: {e}")
             return ""
 
     @staticmethod
     def get_role_guard(role: str, client_name: str) -> str:
-        """Kthen bllokun e mbrojtjes së rolit."""
         try:
             from app.services.pillars.role_guard_service import RoleGuardService
             return RoleGuardService.build_role_guard(role, client_name)
         except ImportError:
-            logger.warning("⚠️ [RoleGuard] role_guard_service nuk u importua.")
             return ""
 
     @staticmethod
     def get_role_tone(role: str) -> str:
-        """Kthen tonin e përgjigjes sipas rolit."""
         try:
             from app.services.pillars.role_guard_service import RoleGuardService
             return RoleGuardService.get_role_specific_tone(role)
@@ -272,7 +219,7 @@ RREGULLAT:
         timeline_context: str = ""
     ) -> str:
         """
-        Ndërton pjesën e përbashkët të prompt-it me të gjitha komponentët.
+        PHOENIX FIX V5.0: Rregulli #0 në fillim — RAG-ONLY TRUTH.
         """
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
@@ -281,44 +228,38 @@ RREGULLAT:
                 manifest_str=manifest_str
             )
         
-        domain_instruction = BasePillarService.build_domain_instruction(case_domain)
+        rag_truth_rule = BasePillarService.build_rag_truth_rule()
         precedent_instruction = BasePillarService.build_precedent_instruction()
+        verification_instruction = BasePillarService.build_verification_instruction()
         role_guard = BasePillarService.get_role_guard(client_position, client_name)
         role_tone = BasePillarService.get_role_tone(client_position)
         
         return f"""
-KLIENTI / PËRDORUESI: **{client_name}** | ROLI: **{(client_position or 'DEFENDANT').upper()}** | LËNDA: **{case_title}** | DATA: {current_date_str}
-
-{role_guard}
-
-{domain_instruction}
-
-{role_tone}
+{rag_truth_rule}
 
 {precedent_instruction}
 
-{'='*60}
-📅 KRONOLOGJIA E RASTIT DHE AFATET LIGJORE:
-{'='*60}
-{timeline_context if timeline_context else "Nuk u ndërtua kronologjia e rastit. Analizo dokumentet e fashikullit për datat dhe afatet."}
+{verification_instruction}
 
-{'='*60}
-KONTEKSTI LIGJOR I VERIFIKUAR NGA BAZA STATUTORE E KOSOVËS (RAG):
-{'='*60}
-{rag_context if rag_context else "Nuk u gjet asnjë referencë specifike në bazën statutore për këtë lëndë. Jini të kujdesshëm dhe mos citoni nene pa verifikim."}
+{role_guard}
 
-{'='*60}
-KONTEKSTI NGA DOKUMENTET E ÇËSHTJES (RAG):
-{'='*60}
-{case_rag_context if case_rag_context else "Nuk u gjetën dokumente shtesë në bazën e çështjes."}
+📋 KONTEKSTI I LËNDËS:
+DEGË: {case_domain} | KLIENTI: **{client_name}** | ROLI: **{(client_position or 'DEFENDANT').upper()}** | LËNDA: **{case_title}** | DATA: {current_date_str}
 
-{'='*60}
-PASAPORTA E SHKRESAVE:
-{'='*60}
+{role_tone}
+
+📅 KRONOLOGJIA E RASTIT:
+{timeline_context if timeline_context else "Nuk u ndërtua kronologjia."}
+
+📚 RAG — BAZA STATUTORE (BURIMI YT I VETËM I SË VËRTETËS):
+{rag_context if rag_context else "Nuk u gjet asnjë referencë në bazën statutore. THUAJ: 'Nuk u gjet në bazën tonë statutore' për çdo gjë që nuk mund të verifikosh."}
+
+📄 RAG — DOKUMENTET E ÇËSHTJES:
+{case_rag_context if case_rag_context else "Nuk u gjetën dokumente shtesë."}
+
+📎 PASAPORTA E SHKRESAVE:
 {manifest_str}
 
-{'='*60}
-DOKUMENTET E PLOTA:
-{'='*60}
+📎 DOKUMENTET E PLOTA:
 {context_str}
 """
