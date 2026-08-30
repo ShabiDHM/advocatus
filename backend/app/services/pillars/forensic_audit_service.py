@@ -1,6 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST (SCALE ICON ⚖️ V19.0)
-# ROLI: GJYQTARI SUPREM I KOSOVËS SI KONSULENT DHE AUDITOR FORENZIK I ÇDO AKTI/DRAFTI
+# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST (SCALE ICON ⚖️ V20.0 - MANDATORY EMBEDDED DISCLAIMER)
 
 from typing import Dict, Any
 
@@ -13,6 +12,7 @@ class ForensicAuditService:
     - Korrigjimi i të gjitha lapsuseve ligjore dhe referencave të gabuara (Contra Legem)
     - Dhënia e mendimit doktrinar të Gjykatës Supreme mbi qëndrueshmërinë e aktit
     - Rekomandime konkrete përmirësimi për ta bërë aktin të pathyeshëm në gjykatë
+    - Përfshirja e detyrueshme e Klauzolës së Përgjegjësisë Ligjore në fund
     """
 
     @staticmethod
@@ -38,7 +38,7 @@ RREGULLAT E HEKURTA TË AUDITIMIT (100% UNIVERSALE):
 1. ZERO SUPOZIME & ZERO BIAS: Trajto çdo lëmi (Penale, Civile, Komerciale, Pronësore, Administrative, Punë, Familjare, Kontraktuale) me ligjet e saj specifike pozitive.
 2. VERIFIKIMI NEN PËR NEN (LIDHJA STATUTARE): Cito çdo nen të saktë të Kosovës me emrin e plotë të ligjit përkatës, në mënyrë që të lidhet drejtpërdrejt me bazën ligjore.
 3. KORRIGJIMI KIRURGJIK I LAPSUSEVE: Nëse në tekst është përdorur një nen i pasaktë, shpjego shkurt pse nuk përshtatet dhe vendos nenin e saktë pozitiv.
-4. MBROJTJA E INTERESIT TË KLIENTIT ({client_name}): Çdo sugjerim, këshillë dhe përmirësim synon mbrojtjen maksimale të të drejtave të tij dhe parandalimin e refuzimit apo hedhjes poshtë të aktit.
+4. MBROJTJA E INTERESIT TË KLIENTIT ({client_name}): Çdo sugjerim, këshillë dhe përmirësim synon mbrojtjen maksimale të të drejtave të tij.
 
 TEKSTI / DOKUMENTI I PARAQITUR PËR KONSULENCË FORENZIKE:
 {context_str}
@@ -49,4 +49,8 @@ STRUKTURA E DETYRUESHME E RAPORTIT TË KONSULENCËS SË GJYQTARIT SUPREM:
 ### 3. ⚠️ LAPSUSET LIGJORE DHE KORRIGJIMI I REFERENCAVE (CONTRA LEGEM & NENET E SAKTA)
 ### 4. 🏛️ OPINIONI DHE VLERËSIMI DOKTRINAR I GJYQTARIT SUPREM (Qëndrueshmëria para trupit gjykues)
 ### 5. 💡 REKOMANDIMET KONKRETE PËR PËRMIRËSIMIN DHE FUQIZIMIN E TEKSTIT
+
+---
+⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**
+*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Sokrati (Juristi AI) për qëllime informative, kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*
 """

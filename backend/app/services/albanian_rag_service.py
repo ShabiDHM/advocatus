@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - SEAMLESS 4->3->2->1->0 PROGRESSIVE PILLAR REDUCTION & MANDATORY UNIVERSAL DISCLAIMER V128.0
+# PHOENIX PROTOCOL - SEAMLESS INTENT DETECTION & MANDATORY UNIVERSAL DISCLAIMER V129.0
 
 import os
 import sys
@@ -50,7 +50,7 @@ class AlbanianRAGService:
                 base_url=OPENROUTER_BASE_URL,
                 timeout=LLM_TIMEOUT
             )
-            logger.info("✅ [RAG] Progressive Flow Engine V128.0 initialized.")
+            logger.info("✅ [RAG] Progressive Flow Engine V129.0 initialized.")
         else:
             self.client = None
             logger.error("❌ [RAG] AI Engine failed to initialize: Missing API Key.")
@@ -58,11 +58,12 @@ class AlbanianRAGService:
     def _detect_user_intent(self, query: str) -> str:
         q = query.lower()
         
-        # 1. FORENZIKA LIGJORE E DOKUMENTIT (BUTONI ⚖️)
+        # 1. FORENZIKA LIGJORE E DOKUMENTIT (BUTONI ⚖️ DHE ÇDO TEKST I KONSULENCËS SË GJYQTARIT SUPREM)
         audit_keywords = [
-            "direktivë forenzike e gjykatës supreme", "direktivë e forenzikës ligjore", 
-            "direktivë e detyrueshme forenzike", "auditimin e plotë forenzik ligjor", 
-            "paralajmërime & sugjerime statutare"
+            "forenzika ligjore", "forenzikë ligjore", "forenzike", "forenzikë",
+            "direktivë forenzike", "direktivë e forenzikës", "direktivë e detyrueshme",
+            "auditimin e plotë forenzik", "audito dokumentin", "verifiko dokumentin",
+            "paralajmërime & sugjerime statutare", "kontroll forenzik", "konsulenca e gjyqtarit suprem"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
@@ -101,7 +102,8 @@ class AlbanianRAGService:
         # 6. KARTA 1: STRATEGJIA DHE MATRICA
         if any(k in q for k in [
             "shtyllat strategjike të kërkesëpadisë", "strategjia dhe matrica e provave", 
-            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia"
+            "qëndrueshmërinë e lëndës", "gjendjen e lëndës", "mbështetet kërkesëpadia",
+            "çfarë më kanë bërë", "çfarë të bëj tash", "hapat e ardhshëm"
         ]):
             return "PILLAR_STRATEGY"
 
@@ -294,7 +296,7 @@ class AlbanianRAGService:
         remaining_pills = self._determine_remaining_pills(query=query, position=client_position, history=history)
 
         # =========================================================================
-        # 🔀 DELEGIMI I PLOTË TE MODU蕪AT E IZOLUARA (100% UNIVERSALE)
+        # 🔀 DELEGIMI TE MODU蕪AT E IZOLUARA
         # =========================================================================
 
         if user_intent == "FORENSIC_AUDIT":
@@ -354,7 +356,7 @@ class AlbanianRAGService:
                 pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
                 yield pills_block
 
-            # KLAUZOLA E DETYRUESHME LIGJORE (SHFAQET NË 100% TË RASTEVE)
+            # KLAUZOLA E DETYRUESHME LIGJORE (100% E GARANTUAR NË ÇDO DALJE)
             yield MANDATORY_LEGAL_DISCLAIMER
 
         except Exception as e:
