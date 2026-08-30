@@ -1,11 +1,12 @@
 // FILE: src/components/landing/ProductShowcase.tsx
-// PHOENIX PROTOCOL - PRODUCT SHOWCASE V16.0 (NDIHMË JURIDIKE IDENTITY & BILINGUAL AUDIO FORENSICS MOCKUP)
+// PHOENIX PROTOCOL - PRODUCT SHOWCASE V17.0 (ANALIZO RASTIN SPOTLIGHT)
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    FileText, Sparkles, ChevronRight,
-    Scale, CheckCircle2, Zap, BookOpen, AlertTriangle, Gavel, Mic, Volume2
+    FileText, ChevronRight,
+    Scale, CheckCircle2, Zap, BookOpen, AlertTriangle, Mic, Volume2,
+    FileSearch
 } from 'lucide-react';
 
 const ProductShowcase: React.FC = () => {
@@ -14,26 +15,26 @@ const ProductShowcase: React.FC = () => {
     const features = [
         {
             id: 0,
-            title: "Forenzika Ligjore ⚖️ & Gjykata Supreme",
-            desc: "Klikoni mbi çdo dokument për auditim forenzik: lidh automatikisht nenet me Gazetën Zyrtare, zbulon prapadatimet dhe lapsuset, dhe nxjerr opinionin e Gjykatës Supreme nga 700+ faqe jurisprudencë.",
-            icon: <Scale className="w-5 h-5 text-amber-400" />,
-            badge: "AUDITIM ME 1-KLIKIM",
+            title: "⚖️ Analizo Rastin — Raporti i Plotë Forenzik",
+            desc: "Një klik — Sokrati lexon të gjitha shkresat e fashikullit, ndjek Protokollin e Gjyqtarit Suprem dhe gjeneron raportin e plotë me 10 seksione: shkeljet me nene, provat, aktorët, dëmet, plani i veprimit.",
+            icon: <FileSearch className="w-5 h-5 text-amber-400" />,
+            badge: "RAPORTI ME 1 KLIK",
             color: "from-amber-600 via-orange-600 to-primary-start",
-            mockup: <ForensicAuditMockup />
+            mockup: <ComprehensiveAnalysisMockup />
         },
         {
             id: 1,
-            title: "Sokrati AI — 4 Shtyllat & Plani i Fitores",
-            desc: "Përgatitje e menjëhershme e lëndës sipas rolit: Strategjia e Provave, Baza Statutare, Pyetësori Taktik i Seancës (Cross-Exam) dhe Llogaritja e Dëmit me 8% kamatë LMD.",
-            icon: <Sparkles className="w-5 h-5" />,
-            badge: "KRYE-STRATEGU I LËNDËS",
+            title: "Forenzika e Dokumentit ⚖️",
+            desc: "Klikoni mbi çdo dokument për auditim forenzik: lidh nenet me Gazetën Zyrtare, zbulon prapadatimet dhe nxjerr opinionin e Gjykatës Supreme nga 700+ faqe jurisprudencë.",
+            icon: <Scale className="w-5 h-5" />,
+            badge: "AUDITIM ME 1-KLIKIM",
             color: "from-blue-600 to-indigo-600",
-            mockup: <FourPillarsMockup />
+            mockup: <ForensicAuditMockup />
         },
         {
             id: 2,
-            title: "Transkriptimi Forenzik Audio & Video (B-7)",
-            desc: "Ngarkoni biseda telefonike, regjistrime audio nga xhepi apo video. Whisper Large-v3 nxjerr transkriptin 100% fjalë për fjalë me sekonda, duke kuptuar bisedat dygjuhëshe shqip-anglisht pa deformime.",
+            title: "Transkriptimi Forenzik Audio & Video",
+            desc: "Ngarkoni biseda telefonike, regjistrime audio nga xhepi apo video. Whisper Large-v3 nxjerr transkriptin 100% fjalë për fjalë me sekonda, në gjuhë të përzier shqip-anglisht.",
             icon: <Mic className="w-5 h-5" />,
             badge: "FORENZIKË MULTIMEDIALE",
             color: "from-rose-600 to-purple-600",
@@ -41,8 +42,8 @@ const ProductShowcase: React.FC = () => {
         },
         {
             id: 3,
-            title: "Fashikulli i Provave & Leximi OCR (~3.5s)",
-            desc: "Digjitalizim i shpejtë i shkresave dhe vendimeve të skanuara me PyMuPDF, me njohje të plotë të karaktereve shqipe dhe referenca faqe-për-faqe pa u cunguar.",
+            title: "Fashikulli i Provave & Leximi OCR",
+            desc: "Digjitalizim i shpejtë i shkresave dhe vendimeve të skanuara me PyMuPDF, me njohje të plotë të karaktereve shqipe.",
             icon: <Zap className="w-5 h-5" />,
             badge: "DIGJITALIZIM I SHPEJTË",
             color: "from-amber-600 to-yellow-600",
@@ -51,7 +52,7 @@ const ProductShowcase: React.FC = () => {
         {
             id: 4,
             title: "Biblioteka Ligjore e Kosovës (5,024 Nene)",
-            desc: "Qasje e drejtpërdrejtë në 19 Ligjet dhe Kodet zyrtare (KPRK, KPPRK, LPK, LMD, LFK) me të gjitha nenet e indeksuara dhe shikues të plotë PDF me scroll të brendshëm.",
+            desc: "Qasje e drejtpërdrejtë në 19 Ligjet dhe Kodet zyrtare me të gjitha nenet e indeksuara.",
             icon: <BookOpen className="w-5 h-5" />,
             badge: "5,024 NENE TË VERIFIKUARA",
             color: "from-emerald-600 to-teal-600",
@@ -74,14 +75,14 @@ const ProductShowcase: React.FC = () => {
                 
                 <div className="text-center mb-12 lg:mb-16 space-y-4">
                     <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary-start/10 border border-primary-start/20 text-primary-start text-xs font-bold uppercase tracking-widest">
-                        <Scale size={13} className="text-amber-500" />
-                        <span>Forenzikë Ligjore, Audio & Jurisprudencë Supreme</span>
+                        <FileSearch size={13} className="text-amber-500" />
+                        <span>Analizo Rastin — Raporti i Plotë Forenzik me 1 Klik</span>
                     </div>
                     <h2 className="text-3xl sm:text-5xl font-black text-text-primary tracking-tight uppercase">
                         Mjetet e Punës së Përditshme Ligjore
                     </h2>
                     <p className="text-base sm:text-lg text-text-secondary max-w-2xl mx-auto font-normal leading-relaxed">
-                        Teknologji e pastër e ndërtuar posaçërisht për praktikat gjyqësore në Kosovë, për të lehtësuar analizën e provave dhe përgatitjen e seancave.
+                        Teknologji e pastër e ndërtuar posaçërisht për praktikat gjyqësore në Kosovë.
                     </p>
                 </div>
 
@@ -194,10 +195,44 @@ const ProductShowcase: React.FC = () => {
 
 // --- MOCKUP COMPONENTS ---
 
-const ForensicAuditMockup = () => (
+const ComprehensiveAnalysisMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
         <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between mb-1">
-            <span className="flex items-center gap-2"><Scale size={16} /> Forenzika Ligjore (1-Kliko ⚖️)</span>
+            <span className="flex items-center gap-2"><FileSearch size={16} /> Analizo Rastin — Raporti i Plotë</span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">10 SEKSIONE</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+            {[
+                "📋 Përmbledhja Ekzekutive",
+                "📅 Kronologjia e Rastit",
+                "⚖️ Shkeljet me Nene",
+                "🔬 Matrica e Provave",
+                "👥 Aktorët dhe Rolet",
+                "🏛️ Baza Statutore",
+                "🔨 Opinioni Suprem",
+                "💶 Dëmet dhe Kamata",
+                "🎯 Plani i Veprimit",
+                "💡 Rekomandimet"
+            ].map((item, i) => (
+                <div key={i} className="p-2 bg-slate-900 border border-slate-800 rounded-lg">
+                    <p className="text-[10px] text-slate-300 font-medium">{item}</p>
+                </div>
+            ))}
+        </div>
+
+        <div className="p-2.5 bg-emerald-950/40 border border-emerald-800/50 rounded-xl">
+            <p className="text-[10px] text-emerald-200 font-bold text-center">
+                ⚡ Një Klik — Raporti i Plotë Forenzik
+            </p>
+        </div>
+    </div>
+);
+
+const ForensicAuditMockup = () => (
+    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
+        <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center justify-between mb-1">
+            <span className="flex items-center gap-2"><Scale size={16} /> Forenzika e Dokumentit</span>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">100% E VERIFIKUAR</span>
         </div>
 
@@ -207,56 +242,21 @@ const ForensicAuditMockup = () => (
                 <span>⚠️ Zbulimi i Lapsusit Statutar:</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-                Në shkresë citohet <strong>Neni 372</strong> i KPRK-së (krimet pyjore). 
-                <span className="text-emerald-400 font-bold ml-1">➔ Dispozita e saktë për mjekët është Neni 387 i KPRK-së.</span>
+                Në shkresë citohet <strong>Neni 372</strong> i KPRK-së. 
+                <span className="text-emerald-400 font-bold ml-1">➔ Dispozita e saktë është Neni 387 i KPRK-së.</span>
             </p>
         </div>
 
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
             <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase text-amber-400 flex items-center gap-1">
-                    <Gavel size={13} /> Gjykata Supreme e Kosovës (700+ Faqe)
+                    Gjykata Supreme e Kosovës
                 </span>
                 <span className="text-[9px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">Rev.Nr.541/2024</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed font-serif">
-                &quot;Ndryshimi i regjimit prindëror apo trajtimi psikiatrik kërkon baza të forta shkencore laboratorike dhe jo deklarata gojore.&quot;
+                &quot;Trajtimi psikiatrik kërkon baza të forta shkencore laboratorike.&quot;
             </p>
-        </div>
-    </div>
-);
-
-const FourPillarsMockup = () => (
-    <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
-        <div className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center justify-between mb-1">
-            <span className="flex items-center gap-2"><Sparkles size={15} /> 4 Kartelat e Fillimit të Lëndës</span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Roli: ⚔️ PADITËS / MBROJTJE</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold uppercase text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Shtyllë 1</span>
-                <p className="text-xs font-bold text-slate-100">Strategjia & Provat</p>
-                <p className="text-[10px] text-slate-400 line-clamp-2">Përsëritja e procedurës (Neni 232 LPK) dhe Kallëzimi Penal.</p>
-            </div>
-
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold uppercase text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Shtyllë 2</span>
-                <p className="text-xs font-bold text-slate-100">Baza Statutare</p>
-                <p className="text-[10px] text-slate-400 line-clamp-2">5,024 Nenet e Kosovës dhe vendimet parimore supreme.</p>
-            </div>
-
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold uppercase text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Shtyllë 3</span>
-                <p className="text-xs font-bold text-slate-100">Pyetësori i Seancës</p>
-                <p className="text-[10px] text-slate-400 line-clamp-2">Pyetje direkte në thonjëza për ballafaqim (Cross-Examination).</p>
-            </div>
-
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
-                <span className="text-[9px] font-bold uppercase text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Shtyllë 4</span>
-                <p className="text-xs font-bold text-slate-100">Dëmet me 8% (LMD)</p>
-                <p className="text-[10px] text-slate-400 line-clamp-2">Tabela financiare dhe masat emergjente mbrojtëse.</p>
-            </div>
         </div>
     </div>
 );
@@ -264,7 +264,7 @@ const FourPillarsMockup = () => (
 const SpeedScanMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
         <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between mb-1">
-            <span className="flex items-center gap-2"><Zap size={16} /> Vektorizim në Bllok (~3.5 Sekonda)</span>
+            <span className="flex items-center gap-2"><Zap size={16} /> Vektorizim në Bllok</span>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">147 FAQE LIVE</span>
         </div>
 
@@ -294,7 +294,7 @@ const SpeedScanMockup = () => (
 const MediaTranscriptMockup = () => (
     <div className="space-y-3 h-full flex flex-col justify-center animate-in fade-in duration-500 font-sans">
         <div className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center justify-between mb-1">
-            <span className="flex items-center gap-2"><Volume2 size={16} /> Forenzika e Provës Audio (B-7)</span>
+            <span className="flex items-center gap-2"><Volume2 size={16} /> Forenzika e Provës Audio</span>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">VERBATIM 100%</span>
         </div>
 
@@ -306,8 +306,8 @@ const MediaTranscriptMockup = () => (
                 <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">04:18 min</span>
             </div>
             <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-[11px] text-slate-300 font-mono leading-relaxed space-y-1.5">
-                <p><span className="text-primary-start font-bold">[00:14 - 00:22]</span> Fëmija: &quot;Te dua edhe te babi, te ti nuk është boring...&quot;</p>
-                <p><span className="text-primary-start font-bold">[01:15 - 01:25]</span> Prindi: &quot;Do ta zbatojmë marrëveshjen e ndërmjetësimit me shkrim...&quot;</p>
+                <p><span className="text-primary-start font-bold">[00:14 - 00:22]</span> Fëmija: &quot;Te dua edhe te babi...&quot;</p>
+                <p><span className="text-primary-start font-bold">[01:15 - 01:25]</span> Prindi: &quot;Do ta zbatojmë marrëveshjen...&quot;</p>
             </div>
         </div>
     </div>
@@ -344,13 +344,6 @@ const LegalGroundingMockup = () => (
                     Neni 145
                 </span>
             </div>
-        </div>
-
-        <div className="p-2.5 bg-emerald-950/40 border border-emerald-800/50 rounded-xl flex items-center gap-3">
-            <Scale size={18} className="text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-200 font-medium leading-tight">
-                Avokati mban kontrollin: çdo citim ligjor hapet direkt në shikuesin zyrtar me kërcim te neni përkatës.
-            </p>
         </div>
     </div>
 );
