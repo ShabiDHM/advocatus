@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/pillar_3_questions.py
-# PHOENIX PROTOCOL - PILLAR 3: ROLE-AWARE CROSS-EXAMINATION V25.0 (COMPACT & STRICT)
+# PHOENIX PROTOCOL - PILLAR 3: ROLE-AWARE CROSS-EXAMINATION V26.0 (SPECIFIC & EVIDENCE-BASED)
 
 from typing import Dict, Any, Optional, List
 from app.services.pillars.base_pillar_service import BasePillarService
@@ -13,7 +13,7 @@ class Pillar3QuestionsService:
     - PLAINTIFF: Pyetje kirurgjike për të gozhduar të Paditurin
     - DEFENDANT: Pyetje për të ekspozuar kontradiktat
     - NEUTRAL: Pyetje gjyqësore të balancuara
-    - RAG + TIMELINE + ZERO HALUCINACIONE
+    - SPECIFIKE: Pyetje me emra, data, dokumente dhe sekonda [MM:SS]
     """
 
     @staticmethod
@@ -41,7 +41,7 @@ class Pillar3QuestionsService:
                 manifest_str=manifest_str
             )
         
-        search_query = query_text or f"Pyetësori taktik për seancë gjyqësore. Lëmia: {case_domain}. Roli: {pos}. Nenet procedurale."
+        search_query = query_text or f"Pyetësori taktik për seancë. Lëmia: {case_domain}. Roli: {pos}. Nenet procedurale për kundërshtim."
         rag_context, case_rag_context = BasePillarService.get_rag_context(
             user_id=user_id or "",
             case_id=case_id or "",
@@ -60,12 +60,12 @@ class Pillar3QuestionsService:
         witnesses_section = ""
         if witness_names:
             witnesses_list = "\n".join([f"   - {name}" for name in witness_names])
-            witnesses_section = f"\nDËSHMITARËT E IDENTIFIKUAR:\n{witnesses_list}"
+            witnesses_section = f"\nDËSHMITARËT:\n{witnesses_list}"
         
         experts_section = ""
         if expert_names:
             experts_list = "\n".join([f"   - {name}" for name in expert_names])
-            experts_section = f"\nEKSPERTËT E IDENTIFIKUAR:\n{experts_list}"
+            experts_section = f"\nEKSPERTËT:\n{experts_list}"
 
         if pos in ["PLAINTIFF", "PADITËS", "KALLËZUES"]:
             role_goal = f"Pyetje në favor të Paditësit ({client_name}) për të provuar shkeljet."
@@ -99,17 +99,19 @@ MISIONI DHE DREJTIMI I PYETJEVE:
 {witnesses_section}
 {experts_section}
 
-DIREKTIVA:
-1. Gjenero pyetje direkte në thonjëza ("..."), gati për t'u lexuar me zë;
-2. Përshtat pyetjet me kronologjinë — referoju datave specifike;
-3. Nëse ka audio/video, përfshi sekondat [MM:SS];
-4. Për ekspertët, godit metodologjinë dhe anësinë;
-5. MOS cito asnjë nen apo precedent që nuk gjendet në RAG context ose listën e verifikuar.
+DIREKTIVA SPECIFIKE PËR PYETJET:
+1. ÇDO pyetje duhet të përmbajë: EMRIN e personit, DATËN e ngjarjes, DOKUMENTIN referencë;
+2. Nëse ka audio/video, përfshi sekondat [MM:SS] në pyetje;
+3. Çdo pyetje duhet të jetë në thonjëza ("...") gati për t'u lexuar me zë;
+4. Çdo pyetje duhet të lidhet me një provë konkrete nga fashikulli;
+5. Nëse ka kontradikta në dokumente, pyet direkt: "Në dokumentin X thuhet Y, ndërsa ju thoni Z. Si e shpjegoni?";
+6. Nëse ka prapadatime, pyet: "Pse data në këtë dokument është X, ndërsa ngjarja ka ndodhur në datën Y?";
+7. MOS përdor pyetje të përgjithshme — VETËM pyetje specifike me referenca.
 
 STRUKTURA E DETYRUESHME:
-### 1. 🎯 STRATEGJIA E SALLËS SË GJYQIT PËR ROLIN ({pos})
-### 2. ❓ PYETJET TAKTIKE PËR {target_party}
-### 3. 🔬 PYETJET BALLAFAQUESE PËR EKSPERTËT
-### 4. 🏢 PYETJET PËR DËSHMITARËT
-### 5. 💡 DIREKTIVAT PROCEDURALE PËR PROCESVERBAL
+### 1. 🎯 STRATEGJIA E SALLËS PËR ROLIN ({pos})
+### 2. ❓ PYETJET TAKTIKE PËR {target_party} (me emra, data, dokumente)
+### 3. 🔬 PYETJET PËR EKSPERTËT (me referenca në ekspertiza)
+### 4. 🏢 PYETJET PËR DËSHMITARËT (me emra specifikë)
+### 5. 💡 DIREKTIVAT PËR PROCESVERBAL (me referenca ligjore nga RAG)
 """

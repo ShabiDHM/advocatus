@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/hallucination_filter.py
-# PHOENIX PROTOCOL - HALLUCINATION FILTER V4.2 (SELF-IMPORT FIX)
+# PHOENIX PROTOCOL - HALLUCINATION FILTER V5.0 (EXPANDED PATTERNS - CATCHES ALL FORMATS)
 
 import re
 import logging
@@ -22,53 +22,53 @@ REPLACEMENT_TEXT = "[Precedent i paverifikuar — hiqeni këtë referencë]"
 
 class HallucinationFilter:
     """
-    Filtri i Halucinacioneve V4.2 — WHITELIST ONLY:
-    - Çdo precedent që NUK është në listën e verifikuar, zëvendësohet me tekst të qartë
-    - Kthen edhe listën e saktë të precedentëve të zëvendësuar
+    Filtri i Halucinacioneve V5.0 — WHITELIST ONLY me formate të zgjeruara:
+    - Kap PML.nr.XXX/YYYY
+    - Kap Rev.nr.XXX/YYYY
+    - Kap P.Nr.XXX/YYYY
+    - Kap PKR.Nr.XXX/YYYY
+    - Kap Vendimi nr.XXX/YY
+    - Kap Precedent nr.XXX/YYYY
+    - Kap Gj.Sup. nr.XXX/YYYY
+    - Çdo format tjetër numerik të ngjashëm
     """
 
     @staticmethod
     def normalize_precedent(text: str) -> str:
-        """Normalizon formatin e precedentit për krahasim."""
         return text.replace(" ", "").replace("Nr", "nr").replace("nr", "nr").upper()
 
     @staticmethod
     def is_verified_precedent(precedent: str) -> bool:
-        """Kontrollon nëse precedenti është në whitelist."""
         normalized = HallucinationFilter.normalize_precedent(precedent)
-        
         for verified in VERIFIED_PRECEDENTS:
             if HallucinationFilter.normalize_precedent(verified) == normalized:
                 return True
-        
         return False
 
     @staticmethod
     def filter_precedents(text: str) -> str:
-        """
-        Zëvendëson çdo precedent që NUK është në whitelist.
-        Kthen vetëm tekstin e pastruar.
-        """
         filtered_text, _ = HallucinationFilter.filter_precedents_with_details(text)
         return filtered_text
 
     @staticmethod
     def filter_precedents_with_details(text: str) -> Tuple[str, List[str]]:
-        """
-        Kthen tekstin e filtruar dhe listën e precedentëve të zëvendësuar.
-        """
         if not text:
             return text, []
         
         filtered_text = text
         replaced_precedents = []
         
-        # Pattern i gjerë për të kapur çdo format të mundshëm
+        # PHOENIX FIX V5.0: Pattern i zgjeruar për të kapur çdo format
         precedent_patterns = [
             re.compile(r'PML\.?(?:nr|Nr)\.?\s*\d+/\d+'),
             re.compile(r'Rev\.?(?:nr|Nr)\.?\s*\d+/\d+'),
             re.compile(r'P\.?(?:Nr|nr)\.?\s*\d+/\d+'),
             re.compile(r'PKR\.?(?:Nr|nr)\.?\s*\d+/\d+'),
+            re.compile(r'Vendimi\s+(?:nr|Nr)\.?\s*\d+/\d+'),
+            re.compile(r'Precedent\s+(?:nr|Nr)\.?\s*\d+/\d+'),
+            re.compile(r'Gj\.?Sup\.?\s*(?:nr|Nr)\.?\s*\d+/\d+'),
+            re.compile(r'Gj\.?Sup\.?\s*(?:nr|Nr)\.?\s*\d+/\d{2,4}'),
+            re.compile(r'(?:Vendim|Precedent|Aktgjykim|Aktvendim)\s+(?:i\s+)?(?:Gj\.?Sup\.?|nr\.?|Nr\.?)\s*\d+/\d+'),
         ]
         
         found_precedents = set()
@@ -91,16 +91,11 @@ class HallucinationFilter:
         text: str,
         verified_articles: Optional[Set[str]] = None
     ) -> str:
-        """
-        Pastron të gjithë përgjigjen e LLM.
-        """
         if not text:
             return text
         
-        # 1. Filtro precedentët — VETËM whitelist lejohet
         text = HallucinationFilter.filter_precedents(text)
         
-        # 2. Hiq nënshkrimet fiktive
         text = re.sub(
             r'Nënshkruar nga:.*?(?=\n|$)',
             '',
@@ -108,7 +103,6 @@ class HallucinationFilter:
             flags=re.IGNORECASE
         )
         
-        # 3. Hiq inicialet fiktive (p.sh. "J.D.")
         text = re.sub(
             r'\b[A-Z]\.[A-Z]\.\b',
             '',
@@ -122,9 +116,6 @@ class HallucinationFilter:
         response_text: str,
         rag_context: str = ""
     ) -> str:
-        """
-        Funksioni kryesor — pastron përgjigjen e LLM.
-        """
         return HallucinationFilter.clean_response(response_text)
 
 
