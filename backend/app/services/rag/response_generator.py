@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V1.0 (STREAMING + HALLUCINATION WARNING)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V2.0 (BUFFER & FILTER BEFORE YIELD)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -22,7 +22,7 @@ HALLUCINATION_WARNING = (
 
 class ResponseGenerator:
     """
-    Thërret LLM dhe filtron përgjigjen për halucinacione.
+    Thërret LLM, mbledh përgjigjen, FILTRON, dhe pastaj yield-on.
     """
 
     def __init__(self):
@@ -39,7 +39,8 @@ class ResponseGenerator:
         user_query: str
     ) -> AsyncGenerator[str, None]:
         """
-        Gjeneron përgjigjen me streaming dhe shton paralajmërim nëse ka halucinacione.
+        PHOENIX FIX V2.0: Buffer + Filter + Yield.
+        Mbledhim të gjithë përgjigjen, filtrojmë, pastaj yield-ojmë të pastruar.
         """
         try:
             response = await self.client.chat.completions.create(
@@ -53,19 +54,19 @@ class ResponseGenerator:
                 max_tokens=8192
             )
             
+            # 1. Mbledhim të gjithë përgjigjen
             full_text = ""
-            
-            # 1. Yield përgjigjen e papërpunuar (streaming i shpejtë)
             async for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
-                    content_piece = chunk.choices[0].delta.content
-                    full_text += content_piece
-                    yield content_piece
+                    full_text += chunk.choices[0].delta.content
             
-            # 2. Pas përfundimit, filtro tekstin e plotë
+            # 2. Filtrojmë përgjigjen e plotë
             filtered_text = HallucinationFilter.filter_precedents(full_text)
             
-            # 3. Nëse filtri ndryshoi diçka, shto paralajmërim
+            # 3. Yield-ojmë tekstin e pastruar
+            yield filtered_text
+            
+            # 4. Nëse filtri ndryshoi diçka, shto paralajmërim
             if filtered_text != full_text:
                 yield HALLUCINATION_WARNING
                 
