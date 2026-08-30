@@ -1,9 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V16.0 (STRICT ADMIN-ONLY DRAFTING & NAVIGATION)
+// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V17.0 (DRAFTING EXCISED)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon 
+    Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, Building2, Menu, X, BookOpen, Sun, Moon 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -35,18 +35,14 @@ const Header: React.FC = () => {
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // 2. VETËM NËSE PËRDORUESI ËSHTË SUPER ADMIN SHTOHEN ADMIN & HARTIMI
+  // 2. VETËM PËR ADMIN SHTOHET LINKU I ADMIN-IT (PA HARTIM)
   if (isAdmin) {
     navItems.splice(1, 0, {
       icon: Shield,
       label: t('sidebar.adminPanel', 'Admin'),
       path: '/admin',
     });
-    navItems.push({
-      icon: FileText,
-      label: t('sidebar.drafting', 'Hartimi'),
-      path: '/drafting',
-    });
+    // PHOENIX FIX: FileText / Hartimi u hoq nga navigimi
   }
 
   useEffect(() => {

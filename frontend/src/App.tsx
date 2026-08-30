@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V5.1 (CORRECT ROOT IMPORTS & ADMIN DRAFTING GUARD)
+// PHOENIX PROTOCOL - ROUTING V6.0 (DRAFTING EXCISED)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -16,7 +16,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CaseViewPage from './pages/CaseViewPage';
 import CalendarPage from './pages/CalendarPage';
-import DraftingPage from './pages/DraftingPage';
+// PHOENIX FIX: DraftingPage u hoq
 import SupportPage from './pages/SupportPage';
 import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
@@ -102,7 +102,7 @@ const AppRoutes: React.FC = () => {
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/support" element={<AdminSupportPage />} />
-        <Route path="/drafting" element={<DraftingPage />} />
+        {/* PHOENIX FIX: /drafting u hoq */}
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

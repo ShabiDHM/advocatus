@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V14.0 (GRAPH EXCISED • PRODUCTION STABILITY)
+# PHOENIX PROTOCOL - MAIN APPLICATION V15.0 (DRAFTING EXCISED • PRODUCTION STABILITY)
 
 import os
 import logging
@@ -28,8 +28,8 @@ from .api.endpoints.finance import router as finance_router
 from .api.endpoints.finance_wizard import router as finance_wizard_router
 from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
-from .api.endpoints.drafting_v2 import router as drafting_v2_router
 from .api.endpoints.laws import router as laws_router
+# PHOENIX FIX: drafting_v2_router u hoq
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -90,15 +90,16 @@ api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"]
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 
-api_v2_router = APIRouter(prefix="/api/v2")
-api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
+# PHOENIX FIX: api_v2_router u hoq plotësisht (drafting u fshi)
+# api_v2_router = APIRouter(prefix="/api/v2")
+# api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
 
 app.include_router(api_v1_router)
-app.include_router(api_v2_router)
+# PHOENIX FIX: app.include_router(api_v2_router) u hoq
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.4.0"}
+    return {"status": "ok", "version": "1.5.0"}
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")

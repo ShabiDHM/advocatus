@@ -1,5 +1,5 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V12.3 (DYNAMIC OPPOSING PARTY PERSISTENCE & ACCESS)
+# PHOENIX PROTOCOL - CASE SERVICE V13.0 (DRAFTING EXCISED)
 
 import re
 import urllib.parse 
@@ -12,7 +12,7 @@ from pymongo.database import Database
 
 from ..models.case import CaseCreate
 from ..models.user import UserInDB
-from ..models.drafting import DraftRequest
+# PHOENIX FIX: DraftRequest u hoq (models/drafting.py u fshi)
 from ..celery_app import celery_app
 from app.services import storage_service, vector_store_service
 
@@ -330,13 +330,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception: 
         pass
 
-def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
-    query_filter = _build_case_access_query(owner, case_id=case_id)
-    case = db.cases.find_one(query_filter)
-    if not case: 
-        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
-    task = celery_app.send_task("process_drafting_job", kwargs={"case_id": str(case_id), "user_id": str(owner.id), "draft_type": job_in.document_type, "user_prompt": job_in.prompt, "use_library": job_in.use_library})
-    return {"job_id": task.id, "status": "queued", "message": "Drafting job created."}
+# PHOENIX FIX: create_draft_job_for_case u hoq plotësisht (Drafting u fshi)
 
 def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
     query_filter = _build_case_access_query(owner, case_id=case_id)

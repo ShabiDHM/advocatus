@@ -1,5 +1,5 @@
 # FILE: backend/app/celery_app.py
-# PHOENIX PROTOCOL - CELERY ROBUSTNESS (TYPE FIX)
+# PHOENIX PROTOCOL - CELERY ROBUSTNESS V2.0 (DRAFTING EXCISED)
 # 1. FIX: Used conf.update() instead of direct assignment to satisfy Pylance.
 # 2. STATUS: Type-safe and decoupled configuration.
 
@@ -36,12 +36,12 @@ def configure_celery_app():
     celery_app.config_from_object('app.celery_config')
 
     # Define the modules where tasks are located.
+    # PHOENIX FIX: 'app.tasks.drafting_tasks' u hoq
     celery_app.autodiscover_tasks([
         'app.tasks.document_processing',
         'app.tasks.deadline_extraction',
         'app.tasks.findings_extraction',
         'app.tasks.chat_tasks',
-        'app.tasks.drafting_tasks',
     ])
     
     logging.getLogger(__name__).info("--- [Celery App] Celery application fully configured for worker. ---")
