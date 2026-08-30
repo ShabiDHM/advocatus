@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V12.1 (AUTHORIZATION ENFORCED & DIRECT DB PASS-THROUGH)
+# PHOENIX PROTOCOL - MEDIA ROUTER V13.0 (ROLE GUARD INTEGRATED & FULL AUTHORIZATION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -21,6 +21,7 @@ from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.pillars.media_forensics_service import MediaForensicsService
+from app.services.pillars.role_guard_service import RoleGuardService
 from app.services.vector_store_service import delete_document_embeddings
 from app.core.config import settings
 
@@ -65,12 +66,12 @@ def orchestrate_media_analysis(
     user_id_str: str,
     case_id_str: str,
     file_name: str,
-    is_video: bool
+    is_video: bool,
+    case_domain: Optional[str] = None
 ):
     """
-    PHOENIX PROTOCOL - FIXED:
-    Now accepts db_client directly from the route handler.
-    No circular import needed - uses the passed database instance.
+    PHOENIX PROTOCOL - ROLE GUARD INTEGRATED:
+    Përdor db_client direkt dhe kalo case_domain për indeksim specifik.
     """
     MediaForensicsService.process_and_index_media(
         db=db_client,
@@ -79,7 +80,8 @@ def orchestrate_media_analysis(
         user_id_str=user_id_str,
         case_id_str=case_id_str,
         file_name=file_name,
-        is_video=is_video
+        is_video=is_video,
+        case_domain=case_domain
     )
 
 
@@ -92,15 +94,22 @@ async def get_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
     
-    # PHOENIX FIX: Verify case ownership before returning media
+    # PHOENIX FIX: Verify case ownership
     case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
     
+    # PHOENIX FIX: Lexo rolin nga case document
+    role = RoleGuardService.get_role_from_case(case_id, db)
+    
     cursor = db.media_evidence.find({"case_id": case_oid, "owner_id": user_oid}).sort("created_at", -1)
     items = []
     for item in cursor:
-        items.append(serialize_media_doc(item))
+        serialized = serialize_media_doc(item)
+        # PHOENIX FIX: Shto rolin në përgjigje nëse mungon
+        if not serialized.get("role"):
+            serialized["role"] = role
+        items.append(serialized)
     return items
 
 
@@ -115,10 +124,16 @@ async def upload_case_media(
     case_oid = validate_object_id(case_id)
     user_oid = ObjectId(current_user.id)
     
-    # PHOENIX FIX: Verify case ownership before upload
+    # PHOENIX FIX: Verify case ownership
     case = db.cases.find_one({"_id": case_oid, "owner_id": user_oid})
     if not case:
         raise HTTPException(status_code=404, detail="Çështja nuk u gjet ose nuk keni akses.")
+    
+    # PHOENIX FIX: Lexo rolin dhe domenin nga case document
+    role = RoleGuardService.get_role_from_case(case_id, db)
+    case_domain = case.get("case_domain") or case.get("domain") or None
+    
+    logger.info(f"📌 [Media Upload] Roli: {role} | Domeni: {case_domain or 'E pazbuluar'}")
 
     filename = file.filename or "recording.mp3"
     ext = os.path.splitext(filename)[1].lower()
@@ -189,6 +204,8 @@ async def upload_case_media(
         "status": "PROCESSING",
         "transcript": "",
         "visual_analysis": {},
+        "role": role,  # PHOENIX FIX: Ruaj rolin në media document
+        "case_domain": case_domain or "UNKNOWN",  # PHOENIX FIX: Ruaj domenin
         "created_at": now,
         "updated_at": now
     }
@@ -197,7 +214,6 @@ async def upload_case_media(
     media_id_str = str(result.inserted_id)
 
     # 4. Transkriptimi dhe Indeksimi Forenzik në Background
-    # PHOENIX FIX: Pass db directly, no circular import
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
@@ -206,7 +222,8 @@ async def upload_case_media(
         str(current_user.id),
         case_id,
         filename,
-        is_video
+        is_video,
+        case_domain
     )
 
     serialized_doc = serialize_media_doc(media_doc)
@@ -221,7 +238,7 @@ async def stream_case_media(
     db: Database = Depends(get_db)
 ):
     """
-    PHOENIX PROTOCOL - FIXED:
+    PHOENIX PROTOCOL - FULL AUTHORIZATION:
     - Verifies JWT token expiration
     - Verifies case ownership
     - Verifies media belongs to the case
@@ -233,7 +250,6 @@ async def stream_case_media(
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             
-            # PHOENIX FIX: Verify token expiration
             exp = payload.get("exp")
             if exp:
                 from datetime import datetime as dt
@@ -256,7 +272,6 @@ async def stream_case_media(
             logger.warning(f"Token validation error for media stream: {e}")
             raise HTTPException(status_code=401, detail="I paautorizuar.")
     else:
-        # PHOENIX FIX: If no token provided, deny access
         raise HTTPException(status_code=401, detail="Kërkohet token për qasje në media.")
 
     case_oid = validate_object_id(case_id)

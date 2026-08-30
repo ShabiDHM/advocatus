@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/media_forensics_service.py
-# PHOENIX PROTOCOL - MEDIA FORENSICS V18.0 (ASYNC-SAFE & RAG-ENHANCED)
+# PHOENIX PROTOCOL - MEDIA FORENSICS V19.0 (ROLE GUARD INTEGRATED & ASYNC-SAFE)
 
 import os
 import re
@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.services import llm_service
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks
 from app.services.pillars.base_pillar_service import BasePillarService
+from app.services.pillars.role_guard_service import RoleGuardService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,8 @@ class MediaForensicsService:
     - Përballon çdo madhësi video/audio pa u bllokuar nga kufiri 25MB i Whisper
     - 100% Verbatim (Fjalë për Fjalë) me sekonda [MM:SS - MM:SS]
     - Ruajtja e fjalëve origjinale pa asnjë ndryshim kuptimi
-    - Indeksimi i drejtpërdrejtë në RAG si Provë Materiale për Shtyllat 1-4 dhe Hartimin Ligjor
+    - Indeksimi i drejtpërdrejtë në RAG si Provë Materiale
+    - ROLE GUARD: Roli i klientit ruhet në metadatë për kërkim specifik
     """
 
     @classmethod
@@ -123,7 +125,6 @@ class MediaForensicsService:
         5. NDALOHET KATEGORIKISHT të shtosh analiza, komente, mendime apo përfundime të tuat! Kthe VETËM dialogun fjalë për fjalë.
         """
         try:
-            # PHOENIX FIX: Përdor DEEP_MODEL për pastrim më të saktë
             cleaned = llm_service._call_llm(
                 system_prompt=system_prompt,
                 user_content=raw_segments_text,
@@ -216,12 +217,17 @@ class MediaForensicsService:
         case_domain: Optional[str] = None
     ):
         """
-        PHOENIX PROTOCOL - ASYNC VERSION:
+        PHOENIX PROTOCOL - ASYNC VERSION ME ROLE GUARD:
         Përdor asyncio direkt pa krijuar event loop të ri.
+        Lexon rolin nga case document për indeksim specifik.
         """
         media_oid = ObjectId(media_id_str)
         try:
             logger.info(f"🎙️ [Media Forensics] Duke transkriptuar fjalë për fjalë: {file_name}")
+            
+            # PHOENIX FIX: Lexo rolin nga case document
+            role = RoleGuardService.get_role_from_case(case_id_str, db)
+            logger.info(f"📌 [Media Forensics] Roli i klientit: {role}")
             
             # Transkriptimi është sinkron (Whisper API), kështu që përdorim to_thread
             transcript = await asyncio.to_thread(cls.transcribe_audio_file, file_path)
@@ -241,20 +247,26 @@ class MediaForensicsService:
                     "transcript": transcript,
                     "visual_analysis": visual_data,
                     "status": "READY",
+                    "role": role,  # PHOENIX FIX: Ruaj rolin në media document
                     "updated_at": datetime.now(timezone.utc)
                 }}
             )
             
-            # PHOENIX FIX: Kontrollo nëse dokumenti u përditësua
             if update_result.modified_count == 0:
                 logger.warning(f"⚠️ [Media Forensics] Nuk u përditësua asnjë dokument për media_id: {media_id_str}")
 
             # 2. Indeksimi elitar në RAG (user_vectors) si PROVË MATERIALE
             media_type_label = "VIDEO-REGJISTRIM" if is_video else "FONOGRAM / AUDIO-REGJISTRIM"
+            
+            # PHOENIX FIX: Shto role trace në fillim të tekstit
+            role_trace = RoleGuardService.build_role_trace(role, user_id_str, case_domain)
+            
             combined_rag_text = (
+                f"{role_trace}\n"
                 f"PROVA MATERIALE E PAPËRGJËGJSHME ({media_type_label}): {file_name}\n"
                 f"Lloji i Provës: Provë Materiale / Fonogram Forenzik\n"
-                f"Lëmia: {case_domain or 'E PAZBUluar'}\n\n"
+                f"Lëmia: {case_domain or 'E PAZBUluar'}\n"
+                f"Roli: {role}\n\n"
                 f"TRANSKRIPTI ZYRTAR VERBATIM ME KOHËMATJE [MM:SS - MM:SS]:\n"
                 f"{transcript}\n"
             )
@@ -262,7 +274,7 @@ class MediaForensicsService:
             if visual_data and visual_data.get("visual_summary"):
                 combined_rag_text += f"\nPËRMBLEDHJA E KONTROLLIT VIZUAL:\n{visual_data['visual_summary']}\n"
 
-            # PHOENIX FIX: Shto case_domain në metadatë
+            # PHOENIX FIX: Shto role dhe case_domain në metadatë
             create_and_store_embeddings_from_chunks(
                 user_id=user_id_str,
                 document_id=media_id_str,
@@ -274,10 +286,11 @@ class MediaForensicsService:
                     'category': 'audio_evidence',
                     'evidence_type': 'material_evidence',
                     'is_physical_evidence': True,
-                    'case_domain': case_domain or 'UNKNOWN'
+                    'case_domain': case_domain or 'UNKNOWN',
+                    'role': role
                 }]
             )
-            logger.info(f"✅ [Media Forensics] Transkripti u indeksua me sukses në RAG si Provë Materiale për {file_name}!")
+            logger.info(f"✅ [Media Forensics] Transkripti u indeksua me sukses në RAG si Provë Materiale për {file_name} (Roli: {role})!")
 
         except Exception as e:
             logger.error(f"❌ [Media Forensics] Dështoi procesimi për {file_name}: {e}")
@@ -320,7 +333,6 @@ class MediaForensicsService:
                 case_domain=case_domain
             ))
         except RuntimeError as e:
-            # Nëse tashmë jemi në event loop, përdor run_until_complete
             logger.warning(f"⚠️ RuntimeError në asyncio.run, duke provuar run_until_complete: {e}")
             loop = asyncio.get_event_loop()
             loop.run_until_complete(cls.process_and_index_media_async(

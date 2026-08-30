@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V1.0 (UNIVERSAL DOMAIN DETECTION & RAG INTEGRATION)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V2.0 (ROLE GUARD INTEGRATED)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -16,7 +16,7 @@ DOMAIN_KEYWORDS = {
         "trafikim", "korrupsion", "shpëlarje parash"
     ],
     "CIVIL": [
-        "kërkesëpadi", "padi", "kundërpadi", "prapësim", "lpк", "lmd",
+        "kërkesëpadi", "padi", "kundërpadi", "prapësim", "lpk", "lmd",
         "dëmshpërblim", "kontratë", "borxh", "detyrim", "kompensim",
         "dëm material", "dëm jomaterial", "shkelje e kontratës"
     ],
@@ -89,7 +89,8 @@ class BasePillarService:
     - Zbulimi automatik i llojit të çështjes (case_domain)
     - Integrimi me RAG (legal_knowledge_base + user_vectors)
     - Eliminimi i halucinacioneve me verifikim nen-për-nen
-    - 100% agnostik ndaj domeneve (Penal, Civil, Administrativ, etj.)
+    - 100% agnostik ndaj domeneve
+    - ROLE GUARD: Mbrojtja absolute e rolit të klientit
     """
 
     @staticmethod
@@ -104,18 +105,15 @@ class BasePillarService:
         """
         combined_text = f"{case_title} {context_str[:5000]} {manifest_str[:2000]}".lower()
         
-        # Numëro sa fjalë kyçe përputhen për secilin domen
         domain_scores: Dict[str, int] = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw.lower() in combined_text)
             domain_scores[domain] = score
         
-        # Kthe domenin me pikët më të larta
         best_domain = max(domain_scores, key=domain_scores.get)
         best_score = domain_scores[best_domain]
         
         if best_score == 0:
-            # Default në CIVIL nëse nuk gjendet asnjë fjalë kyçe
             logger.info("⚠️ [BasePillar] Nuk u zbulua domeni specifik. Duke përdorur CIVIL si default.")
             return "CIVIL"
         
@@ -166,7 +164,6 @@ RREGULLAT E HEKURTA TË DOMENIT:
                 query_case_knowledge_base
             )
             
-            # 1. Kërko në bazën globale statutore
             if query_text:
                 global_results = query_global_knowledge_base(query_text, n_results=n_results)
                 if global_results:
@@ -179,7 +176,6 @@ RREGULLAT E HEKURTA TË DOMENIT:
                     global_rag_context = "\n\n".join(global_parts)
                     logger.info(f"✅ [RAG] U gjetën {len(global_results)} rezultate nga baza statutore.")
             
-            # 2. Kërko në dokumentet e çështjes
             if user_id and query_text:
                 case_results = query_case_knowledge_base(user_id, query_text, n_results=n_results, case_id=case_id)
                 if case_results:
@@ -198,6 +194,34 @@ RREGULLAT E HEKURTA TË DOMENIT:
             logger.error(f"❌ [RAG] Gabim gjatë kërkimit: {e}")
         
         return global_rag_context, case_rag_context
+
+    @staticmethod
+    def get_role_guard(
+        role: str,
+        client_name: str
+    ) -> str:
+        """
+        PHOENIX FIX: Kthen bllokun e mbrojtjes së rolit.
+        """
+        try:
+            from app.services.pillars.role_guard_service import RoleGuardService
+            return RoleGuardService.build_role_guard(role, client_name)
+        except ImportError:
+            logger.warning("⚠️ [RoleGuard] role_guard_service nuk u importua. Duke përdorur default.")
+            return ""
+
+    @staticmethod
+    def get_role_tone(
+        role: str
+    ) -> str:
+        """
+        PHOENIX FIX: Kthen tonin e përgjigjes sipas rolit.
+        """
+        try:
+            from app.services.pillars.role_guard_service import RoleGuardService
+            return RoleGuardService.get_role_specific_tone(role)
+        except ImportError:
+            return ""
 
     @staticmethod
     def build_base_prompt(
@@ -224,10 +248,18 @@ RREGULLAT E HEKURTA TË DOMENIT:
         
         domain_instruction = BasePillarService.build_domain_instruction(case_domain)
         
+        # PHOENIX FIX: Shto Role Guard
+        role_guard = BasePillarService.get_role_guard(client_position, client_name)
+        role_tone = BasePillarService.get_role_tone(client_position)
+        
         return f"""
 KLIENTI / PËRDORUESI: **{client_name}** | ROLI: **{(client_position or 'DEFENDANT').upper()}** | LËNDA: **{case_title}** | DATA: {current_date_str}
 
+{role_guard}
+
 {domain_instruction}
+
+{role_tone}
 
 {'='*60}
 KONTEKSTI LIGJOR I VERIFIKUAR NGA BAZA STATUTORE E KOSOVËS (RAG):
