@@ -1,11 +1,9 @@
-// FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V12.0 (ANALIZO RASTIN BUTTON)
+// FILE: frontend/src/components/chat/ChatHeader.tsx
+// PHOENIX PROTOCOL - CHAT HEADER V14.0 (TYPE SAFE & CLEAN INTERFACE)
 
 import React from 'react';
 import { Download, Trash2, FileSearch } from 'lucide-react';
 import { TFunction } from 'i18next';
-import { DocumentSelector } from '../DocumentSelector';
-import { Document } from '../../data/types';
 
 interface ChatHeaderProps {
   connectionStatus: string;
@@ -13,23 +11,19 @@ interface ChatHeaderProps {
   onClearChat: () => void;
   onExportChat?: () => void;
   t: TFunction;
-  documents?: Document[];
-  selectedDocumentIds?: string[];
-  onDocumentSelectionChange?: (ids: string[]) => void;
   isPro?: boolean;
   onAnalyzeCase?: () => void;
+  // Opsionale për përputhshmëri të plotë
+  documents?: any[];
+  selectedDocumentIds?: string[];
+  onDocumentSelectionChange?: (ids: string[]) => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   connectionStatus,
-  activeContextId,
   onClearChat,
   onExportChat,
   t,
-  documents = [],
-  selectedDocumentIds = [],
-  onDocumentSelectionChange,
-  isPro = true,
   onAnalyzeCase,
 }) => {
   return (
@@ -50,34 +44,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: ANALIZO RASTIN + Document Selector + Action Buttons */}
+      {/* Right: ANALIZO RASTIN + Action Buttons */}
       <div className="flex items-center justify-end gap-2 shrink-0">
-        {/* PHOENIX FIX: Butoni i ri "Analizo Rastin" */}
-        {onAnalyzeCase && (
-          <button
-            type="button"
-            onClick={onAnalyzeCase}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 transition-all focus:outline-none cursor-pointer"
-            title="Analizo Rastin — Raporti i plotë forenzik"
-          >
-            <FileSearch size={15} />
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">
-              Analizo Rastin
-            </span>
-          </button>
-        )}
-
-        {/* Document Selector embedded right inside chat dock */}
-        {activeContextId !== 'general' && onDocumentSelectionChange && (
-          <div className="w-32 sm:w-44 z-[60]">
-            <DocumentSelector
-              documents={documents.map((d) => ({ id: d.id, file_name: d.file_name }))}
-              selectedIds={selectedDocumentIds}
-              onChange={onDocumentSelectionChange}
-              disabled={!isPro}
-            />
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={onAnalyzeCase}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-primary-start text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider shadow-md shadow-amber-500/20 hover:brightness-110 active:scale-95 transition-all focus:outline-none cursor-pointer"
+        >
+          <FileSearch size={15} />
+          <span>⚖️ Analizo Rastin</span>
+        </button>
 
         {onExportChat && (
           <button

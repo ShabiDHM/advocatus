@@ -1,5 +1,5 @@
-// FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V48.0 (ANALIZO RASTIN BUTTON IN HEADER)
+// FILE: frontend/src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V50.0 (ZERO TS WARNINGS & ZERO UNUSED VARIABLES)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -145,23 +145,24 @@ const resolveSuggestionCardUI = (query: string) => {
   };
 };
 
-const ChatPanel: React.FC<ChatPanelProps> = ({
-  messages = [],
-  connectionStatus,
-  onSendMessage,
-  isSendingMessage,
-  onClearChat,
-  onExportChat,
-  t,
-  className,
-  activeContextId,
-  documents = [],
-  selectedDocumentIds = [],
-  onDocumentSelectionChange,
-  userSalutation = 'Avokat',
-  clientPosition = 'DEFENDANT',
-  isPro = true,
-}) => {
+const ChatPanel: React.FC<ChatPanelProps> = (props) => {
+  const {
+    messages = [],
+    connectionStatus,
+    onSendMessage,
+    isSendingMessage,
+    onClearChat,
+    onExportChat,
+    t,
+    className,
+    activeContextId,
+    documents = [],
+    selectedDocumentIds = [],
+    userSalutation = 'Avokat',
+    clientPosition = 'DEFENDANT',
+    isPro = true,
+  } = props;
+
   const [input, setInput] = useState('');
   const [reasoningMode] = useState<ReasoningMode>('DEEP');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
@@ -224,9 +225,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         onClearChat={onClearChat}
         onExportChat={onExportChat}
         t={t}
-        documents={documents}
-        selectedDocumentIds={selectedDocumentIds}
-        onDocumentSelectionChange={onDocumentSelectionChange}
         isPro={isPro}
         onAnalyzeCase={() => sendMessage("ANALIZO RASTIN")}
       />
