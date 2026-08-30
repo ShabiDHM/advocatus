@@ -1,19 +1,17 @@
 # FILE: backend/app/services/rag/context_builder.py
-# PHOENIX PROTOCOL - CONTEXT BUILDER V2.0 (FULL CONTEXT - NO BLINDNESS)
+# PHOENIX PROTOCOL - CONTEXT BUILDER V4.0 (SMART DOCUMENT PRIORITIZATION)
 
 import logging
 from typing import List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
-# PHOENIX FIX: Konteksti i plotë — AI i sheh të gjitha dokumentet
-MAX_CONTEXT_CHARS = 140_000
-MAX_DOC_BUDGET = 15_000  # Maksimumi për çdo dokument individual
+MAX_CONTEXT_CHARS = 140_000  # Ende i plotë
 
 class ContextBuilder:
     """
-    Ndërton kontekstin e plotë nga dokumentet — V2.0.
-    Nuk e shkurton kontekstin — ResponseGenerator do ta ndajë në chunks nëse duhet.
+    V4.0: Rendit dokumentet sipas rëndësisë.
+    AI i sheh të gjitha dokumentet — jo i verbër.
     """
 
     @staticmethod
@@ -30,19 +28,60 @@ class ContextBuilder:
         ).strip()
 
     @staticmethod
+    def _prioritize_documents(documents: List[Dict]) -> List[Dict]:
+        """
+        Rendit dokumentet sipas rëndësisë juridike.
+        """
+        priority_keywords = {
+            "vendim": 100,
+            "aktgjykim": 100,
+            "aktvendim": 100,
+            "urdhër": 90,
+            "urdher": 90,
+            "ekspertiz": 90,
+            "raport": 80,
+            "test": 80,
+            "procesverbal": 75,
+            "deklarat": 70,
+            "marrëvesh": 70,
+            "padi": 65,
+            "kallëzim": 65,
+            "kallzim": 65,
+            "ankes": 65,
+            "apel": 65,
+            "korrespondenc": 40,
+            "email": 30,
+        }
+        
+        def get_priority(doc: Dict) -> int:
+            file_name = (doc.get("file_name") or "").lower()
+            title = (doc.get("title") or "").lower()
+            combined = f"{file_name} {title}"
+            
+            max_priority = 0
+            for keyword, priority in priority_keywords.items():
+                if keyword in combined:
+                    max_priority = max(max_priority, priority)
+            
+            return max_priority
+        
+        # Sorto sipas prioritetit (më i lartë i pari)
+        return sorted(documents, key=get_priority, reverse=True)
+
+    @staticmethod
     def build(
         case_docs: List[Dict],
         global_docs: List[Dict],
         db_documents: List[Dict]
     ) -> Tuple[str, str]:
-        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE DHE PASAPORTA FORENZIKE E FASHIKULLIT >>>\n"]
+        manifest_lines = ["\n<<< REGJISTRI I SKEDARËVE >>>\n"]
         context_blocks = []
         
-        if db_documents:
-            doc_budget = int((MAX_CONTEXT_CHARS * 0.70) / max(len(db_documents), 1))
-            doc_budget = max(doc_budget, 7_000)
-            
-            for idx, doc in enumerate(db_documents, 1):
+        # PHOENIX FIX V4.0: Rendit dokumentet sipas rëndësisë
+        prioritized_docs = ContextBuilder._prioritize_documents(db_documents)
+        
+        if prioritized_docs:
+            for idx, doc in enumerate(prioritized_docs, 1):
                 doc_id = str(doc.get("_id", ""))
                 file_name = doc.get("file_name") or doc.get("title") or f"Dokument_{idx}.pdf"
                 doc_clickable_link = f"[{file_name}](/documents/{doc_id})"
@@ -59,28 +98,29 @@ class ContextBuilder:
                 if summ == "Sinteza...":
                     summ = ""
 
-                dense_passport = summ or raw_t[:1500] or "Shkresë e administruar në fashikull."
-                manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:400]}")
+                dense_passport = summ or raw_t[:800] or "Shkresë e administruar."
+                manifest_lines.append(f"{idx}. {doc_clickable_link}: {dense_passport[:300]}")
                 
-                if len(db_documents) <= 15 and raw_t:
-                    context_blocks.append(f"\n--- TEKSTI I PLOTË I SHKRESËS: {doc_clickable_link} ---\n{raw_t[:doc_budget]}\n")
+                # PHOENIX FIX: Të gjitha dokumentet përfshihen — të plota
+                if raw_t:
+                    context_blocks.append(f"\n--- SHKRESA: {doc_clickable_link} ---\n{raw_t}\n")
         else:
-            context_blocks.append("Nuk ka dokumente të bashkangjitura në fashikull.\n\n")
+            context_blocks.append("Nuk ka dokumente të bashkangjitura.\n\n")
 
-        context_blocks.append("\n<<< PARAGRAFET FORENZIKE NGA KËRKIMI SEMANTIK NË FASHIKULL >>>\n")
+        context_blocks.append("\n<<< PARAGRAFET NGA KËRKIMI SEMANTIK >>>\n")
         for d in case_docs:
             src = d.get('source') or 'Dokument'
             page_info = f", Faqja: {d.get('page')}" if d.get('page') else ""
-            context_blocks.append(f"[{src}{page_info}]:\n{ContextBuilder._get_expanded_text(d)}\n")
+            text = ContextBuilder._get_expanded_text(d)
+            context_blocks.append(f"[{src}{page_info}]:\n{text}\n")
 
-        context_blocks.append("\n<<< BAZA STATUTARE DHE JURISPRUDENCA E GJYKATËS SUPREME >>>\n")
+        context_blocks.append("\n<<< BAZA STATUTORE DHE JURISPRUDENCA >>>\n")
         for d in global_docs:
             source_tag = d.get('source') or 'Burim Juridik'
-            context_blocks.append(f"BURIMI: {source_tag}\nPËRMBAJTJA: {ContextBuilder._get_expanded_text(d)}\n")
+            text = ContextBuilder._get_expanded_text(d)
+            context_blocks.append(f"BURIMI: {source_tag}\nPËRMBAJTJA: {text}\n")
 
         full_context = "".join(context_blocks)
         
-        if len(full_context) > MAX_CONTEXT_CHARS:
-            full_context = full_context[:MAX_CONTEXT_CHARS] + "\n[TË DHËNA TË PRERA PËR SHKAK TË MADHËSISË SË FASHIKULLIT]"
-
+        logger.info(f"📊 [Context] Gjithsej: {len(full_context)} karaktere")
         return "\n".join(manifest_lines), full_context

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V4.0 (CHUNKED PROCESSING - FULL CONTEXT)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V5.0 (SHORT CHUNK PROMPTS + FULL PROTOCOL IN FINAL)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -13,12 +13,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 LLM_TIMEOUT = 120
 
-# PHOENIX FIX: Kufiri i sigurt i token-ve
-MAX_CHUNK_CHARS = 20_000  # ~5,000 token per chunk
+MAX_CHUNK_CHARS = 15_000  # Reduktuar për të shmangur tejkalimin e token-ve
 
 class ResponseGenerator:
     """
-    V4.0: Përpunim me chunks — AI i sheh të gjitha dokumentet.
+    V5.0: Chunks me prompt të shkurtër, Protokolli i plotë në përmbledhjen finale.
     """
 
     def __init__(self):
@@ -30,10 +29,8 @@ class ResponseGenerator:
         )
 
     def _split_context_into_chunks(self, context: str, chunk_size: int = MAX_CHUNK_CHARS) -> List[str]:
-        """Ndan kontekstin në chunks të menaxhueshëm."""
         if not context:
             return []
-        
         if len(context) <= chunk_size:
             return [context]
         
@@ -58,25 +55,64 @@ class ResponseGenerator:
         logger.info(f"📋 [Chunked] Konteksti u nda në {len(chunks)} pjesë.")
         return chunks
 
+    def _build_short_chunk_prompt(self, chunk: str, chunk_num: int, total_chunks: int) -> str:
+        """
+        PHOENIX FIX V5.0: Prompt i SHKURTËR për çdo chunk.
+        Pa protokollin e plotë — vetëm udhëzime të shkurtra.
+        """
+        return f"""
+LEXO me kujdes këto dokumente (Pjesa {chunk_num}/{total_chunks}) dhe ZBULO VETË:
+
+1. Mospërputhjet në data (a ka prapadatime?)
+2. Kontradiktat në fakte (Dokumenti A thotë X, B thotë Y?)
+3. Shkeljet procedurale (a u respektuan afatet? a u dëgjuan palët?)
+4. Provat e injoruara (a ka prova që u dorëzuan por nuk u vlerësuan?)
+5. Veprimet e paligjshme (a ka elemente të veprës penale?)
+
+DOKUMENTET:
+{chunk}
+
+NXIRR:
+- Faktet kryesore (me datë)
+- Shkeljet e gjetura (me referencë në dokument)
+- Provat e rëndësishme
+- Aktorët dhe rolet e tyre
+
+Përgjigju shkurt, me pika. JO analiza të gjata.
+"""
+
+    def _build_final_prompt(self, combined_analyses: str, system_prompt: str, user_query: str) -> str:
+        """
+        PHOENIX FIX V5.0: Përmbledhja finale me protokollin e plotë.
+        """
+        return f"""
+Ti je Sokrati — Gjyqtari Suprem i Kosovës.
+
+Këtu janë analizat e pjesëve të veçanta të fashikullit:
+{combined_analyses}
+
+{system_prompt}
+
+Tani përpilo raportin e plotë dhe të strukturuar me të 5 pikat e detyrueshme.
+BAZOHU VETËM në analizat e mësipërme dhe në dokumentet e fashikullit.
+MOS shpik asgjë që nuk është në analiza ose në RAG context.
+"""
+
     async def generate_stream(
         self,
         system_prompt: str,
         user_query: str,
         context: str = ""
     ) -> AsyncGenerator[str, None]:
-        """
-        V4.0: Përpunon dokumentet në chunks dhe përmbledh në fund.
-        """
         try:
-            # 1. Ndan kontekstin në chunks
             chunks = self._split_context_into_chunks(context)
             
             if len(chunks) <= 1:
-                # Konteksti është mjaft i vogël — përpuno direkt
+                # Kontekst i vogël — përpuno direkt
                 response = await self.client.chat.completions.create(
                     model=OPENROUTER_MODEL,
                     messages=[
-                        {"role": "system", "content": system_prompt},
+                        {"role": "system", "content": system_prompt[:10_000]},
                         {"role": "user", "content": user_query}
                     ],
                     temperature=0.1,
@@ -102,28 +138,13 @@ Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
                     yield warning
                 
             else:
-                # Konteksti është i madh — përpuno në chunks
+                # Kontekst i madh — përpuno në chunks
                 yield "📋 Duke analizuar të gjitha dokumentet e fashikullit...\n\n"
                 
                 chunk_analyses = []
                 
                 for i, chunk in enumerate(chunks, 1):
-                    chunk_prompt = f"""
-                    Analizo Pjesën {i}/{len(chunks)} të dokumenteve.
-                    
-                    {system_prompt}
-                    
-                    DOKUMENTET (Pjesa {i}):
-                    {chunk}
-                    
-                    Nxjerr:
-                    1. Faktet kryesore
-                    2. Shkeljet ligjore
-                    3. Provat e rëndësishme
-                    4. Aktorët
-                    
-                    Përgjigju shkurt dhe me pika.
-                    """
+                    chunk_prompt = self._build_short_chunk_prompt(chunk, i, len(chunks))
                     
                     response = await self.client.chat.completions.create(
                         model=OPENROUTER_MODEL,
@@ -140,26 +161,15 @@ Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
                     chunk_analyses.append(f"### PJESA {i}:\n{chunk_analysis}")
                     yield f"✅ Pjesa {i}/{len(chunks)} u analizua.\n"
                 
-                # 2. Përmbledhja finale
                 yield "\n🔗 Duke përmbledhur të gjitha analizat...\n"
                 
                 combined_analyses = "\n\n".join(chunk_analyses)
-                
-                final_prompt = f"""
-                    Ti je Sokrati — Gjyqtari Suprem i Kosovës.
-                    
-                    Këtu janë analizat e pjesëve të veçanta të fashikullit:
-                    
-                    {combined_analyses}
-                    
-                    Përpilo një raport të plotë dhe të strukturuar me të 5 pikat e detyrueshme.
-                    Përgjigju në gjuhën shqipe juridike.
-                    """
+                final_prompt = self._build_final_prompt(combined_analyses, system_prompt, user_query)
                 
                 final_response = await self.client.chat.completions.create(
                     model=OPENROUTER_MODEL,
                     messages=[
-                        {"role": "system", "content": final_prompt},
+                        {"role": "system", "content": final_prompt[:20_000]},
                         {"role": "user", "content": user_query}
                     ],
                     temperature=0.1,
