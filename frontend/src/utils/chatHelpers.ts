@@ -1,5 +1,5 @@
 // FILE: frontend/src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V49.0 (NATURAL STREAMING & GRAMMATICALLY CLEAN LAW LINKING)
+// PHOENIX PROTOCOL - CHAT HELPERS V50.0 (CLEAN SANITIZATION & GUARANTEED DISCLAIMER)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -102,6 +102,18 @@ const createLinkedNumbers = (numbersBlock: string, lawName: string, createToken:
   return processed;
 };
 
+// SANITIZUESI DOKTRINAR: Fshin çdo nënshkrim fiktiv të sajuar nga LLM
+const stripFakeSignatures = (rawText: string): string => {
+  if (!rawText) return '';
+  let cleaned = rawText;
+
+  // Heq blloqet e nënshkrimit
+  cleaned = cleaned.replace(/\[\s*NËN[ËE]SHKRIMI[^\n\]]*\][\s\S]*?(?=(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË|\n\nSugjerime|$)/gi, '');
+  cleaned = cleaned.replace(/(?:J\.D\.|\[Emri\s+i\s+Gjyqtarit[^\]]*\]|Kolegji\s+(?:Penal|Civil|i\s+Gjyqtarëve)\s+i\s+Gjykatës\s+Supreme[^\n]*|⚖️\s*Nënshkruar\s+nga[^\n]*)[\s\S]*?(?=(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË|\n\nSugjerime|$)/gi, '');
+  
+  return cleaned.trim();
+};
+
 export const autoLinkLegalCitations = (text: any): string => {
   if (!text || typeof text !== 'string') return '';
 
@@ -112,7 +124,6 @@ export const autoLinkLegalCitations = (text: any): string => {
     return `___LAW_TOKEN_${savedTokens.length - 1}___`;
   };
 
-  // 1. Mbrojmë linket ekzistuese Markdown
   let processed = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
     return createToken(fullMatch);
   });
@@ -130,7 +141,7 @@ export const autoLinkLegalCitations = (text: any): string => {
 
     let lineProcessed = line;
 
-    // A. PASS 1: Ligji PARA listës (p.sh. "KPPRK (Ligji Nr. 08/L-032): Nenet 78, 80, 81...")
+    // PASS 1: Ligji PARA listës
     const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?:\s*\([^\)]+\))?:\s*(Nenet?|Nenit|Neni)\s*([\d\s,.\-–(dhe)(e)]+)/gi;
     lineProcessed = lineProcessed.replace(lawBeforeListRegex, (fullMatch, lawCandidate, _prefix, numbersBlock) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
@@ -141,7 +152,7 @@ export const autoLinkLegalCitations = (text: any): string => {
       return `${lawCandidate}: ${linkedNums}`;
     });
 
-    // B. PASS 2: Nenet me ligj PAS tyre (p.sh. "nenit 31 të KPRK-së", "Neni 10 i Ligjit Nr. 08/L-168", "Neni 6 KEDNJ")
+    // PASS 2: Nenet me ligj PAS tyre
     const explicitLawRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–(dhe)(e)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,40}?)(?=[.,;\n\r\)]|$)/gi;
     lineProcessed = lineProcessed.replace(explicitLawRegex, (fullMatch, _prefix, numbersBlock, lawCandidate) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
@@ -152,7 +163,7 @@ export const autoLinkLegalCitations = (text: any): string => {
       return `${linkedNums} të ${lawCandidate.trim()}`;
     });
 
-    // C. PASS 3: Nenet e vetmuara në tekst (p.sh. "Neni 424", "Neni 103", "nenit 96")
+    // PASS 3: Nenet e vetmuara
     const standaloneArticleRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+(\d+[a-zA-Z]?)(?:\s*\(([^)]+)\))?/gi;
     lineProcessed = lineProcessed.replace(standaloneArticleRegex, (fullMatch, _p1, artNum, parenText) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
@@ -171,7 +182,6 @@ export const autoLinkLegalCitations = (text: any): string => {
 
   processed = processedLines.join('\n');
 
-  // Rikthimi i të gjithë tokenave të mbrojtur
   let restored = processed;
   for (let i = savedTokens.length - 1; i >= 0; i--) {
     restored = restored.replace(new RegExp(`___LAW_TOKEN_${i}___`, 'g'), savedTokens[i]);
@@ -183,7 +193,7 @@ export const autoLinkLegalCitations = (text: any): string => {
 export const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
   if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
 
-  // Nxjerrim Klauzolën e Përgjegjësisë Ligjore vetëm kur vjen realisht nga backend-i
+  // Nxjerrim Klauzolën e Përgjegjësisë Ligjore
   let disclaimerBlock = '';
   const disclaimerRegex = /(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË\s+E\s+PËRGJEGJËSISË\s+LIGJORE\*?\*?:?[\s\S]*$/i;
   const disclaimerMatch = text.match(disclaimerRegex);
@@ -193,6 +203,9 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
     disclaimerBlock = disclaimerMatch[0].trim();
     textWithoutDisclaimer = text.substring(0, disclaimerMatch.index).trim();
   }
+
+  // Pastrojmë çdo nënshkrim fiktiv para mbylljes
+  textWithoutDisclaimer = stripFakeSignatures(textWithoutDisclaimer);
 
   const markerRegex = /(?:\n|^)(?:#{1,4}\s*)?(?:Sugjerime(?:\s+për\s+hapat\s+e\s+ardhshëm)?|Pyetje\s+sugjeruese|Pyetje\s+për\s+hapat\s+e\s+ardhshëm|Hapat\s+e\s+Ardhshëm\s+të\s+Sugjeruar)\s*:?/i;
   const match = textWithoutDisclaimer.match(markerRegex);
@@ -218,7 +231,6 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
       .slice(0, 4);
   }
 
-  // Disclaimer-i vendoset NË FUND vetëm kur ka ardhur realisht nga backend-i (pa prishur streaming-un live)
   if (disclaimerBlock) {
     cleanText = `${cleanText}\n\n${disclaimerBlock}`;
   }
