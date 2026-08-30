@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V132.0 (CHUNKED PROCESSING ENABLED)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V133.0 (COMPREHENSIVE ANALYSIS ADDED)
 
 import os
 import logging
@@ -15,13 +15,14 @@ from app.services.rag.intent_detector import IntentDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
 
-# Importimi i 6 Moduleve të Pavarura (Pillars)
+# Importimi i Moduleve të Pavarura (Pillars)
 from app.services.pillars.pillar_1_strategy import Pillar1StrategyService
 from app.services.pillars.pillar_2_statutes import Pillar2StatutesService
 from app.services.pillars.pillar_3_questions import Pillar3QuestionsService
 from app.services.pillars.pillar_4_damages import Pillar4DamagesService
 from app.services.pillars.forensic_audit_service import ForensicAuditService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
+from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -38,19 +39,15 @@ MANDATORY_LEGAL_DISCLAIMER = (
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V132.0 Modular me Chunked Processing:
-    - IntentDetector: Zbulon çfarë kërkon përdoruesi
-    - ContextBuilder: Ndërton kontekstin nga dokumentet
-    - ResponseGenerator: Thërret LLM + Filtron halucinacionet + Chunked Processing
+    Shërbimi Kryesor RAG — V133.0 Modular me Comprehensive Analysis.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V132.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V133.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
-        """Pastron query-n nga fjalë hyrëse dhe zgjeron shkurtesat."""
         cleaned = query.strip()
         preambles = [
             r"^\s*më\s+trego\s+rreth\s+",
@@ -76,12 +73,10 @@ class AlbanianRAGService:
         return cleaned.strip()
 
     def _determine_remaining_pills(self, query: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        """Kthen sugjerimet për kartelat e mbetura."""
         all_pillars = [
-            "Duke u bazuar në të gjithë fashikullin e lëndës, analizo dhe ndërto të gjitha shtyllat strategjike të kërkesëpadisë/kallëzimit tonë.",
-            "Analizo të gjithë fashikullin: nxirr bazën e plotë ligjore dhe audito lapsuset me precedentët e Gjykatës Supreme.",
-            "Gjenero pyetësorin taktik të ballafaqimit për të zbuluar të pavërtetat e palës kundërshtare.",
-            "Llogarit dëmet materiale e jomateriale sipas LMD-së me kamatën 8% dhe masat emergjente."
+            "Analizo rastin — Raporti i plotë forenzik",
+            "Audito dokumentin — Kontroll forenzik",
+            "Hartoni aktin — Padia, Kallëzimi, Ankesa"
         ]
 
         past_texts = []
@@ -99,14 +94,12 @@ class AlbanianRAGService:
         combined = " ".join(past_texts)
         remaining = []
 
-        if "shtyllat strategjike" not in combined and "strategjia dhe matrica" not in combined:
+        if "analizo rastin" not in combined and "raport i plotë" not in combined:
             remaining.append(all_pillars[0])
-        if "nxirr bazën e plotë ligjore" not in combined and "baza statutore" not in combined:
+        if "audito" not in combined and "kontroll forenzik" not in combined:
             remaining.append(all_pillars[1])
-        if "pyetësorin taktik" not in combined and "pyetjet taktike" not in combined:
+        if "harto" not in combined and "hartoni" not in combined:
             remaining.append(all_pillars[2])
-        if "llogarit dëmet" not in combined and "kamatën ligjore" not in combined:
-            remaining.append(all_pillars[3])
 
         return remaining
 
@@ -128,7 +121,6 @@ class AlbanianRAGService:
         case_title = "Lënda Ligjore"
         db_documents = []
 
-        # 1. Lexo të dhënat e çështjes
         if case_id and self.db is not None:
             try:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -153,12 +145,10 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        # 2. Zbulo qëllimin e përdoruesit
         from app.services import vector_store_service
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # 3. Kërko në RAG
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=30
         )
@@ -166,12 +156,20 @@ class AlbanianRAGService:
             query_text=optimized_query, n_results=16
         )
 
-        # 4. Ndërto kontekstin
         manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
         remaining_pills = self._determine_remaining_pills(query=query, history=history)
 
-        # 5. Ndërto prompt-in sipas qëllimit
-        if user_intent == "FORENSIC_AUDIT":
+        if user_intent == "COMPREHENSIVE_ANALYSIS":
+            system_prompt = ComprehensiveAnalysisService.build_prompt(
+                case_title=case_title,
+                client_name=client_name,
+                client_position=client_position,
+                current_date_str=current_date_str,
+                manifest_str=manifest_str,
+                context_str=context_str,
+                db=self.db
+            )
+        elif user_intent == "FORENSIC_AUDIT":
             system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -215,14 +213,11 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # 6. PHOENIX FIX: Gjenero përgjigjen me chunked processing
         async for content in self.response_generator.generate_stream(system_prompt, optimized_query, context_str):
             yield content
 
-        # 7. Sugjerimet interaktive
-        if user_intent in ["FORENSIC_AUDIT", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills:
+        if user_intent in ["COMPREHENSIVE_ANALYSIS", "FORENSIC_AUDIT", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills:
             pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
             yield pills_block
 
-        # 8. Klauzola e detyrueshme
         yield MANDATORY_LEGAL_DISCLAIMER

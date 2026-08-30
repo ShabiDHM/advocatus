@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V5.1 (FASTER CHUNKS - 40K)
+# PHOENIX PROTOCOL - RESPONSE GENERATOR V6.0 (STREAMING + FILTER + WARNING)
 
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -13,12 +13,14 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 LLM_TIMEOUT = 120
 
-MAX_CHUNK_CHARS = 40_000  # PHOENIX FIX V5.1: Chunks më të mëdha për shpejtësi
+MAX_CHUNK_CHARS = 40_000
 
 class ResponseGenerator:
     """
-    V5.1: Chunks më të mëdha (40K) për shpejtësi.
-    Më pak thirrje te LLM = më pak kohë pritjeje.
+    V6.0: Streaming me filtër në fund.
+    - Përdoruesi sheh përgjigjen duke u gjeneruar
+    - Në fund, filtri kontrollon dhe tregon cilat precedentë janë të paverifikuar
+    - Paralajmërimi shfaqet me listën e saktë të halucinacioneve
     """
 
     def __init__(self):
@@ -57,9 +59,6 @@ class ResponseGenerator:
         return chunks
 
     def _build_short_chunk_prompt(self, chunk: str, chunk_num: int, total_chunks: int) -> str:
-        """
-        Prompt i SHKURTËR për çdo chunk.
-        """
         return f"""
 LEXO me kujdes këto dokumente (Pjesa {chunk_num}/{total_chunks}) dhe ZBULO VETË:
 
@@ -82,9 +81,6 @@ Përgjigju shkurt, me pika. JO analiza të gjata.
 """
 
     def _build_final_prompt(self, combined_analyses: str, system_prompt: str, user_query: str) -> str:
-        """
-        Përmbledhja finale me protokollin e plotë.
-        """
         return f"""
 Ti je Sokrati — Gjyqtari Suprem i Kosovës.
 
@@ -98,6 +94,23 @@ BAZOHU VETËM në analizat e mësipërme dhe në dokumentet e fashikullit.
 MOS shpik asgjë që nuk është në analiza ose në RAG context.
 """
 
+    def _build_warning(self, replaced_precedents: List[str]) -> str:
+        """
+        PHOENIX FIX V6.0: Paralajmërimi me listën e saktë.
+        """
+        if not replaced_precedents:
+            return ""
+        
+        details = "\n".join([f"   • {p}" for p in replaced_precedents])
+        return f"""
+---
+⚠️ **KUJDES I VEÇANTË:** Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
+
+{details}
+
+Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
+"""
+
     async def generate_stream(
         self,
         system_prompt: str,
@@ -108,7 +121,9 @@ MOS shpik asgjë që nuk është në analiza ose në RAG context.
             chunks = self._split_context_into_chunks(context)
             
             if len(chunks) <= 1:
-                # Kontekst i vogël — përpuno direkt
+                # STREAMING për kontekst të vogël
+                full_text = ""
+                
                 response = await self.client.chat.completions.create(
                     model=OPENROUTER_MODEL,
                     messages=[
@@ -116,29 +131,25 @@ MOS shpik asgjë që nuk është në analiza ose në RAG context.
                         {"role": "user", "content": user_query}
                     ],
                     temperature=0.1,
-                    stream=False,
+                    stream=True,
                     max_tokens=8192
                 )
                 
-                full_text = response.choices[0].message.content or ""
-                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(full_text)
-                yield filtered_text
+                # Yield pjesët e përgjigjes në kohë reale
+                async for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content_piece = chunk.choices[0].delta.content
+                        full_text += content_piece
+                        yield content_piece
                 
-                if replaced:
-                    details = "\n".join([f"   • {p}" for p in replaced])
-                    warning = f"""
----
-⚠️ **KUJDES I VEÇANTË:**
-Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
-
-{details}
-
-Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
-"""
+                # Në fund, filtro dhe trego halucinacionet
+                replaced = HallucinationFilter.extract_unverified_precedents(full_text)
+                warning = self._build_warning(replaced)
+                if warning:
                     yield warning
                 
             else:
-                # Kontekst i madh — përpuno në chunks
+                # CHUNKED për kontekst të madh
                 yield "📋 Duke analizuar të gjitha dokumentet e fashikullit...\n\n"
                 
                 chunk_analyses = []
@@ -173,25 +184,22 @@ Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
                         {"role": "user", "content": user_query}
                     ],
                     temperature=0.1,
-                    stream=False,
+                    stream=True,
                     max_tokens=8192
                 )
                 
-                final_text = final_response.choices[0].message.content or ""
-                filtered_text, replaced = HallucinationFilter.filter_precedents_with_details(final_text)
-                yield filtered_text
+                # Yield përmbledhjen në kohë reale
+                final_text = ""
+                async for chunk in final_response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content_piece = chunk.choices[0].delta.content
+                        final_text += content_piece
+                        yield content_piece
                 
-                if replaced:
-                    details = "\n".join([f"   • {p}" for p in replaced])
-                    warning = f"""
----
-⚠️ **KUJDES I VEÇANTË:**
-Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
-
-{details}
-
-Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
-"""
+                # Në fund, filtro dhe trego halucinacionet
+                replaced = HallucinationFilter.extract_unverified_precedents(final_text)
+                warning = self._build_warning(replaced)
+                if warning:
                     yield warning
                 
         except Exception as e:

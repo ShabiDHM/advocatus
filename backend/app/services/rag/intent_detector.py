@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/intent_detector.py
-# PHOENIX PROTOCOL - INTENT DETECTOR V1.0
+# PHOENIX PROTOCOL - INTENT DETECTOR V2.0 (COMPREHENSIVE ANALYSIS ADDED)
 
 import re
 import logging
@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class IntentDetector:
     """
     Zbulon se çfarë kërkon përdoruesi:
+    - COMPREHENSIVE_ANALYSIS: Raporti i plotë forenzik
     - FORENSIC_AUDIT: Ikona ⚖️ — Auditim forenzik i dokumentit
     - DRAFTING: Hartim i akteve zyrtare
     - PILLAR_STRATEGY: Karta 1 — Strategjia
@@ -22,6 +23,15 @@ class IntentDetector:
     def detect(query: str) -> str:
         q = query.lower()
         
+        # 0. ANALIZA E PLOTË E RASTIT (RAPORTI I UNIFIKUAR)
+        comprehensive_keywords = [
+            "analizo rastin", "analizo rast", "analiza e plotë", "analiza e plote",
+            "raport i plotë", "raport i plote", "analizë e plotë", "analize e plote",
+            "raport forenzik", "analiza forenzike", "analiza e rastit"
+        ]
+        if any(k in q for k in comprehensive_keywords):
+            return "COMPREHENSIVE_ANALYSIS"
+
         # 1. FORENZIKA LIGJORE (⚖️)
         audit_keywords = [
             "forenzika ligjore", "forenzikë ligjore", "forenzike", "forenzikë",

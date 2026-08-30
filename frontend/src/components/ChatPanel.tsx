@@ -1,11 +1,11 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V46.0 (EXECUTIVE CARD-TITLED SUGGESTION BUTTONS)
+// PHOENIX PROTOCOL - CHAT PANEL V47.0 (ANALIZO RASTIN - ONE-CLICK COMPREHENSIVE REPORT)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, BrainCircuit, User, RefreshCw, Sparkles, 
-  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight 
+  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight, Gavel
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -49,7 +49,6 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
 }
 
-// Funksion për formatimin vizual të mesazheve të dërguara në UI
 const formatUserDisplayMessage = (content: string) => {
   if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
     const docMatch = content.match(/"([^"]+)"/);
@@ -59,6 +58,15 @@ const formatUserDisplayMessage = (content: string) => {
         <Scale size={15} className="text-primary-start shrink-0" />
         <span>Forenzika Ligjore:</span>
         <span className="text-primary-start italic truncate">{docName}</span>
+      </div>
+    );
+  }
+
+  if (content.includes('ANALIZO RASTIN') || content.includes('analizo rastin')) {
+    return (
+      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
+        <Gavel size={15} className="text-primary-start shrink-0" />
+        <span>⚖️ Analizo Rastin — Raporti i Plotë Forenzik</span>
       </div>
     );
   }
@@ -103,9 +111,24 @@ const formatUserDisplayMessage = (content: string) => {
   return content;
 };
 
-// Formatimi i titullit dhe nëntitullit të butonave të sugjeruar
 const resolveSuggestionCardUI = (query: string) => {
   const q = query.toLowerCase();
+
+  if (q.includes('analizo rastin') || q.includes('raport i plotë')) {
+    return {
+      title: '⚖️ Analizo Rastin',
+      desc: 'Raporti i plotë forenzik — 10 seksione me shkeljet, provat, nenet, planin e veprimit.',
+      icon: <Gavel size={16} className="text-primary-start shrink-0 mt-0.5" />
+    };
+  }
+
+  if (q.includes('audito') || q.includes('kontroll forenzik')) {
+    return {
+      title: '🔍 Audito Dokumentin',
+      desc: 'Kontrolli forenzik i një dokumenti specifik.',
+      icon: <Scale size={16} className="text-purple-500 shrink-0 mt-0.5" />
+    };
+  }
 
   if (q.includes('nxirr bazën e plotë ligjore') || q.includes('baza statutore')) {
     return {
@@ -252,6 +275,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                 const isSpecialCommand = msg.role === 'user' && (
                   msg.content.startsWith('[DIREKTIVË') || 
+                  msg.content.toUpperCase().includes('ANALIZO RASTIN') ||
                   msg.content.includes('shtyllat strategjike') ||
                   msg.content.includes('nxirr bazën e plotë ligjore') ||
                   msg.content.includes('pyetësorin taktik') ||
@@ -284,7 +308,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     >
                       {msg.content && !isSpecialCommand && <MessageCopyButton text={msg.content} />}
 
-                      {/* USER MESSAGE VS AI MESSAGE */}
                       {msg.role === 'user' ? (
                         formatUserDisplayMessage(msg.content)
                       ) : (
@@ -295,7 +318,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         </div>
                       )}
 
-                      {/* EXECUTIVE SUGGESTION ACTION BUTTONS WITH TITLES & SUBTITLES */}
                       {msg.role === 'ai' &&
                         idx === displayMessages.length - 1 &&
                         !isSendingMessage &&
@@ -364,7 +386,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 );
               })}
 
-              {/* ANIMATED THINKING BUBBLE */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 
