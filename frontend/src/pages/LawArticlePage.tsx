@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - RESPONSIVE MOBILE & TABLET LAW ARTICLE PAGE
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE WITH MODAL AUDITOR & MULTI-DEVICE MEMORY
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -26,6 +26,7 @@ export default function LawArticlePage() {
   const [error, setError] = useState('');
 
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showAuditorModal, setShowAuditorModal] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -36,7 +37,6 @@ export default function LawArticlePage() {
   const [inputQuery, setInputQuery] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [chatVisible, setChatVisible] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const summarySectionRef = useRef<HTMLDivElement>(null);
@@ -148,31 +148,15 @@ export default function LawArticlePage() {
     loadArticle();
   }, [lawTitle, articleNumber, t]);
 
-  useEffect(() => {
-    if (chatContainerRef.current && chatVisible) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [messages, chatVisible]);
-
-  useEffect(() => {
-    if (summaryContent && chatVisible && messages.length === 0 && !isSummarizing) {
-      setTimeout(() => setShowSuggestions(true), 500);
-      setTimeout(() => {
-        chatPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        inputRef.current?.focus();
-      }, 300);
-    }
-  }, [summaryContent, chatVisible, messages.length, isSummarizing]);
-
+  // Hapja e Modalit dhe Nisja e Analizës me Cache
   const handleStartAudit = async () => {
-    if (!article || isSummarizing) return;
-    setSummaryContent('');
-    setSummaryError('');
-    setMessages([]);
-    setShowSuggestions(false);
-    setChatVisible(false);
-    setIsSummarizing(true);
+    if (!article) return;
+    setShowAuditorModal(true);
 
+    if (summaryContent) return; // Nëse e kemi tashmë të ngarkuar në këtë sesion
+
+    setIsSummarizing(true);
+    setSummaryError('');
     try {
       const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
       let accumulated = '';
@@ -180,7 +164,6 @@ export default function LawArticlePage() {
         accumulated += chunk;
         setSummaryContent(accumulated);
       }
-      setChatVisible(true);
     } catch (err: any) {
       console.error('[ERROR] Summary failed:', err);
       setSummaryError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
@@ -189,11 +172,25 @@ export default function LawArticlePage() {
     }
   };
 
-  const handleSendQuery = async (query?: string) => {
-    if (!article || !article.chunk_id) {
-      setChatError('Artikulli nuk ka identifikues të vlefshëm. Ju lutemi rifreskoni faqen.');
-      return;
+  // Shlyerja e Analizës nga Memoria (Clear Cache)
+  const handleClearCache = async () => {
+    if (!article) return;
+    try {
+      await apiService.axiosInstance.delete('/laws/explain/cache', {
+        params: {
+          law_title: article.law_title,
+          article_number: article.article_number
+        }
+      });
+      setSummaryContent('');
+      handleStartAudit(); // Ri-gjenero menjëherë pas fshirjes
+    } catch (err) {
+      console.error("Purge cache failed:", err);
     }
+  };
+
+  const handleSendQuery = async (query?: string) => {
+    if (!article || !article.chunk_id) return;
 
     const finalQuery = query ?? inputQuery.trim();
     if (!finalQuery || isAuditing) return;
@@ -298,14 +295,10 @@ export default function LawArticlePage() {
             jumpInput={jumpInput}
             onJumpInputChange={setJumpInput}
             onJumpSubmit={handleJumpSubmit}
-            chatVisible={chatVisible}
+            chatVisible={showAuditorModal}
             isSummarizing={isSummarizing}
             onStartAudit={handleStartAudit}
-            onCloseAuditor={() => {
-              setChatVisible(false);
-              setMessages([]);
-              setSummaryContent('');
-            }}
+            onCloseAuditor={() => setShowAuditorModal(false)}
             t={t}
           />
 
@@ -316,12 +309,14 @@ export default function LawArticlePage() {
             t={t}
           />
 
+          {/* AUDITOR MODAL POPUP DIALOG */}
           <LawArticleAuditorPanel
+            isOpen={showAuditorModal}
             summaryContent={summaryContent}
             isSummarizing={isSummarizing}
             summaryError={summaryError}
             cleanSummary={cleanSummary}
-            chatVisible={chatVisible}
+            chatVisible={true}
             messages={messages}
             showSuggestions={showSuggestions}
             isAuditing={isAuditing}
@@ -329,11 +324,8 @@ export default function LawArticlePage() {
             inputQuery={inputQuery}
             onInputQueryChange={setInputQuery}
             onSendQuery={handleSendQuery}
-            onCloseAuditor={() => {
-              setSummaryContent('');
-              setSummaryError('');
-              setChatVisible(false);
-            }}
+            onCloseAuditor={() => setShowAuditorModal(false)}
+            onClearCache={handleClearCache}
             summarySectionRef={summarySectionRef}
             chatPanelRef={chatPanelRef}
             chatContainerRef={chatContainerRef}
@@ -341,7 +333,7 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* Shiriti i poshtëm me Touch Targets optimalë */}
+          {/* Shiriti i poshtëm */}
           <div className="bg-surface px-4 sm:px-8 py-4 sm:py-5 flex justify-center items-center border-t border-main gap-3 sm:gap-4 mt-5 sm:mt-6">
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center">
               {prevArticleNum !== null && (
