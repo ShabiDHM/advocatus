@@ -1,5 +1,5 @@
 // FILE: src/components/law/LawArticleContent.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE CONTENT (NO REDUNDANT FOOTER)
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE CONTENT
 
 import React from 'react';
 import { FileText, ExternalLink } from 'lucide-react';
@@ -28,15 +28,15 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
 
   return (
     <div className="flex flex-col overflow-hidden shadow-sm border border-main rounded-2xl bg-canvas">
-      {/* Header i Pastër i Ligjit */}
-      <div className="px-6 sm:px-8 py-6 border-b border-main bg-surface/50">
-        <div className="flex flex-col gap-4">
+      {/* Header i Ligjit me Tipografi të Rregullt */}
+      <div className="px-6 sm:px-8 py-5 border-b border-main bg-surface/50">
+        <div className="flex flex-col gap-3.5">
           <div className="flex items-center">
-            {/* Butoni Dokumenti PDF majtas */}
+            {/* Butoni Dokumenti PDF (h-9 i barazpeshuar) */}
             <button
               type="button"
               onClick={onOpenPdf}
-              className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
+              className="h-9 px-3.5 flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 rounded-xl text-xs font-semibold transition-all hover-lift cursor-pointer"
               title="Shiko dokumentin PDF të plotë"
             >
               <FileText size={14} />
@@ -52,18 +52,18 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
         </div>
       </div>
 
-      {/* Trupi i Dokumentit / Neni (pa footer të panevojshëm) */}
-      <div className="px-3 sm:px-8 py-8 sm:py-12 flex justify-center bg-canvas">
-        <div className="w-full max-w-[90ch] bg-surface border border-main rounded-2xl shadow-lg p-6 sm:p-12 md:p-14 relative">
+      {/* Trupi i Dokumentit / Neni */}
+      <div className="px-4 sm:px-8 py-8 sm:py-12 flex justify-center bg-canvas">
+        <div className="w-full max-w-[85ch] bg-surface border border-main rounded-2xl shadow-lg p-6 sm:p-12 relative">
           
           {/* Titulli i Nenit */}
-          <div className="text-center pb-6 mb-8 border-b border-main">
+          <div className="text-center pb-5 mb-7 border-b border-main">
             <h2 className="text-2xl sm:text-3xl font-black text-text-primary uppercase tracking-wide font-serif">
               {articleHeading}
             </h2>
           </div>
 
-          {/* Përmbajtja e Nenit */}
+          {/* Teksti i Nenit */}
           <div className="text-[15px] sm:text-[16px] md:text-[17px] text-text-primary leading-[1.85] font-normal whitespace-pre-line text-left font-serif tracking-normal selection:bg-primary-start/20">
             {article.text}
           </div>

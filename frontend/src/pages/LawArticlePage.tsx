@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE PAGE
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE PAGE WITH CONSISTENT BOTTOM CONTROLS
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -341,16 +341,16 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* Shiriti i poshtëm vetëm me butonat e qendrës */}
+          {/* Shiriti i poshtëm: Lartësi fikse h-10, kënde rounded-xl, dhe shkrim Title Case i barabartë */}
           <div className="bg-surface px-6 sm:px-8 py-5 flex justify-center items-center border-t border-main gap-4 mt-6">
             <div className="flex items-center gap-3">
               {prevArticleNum !== null && (
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(prevArticleNum)}
-                  className="flex items-center gap-2 px-3.5 py-1.5 bg-canvas hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
+                  className="h-10 px-4 flex items-center gap-2 bg-canvas hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
                 >
-                  <ChevronLeft size={14} />
+                  <ChevronLeft size={15} className="text-primary-start" />
                   <span>{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
                 </button>
               )}
@@ -359,10 +359,10 @@ export default function LawArticlePage() {
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(nextArticleNum)}
-                  className="flex items-center gap-2 px-3.5 py-1.5 bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 rounded-xl text-xs font-bold text-primary-start transition-all shadow-sm uppercase tracking-wider cursor-pointer"
+                  className="h-10 px-4 flex items-center gap-2 bg-canvas hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
                 >
                   <span>{`Neni ${nextArticleNum}`}</span>
-                  <ChevronRight size={14} />
+                  <ChevronRight size={15} className="text-primary-start" />
                 </button>
               )}
             </div>
