@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE WITH MODAL AUDITOR & MULTI-DEVICE MEMORY
+// PHOENIX PROTOCOL - ULTRA-ECONOMICAL FLOW: OPEN MODAL WITHOUT RE-ANALYZING & CONTROLLED RE-RUN
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -75,6 +75,14 @@ export default function LawArticlePage() {
     return summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referenc\.\*/g, '').trim();
   }, [summaryContent]);
 
+  // Ndryshimi i nenit pastron analizën lokale për nenin e ri
+  useEffect(() => {
+    setSummaryContent('');
+    setSummaryError('');
+    setMessages([]);
+    setShowAuditorModal(false);
+  }, [lawTitle, articleNumber]);
+
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -148,12 +156,13 @@ export default function LawArticlePage() {
     loadArticle();
   }, [lawTitle, articleNumber, t]);
 
-  // Hapja e Modalit dhe Nisja e Analizës me Cache
-  const handleStartAudit = async () => {
+  // ⚡ FLOW EKONOMIK: Klikimi vetëm hap modalin (ose ngarkon nga cache nëse nuk është hapur)
+  const handleOpenAuditModal = async () => {
     if (!article) return;
     setShowAuditorModal(true);
 
-    if (summaryContent) return; // Nëse e kemi tashmë të ngarkuar në këtë sesion
+    // Nëse e kemi tashmë analizën në ekran, NUK BËJMË ASNJË THIRRJE TË RE!
+    if (summaryContent) return;
 
     setIsSummarizing(true);
     setSummaryError('');
@@ -172,7 +181,35 @@ export default function LawArticlePage() {
     }
   };
 
-  // Shlyerja e Analizës nga Memoria (Clear Cache)
+  // 🔄 RIANALIZO NENIN (DETYRON GJENERIM TË RI NGA AI)
+  const handleReanalyze = async () => {
+    if (!article || isSummarizing) return;
+    setSummaryContent('');
+    setSummaryError('');
+    setIsSummarizing(true);
+
+    try {
+      // Pastron cache-in fillimisht
+      await apiService.axiosInstance.delete('/laws/explain/cache', {
+        params: { law_title: article.law_title, article_number: article.article_number }
+      });
+
+      // Rinis gjenerimin e ri
+      const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
+      let accumulated = '';
+      for await (const chunk of stream) {
+        accumulated += chunk;
+        setSummaryContent(accumulated);
+      }
+    } catch (err: any) {
+      console.error('[ERROR] Reanalyze failed:', err);
+      setSummaryError(t('lawArticle.aiError', 'Dështoi rianaliza inteligjente.'));
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  // 🗑️ SHLYEJ ANALIZËN NGA MEMORIA
   const handleClearCache = async () => {
     if (!article) return;
     try {
@@ -183,7 +220,8 @@ export default function LawArticlePage() {
         }
       });
       setSummaryContent('');
-      handleStartAudit(); // Ri-gjenero menjëherë pas fshirjes
+      setMessages([]);
+      setShowAuditorModal(false); // Mbyll modalin pas fshirjes
     } catch (err) {
       console.error("Purge cache failed:", err);
     }
@@ -297,7 +335,7 @@ export default function LawArticlePage() {
             onJumpSubmit={handleJumpSubmit}
             chatVisible={showAuditorModal}
             isSummarizing={isSummarizing}
-            onStartAudit={handleStartAudit}
+            onStartAudit={handleOpenAuditModal}
             onCloseAuditor={() => setShowAuditorModal(false)}
             t={t}
           />
@@ -309,7 +347,7 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* AUDITOR MODAL POPUP DIALOG */}
+          {/* AUDITOR MODAL DIALOG */}
           <LawArticleAuditorPanel
             isOpen={showAuditorModal}
             summaryContent={summaryContent}
@@ -326,6 +364,7 @@ export default function LawArticlePage() {
             onSendQuery={handleSendQuery}
             onCloseAuditor={() => setShowAuditorModal(false)}
             onClearCache={handleClearCache}
+            onReanalyze={handleReanalyze}
             summarySectionRef={summarySectionRef}
             chatPanelRef={chatPanelRef}
             chatContainerRef={chatContainerRef}

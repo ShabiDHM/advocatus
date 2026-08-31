@@ -1,10 +1,10 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - 100% OPAQUE UNIFIED AUDITOR MODAL (NO TABS, INLINE CHAT & ICON-ONLY TRASH)
+// PHOENIX PROTOCOL - 100% TYPE-SAFE OPAQUE AUDITOR MODAL WITH AUTO-EXPANDING INPUT
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2 } from 'lucide-react';
+import { BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { ChatMessage, SUGGESTED_QUESTIONS } from './lawArticleTypes';
 import { TFunction } from 'i18next';
 
@@ -24,10 +24,11 @@ interface LawArticleAuditorPanelProps {
   onSendQuery: (query?: string) => void;
   onCloseAuditor: () => void;
   onClearCache?: () => void;
-  summarySectionRef: React.Ref<HTMLDivElement>;
-  chatPanelRef: React.Ref<HTMLDivElement>;
-  chatContainerRef: React.Ref<HTMLDivElement>;
-  inputRef: React.Ref<HTMLTextAreaElement>;
+  onReanalyze?: () => void;
+  summarySectionRef?: React.Ref<HTMLDivElement>;
+  chatPanelRef?: React.Ref<HTMLDivElement>;
+  chatContainerRef?: React.Ref<HTMLDivElement>;
+  inputRef?: React.Ref<HTMLTextAreaElement>;
   t: TFunction;
 }
 
@@ -46,11 +47,13 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
   onSendQuery,
   onCloseAuditor,
   onClearCache,
+  onReanalyze,
   chatContainerRef,
   inputRef,
   t,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const localTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -59,7 +62,33 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
 
   if (!isOpen || !mounted) return null;
 
-  // Renderim i pastër tipografik pa linqe URL
+  // Auto-Zgjerimi i Tastierës sipas Tekstit
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onInputQueryChange(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!inputQuery.trim() || isAuditing) return;
+      onSendQuery();
+      if (localTextareaRef.current) {
+        localTextareaRef.current.style.height = 'auto';
+      }
+    }
+  };
+
+  const handleSendClick = () => {
+    if (!inputQuery.trim() || isAuditing) return;
+    onSendQuery();
+    if (localTextareaRef.current) {
+      localTextareaRef.current.style.height = 'auto';
+    }
+  };
+
+  // Renderim i pastër tipografik
   const renderCleanTypography = (text: string) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -68,7 +97,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
       const trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-3" />;
 
-      // Tituj me Ikona (📌, ⚖️, ⚠️, 🔗)
       if (
         trimmed.startsWith('📌') ||
         trimmed.startsWith('⚖️') ||
@@ -87,7 +115,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         );
       }
 
-      // Rreshta me pika
       if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
         const itemText = trimmed.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '');
         return (
@@ -100,7 +127,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         );
       }
 
-      // Paragraf standard
       const cleanParagraph = trimmed.replace(/\*\*/g, '');
       return (
         <p
@@ -117,7 +143,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     <AnimatePresence>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
         
-        {/* 1. Backdrop i Fortë i Errët */}
+        {/* 1. Backdrop i Fortë */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -126,7 +152,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md"
         />
 
-        {/* 2. Trupi i Modalit (100% Solid Opaque pa Transparencë) */}
+        {/* 2. Trupi i Modalit (100% Solid Opaque) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -136,7 +162,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           className="relative z-10 w-full max-w-3xl bg-white dark:bg-[#0B101D] border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden text-slate-900 dark:text-slate-100"
         >
           
-          {/* Header me Titull, Ikonën Trash dhe Mbyllje */}
+          {/* Header me Titull, Ikonat Rianalizo, Shlyej dhe Mbyll */}
           <div className="px-5 sm:px-7 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070B14] shrink-0">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start shrink-0">
@@ -151,6 +177,18 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Butoni Rianalizo (RotateCcw) */}
+              {onReanalyze && summaryContent && !isSummarizing && (
+                <button
+                  type="button"
+                  onClick={onReanalyze}
+                  className="h-9 w-9 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] text-slate-400 hover:text-primary-start hover:bg-primary-start/10 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
+                  title="Rianalizo nenin me AI (Fresh Run)"
+                >
+                  <RotateCcw size={15} />
+                </button>
+              )}
+
               {/* Butoni Shlyej VETËM ME IKONË */}
               {onClearCache && summaryContent && (
                 <button
@@ -159,7 +197,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                   className="h-9 w-9 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] text-slate-400 hover:text-red-500 hover:bg-red-500/10 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
                   title="Shlyej analizën nga memoria"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={15} />
                 </button>
               )}
 
@@ -174,7 +212,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Përmbajtja me Scroll (Analiza + Biseda Bashkë) */}
+          {/* Përmbajtja me Scroll */}
           <div className="p-5 sm:p-7 overflow-y-auto custom-scrollbar flex-1 space-y-6">
             
             {/* 1. SEKSIONI I ANALIZËS LIGJORE */}
@@ -214,7 +252,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
               )}
             </div>
 
-            {/* 2. SEKSIONI I BISEDËS DHE PYETJEVE INTERAKTIVE */}
+            {/* 2. SEKSIONI I BISEDËS */}
             {summaryContent && (
               <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
                 <div ref={chatContainerRef} className="space-y-3 mb-2">
@@ -243,7 +281,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                     </div>
                   ))}
 
-                  {/* Sugjerimet me Pyetje të Shpejta */}
+                  {/* Sugjerimet */}
                   {showSuggestions && messages.length === 0 && (
                     <div className="flex flex-col gap-2 mt-3">
                       <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
@@ -283,29 +321,32 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
 
           </div>
 
-          {/* 3. Tastiera / Fusha e Chat-it e Fiksuar në Fund */}
+          {/* 3. Tastiera Dinamike Auto-Expanding */}
           <div className="p-3 sm:p-4 bg-slate-50 dark:bg-[#070B14] border-t border-slate-200 dark:border-slate-800 shrink-0">
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-end">
               <textarea
-                ref={inputRef}
-                value={inputQuery}
-                onChange={(e) => onInputQueryChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    onSendQuery();
+                ref={(el) => {
+                  localTextareaRef.current = el;
+                  if (typeof inputRef === 'function') {
+                    (inputRef as (node: HTMLTextAreaElement | null) => void)(el);
+                  } else if (inputRef && typeof inputRef === 'object' && 'current' in inputRef) {
+                    (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
                   }
                 }}
+                value={inputQuery}
+                onChange={handleTextareaChange}
+                onKeyDown={handleKeyDown}
                 placeholder="Bëj një pyetje konkrete për këtë nen..."
                 rows={1}
-                className="flex-1 px-3.5 py-2.5 bg-white dark:bg-[#0B101D] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm resize-none text-slate-900 dark:text-white focus:border-primary-start outline-none transition-all placeholder:text-slate-400"
+                style={{ height: '42px', minHeight: '42px', maxHeight: '120px' }}
+                className="flex-1 px-3.5 py-2.5 bg-white dark:bg-[#0B101D] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm resize-none overflow-y-auto custom-scrollbar text-slate-900 dark:text-white focus:border-primary-start outline-none transition-all placeholder:text-slate-400"
                 disabled={isAuditing}
               />
               <button
                 type="button"
-                onClick={() => onSendQuery()}
+                onClick={handleSendClick}
                 disabled={!inputQuery.trim() || isAuditing}
-                className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-start/90 transition-all shadow-sm cursor-pointer shrink-0"
+                className="h-[42px] w-[42px] flex items-center justify-center rounded-xl bg-primary-start text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-start/90 transition-all shadow-sm cursor-pointer shrink-0"
               >
                 {isAuditing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               </button>
