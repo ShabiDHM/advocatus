@@ -1,13 +1,13 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - LAW OVERVIEW V29.0 (DYNAMIC FULL-SCREEN EXPAND TOGGLE & ULTRA-WIDE VIEW)
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW OVERVIEW
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  ArrowLeft, Scale, Calendar, FileText, AlertCircle, 
-  BookOpen, GraduationCap, ExternalLink, Search, X,
+  ArrowLeft, FileText, AlertCircle, 
+  BookOpen, ExternalLink, Search, X,
   Maximize2, Minimize2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -35,19 +35,6 @@ export default function LawOverviewPage() {
   const [showPdfModal, setShowPdfModal] = useState(false);
 
   const lawTitle = searchParams.get('lawTitle') || '';
-
-  const isAcademicDoc = useMemo(() => {
-    if (!data) return false;
-    const raw = (data.law_title || data.source || lawTitle).toUpperCase();
-    return (
-      raw.includes('AKADEMIA') ||
-      raw.includes('CASE_LAW') ||
-      raw.includes('DORACAK') ||
-      raw.includes('UDHEZUES') ||
-      raw.includes('LËNDËSH') ||
-      data.is_official_statute === false
-    );
-  }, [data, lawTitle]);
 
   useEffect(() => {
     if (!lawTitle) {
@@ -135,52 +122,49 @@ export default function LawOverviewPage() {
         {/* Paneli Kryesor */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface transition-all duration-300">
           
-          {/* Header Bar */}
+          {/* Header Bar i Pastër */}
           <div className="bg-canvas px-6 sm:px-10 py-6 border-b border-main relative overflow-hidden">
             <div className="relative z-10 flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-                  {isAcademicDoc ? <GraduationCap size={14} /> : <Scale size={14} />}
-                  <span className="text-[10px] font-black uppercase tracking-wider">
-                    {isAcademicDoc ? 'UDHËZUES I AKADEMISË SË DREJTËSISË' : 'KODI LIGJOR ZYRTAR'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* EXPAND / FULLSCREEN TOGGLE BUTTON */}
+              <div className="flex items-center justify-between gap-3">
+                
+                {/* Butoni Shiko PDF të Plotë në vend të Badge-it */}
+                {pdfUrl ? (
                   <button
                     type="button"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex items-center gap-2 bg-surface hover:bg-hover text-text-primary border border-main px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer shadow-sm"
-                    title={isExpanded ? "Zvogëlo pamjen" : "Zmadho në ekran të plotë"}
+                    onClick={() => setShowPdfModal(true)}
+                    className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer shadow-sm"
+                    title="Hap dokumentin zyrtar PDF"
                   >
-                    {isExpanded ? <Minimize2 size={14} className="text-primary-start" /> : <Maximize2 size={14} className="text-primary-start" />}
-                    <span className="hidden sm:inline">{isExpanded ? "Zvogëlo" : "Zmadho Ekranin"}</span>
+                    <FileText size={14} />
+                    <span>Shiko PDF të Plotë</span>
+                    <ExternalLink size={12} />
                   </button>
+                ) : (
+                  <div />
+                )}
 
-                  {pdfUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setShowPdfModal(true)}
-                      className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer shadow-sm"
-                    >
-                      <FileText size={14} />
-                      <span className="hidden sm:inline">Shiko PDF të Plotë</span>
-                      <ExternalLink size={12} />
-                    </button>
+                {/* Butoni Vetëm me Ikonë për Zmadhimin e Ekranit */}
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-2.5 bg-surface hover:bg-hover text-text-primary border border-main rounded-xl transition-all hover-lift cursor-pointer shadow-sm"
+                  title={isExpanded ? 'Zvogëlo pamjen' : 'Zmadho në ekran të plotë'}
+                >
+                  {isExpanded ? (
+                    <Minimize2 size={16} className="text-primary-start" />
+                  ) : (
+                    <Maximize2 size={16} className="text-primary-start" />
                   )}
-                </div>
+                </button>
               </div>
 
-              <h1 className="text-xl sm:text-3xl font-black text-text-primary leading-tight tracking-tight">
+              {/* Titulli Kryesor i Ligjit */}
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary leading-tight tracking-tight">
                 {displayHeaderTitle}
               </h1>
 
-              <div className="flex flex-wrap items-center gap-3 border-t border-main/50 pt-4">
-                <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3 py-1 rounded-xl text-xs font-bold font-mono">
-                  <Calendar size={14} className="text-primary-start" />
-                  <span className="truncate max-w-[250px]">{data.source}</span>
-                </div>
+              {/* Badge i thjeshtë me numrin e neneve */}
+              <div className="flex items-center gap-2 pt-2 border-t border-main/50">
                 <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3 py-1 rounded-xl text-xs font-bold font-mono">
                   <FileText size={14} className="text-primary-start" />
                   <span>{data.article_count} Nene Gjithsej</span>
@@ -189,10 +173,10 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
-          {/* Trupi me Rrjetën Dinamike */}
+          {/* Trupi me Rrjetën e Neneve */}
           <div className="bg-canvas/30 px-4 sm:px-8 py-6 flex flex-col">
             
-            {/* Shiriti i Kërkimit dhe Statistikat */}
+            {/* Shiriti i Kërkimit të Nenit */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <BookOpen size={16} className="text-primary-start" />
@@ -220,7 +204,7 @@ export default function LawOverviewPage() {
               </div>
             </div>
 
-            {/* KUTIA ME LARTËSI DINAMIKE DHE SCROLL */}
+            {/* Rrjeta me Scroll */}
             <div className={`overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-2xl border border-main bg-surface/50 shadow-inner transition-all duration-300 ${
               isExpanded ? 'max-h-[75vh]' : 'max-h-[55vh]'
             }`}>
@@ -262,8 +246,8 @@ export default function LawOverviewPage() {
 
           </div>
 
-          {/* Footer Bar */}
-          <div className="bg-surface px-6 sm:px-10 py-4 flex justify-between items-center border-t border-main">
+          {/* Footer Bar i Pastruar */}
+          <div className="bg-surface px-6 sm:px-10 py-4 flex items-center border-t border-main">
             <button
               onClick={() => navigate('/laws/search')}
               className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift cursor-pointer"
@@ -271,10 +255,6 @@ export default function LawOverviewPage() {
               <ArrowLeft size={14} />
               {t('lawOverview.backToSearch', 'Kthehu te Biblioteka')}
             </button>
-
-            <span className="text-[11px] font-bold text-text-muted">
-              {data.article_count} Nene të Disponueshme
-            </span>
           </div>
         </div>
       </div>
