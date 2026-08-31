@@ -2,7 +2,7 @@
 // PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE CONTENT
 
 import React from 'react';
-import { GraduationCap, BookOpen, FileText, ExternalLink, ShieldCheck } from 'lucide-react';
+import { FileText, ExternalLink, ShieldCheck } from 'lucide-react';
 import { ArticleData, SourceInfo } from './lawArticleTypes';
 import { TFunction } from 'i18next';
 
@@ -20,7 +20,6 @@ interface LawArticleContentProps {
 
 export const LawArticleContent: React.FC<LawArticleContentProps> = ({
   article,
-  isAcademicDoc,
   rawArtNum,
   onOpenPdf,
   t,
@@ -37,25 +36,17 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
       {/* Header i Pastër i Ligjit */}
       <div className="px-6 sm:px-8 py-6 border-b border-main bg-surface/50">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Badge i Statusit të Ligjit */}
-            <div className="flex items-center gap-2 bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-lg">
-              {isAcademicDoc ? <GraduationCap size={14} /> : <BookOpen size={14} />}
-              <span className="text-[11px] font-bold uppercase tracking-wider">
-                {isAcademicDoc ? 'Udhëzues i Akademisë së Drejtësisë' : 'Legjislacion Zyrtar'}
-              </span>
-            </div>
-
-            {/* Butoni i Hapur i PDF-së */}
+          <div className="flex items-center">
+            {/* Butoni Dokumenti PDF në vend të badge-it majtas */}
             <button
               type="button"
               onClick={onOpenPdf}
-              className="flex items-center gap-2 bg-canvas hover:bg-hover text-text-primary border border-main hover:border-primary-start/50 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover-lift cursor-pointer"
+              className="flex items-center gap-2 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/30 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all hover-lift cursor-pointer"
               title="Shiko dokumentin PDF të plotë"
             >
-              <FileText size={14} className="text-primary-start" />
+              <FileText size={14} />
               <span>Dokumenti PDF</span>
-              <ExternalLink size={12} className="text-text-muted shrink-0" />
+              <ExternalLink size={12} className="opacity-80 shrink-0" />
             </button>
           </div>
 

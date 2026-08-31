@@ -1,8 +1,9 @@
 // FILE: src/components/law/LawArticleHeader.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE HEADER V39.0 (CLEAN 2-ROW MOBILE RESPONSIVE LAYOUT & ZERO OVERFLOW)
+// PHOENIX PROTOCOL - CLEAN 2-ICON STEP NAVIGATION & AUDITOR HEADER
 
 import React from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Search, Loader2, BrainCircuit, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Search, Loader2, BrainCircuit, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { TFunction } from 'i18next';
 
 interface LawArticleHeaderProps {
@@ -21,7 +22,6 @@ interface LawArticleHeaderProps {
 }
 
 export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
-  onBackToLibrary,
   prevArticleNum,
   nextArticleNum,
   onNavigateToArticle,
@@ -34,22 +34,33 @@ export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
   onCloseAuditor,
   t,
 }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4 w-full">
       
-      {/* RRESHTI 1 (Në Mobile: Back Button Majtas & Auditimi Djathtas) */}
+      {/* RRESHTI 1: Dy Ikonat e Navigimit (← Mbrapa / → Përpara) */}
       <div className="flex items-center justify-between w-full sm:w-auto gap-2">
-        <button
-          onClick={onBackToLibrary}
-          className="group flex items-center gap-2 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer shrink-0"
-        >
-          <div className="p-2 rounded-xl bg-canvas border border-main group-hover:border-primary-start transition-colors">
-            <ArrowLeft size={15} className="text-primary-start" />
-          </div>
-          <span className="truncate">Biblioteka</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="p-2.5 rounded-xl bg-canvas border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
+            title="Mbrapa"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(1)}
+            className="p-2.5 rounded-xl bg-canvas border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
+            title="Përpara"
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
 
-        {/* Butoni i Auditimit shfaqet këtu në Mobile për të kursyer hapësirë */}
+        {/* Butoni i Auditimit në Mobile */}
         <div className="sm:hidden shrink-0">
           {!chatVisible ? (
             <button
@@ -72,7 +83,7 @@ export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
         </div>
       </div>
 
-      {/* RRESHTI 2 (Navigimi i Neneve: < Search > i Qendërzuar) */}
+      {/* RRESHTI 2: Navigimi i Neneve (< Search >) */}
       <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 w-full sm:w-auto">
         {prevArticleNum !== null ? (
           <button

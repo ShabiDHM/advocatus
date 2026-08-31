@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE V38.0 (PRECISE NENI PAGE TARGETING FOR FILEVIEWERMODAL)
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE PAGE
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -266,10 +266,10 @@ export default function LawArticlePage() {
           <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-sm mb-6">{error}</p>
           <button
-            onClick={() => navigate('/laws/search')}
+            onClick={() => navigate(-1)}
             className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
           >
-            <ArrowLeft size={16} /> {t('lawArticle.backToSearch', 'Kthehu te Biblioteka Ligjore')}
+            <ArrowLeft size={16} /> Kthehu mbrapa
           </button>
         </div>
       </div>
@@ -288,8 +288,9 @@ export default function LawArticlePage() {
     >
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
+          
           <LawArticleHeader
-            onBackToLibrary={() => navigate('/laws/search')}
+            onBackToLibrary={() => navigate(-1)}
             prevArticleNum={prevArticleNum}
             nextArticleNum={nextArticleNum}
             onNavigateToArticle={navigateToArticleNum}
@@ -344,14 +345,8 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          <div className="bg-surface px-6 sm:px-8 py-5 flex flex-wrap justify-between items-center border-t border-main gap-4 mt-6">
-            <button
-              onClick={() => navigate('/laws/search')}
-              className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift cursor-pointer"
-            >
-              <ArrowLeft size={14} /> Biblioteka Ligjore
-            </button>
-
+          {/* Shiriti i poshtëm i pastër: vetëm butonat e lëvizjes së nenit në qendër */}
+          <div className="bg-surface px-6 sm:px-8 py-5 flex justify-center items-center border-t border-main gap-4 mt-6">
             <div className="flex items-center gap-3">
               {prevArticleNum !== null && (
                 <button
@@ -375,13 +370,6 @@ export default function LawArticlePage() {
                 </button>
               )}
             </div>
-
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors bg-canvas px-3.5 py-1.5 rounded-xl border border-main hover:border-primary-start shadow-sm cursor-pointer"
-            >
-              {t('general.top', 'Lart')} ↑
-            </button>
           </div>
         </div>
       </div>
