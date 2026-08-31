@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE PAGE WITH PERFECTLY BALANCED CONTROLS
+// PHOENIX PROTOCOL - RESPONSIVE MOBILE & TABLET LAW ARTICLE PAGE
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -260,10 +260,10 @@ export default function LawArticlePage() {
 
   if (error || !article) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
-        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-10 rounded-3xl flex flex-col items-center text-center shadow-sm">
-          <AlertCircle className="text-danger-start w-16 h-16 mb-4" />
-          <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-28">
+        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 p-8 sm:p-10 rounded-3xl flex flex-col items-center text-center shadow-sm">
+          <AlertCircle className="text-danger-start w-14 h-14 sm:w-16 sm:h-16 mb-4" />
+          <h2 className="text-lg sm:text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-sm mb-6">{error}</p>
           <button
             onClick={() => navigate(-1)}
@@ -281,13 +281,13 @@ export default function LawArticlePage() {
 
   return (
     <motion.div
-      className="w-full min-h-screen pt-24 pb-12 bg-canvas text-text-primary"
+      className="w-full min-h-screen pt-20 sm:pt-24 pb-10 bg-canvas text-text-primary"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex-1 flex flex-col">
-        <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 flex-1 flex flex-col">
+        <div className="glass-panel p-4 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-2xl sm:rounded-3xl bg-surface">
           
           <LawArticleHeader
             sourceInfo={sourceInfo}
@@ -341,16 +341,16 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* Shiriti i poshtëm: Lartësi fikse h-10, pamje identike dhe konsistente */}
-          <div className="bg-surface px-6 sm:px-8 py-5 flex justify-center items-center border-t border-main gap-4 mt-6">
-            <div className="flex items-center gap-3">
+          {/* Shiriti i poshtëm me Touch Targets optimalë */}
+          <div className="bg-surface px-4 sm:px-8 py-4 sm:py-5 flex justify-center items-center border-t border-main gap-3 sm:gap-4 mt-5 sm:mt-6">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center">
               {prevArticleNum !== null && (
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(prevArticleNum)}
-                  className="h-10 px-4 flex items-center gap-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
+                  className="h-9 sm:h-10 px-3 sm:px-4 flex items-center justify-center gap-1.5 sm:gap-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer active:scale-95"
                 >
-                  <ChevronLeft size={15} className="text-primary-start" />
+                  <ChevronLeft size={14} className="text-primary-start" />
                   <span>{prevArticleNum === '0' ? 'Preambula' : `Neni ${prevArticleNum}`}</span>
                 </button>
               )}
@@ -359,10 +359,10 @@ export default function LawArticlePage() {
                 <button
                   type="button"
                   onClick={() => navigateToArticleNum(nextArticleNum)}
-                  className="h-10 px-4 flex items-center gap-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer"
+                  className="h-9 sm:h-10 px-3 sm:px-4 flex items-center justify-center gap-1.5 sm:gap-2 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-semibold text-text-primary hover:border-primary-start transition-all shadow-sm cursor-pointer active:scale-95"
                 >
                   <span>{`Neni ${nextArticleNum}`}</span>
-                  <ChevronRight size={15} className="text-primary-start" />
+                  <ChevronRight size={14} className="text-primary-start" />
                 </button>
               )}
             </div>
