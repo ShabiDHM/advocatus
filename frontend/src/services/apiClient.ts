@@ -1,5 +1,5 @@
 // FILE: src/services/apiClient.ts
-// PHOENIX PROTOCOL - CORE API CLIENT & TOKEN MANAGER (SHARED BASE ENGINE)
+// PHOENIX PROTOCOL - CORE API CLIENT & TOKEN MANAGER
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 
@@ -42,7 +42,6 @@ function processQueue(error: Error | null) {
   failedQueue = [];
 }
 
-// Request Interceptor (Vendos Tokenin)
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.get();
@@ -59,7 +58,6 @@ apiClient.interceptors.request.use(
   (error: any) => Promise.reject(error)
 );
 
-// Response Interceptor (Menaxhon 401 Refresh dhe 402 Subscription)
 apiClient.interceptors.response.use(
   (response: any) => response,
   async (error: AxiosError) => {
