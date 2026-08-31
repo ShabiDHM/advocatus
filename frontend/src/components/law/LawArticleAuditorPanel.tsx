@@ -1,10 +1,10 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - 100% TYPE-SAFE OPAQUE AUDITOR MODAL WITH AUTO-EXPANDING INPUT
+// PHOENIX PROTOCOL - 100% MANUAL-TRIGGER AUDITOR MODAL WITH CLEAN CTA & INLINE CHAT
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2, RotateCcw } from 'lucide-react';
+import { BrainCircuit, X, AlertCircle, Sparkles, Send, Loader2, Trash2, RotateCcw, Play } from 'lucide-react';
 import { ChatMessage, SUGGESTED_QUESTIONS } from './lawArticleTypes';
 import { TFunction } from 'i18next';
 
@@ -23,6 +23,7 @@ interface LawArticleAuditorPanelProps {
   onInputQueryChange: (val: string) => void;
   onSendQuery: (query?: string) => void;
   onCloseAuditor: () => void;
+  onStartAnalysis?: () => void;
   onClearCache?: () => void;
   onReanalyze?: () => void;
   summarySectionRef?: React.Ref<HTMLDivElement>;
@@ -46,6 +47,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
   onInputQueryChange,
   onSendQuery,
   onCloseAuditor,
+  onStartAnalysis,
   onClearCache,
   onReanalyze,
   chatContainerRef,
@@ -172,24 +174,24 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
                   Auditimi Inteligjent i Nenit
                 </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Analizë dhe këshillim ligjor i verifikuar</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Analizë dhe këshillim ligjor me DeepSeek</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Butoni Rianalizo (RotateCcw) */}
+              {/* Butoni Rianalizo */}
               {onReanalyze && summaryContent && !isSummarizing && (
                 <button
                   type="button"
                   onClick={onReanalyze}
                   className="h-9 w-9 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] text-slate-400 hover:text-primary-start hover:bg-primary-start/10 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
-                  title="Rianalizo nenin me AI (Fresh Run)"
+                  title="Rianalizo nenin nga e para"
                 >
                   <RotateCcw size={15} />
                 </button>
               )}
 
-              {/* Butoni Shlyej VETËM ME IKONË */}
+              {/* Butoni Shlyej */}
               {onClearCache && summaryContent && (
                 <button
                   type="button"
@@ -223,11 +225,38 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
+              {/* GJENDJA FILLARE (KUR NUK KA ANALIZË): BUTONI MANUAL "FILLO ANALIZËN" */}
+              {!summaryContent && !isSummarizing && (
+                <div className="py-8 px-4 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-[#070B14]/40">
+                  <div className="h-12 w-12 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start mb-3">
+                    <Sparkles size={24} />
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mb-1">
+                    Analizë dhe Interpretim me AI
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mb-5 leading-relaxed">
+                    Kliko butonin e mëposhtëm për të gjeneruar analizën e thellë ligjore të këtij neni, ose bëj një pyetje direkte në fushën e chat-it.
+                  </p>
+                  
+                  {onStartAnalysis && (
+                    <button
+                      type="button"
+                      onClick={onStartAnalysis}
+                      className="h-10 px-5 flex items-center gap-2 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md hover-lift cursor-pointer"
+                    >
+                      <Play size={14} fill="currentColor" />
+                      <span>Fillo Analizën e Nenit</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* GJATË GJENERIMIT */}
               {isSummarizing && !summaryContent && (
                 <div className="space-y-3 py-4">
                   <div className="flex items-center gap-2 text-primary-start text-xs font-bold mb-3">
                     <Loader2 size={15} className="animate-spin" />
-                    <span>Duke analizuar nenin nga baza ligjore...</span>
+                    <span>Duke analizuar nenin me DeepSeek...</span>
                   </div>
                   <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded w-full animate-pulse" />
                   <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded w-5/6 animate-pulse" />
@@ -235,6 +264,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
+              {/* TEKSTI I ANALIZËS SË PËRFUNDUAR */}
               {summaryContent && (
                 <div className="space-y-2">
                   {renderCleanTypography(cleanSummary)}
@@ -253,71 +283,69 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
 
             {/* 2. SEKSIONI I BISEDËS */}
-            {summaryContent && (
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-                <div ref={chatContainerRef} className="space-y-3 mb-2">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div
-                        className={`w-full max-w-[90%] p-3.5 rounded-2xl text-xs sm:text-sm shadow-xs ${
-                          msg.role === 'user'
-                            ? 'bg-primary-start/15 border border-primary-start/30 text-slate-900 dark:text-white'
-                            : 'bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'
-                        }`}
-                      >
-                        {msg.role === 'auditor' ? (
-                          <div className="leading-relaxed">
-                            {renderCleanTypography(msg.content) || (
-                              <span className="inline-block w-2 h-4 bg-primary-start animate-pulse" />
-                            )}
-                          </div>
-                        ) : (
-                          <p className="font-medium whitespace-pre-wrap">{msg.content}</p>
-                        )}
-                        <p className="text-[9px] mt-1 text-slate-400">
-                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+              <div ref={chatContainerRef} className="space-y-3 mb-2">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div
+                      className={`w-full max-w-[90%] p-3.5 rounded-2xl text-xs sm:text-sm shadow-xs ${
+                        msg.role === 'user'
+                          ? 'bg-primary-start/15 border border-primary-start/30 text-slate-900 dark:text-white'
+                          : 'bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'
+                      }`}
+                    >
+                      {msg.role === 'auditor' ? (
+                        <div className="leading-relaxed">
+                          {renderCleanTypography(msg.content) || (
+                            <span className="inline-block w-2 h-4 bg-primary-start animate-pulse" />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="font-medium whitespace-pre-wrap">{msg.content}</p>
+                      )}
+                      <p className="text-[9px] mt-1 text-slate-400">
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                  ))}
+                  </div>
+                ))}
 
-                  {/* Sugjerimet */}
-                  {showSuggestions && messages.length === 0 && (
-                    <div className="flex flex-col gap-2 mt-3">
-                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {SUGGESTED_QUESTIONS.map((question: string, idx: number) => (
-                          <button
-                            key={idx}
-                            onClick={() => onSendQuery(question)}
-                            className="text-[11px] bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 hover:border-primary-start/50 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl transition-all text-left cursor-pointer"
-                            type="button"
-                          >
-                            {question}
-                          </button>
-                        ))}
-                      </div>
+                {/* Sugjerimet */}
+                {showSuggestions && messages.length === 0 && (
+                  <div className="flex flex-col gap-2 mt-3">
+                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUGGESTED_QUESTIONS.map((question: string, idx: number) => (
+                        <button
+                          key={idx}
+                          onClick={() => onSendQuery(question)}
+                          className="text-[11px] bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 hover:border-primary-start/50 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-xl transition-all text-left cursor-pointer"
+                          type="button"
+                        >
+                          {question}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {isAuditing && (
-                    <div className="flex justify-start">
-                      <div className="bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
+                {isAuditing && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {chatError && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-500 text-xs flex items-center gap-2">
-                      <AlertCircle size={14} /> {chatError}
-                    </div>
-                  )}
-                </div>
+                {chatError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-500 text-xs flex items-center gap-2">
+                    <AlertCircle size={14} /> {chatError}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
           </div>
 

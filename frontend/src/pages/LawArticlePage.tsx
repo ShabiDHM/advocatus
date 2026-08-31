@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - ULTRA-ECONOMICAL FLOW: OPEN MODAL WITHOUT RE-ANALYZING & CONTROLLED RE-RUN
+// PHOENIX PROTOCOL - 100% MANUAL TRIGGER FLOW (OPEN MODAL FIRST, EXECUTE ONLY ON DEMAND)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -156,14 +156,14 @@ export default function LawArticlePage() {
     loadArticle();
   }, [lawTitle, articleNumber, t]);
 
-  // ⚡ FLOW EKONOMIK: Klikimi vetëm hap modalin (ose ngarkon nga cache nëse nuk është hapur)
-  const handleOpenAuditModal = async () => {
-    if (!article) return;
+  // 1. BUTONI VETËM HAP MODALIN (ZERO KËRKESA AUTOMATIKE)
+  const handleOpenModalOnly = () => {
     setShowAuditorModal(true);
+  };
 
-    // Nëse e kemi tashmë analizën në ekran, NUK BËJMË ASNJË THIRRJE TË RE!
-    if (summaryContent) return;
-
+  // 2. NISJA E ANALIZËS (VETËM KUR KLIKOHET NGA PËRDORUESI)
+  const handleStartAnalysis = async () => {
+    if (!article || isSummarizing) return;
     setIsSummarizing(true);
     setSummaryError('');
     try {
@@ -181,7 +181,7 @@ export default function LawArticlePage() {
     }
   };
 
-  // 🔄 RIANALIZO NENIN (DETYRON GJENERIM TË RI NGA AI)
+  // 3. RIANALIZO NENIN (FRESH RUN)
   const handleReanalyze = async () => {
     if (!article || isSummarizing) return;
     setSummaryContent('');
@@ -189,12 +189,10 @@ export default function LawArticlePage() {
     setIsSummarizing(true);
 
     try {
-      // Pastron cache-in fillimisht
       await apiService.axiosInstance.delete('/laws/explain/cache', {
         params: { law_title: article.law_title, article_number: article.article_number }
       });
 
-      // Rinis gjenerimin e ri
       const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
       let accumulated = '';
       for await (const chunk of stream) {
@@ -209,7 +207,7 @@ export default function LawArticlePage() {
     }
   };
 
-  // 🗑️ SHLYEJ ANALIZËN NGA MEMORIA
+  // 4. SHLYEJ ANALIZËN NGA MEMORIA
   const handleClearCache = async () => {
     if (!article) return;
     try {
@@ -221,7 +219,6 @@ export default function LawArticlePage() {
       });
       setSummaryContent('');
       setMessages([]);
-      setShowAuditorModal(false); // Mbyll modalin pas fshirjes
     } catch (err) {
       console.error("Purge cache failed:", err);
     }
@@ -335,7 +332,7 @@ export default function LawArticlePage() {
             onJumpSubmit={handleJumpSubmit}
             chatVisible={showAuditorModal}
             isSummarizing={isSummarizing}
-            onStartAudit={handleOpenAuditModal}
+            onStartAudit={handleOpenModalOnly}
             onCloseAuditor={() => setShowAuditorModal(false)}
             t={t}
           />
@@ -347,7 +344,7 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* AUDITOR MODAL DIALOG */}
+          {/* AUDITOR MODAL DIALOG (MANUAL TRIGGER) */}
           <LawArticleAuditorPanel
             isOpen={showAuditorModal}
             summaryContent={summaryContent}
@@ -363,6 +360,7 @@ export default function LawArticlePage() {
             onInputQueryChange={setInputQuery}
             onSendQuery={handleSendQuery}
             onCloseAuditor={() => setShowAuditorModal(false)}
+            onStartAnalysis={handleStartAnalysis}
             onClearCache={handleClearCache}
             onReanalyze={handleReanalyze}
             summarySectionRef={summarySectionRef}
