@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - LAW ARTICLE PAGE CONNECTED TO MODULAR LAW SERVICE
+// PHOENIX PROTOCOL - UNIFIED ARTICLE & CACHE SYNCHRONIZATION (ZERO RACE CONDITIONS)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -76,6 +76,7 @@ export default function LawArticlePage() {
     return summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referenc\.\*/g, '').trim();
   }, [summaryContent]);
 
+  // ⚡ EFEKT I BASHKUAR DHE I SINKRONIZUAR: Ngarkon Nenin dhe Menjëherë Analizën nga Cache
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -83,12 +84,20 @@ export default function LawArticlePage() {
       return;
     }
 
+    let isMounted = true;
+
     const loadArticleAndCache = async () => {
       setLoading(true);
       setError('');
+      setSummaryContent('');
+      setSummaryError('');
+      setMessages([]);
+
       try {
-        // 1. Ngarko Nenin përmes LawService
+        // 1. Ngarko Nenin
         const data = await lawService.getLawArticle(lawTitle, articleNumber);
+        if (!isMounted) return;
+
         const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
 
         let chunkId = data.chunk_id || '';
@@ -140,22 +149,28 @@ export default function LawArticlePage() {
           requested_law_title: lawTitle,
         });
 
-        // 2. ⚡ KONTROLLO MONGODB NË REFRESH PËRMES LAWSERVICE
+        // 2. ⚡ KONTROLLO CACHE NË MONGODB DHE SHFAQ MENJËHERË ANALIZËN
         const cachedAnalysis = await lawService.getCachedLawAnalysis(lawTitle, articleNumber);
-        if (cachedAnalysis) {
+        if (isMounted && cachedAnalysis) {
           setSummaryContent(cachedAnalysis);
-        } else {
-          setSummaryContent('');
         }
       } catch (err: any) {
-        console.error('[ERROR] Failed to load article:', err);
-        setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
+        if (isMounted) {
+          console.error('[ERROR] Failed to load article:', err);
+          setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadArticleAndCache();
+
+    return () => {
+      isMounted = false;
+    };
   }, [lawTitle, articleNumber, t]);
 
   // Hapja e Modalit

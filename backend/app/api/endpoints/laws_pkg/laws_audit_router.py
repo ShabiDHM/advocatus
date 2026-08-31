@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_audit_router.py
-# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH INSTANT CACHE QUERY & AUTO-RETRY
+# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH FLEXIBLE REGEX CACHE MATCHING
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 import logging
+import re
 
 from app.core.db import get_db_instance
 from app.services.rag.response_generator import ResponseGenerator
@@ -30,26 +31,35 @@ class AuditChatRequest(BaseModel):
     query: str
 
 
+def _clean_article_query(art: str) -> str:
+    """Nxjerr vetëm numrin e pastër të nenit për kërkim të sigurt në cache."""
+    clean = str(art).strip().replace("Neni", "").replace("neni", "").strip()
+    match = re.search(r'\d+', clean)
+    return match.group(0) if match else clean
+
+
 @router.get("/explain/cached")
 async def get_cached_law_analysis(
     law_title: str = Query(...),
     article_number: str = Query(...),
     current_user = Depends(get_current_user)
 ):
-    """Kthen menjëherë analizën e ruajtur në MongoDB nëse ekziston."""
+    """Kthen menjëherë analizën e ruajtur në MongoDB me kërkim fleksibil."""
     try:
         db = get_db_instance()
         clean_law = law_title.strip()
-        clean_art = str(article_number).strip()
+        clean_art = _clean_article_query(article_number)
 
+        # Kërkim fleksibil që gjen nenin pavarësisht fjalës 'Neni' apo hapësirave
         cached_doc = db.legal_analysis_cache.find_one({
-            "law_title": clean_law,
-            "article_number": clean_art
+            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
+            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
         })
 
         if cached_doc and cached_doc.get("content"):
             content = cached_doc.get("content")
             if not content.startswith("[") and len(content) > 60:
+                logger.info(f"⚡ [CACHE FOUND ON GET] {clean_law} - Art {clean_art}")
                 return {"cached": True, "content": content}
 
         return {"cached": False, "content": None}
@@ -66,18 +76,18 @@ async def explain_law_article(
     """Gjeneron analizë ligjore në shqip të pastër me DeepSeek dhe Multi-Device Cache."""
     db = get_db_instance()
     clean_law = req.law_title.strip()
-    clean_art = str(req.article_number).strip()
+    clean_art = _clean_article_query(req.article_number)
 
     # 1. KONTROLLO CACHE-IN NË MONGODB
     if not req.force_refresh:
         cached_doc = db.legal_analysis_cache.find_one({
-            "law_title": clean_law,
-            "article_number": clean_art
+            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
+            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
         })
         if cached_doc and cached_doc.get("content"):
             cached_text = cached_doc.get("content")
             if not cached_text.startswith("[") and len(cached_text) > 60:
-                logger.info(f"⚡ [CACHE HIT] DeepSeek analysis for {clean_law} - Art {clean_art}")
+                logger.info(f"⚡ [CACHE HIT ON POST] DeepSeek analysis for {clean_law} - Art {clean_art}")
 
                 async def stream_cached():
                     yield cached_text
@@ -123,7 +133,7 @@ async def explain_law_article(
                         }},
                         upsert=True
                     )
-                    logger.info(f"💾 [CACHE SAVED] DeepSeek analysis for {clean_law} - Art {clean_art}")
+                    logger.info(f"💾 [CACHE SAVED PERMANENTLY] DeepSeek analysis for {clean_law} - Art {clean_art}")
                 except Exception as save_err:
                     logger.warning(f"Cache save error: {save_err}")
 
@@ -143,13 +153,13 @@ async def clear_law_article_cache(
     try:
         db = get_db_instance()
         clean_law = law_title.strip()
-        clean_art = str(article_number).strip()
+        clean_art = _clean_article_query(article_number)
 
-        result = db.legal_analysis_cache.delete_one({
-            "law_title": clean_law,
-            "article_number": clean_art
+        result = db.legal_analysis_cache.delete_many({
+            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
+            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
         })
-        logger.info(f"🗑️ [CACHE PURGED] {clean_law} - Art {clean_art}")
+        logger.info(f"🗑️ [CACHE PURGED] {clean_law} - Art {clean_art} (Deleted: {result.deleted_count})")
         return {"success": True, "deleted_count": result.deleted_count, "message": "Analiza u shlye me sukses nga memoria."}
     except Exception as e:
         logger.error(f"Error purging cache: {e}")
