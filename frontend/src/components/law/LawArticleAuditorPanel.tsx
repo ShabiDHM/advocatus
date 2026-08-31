@@ -1,5 +1,5 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - AUDITOR MODAL WITH DYNAMIC STREAM AUTO-SCROLLING & PERSISTENCE
+// PHOENIX PROTOCOL - AUDITOR MODAL WITH PROFESSIONAL "SOKRATI" BRANDING & AUTO-SCROLL
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -63,7 +63,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     return () => setMounted(false);
   }, []);
 
-  // ⚡ AUTO-SCROLL GJATË STREAMING-UT: Zbret automatikisht me fjalët e reja
+  // ⚡ AUTO-SCROLL GJATË STREAMING-UT
   useEffect(() => {
     if (isSummarizing && scrollableBodyRef.current) {
       scrollableBodyRef.current.scrollTop = scrollableBodyRef.current.scrollHeight;
@@ -184,7 +184,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 <h3 className="text-xs sm:text-base font-black uppercase tracking-wider text-slate-900 dark:text-white">
                   Auditimi Inteligjent i Nenit
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">Analizë dhe këshillim ligjor me DeepSeek</p>
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">Analizë dhe këshillim ligjor i verifikuar</p>
               </div>
             </div>
 
@@ -224,7 +224,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Përmbajtja me Scroll dhe Ref për Auto-Scroll */}
+          {/* Përmbajtja me Scroll */}
           <div ref={scrollableBodyRef} className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8">
             
             {/* 1. SEKSIONI I ANALIZËS LIGJORE */}
@@ -261,12 +261,12 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* GJATË GJENERIMIT */}
+              {/* GJATË GJENERIMIT: "Sokrati duke analizuar..." */}
               {isSummarizing && !summaryContent && (
                 <div className="space-y-4 py-6">
-                  <div className="flex items-center gap-2 text-primary-start text-xs sm:text-sm font-bold mb-4">
+                  <div className="flex items-center gap-2.5 text-primary-start text-xs sm:text-sm font-bold mb-4">
                     <Loader2 size={17} className="animate-spin" />
-                    <span>Duke analizuar nenin me DeepSeek...</span>
+                    <span>Sokrati duke analizuar...</span>
                   </div>
                   <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-full animate-pulse" />
                   <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-5/6 animate-pulse" />
@@ -274,7 +274,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* TEKSTI I ANALIZËS (NGARKOHET MENJËHERË NË REFRESH) */}
+              {/* TEKSTI I ANALIZËS SË PËRFUNDUAR */}
               {summaryContent && (
                 <div className="space-y-2.5 max-w-[110ch]">
                   {renderCleanTypography(cleanSummary)}
