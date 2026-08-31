@@ -1,5 +1,5 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - UNIFIED ARTICLE & CACHE SYNCHRONIZATION (ZERO RACE CONDITIONS)
+// PHOENIX PROTOCOL - DUAL-LAYER PERSISTENCE (INSTANT LOCALSTORAGE + MULTI-DEVICE MONGODB SYNC)
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -45,8 +45,8 @@ export default function LawArticlePage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatPanelRef = useRef<HTMLDivElement>(null);
 
-  const lawTitle = searchParams.get('lawTitle');
-  const articleNumber = searchParams.get('articleNumber');
+  const lawTitle = searchParams.get('lawTitle') || '';
+  const articleNumber = searchParams.get('articleNumber') || '';
 
   const isAcademicDoc = useMemo(() => {
     const raw = (article?.law_title || article?.source || lawTitle || '').toString().toUpperCase();
@@ -76,7 +76,13 @@ export default function LawArticlePage() {
     return summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referenc\.\*/g, '').trim();
   }, [summaryContent]);
 
-  // ⚡ EFEKT I BASHKUAR DHE I SINKRONIZUAR: Ngarkon Nenin dhe Menjëherë Analizën nga Cache
+  // Çelësi unik për LocalStorage
+  const localCacheKey = useMemo(() => {
+    const cleanArt = articleNumber.replace(/\D+/g, '') || articleNumber;
+    return `law_ai_analysis_${encodeURIComponent(lawTitle)}_${cleanArt}`;
+  }, [lawTitle, articleNumber]);
+
+  // ⚡ DUAL-LAYER PERSISTENCE EFFECT (LOCALSTORAGE + MONGODB SYNC)
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -86,15 +92,22 @@ export default function LawArticlePage() {
 
     let isMounted = true;
 
-    const loadArticleAndCache = async () => {
+    // 1. NGARKIMI I MENJËHERSHËM NGA LOCALSTORAGE (0.001s)
+    const localSaved = localStorage.getItem(localCacheKey);
+    if (localSaved) {
+      setSummaryContent(localSaved);
+    } else {
+      setSummaryContent('');
+    }
+
+    const loadArticleAndSyncMongo = async () => {
       setLoading(true);
       setError('');
-      setSummaryContent('');
       setSummaryError('');
       setMessages([]);
 
       try {
-        // 1. Ngarko Nenin
+        // Ngarko Nenin
         const data = await lawService.getLawArticle(lawTitle, articleNumber);
         if (!isMounted) return;
 
@@ -149,10 +162,11 @@ export default function LawArticlePage() {
           requested_law_title: lawTitle,
         });
 
-        // 2. ⚡ KONTROLLO CACHE NË MONGODB DHE SHFAQ MENJËHERË ANALIZËN
-        const cachedAnalysis = await lawService.getCachedLawAnalysis(lawTitle, articleNumber);
-        if (isMounted && cachedAnalysis) {
-          setSummaryContent(cachedAnalysis);
+        // 2. SINKRONIZIM ME MONGODB (Nëse pajisja nuk e kishte në LocalStorage)
+        const mongoAnalysis = await lawService.getCachedLawAnalysis(lawTitle, articleNumber);
+        if (isMounted && mongoAnalysis) {
+          setSummaryContent(mongoAnalysis);
+          localStorage.setItem(localCacheKey, mongoAnalysis);
         }
       } catch (err: any) {
         if (isMounted) {
@@ -166,12 +180,12 @@ export default function LawArticlePage() {
       }
     };
 
-    loadArticleAndCache();
+    loadArticleAndSyncMongo();
 
     return () => {
       isMounted = false;
     };
-  }, [lawTitle, articleNumber, t]);
+  }, [lawTitle, articleNumber, localCacheKey, t]);
 
   // Hapja e Modalit
   const handleOpenModalOnly = () => {
@@ -190,6 +204,9 @@ export default function LawArticlePage() {
         accumulated += chunk;
         setSummaryContent(accumulated);
       }
+      if (accumulated && !accumulated.startsWith('[')) {
+        localStorage.setItem(localCacheKey, accumulated);
+      }
     } catch (err: any) {
       console.error('[ERROR] Summary failed:', err);
       setSummaryError(t('lawArticle.aiError', 'Dështoi analiza inteligjente.'));
@@ -203,6 +220,7 @@ export default function LawArticlePage() {
     if (!article || isSummarizing) return;
     setSummaryContent('');
     setSummaryError('');
+    localStorage.removeItem(localCacheKey);
     setIsSummarizing(true);
 
     try {
@@ -213,6 +231,9 @@ export default function LawArticlePage() {
       for await (const chunk of stream) {
         accumulated += chunk;
         setSummaryContent(accumulated);
+      }
+      if (accumulated && !accumulated.startsWith('[')) {
+        localStorage.setItem(localCacheKey, accumulated);
       }
     } catch (err: any) {
       console.error('[ERROR] Reanalyze failed:', err);
@@ -226,6 +247,7 @@ export default function LawArticlePage() {
   const handleClearCache = async () => {
     if (!article) return;
     try {
+      localStorage.removeItem(localCacheKey);
       await lawService.clearLawCache(article.law_title, article.article_number || '');
       setSummaryContent('');
       setMessages([]);

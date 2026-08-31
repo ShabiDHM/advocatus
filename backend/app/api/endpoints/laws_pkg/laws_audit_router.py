@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_audit_router.py
-# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH FLEXIBLE REGEX CACHE MATCHING
+# PHOENIX PROTOCOL - BULLETPROOF DUAL-KEY CACHING & CANONICAL MATCHING
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -31,11 +31,16 @@ class AuditChatRequest(BaseModel):
     query: str
 
 
-def _clean_article_query(art: str) -> str:
-    """Nxjerr vetëm numrin e pastër të nenit për kërkim të sigurt në cache."""
-    clean = str(art).strip().replace("Neni", "").replace("neni", "").strip()
-    match = re.search(r'\d+', clean)
-    return match.group(0) if match else clean
+def _canonical_keys(law_title: str, article_number: str):
+    """Gjeneron çelësa kanonikë të pastër për kërkim dhe ruajtje 100% të sigurt."""
+    clean_law = str(law_title).strip()
+    law_key = re.sub(r'[\s_\-]+', ' ', clean_law).strip().lower()
+    
+    clean_art = str(article_number).strip().replace("Neni", "").replace("neni", "").strip()
+    art_match = re.search(r'\d+', clean_art)
+    art_key = art_match.group(0) if art_match else clean_art.lower()
+
+    return clean_law, law_key, clean_art, art_key
 
 
 @router.get("/explain/cached")
@@ -44,22 +49,22 @@ async def get_cached_law_analysis(
     article_number: str = Query(...),
     current_user = Depends(get_current_user)
 ):
-    """Kthen menjëherë analizën e ruajtur në MongoDB me kërkim fleksibil."""
+    """Kthen menjëherë analizën nga MongoDB me çelës kanonik."""
     try:
         db = get_db_instance()
-        clean_law = law_title.strip()
-        clean_art = _clean_article_query(article_number)
+        clean_law, law_key, clean_art, art_key = _canonical_keys(law_title, article_number)
 
-        # Kërkim fleksibil që gjen nenin pavarësisht fjalës 'Neni' apo hapësirave
         cached_doc = db.legal_analysis_cache.find_one({
-            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
-            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
+            "$or": [
+                {"law_key": law_key, "art_key": art_key},
+                {"law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"}, "article_number": {"$regex": f"^{art_key}$|^Neni\\s*{art_key}$", "$options": "i"}}
+            ]
         })
 
         if cached_doc and cached_doc.get("content"):
             content = cached_doc.get("content")
             if not content.startswith("[") and len(content) > 60:
-                logger.info(f"⚡ [CACHE FOUND ON GET] {clean_law} - Art {clean_art}")
+                logger.info(f"⚡ [CACHE HIT ON GET] Found analysis for: {clean_law} - Art {art_key}")
                 return {"cached": True, "content": content}
 
         return {"cached": False, "content": None}
@@ -73,28 +78,29 @@ async def explain_law_article(
     req: ExplainLawRequest,
     current_user = Depends(get_current_user)
 ):
-    """Gjeneron analizë ligjore në shqip të pastër me DeepSeek dhe Multi-Device Cache."""
+    """Gjeneron analizë ligjore me DeepSeek dhe e ruan përgjithmonë në MongoDB."""
     db = get_db_instance()
-    clean_law = req.law_title.strip()
-    clean_art = _clean_article_query(req.article_number)
+    clean_law, law_key, clean_art, art_key = _canonical_keys(req.law_title, req.article_number)
 
     # 1. KONTROLLO CACHE-IN NË MONGODB
     if not req.force_refresh:
         cached_doc = db.legal_analysis_cache.find_one({
-            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
-            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
+            "$or": [
+                {"law_key": law_key, "art_key": art_key},
+                {"law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"}, "article_number": {"$regex": f"^{art_key}$|^Neni\\s*{art_key}$", "$options": "i"}}
+            ]
         })
         if cached_doc and cached_doc.get("content"):
             cached_text = cached_doc.get("content")
             if not cached_text.startswith("[") and len(cached_text) > 60:
-                logger.info(f"⚡ [CACHE HIT ON POST] DeepSeek analysis for {clean_law} - Art {clean_art}")
+                logger.info(f"⚡ [CACHE HIT ON POST] DeepSeek analysis for {clean_law} - Art {art_key}")
 
                 async def stream_cached():
                     yield cached_text
 
                 return StreamingResponse(stream_cached(), media_type="text/plain")
 
-    # 2. GJENERIMI ME DEEPSEEK (100% SHQIP PA LATINISHT)
+    # 2. GJENERIMI ME DEEPSEEK
     try:
         generator = ResponseGenerator()
         
@@ -113,6 +119,15 @@ async def explain_law_article(
 
         user_query = req.prompt or f"Shpjego Nenin {clean_art} të ligjit '{clean_law}'"
 
+        # Nxirr User ID në mënyrë të sigurt pa shkaktuar AttributeError
+        user_id_str = "system"
+        if hasattr(current_user, "id"):
+            user_id_str = str(current_user.id)
+        elif hasattr(current_user, "_id"):
+            user_id_str = str(current_user._id)
+        elif isinstance(current_user, dict):
+            user_id_str = str(current_user.get("_id") or current_user.get("id") or "system")
+
         async def stream_and_cache():
             accumulated = []
             async for chunk in generator.generate_stream(system_prompt, user_query, ""):
@@ -123,19 +138,21 @@ async def explain_law_article(
             if full_content and not full_content.startswith("[") and len(full_content) > 80:
                 try:
                     db.legal_analysis_cache.update_one(
-                        {"law_title": clean_law, "article_number": clean_art},
+                        {"law_key": law_key, "art_key": art_key},
                         {"$set": {
+                            "law_key": law_key,
+                            "art_key": art_key,
                             "law_title": clean_law,
                             "article_number": clean_art,
                             "content": full_content,
                             "updated_at": datetime.now(timezone.utc),
-                            "created_by": str(current_user.get("_id", "system"))
+                            "created_by": user_id_str
                         }},
                         upsert=True
                     )
-                    logger.info(f"💾 [CACHE SAVED PERMANENTLY] DeepSeek analysis for {clean_law} - Art {clean_art}")
+                    logger.info(f"💾 [CACHE SAVED SUCCESS] Analysis saved permanently for: {clean_law} - Art {art_key}")
                 except Exception as save_err:
-                    logger.warning(f"Cache save error: {save_err}")
+                    logger.error(f"❌ Cache save failed in Mongo: {save_err}")
 
         return StreamingResponse(stream_and_cache(), media_type="text/plain")
     except Exception as e:
@@ -152,14 +169,15 @@ async def clear_law_article_cache(
     """Fshin analizën e ruajtur në cache për këtë nen."""
     try:
         db = get_db_instance()
-        clean_law = law_title.strip()
-        clean_art = _clean_article_query(article_number)
+        clean_law, law_key, clean_art, art_key = _canonical_keys(law_title, article_number)
 
         result = db.legal_analysis_cache.delete_many({
-            "law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"},
-            "article_number": {"$regex": f"^{clean_art}$|^Neni\\s*{clean_art}$", "$options": "i"}
+            "$or": [
+                {"law_key": law_key, "art_key": art_key},
+                {"law_title": {"$regex": f"^{re.escape(clean_law)}$", "$options": "i"}, "article_number": {"$regex": f"^{art_key}$|^Neni\\s*{art_key}$", "$options": "i"}}
+            ]
         })
-        logger.info(f"🗑️ [CACHE PURGED] {clean_law} - Art {clean_art} (Deleted: {result.deleted_count})")
+        logger.info(f"🗑️ [CACHE PURGED] {clean_law} - Art {art_key} (Deleted: {result.deleted_count})")
         return {"success": True, "deleted_count": result.deleted_count, "message": "Analiza u shlye me sukses nga memoria."}
     except Exception as e:
         logger.error(f"Error purging cache: {e}")
