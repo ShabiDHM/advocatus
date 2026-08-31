@@ -1,5 +1,5 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - EXPANDED WIDESCREEN AUDITOR MODAL (MAX-W-5XL & BALANCED TYPOGRAPHY)
+// PHOENIX PROTOCOL - EXPANDED WIDESCREEN AUDITOR MODAL (100% PURE ALBANIAN TEXT RENDERING)
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -90,15 +90,19 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     }
   };
 
-  // Renderim i pastër dhe i balancuar tipografik
+  // Renderim i pastër në gjuhën shqipe
   const renderCleanTypography = (text: string) => {
     if (!text) return null;
     const lines = text.split('\n');
 
     return lines.map((line, i) => {
-      const trimmed = line.trim();
+      let trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-3" />;
 
+      // Pastrimi automatik i termave latine nëse kanë mbetur në memorie
+      trimmed = trimmed.replace(/ratio\s*legis/gi, 'Fryma e Ligjit');
+
+      // Tituj me Ikona (📌, ⚖️, ⚠️, 🔗)
       if (
         trimmed.startsWith('📌') ||
         trimmed.startsWith('⚖️') ||
@@ -117,6 +121,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         );
       }
 
+      // Rreshta me pika
       if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
         const itemText = trimmed.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '');
         return (
@@ -154,7 +159,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md"
         />
 
-        {/* 2. Trupi i Zgjeruar i Modalit (MAX-W-5XL për Hapësirë Maksimale) */}
+        {/* 2. Trupi i Zgjeruar i Modalit (MAX-W-5XL) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -214,7 +219,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Përmbajtja e Zgjeruar me Scroll */}
+          {/* Përmbajtja me Scroll */}
           <div className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8">
             
             {/* 1. SEKSIONI I ANALIZËS LIGJORE */}

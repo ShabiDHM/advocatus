@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_audit_router.py
-# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH SAFE CACHE SANITIZATION
+# PHOENIX PROTOCOL - 100% PURE ALBANIAN LAW AUDIT ROUTER (ZERO FOREIGN / LATIN TERMS)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -35,7 +35,7 @@ async def explain_law_article(
     req: ExplainLawRequest,
     current_user = Depends(get_current_user)
 ):
-    """Gjeneron analizë ligjore me DeepSeek dhe Multi-Device Cache."""
+    """Gjeneron analizë ligjore në shqip të pastër me DeepSeek dhe Multi-Device Cache."""
     db = get_db_instance()
     clean_law = req.law_title.strip()
     clean_art = str(req.article_number).strip()
@@ -48,7 +48,6 @@ async def explain_law_article(
         })
         if cached_doc and cached_doc.get("content"):
             cached_text = cached_doc.get("content")
-            # Mos kthe përgjigje gabimi nga cache
             if not cached_text.startswith("[") and len(cached_text) > 60:
                 logger.info(f"⚡ [CACHE HIT] DeepSeek analysis for {clean_law} - Art {clean_art}")
 
@@ -57,15 +56,18 @@ async def explain_law_article(
 
                 return StreamingResponse(stream_cached(), media_type="text/plain")
 
-    # 2. GJENERIMI ME DEEPSEEK
+    # 2. GJENERIMI ME DEEPSEEK (100% SHQIP PA LATINISHT)
     try:
         generator = ResponseGenerator()
         
         system_prompt = (
             "Ti je 'Sokrati' - Eksperti Kryesor Ligjor dhe Juristi AI i Kosovës.\n"
-            "Bëj një ANALIZË TË THELLË DHE TË QARTË JURIDIKE në gjuhën shqipe mbi këtë nen.\n"
-            "RREGULLA: Mos përdor linqe URL. Strukturo përgjigjen me këta tituj:\n"
-            "📌 **Qëllimi Kryesor dhe Ratio Legis**\n"
+            "Detyra jote është të bësh një ANALIZË TË THELLË DHE TË QARTË JURIDIKE në gjuhën shqipe mbi këtë nen.\n\n"
+            "RREGULLAT GJUHËSORE DHE FORMATIMI:\n"
+            "1. Përdor VETËM gjuhë të pastër shqipe standarde. MOS përdor asnjë term në latinisht (si 'ratio legis', 'de jure', 'de facto', etj.) apo gjuhë të huaja.\n"
+            "2. Mos përdor linqe URL.\n"
+            "3. Strukturo përgjigjen me këta 4 tituj kryesorë ekzaktësisht:\n"
+            "📌 **Qëllimi Kryesor dhe Fryma e Ligjit**\n"
             "⚖️ **Zbatimi Praktik dhe Kushtet Ligjore**\n"
             "⚠️ **Rreziqet, Pasojat dhe Afatet Procedurale**\n"
             "🔗 **Ndërlidhja me Ligjet dhe Praktikën Gjyqësore të Kosovës**"
@@ -80,7 +82,6 @@ async def explain_law_article(
                 yield chunk
             
             full_content = "".join(accumulated).strip()
-            # 🛡️ SANITIZATION: Ruaj vetëm nëse është përgjigje e suksesshme (JO gabime)
             if full_content and not full_content.startswith("[") and len(full_content) > 80:
                 try:
                     db.legal_analysis_cache.update_one(
@@ -132,14 +133,15 @@ async def audit_law_chat(
     req: AuditChatRequest,
     current_user = Depends(get_current_user)
 ):
-    """Mundëson bisedë interaktive me DeepSeek."""
+    """Mundëson bisedë interaktive me DeepSeek në shqip të pastër."""
     try:
         generator = ResponseGenerator()
 
         system_prompt = (
             "Ti je 'Auditori Ligjor' i platformës Juristi.tech në Kosovë.\n"
             f"Po auditon ligjin: **{req.law_title}**, Neni: **{req.article_number}**.\n"
-            "Përgjigju në shqip të pastër standard me saktësi absolute juridike sipas ligjeve të Kosovës."
+            "Përgjigju në shqip të pastër standard me saktësi absolute juridike sipas ligjeve të Kosovës, "
+            "pa përdorur terma të huaj apo latinisht."
         )
 
         async def stream_output():
