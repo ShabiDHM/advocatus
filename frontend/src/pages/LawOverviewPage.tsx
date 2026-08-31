@@ -1,12 +1,12 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW OVERVIEW
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW OVERVIEW WITH STEP HISTORY NAVIGATION
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  ArrowLeft, FileText, AlertCircle, 
+  ArrowLeft, ArrowRight, FileText, AlertCircle, 
   BookOpen, ExternalLink, Search, X,
   Maximize2, Minimize2
 } from 'lucide-react';
@@ -86,11 +86,11 @@ export default function LawOverviewPage() {
           <h2 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">{t('general.error', 'Gabim')}</h2>
           <p className="text-text-secondary text-sm mb-6">{error || 'Të dhënat nuk u gjetën.'}</p>
           <button
-            onClick={() => navigate('/laws/search')}
+            onClick={() => navigate(-1)}
             className="btn-primary flex items-center gap-2 hover-lift shadow-sm cursor-pointer"
           >
             <ArrowLeft size={16} />
-            {t('lawOverview.backToSearch', 'Kthehu te kërkimi')}
+            <span>Kthehu mbrapa</span>
           </button>
         </div>
       </div>
@@ -108,16 +108,25 @@ export default function LawOverviewPage() {
         isExpanded ? 'max-w-[98vw] px-2 sm:px-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8'
       }`}>
         
-        {/* Butoni Kthehu */}
-        <button
-          onClick={() => navigate('/laws/search')}
-          className="group mb-4 flex items-center gap-2.5 text-text-muted hover:text-text-primary transition-colors font-bold text-xs uppercase tracking-wider hover-lift cursor-pointer"
-        >
-          <div className="p-2 rounded-xl bg-surface border border-main group-hover:border-primary-start transition-colors">
-            <ArrowLeft size={16} className="text-primary-start" />
-          </div>
-          <span>{t('general.back', 'Kthehu te Biblioteka')}</span>
-        </button>
+        {/* Navigimi me dy ikona të pastra (1 Hap Mbrapa / 1 Hap Përpara) */}
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="p-2.5 rounded-xl bg-surface border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
+            title="Mbrapa"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(1)}
+            className="p-2.5 rounded-xl bg-surface border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
+            title="Përpara"
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
 
         {/* Paneli Kryesor */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface transition-all duration-300">
@@ -127,7 +136,7 @@ export default function LawOverviewPage() {
             <div className="relative z-10 flex flex-col gap-4">
               <div className="flex items-center justify-between gap-3">
                 
-                {/* Butoni Shiko PDF të Plotë në vend të Badge-it */}
+                {/* Butoni Shiko PDF të Plotë */}
                 {pdfUrl ? (
                   <button
                     type="button"
@@ -163,7 +172,7 @@ export default function LawOverviewPage() {
                 {displayHeaderTitle}
               </h1>
 
-              {/* Badge i thjeshtë me numrin e neneve */}
+              {/* Numri total i neneve */}
               <div className="flex items-center gap-2 pt-2 border-t border-main/50">
                 <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3 py-1 rounded-xl text-xs font-bold font-mono">
                   <FileText size={14} className="text-primary-start" />
@@ -174,7 +183,7 @@ export default function LawOverviewPage() {
           </div>
 
           {/* Trupi me Rrjetën e Neneve */}
-          <div className="bg-canvas/30 px-4 sm:px-8 py-6 flex flex-col">
+          <div className="bg-canvas/30 px-4 sm:px-8 py-6 pb-8 flex flex-col">
             
             {/* Shiriti i Kërkimit të Nenit */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
@@ -246,16 +255,6 @@ export default function LawOverviewPage() {
 
           </div>
 
-          {/* Footer Bar i Pastruar */}
-          <div className="bg-surface px-6 sm:px-10 py-4 flex items-center border-t border-main">
-            <button
-              onClick={() => navigate('/laws/search')}
-              className="text-xs font-bold uppercase tracking-wider text-text-muted hover:text-primary-start transition-colors flex items-center gap-2 hover-lift cursor-pointer"
-            >
-              <ArrowLeft size={14} />
-              {t('lawOverview.backToSearch', 'Kthehu te Biblioteka')}
-            </button>
-          </div>
         </div>
       </div>
 
