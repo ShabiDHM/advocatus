@@ -1,9 +1,10 @@
 // FILE: src/pages/LawArticlePage.tsx
-// PHOENIX PROTOCOL - 100% MANUAL TRIGGER FLOW (OPEN MODAL FIRST, EXECUTE ONLY ON DEMAND)
+// PHOENIX PROTOCOL - LAW ARTICLE PAGE CONNECTED TO MODULAR LAW SERVICE
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService, API_V1_URL } from '../services/api';
+import { lawService } from '../services/lawService';
+import { API_V1_URL } from '../services/apiClient';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -75,14 +76,6 @@ export default function LawArticlePage() {
     return summaryContent.replace(/\n\n---\n\*Kjo përgjigje është gjeneruar nga AI, vetëm për referenc\.\*/g, '').trim();
   }, [summaryContent]);
 
-  // Ndryshimi i nenit pastron analizën lokale për nenin e ri
-  useEffect(() => {
-    setSummaryContent('');
-    setSummaryError('');
-    setMessages([]);
-    setShowAuditorModal(false);
-  }, [lawTitle, articleNumber]);
-
   useEffect(() => {
     if (!lawTitle || !articleNumber) {
       setError(t('lawArticle.missingParams', 'Parametrat e artikullit mungojnë.'));
@@ -90,11 +83,12 @@ export default function LawArticlePage() {
       return;
     }
 
-    const loadArticle = async () => {
+    const loadArticleAndCache = async () => {
       setLoading(true);
       setError('');
       try {
-        const data = await apiService.getLawArticle(lawTitle, articleNumber);
+        // 1. Ngarko Nenin përmes LawService
+        const data = await lawService.getLawArticle(lawTitle, articleNumber);
         const normalizedText = normalizeText(data.text, data.article_number || articleNumber);
 
         let chunkId = data.chunk_id || '';
@@ -145,6 +139,14 @@ export default function LawArticlePage() {
           source_info: updatedSourceInfo,
           requested_law_title: lawTitle,
         });
+
+        // 2. ⚡ KONTROLLO MONGODB NË REFRESH PËRMES LAWSERVICE
+        const cachedAnalysis = await lawService.getCachedLawAnalysis(lawTitle, articleNumber);
+        if (cachedAnalysis) {
+          setSummaryContent(cachedAnalysis);
+        } else {
+          setSummaryContent('');
+        }
       } catch (err: any) {
         console.error('[ERROR] Failed to load article:', err);
         setError(err.message || t('lawArticle.fetchError', 'Dështoi ngarkimi i artikullit.'));
@@ -153,21 +155,21 @@ export default function LawArticlePage() {
       }
     };
 
-    loadArticle();
+    loadArticleAndCache();
   }, [lawTitle, articleNumber, t]);
 
-  // 1. BUTONI VETËM HAP MODALIN (ZERO KËRKESA AUTOMATIKE)
+  // Hapja e Modalit
   const handleOpenModalOnly = () => {
     setShowAuditorModal(true);
   };
 
-  // 2. NISJA E ANALIZËS (VETËM KUR KLIKOHET NGA PËRDORUESI)
+  // Nisja e Analizës me DeepSeek
   const handleStartAnalysis = async () => {
     if (!article || isSummarizing) return;
     setIsSummarizing(true);
     setSummaryError('');
     try {
-      const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
+      const stream = lawService.explainLawStream(article.law_title, article.article_number || '', article.text);
       let accumulated = '';
       for await (const chunk of stream) {
         accumulated += chunk;
@@ -181,7 +183,7 @@ export default function LawArticlePage() {
     }
   };
 
-  // 3. RIANALIZO NENIN (FRESH RUN)
+  // Rianalizo Nenin (Fresh Run)
   const handleReanalyze = async () => {
     if (!article || isSummarizing) return;
     setSummaryContent('');
@@ -189,11 +191,9 @@ export default function LawArticlePage() {
     setIsSummarizing(true);
 
     try {
-      await apiService.axiosInstance.delete('/laws/explain/cache', {
-        params: { law_title: article.law_title, article_number: article.article_number }
-      });
+      await lawService.clearLawCache(article.law_title, article.article_number || '');
 
-      const stream = apiService.explainLawStream(article.law_title, article.article_number || '', article.text);
+      const stream = lawService.explainLawStream(article.law_title, article.article_number || '', article.text);
       let accumulated = '';
       for await (const chunk of stream) {
         accumulated += chunk;
@@ -207,20 +207,15 @@ export default function LawArticlePage() {
     }
   };
 
-  // 4. SHLYEJ ANALIZËN NGA MEMORIA
+  // Shlyej Analizën nga Memoria
   const handleClearCache = async () => {
     if (!article) return;
     try {
-      await apiService.axiosInstance.delete('/laws/explain/cache', {
-        params: {
-          law_title: article.law_title,
-          article_number: article.article_number
-        }
-      });
+      await lawService.clearLawCache(article.law_title, article.article_number || '');
       setSummaryContent('');
       setMessages([]);
     } catch (err) {
-      console.error("Purge cache failed:", err);
+      console.error('Purge cache failed:', err);
     }
   };
 
@@ -246,7 +241,7 @@ export default function LawArticlePage() {
     setMessages((prev) => [...prev, { id: auditorMessageId, role: 'auditor', content: '', timestamp: new Date() }]);
 
     try {
-      const stream = apiService.askLawAuditor(article.chunk_id, finalQuery, article.law_title, article.article_number);
+      const stream = lawService.askLawAuditor(article.chunk_id, finalQuery, article.law_title, article.article_number);
       let accumulatedContent = '';
 
       for await (const chunk of stream) {
@@ -344,7 +339,7 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* AUDITOR MODAL DIALOG (MANUAL TRIGGER) */}
+          {/* AUDITOR MODAL DIALOG */}
           <LawArticleAuditorPanel
             isOpen={showAuditorModal}
             summaryContent={summaryContent}

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_audit_router.py
-# PHOENIX PROTOCOL - 100% PURE ALBANIAN LAW AUDIT ROUTER (ZERO FOREIGN / LATIN TERMS)
+# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH INSTANT CACHE QUERY & AUTO-RETRY
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -28,6 +28,34 @@ class AuditChatRequest(BaseModel):
     law_title: Optional[str] = ""
     article_number: Optional[str] = ""
     query: str
+
+
+@router.get("/explain/cached")
+async def get_cached_law_analysis(
+    law_title: str = Query(...),
+    article_number: str = Query(...),
+    current_user = Depends(get_current_user)
+):
+    """Kthen menjëherë analizën e ruajtur në MongoDB nëse ekziston."""
+    try:
+        db = get_db_instance()
+        clean_law = law_title.strip()
+        clean_art = str(article_number).strip()
+
+        cached_doc = db.legal_analysis_cache.find_one({
+            "law_title": clean_law,
+            "article_number": clean_art
+        })
+
+        if cached_doc and cached_doc.get("content"):
+            content = cached_doc.get("content")
+            if not content.startswith("[") and len(content) > 60:
+                return {"cached": True, "content": content}
+
+        return {"cached": False, "content": None}
+    except Exception as e:
+        logger.warning(f"Error reading cache: {e}")
+        return {"cached": False, "content": None}
 
 
 @router.post("/explain")

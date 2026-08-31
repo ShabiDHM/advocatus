@@ -1,5 +1,5 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - EXPANDED WIDESCREEN AUDITOR MODAL (100% PURE ALBANIAN TEXT RENDERING)
+// PHOENIX PROTOCOL - AUDITOR MODAL WITH DYNAMIC STREAM AUTO-SCROLLING & PERSISTENCE
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -56,11 +56,19 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
 }) => {
   const [mounted, setMounted] = useState(false);
   const localTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollableBodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  // ⚡ AUTO-SCROLL GJATË STREAMING-UT: Zbret automatikisht me fjalët e reja
+  useEffect(() => {
+    if (isSummarizing && scrollableBodyRef.current) {
+      scrollableBodyRef.current.scrollTop = scrollableBodyRef.current.scrollHeight;
+    }
+  }, [summaryContent, isSummarizing]);
 
   if (!isOpen || !mounted) return null;
 
@@ -99,10 +107,8 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
       let trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-3" />;
 
-      // Pastrimi automatik i termave latine nëse kanë mbetur në memorie
       trimmed = trimmed.replace(/ratio\s*legis/gi, 'Fryma e Ligjit');
 
-      // Tituj me Ikona (📌, ⚖️, ⚠️, 🔗)
       if (
         trimmed.startsWith('📌') ||
         trimmed.startsWith('⚖️') ||
@@ -121,7 +127,6 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         );
       }
 
-      // Rreshta me pika
       if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ')) {
         const itemText = trimmed.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '');
         return (
@@ -150,7 +155,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
     <AnimatePresence>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 overflow-hidden">
         
-        {/* 1. Backdrop i Fortë */}
+        {/* 1. Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -159,7 +164,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md"
         />
 
-        {/* 2. Trupi i Zgjeruar i Modalit (MAX-W-5XL) */}
+        {/* 2. Trupi i Zgjeruar i Modalit */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -219,8 +224,8 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Përmbajtja me Scroll */}
-          <div className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8">
+          {/* Përmbajtja me Scroll dhe Ref për Auto-Scroll */}
+          <div ref={scrollableBodyRef} className="px-6 sm:px-10 py-6 sm:py-8 overflow-y-auto custom-scrollbar flex-1 space-y-6 sm:space-y-8">
             
             {/* 1. SEKSIONI I ANALIZËS LIGJORE */}
             <div>
@@ -230,7 +235,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* GJENDJA FILLARE: BUTONI MANUAL "FILLO ANALIZËN" */}
+              {/* GJENDJA FILLARE (KUR NUK KA ANALIZË TË RUAJTUR) */}
               {!summaryContent && !isSummarizing && (
                 <div className="py-12 px-6 border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-[#070B14]/40">
                   <div className="h-14 w-14 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start mb-4">
@@ -269,7 +274,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 </div>
               )}
 
-              {/* TEKSTI I ANALIZËS SË PËRFUNDUAR */}
+              {/* TEKSTI I ANALIZËS (NGARKOHET MENJËHERË NË REFRESH) */}
               {summaryContent && (
                 <div className="space-y-2.5 max-w-[110ch]">
                   {renderCleanTypography(cleanSummary)}
