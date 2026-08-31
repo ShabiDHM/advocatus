@@ -1,13 +1,14 @@
 // FILE: src/components/law/LawArticleHeader.tsx
-// PHOENIX PROTOCOL - CLEAN 2-ICON STEP NAVIGATION & AUDITOR HEADER
+// PHOENIX PROTOCOL - LAW ARTICLE HEADER WITH TOP-LEFT OFFICIAL VERIFICATION BADGE
 
 import React from 'react';
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Search, Loader2, BrainCircuit, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Search, Loader2, BrainCircuit, X, ShieldCheck } from 'lucide-react';
+import { SourceInfo } from './lawArticleTypes';
 import { TFunction } from 'i18next';
 
 interface LawArticleHeaderProps {
-  onBackToLibrary: () => void;
+  sourceInfo: SourceInfo | null;
+  isAcademicDoc: boolean;
   prevArticleNum: string | null;
   nextArticleNum: string | null;
   onNavigateToArticle: (num: string) => void;
@@ -22,6 +23,8 @@ interface LawArticleHeaderProps {
 }
 
 export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
+  sourceInfo,
+  isAcademicDoc,
   prevArticleNum,
   nextArticleNum,
   onNavigateToArticle,
@@ -34,30 +37,25 @@ export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
   onCloseAuditor,
   t,
 }) => {
-  const navigate = useNavigate();
+  const accuracyPercentage = sourceInfo?.confidence?.score
+    ? Math.round(sourceInfo.confidence.score * 100)
+    : 100;
+
+  const verificationLabel = isAcademicDoc
+    ? `Udhëzues i Verifikuar (${accuracyPercentage}%)`
+    : `Tekst Zyrtar i Verifikuar (${accuracyPercentage}%)`;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4 w-full">
       
-      {/* RRESHTI 1: Dy Ikonat e Navigimit (← Mbrapa / → Përpara) */}
+      {/* LART MAJTAS: Badge i Verifikimit Dinamik me % */}
       <div className="flex items-center justify-between w-full sm:w-auto gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="p-2.5 rounded-xl bg-canvas border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
-            title="Mbrapa"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(1)}
-            className="p-2.5 rounded-xl bg-canvas border border-main hover:border-primary-start/60 text-text-primary hover:text-primary-start transition-all hover-lift cursor-pointer shadow-sm"
-            title="Përpara"
-          >
-            <ArrowRight size={16} />
-          </button>
+        <div 
+          className="flex items-center gap-1.5 text-emerald-500 font-bold text-xs px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl shadow-xs"
+          title={`Verifikuar nga baza zyrtare me saktësi ${accuracyPercentage}%`}
+        >
+          <ShieldCheck size={16} className="text-emerald-500 shrink-0" />
+          <span className="truncate">{verificationLabel}</span>
         </div>
 
         {/* Butoni i Auditimit në Mobile */}
@@ -83,7 +81,7 @@ export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
         </div>
       </div>
 
-      {/* RRESHTI 2: Navigimi i Neneve (< Search >) */}
+      {/* QENDRA: Navigimi i Neneve (< Search >) */}
       <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 w-full sm:w-auto">
         {prevArticleNum !== null ? (
           <button
@@ -125,7 +123,7 @@ export const LawArticleHeader: React.FC<LawArticleHeaderProps> = ({
         )}
       </div>
 
-      {/* Butoni i Auditimit në Desktop */}
+      {/* DJATHTAS: Butoni i Auditimit në Desktop */}
       <div className="hidden sm:flex items-center shrink-0">
         {!chatVisible ? (
           <button

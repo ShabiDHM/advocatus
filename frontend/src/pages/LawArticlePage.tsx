@@ -290,7 +290,8 @@ export default function LawArticlePage() {
         <div className="glass-panel p-6 sm:p-8 md:p-10 flex flex-col flex-1 shadow-sm border border-main rounded-3xl bg-surface">
           
           <LawArticleHeader
-            onBackToLibrary={() => navigate(-1)}
+            sourceInfo={sourceInfo}
+            isAcademicDoc={isAcademicDoc}
             prevArticleNum={prevArticleNum}
             nextArticleNum={nextArticleNum}
             onNavigateToArticle={navigateToArticleNum}
@@ -310,12 +311,7 @@ export default function LawArticlePage() {
 
           <LawArticleContent
             article={article}
-            sourceInfo={sourceInfo}
-            isAcademicDoc={isAcademicDoc}
             rawArtNum={rawArtNum}
-            prevArticleNum={prevArticleNum}
-            nextArticleNum={nextArticleNum}
-            onNavigateToArticle={navigateToArticleNum}
             onOpenPdf={() => setShowPdfModal(true)}
             t={t}
           />
@@ -345,7 +341,7 @@ export default function LawArticlePage() {
             t={t}
           />
 
-          {/* Shiriti i poshtëm i pastër: vetëm butonat e lëvizjes së nenit në qendër */}
+          {/* Shiriti i poshtëm vetëm me butonat e qendrës */}
           <div className="bg-surface px-6 sm:px-8 py-5 flex justify-center items-center border-t border-main gap-4 mt-6">
             <div className="flex items-center gap-3">
               {prevArticleNum !== null && (
