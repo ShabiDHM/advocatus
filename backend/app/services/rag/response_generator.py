@@ -1,7 +1,8 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - RESPONSE GENERATOR V7.0 (ANTI-HALUCINATION + STREAMING)
+# PHOENIX PROTOCOL - RESILIENT DEEPSEEK RESPONSE GENERATOR WITH PROVIDER ROUTING & AUTO-RETRY
 
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from openai import AsyncOpenAI
 from app.core.config import settings
@@ -10,14 +11,16 @@ from app.services.pillars.hallucination_filter import HallucinationFilter
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
+PRIMARY_DEEPSEEK_MODEL = "deepseek/deepseek-chat"
+FALLBACK_DEEPSEEK_MODEL = "deepseek/deepseek-r1"
 LLM_TIMEOUT = 120
+MAX_RETRIES = 3
 
 MAX_CHUNK_CHARS = 40_000
 
 class ResponseGenerator:
     """
-    V7.0: Streaming me filtër në fund + udhëzim anti-halucinacion.
+    V8.0: Resilient DeepSeek Streaming me Provider Routing dhe Mbrojtje ndaj 429.
     """
 
     def __init__(self):
@@ -25,7 +28,11 @@ class ResponseGenerator:
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=OPENROUTER_BASE_URL,
-            timeout=LLM_TIMEOUT
+            timeout=LLM_TIMEOUT,
+            default_headers={
+                "HTTP-Referer": "https://juristi.tech",
+                "X-Title": "Juristi AI Platform",
+            }
         )
 
     def _split_context_into_chunks(self, context: str, chunk_size: int = MAX_CHUNK_CHARS) -> List[str]:
@@ -52,64 +59,41 @@ class ResponseGenerator:
         if current_chunk:
             chunks.append(current_chunk)
         
-        logger.info(f"📋 [Chunked] Konteksti u nda në {len(chunks)} pjesë.")
         return chunks
 
-    def _build_short_chunk_prompt(self, chunk: str, chunk_num: int, total_chunks: int) -> str:
-        return f"""
-LEXO me kujdes këto dokumente (Pjesa {chunk_num}/{total_chunks}) dhe ZBULO VETË:
+    async def _call_with_retry(self, messages: List[Dict[str, str]], stream: bool = True, max_tokens: int = 8192):
+        """Kryen thirrjen me provider fallback për DeepSeek dhe retry automatik."""
+        last_error = None
+        models_to_try = [PRIMARY_DEEPSEEK_MODEL, FALLBACK_DEEPSEEK_MODEL]
 
-1. Mospërputhjet në data (a ka prapadatime?)
-2. Kontradiktat në fakte (Dokumenti A thotë X, B thotë Y?)
-3. Shkeljet procedurale (a u respektuan afatet? a u dëgjuan palët?)
-4. Provat e injoruara (a ka prova që u dorëzuan por nuk u vlerësuan?)
-5. Veprimet e paligjshme (a ka elemente të veprës penale?)
-
-DOKUMENTET:
-{chunk}
-
-NXIRR:
-- Faktet kryesore (me datë)
-- Shkeljet e gjetura (me referencë në dokument)
-- Provat e rëndësishme
-- Aktorët dhe rolet e tyre
-
-RREGULLAT:
-- CITO VETËM nenet që i sheh në dokumente.
-- MOS shpik asnjë nen, ligj, apo precedent.
-- Nëse nuk ke informacion, shkruaj "Nuk kam informacion të mjaftueshëm".
-
-Përgjigju shkurt, me pika. JO analiza të gjata.
-"""
-
-    def _build_final_prompt(self, combined_analyses: str, system_prompt: str, user_query: str) -> str:
-        return f"""
-Ti je Sokrati — Gjyqtari Suprem i Kosovës.
-
-Këtu janë analizat e pjesëve të veçanta të fashikullit:
-{combined_analyses}
-
-{system_prompt}
-
-Tani përpilo raportin e plotë dhe të strukturuar.
-BAZOHU VETËM në analizat e mësipërme dhe në dokumentet e fashikullit.
-MOS shpik asgjë që nuk është në analiza ose në RAG context.
-CITO NENET VETËM NËSE i ke parë në dokumente ose i di me siguri absolute.
-"""
-
-    def _build_warning(self, replaced_precedents: List[str]) -> str:
-        if not replaced_precedents:
-            return ""
+        for model_name in models_to_try:
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        temperature=0.1,
+                        stream=stream,
+                        max_tokens=max_tokens,
+                        extra_body={
+                            "provider": {
+                                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
+                                "allow_fallbacks": True
+                            }
+                        }
+                    )
+                    return response
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate limit" in err_str or "temporarily" in err_str:
+                        logger.warning(f"⚠️ [DeepSeek Retry {attempt}/{MAX_RETRIES}] on {model_name}: {e}. Retrying in {attempt}s...")
+                        await asyncio.sleep(attempt * 1.5)
+                        continue
+                    else:
+                        break
         
-        details = "\n".join([f"   • {p}" for p in replaced_precedents])
-        return f"""
----
-⚠️ **KUJDES I VEÇANTË:** Precedentët e mëposhtëm u identifikuan si të PAVERIFIKUAR dhe duhet të hiqen:
-
-{details}
-
-Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
-"""
+        raise last_error if last_error else Exception("Dështoi komunikimi me të gjithë ofruesit e DeepSeek.")
 
     async def generate_stream(
         self,
@@ -121,86 +105,56 @@ Ju lutem verifikoni çdo referencë para përdorimit zyrtar.
             chunks = self._split_context_into_chunks(context)
             
             if len(chunks) <= 1:
-                # STREAMING për kontekst të vogël
                 full_text = ""
-                
-                # PHOENIX FIX V7.0: Shto udhëzim anti-halucinacion direkt në messages
                 enhanced_system_prompt = f"""
 {system_prompt}
 
-RREGULLAT E HEKURTA:
-1. CITO NENET VETËM NËSE i sheh në kontekst ose i di me siguri absolute.
-2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]".
-3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
-4. Përdor VETËM ligjet e Kosovës: KPRK, KPPRK, LPK, LMD, LFK.
-5. Nëse konteksti nuk përmban informacion, THUAJ QARTË se nuk ke informacion të mjaftueshëm.
+RREGULLAT E HEKURTA PËR GJUHËN SHQIPE DHE LIGJET:
+1. Përgjigju VETËM në gjuhë të pastër shqipe standarde.
+2. CITO NENET VETËM NËSE i sheh në kontekst ose i di me siguri absolute sipas ligjeve të Kosovës.
+3. MOS vendos linqe URL. Përdor strukturë me pika dhe theksime të qarta.
 """
+                messages = [
+                    {"role": "system", "content": enhanced_system_prompt[:15_000]},
+                    {"role": "user", "content": user_query}
+                ]
                 
-                response = await self.client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=[
-                        {"role": "system", "content": enhanced_system_prompt[:15_000]},
-                        {"role": "user", "content": user_query}
-                    ],
-                    temperature=0.1,
-                    stream=True,
-                    max_tokens=8192
-                )
+                response = await self._call_with_retry(messages, stream=True, max_tokens=8192)
                 
-                # Yield pjesët e përgjigjes në kohë reale
                 async for chunk in response:
                     if chunk.choices and chunk.choices[0].delta.content:
                         content_piece = chunk.choices[0].delta.content
                         full_text += content_piece
                         yield content_piece
                 
-                # Në fund, filtro dhe trego halucinacionet
                 replaced = HallucinationFilter.extract_unverified_precedents(full_text)
-                warning = self._build_warning(replaced)
-                if warning:
-                    yield warning
+                if replaced:
+                    details = "\n".join([f"   • {p}" for p in replaced])
+                    yield f"\n\n---\n⚠️ **Kujdes:** Referencat e mëposhtme duhet të verifikohen me tekstin zyrtar:\n{details}"
                 
             else:
-                # CHUNKED për kontekst të madh
-                yield "📋 Duke analizuar të gjitha dokumentet e fashikullit...\n\n"
-                
+                yield "📋 Duke analizuar kontekstin e zgjeruar me DeepSeek...\n\n"
                 chunk_analyses = []
                 
                 for i, chunk in enumerate(chunks, 1):
-                    chunk_prompt = self._build_short_chunk_prompt(chunk, i, len(chunks))
-                    
-                    response = await self.client.chat.completions.create(
-                        model=OPENROUTER_MODEL,
-                        messages=[
-                            {"role": "system", "content": chunk_prompt},
-                            {"role": "user", "content": user_query}
-                        ],
-                        temperature=0.1,
-                        stream=False,
-                        max_tokens=4096
-                    )
-                    
+                    chunk_prompt = f"Dokumenti Pjesa {i}:\n{chunk}\n\nNxirr faktet kryesore dhe shkeljet ligjore në shqip me pika."
+                    messages = [
+                        {"role": "system", "content": chunk_prompt},
+                        {"role": "user", "content": user_query}
+                    ]
+                    response = await self._call_with_retry(messages, stream=False, max_tokens=4096)
                     chunk_analysis = response.choices[0].message.content or ""
                     chunk_analyses.append(f"### PJESA {i}:\n{chunk_analysis}")
                     yield f"✅ Pjesa {i}/{len(chunks)} u analizua.\n"
                 
-                yield "\n🔗 Duke përmbledhur të gjitha analizat...\n"
-                
                 combined_analyses = "\n\n".join(chunk_analyses)
-                final_prompt = self._build_final_prompt(combined_analyses, system_prompt, user_query)
+                final_prompt = f"{combined_analyses}\n\n{system_prompt}"
+                final_messages = [
+                    {"role": "system", "content": final_prompt[:20_000]},
+                    {"role": "user", "content": user_query}
+                ]
                 
-                final_response = await self.client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=[
-                        {"role": "system", "content": final_prompt[:20_000]},
-                        {"role": "user", "content": user_query}
-                    ],
-                    temperature=0.1,
-                    stream=True,
-                    max_tokens=8192
-                )
-                
-                # Yield përmbledhjen në kohë reale
+                final_response = await self._call_with_retry(final_messages, stream=True, max_tokens=8192)
                 final_text = ""
                 async for chunk in final_response:
                     if chunk.choices and chunk.choices[0].delta.content:
@@ -208,12 +162,6 @@ RREGULLAT E HEKURTA:
                         final_text += content_piece
                         yield content_piece
                 
-                # Në fund, filtro dhe trego halucinacionet
-                replaced = HallucinationFilter.extract_unverified_precedents(final_text)
-                warning = self._build_warning(replaced)
-                if warning:
-                    yield warning
-                
         except Exception as e:
-            logger.error(f"❌ Response generation failed: {e}")
-            yield f"\n[Gabim Gjatë Gjenerimit: {e}]"
+            logger.error(f"❌ DeepSeek generation failed after retries: {e}")
+            yield f"\n[Shërbimi AI i DeepSeek është përkohësisht i mbingarkuar. Ju lutem klikoni butonin 'Rianalizo' pas pak sekondash.]"

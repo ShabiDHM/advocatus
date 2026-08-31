@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_audit_router.py
-# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH MULTI-DEVICE MONGODB CACHE & CACHE PURGE
+# PHOENIX PROTOCOL - LAW AUDIT ROUTER WITH SAFE CACHE SANITIZATION
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -35,38 +35,36 @@ async def explain_law_article(
     req: ExplainLawRequest,
     current_user = Depends(get_current_user)
 ):
-    """
-    Gjeneron analizë ligjore me Multi-Device Cache.
-    Nëse ekziston në MongoDB, kthehet menjëherë me kosto 0.
-    """
+    """Gjeneron analizë ligjore me DeepSeek dhe Multi-Device Cache."""
     db = get_db_instance()
     clean_law = req.law_title.strip()
     clean_art = str(req.article_number).strip()
 
-    # 1. KONTROLLO CACHE-IN NË MONGODB (Nëse nuk është kërkuar force_refresh)
+    # 1. KONTROLLO CACHE-IN NË MONGODB
     if not req.force_refresh:
         cached_doc = db.legal_analysis_cache.find_one({
             "law_title": clean_law,
             "article_number": clean_art
         })
         if cached_doc and cached_doc.get("content"):
-            logger.info(f"⚡ [CACHE HIT] Loaded analysis for {clean_law} - Art {clean_art}")
             cached_text = cached_doc.get("content")
+            # Mos kthe përgjigje gabimi nga cache
+            if not cached_text.startswith("[") and len(cached_text) > 60:
+                logger.info(f"⚡ [CACHE HIT] DeepSeek analysis for {clean_law} - Art {clean_art}")
 
-            async def stream_cached():
-                yield cached_text
+                async def stream_cached():
+                    yield cached_text
 
-            return StreamingResponse(stream_cached(), media_type="text/plain")
+                return StreamingResponse(stream_cached(), media_type="text/plain")
 
-    # 2. GJENERIMI NGA MOTORRI AI DHE RUAJTJA NË MONGODB
+    # 2. GJENERIMI ME DEEPSEEK
     try:
         generator = ResponseGenerator()
         
         system_prompt = (
             "Ti je 'Sokrati' - Eksperti Kryesor Ligjor dhe Juristi AI i Kosovës.\n"
-            "Detyra jote është të bësh një ANALIZË TË THELLË DHE TË QARTË JURIDIKE mbi këtë nen.\n"
-            "RREGULLA: Mos vendos linqe URL ose kllapa referuese. Shkruaj tekst të pastër, profesional dhe të strukturuar.\n\n"
-            "Strukturo përgjigjen me këta tituj:\n"
+            "Bëj një ANALIZË TË THELLË DHE TË QARTË JURIDIKE në gjuhën shqipe mbi këtë nen.\n"
+            "RREGULLA: Mos përdor linqe URL. Strukturo përgjigjen me këta tituj:\n"
             "📌 **Qëllimi Kryesor dhe Ratio Legis**\n"
             "⚖️ **Zbatimi Praktik dhe Kushtet Ligjore**\n"
             "⚠️ **Rreziqet, Pasojat dhe Afatet Procedurale**\n"
@@ -81,9 +79,9 @@ async def explain_law_article(
                 accumulated.append(chunk)
                 yield chunk
             
-            # Ruaj analizën e plotë në MongoDB për të gjitha pajisjet
             full_content = "".join(accumulated).strip()
-            if full_content:
+            # 🛡️ SANITIZATION: Ruaj vetëm nëse është përgjigje e suksesshme (JO gabime)
+            if full_content and not full_content.startswith("[") and len(full_content) > 80:
                 try:
                     db.legal_analysis_cache.update_one(
                         {"law_title": clean_law, "article_number": clean_art},
@@ -96,7 +94,7 @@ async def explain_law_article(
                         }},
                         upsert=True
                     )
-                    logger.info(f"💾 [CACHE SAVED] Saved analysis for {clean_law} - Art {clean_art}")
+                    logger.info(f"💾 [CACHE SAVED] DeepSeek analysis for {clean_law} - Art {clean_art}")
                 except Exception as save_err:
                     logger.warning(f"Cache save error: {save_err}")
 
@@ -122,7 +120,7 @@ async def clear_law_article_cache(
             "law_title": clean_law,
             "article_number": clean_art
         })
-        logger.info(f"🗑️ [CACHE PURGED] Purged analysis for {clean_law} - Art {clean_art}")
+        logger.info(f"🗑️ [CACHE PURGED] {clean_law} - Art {clean_art}")
         return {"success": True, "deleted_count": result.deleted_count, "message": "Analiza u shlye me sukses nga memoria."}
     except Exception as e:
         logger.error(f"Error purging cache: {e}")
@@ -134,14 +132,14 @@ async def audit_law_chat(
     req: AuditChatRequest,
     current_user = Depends(get_current_user)
 ):
-    """Mundëson bisedë interaktive dhe këshillim ligjor në kohë reale."""
+    """Mundëson bisedë interaktive me DeepSeek."""
     try:
         generator = ResponseGenerator()
 
         system_prompt = (
             "Ti je 'Auditori Ligjor' i platformës Juristi.tech në Kosovë.\n"
             f"Po auditon ligjin: **{req.law_title}**, Neni: **{req.article_number}**.\n"
-            "Përgjigju pyetjes me saktësi absolute ligjore, me gjuhë të pastër shqipe dhe pa asnjë link apo shenjë të tepërt."
+            "Përgjigju në shqip të pastër standard me saktësi absolute juridike sipas ligjeve të Kosovës."
         )
 
         async def stream_output():
