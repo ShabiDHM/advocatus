@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V10.0 (AUTO-HEALING B2 SESSION & DIRECT PUT_OBJECT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V10.1 (AUTO-HEALING B2 SESSION & COMPLETE BACKWARD COMPATIBILITY)
 
 import os
 import re
@@ -8,6 +8,7 @@ import uuid
 import datetime
 import unicodedata
 from botocore.client import Config
+from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 from fastapi import UploadFile, status
 from fastapi.exceptions import HTTPException
@@ -31,6 +32,14 @@ MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", 50))
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
+
+# PHOENIX FIX: Export transfer_config for backward compatibility with archive_service
+transfer_config = TransferConfig(
+    multipart_threshold=10 * 1024 * 1024,
+    max_concurrency=4,
+    multipart_chunksize=10 * 1024 * 1024,
+    use_threads=True
+)
 
 def _get_b2_region() -> str:
     if B2_REGION_NAME:
@@ -135,11 +144,9 @@ def generate_presigned_url(storage_key: str, expiration: int = 3600) -> Optional
         return None
 
 def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
-    """
-    Uploads raw bytes to B2 using put_object with Auto-Healing retry on stale sockets.
-    """
     clean_filename = sanitize_filename(filename)
-    storage_key = f"{user_id}/{case_id}/{clean_filename}"
+    prefix = f"{user_id}/{case_id}".strip("/")
+    storage_key = f"{prefix}/{clean_filename}" if prefix else clean_filename
     resolved_content_type = content_type or _infer_content_type(filename, "application/pdf")
     
     try:
@@ -163,7 +170,6 @@ def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: st
 
     logger.info(f"--- [Storage] Uploading BYTES: {storage_key} ({resolved_content_type}, {len(data) / 1024:.1f} KB) ---")
     
-    # Try with existing client, if socket was dropped by B2, recreate client once and retry
     for attempt in range(2):
         try:
             client = get_s3_client(force_refresh=(attempt > 0))
@@ -193,7 +199,6 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     clean_folder = sanitize_filename(folder)
     file_extension = os.path.splitext(file.filename or "")[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
-    storage_key = f"{clean_folder}/{unique_filename}"
     content_type = file.content_type or _infer_content_type(file.filename or "")
     
     return upload_bytes_as_file(file.file, unique_filename, clean_folder, "", content_type)
