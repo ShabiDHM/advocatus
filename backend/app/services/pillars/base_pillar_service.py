@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V6.0 (SUPREME JUDGE PROTOCOL)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V30.0 (SUPREME COURT JURISPRUDENCE FOUNDATION)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -7,77 +7,71 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# ========== KONSTANTET E DOMENEVE ==========
+# ========== KONSTANTET E DOMENEVE (TË ZGJERUARA) ==========
 DOMAIN_KEYWORDS = {
     "PENAL": [
         "kallëzim penal", "vepër penale", "prokurori", "kpprk", "kprk",
-        "mashtrim", "vjedhje", "dhunë", "kërcënim", "falsifikim",
-        "lajmërim i rremë", "dëmtim i rëndë trupor", "armë", "drogë",
-        "trafikim", "korrupsion", "shpëlarje parash"
+        "mashtrim", "vjedhje", "dhunë në familje", "dhune ne familje", "kërcënim",
+        "falsifikim", "lajmërim i rremë", "dëmtim trupor", "armë", "kanosje",
+        "keqpërdorim i detyrës", "korrupsion", "ekspertizë psikiatrike"
+    ],
+    "FAMILJAR": [
+        "bashkëshort", "divorc", "shkurorëzim", "kujdestari", "kujdestaria e fëmijës",
+        "alimentacion", "ushqim", "qps", "qendra për punë sociale", "raport social",
+        "kontaktet me fëmijën", "interesi më i mirë i fëmijës", "e drejta prindërore",
+        "dhunë në familje", "urdhër mbrojtje", "trashëgimi", "testament"
     ],
     "CIVIL": [
         "kërkesëpadi", "padi", "kundërpadi", "prapësim", "lpk", "lmd",
         "dëmshpërblim", "kontratë", "borxh", "detyrim", "kompensim",
-        "dëm material", "dëm jomaterial", "shkelje e kontratës"
-    ],
-    "KOMERCIAL": [
-        "tregtar", "kompani", "biznes", "ortakëri", "falimentim",
-        "gjykatë komerciale", "shoqëri tregtare", "aksion", "pjesëmarrje"
+        "dëm material", "dëm jomaterial", "masë e përkohshme", "sigurim i kërkesës"
     ],
     "PRONËSOR": [
-        "pronë", "tokë", "shtëpi", "apartament", "kadastër",
-        "hipotekë", "posedim", "servitut", "ndërtim pa leje"
+        "pronë", "tokë", "shtëpi", "banesë", "apartament", "kadastër",
+        "hipotekë", "posedim", "servitut", "ndërtim", "pengim posedimi", "uzurpim"
     ],
     "PUNËS": [
         "punëtor", "punëdhënës", "pagë", "kontratë pune", "shkarkim",
-        "largim nga puna", "trust", "pension", "sigurim shëndetësor"
+        "largim nga puna", "trust", "pension", "orë shtesë", "diskriminim në punë"
     ],
-    "FAMILJAR": [
-        "bashkëshort", "divorc", "kujdestari", "birësim", "ushqim",
-        "familje", "fëmijë", "trashëgimi", "testament"
+    "KOMERCIAL": [
+        "tregtar", "kompani", "biznes", "ortakëri", "falimentim",
+        "gjykatë komerciale", "shoqëri tregtare", "aksione", "shpk", "sha"
     ],
     "ADMINISTRATIV": [
         "administrativ", "ministri", "komunë", "leje", "licencë",
-        "vendim administrativ", "konflikt administrativ", "institucion publik"
+        "vendim administrativ", "konflikt administrativ", "inspektorat"
     ],
     "KUSHTETUES": [
         "kushtetues", "kushtetutë", "liri themelore", "të drejtat e njeriut",
-        "diskriminim", "barazi", "gjykata kushtetuese"
+        "gjykata kushtetuese", "proces i rregullt ligjor"
     ]
 }
 
-# ========== LIGJET SIPAS DOMENIT ==========
+# ========== LIGJET KRYESORE SIPAS DOMENIT NË KOSOVË ==========
 DOMAIN_LAWS = {
-    "PENAL": ["KPPRK (Nr. 08/L-032)", "KPRK (Nr. 06/L-074)"],
-    "CIVIL": ["LPK (Nr. 03/L-006)", "LMD (Nr. 04/L-077)"],
-    "KOMERCIAL": ["Ligji për Gjykatën Komerciale (Nr. 08/L-015)", "Ligji për Shoqëritë Tregtare"],
-    "PRONËSOR": ["Ligji për Pronësinë (Nr. 03/L-154)", "Ligji për Kadastër"],
-    "PUNËS": ["Ligji i Punës (Nr. 03/L-212)", "Ligji për Sigurime Pensionale"],
-    "FAMILJAR": ["Ligji për Familjen (Nr. 2004/32)", "Ligji për Trashëgiminë"],
-    "ADMINISTRATIV": ["Ligji për Konfliktet Administrative (Nr. 03/L-202)", "LPA"],
-    "KUSHTETUES": ["Kushtetuta e Kosovës", "Ligji për Gjykatën Kushtetuese"]
+    "FAMILJAR": ["Ligji për Familjen i Kosovës (Nr. 2004/32)", "Ligji për Mbrojtje nga Dhuna në Familje", "LPK (Nr. 03/L-006)"],
+    "PENAL": ["Kodi i Procedurës Penale (KPPRK Nr. 08/L-032)", "Kodi Penal (KPRK Nr. 06/L-074)"],
+    "CIVIL": ["Ligji për Procedurën Kontestimore (LPK Nr. 03/L-006)", "Ligji për Detyrimet (LMD Nr. 04/L-077)"],
+    "PRONËSOR": ["Ligji për Pronësinë dhe të Drejtat e Tjera Sendore (Nr. 03/L-154)", "Ligji për Kadastër"],
+    "PUNËS": ["Ligji i Punës i Kosovës (Nr. 03/L-212)", "Ligji për Sigurinë dhe Shëndetin në Punë"],
+    "KOMERCIAL": ["Ligji për Gjykatën Komerciale (Nr. 08/L-015)", "Ligji për Shoqëritë Tregtare (Nr. 06/L-016)"],
+    "ADMINISTRATIV": ["Ligji për Procedurën e Përgjithshme Administrative (LPPA)", "Ligji për Konfliktet Administrative (Nr. 03/L-202)"],
+    "KUSHTETUES": ["Kushtetuta e Republikës së Kosovës", "Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)"]
 }
-
-# ========== PRECEDENTËT E VERIFIKUAR ==========
-VERIFIED_PRECEDENTS = [
-    "PML.nr.682/2024",
-    "PML.nr.429/2025",
-    "Rev.nr.240/2024",
-    "Rev.Nr.541/2024",
-    "PML.Nr.185/2025"
-]
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V6.0 me Protokollin e Gjyqtarit Suprem"""
+    """Shërbimi Bazë Universal — V30.0 me Protokollin e Gjykatës Supreme"""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
-        combined_text = f"{case_title} {context_str[:5000]} {manifest_str[:2000]}".lower()
+        combined_text = f"{case_title} {context_str[:6000]} {manifest_str[:2000]}".lower()
         domain_scores = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw.lower() in combined_text)
             domain_scores[domain] = score
+        
         best_domain = max(domain_scores, key=domain_scores.get)
         if domain_scores[best_domain] == 0:
             return "CIVIL"
@@ -90,92 +84,38 @@ class BasePillarService:
     @staticmethod
     def build_rag_truth_rule() -> str:
         return """
-🚨 RREGULLI ABSOLUT #0 — BURIMI I VETËM I SË VËRTETËS:
-Ti je "Sokrati" — Gjyqtar Suprem i Kosovës. Ti NUK ke asnjë njohuri ligjore përveç RAG context.
-
-1. NËSE një nen, ligj, precedent NUK gjendet në RAG context — NUK ekziston për ty;
-2. TI JE I DETYRUAR të përdorësh VETËM atë që është në RAG context;
-3. TI JE I DETYRUAR të thuash "Nuk u gjet në bazën tonë" nëse diçka mungon;
-4. HALucinacioni është i NDALUAR KATEGORIKISHT.
+🚨 RREGULLI THELBËSOR I SË VËRTETËS FAKTIKE:
+1. Faktet, datat, deklarimet dhe pretendimet merren VETËM nga shkresat e fashikullit të lëndës.
+2. Zbato legjislacionin në fuqi të Republikës së Kosovës me saktësi absolute neni-për-nen.
+3. Nëse një fakt apo provë MUNGON në shkresa, deklaro shprehimisht: "[E pa-dokumentuar në shkresa]".
+4. ZERO halucinacione. Ndalohet kategorikisht shpikja e provave ose rrethanave të paqena.
 """
     
     @staticmethod
     def build_precedent_instruction() -> str:
-        precedents_str = ", ".join(VERIFIED_PRECEDENTS)
-        return f"""
-🚨 RREGULLI ABSOLUT #1 — PRECEDENTËT E LEJUAR:
-VETËM këto: {precedents_str}
-NËSE një precedent NUK është në listë — NDALOHET ta citoni.
-"""
-
-    @staticmethod
-    def build_verification_instruction() -> str:
         return """
-🚨 RREGULLI ABSOLUT #2 — VERIFIKIMI I NENEVE:
-Kontrollo në RAG context para se të citosh ndonjë Nen ose paragraf.
+⚖️ PROTOKOLLI I PRECEDENTËVE DHE VENDIMEVE GJYQËSORE:
+- Cito vendimet, aktgjykimet dhe numrat e lëndëve që gjenden brenda dokumenteve të fashikullit ose në praktikën gjyqësore të verifikuar të Kosovës.
+- Ndalohet shpikja e numrave fiktivë të aktgjykimeve.
 """
 
     @staticmethod
     def build_supreme_judge_protocol() -> str:
-        """
-        PHOENIX FIX V6.0: Protokolli i plotë i Gjyqtarit Suprem.
-        """
         return """
-🚨 RREGULLI ABSOLUT #3 — PROTOKOLLI I GJYQTARIT SUPREM:
-Ti je Gjyqtari më me përvojë i Gjykatës Supreme të Kosovës. Fashikulli është në tavolinën tënde.
+🏛️ PROTOKOLLI I ANALIZËS SË GJYQTARIT SUPREM:
+Ti vepron me autoritetin dhe thellësinë e një Gjyqtari Suprem. Kur shqyrton fashikullin:
 
-NDIQ KËTË PROTOKOLL SAKTËSISHT:
+1. KRONOLOGJIA DHE KRYQËZIMI:
+   - Rendit ngjarjet sipas datave reale dhe zbulo mospërputhjet midis deklaratave të palëve.
+   
+2. ANALIZA E INSTITUCIONEVE:
+   - Vlerëso nëse Policia, Qendra për Punë Sociale (QPS) apo Ekspertët kanë qenë objektivë apo kanë shfaqur njëanshmëri dhe shkelje procedurale.
 
-📋 HAPI 1 — LEXO ÇDO DOKUMENT NË REND KRONOLOGJIK:
-- Renditi të gjitha shkresat sipas datës
-- Lexo nga më e vjetra te më e reja
-- Shëno: datën, dokumentin, palët, vendimin
-- Kërko: Rrjedhën kohore të ngjarjeve
+3. FUQIA E PROVAVE:
+   - Ndaj provat vendimtare (shkresat zyrtare, audiot, mesazhet e pakontestueshme) nga thashethemet dhe pretendimet e pabazuara.
 
-📋 HAPI 2 — KRAHASO DATAT DHE DOKUMENTET:
-- A përputhen datat në procesverbale me seancat?
-- A ka dokumente me data të njëjta por përmbajtje të ndryshme?
-- A ka nënshkrime që mungojnë?
-- A ka vula që nuk përputhen?
-- A ka numra lëndësh që nuk korrespondojnë?
-- Kërko: Prapadatime, falsifikime, mospërputhje
-
-📋 HAPI 3 — VERIFIKO LIGJSHMËRINË E ÇDO VENDIMI:
-- A është vendimi i bazuar në ligjin e saktë?
-- A janë cituar nenet e sakta?
-- A janë respektuar afatet?
-- A u dëgjuan të dyja palët?
-- A u vlerësuan të gjitha provat?
-- Kërko: Shkelje procedurale, zbatim të gabuar, injorim provash
-
-📋 HAPI 4 — KONTROLLO PROVAT:
-- A u administruan të gjitha provat materiale?
-- A u vlerësuan provat shkencore?
-- A u morën parasysh provat shfajësuese?
-- A ka prova që u refuzuan pa arsye?
-- Kërko: Prova të injoruara, prova të manipuluara, ekspertiza të njëanshme
-
-📋 HAPI 5 — IDENTIFIKO VEPRIMET PENALE:
-- A ka elemente të falsifikimit? (Neni 427 KPRK)
-- A ka keqpërdorim të pozitës? (Neni 414 KPRK)
-- A ka ushtrim të ndikimit? (Neni 424 KPRK)
-- A ka shkelje të rehabilitimit? (Neni 96 KPRK)
-- A ka nxjerrje të kundërligjshme vendimesh? (Neni 425 KPRK)
-- Kërko: Çdo veprim që përbën vepër penale
-
-📋 HAPI 6 — VLERËSO QËNDRUESHMËRINË:
-- A qëndron ky vendim para trupit gjykues?
-- A ka bazë për ankim?
-- A ka bazë për kallëzim penal?
-- Cilat janë shkeljet më të rënda?
-
-📋 HAPI 7 — JEP OPINIONIN PËRFUNDIMTAR:
-- Përmbledh shkeljet e gjetura
-- Kualifiko ligjërisht çdo shkelje
-- Rekomando hapat e ardhshëm
-- Trego çfarë duhet të bëjë pala
-
-BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
+4. MBROJTJA E TË DREJTAVE TË KLIENTIT:
+   - Trego saktësisht ku janë shkelur të drejtat ligjore të klientit dhe si duhet të mbrohet me forcë në seancë.
 """
     
     @staticmethod
@@ -183,7 +123,7 @@ BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
         user_id: str = "",
         case_id: str = "",
         query_text: str = "",
-        n_results: int = 20
+        n_results: int = 35
     ) -> Tuple[str, str]:
         global_rag_context = ""
         case_rag_context = ""
@@ -199,10 +139,10 @@ BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
                 if global_results:
                     global_parts = []
                     for res in global_results:
-                        source = res.get("source", "Burim ligjor")
+                        source = res.get("source", "Baza Ligjore e Kosovës")
                         text = res.get("text", "").strip()
                         if text:
-                            global_parts.append(f"📌 {source}:\n{text}")
+                            global_parts.append(f"📌 [{source}]:\n{text}")
                     global_rag_context = "\n\n".join(global_parts)
             
             if user_id and query_text:
@@ -210,10 +150,10 @@ BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
                 if case_results:
                     case_parts = []
                     for res in case_results:
-                        source = res.get("source", "Dokument i lëndës")
+                        source = res.get("source", "Dokument i Lëndës")
                         text = res.get("text", "").strip()
                         if text:
-                            case_parts.append(f"📄 {source}:\n{text}")
+                            case_parts.append(f"📄 [{source}]:\n{text}")
                     case_rag_context = "\n\n".join(case_parts)
                     
         except ImportError as e:
@@ -273,7 +213,6 @@ BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
         
         rag_truth_rule = BasePillarService.build_rag_truth_rule()
         precedent_instruction = BasePillarService.build_precedent_instruction()
-        verification_instruction = BasePillarService.build_verification_instruction()
         supreme_protocol = BasePillarService.build_supreme_judge_protocol()
         role_guard = BasePillarService.get_role_guard(client_position, client_name)
         role_tone = BasePillarService.get_role_tone(client_position)
@@ -283,29 +222,27 @@ BAZOHU VETËM në atë që sheh në dokumente — MOS supozo asgjë.
 
 {precedent_instruction}
 
-{verification_instruction}
-
 {supreme_protocol}
 
 {role_guard}
 
-📋 KONTEKSTI I LËNDËS:
-DEGË: {case_domain} | KLIENTI: **{client_name}** | ROLI: **{(client_position or 'DEFENDANT').upper()}** | LËNDA: **{case_title}** | DATA: {current_date_str}
+📋 IDENTIFIKIMI I LËNDËS:
+LËMIA: **{case_domain}** | KLIENTI: **{client_name}** | POZICIONI: **{(client_position or 'DEFENDANT').upper()}** | TITULLI: **{case_title}** | DATA: {current_date_str}
 
 {role_tone}
 
-📅 KRONOLOGJIA E RASTIT:
-{timeline_context if timeline_context else "Nuk u ndërtua kronologjia."}
+📅 KRONOLOGJIA E DOKUMENTUAR E RASTIT:
+{timeline_context if timeline_context else "Kronologjia po gjenerohet nga dokumentet e fashikullit."}
 
-📚 RAG — BAZA STATUTORE (BURIMI YT I VETËM):
-{rag_context if rag_context else "Nuk u gjet asnjë referencë në bazën statutore."}
+📚 BAZA LIGJORE DHE STATUTORE (KOSOVË):
+{rag_context if rag_context else "Referencat statutore nga legjislacioni në fuqi."}
 
-📄 RAG — DOKUMENTET E ÇËSHTJES:
-{case_rag_context if case_rag_context else "Nuk u gjetën dokumente shtesë."}
+📄 SHKRESAT DHE PROVAT E LËNDËS:
+{case_rag_context if case_rag_context else "Dokumentet e fashikullit të lëndës."}
 
-📎 PASAPORTA E SHKRESAVE:
+📎 PASAPORTA E DOKUMENTEVE TË ADMINISTRUARA:
 {manifest_str}
 
-📎 DOKUMENTET E PLOTA:
+📎 PËRMBAJTJA E PLOTË E DOKUMENTEVE:
 {context_str}
 """

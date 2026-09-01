@@ -1,44 +1,43 @@
 # FILE: backend/app/services/pillars/legal_drafting_service.py
-# PHOENIX PROTOCOL - PILLAR 6: UNIVERSAL LEGAL DRAFTING V20.0 (COMPACT & STRICT)
+# PHOENIX PROTOCOL - PILLAR 6: COURT-READY LEGAL DRAFTING V30.0 (LPK & KPPRK STANDARDS)
 
 from typing import Dict, Any, Optional
 from app.services.pillars.base_pillar_service import BasePillarService
+from app.services.pillars.role_guard_service import RoleGuardService
 import logging
 
 logger = logging.getLogger(__name__)
 
 class LegalDraftingService:
     """
-    Modul i Pavarur Ekskluziv për HARTIMIN E TË GJITHA AKTEVE ZYRTARE (UNIVERSAL):
-    - Padi Civile, Tregtare, Pronësore & Familjare
-    - Kallëzime Penale
-    - Prapësime, Kundërpadi dhe Ankesa
-    - Kontrata dhe Marrëveshje
-    - Inventarizimi i Provave (Corpus Delicti)
-    - ZERO HALUCINACIONE + ZERO EMRA TË SHPIKUR
+    Modul Ekskluziv për HARTIMIN PROFESIONAL TË AKTEVE GJYQËSORE:
+    - Padi Civile, Familjare (Alimentacion & Kujdestari), Kontestet e Punës & Pronësore
+    - Kallëzime Penale (KPPRK & KPRK)
+    - Prapësime në Padi, Kundërpadi dhe Ankesa (Apel)
+    - Kontrata dhe Marrëveshje Noteriale
+    - Standard i plotë gjyqësor me Dispozitiv, Petitum Ekzekutues dhe Inventar Provash
     """
 
     @staticmethod
     def detect_document_type(query: str) -> str:
-        """
-        Zbulon llojin e aktit nga kërkesa e përdoruesit.
-        """
         query_lower = (query or "").lower()
         
-        if any(kw in query_lower for kw in ["kallëzim penal", "kallezim penal", "kallzim penal"]):
+        if any(kw in query_lower for kw in ["kallëzim penal", "kallezim penal", "kallzim penal", "penale"]):
             return "KALLËZIM PENAL"
         elif any(kw in query_lower for kw in ["ankesë", "ankese", "ankim", "apel"]):
-            return "ANKESË"
+            return "ANKESË KUNDËR AKTGJYKIMIT"
         elif any(kw in query_lower for kw in ["kundërpadi", "kunderpadi"]):
             return "KUNDËRPADI"
-        elif any(kw in query_lower for kw in ["prapësim", "prapsim"]):
-            return "PRAPËSIM"
+        elif any(kw in query_lower for kw in ["prapësim", "prapsim", "përgjigje në padi", "pergjigje ne padi"]):
+            return "PËRGJIGJE NË PADI (PRAPËSIM)"
         elif any(kw in query_lower for kw in ["kontratë", "kontrate", "marrëveshje", "marreveshje"]):
-            return "KONTRATË / MARRËVESHJE"
+            return "KONTRATË / MARRËVESHJE LIGJORE"
+        elif any(kw in query_lower for kw in ["alimentacion", "kujdestari", "besim të fëmijës", "besim te femijes"]):
+            return "PADI PËR KUJDESTARINË E FËMIJËS DHE ALIMENTACION"
         elif any(kw in query_lower for kw in ["kërkesëpadi", "kerkesepadi", "padi"]):
-            return "KËRKESËPADI CIVILE"
+            return "PADÍ CIVILE"
         else:
-            return "AKT ZYRTAR"
+            return "SHKRESË GJYQËSORE / PROVE MATERIALE"
 
     @staticmethod
     def build_prompt(
@@ -68,12 +67,16 @@ class LegalDraftingService:
         if not document_type:
             document_type = LegalDraftingService.detect_document_type(query)
         
-        search_query = query_text or f"Hartimi i {document_type} për lëminë: {case_domain}. Baza ligjore, nenet e zbatueshme."
+        search_query = query_text or (
+            f"Hartimi profesional i {document_type} për lëndën: {case_title}. "
+            f"Faktet e provuara, nenet përkatëse, shumat monetare dhe petitumi."
+        )
+        
         rag_context, case_rag_context = BasePillarService.get_rag_context(
             user_id=user_id or "",
             case_id=case_id or "",
             query_text=search_query,
-            n_results=30
+            n_results=35
         )
         
         timeline_context = ""
@@ -84,33 +87,7 @@ class LegalDraftingService:
                 user_id=user_id or ""
             )
 
-        # Udhëzim specifik për llojin e dokumentit
-        document_instruction = ""
-        if document_type == "KALLËZIM PENAL":
-            document_instruction = """
-DREJTIMI: KALLËZIM PENAL
-- I drejtohet: PROKURORISË SPECIALE (PSRK) ose PROKURORISË THEMELORE;
-- Baza: KPPRK (Nr. 08/L-032) dhe KPRK (Nr. 06/L-074) — VETËM nga RAG context;
-- Petitumi: Fillimi i hetimeve, masat emergjente, aktakuza.
-"""
-        elif document_type in ["KËRKESËPADI CIVILE", "KUNDËRPADI"]:
-            document_instruction = f"""
-DREJTIMI: {document_type}
-- I drejtohet: GJYKATËS THEMELORE KOMPETENTE;
-- Baza: LPK dhe LMD — VETËM nga RAG context;
-- Petitumi: Dëmshpërblim, vërtetim të drejte, masa sigurimi.
-"""
-        elif document_type == "ANKESË":
-            document_instruction = """
-DREJTIMI: ANKESË
-- I drejtohet: GJYKATËS SË APELIT (përmes Gjykatës Themelore);
-- KUJDES: Nëse afati i ankimit ka skaduar (shih kronologjinë), rekomando KALLËZIM PENAL.
-"""
-        else:
-            document_instruction = f"""
-DREJTIMI: {document_type}
-- Baza: VETËM nenet përkatëse nga RAG context.
-"""
+        role_guard = RoleGuardService.build_role_guard(pos, client_name)
 
         base_prompt = BasePillarService.build_base_prompt(
             case_title=case_title,
@@ -128,38 +105,65 @@ DREJTIMI: {document_type}
         return f"""
 {base_prompt}
 
-📝 KËRKESA SPECIFIKE E PËRDORUESIT:
+{role_guard}
+
+📝 KËRKESA E AVOKATIT:
 "{query}"
 
-📄 LLOJI I AKTIT: {document_type}
+📄 LLOJI I DOKUMENTIT QË DUHET HARTUAR: **{document_type}**
 
-{document_instruction}
+======================================================================
+STANDARDET E DETYRUESHME TË HARTIMIT SIPAS LIGJEVE TË KOSOVËS:
+1. Shkresa duhet të jetë GATI PËR PROTOKOLL DHE GJYKATË (Court-Ready).
+2. Parashtruesi/Klienti yt është: **{client_name}** (Mbro me forcë interesat e tij/saj).
+3. Çdo fakt i përmendur duhet të lidhet me provën konkrete nga shkresat e lëndës.
+4. PETITUMI (Kërkesa) duhet të jetë EKZAKTE, E QARTË dhe e formulueshme si Dispozitiv Aktgjykimi.
+5. Fëmijët e mitur trajtohen gjithmonë sipas Parimit Suprem të 'Interesit Më të Mirë të Fëmijës'.
+6. Nëse mungon një e dhënë (nr. personal, adresa e saktë), lëre me vendmbajtës: `[Nr. Personal: ________]` ose `[Adresa: ________]`.
+======================================================================
 
-RREGULLA SUPREME TË HARTIMIT:
-1. Parashtruesi/Paditësi/Kallëzuesi është GJITHMONË: **{client_name}**;
-2. Fëmijët e mitur janë VIKTIMA TË MBROJTURA — asnjëherë te të dyshuarit;
-3. MOS shpik asnjë emër, adresë, apo numër personal;
-4. Nëse mungon një e dhënë: [Adresa e plotë] ose [Numri Personal sipas ID];
-5. MOS cito asnjë nen nga memorja — VETËM nga RAG context;
-6. MOS cito asnjë precedent që NUK gjendet në listën e verifikuar;
-7. Provat audio/video citohen me sekonda [MM:SS - MM:SS];
-8. Mbylle aktin te nënshkrimi përfundimtar — PA asnjë tekst pas tij.
+STRUKTURA E SAKTË GJYQËSORE E DOKUMENTIT:
 
-STRUKTURA E DETYRUESHME E AKTIT:
-# (TITULLI ZYRTAR: {document_type})
+**GJYKATËS THEMELORE NË [QYTETI / PRISHTINË]**
+**Departamenti për Çështje Civile / Familjare / Penale**
 
-**DREJTUAR:** (Gjykata / Prokuroria kompetente)
-**PARASHTRUESI:** {client_name}, me të dhënat nga dokumentet
-**LËNDA:** (Objekti dhe Baza Statutare nga RAG context)
-**KUNDËR TË PADITURVE / TË DYSHUARVE:** (Personat realë nga fashikulli)
+**PADITËSI / PARASHTRUESI:**
+{client_name}, me vendbanim në [Vendbanimi], Rr. [Rruga], Nr. Personal [Sipas Dokumenteve],
+i përfaqësuar nga Avokati [Emri i Avokatit], me autorizim në shkresa.
 
-## S E P S E (DISPOZITIVI ME PIKA TË QARTA)
-## P R O P O Z O J / K Ë R K O J (PETITUMI)
-## A R S Y E T I M I (FAKTET, PROVAT, DOKTRINA)
-## INVENTARI I PROVAVE (CORPUS DELICTI)
+**KUNDËR TË PADITURIT / PALËS KUNDËRSHTARE:**
+[Emri dhe Mbiemri i Palës Kundërshtare nga dokumentet], me vendbanim në [Vendbanimi].
 
-**PARASHTRUESI I AKTIT:**
+**OBJEKTI I LËNDËS:** {document_type} — {case_title}
+**VLERA E KONTESTIT:** [Shuma në EUR sipas shkresave, ose 'E papërcaktuar']
+**BAZA LIGJORE:** Nenet përkatëse të legjislacionit në fuqi në Kosovë (LPK / LMD / Ligji për Familjen).
+
+---
+
+### I. GJENDJA FAKTIKE DHE KRONOLOGJIA
+(Përshkruaj qartë dhe me rend kronologjik të gjitha faktet thelbësore të vërtetuara nga shkresat)
+
+### II. BAZA LIGJORE DHE ARSYETIMI JURIDIK
+(Lidh faktet konkrete me nenet specifike të ligjit të Kosovës, duke argumentuar pse klienti ka të drejtë)
+
+### III. KËRKESËPADIA / PROPOZIMI PËRFUNDIMTAR (P E T I T U M I)
+I propozojmë Gjykatës që pas shqyrtimit kryesor të marrë këtë:
+
+**A K T G J Y K I M**
+1. **APROVOHET** në tërësi si e bazuar kërkesëpadia e paditësit {client_name}.
+2. **[DETYRIMI KONKRET I PALËS KUNDËRSHTARE]:** (p.sh. Detyrohet e paditura të lejojë kontaktet e rregullta... OSE Detyrohet i padituri të paguajë shumën prej... OSE Refuzohet padia e paditësit si e pabazuar).
+3. **[SHPENZIMET E PROCEDURËS]:** Detyrohet pala kundërshtare t'i kompensojë paditësit shpenzimet e procedurës kontestimore sipas Tarifës së Odës së Avokatëve të Kosovës.
+
+---
+
+### INVENTARI I PROVAVE TË BASHKËNGJITURA:
+1. **Prova 1:** [Emri i dokumentit / certifikatës]
+2. **Prova 2:** [Transkripti i mesazheve / audio me sekonda]
+3. **Prova 3:** [Dëshmi financiare / vërtetime]
+
+**PARASHTRUESI I SHKRESËS / AVOKATI:**
+_______________________
 {client_name}
-Prishtinë, Republika e Kosovës
 Data: {current_date_str}
+Prishtinë, Republika e Kosovës
 """

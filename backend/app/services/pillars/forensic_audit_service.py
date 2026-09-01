@@ -1,22 +1,20 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST V27.0 (100% UNIVERSAL DOCUMENT AUDIT)
+# PHOENIX PROTOCOL - FORENSIC AUDIT SPECIALIST V30.0 (RIGOROUS LEGAL COMPLIANCE & ZERO HALLUCINATION)
 
 from typing import Dict, Any, Optional
 from app.services.pillars.base_pillar_service import BasePillarService
+from app.services.pillars.role_guard_service import RoleGuardService
 import logging
 
 logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    Modul i Pavarur Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (⚖️):
-    - Auditim 100% UNIVERSAL i çdo dokumenti juridik
-    - Draft, Padi, Kallëzim Penal, Kundërpadi, Prapësim, Ankesë, Kontratë, Marrëveshje,
-      Vendim Gjykate, Aktvendim, Aktgjykim, Urdhër Mbrojtje, Ekspertizë, Raport Social,
-      Procesverbal, apo çdo dokument tjetër ligjor
-    - Verifikimi nen-për-nen i ligjshmërisë pozitive të Kosovës
-    - Korrigjimi i lapsuseve ligjore (Contra Legem)
-    - ZERO HALUCINACIONE + ZERO NËNSHKRIM FIKTIV
+    Modul Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (⚖️):
+    - Auditim 100% UNIVERSAL dhe Rigoroz i çdo shkrese juridike në Kosovë.
+    - Verifikimi nen-për-nen i ligjeve pozitive (LPK, KPK, KPPRK, LMD, Ligji për Familjen, etj.).
+    - Zbulimi i gabimeve 'Contra Legem', shkeljeve procedurale dhe dobësive të petitumit.
+    - ZERO HALUCINACIONE — Çdo vlerësim ankorohet me ligj dhe prova.
     """
 
     @staticmethod
@@ -25,46 +23,41 @@ class ForensicAuditService:
         file_name: str = ""
     ) -> tuple:
         """
-        Zbulon llojin e dokumentit dhe kthen (kategoria, përshkrimi).
+        Zbulon automatikisht llojin e dokumentit ligjor me prioritet hierarkik.
         """
-        combined = f"{file_name} {document_text[:5000]}".lower()
+        combined = f"{file_name} {document_text[:6000]}".lower()
         
-        # Lista e gjerë e kategorive
         categories = [
-            ("KALLËZIM PENAL", ["kallëzim penal", "kallezim penal", "kallzim penal"], 
-             "Audito nëse kallëzimi penal është i bazuar në ligj, nëse nenet e KPRK-së dhe KPPRK-së janë të sakta, nëse kompetenca e Prokurorisë është e saktë, dhe nëse provat mbështesin pretendimet."),
-            ("VENDIM GJYKATE", ["aktvendim", "aktgjykim", "vendim i gjykatës", "vendimi i gjykatës"],
-             "Audito nëse vendimi është i bazuar në ligj, nëse ka shkelje procedurale, nëse ka bazë për ankim, dhe rekomando hapat e ardhshëm."),
-            ("URDHËR MBROJTJE", ["urdhër mbrojtje", "urdher mbrojtje", "urdhërmbrojtje", "urdhermbrojtje"],
-             "Audito nëse urdhërmbrojtja është e ligjshme, nëse masat janë proporcionale, dhe nëse ka bazë për ankim."),
-            ("PADI / KËRKESËPADI", ["kërkesëpadi", "kerkesepadi", "padi ", "padia"],
-             "Audito nëse padia është e bazuar në ligj, nëse nenet janë të sakta, nëse petitumi është i argumentuar, dhe rekomando si ta forcosh ose si të mbrohesh."),
-            ("KUNDËRPADI", ["kundërpadi", "kunderpadi"],
-             "Audito nëse kundërpadia është e bazuar në ligj dhe nëse është e argumentuar si duhet."),
-            ("PRAPËSIM", ["prapësim", "prapsim"],
-             "Audito nëse prapësimi është i argumentuar dhe nëse ka shkelje."),
-            ("ANKESË", ["ankesë", "ankese", "ankim", "apel"],
-             "Audito nëse ankesa është e bazuar në shkelje reale dhe nëse është e argumentuar."),
-            ("KONTRATË / MARRËVESHJE", ["kontratë", "kontrate", "marrëveshje", "marreveshje"],
-             "Audito nëse kontrata është e ligjshme, nëse nenet janë të sakta, dhe nëse ka lapsuse."),
-            ("EKSPERTIZË", ["ekspertizë", "ekspertize", "raport eksperti"],
-             "Audito nëse ekspertiza është e bazuar në ligj, nëse metodologjia është e saktë, dhe nëse ka anësi."),
-            ("RAPORT SOCIAL / QPS", ["raport social", "qps", "qendra për punë sociale", "qendra per pune sociale"],
-             "Audito nëse raporti social është i njëanshëm, nëse ka shkelje, dhe nëse është në përputhje me ligjin."),
-            ("PROCESVERBAL", ["procesverbal", "proces verbali"],
-             "Audito nëse procesverbali ka shkelje procedurale, nëse ka prapadatime, dhe nëse është i ligjshëm."),
-            ("DRAFT", [], 
-             "Audito draftin — verifiko nenet, ligjet, lapsuset, dhe rekomando përmirësime para dorëzimit."),
+            ("KALLËZIM PENAL", ["kallëzim penal", "kallezim penal", "kallzim penal", "vepër penale", "veper penale"], 
+             "Audito bazueshmërinë penale, elementet e veprës penale sipas KPRK, kompetencën e Prokurorisë dhe provat materiale."),
+            ("AKTGJYKIM / VENDIM GJYKATE", ["aktgjykim", "aktvendim", "në emër të popullit", "ne emer te popullit", "gjykata themelore"],
+             "Audito ligjshmërinë e vendimit, shkeljet thelbësore procedurale (LPK/KPPRK), zbatimin e gabuar të së drejtës materiale dhe bazën për ANKESË."),
+            ("URDHËR MBROJTJE", ["urdhër mbrojtje", "urdher mbrojtje", "urdhërmbrojtje", "dhunë në familje", "dhune ne familje"],
+             "Audito proporcionalitetin e masave mbrojtëse, afatet ligjore dhe bazueshmërinë sipas Ligjit për Mbrojtje nga Dhuna në Familje."),
+            ("PADI / KËRKESËPADI", ["kërkesëpadi", "kerkesepadi", "paditësi", "paditesi", "padia kundër"],
+             "Audito rregullsinë e padisë, kompetencën gjyqësore, qartësinë e Petitumit (kërkesës) dhe prapësimet e mundshme mbrojtëse."),
+            ("KUNDËRPADI / PRAPËSIM", ["kundërpadi", "kunderpadi", "prapësim", "prapsim", "përgjigje në padi", "pergjigje ne padi"],
+             "Audito forcën e prapësimeve procedurale dhe materiale, afatet e dorëzimit dhe provat kundërshtuese."),
+            ("ANKESË / APEL", ["ankesë", "ankese", "drejtuar gjykatës së apelit", "kundër aktgjykimit"],
+             "Audito pikat ankimore: shkeljet procedurale, vërtetimin e gabuar të gjendjes faktike dhe shkeljet materiale."),
+            ("KONTRATË / MARRËVESHJE", ["kontratë", "kontrate", "marrëveshje", "marreveshje", "palët kontraktuese"],
+             "Audito ligjshmërinë e klauzolave sipas LMD-së, rreziqet e pavlefshmërisë absolute/relative dhe penalitetet."),
+            ("RAPORT SOCIAL / QPS", ["raport social", "qps", "qendra për punë sociale", "interesi më i mirë i fëmijës"],
+             "Audito objektivitetin e raportit social, metodologjinë dhe përputhshmërinë me Ligjin për Familjen."),
+            ("EKSPERTIZË FINANCIARE / TEKNIKE", ["ekspertizë", "ekspertize", "raporti i ekspertit", "eksperti financiar"],
+             "Audito metodologjinë, kufijtë e autorizimit të ekspertit dhe përputhjen me provat në shkresa."),
+            ("DRAFT JURIDIK", [], 
+             "Audito draftin për saktësi neni-për-nen, qartësi formulimi dhe eliminimin e lapsuseve para dorëzimit në gjykatë.")
         ]
         
-        for category, keywords, _ in categories:
-            if not keywords:  # DRAFT është default
+        for category, keywords, desc in categories:
+            if not keywords:
                 continue
             for kw in keywords:
                 if kw in combined:
-                    return category, categories[[c[0] for c in categories].index(category)][2]
+                    return category, desc
         
-        return "DRAFT", "Audito draftin — verifiko nenet, ligjet, lapsuset, dhe rekomando përmirësime para dorëzimit."
+        return "DRAFT JURIDIK", "Audito draftin për saktësi neni-për-nen, qartësi formulimi dhe eliminimin e lapsuseve para dorëzimit në gjykatë."
 
     @staticmethod
     def build_prompt(
@@ -90,17 +83,15 @@ class ForensicAuditService:
                 manifest_str=manifest_str or ""
             )
         
-        audit_text = document_text or context_str
-        
-        # PHOENIX FIX: Zbulo kategorinë dhe përshkrimin
+        audit_text = (document_text or context_str).strip()
         doc_category, category_description = ForensicAuditService.detect_document_category(audit_text)
         
-        search_query = query_text or f"Auditimi forenzik i {doc_category}: {case_title}. Lëmia: {case_domain}. Verifiko nenet dhe ligjet."
+        search_query = query_text or f"Auditimi ligjor i {doc_category}: {case_title}. Nenet e ligjit të Kosovës, shkeljet, rreziqet, afatet."
         rag_context, case_rag_context = BasePillarService.get_rag_context(
             user_id=user_id or "",
             case_id=case_id or "",
             query_text=search_query,
-            n_results=30
+            n_results=35
         )
         
         timeline_context = ""
@@ -110,6 +101,8 @@ class ForensicAuditService:
                 case_id=case_id,
                 user_id=user_id or ""
             )
+
+        role_guard = RoleGuardService.build_role_guard(pos, client_name)
 
         base_prompt = BasePillarService.build_base_prompt(
             case_title=case_title,
@@ -127,30 +120,49 @@ class ForensicAuditService:
         return f"""
 {base_prompt}
 
-📄 LLOJI I DOKUMENTIT PËR AUDITIM: {doc_category}
+{role_guard}
 
-🎯 MISIONI SPECIFIK I AUDITIMIT:
-{category_description}
+📄 KATEGORIA E DOKUMENTIT NË AUDITIM: **{doc_category}**
+🎯 OBJEKTIVI SPECIFIK: {category_description}
 
-RREGULLAT SHTESË TË AUDITIMIT:
-1. Nëse dokumenti është DRAFT, fokuso në përmirësimin para dorëzimit;
-2. Nëse dokumenti është VENDIM GJYKATE, fokuso në gjetjen e shkeljeve për ankim;
-3. Nëse dokumenti është PADI ose KALLËZIM, fokuso në dobësitë dhe si të mbrohesh;
-4. Gjithmonë verifiko çdo nen me RAG context;
-5. Gjithmonë verifiko çdo precedent me listën e lejuar;
-6. Përfundo raportin te pika 5 — PA ASNJË NËNSHKRIM.
+======================================================================
+UDHËZUESI I HEKURT I EKSPERTIT FORENZIK LIGJOR:
+1. Ti je Auditori Kryesor Ligjor. Detyra jote është të gjesh çdo gabim, lapsus, nen të pasaktë apo shkelje procedurale.
+2. MOS SHPIK asnjë nen. Përdor VETËM legjislacionin në fuqi në Republikën e Kosovës.
+3. Nëse dokumenti ka shkelje "CONTRA LEGEM" (në kundërshtim me ligjin e zbatueshëm), theksoje me alarm të kuq: [KRITIKE - CONTRA LEGEM].
+4. Vlerëso saktësinë e Petitumi-t (kërkesës përfundimtare) — a është i zbatueshëm nga përmbaruesi/gjykata?
+======================================================================
 
 {'='*60}
-TEKSTI I PARAQITUR PËR AUDITIM FORENZIK:
+TEKSTI I PLOTË I DOKUMENTIT QË AUDITOHET:
 {'='*60}
 {audit_text}
 
-STRUKTURA E DETYRUESHME E RAPORTIT:
-### 1. 🔍 ANALIZA E PËRGJITHSHME E DOKUMENTIT DHE NATYRA JURIDIKE (Lëmia: {case_domain})
-### 2. ⚖️ VERIFIKIMI NEN PËR NEN I BAZËS LIGJORE
-### 3. ⚠️ LAPSUSET LIGJORE DHE KORRIGJIMI (CONTRA LEGEM & NENET E SAKTA)
-### 4. 🏛️ OPINIONI DOKTRINAR MBI QËNDRUESHMËRINË
-### 5. 💡 REKOMANDIMET KONKRETE
+STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK TË AUDITIMIT:
 
-RAPORTI PËRFUNDON TE PIKA 5. MOS SHKRUAJ ASNJË NËNSHKRIM PAS PIKËS 5.
+### 1. 🔍 PASAPORTA E DOKUMENTIT DHE RREGULLSIA FORMALE
+* **Lloji i Shkresës:** {doc_category}
+* **Gjykata / Organi Kompetent:** (A është kompetente lëndorisht dhe territorialisht?)
+* **Legjitimimi i Palëve:** (A janë identifikuar saktë Paditësi/I Padituri/Përfaqësuesi?)
+* **Objekti dhe Vlera e Kontestit:** (A është e përcaktuar qartë vlera në EUR?)
+* **Afatet Ligjore dhe Rregullsia:** (A është brenda afatit ligjor të parashikuar me ligj?)
+
+### 2. ⚖️ VERIFIKIMI NEN-PËR-NEN I BAZËS LIGJORE
+(Ndërto tabelën e verifikimit të neneve të përmendura ose që duhej të përmendeshin):
+| Neni & Ligji i Përmendur | Statusi Ligjor | Analiza & Përputhshmëria |
+| :--- | :--- | :--- |
+| *p.sh. Neni 123 i LPK* | *I Saktë / I Pasaktë / Contra Legem* | *Shpjegimi nëse ky nen mbështet këtë kërkesë* |
+
+### 3. ⚠️ GJETJET DHE LAPSUSET LIGJORE (CONTRA LEGEM & SHKELJET)
+(Rendit të gjitha dobësitë, mangësitë ose gabimet e shkresës):
+* 🔴 **[Rrezik Madhor / Contra Legem]:** Përshkrimi i gabimit që mund të rrëzojë shkresën.
+* 🟡 **[Lapsus Procedural / Formal]:** Gabime teknike, formulime të paqarta ose mungesë provash referuese.
+
+### 4. 🔬 AUDITIMI I PETITUMIT (KËRKESËS PËRFUNDIMTARE)
+* A është kërkesa e qartë, e numëruar saktë dhe e ekzekutueshme?
+* Çfarë rrezikon të refuzohet nga gjyqtari për shkak të formulimit të gabuar?
+
+### 5. 🛠️ KORRIGJIMI DHE FORMULIMI I SUGJERUAR (REMEDIIMI)
+* **Teksti i Korrigjuar:** Jep draft-paragrafin e saktë ligjor se si duhet të rishkruhet pjesa me gabime.
+* **Hapat e Menjëhershëm:** Çfarë duhet plotësuar para se të dorëzohet shkresa në gjykatë/prokurori.
 """

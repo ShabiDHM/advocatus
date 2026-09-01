@@ -1,32 +1,18 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V9.1 (FILE SIZE VALIDATION & PROPER ARCHIVE ENDPOINT)
+// PHOENIX PROTOCOL - MEDIA PANEL V10.0 (VERBATIM TRANSCRIPTION ONLY & 50MB GUARD)
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
     Loader2, Download, Save, CheckCircle2,
-    Video, Film, Eye, Copy
+    Video, Film, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Maximum allowed file size: 250MB
-const MAX_FILE_SIZE_MB = 250;
+// MAX FILE SIZE: 50 MB (Sinkronizuar saktësisht me Backend-in)
+const MAX_FILE_SIZE_MB = 50;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-interface ForensicLogItem {
-    timestamp_video: string;
-    cctv_clock?: string;
-    event_type: string;
-    visual_evidence: string;
-    evidentiary_value: string;
-}
-
-interface LicensePlateItem {
-    timestamp: string;
-    plate_number: string;
-    vehicle_description: string;
-}
 
 interface MediaItem {
     id: string;
@@ -35,11 +21,6 @@ interface MediaItem {
     mime_type?: string;
     status: 'PROCESSING' | 'READY' | 'FAILED';
     transcript: string;
-    visual_analysis?: {
-        visual_summary?: string;
-        detected_license_plates?: LicensePlateItem[];
-        video_forensic_log?: ForensicLogItem[];
-    };
     created_at: string;
 }
 
@@ -55,7 +36,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-    const [modalTab, setModalTab] = useState<'transcript' | 'visual'>('transcript');
     const [isArchiving, setIsArchiving] = useState(false);
     const [archiveSuccess, setArchiveSuccess] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -90,28 +70,28 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // PHOENIX FIX: Validate file size before upload
+        // 1. Validimi i madhësisë (Max 50 MB)
         if (file.size > MAX_FILE_SIZE_BYTES) {
-            alert(`Skedari është shumë i madh. Madhësia maksimale e lejuar është ${MAX_FILE_SIZE_MB}MB.`);
+            alert(`Skedari është shumë i madh (${(file.size / (1024 * 1024)).toFixed(1)} MB). Madhësia maksimale e lejuar është ${MAX_FILE_SIZE_MB} MB.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
-        // PHOENIX FIX: Validate file type
+        // 2. Validimi i formatit
         const validExtensions = /\.(mp3|wav|m4a|ogg|aac|mp4|mov|avi|mkv|webm)$/i;
         if (!validExtensions.test(file.name)) {
-            alert("Formati i skedarit nuk mbështetet. Ju lutem përdorni MP3, WAV, M4A, MP4, MOV, AVI, MKV, ose WEBM.");
+            alert("Formati i skedarit nuk mbështetet. Ju lutem përdorni MP3, WAV, M4A, AAC, MP4, MOV, ose AVI.");
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
         setIsUploading(true);
-        setUploadProgress(15);
+        setUploadProgress(20);
         try {
             const formData = new FormData();
             formData.append('file', file);
 
-            setUploadProgress(45);
+            setUploadProgress(50);
             await apiService.axiosInstance.post(`/cases/${caseId}/media/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
@@ -140,7 +120,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const handleDownloadTranscript = (item: MediaItem) => {
         const element = document.createElement("a");
-        const content = `PROVA MATERIALE AUDIO/VIDEO: ${item.file_name}\nSTATUSI: Transkript Zyrtar Verbatim\n\n${item.transcript}\n`;
+        const content = `PROVA MATERIALE AUDIO/VIDEO: ${item.file_name}\nSTATUSI: Transkript Zyrtar Verbatim (Fjalë për Fjalë)\nDATA: ${new Date(item.created_at).toLocaleString()}\n\n----------------------------------------\n\n${item.transcript}\n`;
         const file = new Blob([content], { type: 'text/plain;charset=utf-8' });
         element.href = URL.createObjectURL(file);
         element.download = `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`;
@@ -153,14 +133,8 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         setIsArchiving(true);
         setArchiveSuccess(false);
         try {
-            // PHOENIX FIX: Use proper archive upload endpoint
-            const formData = new FormData();
             const blob = new Blob([item.transcript], { type: 'text/plain;charset=utf-8' });
             const transcriptFile = new File([blob], `Transkript_${item.file_name.replace(/\.[^/.]+$/, "")}.txt`, { type: 'text/plain' });
-            formData.append('file', transcriptFile);
-            formData.append('title', `Transkript: ${item.file_name}`);
-            formData.append('category', 'media_transcript');
-            formData.append('case_id', caseId);
             
             await apiService.uploadArchiveItem(
                 transcriptFile,
@@ -186,11 +160,11 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             <div className="flex items-center justify-between gap-3 border-b border-main pb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 bg-primary-start/10 text-primary-start rounded-xl flex items-center justify-center border border-primary-start/20 shrink-0">
-                        <Film size={16} />
+                        <Mic size={16} />
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-xs font-black text-text-primary uppercase tracking-wider truncate">Provat Audio & Video</h2>
-                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim Verbatim Forenzik</p>
+                        <p className="text-[10px] text-text-muted font-medium truncate">Transkriptim Verbatim (Zbardhje Zëri)</p>
                     </div>
                 </div>
 
@@ -214,7 +188,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             <Upload size={13} className="text-white shrink-0" />
                         )}
                         <span className="text-white font-bold whitespace-nowrap">
-                            {isUploading ? `${uploadProgress}%` : 'Ngarko Skedar'}
+                            {isUploading ? `${uploadProgress}%` : 'Ngarko Audio / Video'}
                         </span>
                     </button>
                 </div>
@@ -225,9 +199,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             ) : mediaItems.length === 0 ? (
                 <div className="text-center py-10 border border-dashed border-main rounded-2xl p-4 bg-surface/30">
                     <Film size={32} className="mx-auto mb-2 text-text-muted opacity-70" />
-                    <p className="text-text-primary text-xs font-bold">Nuk ka ende skedarë audio apo video në këtë lëndë.</p>
-                    <p className="text-[11px] text-text-muted mt-0.5 font-medium font-mono">Mbështet MP3, WAV, M4A, MP4, MOV, AVI (kompresim automatik).</p>
-                    <p className="text-[10px] text-text-muted mt-1 font-medium">Madhësia maksimale: {MAX_FILE_SIZE_MB}MB</p>
+                    <p className="text-text-primary text-xs font-bold">Nuk ka ende prova audio apo video në këtë lëndë.</p>
+                    <p className="text-[11px] text-text-muted mt-0.5 font-medium">Ngarkoni regjistrime zëri ose video për t'i zbardhur fjalë për fjalë në tekst.</p>
+                    <p className="text-[10px] text-primary-start mt-1 font-bold">Limiti maksimal: {MAX_FILE_SIZE_MB} MB</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
@@ -254,7 +228,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                     item.status === 'PROCESSING' ? 'bg-warning-start/15 text-warning-start border border-warning-start/30 animate-pulse' :
                                                     'bg-danger-start/15 text-danger-start border border-danger-start/30'
                                                 }`}>
-                                                    {item.status === 'READY' ? 'Transkriptuar' : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
+                                                    {item.status === 'READY' ? 'Transkriptuar' : item.status === 'PROCESSING' ? 'Duke transkriptuar zërin...' : 'Dështoi'}
                                                 </span>
                                                 <span className="text-[9px] text-text-muted font-mono">
                                                     {new Date(item.created_at).toLocaleDateString()}
@@ -290,13 +264,10 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 {item.status === 'READY' && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setSelectedMedia(item);
-                                            setModalTab(isVideo && item.visual_analysis?.video_forensic_log?.length ? 'visual' : 'transcript');
-                                        }}
-                                        className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors"
+                                        onClick={() => setSelectedMedia(item)}
+                                        className="w-full py-2 bg-surface hover:bg-hover border border-main rounded-lg text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                                     >
-                                        <FileText size={14} /> Shiko Transkriptin Zyrtar
+                                        <FileText size={14} /> Shiko Transkriptin Verbatim
                                     </button>
                                 )}
                             </div>
@@ -305,7 +276,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL - TRANSKRIPTI FORENZIK */}
+            {/* MODAL - TRANSKRIPTI VERBATIM */}
             <AnimatePresence>
                 {selectedMedia && (
                     <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
@@ -313,7 +284,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                             initial={{ opacity: 0, scale: 0.96, y: 12 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                            className="glass-panel w-full max-w-4xl h-[88vh] max-h-[850px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-card flex flex-col"
+                            className="glass-panel w-full max-w-4xl h-[85vh] max-h-[800px] p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-card flex flex-col"
                             style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
                         >
                             {/* Modal Header */}
@@ -324,95 +295,42 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="text-base sm:text-lg font-black text-text-primary uppercase tracking-tight truncate">
-                                            Transkripti Forenzik Zyrtar
+                                            Transkripti Zyrtar Verbatim (Fjalë për Fjalë)
                                         </h3>
                                         <p className="text-xs text-text-muted font-medium truncate mt-0.5">{selectedMedia.file_name}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setSelectedMedia(null)} className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors">
+                                <button onClick={() => setSelectedMedia(null)} className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer">
                                     ✕
                                 </button>
                             </div>
 
-                            {/* Tab Switcher */}
-                            {selectedMedia.visual_analysis?.video_forensic_log?.length ? (
-                                <div className="flex gap-2 mb-3 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalTab('transcript')}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
-                                            modalTab === 'transcript'
-                                                ? 'bg-primary-start text-white shadow-sm'
-                                                : 'bg-surface border border-main text-text-muted hover:text-text-primary'
-                                        }`}
-                                    >
-                                        <Mic size={13} /> Transkripti Audio
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalTab('visual')}
-                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
-                                            modalTab === 'visual'
-                                                ? 'bg-primary-start text-white shadow-sm'
-                                                : 'bg-surface border border-main text-text-muted hover:text-text-primary'
-                                        }`}
-                                    >
-                                        <Eye size={13} /> Ditari Vizual ({selectedMedia.visual_analysis.video_forensic_log.length})
-                                    </button>
-                                </div>
-                            ) : null}
-
-                            {/* Modal Body */}
+                            {/* Modal Body - Transkripti me Sekonda */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary shadow-inner">
-                                {modalTab === 'visual' && selectedMedia.visual_analysis?.video_forensic_log ? (
-                                    <div className="space-y-3">
-                                        {selectedMedia.visual_analysis.visual_summary && (
-                                            <div className="p-3 bg-card rounded-xl border border-main text-xs shadow-xs">
-                                                <span className="text-[10px] font-black uppercase text-primary-start block mb-1">Përmbledhja Vizuale:</span>
-                                                <p className="text-text-secondary font-medium">{selectedMedia.visual_analysis.visual_summary}</p>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            {selectedMedia.visual_analysis.video_forensic_log.map((item, idx) => (
-                                                <div key={idx} className="p-3 bg-card rounded-xl border border-main text-xs space-y-1 shadow-xs">
-                                                    <div className="flex items-center justify-between font-bold">
-                                                        <span className="text-primary-start font-mono">[{item.timestamp_video}]</span>
-                                                        <span className="text-[10px] uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded font-bold">
-                                                            {item.event_type}
+                                <div className="space-y-2.5 text-sm leading-relaxed">
+                                    {selectedMedia.transcript ? (
+                                        selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
+                                            const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);
+                                            if (timeMatch) {
+                                                const timeStr = timeMatch[0];
+                                                const textStr = line.replace(timeStr, '').trim();
+                                                return (
+                                                    <div key={idx} className="p-3 bg-card rounded-xl border border-main flex items-start gap-3 shadow-xs">
+                                                        <span className="text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
+                                                            {timeStr}
                                                         </span>
+                                                        <p className="text-xs sm:text-sm font-medium text-text-primary pt-0.5 leading-normal">
+                                                            {textStr}
+                                                        </p>
                                                     </div>
-                                                    <p className="text-text-primary font-medium">{item.visual_evidence}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 text-sm sm:text-base font-normal leading-relaxed">
-                                        {selectedMedia.transcript ? (
-                                            selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
-                                                const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);
-                                                if (timeMatch) {
-                                                    const timeStr = timeMatch[0];
-                                                    const textStr = line.replace(timeStr, '').trim();
-                                                    return (
-                                                        <div key={idx} className="p-2.5 bg-card rounded-xl border border-main flex items-start gap-3 shadow-xs">
-                                                            <span className="text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
-                                                                {timeStr}
-                                                            </span>
-                                                            <p className="text-xs sm:text-sm font-medium text-text-primary pt-0.5 leading-normal">
-                                                                {textStr}
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                }
-                                                return <p key={idx} className="text-xs sm:text-sm text-text-secondary leading-normal">{line}</p>;
-                                            })
-                                        ) : (
-                                            <p className="text-text-muted text-xs">Nuk u gjend transkript audio për këtë skedar.</p>
-                                        )}
-                                    </div>
-                                )}
+                                                );
+                                            }
+                                            return <p key={idx} className="text-xs sm:text-sm text-text-secondary leading-normal p-1">{line}</p>;
+                                        })
+                                    ) : (
+                                        <p className="text-text-muted text-xs italic">Nuk u gjend transkript audio për këtë provë.</p>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Modal Footer */}
@@ -421,7 +339,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     <button 
                                         type="button"
                                         onClick={() => handleDownloadTranscript(selectedMedia)}
-                                        className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5 transition-all shadow-sm"
+                                        className="h-9 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                                     >
                                         <Download size={14} /> Shkarko TXT
                                     </button>
@@ -430,7 +348,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         type="button"
                                         onClick={() => handleArchiveTranscript(selectedMedia)}
                                         disabled={isArchiving}
-                                        className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-primary-start flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                                        className="h-9 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-primary-start flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                                     >
                                         {isArchiving ? <Loader2 size={14} className="animate-spin" /> : archiveSuccess ? <CheckCircle2 size={14} className="text-status-success" /> : <Save size={14} />}
                                         {archiveSuccess ? 'U ruajt!' : 'Ruaj në Arkiv'}
