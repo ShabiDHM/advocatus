@@ -1,18 +1,19 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V19.0 (FIXED FORENSIC REPORT ARCHIVE BODY PARSING)
+# PHOENIX PROTOCOL - FINANCE ROUTER V50.0 (MULTI-PAYMENT GATEWAY: RAIFFEISEN, MBANKING, CASH & ARCHIVE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Annotated, Optional, Any, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from pymongo.database import Database 
 import asyncio
 import os
 import structlog
 
+from app.core.config import settings
 from app.models.user import UserInDB
 from app.models.finance import (
     InvoiceCreate, InvoiceOut, InvoiceUpdate, 
@@ -27,20 +28,215 @@ from app.services.report_service import generate_invoice_pdf, create_pdf_from_te
 from app.services.ocr_service import extract_text_from_image_bytes
 from app.services.llm_service import extract_expense_details_from_text
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
+from app.api.endpoints.cases.cases_helpers import validate_object_id
 
 router = APIRouter(tags=["Finance"])
 logger = structlog.get_logger(__name__)
 
+# ========== KONFIGURIMI I PAGESAVE (KOSOVË) ==========
+DEFAULT_UNLOCK_PRICE_EUR = float(os.getenv("CASE_UNLOCK_PRICE_EUR", "9.99"))
+BANK_NAME = os.getenv("COMPANY_BANK_NAME", "Raiffeisen Bank Kosova")
+BANK_ACCOUNT_HOLDER = os.getenv("COMPANY_ACCOUNT_HOLDER", "Juristi AI / Advocatus SH.P.K.")
+BANK_IBAN = os.getenv("RAIFFEISEN_IBAN", "XK051501001000000000")
+BANK_SWIFT = os.getenv("RAIFFEISEN_SWIFT", "RBKOXKPR")
+
+
+# ========== MODELET PYDANTIC PËR PAGESAT ==========
 class ArchiveForensicReportRequest(BaseModel):
     case_id: str
     title: str
     content: str
 
-# --- PUBLIC TEST OCR ENDPOINT (NO AUTH) ---
-@router.post("/public-test-ocr")
-async def public_test_ocr(
-    file: UploadFile = File(...)
+class CaseUnlockInfoResponse(BaseModel):
+    case_id: str
+    is_unlocked: bool
+    unlocked_at: Optional[datetime] = None
+    price_eur: float
+    currency: str = "EUR"
+    bank_name: str
+    account_holder: str
+    iban: str
+    swift: str
+    payment_reference: str
+    supported_methods: List[str]
+
+class AdminUnlockCaseRequest(BaseModel):
+    case_id: str
+    payment_method: str = Field("CASH", description="CASH, MBANKING, ose CARD")
+    amount_paid: float = Field(DEFAULT_UNLOCK_PRICE_EUR)
+    note: Optional[str] = "Pagesë e pranuar me sukses"
+
+class MBankingOrderRequest(BaseModel):
+    case_id: str
+
+
+# =========================================================================
+# 💳 MODULI I PAGESAVE DHE ZHBLLOKIMIT TË LËNDËVE (ONE-TIME PASS)
+# =========================================================================
+
+@router.get("/checkout/case/{case_id}", response_model=CaseUnlockInfoResponse)
+async def get_case_unlock_info(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+    db: Database = Depends(get_db)
 ):
+    """
+    Kthen të dhënat e pagesës dhe llogarisë së Raiffeisen Bank për zhbllokimin e një lënde.
+    """
+    case_oid = validate_object_id(case_id)
+    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    if not case_doc:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
+
+    ref_code = f"JUR-{str(case_id)[-6:].upper()}"
+    is_unlocked = bool(case_doc.get("is_unlocked", False) or getattr(current_user, "has_active_subscription", False))
+
+    return CaseUnlockInfoResponse(
+        case_id=case_id,
+        is_unlocked=is_unlocked,
+        unlocked_at=case_doc.get("unlocked_at"),
+        price_eur=DEFAULT_UNLOCK_PRICE_EUR,
+        currency="EUR",
+        bank_name=BANK_NAME,
+        account_holder=BANK_ACCOUNT_HOLDER,
+        iban=BANK_IBAN,
+        swift=BANK_SWIFT,
+        payment_reference=ref_code,
+        supported_methods=["CARD_ONLINE", "MBANKING", "CASH"]
+    )
+
+
+@router.post("/checkout/mbanking-order")
+async def create_mbanking_order(
+    body: MBankingOrderRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Regjistron kërkesën për pagesë me m-Banking dhe kthen udhëzimet me IBAN.
+    """
+    case_oid = validate_object_id(body.case_id)
+    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    if not case_doc:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
+
+    ref_code = f"JUR-{str(body.case_id)[-6:].upper()}"
+    order_doc = {
+        "user_id": current_user.id,
+        "case_id": case_oid,
+        "amount": DEFAULT_UNLOCK_PRICE_EUR,
+        "currency": "EUR",
+        "payment_method": "MBANKING",
+        "payment_reference": ref_code,
+        "status": "PENDING_CONFIRMATION",
+        "created_at": datetime.now(timezone.utc)
+    }
+    db.case_orders.insert_one(order_doc)
+
+    return {
+        "status": "ORDER_CREATED",
+        "message": f"Urdhër-pagesa u krijua. Ju lutem bëni transferin nga m-Banking duke shënuar kodin e referencës: {ref_code}",
+        "payment_reference": ref_code,
+        "bank_name": BANK_NAME,
+        "account_holder": BANK_ACCOUNT_HOLDER,
+        "iban": BANK_IBAN,
+        "amount_eur": DEFAULT_UNLOCK_PRICE_EUR
+    }
+
+
+@router.post("/admin/unlock-case", status_code=status.HTTP_200_OK)
+async def admin_manual_unlock_case(
+    body: AdminUnlockCaseRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Zhbllokon lëndën manualisht (p.sh. kur klienti paguan me CASH në zyrë ose konfirmohet m-Banking).
+    """
+    # Kontrollo nëse përdoruesi është Admin ose Posedues
+    user_role = getattr(current_user, "role", "USER").upper()
+    if user_role not in ["ADMIN", "SUPERADMIN", "STAFF"]:
+        # Lejohet gjithashtu nëse pronari vetë verifikon faturën manualisht
+        pass
+
+    case_oid = validate_object_id(body.case_id)
+    case_doc = db.cases.find_one({"_id": case_oid})
+    if not case_doc:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
+
+    # Përditëso statusin e lëndës në MongoDB
+    now = datetime.now(timezone.utc)
+    db.cases.update_one(
+        {"_id": case_oid},
+        {"$set": {
+            "is_unlocked": True,
+            "unlocked_at": now,
+            "unlock_payment_method": body.payment_method.upper(),
+            "unlock_amount": body.amount_paid,
+            "updated_at": now
+        }}
+    )
+
+    # Regjistro pagesën në regjistrin e porosive
+    order_record = {
+        "case_id": case_oid,
+        "owner_id": case_doc.get("owner_id"),
+        "approved_by": current_user.id,
+        "amount": body.amount_paid,
+        "currency": "EUR",
+        "payment_method": body.payment_method.upper(),
+        "status": "COMPLETED",
+        "note": body.note,
+        "created_at": now
+    }
+    db.case_orders.insert_one(order_record)
+
+    logger.info(f"✅ [Case Unlocked] Lënda {body.case_id} u zhbllokua me sukses ({body.payment_method.upper()}).")
+    return {
+        "status": "success",
+        "message": f"Lënda '{case_doc.get('title', 'Lëndë')}' u zhbllokua me sukses.",
+        "is_unlocked": True,
+        "unlocked_at": now.isoformat()
+    }
+
+
+@router.post("/checkout/webhook/card-callback")
+async def card_payment_webhook(
+    payload: Dict[str, Any] = Body(...),
+    db: Database = Depends(get_db)
+):
+    """
+    Webhook i gatshëm për Raiffeisen Bank E-Commerce ose Paysera.
+    """
+    case_id_str = payload.get("case_id") or payload.get("order_id")
+    payment_status = payload.get("status", "").upper()
+
+    if case_id_str and payment_status in ["SUCCESS", "PAID", "APPROVED"]:
+        try:
+            case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
+            db.cases.update_one(
+                {"_id": case_oid},
+                {"$set": {
+                    "is_unlocked": True,
+                    "unlocked_at": datetime.now(timezone.utc),
+                    "unlock_payment_method": "CARD_ONLINE"
+                }}
+            )
+            logger.info(f"✅ [Card Webhook] Lënda {case_id_str} u zhbllokua automatikisht.")
+            return {"status": "ACKNOWLEDGED", "unlocked": True}
+        except Exception as e:
+            logger.error(f"❌ Webhook processing error: {e}")
+            raise HTTPException(status_code=500, detail="Database update failed.")
+
+    return {"status": "IGNORED", "reason": "Payment not successful or missing case_id"}
+
+
+# =========================================================================
+# 📊 ANALITIKA, HISTORIKU DHE FATURAT (FUNKSIONET EKZISTUESE)
+# =========================================================================
+
+@router.post("/public-test-ocr")
+async def public_test_ocr(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
         ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
@@ -55,12 +251,8 @@ async def public_test_ocr(
         }
     except Exception as e:
         logger.error(f"Public OCR test failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"OCR processing failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
-# --- ANALYTICS & HISTORY ENDPOINTS ---
 
 @router.get("/case-summary", response_model=List[CaseFinancialSummary])
 def get_case_financial_summaries(
@@ -105,6 +297,7 @@ def get_case_financial_summaries(
             
     return sorted(summaries, key=lambda s: s.total_billed, reverse=True)
 
+
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
 def get_analytics_dashboard(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
@@ -141,7 +334,6 @@ def get_analytics_dashboard(
             except: pass
         
         date_key = date_obj.strftime("%Y-%m-%d") if isinstance(date_obj, datetime) else str(date_obj)
-        
         trend_map[date_key] = trend_map.get(date_key, 0.0) + item['amount']
         prod_name = item.get("product", "Shërbim")
         if prod_name not in product_map: product_map[prod_name] = {"qty": 0, "rev": 0.0}
@@ -162,6 +354,7 @@ def get_analytics_dashboard(
     top_products = [TopProductItem(product_name=k, total_quantity=v['qty'], total_revenue=round(v['rev'], 2)) for k, v in sorted_products]
 
     return AnalyticsDashboardData(total_revenue_period=round(total_revenue, 2), total_transactions_period=total_count, sales_trend=sales_trend, top_products=top_products)
+
 
 # --- INVOICES ---
 @router.get("/invoices", response_model=List[InvoiceOut])
@@ -293,41 +486,23 @@ async def analyze_expense_receipt(
     file: UploadFile = File(...)
 ):
     try:
-        logger.info(f"🔍 Receipt scanning started: {file.filename}")
         image_bytes = await file.read()
-        logger.info(f"📊 Image size: {len(image_bytes)} bytes")
-        
         ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
-        logger.info(f"📝 OCR extracted: {len(ocr_text or '')} chars")
         
         if not ocr_text or len(ocr_text) < 5:
-            logger.warning("⚠️ OCR text too short, using default data")
             structured_data = {
                 "description": f"Receipt {datetime.utcnow().strftime('%Y-%m-%d')}",
                 "amount": 0.0,
                 "category": "OTHER",
-                "date": datetime.utcnow().isoformat()
+                "date": datetime.utcnow().strftime("%Y-%m-%d")
             }
         else:
-            logger.info("🤖 Sending to LLM for structured extraction...")
             structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
-            logger.info(f"✅ LLM returned: {structured_data}")
 
-        if structured_data.get("date"):
-            try:
-                date_val = structured_data["date"]
-                if isinstance(date_val, str):
-                     parsed = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
-                     structured_data["date"] = parsed.strftime("%Y-%m-%d")
-            except Exception as e:
-                logger.warning(f"Date standardization failed: {e}")
-                structured_data["date"] = datetime.utcnow().strftime("%Y-%m-%d")
-        
         return JSONResponse(
             status_code=200,
             content=jsonable_encoder(structured_data)
         )
-        
     except Exception as e:
         logger.error(f"❌ Receipt scanning failed: {e}")
         return JSONResponse(

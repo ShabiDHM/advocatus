@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V18.3 (ZERO-IMPORT WARNINGS & 50MB GUARD)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V50.0 (DIRTY STATE & SMART CACHE INVALIDATION)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
@@ -33,14 +33,9 @@ MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
 
 def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
-    """
-    Dekodon payload-in e tokenit JWT në mënyrë natyrore
-    pa pasur nevojë për biblioteka të jashtme (Zero Pylance Errors).
-    """
     if not token_str or "." not in token_str:
         return None
 
-    # Provë me jose nëse ekziston në ambient
     try:
         from jose import jwt
         secret = (
@@ -55,7 +50,6 @@ def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
     except Exception:
         pass
 
-    # Dekodim nativ i pastër me Base64 (Standard Python)
     try:
         parts = token_str.split(".")
         if len(parts) >= 2:
@@ -244,6 +238,12 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
+    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY (kërkon rianalizim sepse u shtua dokument)
+    db.cases.update_one(
+        {"$or": [{"_id": case_oid}, {"_id": case_id}]},
+        {"$set": {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}}
+    )
+
     # 5. Ekzekutimi në Background
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
@@ -259,7 +259,7 @@ async def archive_case_document_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    validate_object_id(case_id)
+    case_oid = validate_object_id(case_id)
     validate_object_id(doc_id)
     
     service = ArchiveService(db)
@@ -272,6 +272,13 @@ async def archive_case_document_endpoint(
     )
     if not archive_item:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose dështoi arkivimi.")
+    
+    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY
+    db.cases.update_one(
+        {"$or": [{"_id": case_oid}, {"_id": case_id}]},
+        {"$set": {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}}
+    )
+
     return archive_item
 
 
@@ -313,11 +320,17 @@ async def bulk_delete_documents_endpoint(
         "status": {"$ne": "DELETED"}
     })
     
+    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY pas fshirjes
+    update_payload: Dict[str, Any] = {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}
     if remaining_docs == 0:
-        db.cases.update_one(
-            {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
-            {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}}
-        )
+        update_payload["latest_comprehensive_analysis"] = None
+        update_payload["latest_analysis"] = None
+        update_payload["latest_deep_analysis"] = None
+
+    db.cases.update_one(
+        {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
+        {"$set": update_payload}
+    )
 
     return {
         "status": "success",
@@ -358,11 +371,18 @@ async def delete_document(
             "$or": [{"case_id": case_id}, {"case_id": case_oid}], 
             "status": {"$ne": "DELETED"}
         })
+        
+        # PHOENIX SMART CACHE: Shëno lëndën si DIRTY
+        update_payload: Dict[str, Any] = {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}
         if remaining_docs == 0:
-            db.cases.update_one(
-                {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
-                {"$unset": {"latest_analysis": "", "latest_deep_analysis": ""}}
-            )
+            update_payload["latest_comprehensive_analysis"] = None
+            update_payload["latest_analysis"] = None
+            update_payload["latest_deep_analysis"] = None
+
+        db.cases.update_one(
+            {"$or": [{"_id": case_oid}, {"_id": case_id}]}, 
+            {"$set": update_payload}
+        )
             
         return DeletedDocumentResponse(
             documentId=doc_id,
@@ -381,7 +401,6 @@ async def get_document_preview(
 ):
     user_doc = None
 
-    # 1. Kontrollo tokenin në Header (Authorization: Bearer ...)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         jwt_token = auth_header.split(" ")[1]
@@ -391,7 +410,6 @@ async def get_document_preview(
             if user_id:
                 user_doc = db.users.find_one({"_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id})
 
-    # 2. Nëse nuk ka ardhur në Header, lexoje nga URL (?token=...)
     if not user_doc and token:
         payload = _safe_decode_token(token)
         if payload:

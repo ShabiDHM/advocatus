@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V136.0 (UNIFIED ELITE PILLARS & ZERO CRASH)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V140.0 (SMART CACHING & ZERO REDUNDANT API CALLS)
 
 import os
 import logging
@@ -21,7 +21,6 @@ from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 MANDATORY_LEGAL_DISCLAIMER = (
     "\n\n---\n"
@@ -45,13 +44,13 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V136.0 me Shtyllat e Unifikuara.
+    Shërbimi Kryesor RAG — V140.0 me Smart Caching dhe Mbrojtje Buxheti.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V136.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V140.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -126,6 +125,8 @@ class AlbanianRAGService:
         client_name = "Klienti"
         case_title = "Lënda Ligjore"
         db_documents = []
+        case_doc = None
+        c_oid = None
 
         if case_id and self.db is not None:
             try:
@@ -154,6 +155,23 @@ class AlbanianRAGService:
         from app.services import vector_store_service
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
+
+        # =========================================================================
+        # PHOENIX SMART CACHE: Rikthim i Menjëhershëm i Analizës nëse Lënda s'ka ndryshuar
+        # =========================================================================
+        if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
+            is_dirty = case_doc.get("analysis_dirty", True)
+            cached_analysis = case_doc.get("latest_comprehensive_analysis")
+
+            if not is_dirty and cached_analysis and len(cached_analysis.strip()) > 100:
+                logger.info(f"⚡ [Smart Cache HIT] Kthehet analiza ekzistuese për lëndën {case_id} (0.00$ API cost).")
+                yield cached_analysis
+                remaining_pills = self._determine_remaining_pills(query=query, history=history)
+                if remaining_pills:
+                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+                    yield pills_block
+                yield MANDATORY_LEGAL_DISCLAIMER
+                return
 
         # Optimizimi i kërkimit kontekstual
         if user_intent == "GENERAL_CHAT":
@@ -234,8 +252,27 @@ class AlbanianRAGService:
             {context_str}
             """
 
+        full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, optimized_query, context_str):
+            full_generated_response += content
             yield content
+
+        # =========================================================================
+        # PHOENIX SMART CACHE SAVE: Ruaj analizën dhe shëno gjendjen si të pastër (CLEAN)
+        # =========================================================================
+        if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None and len(full_generated_response.strip()) > 100:
+            try:
+                self.db.cases.update_one(
+                    {"_id": c_oid},
+                    {"$set": {
+                        "latest_comprehensive_analysis": full_generated_response.strip(),
+                        "analysis_dirty": False,
+                        "last_analyzed_at": datetime.now(timezone.utc)
+                    }}
+                )
+                logger.info(f"💾 [Smart Cache SAVED] Analiza u ruajt në MongoDB për lëndën {case_id}.")
+            except Exception as save_err:
+                logger.warning(f"Could not cache analysis to MongoDB: {save_err}")
 
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "FORENSIC_AUDIT", "DRAFTING"] and remaining_pills:
             pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
