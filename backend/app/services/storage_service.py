@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V6.0 (ALBANIAN CHAR SANITIZATION & TOTAL WIPEOUT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V7.0 (CONNECTION TIMEOUT FIX & TOTAL WIPEOUT)
 
 import os
 import re
@@ -32,12 +32,10 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# Optimization for streaming
+# PHOENIX FIX V7.0: Konfigurimi i sigurt i lidhjes që parandalon "Connection Closed" nga Backblaze
 transfer_config = TransferConfig(
-    multipart_threshold=1024 * 1024 * 10, 
-    max_concurrency=4,
-    multipart_chunksize=1024 * 1024 * 10,
-    use_threads=True
+    multipart_threshold=1024 * 1024 * 100,  # Fikim multipart për dokumente nën 100MB
+    use_threads=False                       # Backblaze e refuzon nëse ka shumë threads në lidhje të thjeshtë
 )
 
 def sanitize_filename(filename: str) -> str:
@@ -45,12 +43,11 @@ def sanitize_filename(filename: str) -> str:
     Pastron emrin e skedarit për Backblaze:
     - Kthen shkronjat shqipe (Ë->E, Ç->C, ë->e, ç->c)
     - Zëvendëson hapësirat me '_'
-    - Heq karakteret e rrezikshme (markdown, presje, thonjëza)
+    - Heq karakteret e rrezikshme
     """
     if not filename:
         return f"file_{uuid.uuid4().hex[:8]}"
     
-    # Kthe shkronjat shqipe manualisht (në rast se Normalizimi Unicode dështon)
     replacements = {
         'Ë': 'E', 'ë': 'e',
         'Ç': 'C', 'ç': 'c'
@@ -58,16 +55,10 @@ def sanitize_filename(filename: str) -> str:
     for search, replace in replacements.items():
         filename = filename.replace(search, replace)
     
-    # Hiq thekset e tjera (ASCII normalization)
     filename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore').decode('utf-8')
-    
-    # Ndërro hapësirat dhe simbolet e rrezikshme me nënvizë
     clean = re.sub(r'[\s\r\n\t\*\"\'<>:\\/\|\?,]', '_', filename).strip()
-    
-    # Hiq nënvizat e njëpasnjëshme
     clean = re.sub(r'_+', '_', clean)
     
-    # Nëse emri është tepër i gjatë, e shkurton me forcë
     if len(clean) > 80:
         base, ext = os.path.splitext(clean)
         clean = f"{base[:50]}_{uuid.uuid4().hex[:6]}{ext[:8] if ext else ''}"
@@ -92,12 +83,20 @@ def get_s3_client():
         raise HTTPException(status_code=500, detail="Storage service is not configured.")
 
     try:
+        # PHOENIX FIX V7.0: Shtohen timeouts dhe retries për stabilitet maksimal
+        custom_config = Config(
+            signature_version='s3v4',
+            connect_timeout=60,
+            read_timeout=120,
+            retries={'max_attempts': 5, 'mode': 'standard'}
+        )
+        
         _s3_client = boto3.client(
             's3',
             endpoint_url=B2_ENDPOINT_URL,
             aws_access_key_id=B2_KEY_ID,
             aws_secret_access_key=B2_APPLICATION_KEY,
-            config=Config(signature_version='s3v4')
+            config=custom_config
         )
         return _s3_client
     except Exception as e:
@@ -151,7 +150,6 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
 
 def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: str = "application/octet-stream") -> str:
     s3_client = get_s3_client()
-    
     clean_filename = sanitize_filename(filename)
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
     
@@ -313,10 +311,6 @@ def download_processed_text(storage_key: str) -> bytes | None:
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 def delete_file(storage_key: str):
-    """
-    TOTAL WIPEOUT: Fshirje përfundimtare e skedarit nga Backblaze.
-    Zbulon Version ID dhe zhduk skedarin komplet nga disku (nuk lë Hide Markers).
-    """
     if not storage_key or '\n' in storage_key or '**' in storage_key or len(storage_key) > 300:
         logger.warning(f"[Storage Guard] Bllokuar thirrja delete për çelës të parregullt: {str(storage_key)[:60]}...")
         return
@@ -325,11 +319,9 @@ def delete_file(storage_key: str):
     try:
         logger.info(f"--- [Total Wipeout] Deleting: {storage_key} ---")
         
-        # 1. Shiko nëse skedari ekziston vërtet (dhe kap Version ID)
         versions = s3_client.list_object_versions(Bucket=B2_BUCKET_NAME, Prefix=storage_key)
         
         if 'Versions' in versions:
-            # Fshi TË GJITHA versionet e këtij skedari përfundimisht
             for version in versions['Versions']:
                 if version['Key'] == storage_key:
                     s3_client.delete_object(
@@ -337,10 +329,8 @@ def delete_file(storage_key: str):
                         Key=storage_key, 
                         VersionId=version['VersionId']
                     )
-                    logger.info(f"Fshirje fizike e versionit: {version['VersionId']}")
                     
         if 'DeleteMarkers' in versions:
-            # Fshi të gjithë Shënjuesit e Fshehur (Hide Markers) 0 bytes
             for marker in versions['DeleteMarkers']:
                 if marker['Key'] == storage_key:
                     s3_client.delete_object(
@@ -348,15 +338,12 @@ def delete_file(storage_key: str):
                         Key=storage_key, 
                         VersionId=marker['VersionId']
                     )
-                    logger.info(f"Fshirje fizike e markerit të fshehur: {marker['VersionId']}")
                     
-        # Fshirja standarde (në rast se list_object_versions dështon)
         s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
         logger.info(f"✅ Skedari u fshi përfundimisht nga hapësira ruajtëse.")
 
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed for {storage_key}: {e}")
-        # Mos i jep error API-së nëse skedari nuk gjendet (tashmë është i fshirë)
         pass
 
 def copy_s3_object(source_key: str, dest_folder: str) -> str:
