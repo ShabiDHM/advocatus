@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V7.0 (CONNECTION TIMEOUT FIX & TOTAL WIPEOUT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V8.0 (ENTERPRISE RESILIENCE & B2 DIRECT PUT_OBJECT)
 
 import os
 import re
@@ -32,10 +32,12 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# PHOENIX FIX V7.0: Konfigurimi i sigurt i lidhjes që parandalon "Connection Closed" nga Backblaze
+# TransferConfig standard për ngarkime skedarësh të mëdhenj nga disku
 transfer_config = TransferConfig(
-    multipart_threshold=1024 * 1024 * 100,  # Fikim multipart për dokumente nën 100MB
-    use_threads=False                       # Backblaze e refuzon nëse ka shumë threads në lidhje të thjeshtë
+    multipart_threshold=10 * 1024 * 1024,  # 10MB threshold
+    max_concurrency=4,
+    multipart_chunksize=10 * 1024 * 1024,
+    use_threads=True
 )
 
 def sanitize_filename(filename: str) -> str:
@@ -43,7 +45,7 @@ def sanitize_filename(filename: str) -> str:
     Pastron emrin e skedarit për Backblaze:
     - Kthen shkronjat shqipe (Ë->E, Ç->C, ë->e, ç->c)
     - Zëvendëson hapësirat me '_'
-    - Heq karakteret e rrezikshme
+    - Heq karakteret speciale
     """
     if not filename:
         return f"file_{uuid.uuid4().hex[:8]}"
@@ -75,20 +77,25 @@ def check_file_size_bytes(size: int):
 
 def get_s3_client():
     global _s3_client
-    if _s3_client:
+    if _s3_client is not None:
         return _s3_client
     
     if not all([B2_KEY_ID, B2_APPLICATION_KEY, B2_ENDPOINT_URL, B2_BUCKET_NAME]):
-        logger.critical("!!! CRITICAL: B2 Storage service is not configured.")
+        logger.critical("!!! CRITICAL: B2 Storage credentials or endpoint are missing.")
         raise HTTPException(status_code=500, detail="Storage service is not configured.")
 
     try:
-        # PHOENIX FIX V7.0: Shtohen timeouts dhe retries për stabilitet maksimal
+        # PHOENIX FIX V8.0: Robust B2 Connection Configuration
         custom_config = Config(
             signature_version='s3v4',
-            connect_timeout=60,
-            read_timeout=120,
-            retries={'max_attempts': 5, 'mode': 'standard'}
+            connect_timeout=30,
+            read_timeout=60,
+            max_pool_connections=50,
+            retries={
+                'max_attempts': 5,
+                'mode': 'adaptive'
+            },
+            tcp_keepalive=True
         )
         
         _s3_client = boto3.client(
@@ -98,9 +105,11 @@ def get_s3_client():
             aws_secret_access_key=B2_APPLICATION_KEY,
             config=custom_config
         )
+        logger.info("✅ S3/Backblaze B2 client successfully initialized.")
         return _s3_client
     except Exception as e:
-        logger.critical(f"!!! CRITICAL: Failed to initialize B2 client: {e}")
+        logger.critical(f"!!! CRITICAL: Failed to initialize S3 client: {e}")
+        _s3_client = None
         raise HTTPException(status_code=500, detail="Could not initialize storage client.")
 
 # --- GENERIC UTILS ---
@@ -129,17 +138,15 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     content_type = file.content_type or 'application/octet-stream'
     
     try:
-        file.file.seek(0, 2)
-        size = file.file.tell()
-        check_file_size_bytes(size)
-        file.file.seek(0)
+        data = file.file.read()
+        check_file_size_bytes(len(data))
 
-        s3_client.upload_fileobj(
-            file.file, 
-            B2_BUCKET_NAME, 
-            storage_key,
-            Config=transfer_config,
-            ExtraArgs={'ContentType': content_type}
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType=content_type,
+            ContentLength=len(data)
         )
         return storage_key
     except HTTPException:
@@ -161,12 +168,16 @@ def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: 
         check_file_size_bytes(file_size)
 
         logger.info(f"--- [Storage] Uploading FILE PATH: {storage_key} ({file_size / 1024:.1f} KB) ---")
-        s3_client.upload_file(
-            file_path,
-            B2_BUCKET_NAME,
-            storage_key,
-            ExtraArgs={'ContentType': content_type},
-            Config=transfer_config
+        
+        with open(file_path, "rb") as f:
+            data = f.read()
+
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType=content_type,
+            ContentLength=len(data)
         )
         return storage_key
     except HTTPException:
@@ -197,23 +208,33 @@ def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
 # --- DOCUMENT SPECIFIC FUNCTIONS ---
 
 def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: str = "application/pdf") -> str:
+    """
+    PHOENIX FIX V8.0:
+    Reads entire bytes buffer and executes direct put_object with explicit ContentLength.
+    Completely eliminates connection closed errors caused by streaming chunk mismatches on Backblaze B2.
+    """
     s3_client = get_s3_client()
     clean_filename = sanitize_filename(filename)
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
     
     try:
-        file_obj.seek(0, 2)
-        size = file_obj.tell()
-        check_file_size_bytes(size)
         file_obj.seek(0)
+        data = file_obj.read()
+        
+        # If read returned str instead of bytes
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+            
+        check_file_size_bytes(len(data))
 
-        logger.info(f"--- [Storage] Uploading BYTES: {storage_key} ({content_type}) ---")
-        s3_client.upload_fileobj(
-            file_obj,
-            B2_BUCKET_NAME,
-            storage_key,
-            Config=transfer_config,
-            ExtraArgs={'ContentType': content_type}
+        logger.info(f"--- [Storage] Uploading BYTES (direct put): {storage_key} ({len(data) / 1024:.1f} KB) ---")
+        
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType=content_type,
+            ContentLength=len(data)
         )
         return storage_key
     except HTTPException:
@@ -229,18 +250,18 @@ def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> st
     content_type = file.content_type or 'application/pdf'
     
     try:
-        file.file.seek(0, 2)
-        size = file.file.tell()
-        check_file_size_bytes(size)
         file.file.seek(0)
+        data = file.file.read()
+        check_file_size_bytes(len(data))
 
-        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({content_type}) ---")
-        s3_client.upload_fileobj(
-            file.file, 
-            B2_BUCKET_NAME, 
-            storage_key, 
-            Config=transfer_config,
-            ExtraArgs={'ContentType': content_type}
+        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({len(data) / 1024:.1f} KB) ---")
+        
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType=content_type,
+            ContentLength=len(data)
         )
         return storage_key
     except HTTPException:
@@ -254,26 +275,22 @@ def upload_processed_text(text_content: str, user_id: str, case_id: str, origina
     clean_doc_id = sanitize_filename(original_doc_id)
     file_name = f"{clean_doc_id}_processed.txt"
     storage_key = f"{user_id}/{case_id}/processed/{file_name}"
-    temp_file_path = ''
     
     try:
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as temp_file:
-            temp_file.write(text_content)
-            temp_file_path = temp_file.name
-
-        s3_client.upload_file(
-            temp_file_path, 
-            B2_BUCKET_NAME, 
-            storage_key,
-            ExtraArgs={'ContentType': 'text/plain; charset=utf-8'}
+        data = text_content.encode('utf-8')
+        check_file_size_bytes(len(data))
+        
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType='text/plain; charset=utf-8',
+            ContentLength=len(data)
         )
         return storage_key
     except Exception as e:
         logger.error(f"!!! ERROR: Processed text upload failed: {e}")
         raise HTTPException(status_code=500, detail="Could not upload processed text.")
-    finally:
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
 
 def upload_document_preview(file_path: str, user_id: str, case_id: str, original_doc_id: str) -> str:
     s3_client = get_s3_client()
@@ -282,11 +299,18 @@ def upload_document_preview(file_path: str, user_id: str, case_id: str, original
     storage_key = f"{user_id}/{case_id}/previews/{file_name}"
     
     try:
-        s3_client.upload_file(
-            file_path, 
-            B2_BUCKET_NAME, 
-            storage_key,
-            ExtraArgs={'ContentType': 'application/pdf'} 
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Preview file path does not exist.")
+            
+        with open(file_path, "rb") as f:
+            data = f.read()
+            
+        s3_client.put_object(
+            Bucket=B2_BUCKET_NAME,
+            Key=storage_key,
+            Body=data,
+            ContentType='application/pdf',
+            ContentLength=len(data)
         )
         return storage_key
     except Exception as e:
@@ -305,7 +329,8 @@ def download_processed_text(storage_key: str) -> bytes | None:
         response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
         return response['Body'].read()
     except ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey': return None
+        if e.response.get('Error', {}).get('Code') == 'NoSuchKey': 
+            return None
         raise HTTPException(status_code=500, detail="Could not download processed text.")
     except Exception:
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
@@ -340,7 +365,7 @@ def delete_file(storage_key: str):
                     )
                     
         s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
-        logger.info(f"✅ Skedari u fshi përfundimisht nga hapësira ruajtëse.")
+        logger.info("✅ Skedari u fshi përfundimisht nga hapësira ruajtëse.")
 
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed for {storage_key}: {e}")
