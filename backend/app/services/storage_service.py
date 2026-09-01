@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V9.0 (AUTO-REGION SIGV4 & RESILIENT B2 PUT_OBJECT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V10.0 (AUTO-HEALING B2 SESSION & DIRECT PUT_OBJECT)
 
 import os
 import re
@@ -8,8 +8,7 @@ import uuid
 import datetime
 import unicodedata
 from botocore.client import Config
-from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, EndpointConnectionError
 from fastapi import UploadFile, status
 from fastapi.exceptions import HTTPException
 import logging
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 # --- B2 Configuration ---
 B2_KEY_ID = settings.B2_KEY_ID or os.getenv("B2_KEY_ID")
 B2_APPLICATION_KEY = settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KEY")
-B2_ENDPOINT_URL = settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL")
+B2_ENDPOINT_URL = (settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL") or "").rstrip("/")
 B2_BUCKET_NAME = settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME")
 B2_REGION_NAME = getattr(settings, "B2_REGION_NAME", "") or os.getenv("B2_REGION_NAME", "")
 
@@ -33,16 +32,7 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# TransferConfig standard
-transfer_config = TransferConfig(
-    multipart_threshold=10 * 1024 * 1024,
-    max_concurrency=4,
-    multipart_chunksize=10 * 1024 * 1024,
-    use_threads=True
-)
-
 def _get_b2_region() -> str:
-    """Detects B2 Region explicitly or extracts it from endpoint URL."""
     if B2_REGION_NAME:
         return B2_REGION_NAME.strip()
     if B2_ENDPOINT_URL:
@@ -65,12 +55,6 @@ def _infer_content_type(filename: str, fallback: str = "application/octet-stream
     return mapping.get(ext, fallback)
 
 def sanitize_filename(filename: str) -> str:
-    """
-    Pastron emrin e skedarit për Backblaze:
-    - Kthen shkronjat shqipe (Ë->E, Ç->C, ë->e, ç->c)
-    - Zëvendëson hapësirat me '_'
-    - Heq karakteret speciale
-    """
     if not filename:
         return f"file_{uuid.uuid4().hex[:8]}"
     
@@ -99,45 +83,41 @@ def check_file_size_bytes(size: int):
             detail=f"Skedari është shumë i madh. Limiti maksimal është {MAX_FILE_SIZE_MB} MB."
         )
 
-def get_s3_client():
-    global _s3_client
-    if _s3_client is not None:
-        return _s3_client
-    
+def _build_fresh_s3_client():
     if not all([B2_KEY_ID, B2_APPLICATION_KEY, B2_ENDPOINT_URL, B2_BUCKET_NAME]):
         logger.critical("!!! CRITICAL: B2 Storage credentials or endpoint are missing.")
         raise HTTPException(status_code=500, detail="Storage service is not configured.")
 
     region = _get_b2_region()
 
-    try:
-        custom_config = Config(
-            signature_version='s3v4',
-            region_name=region,
-            connect_timeout=30,
-            read_timeout=60,
-            max_pool_connections=50,
-            retries={
-                'max_attempts': 5,
-                'mode': 'adaptive'
-            },
-            tcp_keepalive=True
-        )
-        
-        _s3_client = boto3.client(
-            's3',
-            endpoint_url=B2_ENDPOINT_URL,
-            aws_access_key_id=B2_KEY_ID,
-            aws_secret_access_key=B2_APPLICATION_KEY,
-            region_name=region,
-            config=custom_config
-        )
-        logger.info(f"✅ S3/Backblaze B2 client initialized (Region: {region}).")
-        return _s3_client
-    except Exception as e:
-        logger.critical(f"!!! CRITICAL: Failed to initialize S3 client: {e}")
-        _s3_client = None
-        raise HTTPException(status_code=500, detail="Could not initialize storage client.")
+    custom_config = Config(
+        signature_version='s3v4',
+        region_name=region,
+        s3={'addressing_style': 'path'},
+        connect_timeout=30,
+        read_timeout=60,
+        retries={
+            'max_attempts': 3,
+            'mode': 'standard'
+        }
+    )
+    
+    session = boto3.session.Session()
+    return session.client(
+        's3',
+        endpoint_url=B2_ENDPOINT_URL,
+        aws_access_key_id=B2_KEY_ID,
+        aws_secret_access_key=B2_APPLICATION_KEY,
+        region_name=region,
+        config=custom_config
+    )
+
+def get_s3_client(force_refresh: bool = False):
+    global _s3_client
+    if _s3_client is None or force_refresh:
+        _s3_client = _build_fresh_s3_client()
+        logger.info(f"✅ S3/Backblaze B2 client initialized (Region: {_get_b2_region()}).")
+    return _s3_client
 
 # --- GENERIC UTILS ---
 
@@ -154,89 +134,10 @@ def generate_presigned_url(storage_key: str, expiration: int = 3600) -> Optional
         logger.warning(f"Failed to generate presigned URL: {e}")
         return None
 
-def upload_file_raw(file: UploadFile, folder: str) -> str:
-    s3_client = get_s3_client()
-    clean_folder = sanitize_filename(folder)
-    
-    file_extension = os.path.splitext(file.filename or "")[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    storage_key = f"{clean_folder}/{unique_filename}"
-    
-    content_type = file.content_type or _infer_content_type(file.filename or "")
-    
-    try:
-        data = file.file.read()
-        check_file_size_bytes(len(data))
-
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType=content_type,
-            ContentLength=len(data)
-        )
-        return storage_key
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Raw upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Raw upload failed.")
-
-def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
-    s3_client = get_s3_client()
-    clean_filename = sanitize_filename(filename)
-    storage_key = f"{user_id}/{case_id}/{clean_filename}"
-    resolved_content_type = content_type or _infer_content_type(filename)
-    
-    try:
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="File path does not exist.")
-        
-        file_size = os.path.getsize(file_path)
-        check_file_size_bytes(file_size)
-
-        logger.info(f"--- [Storage] Uploading FILE PATH: {storage_key} ({file_size / 1024:.1f} KB) ---")
-        
-        with open(file_path, "rb") as f:
-            data = f.read()
-
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType=resolved_content_type,
-            ContentLength=len(data)
-        )
-        return storage_key
-    except HTTPException:
-        raise
-    except (BotoCoreError, ClientError) as e:
-        logger.error(f"!!! ERROR: File Path Upload failed: {storage_key}, Reason: {e}")
-        raise HTTPException(status_code=500, detail="Could not upload file from path.")
-
-def get_file_stream(storage_key: str) -> Any:
-    s3_client = get_s3_client()
-    try:
-        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
-        return response['Body']
-    except Exception as e:
-        logger.error(f"Failed to retrieve file stream: {e}")
-        raise HTTPException(status_code=404, detail="File not found in storage.")
-
-def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
-    s3_client = get_s3_client()
-    try:
-        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
-        content_length = response.get('ContentLength', 0)
-        return response['Body'], content_length
-    except Exception as e:
-        logger.error(f"Failed to retrieve file stream with meta: {e}")
-        raise HTTPException(status_code=404, detail="File not found in storage.")
-
-# --- DOCUMENT SPECIFIC FUNCTIONS ---
-
-def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
-    s3_client = get_s3_client()
+def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
+    """
+    Uploads raw bytes to B2 using put_object with Auto-Healing retry on stale sockets.
+    """
     clean_filename = sanitize_filename(filename)
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
     resolved_content_type = content_type or _infer_content_type(filename, "application/pdf")
@@ -244,103 +145,103 @@ def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str
     try:
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
-            
-        data = file_obj.read()
-        
+            data = file_obj.read()
+        elif isinstance(file_obj, (bytes, bytearray)):
+            data = bytes(file_obj)
+        else:
+            data = bytes(file_obj)
+
         if isinstance(data, str):
             data = data.encode('utf-8')
             
         check_file_size_bytes(len(data))
-
-        logger.info(f"--- [Storage] Uploading BYTES (direct put): {storage_key} ({resolved_content_type}, {len(data) / 1024:.1f} KB) ---")
-        
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType=resolved_content_type,
-            ContentLength=len(data)
-        )
-        return storage_key
     except HTTPException:
         raise
-    except (BotoCoreError, ClientError) as e:
-        logger.error(f"!!! ERROR: Byte Upload failed: {storage_key}, Reason: {e}")
-        raise HTTPException(status_code=500, detail="Could not upload converted file.")
+    except Exception as e:
+        logger.error(f"Failed reading bytes for upload: {e}")
+        raise HTTPException(status_code=500, detail="Could not read upload payload.")
+
+    logger.info(f"--- [Storage] Uploading BYTES: {storage_key} ({resolved_content_type}, {len(data) / 1024:.1f} KB) ---")
+    
+    # Try with existing client, if socket was dropped by B2, recreate client once and retry
+    for attempt in range(2):
+        try:
+            client = get_s3_client(force_refresh=(attempt > 0))
+            client.put_object(
+                Bucket=B2_BUCKET_NAME,
+                Key=storage_key,
+                Body=data,
+                ContentType=resolved_content_type,
+                ContentLength=len(data)
+            )
+            logger.info(f"✅ [Storage] Successfully uploaded {storage_key}")
+            return storage_key
+        except (BotoCoreError, ClientError) as e:
+            logger.warning(f"⚠️ [Storage] Upload attempt {attempt + 1} failed: {e}")
+            if attempt == 1:
+                logger.error(f"!!! ERROR: Byte Upload failed permanently: {storage_key}, Reason: {e}")
+                raise HTTPException(status_code=500, detail="Could not upload converted file.")
+
+    raise HTTPException(status_code=500, detail="Could not upload converted file.")
 
 def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> str:
-    s3_client = get_s3_client()
     clean_filename = sanitize_filename(file.filename or "document")
-    storage_key = f"{user_id}/{case_id}/{clean_filename}"
     content_type = file.content_type or _infer_content_type(file.filename or "", 'application/pdf')
-    
-    try:
-        file.file.seek(0)
-        data = file.file.read()
-        check_file_size_bytes(len(data))
+    return upload_bytes_as_file(file.file, clean_filename, user_id, case_id, content_type)
 
-        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({content_type}, {len(data) / 1024:.1f} KB) ---")
-        
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType=content_type,
-            ContentLength=len(data)
-        )
-        return storage_key
-    except HTTPException:
-        raise
-    except (BotoCoreError, ClientError) as e:
-        logger.error(f"!!! ERROR: Upload failed: {storage_key}, Reason: {e}")
-        raise HTTPException(status_code=500, detail="Could not upload file.")
+def upload_file_raw(file: UploadFile, folder: str) -> str:
+    clean_folder = sanitize_filename(folder)
+    file_extension = os.path.splitext(file.filename or "")[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    storage_key = f"{clean_folder}/{unique_filename}"
+    content_type = file.content_type or _infer_content_type(file.filename or "")
+    
+    return upload_bytes_as_file(file.file, unique_filename, clean_folder, "", content_type)
+
+def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File path does not exist.")
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return upload_bytes_as_file(data, filename, user_id, case_id, content_type)
+
+def get_file_stream(storage_key: str) -> Any:
+    for attempt in range(2):
+        try:
+            s3_client = get_s3_client(force_refresh=(attempt > 0))
+            response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+            return response['Body']
+        except Exception as e:
+            if attempt == 1:
+                logger.error(f"Failed to retrieve file stream: {e}")
+                raise HTTPException(status_code=404, detail="File not found in storage.")
+
+def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
+    for attempt in range(2):
+        try:
+            s3_client = get_s3_client(force_refresh=(attempt > 0))
+            response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+            content_length = response.get('ContentLength', 0)
+            return response['Body'], content_length
+        except Exception as e:
+            if attempt == 1:
+                logger.error(f"Failed to retrieve file stream with meta: {e}")
+                raise HTTPException(status_code=404, detail="File not found in storage.")
 
 def upload_processed_text(text_content: str, user_id: str, case_id: str, original_doc_id: str) -> str:
-    s3_client = get_s3_client()
     clean_doc_id = sanitize_filename(original_doc_id)
     file_name = f"{clean_doc_id}_processed.txt"
-    storage_key = f"{user_id}/{case_id}/processed/{file_name}"
-    
-    try:
-        data = text_content.encode('utf-8')
-        check_file_size_bytes(len(data))
-        
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType='text/plain; charset=utf-8',
-            ContentLength=len(data)
-        )
-        return storage_key
-    except Exception as e:
-        logger.error(f"!!! ERROR: Processed text upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Could not upload processed text.")
+    data = text_content.encode('utf-8')
+    return upload_bytes_as_file(data, file_name, user_id, f"{case_id}/processed", "text/plain; charset=utf-8")
 
 def upload_document_preview(file_path: str, user_id: str, case_id: str, original_doc_id: str) -> str:
-    s3_client = get_s3_client()
     clean_doc_id = sanitize_filename(original_doc_id)
     file_name = f"{clean_doc_id}_preview.pdf"
-    storage_key = f"{user_id}/{case_id}/previews/{file_name}"
-    
-    try:
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Preview file path does not exist.")
-            
-        with open(file_path, "rb") as f:
-            data = f.read()
-            
-        s3_client.put_object(
-            Bucket=B2_BUCKET_NAME,
-            Key=storage_key,
-            Body=data,
-            ContentType='application/pdf',
-            ContentLength=len(data)
-        )
-        return storage_key
-    except Exception as e:
-        logger.error(f"!!! ERROR: Preview upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Could not upload preview.")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Preview file path does not exist.")
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return upload_bytes_as_file(data, file_name, user_id, f"{case_id}/previews", "application/pdf")
 
 def download_preview_document_stream(storage_key: str) -> Any:
     return get_file_stream(storage_key)
@@ -349,16 +250,19 @@ def download_original_document_stream(storage_key: str) -> Any:
     return get_file_stream(storage_key)
 
 def download_processed_text(storage_key: str) -> bytes | None:
-    s3_client = get_s3_client()
-    try:
-        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
-        return response['Body'].read()
-    except ClientError as e:
-        if e.response.get('Error', {}).get('Code') == 'NoSuchKey': 
-            return None
-        raise HTTPException(status_code=500, detail="Could not download processed text.")
-    except Exception:
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+    for attempt in range(2):
+        try:
+            s3_client = get_s3_client(force_refresh=(attempt > 0))
+            response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+            return response['Body'].read()
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') == 'NoSuchKey': 
+                return None
+            if attempt == 1:
+                raise HTTPException(status_code=500, detail="Could not download processed text.")
+        except Exception:
+            if attempt == 1:
+                raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 def delete_file(storage_key: str):
     if not storage_key or '\n' in storage_key or '**' in storage_key or len(storage_key) > 300:
@@ -391,10 +295,8 @@ def delete_file(storage_key: str):
                     
         s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
         logger.info("✅ Skedari u fshi përfundimisht nga hapësira ruajtëse.")
-
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed for {storage_key}: {e}")
-        pass
 
 def copy_s3_object(source_key: str, dest_folder: str) -> str:
     s3_client = get_s3_client()
