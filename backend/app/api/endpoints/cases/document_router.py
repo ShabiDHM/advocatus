@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V17.0 (AUTO-HEALING REAL PAGE COUNT CALCULATOR)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V18.1 (SYNTAX FIXED & DUAL-AUTH PREVIEW)
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional
 from fastapi.responses import StreamingResponse, FileResponse
 from pymongo.database import Database
@@ -21,9 +21,13 @@ from app.models.archive import ArchiveItemOut
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_user, get_db, get_sync_redis
 from app.api.endpoints.cases.cases_helpers import validate_object_id, DeletedDocumentResponse, BulkDeleteDocumentsRequest
+from app.core.security import decode_access_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# MAX UPLOAD LIMIT (50 MB)
+MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
 
 def _resolve_media_type(filename: str, doc_mime: Optional[str] = None) -> str:
@@ -72,12 +76,11 @@ async def get_documents_for_case(
             d["status"] = DocumentStatus.READY
             d["progress_percent"] = 100
 
-        # 2. AUTO-HEALING: Llogaritja reale e faqeve për të gjitha dokumentet ekzistuese
+        # 2. AUTO-HEALING: Llogaritja reale e faqeve
         current_page_count = d.get("page_count") or d.get("pages") or 0
         if current_page_count <= 1:
             raw_text = d.get("extracted_text") or ""
             
-            # Kontrollojmë numrin maksimal të faqeve nga user_vectors
             max_vector_page = 0
             try:
                 vector_chunks = list(db.user_vectors.find({"document_id": doc_id_str}, {"page": 1}))
@@ -143,11 +146,21 @@ async def upload_document_for_case(
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     case_oid = validate_object_id(case_id)
+    
+    # 1. Kontrolli i menjëhershëm i madhësisë (Max 50 MB)
     pdf_bytes = await file.read()
-    filename = file.filename or "document.pdf"
+    if len(pdf_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Skedari është shumë i madh. Limiti maksimal është 50 MB."
+        )
+
+    # 2. Pastrimi i emrit të skedarit
+    raw_filename = file.filename or "document.pdf"
+    filename = storage_service.sanitize_filename(raw_filename)
     content_type = _resolve_media_type(filename, file.content_type)
 
-    # 1. Ngarko në Storage
+    # 3. Ngarko në Storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -165,7 +178,7 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    # 2. Ruaj në MongoDB
+    # 4. Ruaj në MongoDB
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "owner_id": current_user.id,
@@ -195,7 +208,7 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # 3. 🛡️ EKZEKUTIM ME BACKGROUND_TASKS
+    # 5. Ekzekutimi në Background
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 
@@ -326,14 +339,47 @@ async def delete_document(
 async def get_document_preview(
     case_id: str,
     doc_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    request: Request,
+    token: Optional[str] = Query(None),
     db: Database = Depends(get_db)
 ):
+    user_doc = None
+
+    # 1. Kontrollo tokenin në Header (Authorization: Bearer ...)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        jwt_token = auth_header.split(" ")[1]
+        try:
+            payload = decode_access_token(jwt_token)
+            user_id = payload.get("sub") or payload.get("id")
+            if user_id:
+                user_doc = db.users.find_one({"_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id})
+        except Exception:
+            pass
+
+    # 2. Nëse nuk ka ardhur në Header, lexoje nga URL (?token=...)
+    if not user_doc and token:
+        try:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub") or payload.get("id")
+            if user_id:
+                user_doc = db.users.find_one({"_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id})
+        except Exception:
+            pass
+
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="I paautorizuar për të parë këtë dokument."
+        )
+
+    user = UserInDB.model_validate(user_doc)
+
     cached_path, stream, doc, content_length = await asyncio.to_thread(
         document_service.get_preview_file_path_or_stream,
         db,
         doc_id,
-        current_user
+        user
     )
     filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "document.pdf"
     doc_mime = getattr(doc, 'mime_type', None)

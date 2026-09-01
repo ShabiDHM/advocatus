@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V135.0 (ANTI-HALUCINATION + OPTIMIZED)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V136.0 (UNIFIED ELITE PILLARS & ZERO CRASH)
 
 import os
 import logging
@@ -10,16 +10,12 @@ from bson import ObjectId
 
 from app.core.config import settings
 
-# PHOENIX FIX: Importi i moduleve të reja
+# Modulet RAG
 from app.services.rag.intent_detector import IntentDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
 
-# Importimi i Moduleve të Pavarura (Pillars)
-from app.services.pillars.pillar_1_strategy import Pillar1StrategyService
-from app.services.pillars.pillar_2_statutes import Pillar2StatutesService
-from app.services.pillars.pillar_3_questions import Pillar3QuestionsService
-from app.services.pillars.pillar_4_damages import Pillar4DamagesService
+# Importimi i Shtyllave Kryesore Elitare
 from app.services.pillars.forensic_audit_service import ForensicAuditService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
@@ -36,26 +32,26 @@ MANDATORY_LEGAL_DISCLAIMER = (
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
 )
 
-# UDHËZIM KUNDËR HALUCINACIONEVE — detyron LLM të jetë i saktë
+# UDHËZIM KUNDËR HALUCINACIONEVE
 ANTI_HALLUCINATION_INSTRUCTION = """
 RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
-1. CITO NENET VETËM NËSE i sheh në kontekstin e dhënë ose i di me siguri absolute.
+1. CITO NENET VETËM NËSE i sheh në kontekstin e dhënë ose i di me siguri absolute nga ligjet e Kosovës.
 2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]" në vend që të improvizosh.
 3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
 4. Nëse konteksti nuk përmban informacion të mjaftueshëm për pyetjen, THUAJ QARTË: "Nuk kam informacion të mjaftueshëm në fashikull për këtë pyetje."
-5. Përdor VETËM ligjet e Kosovës: KPRK (Kodi Penal), KPPRK (Kodi i Procedurës Penale), LPK (Ligji për Procedurën Kontestimore), LMD (Ligji për Marrëdhëniet e Detyrimeve), LFK (Ligji për Familjen).
+5. Përdor VETËM ligjet pozitive të Kosovës: KPRK, KPPRK, LPK, LMD, Ligji për Familjen.
 """
 
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V135.0 me Anti-Halucination.
+    Shërbimi Kryesor RAG — V136.0 me Shtyllat e Unifikuara.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V135.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V136.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -159,10 +155,8 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # 🔥 PHOENIX FIX V135.0: Optimizuar për saktësi maksimale
+        # Optimizimi i kërkimit kontekstual
         if user_intent == "GENERAL_CHAT":
-            # Për pyetje të lira, përdor më shumë rezultate nga global knowledge base
-            # për të siguruar kontekst të mjaftueshëm ligjor
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
             )
@@ -170,28 +164,27 @@ class AlbanianRAGService:
                 query_text=optimized_query, n_results=20
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-        elif user_intent == "COMPREHENSIVE_ANALYSIS":
-            # Vetëm këtu e ngarkojmë të gjithë fashikullin
+        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=30
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=35
             )
             global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=16
+                query_text=optimized_query, n_results=20
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
         else:
-            # Për intents të tjera specifike
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=20
             )
             global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=10
+                query_text=optimized_query, n_results=15
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
         remaining_pills = self._determine_remaining_pills(query=query, history=history)
 
-        if user_intent == "COMPREHENSIVE_ANALYSIS":
+        # Përzgjedhja e Shtyllës Ekzekutuese
+        if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             system_prompt = ComprehensiveAnalysisService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -210,7 +203,11 @@ class AlbanianRAGService:
                 client_name=client_name,
                 client_position=client_position,
                 current_date_str=current_date_str,
-                context_str=context_str
+                context_str=context_str,
+                manifest_str=manifest_str,
+                db=self.db,
+                user_id=user_id,
+                case_id=case_id
             )
         elif user_intent == "DRAFTING":
             system_prompt = LegalDraftingService.build_prompt(
@@ -220,26 +217,12 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 manifest_str=manifest_str,
                 context_str=context_str,
-                query=optimized_query
-            )
-        elif user_intent == "PILLAR_STRATEGY":
-            system_prompt = Pillar1StrategyService.build_prompt(
-                case_title, client_name, client_position, current_date_str, manifest_str, context_str
-            )
-        elif user_intent == "PILLAR_STATUTES":
-            system_prompt = Pillar2StatutesService.build_prompt(
-                case_title, client_name, client_position, current_date_str, manifest_str, context_str
-            )
-        elif user_intent == "PILLAR_QUESTIONS":
-            system_prompt = Pillar3QuestionsService.build_prompt(
-                case_title, client_name, client_position, current_date_str, manifest_str, context_str
-            )
-        elif user_intent == "PILLAR_DAMAGES":
-            system_prompt = Pillar4DamagesService.build_prompt(
-                case_title, client_name, client_position, current_date_str, manifest_str, context_str
+                query=optimized_query,
+                db=self.db,
+                user_id=user_id,
+                case_id=case_id
             )
         else:
-            # GENERAL_CHAT — me udhëzim anti-halucinacion
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
@@ -254,7 +237,7 @@ class AlbanianRAGService:
         async for content in self.response_generator.generate_stream(system_prompt, optimized_query, context_str):
             yield content
 
-        if user_intent in ["COMPREHENSIVE_ANALYSIS", "FORENSIC_AUDIT", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"] and remaining_pills:
+        if user_intent in ["COMPREHENSIVE_ANALYSIS", "FORENSIC_AUDIT", "DRAFTING"] and remaining_pills:
             pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
             yield pills_block
 
