@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V9.5 (EXPLICIT FRONTEND_URL & DOMAIN VALIDATION)
+# PHOENIX PROTOCOL - CONFIG V10.0 (B2 REGION SUPPORT & ENTERPRISE VALIDATION)
 
 import os
 from pathlib import Path
@@ -38,11 +38,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
 
-    # B2 Storage
+    # B2 Storage Configuration
     B2_KEY_ID: str = ""
     B2_APPLICATION_KEY: str = ""
     B2_BUCKET_NAME: str = ""
     B2_ENDPOINT_URL: str = ""
+    B2_REGION_NAME: str = ""  # e.g., 'eu-central-003'
     
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8000

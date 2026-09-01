@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V8.0 (ENTERPRISE RESILIENCE & B2 DIRECT PUT_OBJECT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V9.0 (AUTO-REGION SIGV4 & RESILIENT B2 PUT_OBJECT)
 
 import os
 import re
@@ -25,6 +25,7 @@ B2_KEY_ID = settings.B2_KEY_ID or os.getenv("B2_KEY_ID")
 B2_APPLICATION_KEY = settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KEY")
 B2_ENDPOINT_URL = settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL")
 B2_BUCKET_NAME = settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME")
+B2_REGION_NAME = getattr(settings, "B2_REGION_NAME", "") or os.getenv("B2_REGION_NAME", "")
 
 # MAX FILE LIMIT: 50 MB
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", 50))
@@ -32,13 +33,36 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# TransferConfig standard për ngarkime skedarësh të mëdhenj nga disku
+# TransferConfig standard
 transfer_config = TransferConfig(
-    multipart_threshold=10 * 1024 * 1024,  # 10MB threshold
+    multipart_threshold=10 * 1024 * 1024,
     max_concurrency=4,
     multipart_chunksize=10 * 1024 * 1024,
     use_threads=True
 )
+
+def _get_b2_region() -> str:
+    """Detects B2 Region explicitly or extracts it from endpoint URL."""
+    if B2_REGION_NAME:
+        return B2_REGION_NAME.strip()
+    if B2_ENDPOINT_URL:
+        match = re.search(r's3\.([a-z0-9-]+)\.backblazeb2\.com', B2_ENDPOINT_URL)
+        if match:
+            return match.group(1)
+    return "eu-central-003"
+
+def _infer_content_type(filename: str, fallback: str = "application/octet-stream") -> str:
+    ext = os.path.splitext(filename or "")[1].lower()
+    mapping = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+        ".txt": "text/plain; charset=utf-8",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }
+    return mapping.get(ext, fallback)
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -84,10 +108,12 @@ def get_s3_client():
         logger.critical("!!! CRITICAL: B2 Storage credentials or endpoint are missing.")
         raise HTTPException(status_code=500, detail="Storage service is not configured.")
 
+    region = _get_b2_region()
+
     try:
-        # PHOENIX FIX V8.0: Robust B2 Connection Configuration
         custom_config = Config(
             signature_version='s3v4',
+            region_name=region,
             connect_timeout=30,
             read_timeout=60,
             max_pool_connections=50,
@@ -103,9 +129,10 @@ def get_s3_client():
             endpoint_url=B2_ENDPOINT_URL,
             aws_access_key_id=B2_KEY_ID,
             aws_secret_access_key=B2_APPLICATION_KEY,
+            region_name=region,
             config=custom_config
         )
-        logger.info("✅ S3/Backblaze B2 client successfully initialized.")
+        logger.info(f"✅ S3/Backblaze B2 client initialized (Region: {region}).")
         return _s3_client
     except Exception as e:
         logger.critical(f"!!! CRITICAL: Failed to initialize S3 client: {e}")
@@ -135,7 +162,7 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     storage_key = f"{clean_folder}/{unique_filename}"
     
-    content_type = file.content_type or 'application/octet-stream'
+    content_type = file.content_type or _infer_content_type(file.filename or "")
     
     try:
         data = file.file.read()
@@ -155,10 +182,11 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
         logger.error(f"Raw upload failed: {e}")
         raise HTTPException(status_code=500, detail="Raw upload failed.")
 
-def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: str = "application/octet-stream") -> str:
+def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
     s3_client = get_s3_client()
     clean_filename = sanitize_filename(filename)
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
+    resolved_content_type = content_type or _infer_content_type(filename)
     
     try:
         if not os.path.exists(file_path):
@@ -176,7 +204,7 @@ def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: 
             Bucket=B2_BUCKET_NAME,
             Key=storage_key,
             Body=data,
-            ContentType=content_type,
+            ContentType=resolved_content_type,
             ContentLength=len(data)
         )
         return storage_key
@@ -207,33 +235,30 @@ def get_file_stream_with_meta(storage_key: str) -> Tuple[Any, int]:
 
 # --- DOCUMENT SPECIFIC FUNCTIONS ---
 
-def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: str = "application/pdf") -> str:
-    """
-    PHOENIX FIX V8.0:
-    Reads entire bytes buffer and executes direct put_object with explicit ContentLength.
-    Completely eliminates connection closed errors caused by streaming chunk mismatches on Backblaze B2.
-    """
+def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
     s3_client = get_s3_client()
     clean_filename = sanitize_filename(filename)
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
+    resolved_content_type = content_type or _infer_content_type(filename, "application/pdf")
     
     try:
-        file_obj.seek(0)
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+            
         data = file_obj.read()
         
-        # If read returned str instead of bytes
         if isinstance(data, str):
             data = data.encode('utf-8')
             
         check_file_size_bytes(len(data))
 
-        logger.info(f"--- [Storage] Uploading BYTES (direct put): {storage_key} ({len(data) / 1024:.1f} KB) ---")
+        logger.info(f"--- [Storage] Uploading BYTES (direct put): {storage_key} ({resolved_content_type}, {len(data) / 1024:.1f} KB) ---")
         
         s3_client.put_object(
             Bucket=B2_BUCKET_NAME,
             Key=storage_key,
             Body=data,
-            ContentType=content_type,
+            ContentType=resolved_content_type,
             ContentLength=len(data)
         )
         return storage_key
@@ -247,14 +272,14 @@ def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> st
     s3_client = get_s3_client()
     clean_filename = sanitize_filename(file.filename or "document")
     storage_key = f"{user_id}/{case_id}/{clean_filename}"
-    content_type = file.content_type or 'application/pdf'
+    content_type = file.content_type or _infer_content_type(file.filename or "", 'application/pdf')
     
     try:
         file.file.seek(0)
         data = file.file.read()
         check_file_size_bytes(len(data))
 
-        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({len(data) / 1024:.1f} KB) ---")
+        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({content_type}, {len(data) / 1024:.1f} KB) ---")
         
         s3_client.put_object(
             Bucket=B2_BUCKET_NAME,
