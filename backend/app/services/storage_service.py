@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V10.1 (AUTO-HEALING B2 SESSION & COMPLETE BACKWARD COMPATIBILITY)
+# PHOENIX PROTOCOL - STORAGE SERVICE V11.0 (DEEP DIAGNOSTICS & RESILIENT B2 CLIENT)
 
 import os
 import re
@@ -20,12 +20,17 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# --- B2 Configuration ---
-B2_KEY_ID = settings.B2_KEY_ID or os.getenv("B2_KEY_ID")
-B2_APPLICATION_KEY = settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KEY")
-B2_ENDPOINT_URL = (settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL") or "").rstrip("/")
-B2_BUCKET_NAME = settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME")
-B2_REGION_NAME = getattr(settings, "B2_REGION_NAME", "") or os.getenv("B2_REGION_NAME", "")
+# --- B2 Configuration (Cleaned & Stripped) ---
+def _clean_env(val: Optional[str]) -> str:
+    if not val:
+        return ""
+    return str(val).strip().strip('"').strip("'")
+
+B2_KEY_ID = _clean_env(settings.B2_KEY_ID or os.getenv("B2_KEY_ID"))
+B2_APPLICATION_KEY = _clean_env(settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KEY"))
+B2_ENDPOINT_URL = _clean_env(settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL")).rstrip("/")
+B2_BUCKET_NAME = _clean_env(settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME"))
+B2_REGION_NAME = _clean_env(getattr(settings, "B2_REGION_NAME", "") or os.getenv("B2_REGION_NAME", ""))
 
 # MAX FILE LIMIT: 50 MB
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", 50))
@@ -33,7 +38,7 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# PHOENIX FIX: Export transfer_config for backward compatibility with archive_service
+# Backward compatibility transfer config
 transfer_config = TransferConfig(
     multipart_threshold=10 * 1024 * 1024,
     max_concurrency=4,
@@ -43,7 +48,7 @@ transfer_config = TransferConfig(
 
 def _get_b2_region() -> str:
     if B2_REGION_NAME:
-        return B2_REGION_NAME.strip()
+        return B2_REGION_NAME
     if B2_ENDPOINT_URL:
         match = re.search(r's3\.([a-z0-9-]+)\.backblazeb2\.com', B2_ENDPOINT_URL)
         if match:
@@ -94,7 +99,7 @@ def check_file_size_bytes(size: int):
 
 def _build_fresh_s3_client():
     if not all([B2_KEY_ID, B2_APPLICATION_KEY, B2_ENDPOINT_URL, B2_BUCKET_NAME]):
-        logger.critical("!!! CRITICAL: B2 Storage credentials or endpoint are missing.")
+        logger.critical(f"!!! CRITICAL: Missing B2 Config: KeyID={bool(B2_KEY_ID)}, AppKey={bool(B2_APPLICATION_KEY)}, Endpoint={B2_ENDPOINT_URL}, Bucket={B2_BUCKET_NAME}")
         raise HTTPException(status_code=500, detail="Storage service is not configured.")
 
     region = _get_b2_region()
@@ -102,17 +107,13 @@ def _build_fresh_s3_client():
     custom_config = Config(
         signature_version='s3v4',
         region_name=region,
-        s3={'addressing_style': 'path'},
-        connect_timeout=30,
-        read_timeout=60,
-        retries={
-            'max_attempts': 3,
-            'mode': 'standard'
-        }
+        connect_timeout=20,
+        read_timeout=40,
+        retries={'max_attempts': 2, 'mode': 'standard'}
     )
     
     session = boto3.session.Session()
-    return session.client(
+    client = session.client(
         's3',
         endpoint_url=B2_ENDPOINT_URL,
         aws_access_key_id=B2_KEY_ID,
@@ -120,12 +121,23 @@ def _build_fresh_s3_client():
         region_name=region,
         config=custom_config
     )
+    
+    # Test Connectivity Diagnostic
+    try:
+        client.head_bucket(Bucket=B2_BUCKET_NAME)
+        logger.info(f"✅ [B2 Diagnostic] Bucket '{B2_BUCKET_NAME}' verified successfully on endpoint '{B2_ENDPOINT_URL}'.")
+    except ClientError as ce:
+        err_code = ce.response.get('Error', {}).get('Code', 'Unknown')
+        logger.error(f"⚠️ [B2 Diagnostic ClientError] Bucket '{B2_BUCKET_NAME}' status check failed with Code: {err_code} ({ce})")
+    except Exception as ex:
+        logger.error(f"⚠️ [B2 Diagnostic Exception] Could not reach B2 Bucket: {ex}")
+        
+    return client
 
 def get_s3_client(force_refresh: bool = False):
     global _s3_client
     if _s3_client is None or force_refresh:
         _s3_client = _build_fresh_s3_client()
-        logger.info(f"✅ S3/Backblaze B2 client initialized (Region: {_get_b2_region()}).")
     return _s3_client
 
 # --- GENERIC UTILS ---
@@ -200,7 +212,6 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     file_extension = os.path.splitext(file.filename or "")[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     content_type = file.content_type or _infer_content_type(file.filename or "")
-    
     return upload_bytes_as_file(file.file, unique_filename, clean_folder, "", content_type)
 
 def upload_file_from_path(file_path: str, filename: str, user_id: str, case_id: str, content_type: Optional[str] = None) -> str:
