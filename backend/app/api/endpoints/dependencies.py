@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - DEPENDENCIES V3.1 (EMPTY STRING HANDLING & REDIS FIX)
+# PHOENIX PROTOCOL - DEPENDENCIES V4.0 (CLEAN GENERATOR & RESILIENT REDIS INJECTION)
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import logging
 import redis
 
-from ...core.db import get_db, get_redis_client
+from ...core.db import get_db, connect_to_redis
 from ...core.config import settings
 from ...services import user_service
 from ...models.user import UserInDB
@@ -25,21 +25,25 @@ class TokenData(BaseModel):
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+
 def get_sync_redis() -> Generator[redis.Redis, None, None]:
     """
     PHOENIX PROTOCOL - FIXED:
-    Now properly handles Redis connection errors.
+    Safely injects Redis client without trapping downstream route exceptions.
+    Prevents storage/SSE route errors from being masked as Redis failures.
     """
     try:
-        client = next(get_redis_client())
-        if client is None:
-            raise HTTPException(status_code=500, detail="Redis client not initialized.")
-        yield client
-    except StopIteration:
-        raise HTTPException(status_code=500, detail="Redis client not available.")
+        client = connect_to_redis()
     except Exception as e:
-        logger.error(f"Redis connection error: {e}")
-        raise HTTPException(status_code=500, detail="Redis client not available.")
+        logger.error(f"❌ Failed to obtain Redis client: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="Redis service unavailable."
+        )
+    
+    # Yield client directly so endpoint exceptions propagate naturally
+    yield client
+
 
 def is_subscription_expired(expiry_val) -> bool:
     """Helper function to check if subscription date has passed (UTC aware)."""
@@ -64,6 +68,7 @@ def is_subscription_expired(expiry_val) -> bool:
     except Exception as e:
         logger.error(f"Error checking subscription expiry date: {e}")
         return False
+
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -100,6 +105,7 @@ def get_current_user(
         raise credentials_exception
     return user
 
+
 def get_current_active_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
@@ -134,6 +140,7 @@ def get_current_active_user(
         
     return current_user
 
+
 def get_current_admin_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
@@ -146,6 +153,7 @@ def get_current_admin_user(
         )
     return current_user
 
+
 def get_current_refresh_user(
     token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
     db: Database = Depends(get_db)
@@ -153,7 +161,7 @@ def get_current_refresh_user(
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate refresh token",
-        headers={"WWW-authenticate": "Bearer"},
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
     if token_from_cookie is None:
@@ -186,6 +194,7 @@ def get_current_refresh_user(
     if user is None:
         raise credentials_exception
     return user
+
 
 async def get_current_user_ws(
     websocket: WebSocket,
