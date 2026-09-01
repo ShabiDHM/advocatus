@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V33.0 (CASE_ID FILTER FIX - NO ATLAS INDEX NEEDED)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V50.0 (ZERO LEAKAGE • HYBRID STATUTE & CASE SEARCH)
 
 import os
 import time
@@ -37,22 +37,26 @@ def get_global_collection():
     return None 
 
 
-def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) -> List[Dict[str, Any]]:
+def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) -> List[Dict[str, Any]]:
+    """
+    Kërkim hibrid në Bazën Globale të Ligjeve, Neneve dhe Vendimeve të Gjykatës Supreme.
+    """
     from . import embedding_service
     db = _get_db()
     coll = db["legal_knowledge_base"]
     raw_results = []
     seen_ids = set()
 
-    # 1. KËRKIM I DREJTPËRDREJTË
+    # 1. KËRKIM I DREJTPËRDREJTË STATUTOR & PRECEDENTËSH
     article_matches = re.findall(r'\b(?:Neni|Nenit|Nenin)\s*(\d+)\b', query_text, re.IGNORECASE)
-    case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A)\.?\s*Nr\.?\s*(\d+/\d+)\b', query_text, re.IGNORECASE)
+    case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A|PKR)\.?\s*Nr\.?\s*(\d+/\d+)\b', query_text, re.IGNORECASE)
 
     direct_queries = []
     if article_matches:
         for art_num in article_matches:
             direct_queries.append({"article_number": str(art_num)})
-            direct_queries.append({"article_number": int(art_num) if art_num.isdigit() else str(art_num)})
+            if art_num.isdigit():
+                direct_queries.append({"article_number": int(art_num)})
             direct_queries.append({"title": {"$regex": f"Neni\\s+{art_num}\\b", "$options": "i"}})
 
     if case_law_matches:
@@ -62,7 +66,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
 
     if direct_queries:
         try:
-            exact_docs = list(coll.find({"$or": direct_queries}).limit(8))
+            exact_docs = list(coll.find({"$or": direct_queries}).limit(10))
             for doc in exact_docs:
                 d_id = str(doc.get("_id", ""))
                 if d_id not in seen_ids:
@@ -71,7 +75,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
         except Exception as ex:
             logger.warning(f"Direct statute search fallback error: {ex}")
 
-    # 2. KËRKIMI VEKTORIAL SEMANTIK
+    # 2. KËRKIMI VEKTORIAL SEMANTIK ($vectorSearch)
     vector = embedding_service.generate_embedding(query_text) if query_text else None
     if vector:
         try:
@@ -107,22 +111,22 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
         except Exception:
             pass
 
-    # 4. FORMATIMI
+    # 4. FORMATIMI DOKTRINAR I REZULTATEVE
     formatted_results = []
     for r in raw_results[:n_results]:
-        law_title = r.get("law_title") or r.get("title") or "Dokument Juridik"
+        law_title = r.get("law_title") or r.get("title") or "Dokument Juridik i Kosovës"
         article_num = str(r.get("article_number", ""))
         is_article = r.get("is_article", False)
-        is_case_law = r.get("is_case_law", False) or "pml" in law_title.lower() or "rev" in law_title.lower() or "supreme" in law_title.lower()
+        is_case_law = r.get("is_case_law", False) or any(k in law_title.lower() for k in ["pml", "rev", "supreme", "kushtetuese", "apelit"])
 
         if is_case_law:
-            source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor i Gjykatës Supreme: {law_title}"
+            source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor (Gjykata Supreme e Kosovës): {law_title}"
         elif is_article:
             art_label = "Neni " if article_num != "0" else "Preambula"
             art_suffix = article_num if article_num != "0" else ""
             source_tag = f"⚖️ Baza Statutare: {law_title}, {art_label}{art_suffix}"
         else:
-            section_label = article_num if article_num else "Seksioni"
+            section_label = f"Neni {article_num}" if article_num else "Seksioni"
             source_tag = f"📚 Doktrina dhe Komentari Zyrtar ({law_title}), {section_label}"
 
         formatted_results.append({
@@ -134,11 +138,9 @@ def query_global_knowledge_base(query_text: str, n_results: int = 16, **kwargs) 
     return formatted_results
 
 
-def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30, **kwargs) -> List[Dict[str, Any]]:
+def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35, **kwargs) -> List[Dict[str, Any]]:
     """
-    PHOENIX PROTOCOL V33.0 - FIXED:
-    Përdor VETËM owner_id si filter në $vectorSearch (indeksuar tashmë).
-    case_id filtrohet PAS marrjes së rezultateve — nuk kërkon index shtesë.
+    Kërkim i thellë dhe i izoluar hermetikisht në dokumentet e fashikullit të lëndës.
     """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
@@ -148,12 +150,25 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
     results = []
     seen_chunk_ids = set()
 
+    # Përgatitja e filtrave të sigurt të lëndës
+    valid_case_ids = set()
+    if case_context_id:
+        case_id_str = str(case_context_id)
+        valid_case_ids.add(case_id_str)
+        if ObjectId.is_valid(case_id_str):
+            valid_case_ids.add(str(ObjectId(case_id_str)))
+
     vector = embedding_service.generate_embedding(query_text) if query_text else None
 
-    # 1. KËRKIMI ME VEKTORË — VETËM me owner_id (i indeksuar tashmë)
+    # 1. KËRKIMI VEKTORIAL ME FILTRIM TË OWNER_ID
     if vector:
         try:
-            vector_filter: Dict[str, Any] = {"owner_id": user_id}
+            vector_filter: Dict[str, Any] = {
+                "$or": [
+                    {"owner_id": user_id},
+                    {"owner_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id}
+                ]
+            }
             
             pipeline = [{
                 "$vectorSearch": {
@@ -161,40 +176,41 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
                     "path": "embedding", 
                     "queryVector": vector, 
                     "numCandidates": 200, 
-                    "limit": n_results * 2,  # Merr dyfish për filtrim të mëvonshëm
-                    "filter": vector_filter
+                    "limit": n_results * 2,
+                    "filter": {"owner_id": user_id}
                 }
             }]
             vector_results = list(coll.aggregate(pipeline))
             
-            # PHOENIX FIX: Filtro me case_id pas marrjes së rezultateve
+            # FILTRIMI HERMETIK SIPAS CASE_ID (ZERO LEAKAGE)
             for r in vector_results:
                 r_id = str(r.get("_id", ""))
                 r_case_id = str(r.get("case_id", ""))
                 
-                # Nëse kemi case_context_id, filtro sipas tij
-                if case_context_id:
-                    case_id_str = str(case_context_id)
-                    if r_case_id != case_id_str and r_case_id != str(ObjectId(case_id_str)) if ObjectId.is_valid(case_id_str) else False:
-                        continue
+                if valid_case_ids and r_case_id not in valid_case_ids:
+                    continue
                 
                 if r_id not in seen_chunk_ids:
                     seen_chunk_ids.add(r_id)
                     results.append(r)
                     
         except Exception as e:
-            logger.warning(f"Case vector search error: {e}")
+            logger.warning(f"Case vector search warning: {e}")
 
-    # 2. FALLBACK: Tërhiq direkt nga user_vectors me case_filter
+    # 2. FALLBACK DIREKT NGA USER_VECTORS
     if len(results) < n_results:
         try:
-            case_filter: Dict[str, Any] = {"owner_id": user_id}
-            if case_context_id:
-                case_id_str = str(case_context_id)
-                case_filter["$or"] = [
-                    {"case_id": case_id_str},
-                    {"case_id": ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str}
+            case_filter: Dict[str, Any] = {
+                "$or": [
+                    {"owner_id": user_id},
+                    {"owner_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id}
                 ]
+            }
+            if valid_case_ids:
+                case_id_str = str(case_context_id)
+                case_filter["case_id"] = {
+                    "$in": [case_id_str, ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str]
+                }
             
             direct_chunks = list(coll.find(case_filter).limit(n_results))
             for r in direct_chunks:
@@ -205,7 +221,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 30
         except Exception as e:
             logger.error(f"Direct user_vectors fetch error: {e}")
 
-    # 3. FALLBACK: Lexo nga documents
+    # 3. FALLBACK DIREKT NGA TABELA E DOKUMENTEVE (DOKUMENTET E PLOTA)
     if not results and case_context_id:
         try:
             c_oid = ObjectId(case_context_id) if ObjectId.is_valid(case_context_id) else case_context_id
@@ -263,7 +279,7 @@ def create_and_store_embeddings_from_chunks(
             vector = vectors[i] if i < len(vectors) else []
             meta = metadatas[i] if i < len(metadatas) else {}
             docs.append({
-                "owner_id": user_id, 
+                "owner_id": str(user_id), 
                 "document_id": str(document_id), 
                 "case_id": str(case_id), 
                 "file_name": file_name,
@@ -274,20 +290,26 @@ def create_and_store_embeddings_from_chunks(
         
         if docs: 
             coll.insert_many(docs)
-            logger.info(f"✅ SaaS Ingested {len(docs)} chunks for document {document_id} in case {case_id}!")
+            logger.info(f"✅ Ingested {len(docs)} chunks for document {document_id} in case {case_id}!")
             return True
         return False
             
     except Exception as e:
-        logger.error(f"SaaS Ingestion Failed: {e}")
+        logger.error(f"❌ Ingestion Failed: {e}")
         return False
 
 
 def delete_document_embeddings(user_id: str, document_id: str):
     try: 
-        _get_db()["user_vectors"].delete_many({"document_id": str(document_id), "owner_id": user_id})
-    except Exception: 
-        pass
+        _get_db()["user_vectors"].delete_many({
+            "document_id": str(document_id), 
+            "$or": [
+                {"owner_id": str(user_id)},
+                {"owner_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else str(user_id)}
+            ]
+        })
+    except Exception as e: 
+        logger.warning(f"⚠️ Delete embeddings error: {e}")
 
 
 def copy_document_embeddings(source_document_id: str, target_document_id: str, target_user_id: str, target_case_id: str):
@@ -303,7 +325,7 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
             doc.pop("_id", None)
             doc.update({
                 "document_id": str(target_document_id), 
-                "owner_id": target_user_id, 
+                "owner_id": str(target_user_id), 
                 "case_id": str(target_case_id)
             })
         
