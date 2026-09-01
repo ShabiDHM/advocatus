@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V12.0 (B2 PAYLOAD SIGNING FIX - DIRECT UPLOAD)
+# PHOENIX PROTOCOL - STORAGE SERVICE V13.0 (DISABLE EXPECT 100-CONTINUE & VIRTUAL HOST FIX)
 
 import os
 import re
@@ -97,6 +97,13 @@ def check_file_size_bytes(size: int):
             detail=f"Skedari është shumë i madh. Limiti maksimal është {MAX_FILE_SIZE_MB} MB."
         )
 
+def _remove_expect_header(request, **kwargs):
+    """
+    CRITICAL FIX FOR BACKBLAZE B2:
+    Removes 'Expect: 100-continue' header which causes B2 European proxies to drop connections.
+    """
+    request.headers.pop('Expect', None)
+
 def _build_fresh_s3_client():
     if not all([B2_KEY_ID, B2_APPLICATION_KEY, B2_ENDPOINT_URL, B2_BUCKET_NAME]):
         logger.critical(f"!!! CRITICAL: Missing B2 Config: KeyID={bool(B2_KEY_ID)}, AppKey={bool(B2_APPLICATION_KEY)}, Endpoint={B2_ENDPOINT_URL}, Bucket={B2_BUCKET_NAME}")
@@ -104,12 +111,10 @@ def _build_fresh_s3_client():
 
     region = _get_b2_region()
 
-    # PHOENIX FIX V12.0: payload_signing_enabled=False is mandatory for Backblaze B2 S3 API
     custom_config = Config(
         signature_version='s3v4',
         region_name=region,
         s3={
-            'addressing_style': 'path',
             'payload_signing_enabled': False
         },
         connect_timeout=30,
@@ -126,6 +131,9 @@ def _build_fresh_s3_client():
         region_name=region,
         config=custom_config
     )
+    
+    # Register hook to strip Expect header on all S3 requests
+    client.meta.events.register_first('before-send.s3.*', _remove_expect_header)
     
     return client
 
@@ -184,8 +192,7 @@ def upload_bytes_as_file(file_obj: Any, filename: str, user_id: str, case_id: st
                 Bucket=B2_BUCKET_NAME,
                 Key=storage_key,
                 Body=data,
-                ContentType=resolved_content_type,
-                ContentLength=len(data)
+                ContentType=resolved_content_type
             )
             logger.info(f"✅ [Storage] Successfully uploaded {storage_key}")
             return storage_key
