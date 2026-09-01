@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V42.0 (DRAFTING EXCISED)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V43.0 (AUTHENTICATED STREAM & ZERO 401 ERRORS)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +11,6 @@ import {
     ZoomIn, ZoomOut, Maximize2, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
-// PHOENIX FIX: DraftResultRenderer u hoq (drafting u fshi)
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -88,8 +87,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
   useLockBodyScroll(!isMinimized);
 
-  // PHOENIX FIX: isLegalDraft u thjeshtua — pa DraftResultRenderer
-
   const getTargetMode = (mimeType: string, fileName: string): ViewerMode => {
     const m = mimeType?.toLowerCase() || '';
     const f = fileName?.toLowerCase() || '';
@@ -131,12 +128,23 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     );
     setViewerMode(targetMode);
 
+    const token = apiService.getToken();
     let activeUrl = directUrl;
+
+    // Bashkëngjit tokenin në URL nëse mungon
+    if (activeUrl && token && !activeUrl.includes('token=')) {
+      activeUrl += (activeUrl.includes('?') ? '&' : '?') + `token=${token}`;
+    }
 
     const loadData = async () => {
       try {
         if (activeUrl && targetMode === 'PDF') {
-          setFileSource({ url: activeUrl, withCredentials: true });
+          // PHOENIX FIX: Dërgo Bearer Header dhe Credentials në mënyrë të sigurt
+          setFileSource({
+            url: activeUrl,
+            httpHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+            withCredentials: true
+          });
           setIsLoading(false);
           return;
         }
@@ -324,7 +332,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       case 'TEXT':
         return (
           <div className="p-4 sm:p-10 h-full overflow-auto bg-canvas/40 flex justify-center custom-finance-scroll">
-            {/* PHOENIX FIX: DraftResultRenderer u hoq — përdoret pre i thjeshtë */}
             <div className="glass-panel p-6 sm:p-10 rounded-2xl border border-main w-full bg-surface text-left">
                 <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-text-secondary leading-relaxed text-left">{textContent}</pre>
             </div>
