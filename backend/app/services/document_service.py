@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V9.0 (GRAPH DEPENDENCY COMPLETELY REMOVED)
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V10.0 (TOTAL CASCADE WIPEOUT)
 
 import logging
 import datetime
@@ -168,16 +168,28 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
 
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
+    """
+    TOTAL CASCADE WIPEOUT:
+    Fshin çdo gjurmë të dokumentit nga Databaza, Backblaze, RAG, SSD Cache dhe Kalendari.
+    """
+    # 1. Kërko dokumentin në 'documents' dhe 'media_evidence'
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
+    is_media = False
+    
     if not document_to_delete:
-        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+        document_to_delete = db.media_evidence.find_one({"_id": doc_id, "owner_id": owner.id})
+        is_media = True
+
+    if not document_to_delete:
+        raise HTTPException(status_code=404, detail="Dokumenti ose Prova Audio nuk u gjet.")
     
     doc_id_str = str(doc_id)
     storage_key = document_to_delete.get("storage_key")
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    for k in [storage_key, preview_key]:
+    # 2. Fshirje nga SSD CACHE Lokal
+    for k in [storage_key, processed_key, preview_key]:
         if k:
             cached_file = os.path.join(CACHE_DIR, k.replace('/', '_'))
             if os.path.exists(cached_file):
@@ -186,42 +198,50 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
                 except Exception: 
                     pass
 
-    mixed_id_query = {"$in": [doc_id, doc_id_str]}
-    deleted_finding_ids = []
-    
+    # 3. Fshirje nga RAG (Vector Store - Pinecone/Chroma)
     try:
-        findings_query = {"document_id": mixed_id_query}
-        findings_cursor = db.findings.find(findings_query, {"_id": 1})
-        deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
-        db.findings.delete_many(findings_query)
+        vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
+        logger.info(f"✅ Vektorët RAG u fshinë për {doc_id_str}")
     except Exception as e:
-        logger.error(f"Error deleting findings for doc {doc_id}: {e}")
-    
+        logger.error(f"⚠️ Vector store cleanup failed: {e}")
+
+    # 4. Fshirje e Kalendarit dhe Alarmeve
+    mixed_id_query = {"$in": [doc_id, doc_id_str]}
     link_query = {"$or": [{"document_id": mixed_id_query}, {"documentId": mixed_id_query}]}
     try:
         db.calendar_events.delete_many(link_query)
         if "alerts" in db.list_collection_names():
             db.alerts.delete_many(link_query)
     except Exception as e:
-        logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
+        logger.error(f"⚠️ Calendar cleanup failed: {e}")
 
+    # 5. Fshirje e Gjëjeve (Findings - Për versionet e vjetra)
+    deleted_finding_ids = []
     try:
-        vector_store_service.delete_document_embeddings(user_id=str(owner.id), document_id=doc_id_str)
+        findings_query = {"document_id": mixed_id_query}
+        findings_cursor = db.findings.find(findings_query, {"_id": 1})
+        deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
+        db.findings.delete_many(findings_query)
     except Exception as e:
-        logger.error(f"Vector store cleanup failed: {e}")
+        pass
+
+    # 6. TOTAL WIPEOUT NGA BACKBLAZE (B2)
+    # Sigurohemi që delete_file do të thirret për çdo skedar fizik të lidhur
+    keys_to_delete = [k for k in [storage_key, processed_key, preview_key] if k]
+    for key in set(keys_to_delete):
+        try:
+            storage_service.delete_file(storage_key=key)
+            logger.info(f"✅ Skedari u fshi nga Backblaze: {key}")
+        except Exception as e:
+            logger.error(f"⚠️ S3 cleanup failed for {key}: {e}")
     
-    try:
-        if storage_key: 
-            storage_service.delete_file(storage_key=storage_key)
-        if processed_key: 
-            storage_service.delete_file(storage_key=processed_key)
-        if preview_key: 
-            storage_service.delete_file(storage_key=preview_key)
-    except Exception as e:
-        logger.error(f"S3 cleanup failed (non-critical): {e}")
+    # 7. Fshirje Finale nga MongoDB
+    if is_media:
+        db.media_evidence.delete_one({"_id": doc_id})
+    else:
+        db.documents.delete_one({"_id": doc_id})
     
-    db.documents.delete_one({"_id": doc_id})
-    
+    # 8. Njoftim Real-time për Frontend-in (SSE)
     try:
         if redis_client:
             payload = {"type": "DOCUMENT_DELETED", "document_id": doc_id_str}

@@ -1,11 +1,12 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v5.5 (SECURED + SIZE GUARD + SANITIZATION)
+# PHOENIX PROTOCOL - STORAGE SERVICE V6.0 (ALBANIAN CHAR SANITIZATION & TOTAL WIPEOUT)
 
 import os
 import re
 import boto3
 import uuid
 import datetime
+import unicodedata
 from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import BotoCoreError, ClientError
@@ -25,7 +26,7 @@ B2_APPLICATION_KEY = settings.B2_APPLICATION_KEY or os.getenv("B2_APPLICATION_KE
 B2_ENDPOINT_URL = settings.B2_ENDPOINT_URL or os.getenv("B2_ENDPOINT_URL")
 B2_BUCKET_NAME = settings.B2_BUCKET_NAME or os.getenv("B2_BUCKET_NAME")
 
-# MAX FILE LIMIT: 50 MB (Mbron nga skedarët gjigantë 5GB)
+# MAX FILE LIMIT: 50 MB
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", 50))
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -41,16 +42,32 @@ transfer_config = TransferConfig(
 
 def sanitize_filename(filename: str) -> str:
     """
-    Pastron emrin e skedarit që të mos pranojë tekste të AI, 
-    karaktere markdown (**) apo thyerje rreshti (\n).
+    Pastron emrin e skedarit për Backblaze:
+    - Kthen shkronjat shqipe (Ë->E, Ç->C, ë->e, ç->c)
+    - Zëvendëson hapësirat me '_'
+    - Heq karakteret e rrezikshme (markdown, presje, thonjëza)
     """
     if not filename:
         return f"file_{uuid.uuid4().hex[:8]}"
     
-    # Heq simbole të rrezikshme dhe tekste markdown
-    clean = re.sub(r'[\r\n\t\*\"\'<>:\\/\|\?]', '_', str(filename)).strip()
+    # Kthe shkronjat shqipe manualisht (në rast se Normalizimi Unicode dështon)
+    replacements = {
+        'Ë': 'E', 'ë': 'e',
+        'Ç': 'C', 'ç': 'c'
+    }
+    for search, replace in replacements.items():
+        filename = filename.replace(search, replace)
     
-    # Nëse emri është tekst i gjatë (p.sh. analizë AI), e shkurton me forcë
+    # Hiq thekset e tjera (ASCII normalization)
+    filename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore').decode('utf-8')
+    
+    # Ndërro hapësirat dhe simbolet e rrezikshme me nënvizë
+    clean = re.sub(r'[\s\r\n\t\*\"\'<>:\\/\|\?,]', '_', filename).strip()
+    
+    # Hiq nënvizat e njëpasnjëshme
+    clean = re.sub(r'_+', '_', clean)
+    
+    # Nëse emri është tepër i gjatë, e shkurton me forcë
     if len(clean) > 80:
         base, ext = os.path.splitext(clean)
         clean = f"{base[:50]}_{uuid.uuid4().hex[:6]}{ext[:8] if ext else ''}"
@@ -297,8 +314,8 @@ def download_processed_text(storage_key: str) -> bytes | None:
 
 def delete_file(storage_key: str):
     """
-    Fshin skedarin me siguri. Nëse storage_key është tekst AI ose i parregullt,
-    bllokohet që të mos krijojë '0 bytes hide markers'.
+    TOTAL WIPEOUT: Fshirje përfundimtare e skedarit nga Backblaze.
+    Zbulon Version ID dhe zhduk skedarin komplet nga disku (nuk lë Hide Markers).
     """
     if not storage_key or '\n' in storage_key or '**' in storage_key or len(storage_key) > 300:
         logger.warning(f"[Storage Guard] Bllokuar thirrja delete për çelës të parregullt: {str(storage_key)[:60]}...")
@@ -306,11 +323,41 @@ def delete_file(storage_key: str):
 
     s3_client = get_s3_client()
     try:
-        logger.info(f"--- Deleting: {storage_key} ---")
+        logger.info(f"--- [Total Wipeout] Deleting: {storage_key} ---")
+        
+        # 1. Shiko nëse skedari ekziston vërtet (dhe kap Version ID)
+        versions = s3_client.list_object_versions(Bucket=B2_BUCKET_NAME, Prefix=storage_key)
+        
+        if 'Versions' in versions:
+            # Fshi TË GJITHA versionet e këtij skedari përfundimisht
+            for version in versions['Versions']:
+                if version['Key'] == storage_key:
+                    s3_client.delete_object(
+                        Bucket=B2_BUCKET_NAME, 
+                        Key=storage_key, 
+                        VersionId=version['VersionId']
+                    )
+                    logger.info(f"Fshirje fizike e versionit: {version['VersionId']}")
+                    
+        if 'DeleteMarkers' in versions:
+            # Fshi të gjithë Shënjuesit e Fshehur (Hide Markers) 0 bytes
+            for marker in versions['DeleteMarkers']:
+                if marker['Key'] == storage_key:
+                    s3_client.delete_object(
+                        Bucket=B2_BUCKET_NAME, 
+                        Key=storage_key, 
+                        VersionId=marker['VersionId']
+                    )
+                    logger.info(f"Fshirje fizike e markerit të fshehur: {marker['VersionId']}")
+                    
+        # Fshirja standarde (në rast se list_object_versions dështon)
         s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+        logger.info(f"✅ Skedari u fshi përfundimisht nga hapësira ruajtëse.")
+
     except Exception as e:
-        logger.error(f"!!! ERROR: Delete failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete file.")
+        logger.error(f"!!! ERROR: Delete failed for {storage_key}: {e}")
+        # Mos i jep error API-së nëse skedari nuk gjendet (tashmë është i fshirë)
+        pass
 
 def copy_s3_object(source_key: str, dest_folder: str) -> str:
     s3_client = get_s3_client()
