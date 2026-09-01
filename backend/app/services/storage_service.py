@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V11.0 (DEEP DIAGNOSTICS & RESILIENT B2 CLIENT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V12.0 (B2 PAYLOAD SIGNING FIX - DIRECT UPLOAD)
 
 import os
 import re
@@ -104,12 +104,17 @@ def _build_fresh_s3_client():
 
     region = _get_b2_region()
 
+    # PHOENIX FIX V12.0: payload_signing_enabled=False is mandatory for Backblaze B2 S3 API
     custom_config = Config(
         signature_version='s3v4',
         region_name=region,
-        connect_timeout=20,
-        read_timeout=40,
-        retries={'max_attempts': 2, 'mode': 'standard'}
+        s3={
+            'addressing_style': 'path',
+            'payload_signing_enabled': False
+        },
+        connect_timeout=30,
+        read_timeout=60,
+        retries={'max_attempts': 3, 'mode': 'standard'}
     )
     
     session = boto3.session.Session()
@@ -122,16 +127,6 @@ def _build_fresh_s3_client():
         config=custom_config
     )
     
-    # Test Connectivity Diagnostic
-    try:
-        client.head_bucket(Bucket=B2_BUCKET_NAME)
-        logger.info(f"✅ [B2 Diagnostic] Bucket '{B2_BUCKET_NAME}' verified successfully on endpoint '{B2_ENDPOINT_URL}'.")
-    except ClientError as ce:
-        err_code = ce.response.get('Error', {}).get('Code', 'Unknown')
-        logger.error(f"⚠️ [B2 Diagnostic ClientError] Bucket '{B2_BUCKET_NAME}' status check failed with Code: {err_code} ({ce})")
-    except Exception as ex:
-        logger.error(f"⚠️ [B2 Diagnostic Exception] Could not reach B2 Bucket: {ex}")
-        
     return client
 
 def get_s3_client(force_refresh: bool = False):
