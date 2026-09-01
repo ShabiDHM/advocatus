@@ -1,5 +1,5 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V13.0 (DISABLE EXPECT 100-CONTINUE & VIRTUAL HOST FIX)
+# PHOENIX PROTOCOL - STORAGE SERVICE V50.0 (CLEAN IMPORTS & TOTAL WIPEOUT)
 
 import os
 import re
@@ -20,7 +20,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# --- B2 Configuration (Cleaned & Stripped) ---
+# --- B2 Configuration ---
 def _clean_env(val: Optional[str]) -> str:
     if not val:
         return ""
@@ -38,7 +38,6 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 _s3_client = None
 
-# Backward compatibility transfer config
 transfer_config = TransferConfig(
     multipart_threshold=10 * 1024 * 1024,
     max_concurrency=4,
@@ -55,7 +54,7 @@ def _get_b2_region() -> str:
             return match.group(1)
     return "eu-central-003"
 
-def _infer_content_type(filename: str, fallback: str = "application/octet-stream") -> str:
+def _infer_content_type(filename: str, fallback: str = "application/pdf") -> str:
     ext = os.path.splitext(filename or "")[1].lower()
     mapping = {
         ".pdf": "application/pdf",
@@ -98,10 +97,6 @@ def check_file_size_bytes(size: int):
         )
 
 def _remove_expect_header(request, **kwargs):
-    """
-    CRITICAL FIX FOR BACKBLAZE B2:
-    Removes 'Expect: 100-continue' header which causes B2 European proxies to drop connections.
-    """
     request.headers.pop('Expect', None)
 
 def _build_fresh_s3_client():
@@ -114,9 +109,7 @@ def _build_fresh_s3_client():
     custom_config = Config(
         signature_version='s3v4',
         region_name=region,
-        s3={
-            'payload_signing_enabled': False
-        },
+        s3={'payload_signing_enabled': False},
         connect_timeout=30,
         read_timeout=60,
         retries={'max_attempts': 3, 'mode': 'standard'}
@@ -131,10 +124,7 @@ def _build_fresh_s3_client():
         region_name=region,
         config=custom_config
     )
-    
-    # Register hook to strip Expect header on all S3 requests
     client.meta.events.register_first('before-send.s3.*', _remove_expect_header)
-    
     return client
 
 def get_s3_client(force_refresh: bool = False):
@@ -290,7 +280,6 @@ def delete_file(storage_key: str):
     s3_client = get_s3_client()
     try:
         logger.info(f"--- [Total Wipeout] Deleting: {storage_key} ---")
-        
         versions = s3_client.list_object_versions(Bucket=B2_BUCKET_NAME, Prefix=storage_key)
         
         if 'Versions' in versions:

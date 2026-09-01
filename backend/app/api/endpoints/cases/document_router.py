@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V50.0 (DIRTY STATE & SMART CACHE INVALIDATION)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V55.1 (100% GJUHA SHQIPE • PREPAID PAYWALL GATEKEEPER)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
@@ -28,7 +28,7 @@ from app.api.endpoints.cases.cases_helpers import validate_object_id, DeletedDoc
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# MAX UPLOAD LIMIT (50 MB)
+# LIMITI MAKSIMAL I SKEDARIT (50 MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 
 
@@ -166,6 +166,9 @@ async def get_documents_for_case(
     return validated_docs
 
 
+# =========================================================================
+# 🔒 UPLOAD ME MBROJTJE PARAPRAKE DHE NJOFTIM NË GJUHËN SHQIPE
+# =========================================================================
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_for_case(
     case_id: str,
@@ -177,20 +180,39 @@ async def upload_document_for_case(
 ):
     case_oid = validate_object_id(case_id)
     
-    # 1. Kontrolli i madhësisë (Max 50 MB)
+    # 1. VERIFIKIMI I PAGESËS DHE STATUSIT TË LËNDËS
+    user_role = getattr(current_user, "role", "USER").upper()
+    has_sub = getattr(current_user, "has_active_subscription", False) or (getattr(current_user, "subscription_status", "") == "ACTIVE")
+    is_admin = user_role in ["ADMIN", "SUPERADMIN", "STAFF"]
+
+    case_doc = db.cases.find_one({"_id": case_oid, "owner_id": current_user.id})
+    if not case_doc:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet në sistem.")
+
+    is_case_unlocked = bool(case_doc.get("is_unlocked", False))
+
+    # Nëse përdoruesi nuk është admin, nuk ka abonim aktiv dhe lënda nuk është paguar:
+    if not is_admin and not has_sub and not is_case_unlocked:
+        price = os.getenv("CASE_UNLOCK_PRICE_EUR", "9.99")
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshe prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
+        )
+
+    # 2. Kontrolli i madhësisë së skedarit (Maksimumi 50 MB)
     pdf_bytes = await file.read()
     if len(pdf_bytes) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Skedari është shumë i madh. Limiti maksimal është 50 MB."
+            detail="Skedari është shumë i madh. Madhësia maksimale e lejuar është 50 MB."
         )
 
-    # 2. Pastrimi i emrit të skedarit
-    raw_filename = file.filename or "document.pdf"
+    # 3. Pastrimi i emrit të skedarit
+    raw_filename = file.filename or "dokument.pdf"
     filename = storage_service.sanitize_filename(raw_filename)
     content_type = _resolve_media_type(filename, file.content_type)
 
-    # 3. Ngarko në Storage
+    # 4. Ngarko në Storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -208,7 +230,7 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    # 4. Ruaj në MongoDB
+    # 5. Ruaj në MongoDB
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "owner_id": current_user.id,
@@ -238,13 +260,13 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY (kërkon rianalizim sepse u shtua dokument)
+    # Shëno lëndën si DIRTY (kërkon analizë të re pas ngarkimit)
     db.cases.update_one(
         {"$or": [{"_id": case_oid}, {"_id": case_id}]},
         {"$set": {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}}
     )
 
-    # 5. Ekzekutimi në Background
+    # 6. Ekzekutimi në Background
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 
@@ -273,7 +295,6 @@ async def archive_case_document_endpoint(
     if not archive_item:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose dështoi arkivimi.")
     
-    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY
     db.cases.update_one(
         {"$or": [{"_id": case_oid}, {"_id": case_id}]},
         {"$set": {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}}
@@ -320,7 +341,6 @@ async def bulk_delete_documents_endpoint(
         "status": {"$ne": "DELETED"}
     })
     
-    # PHOENIX SMART CACHE: Shëno lëndën si DIRTY pas fshirjes
     update_payload: Dict[str, Any] = {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}
     if remaining_docs == 0:
         update_payload["latest_comprehensive_analysis"] = None
@@ -372,7 +392,6 @@ async def delete_document(
             "status": {"$ne": "DELETED"}
         })
         
-        # PHOENIX SMART CACHE: Shëno lëndën si DIRTY
         update_payload: Dict[str, Any] = {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}
         if remaining_docs == 0:
             update_payload["latest_comprehensive_analysis"] = None
@@ -431,7 +450,7 @@ async def get_document_preview(
         doc_id,
         user
     )
-    filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "document.pdf"
+    filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "dokument.pdf"
     doc_mime = getattr(doc, 'mime_type', None)
     resolved_media_type = _resolve_media_type(filename, doc_mime)
     

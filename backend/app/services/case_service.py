@@ -1,20 +1,22 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V13.0 (DRAFTING EXCISED)
+# PHOENIX PROTOCOL - CASE SERVICE V55.0 (DUAL-TIER LIFECYCLE: 7-DAY CITIZEN & 7-DAY GRACE FOR UNPAID LAWYERS)
 
 import re
 import urllib.parse 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, cast
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import HTTPException
 from pymongo.database import Database
+import logging
 
 from ..models.case import CaseCreate
 from ..models.user import UserInDB
-# PHOENIX FIX: DraftRequest u hoq (models/drafting.py u fshi)
 from ..celery_app import celery_app
 from app.services import storage_service, vector_store_service
+
+logger = logging.getLogger(__name__)
 
 
 # --- HELPER FUNCTIONS ---
@@ -25,13 +27,6 @@ def _safe_str(oid: Any) -> Optional[str]:
 
 
 def _build_case_access_query(user: UserInDB, case_id: Optional[ObjectId] = None) -> Dict[str, Any]:
-    """
-    ENTERPRISE ACCESS GUARD (Granular RBAC):
-    - Nëse useri ka qasje 'SELECTIVE', sheh VETËM:
-      1. Lëndët ku _id është te `user.assigned_case_ids`.
-      2. Lëndët që i ka krijuar vetë (owner_id / user_id == user.id).
-    - Nëse useri ka qasje 'FULL' ose është Pronari origjinal i firmës, sheh të gjitha lëndët e zyrës.
-    """
     access_level = getattr(user, 'org_access_level', 'FULL')
     org_id = getattr(user, 'org_id', None)
     user_id_obj = user.id
@@ -155,6 +150,9 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "title": title,
             "description": case_doc.get("description"), 
             "status": case_doc.get("status", "OPEN"),
+            "is_unlocked": case_doc.get("is_unlocked", False),
+            "unlocked_at": case_doc.get("unlocked_at"),
+            "is_purged": case_doc.get("is_purged", False),
             "client_id": _safe_str(case_doc.get("client_id")),
             "client": case_doc.get("client") or {"name": client_name},
             "client_name": client_name,
@@ -168,28 +166,16 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "created_at": created_at, 
             "updated_at": updated_at, 
             "chat_history": case_doc.get("chat_history", []), 
+            "latest_comprehensive_analysis": case_doc.get("latest_comprehensive_analysis"),
             "latest_analysis": case_doc.get("latest_analysis"), 
             "latest_deep_analysis": case_doc.get("latest_deep_analysis"),
             "analyzed_doc_fingerprints": case_doc.get("analyzed_doc_fingerprints"),
             **counts
         }
     except Exception as e:
-        print(f"Error mapping case {case_doc.get('_id', 'UNKNOWN')}: {e}")
-        return {
-            "id": case_doc.get("_id"),
-            "user_id": case_doc.get("user_id") or case_doc.get("owner_id"),
-            "title": "Error Loading Case", 
-            "case_number": "ERR", 
-            "client_name": "Klient",
-            "opposing_party": "Pala Kundërshtare",
-            "client_position": "DEFENDANT",
-            "created_at": datetime.now(timezone.utc), 
-            "updated_at": datetime.now(timezone.utc), 
-            "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0,
-            "chat_history": [],
-            "latest_analysis": None,
-            "latest_deep_analysis": None
-        }
+        logger.error(f"Error mapping case: {e}")
+        return None
+
 
 # --- CRUD OPERATIONS ---
 
@@ -208,11 +194,16 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
         case_dict["opponent_name"] = clean_opposing
     
     org_id = getattr(owner, "org_id", None)
+    has_active_sub = getattr(owner, "has_active_subscription", False) or (getattr(owner, "subscription_status", "") == "ACTIVE")
+    
     case_dict.update({
         "owner_id": owner.id, 
         "user_id": owner.id,
         "org_id": org_id,
         "assigned_user_ids": [str(owner.id)],
+        "is_unlocked": bool(has_active_sub),
+        "unlocked_at": datetime.now(timezone.utc) if has_active_sub else None,
+        "is_purged": False,
         "created_at": datetime.now(timezone.utc), 
         "updated_at": datetime.now(timezone.utc),
         "case_number": case_dict.get("case_number") or f"R-{int(datetime.now(timezone.utc).timestamp()) % 1000000:06d}"
@@ -223,6 +214,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     if not new_case: 
         raise HTTPException(status_code=500, detail="Dështoi krijimi i rastit.")
     return _map_case_document(cast(Dict[str, Any], new_case), db)
+
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
@@ -235,12 +227,14 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
             results.append(mapped_case)
     return results
 
+
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
     query_filter = _build_case_access_query(owner, case_id=case_id)
     case = db.cases.find_one(query_filter)
     if not case: 
         return None
     return _map_case_document(case, db)
+
 
 def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> Dict[str, Any]:
     query_filter = _build_case_access_query(owner, case_id=case_id)
@@ -279,6 +273,7 @@ def get_case_full_context(db: Database, case_id: ObjectId, owner: UserInDB) -> D
     mapped_case = _map_case_document(case, db) or {}
     mapped_case["document_summaries"] = trilingual_doc_summaries
     return mapped_case
+
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     query_filter = _build_case_access_query(owner, case_id=case_id)
@@ -330,23 +325,136 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     except Exception: 
         pass
 
-# PHOENIX FIX: create_draft_job_for_case u hoq plotësisht (Drafting u fshi)
 
-def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
-    query_filter = _build_case_access_query(owner, case_id=case_id)
-    case = db.cases.find_one(query_filter)
-    if not case: 
-        raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
-    doc = db.documents.find_one({"_id": doc_id})
-    if not doc: 
-        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
-    if str(doc.get("case_id")) != str(case_id): 
-        raise HTTPException(status_code=403, detail="Dokumenti nuk i përket kësaj lënde.")
-    original_name = doc.get("file_name", "untitled")
-    extension = original_name.split(".")[-1] if "." in original_name else ""
-    final_name = new_name if not extension or new_name.endswith(f".{extension}") else f"{new_name}.{extension}"
-    db.documents.update_one({"_id": doc_id}, {"$set": {"file_name": final_name, "title": final_name, "updated_at": datetime.now(timezone.utc)}})
-    return {"id": str(doc_id), "file_name": final_name, "message": "Document renamed successfully."}
+# =========================================================================
+# 🧹 PASTRIMI AUTOMATIK ME DY STANDARDE (ONE-TIME CITIZEN & GRACE PERIOD)
+# =========================================================================
+
+def purge_expired_cases_data(db: Database, expiry_days: int = 7) -> Dict[str, Any]:
+    """
+    RREGULLI I DYFISHTË I PASTRIMIT:
+    1. QYTETARËT (One-Time Pass): Fshihen pas 7 ditëve nga zhbllokimi i lëndës.
+    2. AVOKATËT (Abonim Mujor): Dokumentet RUHEN PËRGJITHMONË për sa kohë që abonimi është aktiv.
+       Nëse abonimi skadon dhe NUK rinovohet brenda 7 ditëve (Grace Period), atëherë fshihen skedarët e rëndë.
+    """
+    now = datetime.now(timezone.utc)
+    cutoff_date = now - timedelta(days=expiry_days)
+    
+    all_unpurged_cases = list(db.cases.find({
+        "is_purged": {"$ne": True}
+    }))
+
+    purged_cases_count = 0
+    deleted_docs_count = 0
+
+    for case in all_unpurged_cases:
+        case_id = case["_id"]
+        case_id_str = str(case_id)
+        owner_id = str(case.get("owner_id", ""))
+        
+        # Lexo pronarin e lëndës nga databaza
+        owner_doc = db.users.find_one({"_id": ObjectId(owner_id) if ObjectId.is_valid(owner_id) else owner_id})
+        if not owner_doc:
+            continue
+
+        is_lawyer = owner_doc.get("product_plan") in ["SOLO_PLAN", "TEAM_PLAN", "PRO", "GROWTH"] or owner_doc.get("account_type") == "ORGANIZATION"
+        has_active_sub = bool(owner_doc.get("has_active_subscription") or owner_doc.get("subscription_status") == "ACTIVE")
+        sub_expiry = owner_doc.get("subscription_expiry")
+
+        should_purge = False
+
+        # RASTI 1: QYTETAR (One-Time Pass) ➔ Skadon pas 7 ditëve nga zhbllokimi
+        if not is_lawyer:
+            unlocked_time = case.get("unlocked_at") or case.get("created_at")
+            if unlocked_time:
+                if not isinstance(unlocked_time, datetime):
+                    try: unlocked_time = datetime.fromisoformat(str(unlocked_time).replace('Z', '+00:00'))
+                    except: unlocked_time = now
+                if unlocked_time <= cutoff_date:
+                    should_purge = True
+
+        # RASTI 2: AVOKAT (Abonim Mujor) ➔ Pastrohet VETËM nëse kanë kaluar 7 ditë nga skadimi i abonimit pa u paguar
+        else:
+            if has_active_sub:
+                # Abonim aktiv ➔ NUK FSHIHET KURRË!
+                should_purge = False
+            else:
+                # Abonimi ka skaduar ➔ Kontrollo periudhën e tolerimit (7-Day Grace Period)
+                if sub_expiry:
+                    if not isinstance(sub_expiry, datetime):
+                        try: sub_expiry = datetime.fromisoformat(str(sub_expiry).replace('Z', '+00:00'))
+                        except: sub_expiry = now
+                    if sub_expiry <= cutoff_date:
+                        should_purge = True
+                else:
+                    # Pa datë skadimi por jo aktiv
+                    should_purge = True
+
+        # NËSE ËSHTË PËR T'U PASTRUAR:
+        if should_purge:
+            any_id_query = {"case_id": {"$in": [case_id, case_id_str]}}
+
+            # 1. Fshi skedarët origjinalë nga Backblaze B2
+            documents = list(db.documents.find(any_id_query))
+            for doc in documents:
+                doc_id_str = str(doc["_id"])
+                keys_to_delete = [doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")]
+                for key in filter(None, keys_to_delete):
+                    try:
+                        storage_service.delete_file(key)
+                    except Exception:
+                        pass
+                
+                # 2. Fshi vektorët nga MongoDB
+                try:
+                    vector_store_service.delete_document_embeddings(user_id=owner_id, document_id=doc_id_str)
+                except Exception:
+                    pass
+                
+                deleted_docs_count += 1
+
+            # 3. Fshi audiot/videot nga Backblaze
+            media_items = list(db.media_evidence.find(any_id_query))
+            for media in media_items:
+                s_key = media.get("storage_key")
+                if s_key:
+                    try:
+                        storage_service.delete_file(s_key)
+                    except Exception:
+                        pass
+            db.media_evidence.delete_many(any_id_query)
+
+            # 4. Përditëso dokumentet në status "PURGED"
+            db.documents.update_many(
+                any_id_query,
+                {"$set": {
+                    "status": "PURGED",
+                    "extracted_text": "[Dokumenti është fshirë automatikisht për mbrojtjen e privatësisë.]",
+                    "storage_key": None,
+                    "preview_storage_key": None
+                }}
+            )
+
+            # 5. Shëno lëndën si të pastruar (Raporti i Analizës mbetet i ruajtur!)
+            db.cases.update_one(
+                {"_id": case_id},
+                {"$set": {
+                    "is_purged": True,
+                    "purged_at": now,
+                    "status": "ARCHIVED_COMPLETED",
+                    "updated_at": now
+                }}
+            )
+            purged_cases_count += 1
+            logger.info(f"🧹 [Auto-Purge] Lënda {case_id_str} u pastrua (Pronari: {'Avokat i Skaduar' if is_lawyer else 'Qytetar'}).")
+
+    return {
+        "status": "success",
+        "purged_cases_count": purged_cases_count,
+        "deleted_documents_count": deleted_docs_count,
+        "timestamp": now.isoformat()
+    }
+
 
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     try:
@@ -384,7 +492,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         docs_cursor = db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True,
-            "status": {"$nin": ["DELETED", "ARCHIVED", "ERROR"]}
+            "status": {"$nin": ["DELETED", "ARCHIVED", "ERROR", "PURGED"]}
         }).sort("created_at", -1)
         
         shared_docs = []
@@ -399,93 +507,13 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ACTIVE"
             })
 
-        archive_cursor = db.archives.find({
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "is_shared": True,
-            "item_type": "FILE"
-        }).sort("created_at", -1)
-        
-        for a in archive_cursor:
-             if not a.get("storage_key"): 
-                 continue 
-             a_date = a.get("created_at")
-             a_date_str = a_date.isoformat() if isinstance(a_date, datetime) else a_date
-             shared_docs.append({
-                "id": str(a["_id"]),
-                "file_name": a.get("title", "Archived File"),
-                "created_at": a_date_str,
-                "file_type": "application/pdf", 
-                "source": "ARCHIVE"
-            })
-
-        try:
-            invoices_cursor = db.invoices.find({
-                "related_case_id": case_id,
-                "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
-            }).sort("issue_date", -1)
-            shared_invoices = []
-            for inv in invoices_cursor:
-                inv_date = inv.get("issue_date")
-                inv_date_str = inv_date.isoformat() if isinstance(inv_date, datetime) else inv_date
-                shared_invoices.append({
-                    "id": str(inv["_id"]),
-                    "number": inv.get("invoice_number"),
-                    "amount": inv.get("total_amount"),
-                    "status": inv.get("status"),
-                    "date": inv_date_str
-                })
-        except Exception:
-            shared_invoices = []
-
-        owner_id = case.get("owner_id") or case.get("user_id")
-        organization_name = "Zyra Ligjore"
-        logo_path = None
-
-        if owner_id:
-            search_conditions = [{"user_id": owner_id}]
-            if isinstance(owner_id, ObjectId):
-                search_conditions.append({"user_id": str(owner_id)})
-            if isinstance(owner_id, str):
-                try: 
-                    search_conditions.append({"user_id": ObjectId(owner_id)})
-                except InvalidId: 
-                    pass
-            
-            profile = db.business_profiles.find_one({"$or": search_conditions})
-            if profile:
-                organization_name = (
-                    profile.get("firm_name") or 
-                    profile.get("business_name") or 
-                    profile.get("company_name") or 
-                    "Zyra Ligjore"
-                )
-                if profile.get("logo_storage_key"):
-                    logo_path = f"/share/public/{case_id}/logo"
-
-        client_obj = case.get("client", {})
-        raw_name = client_obj.get("name") if isinstance(client_obj, dict) else None
-        clean_name = raw_name.strip().title() if raw_name else "Klient"
-        
-        client_email = client_obj.get("email") if isinstance(client_obj, dict) else None
-        client_phone = client_obj.get("phone") if isinstance(client_obj, dict) else None
-        
-        case_created = case.get("created_at")
-        case_created_str = case_created.isoformat() if isinstance(case_created, datetime) else case_created
-
         return {
             "case_number": case.get("case_number"), 
             "title": case.get("title") or case.get("case_name"), 
-            "client_name": clean_name, 
-            "client_email": client_email,
-            "client_phone": client_phone,
-            "created_at": case_created_str,
             "status": case.get("status", "OPEN"), 
-            "organization_name": organization_name,
-            "logo": logo_path,
             "timeline": events,
-            "documents": shared_docs,
-            "invoices": shared_invoices
+            "documents": shared_docs
         }
     except Exception as e:
-        print(f"Public Portal Error: {e}")
+        logger.error(f"Public Portal Error: {e}")
         return None
