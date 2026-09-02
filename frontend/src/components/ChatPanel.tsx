@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V55.0 (COMPACT SLEEK BADGES & SMOOTH BOUNCING WAVE)
+// PHOENIX PROTOCOL - CHAT PANEL V60.0 (PURE CSS WAVE THINKING & COMPACT BADGES)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,7 @@ import { FeedbackButtons } from './chat/FeedbackButtons';
 import { buildMarkdownComponents } from './chat/MarkdownRenderer';
 import { CommandPaletteGrid } from './chat/CommandPaletteGrid';
 import { ChatHeader } from './chat/ChatHeader';
+import { ThinkingDots } from './chat/ThinkingDots';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -56,7 +57,7 @@ const formatUserDisplayMessage = (content: string) => {
   if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
     const docMatch = content.match(/"([^"]+)"/);
     const rawDocName = docMatch ? docMatch[1] : 'Dokumenti';
-    const cleanDocName = rawDocName.replace(/\.[^/.]+$/, ""); // Heq prapashtesën .docx/.pdf
+    const cleanDocName = rawDocName.replace(/\.[^/.]+$/, "");
     
     return (
       <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
@@ -67,7 +68,7 @@ const formatUserDisplayMessage = (content: string) => {
           Auditimi Forenzik
         </span>
         <span className="text-text-muted">•</span>
-        <span className="text-text-secondary font-medium max-w-[200px] sm:max-w-[300px] truncate text-[11px]">
+        <span className="text-text-secondary font-medium max-w-[180px] sm:max-w-[280px] truncate text-[11px]">
           {cleanDocName}
         </span>
       </div>
@@ -246,9 +247,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
-  const isAwaitingFirstToken =
-    isSendingMessage &&
-    (displayMessages.length === 0 || displayMessages[displayMessages.length - 1].role === 'user');
+  const isAwaitingFirstToken = isSendingMessage;
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
@@ -395,7 +394,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
-              {/* FLUID BOUNCING WAVE ANIMATION */}
+              {/* PURE WAVE BOUNCE INDICATOR */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 
@@ -407,27 +406,11 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
                     <BrainCircuit size={16} className="animate-pulse" />
                   </div>
-                  <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2.5">
+                  <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
                     <span className="text-xs font-bold text-primary-start tracking-wide">
                       Sokrati duke menduar
                     </span>
-                    <div className="flex items-center gap-1 ml-1">
-                      <motion.span 
-                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
-                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0 }} 
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
-                      />
-                      <motion.span 
-                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
-                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0.18 }} 
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
-                      />
-                      <motion.span 
-                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
-                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0.36 }} 
-                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
-                      />
-                    </div>
+                    <ThinkingDots />
                   </div>
                 </motion.div>
               )}

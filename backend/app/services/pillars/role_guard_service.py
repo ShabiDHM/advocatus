@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/role_guard_service.py
-# PHOENIX PROTOCOL - ROLE GUARD SERVICE V1.0 (ABSOLUTE LOYALTY ENFORCEMENT)
+# PHOENIX PROTOCOL - ROLE GUARD SERVICE V70.0 (3 DISTINCT PROCEDURAL STANCES • ZERO REFUSAL LOCK)
 
 import logging
 from typing import Optional, Dict, Any
@@ -7,36 +7,35 @@ from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
-# ========== KONSTANTET E ROLEVE ==========
 VALID_ROLES = {
     "PLAINTIFF": "PADITËS",
     "PADITËS": "PADITËS",
+    "PADITES": "PADITËS",
     "KALLËZUES": "PADITËS",
+    "I DËMTUAR": "PADITËS",
     "DEFENDANT": "I PADITUR",
     "I PADITUR": "I PADITUR",
     "I PADITURI": "I PADITUR",
+    "I PANDEHUR": "I PADITUR",
+    "I DYSHUAR": "I PADITUR",
     "NEUTRAL": "NEUTRAL",
     "I PAANSHËM": "NEUTRAL",
     "GJYQTAR": "NEUTRAL",
-    "ARBITËR": "NEUTRAL"
+    "ARBITËR": "NEUTRAL",
+    "EKSPERT": "NEUTRAL"
 }
 
 
 class RoleGuardService:
     """
-    Shërbimi i Mbrojtjes së Hekurt të Rolit:
-    - Siguron që AI punon 100% për rolin e klientit
-    - Refuzon çdo kërkesë që ndihmon palën kundërshtare
-    - Gjeneron udhëzime specifike për secilin rol
-    - Lexon rolin direkt nga MongoDB case document
-    - Eliminon çdo konflikt interesi
+    Shërbimi i Përfaqësimit të 3 Roleve Procedurale (V70.0):
+    1. PADITËS (Strategji Sulmi & Ndjekje Penale/Civile);
+    2. I PADITUR (Mbrojtje e Hekurt & Rrëzim i Pretendimeve);
+    3. NEUTRAL (Auditimi i Paanshëm i Gjyqtarit / Arbitrit).
     """
 
     @staticmethod
     def normalize_role(role: Optional[str]) -> str:
-        """
-        Normalizon rolin në një nga tre vlerat: PADITËS, I PADITUR, NEUTRAL.
-        """
         if not role:
             return "I PADITUR"
         
@@ -45,115 +44,88 @@ class RoleGuardService:
 
     @staticmethod
     def get_role_from_case(case_id: str, db: Any) -> str:
-        """
-        Lexon rolin direkt nga MongoDB case document.
-        Returns: "PADITËS", "I PADITUR", ose "NEUTRAL"
-        """
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case = db.cases.find_one({"_id": case_oid})
             
             if not case:
-                logger.warning(f"⚠️ [RoleGuard] Çështja {case_id} nuk u gjet. Duke përdorur default: I PADITUR")
                 return "I PADITUR"
             
             raw_role = case.get("client_position") or case.get("role") or "DEFENDANT"
-            normalized = RoleGuardService.normalize_role(raw_role)
-            logger.info(f"✅ [RoleGuard] Roli i lexuar nga çështja {case_id}: {normalized}")
-            return normalized
+            return RoleGuardService.normalize_role(raw_role)
             
         except Exception as e:
             logger.error(f"❌ [RoleGuard] Gabim gjatë leximit të rolit: {e}")
             return "I PADITUR"
 
     @staticmethod
-    def get_role_instruction(role: str) -> str:
-        """
-        Kthen udhëzimet e hekurta për secilin rol.
-        """
+    def get_role_instruction(role: str, client_name: str) -> str:
         normalized = RoleGuardService.normalize_role(role)
         
+        # 1. ROLI: PADITËS / SULM
         if normalized == "PADITËS":
-            return """
-QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR I PADITËSIT / KALLËZUESIT.
-MISIONI YT:
-1. Ndërto strategjinë SULMUESE për të PROVUAR padinë/kallëzimin;
-2. Identifiko të gjitha shkeljet dhe dëmet e shkaktuara nga Pala e Paditur;
-3. Maksimizo dëmshpërblimin dhe kërko masat e sigurimit;
-4. Çdo analizë synon FITOREN e klientit tënd.
+            return f"""
+QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR I PADITËSIT / PARASHTRUESIT ({client_name}).
+MISIONI YT PROCEDURAL:
+1. Ndërto strategjinë sulmuese për të PROVUAR plotësisht padinë/kallëzimin me prova të pakontestueshme materiale.
+2. Identifiko dhe zbërthe të gjitha shkeljet ligjore, dëmet dhe përgjegjësinë e palës së denoncuar/të paditur.
+3. Kërko masat emergjente mbrojtëse (Nenet 188 & 221 KPPRK / Masat e Sigurimit LPK) dhe maksimizo kompensimin e dëmit.
+4. Çdo analizë dhe auditim synon të vulosë fitoren ligjore të {client_name}.
 """
+        # 2. ROLI: I PADITUR / MBROJTJE
         elif normalized == "I PADITUR":
-            return """
-QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR I TË PADITURIT / TË DYSHUARIT.
-MISIONI YT:
-1. Ndërto MBROJTJEN E HEKURT të klientit tënd;
-2. Rrëzo të gjitha pretendimet e palës kundërshtare;
-3. Ekspozo kontradiktat dhe dëshmitë e rreme;
-4. Ndërto kundërsulmin: Prapësime, Kundërpadi, Kallëzime për Lajmërim të Rremë.
+            return f"""
+QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR MBROJTËS I TË PADITURIT / TË DYSHUARIT ({client_name}).
+MISIONI YT PROCEDURAL:
+1. Ndërto MBROJTJEN E HEKURT të {client_name} dhe rrëzo të gjitha pretendimet e palës kundërshtare.
+2. Zbulo shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), provat e papranueshme dhe prapadatimet në shkresa.
+3. Ndërto kundërsulmin procedural: Prapësime, Kundërpadi, Parashkrim dhe Kallëzime Penale për Lajmërim të Rremë.
+4. Çdo analizë synon pafajësinë, hedhjen e aktit dhe refuzimin e kërkesave kundër {client_name}.
 """
-        else:  # NEUTRAL
-            return """
-QËNDRIMI STRATEGJIK: TI JE GJYQTAR / ARBITËR 100% I PAANSHËM DHE OBJEKTIV.
-MISIONI YT:
-1. Analizo fashikullin pa mbajtur anën e asnjërës palë;
-2. Peshon argumentet dhe provat e të dyja palëve;
-3. Identifiko pikat e forta dhe dobësitë e secilës palë;
-4. Jep vlerësim doktrinar të drejtë sipas ligjit të Kosovës.
+        # 3. ROLI: NEUTRAL / GJYQTAR / EKSPERT
+        else:
+            return f"""
+QËNDRIMI STRATEGJIK: TI JE GJYQTARI SUPREM / ARBITRI 100% I PAANSHËM DHE OBJEKTIV.
+MISIONI YT PROCEDURAL:
+1. Analizo dhe audito shkresat pa mbajtur anën e asnjërës palë, me sy të ftohtë doktrinar.
+2. Peshon argumentet, ligjshmërinë e administrimit të provave dhe barrën e provës (Nenet 7, 8 & 319 LPK).
+3. Identifiko pikat e forta, dobësitë dhe shkeljet ligjore të të dyja palëve në mënyrë të balancuar.
+4. Jep vlerësimin e saktë doktrinar mbi qëndrueshmërinë e çështjes sipas ligjeve pozitive të Kosovës.
 """
-    
+
     @staticmethod
     def build_role_guard(role: str, client_name: str) -> str:
-        """
-        Ndërton bllokun e mbrojtjes absolute të rolit.
-        """
         normalized = RoleGuardService.normalize_role(role)
-        role_instruction = RoleGuardService.get_role_instruction(normalized)
+        role_instruction = RoleGuardService.get_role_instruction(normalized, client_name)
         
         return f"""
 {'='*60}
-🛡️ MBROJTJA ABSOLUTE E ROLIT (ROLE GUARD):
-{'='*60}
-Roli zyrtar i klientit: {normalized}
+🛡️ POZICIONI PROCEDURAL I ZGJEDHUR: **{normalized}**
 Klienti: **{client_name}**
-
+{'='*60}
 {role_instruction}
 
-RREGULLAT E HEKURTA TË BESNIKËRISË:
-1. Ti je i punësuar EKSKLUZIVISHT nga {client_name} ({normalized});
-2. NDALOHET KATEGORIKISHT të japësh këshilla që ndihmojnë palën kundërshtare;
-3. NDALOHET KATEGORIKISHT të zbulosh dobësitë e {client_name};
-4. NDALOHET KATEGORIKISHT të sugjerosh veprime që dëmtojnë interesat e {client_name};
-5. NDALOHET KATEGORIKISHT të jesh neutral kur roli është PADITËS ose I PADITUR;
-6. NËSE një pyetje kërkon ndihmë për palën kundërshtare, refuzoje me mirësjellje.
-
-FORMULARI I REFUZIMIT TË KONFLIKTIT:
-"Kjo kërkesë bie në konflikt me rolin tim si përfaqësues ekskluziv i {normalized}. Unë jam i angazhuar 100% për mbrojtjen e interesave të {client_name}."
+RREGULLAT E HEKURTA:
+1. Përshtat analizën dhe tonin saktësisht sipas rolit të caktuar ({normalized}).
+2. NDALOHET KATEGORIKISHT refuzimi i analizës. Çdo shkresë e ngarkuar duhet të auditohet në thellësi maksimale.
 {'='*60}
 """
-    
+
     @staticmethod
     def build_role_trace(role: str, client_name: str, case_domain: str = "") -> str:
-        """
-        Ndërton etiketën e rolit që shfaqet në fillim të çdo përgjigjeje.
-        """
         normalized = RoleGuardService.normalize_role(role)
         domain_part = f" | LËMIA: {case_domain}" if case_domain else ""
         return f"📌 ROLI: {normalized} | KLIENTI: {client_name}{domain_part}"
-    
+
     @staticmethod
     def get_role_specific_tone(role: str) -> str:
-        """
-        Kthen tonin e përgjigjes sipas rolit.
-        """
         normalized = RoleGuardService.normalize_role(role)
-        
         if normalized == "PADITËS":
-            return "Toni i përgjigjes: I vendosur, sulmues, optimist për fitore. Çdo fjali duhet të forcojë pozitën e Paditësit."
+            return "Toni: I vendosur, sulmues proceduralisht, i fokusuar në vërtetimin e padisë/kallëzimit."
         elif normalized == "I PADITUR":
-            return "Toni i përgjigjes: Mbrojtës, strategjik, i kujdesshëm. Çdo fjali duhet të forcojë pozitën e të Paditurit."
+            return "Toni: Mbrojtës, kirurgjikal, strategjik, i fokusuar në rrëzimin e pretendimeve të kundërshtarit."
         else:
-            return "Toni i përgjigjes: Objektiv, i matur, i paanshëm. Çdo fjali duhet të jetë e balancuar dhe e drejtë."
+            return "Toni: Objektiv, doktrinar, i paanshëm, i fokusuar në peshimin e barabartë të ligjit dhe provave."
 
 
-# Singleton instance for easy import
 role_guard_service = RoleGuardService()
