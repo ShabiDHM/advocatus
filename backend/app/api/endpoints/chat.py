@@ -1,16 +1,14 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V31.0 (PROXY-BYPASS STREAMING)
-# 1. OPTIMIZATION: Changes Content-Type and media_type to 'text/event-stream' to force Cloudflare/Render to disable buffering.
-# 2. OPTIMIZATION: Adds 'no-transform' to Cache-Control to prevent CDN compression algorithms from blocking live chunks.
-# 3. STATUS: 100% compliant with Python 3.13 and production-verified.
+# PHOENIX PROTOCOL - CHAT ROUTER V50.0 (TOTAL CASCADE WIPEOUT ON CLEAR CHAT)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from typing import Annotated, Optional, List, Literal
+from typing import Annotated, Optional, List, Literal, Dict, Any
 from pydantic import BaseModel
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo.database import Database
+from bson import ObjectId
 
 from app.services import chat_service
 from app.models.user import UserInDB
@@ -36,10 +34,6 @@ async def handle_chat_message(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
     db: Database = Depends(get_db)
 ):
-    """
-    Sends a message to the AI Case Chat and returns a real-time stream.
-    Supports optional list of document IDs to focus the analysis.
-    """
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Mesazhi është i zbrazët.")
         
@@ -54,10 +48,9 @@ async def handle_chat_message(
             domain=chat_request.domain
         )
         
-        # PHOENIX V31.0: Strict proxy-bypass headers to force chunk delivery
         headers = {
             "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache, no-transform",  # 'no-transform' prevents CDNs from compressing/buffering chunks
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "Content-Type": "text/event-stream; charset=utf-8"
         }
@@ -72,23 +65,63 @@ async def handle_chat_message(
         logger.error(f"Chat Router Failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ndodhi një gabim në shërbimin e bisedës.")
 
-@router.delete("/case/{case_id}/history", status_code=status.HTTP_204_NO_CONTENT)
+
+# =========================================================================
+# 🧹 TOTAL CASCADE WIPEOUT (FSHIRJE TOTALE E HISTORIKUT DHE CACHE-IT NË MONGODB)
+# =========================================================================
+@router.delete("/case/{case_id}/history", status_code=status.HTTP_200_OK)
 def clear_chat_history(
     case_id: str, 
     current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
     db: Database = Depends(get_db)
 ):
-    from bson import ObjectId
+    """
+    Kryen fshirje totale me kaskadë:
+    1. Pastron historikun e chat-it.
+    2. Fshin të gjitha analizat e vjetra nga MongoDB (latest_deep_analysis, latest_analysis).
+    3. Fshin analizat e ruajtura nga të gjithë dokumentet e asaj lënde.
+    4. Vendos analysis_dirty = True për të mundësuar rianalizim të pastër.
+    """
     try:
-        result = db.cases.update_one(
-            {"_id": ObjectId(case_id), "owner_id": current_user.id},
-            {"$set": {"chat_history": []}}
+        c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        
+        # 1. Pastrim i plotë në Case
+        db.cases.update_one(
+            {"_id": c_oid, "owner_id": current_user.id},
+            {
+                "$set": {
+                    "chat_history": [],
+                    "analysis_dirty": True,
+                    "updated_at": datetime.now(timezone.utc)
+                },
+                "$unset": {
+                    "latest_deep_analysis": "",
+                    "latest_comprehensive_analysis": "",
+                    "latest_analysis": "",
+                    "latest_forensic_audit": ""
+                }
+            }
         )
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Rasti nuk u gjet.")
+
+        # 2. Pastrim i analizave të vjetra nga të gjithë dokumentet e kësaj lënde
+        db.documents.update_many(
+            {"$or": [{"case_id": case_id}, {"case_id": c_oid}]},
+            {
+                "$unset": {
+                    "latest_analysis": "",
+                    "latest_forensic_audit": "",
+                    "last_audited_at": ""
+                }
+            }
+        )
+
+        logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] Historiku dhe i gjithë cache-i u fshinë për lëndën {case_id}.")
+        return {"status": "success", "message": "Historiku dhe analizat e vjetra u pastruan plotësisht."}
+        
     except Exception as e:
-        logger.error(f"Failed to clear history: {e}")
-        raise HTTPException(status_code=500, detail="Dështoi fshirja e historisë.")
+        logger.error(f"Failed to clear history with cascade wipeout: {e}")
+        raise HTTPException(status_code=500, detail="Dështoi pastrimi me kaskadë.")
+
 
 @router.post("/case/{case_id}/feedback")
 async def submit_chat_feedback(
@@ -97,16 +130,14 @@ async def submit_chat_feedback(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
     db: Database = Depends(get_db)
 ):
-    """Submit feedback for a specific chat message."""
-    from bson import ObjectId
     try:
         case = db.cases.find_one({"_id": ObjectId(case_id), "owner_id": current_user.id})
         if not case:
-            raise HTTPException(status_code=404, detail="Case not found")
+            raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
         
         chat_history = case.get("chat_history", [])
         if feedback_request.message_index < 0 or feedback_request.message_index >= len(chat_history):
-            raise HTTPException(status_code=400, detail="Invalid message index")
+            raise HTTPException(status_code=400, detail="Indeksi i mesazhit është i pasaktë.")
         
         message = chat_history[feedback_request.message_index]
         feedback_doc = {
@@ -115,11 +146,11 @@ async def submit_chat_feedback(
             "message_index": feedback_request.message_index,
             "feedback": feedback_request.feedback,
             "message_preview": message.get("content", "")[:200],
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         }
         db.chat_feedback.insert_one(feedback_doc)
         
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Feedback submission failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to submit feedback")
+        raise HTTPException(status_code=500, detail="Dështoi dërgimi i vlerësimit.")
