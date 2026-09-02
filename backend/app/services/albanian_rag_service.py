@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V160.0 (CLICKABLE TACTICAL PILLS & FRONTEND FORMAT COMPLIANCE)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V190.0 (HARMONIZED WITH NATIVE DB SCHEMAS: latest_deep_analysis & latest_analysis)
 
 import os
 import logging
@@ -43,13 +43,13 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V160.0 me Butona të Klikueshëm në Frontend.
+    Shërbimi Kryesor RAG — V190.0 i Sinkronizuar me fushat origjinale MongoDB.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V160.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V190.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -77,9 +77,6 @@ class AlbanianRAGService:
         return cleaned.strip()
 
     def _get_tactical_clickable_pills(self, user_intent: str) -> List[str]:
-        """
-        Kthen formatin e saktë që frontend-i e kthen në butona interaktivë të klikueshëm.
-        """
         if user_intent == "FORENSIC_AUDIT":
             return [
                 "Harto Kallëzimin Penal — Gjenero aktin zyrtar bazuar në shkeljet e gjetura",
@@ -153,21 +150,40 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # Smart Cache check për Analizën Gjithëpërfshirëse
+        # =========================================================================
+        # ⚡ SMART CACHE CHECK (latest_deep_analysis & latest_analysis)
+        # =========================================================================
+        
+        # 1. Kontrolli për "ANALIZO RASTIN" (latest_deep_analysis)
         if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
-            is_dirty = case_doc.get("analysis_dirty", True)
-            cached_analysis = case_doc.get("latest_comprehensive_analysis")
+            is_dirty = case_doc.get("analysis_dirty", False)
+            cached_analysis = case_doc.get("latest_deep_analysis") or case_doc.get("latest_comprehensive_analysis")
 
             if not is_dirty and cached_analysis and len(cached_analysis.strip()) > 100:
-                logger.info(f"⚡ [Smart Cache HIT] Kthehet analiza ekzistuese për lëndën {case_id}.")
+                logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_deep_analysis për lëndën {case_id} (0.00$ API).")
                 yield cached_analysis
-                pills = self._get_tactical_clickable_pills(user_intent)
-                pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {p}" for idx, p in enumerate(pills)])
-                yield pills_block
+                clickable_pills = self._get_tactical_clickable_pills(user_intent)
+                if clickable_pills:
+                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
+                    yield pills_block
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
-        # Kërkimi kontekstual
+        # 2. Kontrolli për "FORENZIKË E DOKUMENTIT" (latest_analysis te dokumenti)
+        single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
+        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
+            cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
+            if cached_doc_audit and len(cached_doc_audit.strip()) > 100:
+                logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_analysis për dokumentin {single_doc_obj.get('_id')} (0.00$ API).")
+                yield cached_doc_audit
+                clickable_pills = self._get_tactical_clickable_pills(user_intent)
+                if clickable_pills:
+                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
+                    yield pills_block
+                yield MANDATORY_LEGAL_DISCLAIMER
+                return
+
+        # Kërkimi me RAG
         if user_intent == "GENERAL_CHAT":
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
@@ -193,7 +209,9 @@ class AlbanianRAGService:
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
-        # Përzgjedhja e Shtyllës Ekzekutuese
+        # Urdhri i Ekzekutimit Suprem
+        exec_query = optimized_query
+
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             system_prompt = ComprehensiveAnalysisService.build_prompt(
                 case_title=case_title,
@@ -207,6 +225,8 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
+            exec_query = "Gjenero Raportin Master të Plotë dhe Gjithëpërfshirës të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke zbërthyer në thellësi maksimale doktrinare të 8 seksionet e detyrueshme pa asnjë shkurtim."
+
         elif user_intent == "FORENSIC_AUDIT":
             system_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
@@ -219,6 +239,8 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
+            exec_query = "Kryej Auditimin Suprem Forenzik të dokumentit sipas të gjitha 8 seksioneve të plota doktrinare (Pasaporta formale, analiza e aktorëve, kryqëzimi i provave, tabela statutore nen-për-nen, shkeljet Contra Legem, auditimi i petitumit, draft-remediimi dhe master plani i veprimit)."
+
         elif user_intent == "DRAFTING":
             system_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
@@ -245,26 +267,46 @@ class AlbanianRAGService:
             """
 
         full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, optimized_query, context_str):
+        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context_str):
             full_generated_response += content
             yield content
 
-        # Ruajtja e Analizës në Smart Cache
+        # =========================================================================
+        # 💾 RUAJTJA NË MONGODB TE FUSHAT ORIGJINALE
+        # =========================================================================
+        
+        # 1. Ruaj në Case te `latest_deep_analysis`
         if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None and len(full_generated_response.strip()) > 100:
             try:
                 self.db.cases.update_one(
                     {"_id": c_oid},
                     {"$set": {
+                        "latest_deep_analysis": full_generated_response.strip(),
                         "latest_comprehensive_analysis": full_generated_response.strip(),
                         "analysis_dirty": False,
                         "last_analyzed_at": datetime.now(timezone.utc)
                     }}
                 )
-                logger.info(f"💾 [Smart Cache SAVED] Analiza u ruajt në MongoDB për lëndën {case_id}.")
+                logger.info(f"💾 [Smart Cache SAVED] latest_deep_analysis u ruajt për lëndën {case_id}.")
             except Exception as save_err:
-                logger.warning(f"Could not cache analysis to MongoDB: {save_err}")
+                logger.warning(f"Could not cache case analysis: {save_err}")
 
-        # BUTONAT E KLIKUESHËM NË FRONTEND (SUGJERIME FORMAT STANDARD)
+        # 2. Ruaj në Document te `latest_analysis`
+        if user_intent == "FORENSIC_AUDIT" and single_doc_obj and self.db is not None and len(full_generated_response.strip()) > 100:
+            try:
+                self.db.documents.update_one(
+                    {"_id": single_doc_obj["_id"]},
+                    {"$set": {
+                        "latest_analysis": full_generated_response.strip(),
+                        "latest_forensic_audit": full_generated_response.strip(),
+                        "last_audited_at": datetime.now(timezone.utc)
+                    }}
+                )
+                logger.info(f"💾 [Smart Cache SAVED] latest_analysis u ruajt për dokumentin {single_doc_obj['_id']}.")
+            except Exception as save_err:
+                logger.warning(f"Could not cache doc audit: {save_err}")
+
+        # Butonat e Klikueshëm
         clickable_pills = self._get_tactical_clickable_pills(user_intent)
         if clickable_pills:
             pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
