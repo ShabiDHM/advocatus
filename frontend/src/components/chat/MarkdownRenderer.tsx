@@ -1,9 +1,10 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - MARKDOWN RENDERER V34.0 (COMPLETE EVIDENCE & LAW LINK HANDLER)
+// PHOENIX PROTOCOL - MARKDOWN RENDERER V41.0 (SUPREME COURT PRECEDENT & STATUTE BADGE HANDLER)
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { LawCitationLink } from '../LawCitationLink';
-import { FileText, ExternalLink } from 'lucide-react';
+import { FileText, ExternalLink, Landmark } from 'lucide-react';
 
 const getNodeText = (node: any): string => {
   if (!node) return '';
@@ -58,8 +59,32 @@ export const buildMarkdownComponents = () => ({
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. LAW CITATION LINKS (/laws/...)
-    if (rawHref.startsWith('/laws/')) {
+    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR)
+    const isPrecedent =
+      /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
+      rawHref.includes('/laws/library?q=') ||
+      rawHref.includes('caseNumber=');
+
+    if (isPrecedent) {
+      const cleanLabel = rawText.replace(/^\[+|\]+$/g, '').trim();
+      const targetUrl = rawHref.startsWith('/laws/') ? rawHref : `/laws/library?q=${encodeURIComponent(cleanLabel)}`;
+
+      return (
+        <span className="inline-flex items-center align-baseline mx-0.5 my-0.5">
+          <Link
+            to={targetUrl}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs"
+            title={`Kliko për të verifikuar Aktgjykimin e Gjykatës Supreme (${cleanLabel}) në Bibliotekën Ligjore`}
+          >
+            <Landmark size={12} className="shrink-0 text-amber-500" />
+            <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
+          </Link>
+        </span>
+      );
+    }
+
+    // 2. STATUTE ARTICLE LINKS (/laws/article?lawTitle=...&articleNumber=...)
+    if (rawHref.startsWith('/laws/article') || rawHref.startsWith('/laws/')) {
       try {
         const url = new URL(rawHref, window.location.origin);
         const lawTitle = url.searchParams.get('lawTitle') || 'Ligj i Paidentifikuar';
@@ -86,7 +111,7 @@ export const buildMarkdownComponents = () => ({
       }
     }
 
-    // 2. EVIDENCE DOCUMENT LINKS (/documents/... or file extensions)
+    // 3. EVIDENCE DOCUMENT LINKS (/documents/... or file extensions)
     const isDocLink =
       rawHref.toLowerCase().includes('/documents/') ||
       rawHref.toLowerCase().endsWith('.pdf') ||
@@ -116,7 +141,7 @@ export const buildMarkdownComponents = () => ({
       );
     }
 
-    // 3. GENERIC EXTERNAL LINKS
+    // 4. GENERIC EXTERNAL LINKS
     return (
       <a
         href={href}
@@ -130,3 +155,5 @@ export const buildMarkdownComponents = () => ({
     );
   },
 });
+
+export default buildMarkdownComponents;
