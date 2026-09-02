@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V140.0 (SMART CACHING & ZERO REDUNDANT API CALLS)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V155.0 (TACTICAL ACTIONABLE SUGGESTIONS)
 
 import os
 import logging
@@ -31,7 +31,6 @@ MANDATORY_LEGAL_DISCLAIMER = (
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
 )
 
-# UDHËZIM KUNDËR HALUCINACIONEVE
 ANTI_HALLUCINATION_INSTRUCTION = """
 RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 1. CITO NENET VETËM NËSE i sheh në kontekstin e dhënë ose i di me siguri absolute nga ligjet e Kosovës.
@@ -44,13 +43,13 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V140.0 me Smart Caching dhe Mbrojtje Buxheti.
+    Shërbimi Kryesor RAG — V155.0 me Pyetje Taktike Pas-Analitike.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V140.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V155.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -77,36 +76,34 @@ class AlbanianRAGService:
         
         return cleaned.strip()
 
-    def _determine_remaining_pills(self, query: str, history: Optional[List[Dict[str, Any]]] = None) -> List[str]:
-        all_pillars = [
-            "Analizo rastin — Raporti i plotë forenzik",
-            "Audito dokumentin — Kontroll forenzik",
-            "Hartoni aktin — Padia, Kallëzimi, Ankesa"
-        ]
-
-        past_texts = []
-        if history:
-            for msg in history:
-                if msg.get("role") == "user":
-                    raw = str(msg.get("content", ""))
-                    if not raw.startswith("[DIREKTIVË"):
-                        past_texts.append(raw.lower())
-
-        current_q = query.lower()
-        if not current_q.startswith("[direktivë"):
-            past_texts.append(current_q)
-
-        combined = " ".join(past_texts)
-        remaining = []
-
-        if "analizo rastin" not in combined and "raport i plotë" not in combined:
-            remaining.append(all_pillars[0])
-        if "audito" not in combined and "kontroll forenzik" not in combined:
-            remaining.append(all_pillars[1])
-        if "harto" not in combined and "hartoni" not in combined:
-            remaining.append(all_pillars[2])
-
-        return remaining
+    def _get_tactical_next_steps(self, user_intent: str) -> List[str]:
+        """
+        Kthen pyetje/veprime taktike që përdoruesi mund t'i ekzekutojë menjëherë në chat.
+        """
+        if user_intent == "FORENSIC_AUDIT":
+            return [
+                "📝 Më harto Kallëzimin Penal / Padinë bazuar në këto shkelje të gjetura",
+                "⚔️ Më përgatit Pyetësorin Taktik për Seancë (Pyetjet e ballafaqimit në gjyq)",
+                "🔬 Më nxirr një tabelë të shkurtër vetëm me shkeljet [CONTRA LEGEM]"
+            ]
+        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY"]:
+            return [
+                "📝 Më harto Kallëzimin Penal në PSRK (Nenet 414 & 425 të Kodit Penal)",
+                "💶 Llogarit Dëmin Material & Jomaterial me Kamatë Ligjore sipas LMD-së",
+                "⚔️ Përgatit Pyetësorin Taktik për Shqyrtim Kryesor (Cross-Examination)"
+            ]
+        elif user_intent == "DRAFTING":
+            return [
+                "🔬 Audito këtë draft neni-për-nen para nënshkrimit dhe dorëzimit në gjykatë",
+                "⚖️ Cilat janë prapësimet e mundshme që mund të ngrejë pala kundërshtare?",
+                "📅 Më trego afatet e sakta prekluzive për protokollimin e kësaj shkrese"
+            ]
+        else:
+            return [
+                "📝 Më ndihmo të formuloj një parashtresë ligjore për këtë rast",
+                "⚖️ Cilat janë nenet kryesore të ligjit të Kosovës që më mbrojnë?",
+                "📅 Cilat janë afatet ligjore procedurale që duhet të kem parasysh?"
+            ]
 
     async def chat(
         self,
@@ -156,24 +153,21 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # =========================================================================
-        # PHOENIX SMART CACHE: Rikthim i Menjëhershëm i Analizës nëse Lënda s'ka ndryshuar
-        # =========================================================================
+        # Smart Cache check për Analizën Gjithëpërfshirëse
         if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
             is_dirty = case_doc.get("analysis_dirty", True)
             cached_analysis = case_doc.get("latest_comprehensive_analysis")
 
             if not is_dirty and cached_analysis and len(cached_analysis.strip()) > 100:
-                logger.info(f"⚡ [Smart Cache HIT] Kthehet analiza ekzistuese për lëndën {case_id} (0.00$ API cost).")
+                logger.info(f"⚡ [Smart Cache HIT] Kthehet analiza ekzistuese për lëndën {case_id}.")
                 yield cached_analysis
-                remaining_pills = self._determine_remaining_pills(query=query, history=history)
-                if remaining_pills:
-                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
-                    yield pills_block
+                next_steps = self._get_tactical_next_steps(user_intent)
+                pills_block = "\n\n💡 **Pyetje & Veprime Taktike të Sugjeruara:**\n" + "\n".join([f"• {step}" for step in next_steps])
+                yield pills_block
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
-        # Optimizimi i kërkimit kontekstual
+        # Kërkimi kontekstual
         if user_intent == "GENERAL_CHAT":
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
@@ -198,8 +192,6 @@ class AlbanianRAGService:
                 query_text=optimized_query, n_results=15
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-        remaining_pills = self._determine_remaining_pills(query=query, history=history)
 
         # Përzgjedhja e Shtyllës Ekzekutuese
         if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
@@ -257,9 +249,7 @@ class AlbanianRAGService:
             full_generated_response += content
             yield content
 
-        # =========================================================================
-        # PHOENIX SMART CACHE SAVE: Ruaj analizën dhe shëno gjendjen si të pastër (CLEAN)
-        # =========================================================================
+        # Ruajtja e Analizës në Smart Cache
         if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None and len(full_generated_response.strip()) > 100:
             try:
                 self.db.cases.update_one(
@@ -274,8 +264,10 @@ class AlbanianRAGService:
             except Exception as save_err:
                 logger.warning(f"Could not cache analysis to MongoDB: {save_err}")
 
-        if user_intent in ["COMPREHENSIVE_ANALYSIS", "FORENSIC_AUDIT", "DRAFTING"] and remaining_pills:
-            pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(remaining_pills)])
+        # Pyetje & Veprime Taktike të Sugjeruara
+        next_steps = self._get_tactical_next_steps(user_intent)
+        if next_steps:
+            pills_block = "\n\n💡 **Pyetje & Veprime Taktike të Sugjeruara:**\n" + "\n".join([f"• {step}" for step in next_steps])
             yield pills_block
 
         yield MANDATORY_LEGAL_DISCLAIMER
