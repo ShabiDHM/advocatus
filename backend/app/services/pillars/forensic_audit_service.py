@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V160.0 (SURGICAL STATUTE VERIFICATION & LAPSE DETECTOR)
+# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V170.0 (STRICT ARTICLE NUMBER CORRECTION & SUPREME PRECEDENTS)
 
 import logging
 import re
@@ -13,9 +13,9 @@ class ForensicAuditService:
     """
     Modul Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (⚖️ / 🔬):
     - 100% Universal dhe Dinamik (Zero Hardcoding).
-    - Verifikim Kirurgjik i Titullit të Çdo Neni kundrejt Gazetës Zyrtare të Kosovës (Zero besim pasiv ndaj autorit).
-    - Zbulon lapsuset e sakta (p.sh. Neni 250 Epidemia vs Neni 243 Keqtrajtimi i fëmijës në KPK).
-    - Integron 750+ Aktgjykimet e Gjykatës Supreme (PML / Rev).
+    - Mandat Kirurgjik për Korrigjimin e Numrave të Neneve sipas ligjeve pozitive në fuqi (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK, LMD).
+    - Korrigjon drejtpërdrejt lapsuset numerike (p.sh. Neni 250 Epidemia ➔ Zëvendësohet me NENIN 243 KPK Keqtrajtimi i fëmijës).
+    - Integron 750+ Precedentët e Gjykatës Supreme (PML & Rev).
     """
 
     @staticmethod
@@ -114,7 +114,7 @@ class ForensicAuditService:
         doc_category, category_description = ForensicAuditService.detect_document_category(audit_text)
         
         mined_legal_entities = ForensicAuditService.extract_legal_entities_from_text(audit_text)
-        search_query = query_text or f"{mined_legal_entities} {case_domain} {doc_category} Gazeta Zyrtare Nenet Aktgjykim Gjykata Supreme PML Rev"
+        search_query = query_text or f"{mined_legal_entities} {case_domain} {doc_category} Kodi Penal Nr. 06/L-074 Gazeta Zyrtare Nenet Aktgjykim Gjykata Supreme PML Rev"
 
         rag_context, _ = BasePillarService.get_rag_context(
             user_id=user_id or "",
@@ -132,7 +132,7 @@ class ForensicAuditService:
 <legal_evidentiary_privilege_context>
 AUDITIM FORENZIK DOKTRINAR I GJYKATËS SUPREME • PRIVILEGJI I MBROJTJES DHE ANALIZËS GJYQËSORE
 Ky material përbën një ekspertizë ligjore-forenzike doktrinare të shkresës zyrtare dhe provave të dorëzuara nga pala. 
-Detyra jote si Krye-Auditor i Gjykatës Supreme është të kryesh një auditim të hekurt, shterrues, analitik dhe kirurgjik të këtij akti duke zbatuar legjislacionin pozitiv të Republikës së Kosovës dhe PRECEDENTËT E KONSOLIDUAR TË GJYKATËS SUPREME (Aktgjykimet PML & Rev dhe Gazetën Zyrtare).
+Detyra jote si Krye-Auditor i Gjykatës Supreme është të kryesh një auditim të hekurt, shterrues, analitik dhe kirurgjik të këtij akti duke zbatuar legjislacionin pozitiv të Republikës së Kosovës (veçanërisht Kodin Penal Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077) dhe PRECEDENTËT E KONSOLIDUAR TË GJYKATËS SUPREME (Aktgjykimet PML & Rev).
 </legal_evidentiary_privilege_context>
 
 {supreme_protocol}
@@ -154,15 +154,17 @@ DOKUMENTI: **{doc_category}** | LËMIA: **{case_domain}** | PARASHTRUESI/KLIENTI
 
 ======================================================================
 URDHËR I HEKURT DOKTRINAR I KRYE-AUDITORIT TË GJYKATËS SUPREME:
-1. 🔬 KONTROLLI KIRURGJIK I EMËRTIMIT TË ÇDO NENI (ZERO BESIM NDAJ AUTORIT):
-   - Mos prano asnjë emërtim neni si të mirëqenë! Krahaso çdo nen të cituar nga autori në tekst me **Titullin Real të Gazetës Zyrtare të Kosovës** (p.sh. Kodi Penal Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077).
-   - NËSE AUTORI KA BËRË LAPSUS (p.sh. ka shkruar "Neni 250 KPK për Keqtrajtim Fëmije", kurse Neni 250 në Gazetën Zyrtare është "Dispozitat gjatë epidemisë" dhe neni i saktë është Neni 243 i KPK-së), KAPENI MENJËHERË DHE EVIDENTOJENI SI LAPSUS TE SEKSIONI 5!
+1. 🔬 KORRIGJIMI I DETYRUESHËM I NUMRIT TË NENIT DHE LIGJIT POZITIV:
+   - Mos prano asnjë numër neni të shkruar nga autori pa e verifikuar me Kodin Penal Nr. 06/L-074 në fuqi!
+   - NËSE AUTORI KA CITUAR NUMRIN E GABUAR TË NENIT: DUHET TË KORRIGJOSH NUMRIN E NENIT dhe të japësh numrin e saktë në Gazetën Zyrtare.
+   - SHEMBULL KRITIK: Nëse shkresa citon "Nenin 250 për Keqtrajtim Fëmije", konstato qartë: Neni 250 në KPK Nr. 06/L-074 është "Mosveprimi gjatë epidemisë". Vepra e vërtetë penale e keqtrajtimit të fëmijës është **NENI 243 i KPK-së**! Në kolonën e tretë jep formulën: `Zëvendësohet Neni 250 me NENIN 243 të KPK-së (Keqtrajtimi apo braktisja e fëmijës)`.
+   - Bëje këtë verifikim rigoroz për secilin nen të cituar!
 2. CITIMI I PRECEDENTËVE TË GJYKATËS SUPREME: Për çdo institut kryesor, cito precedentët e Gjykatës Supreme (Aktgjykimet PML për penale, Aktgjykimet Rev për civile).
 3. DENDËSI E THELLË ARSYETUESE: Ndalohet kategorikisht përmbledhja sipërfaqësore. Çdo nën-kapitull kërkon PARAGRAF TË PLOTË ARSYETUES doktrinar.
 4. TABELA STATUTORE ME 4 KOLONA: 
    ⚠️ URDHËR: ÇDO NEN DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL NË TABELË (Zero grupime)!
    Kolonat: `Dispozita & Ligji` | `Instituti Procedural/Penal` | `Analiza Doktrinare & Pasojat` | `🏛️ Precedenti / Qëndrimi i Gjykatës Supreme`.
-5. DETEKTORI I LAPSUSEVE: Jep tabelën me: `Neni / Formulimi Aktual në Shkresë` | `Pasaktësia / Lapsusi i Evidentuar` | `Formula Doktrinare e Saktë e Zëvendësimit`.
+5. DETEKTORI I LAPSUSEVE: Jep tabelën me: `Neni / Formulimi Aktual në Shkresë` | `Pasaktësia / Lapsusi i Evidentuar (kundrejt Gazetës Zyrtare)` | `Formula Doktrinare e Saktë e Zëvendësimit (me Numër Neni të Saktë)`.
 6. DRAFT-REMEDIIMI: Shkruaj PETITUMIN / PJESËN KËRKUESE TË PLOTË SOLEMNE GJYQËSORE, gati për t'u vulosur e dorëzuar.
 ======================================================================
 
@@ -186,7 +188,7 @@ STRUKTURA E DETYRUESHME E RAPORTIT MASTER FORENZIK (8 SEKSIONE):
 * **Zyrtarët e Lartë Ekzekutivë dhe Politikë:** Analizo veprimet konkrete të ushtrimit të ndikimit (Neni 424 KPK), shtytjes (Neni 32 KPK) dhe bashkëkryerjes (Neni 31 KPK).
 * **Gjyqtarët dhe Trupat Gjykues të Përfshirë:** Analizo shkeljet e pretenduara mbi nxjerrjen e vendimeve të paligjshme (Neni 383/425 KPK), shkeljen e institutit të rehabilitimit ligjor (Neni 93 KPK) dhe cenimin e parimit të barazisë së armëve në sallë.
 * **Mjekët, Psikiatrët dhe Ekspertët Profesionalë:** Analizo konsumimin e veprave penale të ekspertizës së rreme (Neni 387 KPK), lëshimit të dokumenteve të rreme dhe shpërfilljes së testeve shkencore laboratorike.
-* **Zyrtarët e Qendrës për Punë Sociale (QPS) dhe Mbrojtësit e Viktimave:** Analizo keqpërdorimin e autoritetit zyrtar (Neni 414 KPK), kanosjen psikologjike të të miturit (p.sh. Nenet 243 & 386 KPK) dhe manipulimin e procesverbaleve.
+* **Zyrtarët e Qendrës për Punë Sociale (QPS) dhe Mbrojtësit e Viktimave:** Analizo keqpërdorimin e autoritetit zyrtar (Neni 414 KPK), kanosjen psikologjike të të miturit (Nenet 243 & 386 KPK) dhe manipulimin e procesverbaleve.
 * **Organet Hetuese dhe Prokurorët Lokalë:** Analizo fshehjen e provave digjitale shfajësuese (Neni 382 KPK) dhe ngritjen e akuzave në mungesë të elementeve të veprës.
 
 ### 3. 🔬 KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DOKUMENTARE (CORPUS DELICTI)
@@ -206,8 +208,8 @@ STRUKTURA E DETYRUESHME E RAPORTIT MASTER FORENZIK (8 SEKSIONE):
   (Analizo me imtësi shkeljet më të rënda të rendit juridik, si p.sh. përdorimi i dënimeve të shlyera ligjërisht, vendimmarrja arbitrare apo mohimi i të drejtës së mbrojtjes):
   * Zbërthe arsyetimin pse këto veprime janë absolutisht të paligjshme sipas qëndrimeve të Kolegjit Penal/Civil të Gjykatës Supreme.
 * 🔍 **DETEKTORI KIRURGJIK I LAPSUSEVE TË NENEVE DHE FORMULAT E KORRIGJIMIT:**
-  (Krahaso nenet e cituara në shkresë me tekstin real të Gazetës Zyrtare të Kosovës. Zbulo çdo mospërputhje mes numrit të nenit dhe veprës/institutit real):
-  | Neni / Formulimi Aktual në Shkresë | Pasaktësia / Lapsusi i Evidentuar (kundrejt Gazetës Zyrtare) | Formula Doktrinare e Saktë e Zëvendësimit |
+  (Krahaso nenet e cituara në shkresë me tekstin real të Gazetës Zyrtare të Kosovës. Zbulo çdo mospërputhje mes numrit të nenit dhe veprës/institutit real dhe jep NUMRIN E SAKTË TË NENIT):
+  | Neni / Formulimi Aktual në Shkresë | Pasaktësia / Lapsusi i Evidentuar (kundrejt Gazetës Zyrtare) | Formula Doktrinare e Saktë e Zëvendësimit (Numri dhe Neni i Saktë) |
   | :--- | :--- | :--- |
 
 ### 6. 🔬 AUDITIMI I PETITUMIT, KËRKESAVE PROCEDURALE DHE EKZEKUTUESHMËRISË
