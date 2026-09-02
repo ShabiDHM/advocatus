@@ -1,5 +1,5 @@
-// FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V59.0 (BACKGROUND ANALYSIS & POST-COMPLETION MODAL TRIGGER)
+// FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - CASE VIEW PAGE V65.0 (8-SECTION SUPREME FORENSIC TRIGGER & DEEP MASTER ANALYSIS)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -120,7 +120,7 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // AUTO-SYNC POLLING: PËRDITËSIM LIVE I DOKUMENTEVE
+  // Auto-Sync Polling
   useEffect(() => {
     const hasProcessingDocs = liveDocuments.some(
       (doc) => doc.status === 'PROCESSING' || doc.status === 'PENDING'
@@ -266,11 +266,10 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // EKZEKUTIMI NË PRAPAVIJË I ANALIZËS SË LËNDËS — HAPJA AUTOMATIKE VETËM NË PËRFUNDIM
+  // BUTONI "ANALIZO RASTIN" — EKZEKUTIM SUPREM DOKTRINAR ME 8 SEKSIONE
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
-    // Nëse e kemi tashmë gati raportin, e hapim direkt
     if (analysisResultText.length > 100) {
       setIsAnalysisModalOpen(true);
       return;
@@ -280,7 +279,7 @@ const CaseViewPage: React.FC = () => {
     setAnalysisResultText('');
 
     try {
-      const prompt = "ANALIZO RASTIN — Gjenero raportin e plotë forenzik të gjithë fashikullit me të gjitha seksionet: analiza e thellë forenzike, matrica e provave, identifikimi i aktorëve, baza statutore, opinioni i gjyqtarit suprem, llogaritja e dëmeve me kamatë 8% dhe plani i veprimit.";
+      const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke zbërthyer në thellësi kirurgjikale të 8 seksionet e detyrueshme: 1. Diagnoza e gjendjes reale faktike, 2. Kryqëzimi i plotë ndërinstitucional i të gjithë aktorëve dhe shkresave, 3. Matrica e provave reale vs. pretendimeve, 4. Kualifikimi statutor neni-për-nen, 5. Përgjegjësia ligjore dhe shkeljet me dashje (Nenet 414 & 425 KPK), 6. Hierarkia e mjeteve të rregullta dhe të jashtëzakonshme juridike, 7. Master Plani i veprimit me afate, dhe 8. Këshilla ekzekutive.";
       const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic');
       
       let accumulated = '';
@@ -290,7 +289,7 @@ const CaseViewPage: React.FC = () => {
 
       if (accumulated.trim().length > 0) {
         setAnalysisResultText(accumulated);
-        setIsAnalysisModalOpen(true); // HAPET VETËM TANI KUR ËSHTË 100% GATI!
+        setIsAnalysisModalOpen(true);
       }
     } catch (err) {
       console.error("Case Background Analysis Error:", err);
@@ -300,29 +299,38 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, isAnalyzingCase, analysisResultText]);
 
+  // IKONA "⚖️ FORENZIKË E DOKUMENTIT" — EKZEKUTIM SUPREM ME TË 8 SEKSIONET E PLOTA
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
 
     const docName = doc.file_name || 'këtë dokument';
     const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
-Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprudencës të Gjykatës Supreme të Kosovës (700+ faqe), kryej auditimin e plotë forenzik ligjor sipas 5 seksioneve të detyrueshme:
+Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare:
 
-1. PIKAT KRYESORE DHE PROVAT E ADMINISTRUARA
-   - Përmblidh saktësisht faktet e verifikuara dhe provat e këtij akti pa asnjë ndryshim.
+1. PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE
+   - Përcakto kompetencën (lëndore/territoriale/funksionale), legjitimimin e palëve, vlerën e kontestit dhe afatet ligjore prekluzive.
 
-2. BAZA LIGJORE DHE KORNIZA STATUTARE
-   - Lidh çdo nen, paragraf dhe ligj pozitiv të aplikueshëm (KPRK, KPPRK, LPK, LMD, Kushtetutë, Konventa).
+2. STRUKTURA E AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË
+   - Zbërthe rolin dhe veprimet e secilit aktor të përmendur dhe vlerëso ligjshmërinë apo shkeljet ligjore.
 
-3. ⚠️ PARALAJMËRIME & SUGJERIME STATUTARE (AUDITIMI I LAPSUSEVE)
-   - Audito me saktësi nëse shkresa ka lapsuse numerike të neneve apo referenca të papërshtatshme me ligjin pozitiv dhe sugjero dispozitën e saktë për avokatin.
+3. KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DISKREPANCAT
+   - Ballafaqo pretendimet gojore me provat e vërtetuara materiale/shkencore dhe vlerëso ligjshmërinë e provave (Neni 257 KPPRK / Neni 8 LPK).
 
-4. 🏛️ OPINIONI DHE PRAKTIKA E GJYKATËS SUPREME TË KOSOVËS (700+ FAQE JURISPRUDENCË)
-   - Cito qëndrimet doktrinare dhe precedentët e Kolegjit Penal/Civil të Gjykatës Supreme të Kosovës (Aktgjykimet PML, komentarin e Prof. Dr. Fejzullah Hasanit mbi figurat e veprave, rehabilitimin ligjor Neni 93, bashkëkryerjen, dhe ligjshmërinë e provave).
-   - Jep vlerësimin doktrinar të Gjyqtarit Suprem mbi qëndrueshmërinë ligjore të kësaj shkrese.
+4. VERIFIKIMI NEN-PËR-NEN I DISPOZITAVE STATUTORE (KOSOVË)
+   - Ndërto tabelën shterruese të verifikimit për të gjitha dispozitat ligjore të zbatueshme.
 
-5. REKOMANDIMI STRATEGJIK DHE HAPAT E ARDHSHËM PROCEDURALË
-   - Hapat e menjëhershëm proceduralë dhe veprimet me organet kompetente.`;
+5. GJETJET KRITIKE DHE SHKELJET [CONTRA LEGEM]
+   - Evidento çdo shkelje thelbësore procedurale apo zbatim të kundërligjshëm të normave materiale.
+
+6. AUDITIMI I PETITUMIT DHE EKZEKUTUESHMËRISË
+   - Vlerëso saktësinë e kërkesës, rrezikun e refuzimit dhe ekzekutueshmërinë sipas Ligjit për Procedurën Përmbarimore (LPP).
+
+7. DRAFT-REMEDIIMI (FORMULIMI GJYQËSOR I KORRIGJUAR)
+   - Jep tekstin e saktë profesional se si duhet të rishkruhet pjesa me gabime.
+
+8. MASTER PLANI I VEPRIMIT DHE STRATEGJIA E FITORES
+   - Hapat e menjëhershëm proceduralë me afate të numëruara.`;
 
     handleChatSubmit(supremeAuditPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
   }, [handleChatSubmit]);
@@ -416,7 +424,7 @@ Duke u bazuar në dokumentin e zgjedhur "${docName}" dhe në bazën e jurisprude
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* POP-UP I DEDIKUAR I CILI HAPET VETËM PASI TË KETË PËRFUNDUAR ANALIZA */}
+      {/* MODAL I ANALIZËS SË PLOTË ME TË 8 SEKSIONET */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
