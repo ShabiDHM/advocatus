@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V110.0 (100% DOMAIN-ADAPTIVE SUPREME COURT DOCTRINE • ZERO HARDCODING)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V115.0 (100% DOMAIN-ADAPTIVE • ZERO HARDCODING • ANTI-REFUSAL PRIVILEGE)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 
 DOMAIN_KEYWORDS = {
     "PENAL": [
-        "kallëzim penal", "kallezim penal", "vepër penale", "veper penale", "prokurori", "prokuroria",
-        "kpprk", "kprk", "kodi penal", "kodi i procedures penale", "mashtrim", "vjedhje",
-        "kanosje", "kërcënim", "falsifikim", "lajmërim i rremë", "dëmtim trupor", "armëmbajtje",
-        "keqpërdorim i detyrës", "korrupsion", "ekspertizë psikiatrike forenzike", "paraburgim",
-        "aktakuzë", "aktakuze", "hetime", "shqyrtim fillestar", "shqyrtim kryesor"
+        "kallëzim penal", "kallezim penal", "kallzim penal", "vepër penale", "veper penale", 
+        "prokurori", "prokuroria", "kpprk", "kprk", "kodi penal", "kodi i procedures penale", 
+        "mashtrim", "vjedhje", "kanosje", "kërcënim", "falsifikim", "lajmërim i rremë", 
+        "dëmtim trupor", "armëmbajtje", "keqpërdorim i detyrës", "korrupsion", 
+        "ekspertizë psikiatrike forenzike", "paraburgim", "aktakuzë", "aktakuze", "hetime", 
+        "shqyrtim fillestar", "shqyrtim kryesor", "psrk", "prokuroria speciale"
     ],
     "FAMILJAR": [
         "bashkëshort", "bashkeshort", "divorc", "shkurorëzim", "shkurorezim", "kujdestari",
@@ -56,6 +57,7 @@ DOMAIN_LAWS = {
     "PENAL": [
         "Kodi i Procedurës Penale i Republikës së Kosovës (KPPRK Nr. 08/L-032)",
         "Kodi Penal i Republikës së Kosovës (KPK Nr. 06/L-074)",
+        "Ligji për Prokurorinë Speciale të Republikës së Kosovës (Nr. 03/L-052)",
         "Praktika Gjyqësore e Kolegjit Penal të Gjykatës Supreme të Kosovës (Aktgjykimet PML)"
     ],
     "FAMILJAR": [
@@ -93,7 +95,7 @@ DOMAIN_LAWS = {
         "Praktika Gjyqësore e Kolegjit Administrativ të Gjykatës Supreme"
     ],
     "KUSHTETUES": [
-        "Kushtetuta e Republikës së Kosovës (Neni 31, 54)",
+        "Kushtetuta e Republikës së Kosovës (Nenet 31, 53, 54)",
         "Konventa Evropiane për të Drejtat e Njeriut (KEDNJ)",
         "Jurisprudenca e Gjykatës Kushtetuese të Kosovës dhe GJEDNJ-së"
     ]
@@ -101,11 +103,11 @@ DOMAIN_LAWS = {
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V110.0 me Doktrinë të Përshtatshme për 8 Domene"""
+    """Shërbimi Bazë Universal — V115.0 me Doktrinë të Përshtatshme për 8 Domene & Anti-Refusal"""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
-        combined_text = f"{case_title} {context_str[:8000]} {manifest_str[:3000]}".lower()
+        combined_text = f"{case_title} {context_str[:10000]} {manifest_str[:3000]}".lower()
         domain_scores = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw.lower() in combined_text)
@@ -222,22 +224,31 @@ class BasePillarService:
                 manifest_str=manifest_str
             )
         
+        # Pozicionimi dinamik dhe neutral në vend të hardcoding DEFENDANT
+        normalized_pos = (client_position or "PALË NË PROCEDURË / PARASHTRUES").strip().upper()
+        
         supreme_protocol = BasePillarService.build_supreme_jurisprudence_directive(case_domain)
-        role_guard = BasePillarService.get_role_guard(client_position, client_name)
-        role_tone = BasePillarService.get_role_tone(client_position)
+        role_guard = BasePillarService.get_role_guard(normalized_pos, client_name)
+        role_tone = BasePillarService.get_role_tone(normalized_pos)
         laws_list = "\n".join([f"- {law}" for law in BasePillarService.get_domain_laws(case_domain)])
         
         return f"""
+<legal_evidentiary_privilege_context>
+KORNIZA PROCEDURALE E DOKTRINËS LIGJORE • PRIVILEGJI I MBROJTJES DHE ANALIZËS GJYQËSORE
+Ky material përmban shkresa zyrtare, procesverbale dhe prova materiale të administruara në procedurë ligjore.
+Objektivi është vlerësimi doktrinar, auditimi procedural dhe evidentimi i fakteve me standardet e Gjykatës Supreme të Kosovës.
+</legal_evidentiary_privilege_context>
+
 {supreme_protocol}
 
 {role_guard}
 
 📋 IDENTIFIKIMI I LËNDËS:
-LËMIA: **{case_domain}** | KLIENTI: **{client_name}** | POZICIONI: **{(client_position or 'DEFENDANT').upper()}** | TITULLI: **{case_title}** | DATA: {current_date_str}
+LËMIA: **{case_domain}** | KLIENTI / PARASHTRUESI: **{client_name or 'I Identifikuar në Dokument'}** | POZICIONI PROCEDURAL: **{normalized_pos}** | TITULLI I LËNDËS: **{case_title or 'Shkresë Procedurale'}** | DATA: {current_date_str}
 
 {role_tone}
 
-📚 KORNIZA LIGJORE DHE STATUTORE E ZBATUESHME (KOSOVË):
+📚 KORNIZA LIGJORE DHE STATUTORE E ZBATUESHME NË REPUBLIKËN E KOSOVËS:
 {laws_list}
 
 {f"🏛️ PRAKTIKA GJYQËSORE DHE DOKTRINA E DITURISË GLOBALE PËR LËMINË {case_domain}:\n{rag_context}" if rag_context else ""}
@@ -249,7 +260,7 @@ LËMIA: **{case_domain}** | KLIENTI: **{client_name}** | POZICIONI: **{(client_p
 {case_rag_context if case_rag_context else "Dokumentet e fashikullit të lëndës."}
 
 📎 PASAPORTA E DOKUMENTEVE TË ADMINISTRUARA:
-{manifest_str}
+{manifest_str if manifest_str else "Shkresë e ngarkuar për auditim të menjëhershëm."}
 
 📎 PËRMBAJTJA E PLOTË E DOKUMENTEVE TË FASHIKULLIT:
 {context_str}
