@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V70.0 (SEAMLESS STREAMING TRANSITION & ZERO THINKING OVERLAP)
+// PHOENIX PROTOCOL - CHAT PANEL V75.0 (DYNAMIC WAVE ANIMATION FOR FORENSIC & CASE ANALYSIS)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,6 +52,18 @@ interface ChatPanelProps {
   onOpenCaseAnalysis?: () => void;
   isAnalyzingCase?: boolean;
 }
+
+const isThinkingPlaceholder = (text?: string): boolean => {
+  if (!text) return true;
+  const clean = text.trim();
+  return (
+    clean === '' || 
+    clean === '...' || 
+    clean === '…' || 
+    clean.toLowerCase().includes('duke menduar') ||
+    clean.toLowerCase().includes('duke analizuar')
+  );
+};
 
 const formatUserDisplayMessage = (content: string) => {
   if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
@@ -209,7 +221,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isSendingMessage]);
+  }, [messages, isSendingMessage, isAnalyzingCase]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -219,7 +231,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   }, [input]);
 
   const sendMessage = (text: string) => {
-    if (!text.trim() || isSendingMessage) return;
+    if (!text.trim() || isSendingMessage || isAnalyzingCase) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
     onSendMessage(text, mode, reasoningMode, 'automatic', selectedDocumentIds, 'ks');
@@ -247,10 +259,15 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
-  // KUSHTI I SAKTË: Shfaqet VETËM para se të vijë shkronja e parë nga AI
+  // Kushti i saktë i transmetimit të vërtetë të fjalëve
   const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
-  const isAiCurrentlyStreaming = lastMessage?.role === 'ai' && typeof lastMessage.content === 'string' && lastMessage.content.trim().length > 0;
-  const isAwaitingFirstToken = isSendingMessage && !isAiCurrentlyStreaming;
+  const isAiCurrentlyStreaming = 
+    lastMessage?.role === 'ai' && 
+    typeof lastMessage.content === 'string' && 
+    !isThinkingPlaceholder(lastMessage.content);
+
+  // Shfaqet kur jemi duke dërguar mesazh OSE duke analizuar rastin/forenzikë para se të vijnë fjalët reale
+  const isAwaitingFirstToken = (isSendingMessage || isAnalyzingCase) && !isAiCurrentlyStreaming;
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
@@ -267,7 +284,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
       {/* BODY CONTEXT */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
-        {displayMessages.length === 0 && !isSendingMessage ? (
+        {displayMessages.length === 0 && !isSendingMessage && !isAnalyzingCase ? (
           <div className="flex-1 min-h-full flex items-center justify-center w-full">
             <CommandPaletteGrid
               userSalutation={userSalutation}
@@ -293,6 +310,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   msg.content.includes('llogarit dëmet materiale')
                 );
 
+                const isAiPlaceholder = msg.role === 'ai' && isThinkingPlaceholder(msg.content);
+
                 return (
                   <motion.div
                     key={idx}
@@ -317,10 +336,17 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                         msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
                       }`}
                     >
-                      {msg.content && !isSpecialCommand && <MessageCopyButton text={msg.content} />}
+                      {msg.content && !isSpecialCommand && !isAiPlaceholder && <MessageCopyButton text={msg.content} />}
 
                       {msg.role === 'user' ? (
                         formatUserDisplayMessage(msg.content)
+                      ) : isAiPlaceholder ? (
+                        <div className="flex items-center gap-2 py-0.5">
+                          <span className="text-xs font-bold text-primary-start tracking-wide">
+                            {isAnalyzingCase ? 'Duke analizuar fashikullin e lëndës' : 'Sokrati duke menduar'}
+                          </span>
+                          <ThinkingDots />
+                        </div>
                       ) : (
                         <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
                           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -330,8 +356,10 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                       )}
 
                       {msg.role === 'ai' &&
+                        !isAiPlaceholder &&
                         idx === displayMessages.length - 1 &&
                         !isSendingMessage &&
+                        !isAnalyzingCase &&
                         suggestedQuestions.length > 0 && (
                           <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <span className="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-1.5 ml-1">
@@ -369,6 +397,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                         )}
 
                       {msg.role === 'ai' &&
+                        !isAiPlaceholder &&
                         activeContextId !== 'general' &&
                         typeof msg.content === 'string' &&
                         msg.content.trim() !== '' &&
@@ -397,8 +426,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
-              {/* PURE WAVE BOUNCE INDICATOR - SHFAQET VETËM PARA SE TË FILLOJË TEKSTI */}
-              {isAwaitingFirstToken && (
+              {/* PURE WAVE BOUNCE INDICATOR - KUR PRITET SHKRONJA E PARË PA PLACEHOLDER NË MESSAGES */}
+              {isAwaitingFirstToken && !displayMessages.some(m => m.role === 'ai' && isThinkingPlaceholder(m.content)) && (
                 <motion.div 
                   key="thinking" 
                   initial={{ opacity: 0, y: 5 }} 
@@ -411,7 +440,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   </div>
                   <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
                     <span className="text-xs font-bold text-primary-start tracking-wide">
-                      Sokrati duke menduar
+                      {isAnalyzingCase ? 'Duke analizuar fashikullin e lëndës' : 'Sokrati duke menduar'}
                     </span>
                     <ThinkingDots />
                   </div>
@@ -443,7 +472,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
             />
             <button
               type="submit"
-              disabled={!input.trim() || isSendingMessage}
+              disabled={!input.trim() || isSendingMessage || isAnalyzingCase}
               className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift cursor-pointer"
             >
               <Send size={15} className="ml-0.5" />
