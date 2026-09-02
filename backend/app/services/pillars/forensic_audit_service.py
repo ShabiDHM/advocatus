@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V80.0 (DENSE LEGAL REASONING • ZERO FLUFF)
+# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V110.0 (SURGICAL STATUTE LAPSE DETECTOR & REMEDIATION)
 
 import logging
 import re
@@ -12,10 +12,9 @@ logger = logging.getLogger(__name__)
 class ForensicAuditService:
     """
     Modul Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (🔬):
-    Auditimi Suprem i Nivelit Gjyqësor të Dokumentit:
-    - Analizë e thellë, e dendur dhe e padiskutueshme doktrinare.
-    - Zbulim kirurgjikal i shkeljeve procedurale, ligjshmërisë së provave dhe gabimeve Contra Legem.
-    - Zero tekst mbushës — Çdo fjali bart peshë juridike dhe statutore të Kosovës.
+    Auditimi Kirurgjikal i Neneve dhe Zbulimi i të Gjitha Lapsuseve:
+    - Skanon çdo nen të cituar dhe zbulon me përpikmëri çdo gabim numerik, ligj të pasaktë apo paragraf të mangët.
+    - Ofron zëvendësimin e saktë të dispozitës për të blinduar shkresën para gjykatës dhe prokurorisë.
     """
 
     @staticmethod
@@ -27,10 +26,10 @@ class ForensicAuditService:
         
         categories = [
             ("AKTAKUZË / KALLËZIM PENAL", ["kallëzim penal", "kallezim penal", "kallzim penal", "aktakuzë", "aktakuze", "denoncim penal", "vepër penale"], 
-             "Audito elementet konstitutive të figurës së veprës penale sipas KPK, ligjshmërinë e hetimeve, kompetencën e prokurorisë (Themelore/Speciale) dhe papranueshmërinë e provave (Neni 257 KPPRK)."),
+             "Audito elementet konstitutive të veprës penale sipas KPK, kompetencën e PSRK-së, papranueshmërinë e provave (Neni 257 KPPRK) dhe lapsuset e neneve."),
             
             ("AKTGJYKIM / AKTVENDIM GJYKATE", ["aktgjykim", "aktvendim", "në emër të popullit", "ne emer te popullit", "gjykata themelore", "trupi gjykues", "kolegji"],
-             "Audito ligjshmërinë dhe arsyetimin e vendimit, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), mospërputhjet midis arsyetimit dhe dispozitivit dhe bazën e hekurt për ANKESË."),
+             "Audito ligjshmërinë dhe arsyetimin e vendimit, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), mospërputhjet arsyetim-dispozitiv dhe bazën e hekurt për ANKESË."),
             
             ("PADI / KËRKESËPADI", ["kërkesëpadi", "kerkesepadi", "paditësi", "padia kundër", "petitum", "vlera e kontestit"],
              "Audito legjitimimin aktiv/pasiv, qartësinë e Petitumit, kompetencën gjyqësore dhe bazën statutore sipas LMD/LPK/LPTS."),
@@ -131,14 +130,13 @@ class ForensicAuditService:
 🎯 OBJEKTIVI DOKTRINAR: {category_description}
 
 ======================================================================
-MANDATI I KRYE-GJYQTARIT DHE EKSPERTIT TË FORENZIKËS GJYQËSORE:
-Ti vepron me nivelin më të lartë të analizës juridiko-shkencore të Gjykatës Supreme të Republikës së Kosovës.
+MANDATI I KRYE-GJYQTARIT DHE AUDITORIT KIRURGJIKAL TË NENEVE:
+Ti vepron me autoritetin më të lartë shkencor e doktrinar të Gjykatës Supreme të Republikës së Kosovës.
 
-⚠️ RREGULLAT E HEKURTA TË DENDËSISË DHE PROFESIONALIZMIT:
-1. ZERO TEKST MBUSHËS: Ndalohen fjalitë e përgjithshme dhe deklaratat sipërfaqësore. Çdo paragraf duhet të mbajë arsyetim të thellë, dispozita ligjore ekzakte dhe peshë provuese.
-2. ANALIZË SHKATËRRUESE E PROVAVE DHE AKTORËVE: Ekstrakto nga teksti të gjithë personat/institucionet dhe provat materiale konkrete, duke i kryqëzuar ato kirurgjikisht.
-3. IDENTIFIKIMI I SHKELJEVE 'CONTRA LEGEM': Zbulo çdo zbatim të gabuar të së drejtës materiale, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK) dhe provat e papranueshme (Neni 257 KPPRK).
-4. SAKTSIA STATUTORE: Çdo nen duhet të analizohet në lidhje me pasojën direkte procedurale për klientin ({client_name}).
+⚠️ URDHËR I HEKURT PËR MBULIMIN E TË GJITHA NENEVE DHE ZBULIMIN E LAPSUSEVE:
+1. MBULIM 100% I DISPOZITAVE: Tek Seksioni 4, përfshi TË GJITHA nenet e përmendura në shkresë në tabelë (Kodi Penal, KPPRK, LPK, LMD, Kushtetuta, Konventat) pa lënë asnjë jashtë.
+2. AUDITIM KIRURGJIKAL I LAPSUSEVE: Tek Seksioni 5, zbulo çdo gabim ku një nen është cituar me titull të gabuar, me numër të pasaktë apo kur mungon paragrafi përkatës, dhe jep DISPOZITËN E SAKTË për zëvendësim.
+3. KRYQËZIM I PROVAVE DHE AKTORËVE: Analizo me paragrafë të plotë të gjithë aktorët dhe provat konkrete të administruara.
 ======================================================================
 
 {'='*60}
@@ -150,41 +148,43 @@ STRUKTURA E DETYRUESHME E RAPORTIT MASTER TË AUDITIMIT FORENZIK:
 
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE
 * **Lloji dhe Natyra e Shkresës:** {doc_category}
-* **Kompetenca Lëndore, Territoriale dhe Funksionale:** (Përcakto saktë nëse organi/gjykata është kompetente sipas ligjeve pozitive të Kosovës dhe a ka konflikt interesi apo papërshtatshmëri ligjore).
-* **Legjitimimi i Palëve:** (Vlerësimi i legjitimimit aktiv dhe pasiv, autorizimit të përfaqësimit dhe cilësive procedurale).
-* **Objekti dhe Vlera e Kontestit:** (Përcaktimi i saktë i objektit dhe interesit juridik).
-* **Auditimi i Afateve & Prekluzivitetit:** (Verifikimi rigoroz i afateve ligjore për veprim, parashkrimit penal/civil dhe rrezikut nga vonesa — *Periculum in mora*).
+* **Kompetenca Lëndore, Territoriale dhe Funksionale:** (Përcakto kompetencën sipas ligjeve të Kosovës dhe arsyeto konfliktet e interesit).
+* **Legjitimimi i Palëve dhe Përfaqësimi:** (Legjitimimi aktiv/pasiv dhe autorizimi sipas ligjit).
+* **Objekti dhe Vlera e Kontestit:** (Objekti juridik dhe interesat pasurore/penale).
+* **Auditimi i Afateve & Prekluzivitetit:** (Afatet ligjore për veprim, parashkrimi dhe rreziku nga vonesa — *Periculum in mora*).
 
-### 2. 👥 STRUKTURA E AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË
-(Analizo veprimet e secilit aktor të përfshirë në shkresë):
-* Zbërthe rolet e palëve, gjyqtarëve, prokurorëve, ekspertëve apo zyrtarëve publikë të përmendur.
-* Përcakto saktë nëse veprimet e tyre përbëjnë veprimtari të ligjshme, tejkalim kompetence, shkelje disiplinore, apo konsumojnë elemente të veprave penale (p.sh. Nenet 414, 425, 387, 382 të KPK-së).
+### 2. 👥 STRUKTURA E TË GJITHË AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË LIGJORE
+(Zbërthe me paragrafë të plotë të gjithë personat, gjyqtarët, prokurorët, mjekët/ekspertët dhe zyrtarët e përfshirë):
+* Rendit veprimet e secilit aktor me datat përkatëse dhe kualifikimin penal/procedural (p.sh. Nenet 414, 424, 425, 387, 382 të KPK-së).
 
-### 3. 🔬 KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DISKREPANCAT
-* **Analiza e Provave Shkresore & Laboratorike:** Analizo fuqinë provuese të secilit dokument të administruar.
-* **Matrica e Kontradiktave:** Ballafaqo pretendimet gojore/subjektive me provat e vërtetuara materiale dhe shkencore.
-* **Ligjshmëria e Provave (Neni 257 KPPRK / Neni 8 LPK):** Identifiko nëse ka prova të papranueshme, të marra në mënyrë të paligjshme ose nën presion/mashtrim.
-* **Integriteti i Formës dhe Prapadatimet (Antidatum/Metadata):** Vlerëso nëse aktet përmbajnë manipulime formale, prapadatime apo mungesë elementesh thelbësore.
+### 3. 🔬 KRYQËZIMI FORENZIK I TË GJITHA PROVAVE MATERIALE (CORPUS DELICTI)
+* **Skanimi Provë-për-Provë:** Analizo secilën provë të administruar në shkresë (laboratorike, gjyqësore, procesverbale, regjistrime audio/video).
+* **Matrica e Kontradiktave:** Ballafaqo mospërputhjet midis deklaratave gojore dhe provave materiale e shkencore të vërtetuara.
+* **Ligjshmëria e Provave (Neni 257 KPPRK / Neni 8 LPK):** Identifiko provat e papranueshme apo të marra me shkelje procedurale.
+* **Integriteti Formale dhe Prapadatimet (Antidatum/Metadata):** Zbulo prapadatimet apo manipulimet në procesverbale.
 
-### 4. ⚖️ VERIFIKIMI NEN-PËR-NEN I DISPOZITAVE STATUTORE (KOSOVË)
-(Ndërto tabelën shterruese të verifikimit për të gjitha dispozitat e ligjit të zbatueshëm për lëminë **{case_domain}**):
-| Dispozita & Ligji i Zbatueshëm | Statusi Procedural | Analiza Doktrinare & Pasojat Juridike |
+### 4. ⚖️ TABELA SHTERRUESE E TË GJITHA DISPOZITAVE STATUTORE (KOSOVË)
+(Përfshi TË GJITHA nenet e përmendura në shkresë pa lënë asnjë jashtë — KPK, KPPRK, LPK, LMD, Kushtetutë, Konventa):
+| Dispozita & Ligji i Zbatueshëm në Kosovë | Statusi Procedural | Analiza Doktrinare & Pasojat Juridike |
 | :--- | :--- | :--- |
 
-### 5. ⚠️ GJETJET KRITIKE DHE SHKELJET "CONTRA LEGEM"
-* 🔴 **[KRITIKE - CONTRA LEGEM]:** Shkeljet flagrante të normave urdhëruese ligjore (p.sh. zbatim i ligjit të shfuqizuar, shkelje e rehabilitimit ligjor, cenim i parimit të barazisë së armëve, mohim i të drejtës së mbrojtjes).
-* 🟡 **[Lapsuse Formale & Dobësi Taktike]:** Mangësi në arsyetim, mos-përputhje mes dispozitivit dhe arsyetimit, gabime teknike në shuma apo emra.
+### 5. ⚠️ GJETJET KRITIKE, SHKELJET 'CONTRA LEGEM' DHE KORRIGJIMI I LAPSUSEVE STATUTORE
+* 🔴 **[KRITIKE - CONTRA LEGEM]:** Shkeljet thelbësore të normave urdhëruese ligjore (shkelje e rehabilitimit ligjor Neni 93 KPK, cenim i barazisë së armëve, vendime të kundërligjshme).
+* 🔍 **AUDITIMI DHE KORRIGJIMI KIRURGJIKAL I LAPSUSEVE TË NENEVE:**
+  (Rendit me saktësi çdo nen të cituar me gabim dhe jep zëvendësimin e saktë):
+  * ❌ **Neni me Lapsus në Shkresë:** [Numri i nenit dhe ligji siç është shkruar gabimisht]
+  * ➔ **Arsyeja e Gabimit:** [Përshkrimi i pasaktësisë doktrinare apo ligjit të përdorur]
+  * ✅ **Dispozita e Saktë për Zëvendësim:** [Neni dhe ligji i saktë që duhet të vihet në shkresë]
 
 ### 6. 🔬 AUDITIMI I PETITUMIT DHE EKZEKUTUESHMËRISË
-* A është kërkesa (petenumi) e qartë, e numëruar saktë dhe në harmoni me të drejtën materiale?
-* A përmban kërkesa të pazbatueshme apo formulime që rrezikojnë refuzimin nga trupi gjykues?
-* A është akti i ekzekutueshëm nga përmbaruesi privat sipas Ligjit për Procedurën Përmbarimore (LPP)?
+* A është kërkesa e qartë, e numëruar saktë dhe e zbatueshme nga gjykata apo policia?
+* A është akti i ekzekutueshëm sipas Ligjit për Procedurën Përmbarimore (LPP)?
 
 ### 7. 🛠️ TEKSTI I KORRIGJUAR DHE DRAFT-REMEDIIMI (FORMULIMI GJYQËSOR)
-* **Formulimi Profesional i Korrigjuar:** Rishkruaj saktë paragrafin, dispozitivin apo pikat ankimore me gabime, gati për t'u integruar në shkresën zyrtare.
+* **Formulimi Profesional i Korrigjuar:** Rishkruaj tekstin e saktë profesional se si duhet të formulohet kërkesa, ankesa apo prapësimi.
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E HEKURT PROCEDURALË
-* 🔴 **HAPI 1 (Veprimi i Menjëhershëm - Brenda Afatit):** Shkresa formale që duhet depozituar (Ankesë, Prapësim, Kallëzim Penal, Kërkesë për Masë Emergjente).
-* 🟡 **HAPI 2 (Veprimet Institucionale & Provat):** Kërkesat për sigurimin e provave të reja, ekspertiza të pavarura apo përjashtim të personave në konflikt interesi.
-* 🟢 **HAPI 3 (Strategjia në Seancë / Ballafaqimi):** Taktika e përfaqësimit, pyetjet kryqëzuese dhe pikat e pathyeshme mbrojtëse për fitoren e lëndës.
+* 🔴 **HAPI 1 (Urgjenca 24-48 Orë):** Shkresa formale që duhet depozituar menjëherë (Masë Emergjente, Ankesë, Prapësim).
+* 🟡 **HAPI 2 (Veprimet Institucionale & Provat):** Kërkesat për sigurimin e provave të reja, ekspertiza të pavarura apo sekuestrime.
+* 🟢 **HAPI 3 (Strategjia në Seancë / Ballafaqimi):** Pyetjet kryqëzuese (cross-examination) dhe strategjia e fitores në shqyrtim kryesor.
 """
