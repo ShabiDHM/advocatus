@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V155.0 (TACTICAL ACTIONABLE SUGGESTIONS)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V160.0 (CLICKABLE TACTICAL PILLS & FRONTEND FORMAT COMPLIANCE)
 
 import os
 import logging
@@ -43,13 +43,13 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V155.0 me Pyetje Taktike Pas-Analitike.
+    Shërbimi Kryesor RAG — V160.0 me Butona të Klikueshëm në Frontend.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V155.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V160.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -76,33 +76,33 @@ class AlbanianRAGService:
         
         return cleaned.strip()
 
-    def _get_tactical_next_steps(self, user_intent: str) -> List[str]:
+    def _get_tactical_clickable_pills(self, user_intent: str) -> List[str]:
         """
-        Kthen pyetje/veprime taktike që përdoruesi mund t'i ekzekutojë menjëherë në chat.
+        Kthen formatin e saktë që frontend-i e kthen në butona interaktivë të klikueshëm.
         """
         if user_intent == "FORENSIC_AUDIT":
             return [
-                "📝 Më harto Kallëzimin Penal / Padinë bazuar në këto shkelje të gjetura",
-                "⚔️ Më përgatit Pyetësorin Taktik për Seancë (Pyetjet e ballafaqimit në gjyq)",
-                "🔬 Më nxirr një tabelë të shkurtër vetëm me shkeljet [CONTRA LEGEM]"
+                "Harto Kallëzimin Penal — Gjenero aktin zyrtar bazuar në shkeljet e gjetura",
+                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit/ekspertit",
+                "Matrica Contra Legem — Tabela përmbledhëse vetëm me shkeljet ligjore"
             ]
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY"]:
             return [
-                "📝 Më harto Kallëzimin Penal në PSRK (Nenet 414 & 425 të Kodit Penal)",
-                "💶 Llogarit Dëmin Material & Jomaterial me Kamatë Ligjore sipas LMD-së",
-                "⚔️ Përgatit Pyetësorin Taktik për Shqyrtim Kryesor (Cross-Examination)"
+                "Harto Kallëzimin Penal në PSRK — Nenet 414 & 425 të Kodit Penal",
+                "Llogarit Dëmin & Kamatën — Dëmi material & jomaterial sipas LMD-së",
+                "Pyetësori Taktik për Seancë — Përgatit pyetjet për shqyrtim kryesor"
             ]
         elif user_intent == "DRAFTING":
             return [
-                "🔬 Audito këtë draft neni-për-nen para nënshkrimit dhe dorëzimit në gjykatë",
-                "⚖️ Cilat janë prapësimet e mundshme që mund të ngrejë pala kundërshtare?",
-                "📅 Më trego afatet e sakta prekluzive për protokollimin e kësaj shkrese"
+                "Audito këtë Draft Ligjor — Kontrolli nen-për-nen para nënshkrimit",
+                "Analizo Prapësimet e Mundshme — Çfarë mund të pretendojë pala tjetër",
+                "Verifiko Afatet Prekluzive — Afatet e dorëzimit në gjykatë/prokurori"
             ]
         else:
             return [
-                "📝 Më ndihmo të formuloj një parashtresë ligjore për këtë rast",
-                "⚖️ Cilat janë nenet kryesore të ligjit të Kosovës që më mbrojnë?",
-                "📅 Cilat janë afatet ligjore procedurale që duhet të kem parasysh?"
+                "Harto Aktin Gjyqësor — Padi, Kallëzim Penal ose Ankesë",
+                "Baza Statutore — Nenet e ligjit të Kosovës që më mbrojnë",
+                "Pyetësori Taktik — Pyetjet për seancë gjyqësore"
             ]
 
     async def chat(
@@ -161,8 +161,8 @@ class AlbanianRAGService:
             if not is_dirty and cached_analysis and len(cached_analysis.strip()) > 100:
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet analiza ekzistuese për lëndën {case_id}.")
                 yield cached_analysis
-                next_steps = self._get_tactical_next_steps(user_intent)
-                pills_block = "\n\n💡 **Pyetje & Veprime Taktike të Sugjeruara:**\n" + "\n".join([f"• {step}" for step in next_steps])
+                pills = self._get_tactical_clickable_pills(user_intent)
+                pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {p}" for idx, p in enumerate(pills)])
                 yield pills_block
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
@@ -264,10 +264,10 @@ class AlbanianRAGService:
             except Exception as save_err:
                 logger.warning(f"Could not cache analysis to MongoDB: {save_err}")
 
-        # Pyetje & Veprime Taktike të Sugjeruara
-        next_steps = self._get_tactical_next_steps(user_intent)
-        if next_steps:
-            pills_block = "\n\n💡 **Pyetje & Veprime Taktike të Sugjeruara:**\n" + "\n".join([f"• {step}" for step in next_steps])
+        # BUTONAT E KLIKUESHËM NË FRONTEND (SUGJERIME FORMAT STANDARD)
+        clickable_pills = self._get_tactical_clickable_pills(user_intent)
+        if clickable_pills:
+            pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
             yield pills_block
 
         yield MANDATORY_LEGAL_DISCLAIMER

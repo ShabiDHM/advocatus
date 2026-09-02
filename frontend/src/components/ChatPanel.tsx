@@ -1,11 +1,12 @@
-// FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V53.0 (PASS THROUGH isAnalyzingCase)
+// FILE: src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V55.0 (COMPACT SLEEK BADGES & SMOOTH BOUNCING WAVE)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, BrainCircuit, User, RefreshCw, Sparkles, 
-  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight, FileSearch
+  Scale, Swords, BookOpen, HelpCircle, Coins, ArrowRight, FileSearch,
+  FileText
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -54,58 +55,78 @@ interface ChatPanelProps {
 const formatUserDisplayMessage = (content: string) => {
   if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
     const docMatch = content.match(/"([^"]+)"/);
-    const docName = docMatch ? docMatch[1] : 'Dokumentit të Zgjedhur';
+    const rawDocName = docMatch ? docMatch[1] : 'Dokumenti';
+    const cleanDocName = rawDocName.replace(/\.[^/.]+$/, ""); // Heq prapashtesën .docx/.pdf
+    
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <Scale size={15} className="text-primary-start shrink-0" />
-        <span>Forenzika Ligjore:</span>
-        <span className="text-primary-start italic truncate">{docName}</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-primary-start/15 text-primary-start border border-primary-start/30 flex items-center justify-center">
+          <Scale size={13} />
+        </span>
+        <span className="uppercase tracking-wider text-[11px] font-black text-text-primary">
+          Auditimi Forenzik
+        </span>
+        <span className="text-text-muted">•</span>
+        <span className="text-text-secondary font-medium max-w-[200px] sm:max-w-[300px] truncate text-[11px]">
+          {cleanDocName}
+        </span>
       </div>
     );
   }
 
   if (content.toUpperCase().includes('ANALIZO RASTIN')) {
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <FileSearch size={15} className="text-primary-start shrink-0" />
-        <span>Analizo Rastin — Raporti i Plotë Forenzik</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center justify-center">
+          <FileSearch size={13} />
+        </span>
+        <span className="uppercase tracking-wider text-[11px] font-black text-text-primary">
+          Analiza Supreme e Fashikullit
+        </span>
       </div>
     );
   }
 
-  if (content.includes('shtyllat strategjike të kërkesëpadisë') || content.includes('shtyllat kryesore ku mbështetet')) {
+  if (content.includes('shtyllat strategjike') || content.includes('matrica e provave')) {
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <Swords size={15} className="text-purple-500 shrink-0" />
-        <span>Strategjia dhe Matrica e Provave</span>
-        <span className="text-text-muted text-[10px] uppercase font-mono">(E gjithë Lënda)</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-purple-500/15 text-purple-500 border border-purple-500/30 flex items-center justify-center">
+          <Swords size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-text-primary">Strategjia & Matrica e Provave</span>
       </div>
     );
   }
 
-  if (content.includes('nxirr bazën e plotë ligjore') || content.includes('baza statutore dhe jurisprudenca')) {
+  if (content.includes('nxirr bazën e plotë ligjore') || content.includes('baza statutore')) {
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <BookOpen size={15} className="text-blue-500 shrink-0" />
-        <span>Baza Statutare dhe Jurisprudenca e Gjykatës Supreme</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-blue-500/15 text-blue-500 border border-blue-500/30 flex items-center justify-center">
+          <BookOpen size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-text-primary">Baza Statutore & Jurisprudenca</span>
       </div>
     );
   }
 
-  if (content.includes('pyetësorin taktik të ballafaqimit') || content.includes('pyetjet taktike për të ballafaquar')) {
+  if (content.includes('pyetësorin taktik')) {
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <HelpCircle size={15} className="text-amber-500 shrink-0" />
-        <span>Pyetësori Taktik për Seancë (Cross-Examination)</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center justify-center">
+          <HelpCircle size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-text-primary">Pyetësori Taktik për Seancë</span>
       </div>
     );
   }
 
-  if (content.includes('llogarit dëmet materiale e jomateriale') || content.includes('kamatën ligjore vonesore 8%')) {
+  if (content.includes('llogarit dëmet') || content.includes('kamatën ligjore')) {
     return (
-      <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-text-primary">
-        <Coins size={15} className="text-emerald-500 shrink-0" />
-        <span>Llogaritja e Dëmit LMD (8%) & Masat Emergjente</span>
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center justify-center">
+          <Coins size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-text-primary">Llogaritja e Dëmit & Kamata (LMD)</span>
       </div>
     );
   }
@@ -116,32 +137,40 @@ const formatUserDisplayMessage = (content: string) => {
 const resolveSuggestionCardUI = (query: string) => {
   const q = query.toLowerCase();
 
-  if (q.includes('analizo rastin') || q.includes('raport i plotë')) {
+  if (q.includes('harto') || q.includes('kallëzim') || q.includes('padi')) {
     return {
-      title: 'Analizo Rastin',
-      desc: 'Raporti i plotë forenzik — 10 seksione me shkeljet, provat, nenet, planin e veprimit.',
-      icon: <FileSearch size={16} className="text-primary-start shrink-0 mt-0.5" />
+      title: 'Harto Shkresën / Kallëzimin Penal',
+      desc: 'Gjenero draftin zyrtar gati për dorëzim bazuar në shkeljet e gjetura.',
+      icon: <FileText size={16} className="text-primary-start shrink-0 mt-0.5" />
     };
   }
 
-  if (q.includes('audito') || q.includes('kontroll forenzik')) {
+  if (q.includes('pyetësor') || q.includes('pyetje') || q.includes('seancë')) {
     return {
-      title: 'Audito Dokumentin',
-      desc: 'Kontrolli forenzik i një dokumenti specifik.',
+      title: 'Pyetësori Taktik për Seancë',
+      desc: 'Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit në gjyq.',
+      icon: <HelpCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+    };
+  }
+
+  if (q.includes('contra legem') || q.includes('matrica') || q.includes('audito')) {
+    return {
+      title: 'Matrica Contra Legem',
+      desc: 'Tabela përmbledhëse e shkeljeve thelbësore ligjore dhe procedurale.',
       icon: <Scale size={16} className="text-blue-500 shrink-0 mt-0.5" />
     };
   }
 
-  if (q.includes('nxirr bazën e plotë ligjore') || q.includes('baza statutore')) {
+  if (q.includes('dëm') || q.includes('kamat')) {
     return {
-      title: 'Baza Statutare dhe Jurisprudenca',
-      desc: 'Auditimi i neneve, lapsuseve dhe precedentëve të Gjykatës Supreme.',
-      icon: <BookOpen size={16} className="text-blue-500 shrink-0 mt-0.5" />
+      title: 'Llogaritja e Dëmit & Kamata',
+      desc: 'Dëmi material & jomaterial sipas LMD-së me kamatën ligjore.',
+      icon: <Coins size={16} className="text-emerald-500 shrink-0 mt-0.5" />
     };
   }
 
   return {
-    title: 'Vazhdo me Analizën',
+    title: 'Veprim i Sugjeruar',
     desc: query,
     icon: <Sparkles size={16} className="text-primary-start shrink-0 mt-0.5" />
   };
@@ -278,11 +307,11 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                             : 'bg-surface border-main text-text-secondary'
                       }`}
                     >
-                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <FileSearch size={16} /> : <User size={16} />}
+                      {msg.role === 'ai' ? <BrainCircuit size={16} /> : isSpecialCommand ? <Scale size={16} /> : <User size={16} />}
                     </div>
 
                     <div
-                      className={`relative max-w-[88%] rounded-xl py-3 px-4 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+                      className={`relative max-w-[85%] rounded-xl py-2.5 px-3.5 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
                         msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
                       }`}
                     >
@@ -366,6 +395,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
+              {/* FLUID BOUNCING WAVE ANIMATION */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 
@@ -381,10 +411,22 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                     <span className="text-xs font-bold text-primary-start tracking-wide">
                       Sokrati duke menduar
                     </span>
-                    <div className="flex items-center gap-1 ml-0.5">
-                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
-                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
-                      <motion.span animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }} transition={{ repeat: Infinity, duration: 0.85, ease: 'easeInOut', delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block" />
+                    <div className="flex items-center gap-1 ml-1">
+                      <motion.span 
+                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0 }} 
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
+                      />
+                      <motion.span 
+                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0.18 }} 
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
+                      />
+                      <motion.span 
+                        animate={{ y: [0, -6, 0], scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} 
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut', delay: 0.36 }} 
+                        className="w-1.5 h-1.5 rounded-full bg-primary-start inline-block shadow-xs shadow-primary-start/40" 
+                      />
                     </div>
                   </div>
                 </motion.div>
