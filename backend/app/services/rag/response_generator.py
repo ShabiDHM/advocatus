@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - SEAMLESS SUPREME RESPONSE GENERATOR V65.0 (CLAUDE SONNET LATEST • 1M CONTEXT • UNIVERSAL ROUTING)
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V65.1 (CLAUDE SONNET LATEST • 1M CONTEXT • UNIVERSAL ROUTING)
 
 import logging
 import asyncio
@@ -9,41 +9,46 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 from openai import AsyncOpenAI
 from app.core.config import settings
 
+# Importimi nga Porta Qendrore e LLM
+from app.services.llm.llm_client import (
+    _get_api_key,
+    _get_async_client,
+    PRIMARY_MODEL,
+    FAST_MODEL,
+    DEEP_MODEL,
+    FALLBACK_MODELS
+)
+
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Modeli Primar Elitar (1 Milion Tokens Context) për Forenzikë dhe Analizë Dosjesh
-TIER1_ELITE_MODEL = os.getenv("LLM_PRIMARY_MODEL", "anthropic/claude-sonnet-latest")
+# Modelet e Unifikuara nga llm_client
+TIER1_ELITE_MODEL = DEEP_MODEL
+CHAT_FAST_MODEL = FAST_MODEL
 
-# Modelet e Shpejta për Chat dhe Pyetje të Përditshme
-CHAT_FAST_MODEL = os.getenv("CHAT_FAST_MODEL", "deepseek/deepseek-chat")
-CHAT_DEEP_MODEL = os.getenv("CHAT_DEEP_MODEL", "deepseek/deepseek-r1")
-
-# Hierarkia e Hekurt e Fallback-ut (Të gjitha me 1M - 2M tokens context)
+# Hierarkia e Sigurt e Fallback-ut (Modele 100% aktive në OpenRouter me dritare 128K deri 1M tokens)
 HEAVY_TASK_FALLBACKS = [
     TIER1_ELITE_MODEL,
     "anthropic/claude-sonnet-latest",
-    "anthropic/claude-fable-latest",
     "anthropic/claude-3.7-sonnet",
-    "anthropic/claude-3.5-sonnet:beta",
-    "google/gemini-2.0-flash-001",
     "openai/gpt-4o",
-    "deepseek/deepseek-chat"
+    "deepseek/deepseek-chat",
+    "openai/gpt-4o-mini"
 ]
 
 FAST_TASK_FALLBACKS = [
     CHAT_FAST_MODEL,
-    "anthropic/claude-haiku-latest",
-    "google/gemini-2.0-flash-001",
     "openai/gpt-4o-mini",
+    "deepseek/deepseek-chat",
+    "anthropic/claude-haiku-latest",
     TIER1_ELITE_MODEL
 ]
 
 LLM_TIMEOUT = 140
 MAX_RETRIES = 2
 
-# Dritare masive 1M tokens për analizë dosjesh pa asnjë ndarje artificiale
+# Dritare masive 1M tokens për analizë dosjesh
 MAX_SINGLE_PASS_CHARS = 1_200_000
 
 OPENROUTER_HEADERS = {
@@ -54,24 +59,15 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V65.0):
+    Gjeneruesi Suprem i Përgjigjeve (V65.1):
     - Drejton Butonin "FORENSIKË" dhe "ANALIZO RASTIN" te Anthropic Claude Sonnet Latest (1M tokens).
-    - Mbron sistemin me hierarkinë e fallback-ut (Fable Latest / Gemini 2.0).
+    - Mbron sistemin me hierarkinë e fallback-ut (GPT-4o / DeepSeek).
     - Garanton gjuhë të pastër gjyqësore shqipe për Republikën e Kosovës pa gabime konteksti.
     """
 
     def __init__(self):
-        api_key = (
-            getattr(settings, "OPENROUTER_API_KEY", None)
-            or os.getenv("OPENROUTER_API_KEY", "")
-            or os.getenv("OPENAI_API_KEY", "")
-        )
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=OPENROUTER_BASE_URL,
-            timeout=LLM_TIMEOUT,
-            default_headers=OPENROUTER_HEADERS
-        )
+        self.api_key = _get_api_key()
+        self.client = _get_async_client()
 
     async def _call_with_retry(
         self, 
@@ -87,7 +83,7 @@ class ResponseGenerator:
         target_model = model or (TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL)
         models_to_try = [target_model] + [m for m in base_list if m != target_model]
         
-        unique_models = []
+        unique_models: List[str] = []
         for m in models_to_try:
             if m and m not in unique_models:
                 unique_models.append(m)
@@ -95,7 +91,7 @@ class ResponseGenerator:
         for current_model in unique_models:
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
-                    logger.info(f"⚖️ [Juristi AI Engine] Po thërras modelin elitar: {current_model} (Përpjekja {attempt})...")
+                    logger.info(f"⚖️ [Juristi AI Engine] Po thërras modelin: {current_model} (Përpjekja {attempt})...")
                     kwargs: Dict[str, Any] = {
                         "model": current_model,
                         "messages": messages,
@@ -118,7 +114,7 @@ class ResponseGenerator:
                     last_error = e
                     err_str = str(e).lower()
                     if "429" in err_str or "rate limit" in err_str:
-                        logger.warning(f"⚠️ [Rate Limit] në {current_model}: {e}. Po pres 2s...")
+                        logger.warning(f"⚠️ [Rate Limit] në {current_model}: {e}. Po pres {attempt * 2}s...")
                         await asyncio.sleep(attempt * 2.0)
                         continue
                     else:

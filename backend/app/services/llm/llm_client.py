@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - TIER-1 ORCHESTRATION CLIENT V45.1 (CLAUDE-3.5 / GPT-4O / ZERO-HALLUCINATION LOCK)
+# PHOENIX PROTOCOL - UNIFIED TIER-1 ORCHESTRATION CLIENT V50.0 (ZERO-HALLUCINATION & BULLETPROOF FALLBACK)
 
 import os
 import json
@@ -25,19 +25,20 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# Modelet Parësore dhe Hierarkia e Fallback
-PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "anthropic/claude-3.5-sonnet")
-FAST_MODEL = os.getenv("LLM_FAST_MODEL", "anthropic/claude-3.5-sonnet")
-DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-3.5-sonnet")
+# Modelet Parësore sipas Nivelit të Detyrës (Të vërtetuara në OpenRouter)
+PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
+FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
+DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-latest")
 
+# Hierarkia e Fallback-ut (Nëse njëri dështon me 404/429, kalon automatikisht te tjetri)
 FALLBACK_MODELS = [
-    "anthropic/claude-3.5-sonnet",
+    "openai/gpt-4o-mini",
+    "anthropic/claude-sonnet-latest",
     "openai/gpt-4o",
-    "deepseek/deepseek-chat",
-    "deepseek/deepseek-r1"
+    "deepseek/deepseek-chat"
 ]
 
-# Kalibrimi i Temperaturave (Zero Hallucination)
+# Kalibrimi i Temperaturave (Zero Hallucination për Kosovë)
 TEMP_ANALYSIS = 0.0
 TEMP_FORENSIC = 0.0
 TEMP_DRAFTING = 0.0
@@ -60,7 +61,7 @@ def _get_sync_client() -> OpenAI:
     return OpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=90.0,
+        timeout=120.0,
         default_headers=OPENROUTER_HEADERS
     )
 
@@ -69,9 +70,23 @@ def _get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=90.0,
+        timeout=120.0,
         default_headers=OPENROUTER_HEADERS
     )
+
+def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
+    """
+    Ndërton një zinxhir modelesh duke garantuar që modeli i kërkuar të provohet i pari,
+    i ndjekur menjëherë nga lista e fallback-eve unike.
+    """
+    primary = requested_model or PRIMARY_MODEL
+    chain = [primary] + [m for m in FALLBACK_MODELS if m != primary]
+    
+    unique_chain: List[str] = []
+    for m in chain:
+        if m and m not in unique_chain:
+            unique_chain.append(m)
+    return unique_chain
 
 def _apply_hallucination_filter(text: str) -> str:
     """
@@ -147,10 +162,10 @@ def _call_llm(
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_sync_client()
 
-    target_models = [model] if model else [PRIMARY_MODEL] + [m for m in FALLBACK_MODELS if m != PRIMARY_MODEL]
+    target_models = _build_model_chain(model)
 
     for current_model in target_models:
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "model": current_model,
             "messages": [
                 {"role": "system", "content": full_sys_prompt},
@@ -174,7 +189,7 @@ def _call_llm(
                 if "429" in err_msg or "rate limit" in err_msg.lower():
                     time.sleep(1.5 * (attempt + 1))
                     continue
-                logger.warning(f"⚠️ Dështoi thirrja me modelin {current_model}: {err_msg}")
+                logger.warning(f"⚠️ [llm_client] Dështoi modeli {current_model}: {err_msg}. Po provohet fallback...")
                 break
 
     logger.error("❌ Të gjitha modelet e LLM dështuan në _call_llm.")
@@ -196,10 +211,10 @@ async def _call_llm_async(
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_async_client()
 
-    target_models = [model] if model else [PRIMARY_MODEL] + [m for m in FALLBACK_MODELS if m != PRIMARY_MODEL]
+    target_models = _build_model_chain(model)
 
     for current_model in target_models:
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "model": current_model,
             "messages": [
                 {"role": "system", "content": full_sys_prompt},
@@ -223,7 +238,7 @@ async def _call_llm_async(
                 if "429" in err_msg or "rate limit" in err_msg.lower():
                     await asyncio.sleep(1.5 * (attempt + 1))
                     continue
-                logger.warning(f"⚠️ Dështoi thirrja async me modelin {current_model}: {err_msg}")
+                logger.warning(f"⚠️ [llm_client_async] Dështoi modeli {current_model}: {err_msg}. Po provohet fallback...")
                 break
 
     logger.error("❌ Të gjitha modelet e LLM dështuan në _call_llm_async.")
@@ -263,23 +278,38 @@ async def stream_text_async(
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
-    selected_model = model or PRIMARY_MODEL
+    target_models = _build_model_chain(model)
 
-    try:
-        stream = await client.chat.completions.create(
-            model=selected_model,
-            messages=[
-                {"role": "system", "content": full_sys},
-                {"role": "user", "content": sanitized_user_p}
-            ],
-            temperature=temp,
-            stream=True,
-            max_tokens=8192
-        )
-        async for chunk in stream:
-            if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
-                yield chunk.choices[0].delta.content
-        yield AI_DISCLAIMER
-    except Exception as e: 
-        logger.error(f"❌ Error in stream_text_async: {e}")
-        yield f"\n\n[Gabim gjatë gjenerimit: {str(e)}]"
+    last_err: Optional[Exception] = None
+    stream_started = False
+
+    for current_model in target_models:
+        try:
+            stream = await client.chat.completions.create(
+                model=current_model,
+                messages=[
+                    {"role": "system", "content": full_sys},
+                    {"role": "user", "content": sanitized_user_p}
+                ],
+                temperature=temp,
+                stream=True,
+                max_tokens=8192
+            )
+            async for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
+                    stream_started = True
+                    yield chunk.choices[0].delta.content
+            
+            if stream_started:
+                yield AI_DISCLAIMER
+                return
+        except Exception as e:
+            last_err = e
+            logger.warning(f"⚠️ [stream_text_async] Dështoi modeli {current_model}: {e}. Po provohet fallback...")
+            if stream_started:
+                # Nëse transmetimi ka filluar tashmë, nuk mund të nisim nga e para në mes të rrjedhës
+                break
+            continue
+
+    logger.error(f"❌ Error in stream_text_async pas të gjitha fallback-eve: {last_err}")
+    yield f"\n\n[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri: {str(last_err)}]"
