@@ -1,5 +1,5 @@
 // FILE: frontend/src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V60.0 (UNIVERSAL STATUTE LINKER & CLICKABLE PILLS PARSER)
+// PHOENIX PROTOCOL - CHAT HELPERS V70.0 (UNIVERSAL STATUTE & SUPREME PRECEDENT 1-CLICK LINKER)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -131,15 +131,24 @@ export const autoLinkLegalCitations = (text: any): string => {
   let activeSectionLaw = 'KPRK';
 
   const processedLines = lines.map((line) => {
+    let lineProcessed = line;
+
+    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (p.sh. PML.Nr.85/2025, Rev.Nr.142/2022, AC.nr.12/24)
+    const supremePrecedentRegex = /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/gi;
+    lineProcessed = lineProcessed.replace(supremePrecedentRegex, (fullMatch, prefix, numPair) => {
+      if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
+      const cleanCaseNo = `${prefix.toUpperCase()}.Nr.${numPair}`;
+      const url = `/laws/library?q=${encodeURIComponent(cleanCaseNo)}`;
+      return createToken(`[${cleanCaseNo}](${url})`);
+    });
+
     // Përcakto ligjin aktiv nga konteksti i rreshtit ose titullit
     for (const statute of STATUTES_REGISTRY) {
-      if (statute.regex.test(line)) {
+      if (statute.regex.test(lineProcessed)) {
         activeSectionLaw = statute.cleanName;
         break;
       }
     }
-
-    let lineProcessed = line;
 
     // PASS 1: Ligji PARA listës së neneve (p.sh. "Kodi Penal (KPRK Nr. 06/L-074): Nenet 31, 32, 81...")
     const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?:\s*\([^\)]*\))?:\s*(?:Nenet?|Nenit|Neni|Nenin)?\s*([\d\s,.\-–e(dhe)]+)/gi;
@@ -192,7 +201,6 @@ export const autoLinkLegalCitations = (text: any): string => {
 export const extractFollowUpQuestions = (text: any): { cleanText: string; questions: string[] } => {
   if (!text || typeof text !== 'string') return { cleanText: '', questions: [] };
 
-  // Nxjerrim Klauzolën e Përgjegjësisë Ligjore
   let disclaimerBlock = '';
   const disclaimerRegex = /(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË\s+E\s+PËRGJEGJËSISË\s+LIGJORE\*?\*?:?[\s\S]*$/i;
   const disclaimerMatch = text.match(disclaimerRegex);
@@ -203,10 +211,8 @@ export const extractFollowUpQuestions = (text: any): { cleanText: string; questi
     textWithoutDisclaimer = text.substring(0, disclaimerMatch.index).trim();
   }
 
-  // Pastrojmë nënshkrimet fiktive
   textWithoutDisclaimer = stripFakeSignatures(textWithoutDisclaimer);
 
-  // Kap të gjitha formatet e mundshme të sugjerimeve
   const markerRegex = /(?:\n|^)(?:#{1,4}\s*)?(?:Sugjerime(?:\s+për\s+hapat\s+e\s+ardhshëm)?|Pyetje\s+sugjeruese|Pyetje\s+&?\s*Veprime\s+Taktike|Pyetje\s+për\s+hapat\s+e\s+ardhshëm|Hapat\s+e\s+Ardhshëm\s+të\s+Sugjeruar|🎯\s*\*\*Hapat\s+e\s+Sugjeruar)\s*:?/i;
   const match = textWithoutDisclaimer.match(markerRegex);
 
