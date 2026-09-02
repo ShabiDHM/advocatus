@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V210.0 (ZERO TOKEN DUPLICATION • BULLETPROOF CACHE GUARD)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V220.0 (DOMAIN-AWARE SUGGESTION CARDS & BULLETPROOF CACHE GUARD)
 
 import os
 import logging
@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.services.rag.intent_detector import IntentDetector
 from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
+from app.services.pillars.base_pillar_service import BasePillarService
 
 # Importimi i Shtyllave Kryesore Elitare
 from app.services.pillars.forensic_audit_service import ForensicAuditService
@@ -37,17 +38,14 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]" në vend që të improvizosh.
 3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
 4. Nëse konteksti nuk përmban informacion të mjaftueshëm për pyetjen, THUAJ QARTË: "Nuk kam informacion të mjaftueshëm në fashikull për këtë pyetje."
-5. Përdor VETËM ligjet pozitive të Kosovës: KPRK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, Ligji për Familjen.
+5. Përdor VETËM ligjet pozitive të Kosovës: KPRK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LSHT Nr. 06/L-016, Ligji për Familjen.
 """
 
 def is_valid_legal_report(text: str) -> bool:
-    """
-    Verifikon që përgjigja është një raport i vërtetë gjyqësor dhe JO një gabim teknik apo refuzim.
-    """
+    """Verifikon që përgjigja është një raport i vërtetë gjyqësor dhe JO një gabim teknik."""
     if not text or len(text.strip()) < 300:
         return False
     
-    # Blloko çdo lloj gabimi teknik nga ruajtja në Cache
     lower_text = text.lower()
     error_markers = [
         "përkohësisht i ngarkuar",
@@ -67,14 +65,12 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 class AlbanianRAGService:
-    """
-    Shërbimi Kryesor RAG — V210.0 me Zero Duplikim Tokenash dhe Mbrojtje të Hekurt të Cache-it.
-    """
+    """Shërbimi Kryesor RAG — V220.0 me Butona Sugjerues të Përshtatur Automatikisht sipas Lëmisë."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V210.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V220.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -91,6 +87,7 @@ class AlbanianRAGService:
         
         abbreviations = {
             r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
+            r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
             r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
             r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
             r"\bLPK\b": "Ligji për Procedurën Kontestimore",
@@ -101,29 +98,43 @@ class AlbanianRAGService:
         
         return cleaned.strip()
 
-    def _get_tactical_clickable_pills(self, user_intent: str) -> List[str]:
-        if user_intent == "FORENSIC_AUDIT":
+    def _get_tactical_clickable_pills(self, user_intent: str, domain: str = "CIVIL") -> List[str]:
+        d = domain.upper()
+        
+        if d == "KOMERCIAL":
             return [
-                "Harto Shkresën / Kallëzimin Penal — Gjenero draftin zyrtar gati për dorëzim bazuar në shkeljet e gjetura",
-                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit në gjyq",
-                "Matrica Contra Legem — Tabela përmbledhëse e shkeljeve thelbësore ligjore dhe procedurale"
+                "Harto Kërkesëpadinë Komerciale — Gjenero padinë për Gjykatën Komerciale me kamatën ligjore 8%",
+                "Caktimi i Masës së Sigurimit — Kërkesa për bllokimin e xhirollogarive bankare (Nenet 297/298 LPK)",
+                "Matrica e Shkeljeve Tregtare & LSHT — Tabela e detyrës së besnikërisë dhe konkurrencës së palejuar"
             ]
-        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY"]:
+        elif d in ["CIVIL", "PRONËSOR"]:
             return [
-                "Harto Kallëzimin Penal në PSRK — Nenet 414 & 425 të Kodit Penal",
-                "Llogarit Dëmin & Kamatën — Dëmi material & jomaterial sipas LMD-së",
-                "Pyetësori Taktik për Seancë — Përgatit pyetjet për shqyrtim kryesor"
+                "Harto Padinë Civile — Gjenero kërkesëpadinë për dëmshpërblim dhe përmbushje detyrimi",
+                "Caktimi i Masës së Sigurimit — Sigurimi i kërkesëpadisë sipas LPK-së",
+                "Llogarit Dëmin & Kamatën — Dëmi material & jomaterial sipas LMD-së"
             ]
-        elif user_intent == "DRAFTING":
+        elif d == "PENAL":
             return [
-                "Audito këtë Draft Ligjor — Kontrolli nen-për-nen para nënshkrimit",
-                "Analizo Prapësimet e Mundshme — Çfarë mund të pretendojë pala tjetër",
-                "Verifiko Afatet Prekluzive — Afatet e dorëzimit në gjykatë/prokurori"
+                "Harto Kallëzimin Penal në Prokurori — Gjenero aktin zyrtar bazuar në shkeljet e gjetura",
+                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit",
+                "Matrica Contra Legem — Tabela e veprave penale dhe përgjegjësisë së të dyshuarve"
+            ]
+        elif d == "PUNËS":
+            return [
+                "Harto Padinë e Punës — Padi për anulim të vendimit të shkarkimit dhe kompensim pagash",
+                "Llogarit Pagat & Dëmin — Kompensimi integral me kamatëvonesë",
+                "Pyetësori Taktik për Gjyq — Ballafaqimi i punëdhënësit për procedurën disiplinore"
+            ]
+        elif d == "ADMINISTRATIV":
+            return [
+                "Harto Padinë për Konflikt Administrativ — Anulimi i vendimit administrativ të formës së prerë",
+                "Kërkesa për Shtyrjen e Ekzekutimit — Neni 22 i Ligjit për Konfliktet Administrative",
+                "Baza Statutore & LPPA — Shkeljet e procedurës administrative"
             ]
         else:
             return [
-                "Harto Aktin Gjyqësor — Padi, Kallëzim Penal ose Ankesë",
-                "Baza Statutore — Nenet e ligjit të Kosovës që më mbrojnë",
+                "Harto Aktin Gjyqësor — Gjenero padinë ose shkresën procedurale përkatëse",
+                "Baza Statutore & Precedentët — Nenet e ligjit të Kosovës dhe vendimet e Gjykatës Supreme",
                 "Pyetësori Taktik — Pyetjet për seancë gjyqësore"
             ]
 
@@ -175,6 +186,14 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
+        # Zbulimi automatik i lëmisë (Domain Detection)
+        sample_text = " ".join([d.get("content", "")[:3000] for d in db_documents]) if db_documents else ""
+        detected_domain = BasePillarService.detect_case_domain(
+            case_title=case_title,
+            context_str=sample_text,
+            manifest_str=""
+        )
+
         # =========================================================================
         # ⚡ SMART CACHE CHECK (KTHEN VETËM RAPORTE TË VLEFSHME DHE JO GABIME)
         # =========================================================================
@@ -187,7 +206,7 @@ class AlbanianRAGService:
             if not is_dirty and is_valid_legal_report(cached_analysis):
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_deep_analysis për lëndën {case_id}.")
                 yield cached_analysis
-                clickable_pills = self._get_tactical_clickable_pills(user_intent)
+                clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
                 if clickable_pills:
                     pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
                     yield pills_block
@@ -201,7 +220,7 @@ class AlbanianRAGService:
             if is_valid_legal_report(cached_doc_audit):
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_analysis për dokumentin {single_doc_obj.get('_id')}.")
                 yield cached_doc_audit
-                clickable_pills = self._get_tactical_clickable_pills(user_intent)
+                clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
                 if clickable_pills:
                     pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
                     yield pills_block
@@ -215,7 +234,6 @@ class AlbanianRAGService:
         system_prompt = ""
 
         if user_intent == "FORENSIC_AUDIT":
-            # Për Forenzikë të 1 dokumenti: Merret teksti i pastër i atij dokumenti
             doc_text = ""
             if single_doc_obj:
                 doc_text = single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or ""
@@ -233,11 +251,12 @@ class AlbanianRAGService:
                 context_str=doc_text,
                 document_text=doc_text,
                 manifest_str=manifest_str,
+                case_domain=detected_domain,
                 db=self.db,
                 user_id=user_id,
                 case_id=case_id
             )
-            exec_query = "Kryej Auditimin Suprem Forenzik të dokumentit sipas të gjitha 8 seksioneve të plota doktrinare të Gjykatës Supreme pa asnjë shkurtim."
+            exec_query = f"Kryej Auditimin Suprem Forenzik të dokumentit për lëminë {detected_domain} sipas të gjitha 8 seksioneve doktrinare."
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -255,12 +274,13 @@ class AlbanianRAGService:
                 current_date_str=current_date_str,
                 manifest_str=manifest_str,
                 context_str=context_str,
+                case_domain=detected_domain,
                 db=self.db,
                 query_text=optimized_query,
                 user_id=user_id,
                 case_id=case_id
             )
-            exec_query = "Gjenero Raportin Master të Plotë dhe Gjithëpërfshirës të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke zbërthyer në thellësi maksimale doktrinare të 8 seksionet e detyrueshme pa asnjë shkurtim."
+            exec_query = f"Gjenero Raportin Master të Plotë të Gjykatës Supreme për lëminë {detected_domain} dhe harto aktin përkatës zyrtar."
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -294,7 +314,7 @@ class AlbanianRAGService:
 
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
-            LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
+            LËMDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
             {ANTI_HALLUCINATION_INSTRUCTION}
 
@@ -303,7 +323,6 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # THIRRJA E PASTËR: context kalon bosh "" sepse system_prompt tashmë ka të gjithë përmbajtjen e nevojshme
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
             full_generated_response += content
@@ -313,7 +332,6 @@ class AlbanianRAGService:
         # 💾 RUAJTJA NË MONGODB VETËM NËSE ËSHTË RAPORT I VLEFSHËM GJYQËSOR
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
-            # 1. Ruaj për Lëndën
             if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None:
                 try:
                     self.db.cases.update_one(
@@ -329,7 +347,6 @@ class AlbanianRAGService:
                 except Exception as save_err:
                     logger.warning(f"Could not cache case analysis: {save_err}")
 
-            # 2. Ruaj për Dokumentin
             if user_intent == "FORENSIC_AUDIT" and single_doc_obj and self.db is not None:
                 try:
                     self.db.documents.update_one(
@@ -344,8 +361,8 @@ class AlbanianRAGService:
                 except Exception as save_err:
                     logger.warning(f"Could not cache doc audit: {save_err}")
 
-        # Butonat e Klikueshëm
-        clickable_pills = self._get_tactical_clickable_pills(user_intent)
+        # Butonat e Klikueshëm të Përshtatur me Lëminë
+        clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
         if clickable_pills:
             pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
             yield pills_block

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V170.0 (STRICT ARTICLE NUMBER CORRECTION & SUPREME PRECEDENTS)
+# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDIT V185.0 (100% DYNAMIC PARTIES • CLEAN SYNTAX)
 
 import logging
 import re
@@ -12,10 +12,9 @@ logger = logging.getLogger(__name__)
 class ForensicAuditService:
     """
     Modul Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (⚖️ / 🔬):
-    - 100% Universal dhe Dinamik (Zero Hardcoding).
-    - Mandat Kirurgjik për Korrigjimin e Numrave të Neneve sipas ligjeve pozitive në fuqi (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK, LMD).
-    - Korrigjon drejtpërdrejt lapsuset numerike (p.sh. Neni 250 Epidemia ➔ Zëvendësohet me NENIN 243 KPK Keqtrajtimi i fëmijës).
-    - Integron 750+ Precedentët e Gjykatës Supreme (PML & Rev).
+    - 100% Universal dhe Dinamik: Përshtatet plotësisht me lëminë (Penale, Komerciale, Civile, etj.).
+    - Struktura e Aktorëve Dinamike: Analizon vetëm palët reale (Paditësit vs. Të Paditurit ose I Dëmtuari vs. Të Dyshuarit).
+    - Korrigjimi i Numrave të Neneve dhe integrimi i Precedentëve të Gjykatës Supreme (PML & Rev).
     """
 
     @staticmethod
@@ -24,7 +23,7 @@ class ForensicAuditService:
             return ""
         
         articles = re.findall(r'\b(?:Neni|Nenit|Nenin|Nenet)\s*(\d+[a-zA-Z]?)\b', text, re.IGNORECASE)
-        laws = re.findall(r'\b(?:KPK|KPRK|KPPRK|LPK|LMD|LFK|LPP|LPPA|KEDNJ|Kushtetut[a-zë]*|Ligji\s+Nr\.\s*[\d/L\-]+)\b', text, re.IGNORECASE)
+        laws = re.findall(r'\b(?:KPK|KPRK|KPPRK|LPK|LMD|LSHT|LFK|LPP|LPPA|LPTS|KEDNJ|Kushtetut[a-zë]*|Ligji\s+Nr\.\s*[\d/L\-]+)\b', text, re.IGNORECASE)
         cases = re.findall(r'\b(?:PML|Rev|AC|CA|A|PKR|PP|C|P|E)\.?\s*Nr\.?\s*(\d+/\d+)\b', text, re.IGNORECASE)
         
         unique_articles = list(dict.fromkeys(articles))[:20]
@@ -49,13 +48,16 @@ class ForensicAuditService:
         combined = f"{file_name} {document_text[:6000]}".lower()
         
         categories = [
+            ("PADI / KËRKESËPADI (GJYKATA KOMERCIALE)", ["gjykata komerciale", "çështje ekonomike", "shoqëri tregtare", "sh.p.k.", "nui:", "konkurrencë e palejuar", "detyra e besnikërisë", "përjashtimi i ortakut"],
+             "Audito ligjshmërinë e kërkesëpadisë tregtare, bazën e dëmshpërblimit sipas LSHT dhe LMD, llogaritjen e kamatëvonesës 8%, dhe themelësinë e masës së sigurimit sipas LPK-së."),
+
             ("KALLËZIM PENAL / AKTAKUZË", ["kallëzim penal", "kallezim penal", "kallzim penal", "aktakuzë", "aktakuze", "denoncim penal", "prokuroria speciale", "prokuroria themelore", "psrk"], 
              "Audito ligjshmërinë e bazës penale, elementet e figurës së veprës penale (dashjen/fajësinë), kompetencën lëndore të prokurorisë, bazueshmërinë e kërkesave për masa emergjente mbrojtëse dhe pranueshmërinë e provave sipas KPPRK-së dhe praktikës PML."),
             
             ("AKTGJYKIM / AKTVENDIM GJYKATE", ["aktgjykim", "aktvendim", "në emër të popullit", "ne emer te popullit", "gjykata themelore", "gjykata e apelit", "gjykata supreme", "trupi gjykues", "kolegji"],
              "Audito ligjshmërinë dhe arsyetimin e vendimit, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), mospërputhjet arsyetim-dispozitiv, shkeljet e ligjit material dhe bazën e hekurt për mjete juridike (Ankesë / Revizion / PML)."),
             
-            ("PADI / KËRKESËPADI", ["kërkesëpadi", "kerkesepadi", "paditësi", "padia kundër", "petitum", "vlera e kontestit"],
+            ("PADI / KËRKESËPADI CIVILE", ["kërkesëpadi", "kerkesepadi", "paditësi", "padia kundër", "petitum", "vlera e kontestit"],
              "Audito legjitimimin aktiv/pasiv, qartësinë dhe ekzekutueshmërinë e Petitumit, kompetencën gjyqësore dhe bazën statutore sipas LMD/LPK/LPTS dhe praktikës Rev."),
             
             ("KUNDËRPADI / PËRGJIGJE NË PADI / PRAPËSIM", ["kundërpadi", "kunderpadi", "prapësim", "prapsim", "përgjigje në padi", "pergjigje ne padi"],
@@ -70,7 +72,7 @@ class ForensicAuditService:
             ("KONTRATË / MARRËVESHJE JURIDIKE", ["kontratë", "kontrate", "marrëveshje", "marreveshje", "palët kontraktuese", "klauzolë", "shpk", "sha", "kontrata mbi"],
              "Audito vlefshmërinë e klauzolave sipas LMD-së, rreziqet e pavlefshmërisë absolute/relative, penalitetet, kushtet e zgjidhjes dhe juridiksionin gjyqësor."),
             
-            ("RAPORT SOCIAL / EKSPERTIZË MJEKËSORE-GJYQËSORE", ["raport social", "qps", "qendra për punë sociale", "ekspertizë", "ekspertize", "raporti i ekspertit", "epikrizë", "diagnoza"],
+            ("RAPORT SOCIAL / EKSPERTIZË", ["raport social", "qps", "qendra për punë sociale", "ekspertizë", "ekspertize", "raporti i ekspertit", "epikrizë", "diagnoza"],
              "Audito metodologjinë, mungesën e njëanshmërisë, integritetin shkencor, tejkalimin e kompetencave dhe përputhjen me provat materiale."),
             
             ("SHKRESË PROCEDURALE / PARASHTRESË", [], 
@@ -114,7 +116,7 @@ class ForensicAuditService:
         doc_category, category_description = ForensicAuditService.detect_document_category(audit_text)
         
         mined_legal_entities = ForensicAuditService.extract_legal_entities_from_text(audit_text)
-        search_query = query_text or f"{mined_legal_entities} {case_domain} {doc_category} Kodi Penal Nr. 06/L-074 Gazeta Zyrtare Nenet Aktgjykim Gjykata Supreme PML Rev"
+        search_query = query_text or f"{mined_legal_entities} {case_domain} {doc_category} Gazeta Zyrtare Nenet Aktgjykim Gjykata Supreme PML Rev"
 
         rag_context, _ = BasePillarService.get_rag_context(
             user_id=user_id or "",
@@ -131,8 +133,8 @@ class ForensicAuditService:
         return f"""
 <legal_evidentiary_privilege_context>
 AUDITIM FORENZIK DOKTRINAR I GJYKATËS SUPREME • PRIVILEGJI I MBROJTJES DHE ANALIZËS GJYQËSORE
-Ky material përbën një ekspertizë ligjore-forenzike doktrinare të shkresës zyrtare dhe provave të dorëzuara nga pala. 
-Detyra jote si Krye-Auditor i Gjykatës Supreme është të kryesh një auditim të hekurt, shterrues, analitik dhe kirurgjik të këtij akti duke zbatuar legjislacionin pozitiv të Republikës së Kosovës (veçanërisht Kodin Penal Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077) dhe PRECEDENTËT E KONSOLIDUAR TË GJYKATËS SUPREME (Aktgjykimet PML & Rev).
+Ky material përbën një ekspertizë ligjore-forenzike doktrinare të shkresës zyrtare dhe provave të dorëzuara nga pala për lëminë **{case_domain}**. 
+Detyra jote si Krye-Auditor i Gjykatës Supreme është të kryesh një auditim të hekurt, shterrues, analitik dhe kirurgjik të këtij akti duke zbatuar legjislacionin pozitiv të Republikës së Kosovës dhe PRECEDENTËT E KONSOLIDUAR TË GJYKATËS SUPREME (Aktgjykimet PML & Rev).
 </legal_evidentiary_privilege_context>
 
 {supreme_protocol}
@@ -154,18 +156,14 @@ DOKUMENTI: **{doc_category}** | LËMIA: **{case_domain}** | PARASHTRUESI/KLIENTI
 
 ======================================================================
 URDHËR I HEKURT DOKTRINAR I KRYE-AUDITORIT TË GJYKATËS SUPREME:
-1. 🔬 KORRIGJIMI I DETYRUESHËM I NUMRIT TË NENIT DHE LIGJIT POZITIV:
-   - Mos prano asnjë numër neni të shkruar nga autori pa e verifikuar me Kodin Penal Nr. 06/L-074 në fuqi!
-   - NËSE AUTORI KA CITUAR NUMRIN E GABUAR TË NENIT: DUHET TË KORRIGJOSH NUMRIN E NENIT dhe të japësh numrin e saktë në Gazetën Zyrtare.
-   - SHEMBULL KRITIK: Nëse shkresa citon "Nenin 250 për Keqtrajtim Fëmije", konstato qartë: Neni 250 në KPK Nr. 06/L-074 është "Mosveprimi gjatë epidemisë". Vepra e vërtetë penale e keqtrajtimit të fëmijës është **NENI 243 i KPK-së**! Në kolonën e tretë jep formulën: `Zëvendësohet Neni 250 me NENIN 243 të KPK-së (Keqtrajtimi apo braktisja e fëmijës)`.
-   - Bëje këtë verifikim rigoroz për secilin nen të cituar!
-2. CITIMI I PRECEDENTËVE TË GJYKATËS SUPREME: Për çdo institut kryesor, cito precedentët e Gjykatës Supreme (Aktgjykimet PML për penale, Aktgjykimet Rev për civile).
-3. DENDËSI E THELLË ARSYETUESE: Ndalohet kategorikisht përmbledhja sipërfaqësore. Çdo nën-kapitull kërkon PARAGRAF TË PLOTË ARSYETUES doktrinar.
-4. TABELA STATUTORE ME 4 KOLONA: 
-   ⚠️ URDHËR: ÇDO NEN DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL NË TABELË (Zero grupime)!
-   Kolonat: `Dispozita & Ligji` | `Instituti Procedural/Penal` | `Analiza Doktrinare & Pasojat` | `🏛️ Precedenti / Qëndrimi i Gjykatës Supreme`.
-5. DETEKTORI I LAPSUSEVE: Jep tabelën me: `Neni / Formulimi Aktual në Shkresë` | `Pasaktësia / Lapsusi i Evidentuar (kundrejt Gazetës Zyrtare)` | `Formula Doktrinare e Saktë e Zëvendësimit (me Numër Neni të Saktë)`.
-6. DRAFT-REMEDIIMI: Shkruaj PETITUMIN / PJESËN KËRKUESE TË PLOTË SOLEMNE GJYQËSORE, gati për t'u vulosur e dorëzuar.
+1. PËRSHTATJA E PLOTË ME LËMINË ({case_domain}): 
+   - Nëse çështja është Komerciale/Civile, analizo kontratat, faturat, dëmshpërblimin, përjashtimin e ortakut, kamatëvonesën 8% dhe masën e sigurimit (LPK/LMD/LSHT).
+   - Nëse çështja është Penale, analizo veprat, hetimet dhe përgjegjësinë penale (KPK/KPPRK).
+2. ZERO HEADINGS STATIKE: Tek Aktorët dhe Palët (Seksioni 2), grupo dhe analizo VETËM palët reale që ekzistojnë në dokument (Paditësit vs. Të Paditurit / I Dëmtuari vs. Të Dyshuarit). Ndalohet shkrimi i nën-titujve për institucione që nuk janë pjesë e lëndës!
+3. KORRIGJIMI I NUMRIT TË NENIT: Verifiko çdo nen me ligjin pozitiv në fuqi. Nëse autori ka gabuar numrin e nenit, korrigjoje menjëherë në Seksionin 5!
+4. PRECEDENTËT E SUPREMES: Cito precedentët përkatës (Aktgjykimet Rev për çështje civile/tregtare, Aktgjykimet PML për çështje penale).
+5. TABELA STATUTORE ME 4 KOLONA: Çdo nen me rreshtin e tij individual: `Dispozita & Ligji` | `Instituti Ligjor` | `Analiza Doktrinare & Pasojat` | `🏛️ Precedenti / Qëndrimi i Gjykatës Supreme`.
+6. DRAFT-REMEDIIMI: Shkruaj PETITUMIN / PJESËN KËRKUESE TË PLOTË SOLEMNE GJYQËSORE përkatëse për atë gjykatë/organ.
 ======================================================================
 
 {'='*60}
@@ -178,52 +176,48 @@ STRUKTURA E DETYRUESHME E RAPORTIT MASTER FORENZIK (8 SEKSIONE):
 
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
 (Shkruaj një analizë të thellë me paragrafë të plotë doktrinarë):
-* **Lloji, Natyra Formale dhe Efekti Juridik:** Përcakto kategorinë formale të aktit, rëndësinë e tij procedurale dhe efektet e menjëhershme detyruese mbi organin procedues.
-* **Kompetenca Lëndore, Funksionale dhe Territoriale:** Analizo me saktësi bazën ligjore të kompetencës së organit të cilit i drejtohet akti, dhe zbërthe konfliktin e interesit apo arsyetimin ligjor për skualifikimin/përjashtimin e organeve vartëse sipas jurisprudencës supreme.
-* **Legjitimimi Procedural i Palëve (Locus Standi):** Vlerëso legjitimimin aktiv të parashtruesit (në cilësi vetjake dhe si përfaqësues ligjor) dhe legjitimimin pasiv të të denoncuarve/të paditurve.
-* **Auditimi i Afateve Ligjore dhe Urgjenca Procedurale (Periculum in mora):** Vlerëso respektimin e afateve prekluzive, rrezikun e pariparueshëm nga vonesa dhe domosdoshmërinë e masave emergjente (brenda 24-48 orëve).
+* **Lloji, Natyra Formale dhe Efekti Juridik:** Përcakto kategorinë formale të aktit, rëndësinë e tij procedurale dhe pasojat ligjore.
+* **Kompetenca Lëndore, Funksionale dhe Territoriale:** Analizo me saktësi bazën ligjore të kompetencës së gjykatës/organit të cilit i drejtohet akti (p.sh. Gjykata Komerciale sipas Ligjit Nr. 08/L-015, Gjykata Themelore, apo PSRK).
+* **Legjitimimi Procedural i Palëve (Locus Standi):** Vlerëso legjitimimin aktiv të paditësve/parashtruesve dhe legjitimimin pasiv të të paditurve/të denoncuarve.
+* **Auditimi i Afateve Ligjore dhe Urgjenca Procedurale (Periculum in mora):** Vlerëso afatet ligjore, rrezikun e pariparueshëm nga vonesa dhe themelësinë e kërkesës për Masë të Sigurimit / Masa Emergjente.
 
-### 2. 👥 STRUKTURA E AKTORËVE, ROLI DHE KUALIFIKIMI I PËRGJEGJËSISË LIGJORE
-(Identifiko të gjithë personat/institucionet dhe shkruaj nga një paragraf të dendur arsyetues për secilin grup, duke cituar standardin e Gjykatës Supreme mbi dashjen dhe bashkëkryerjen):
-* **Zyrtarët e Lartë Ekzekutivë dhe Politikë:** Analizo veprimet konkrete të ushtrimit të ndikimit (Neni 424 KPK), shtytjes (Neni 32 KPK) dhe bashkëkryerjes (Neni 31 KPK).
-* **Gjyqtarët dhe Trupat Gjykues të Përfshirë:** Analizo shkeljet e pretenduara mbi nxjerrjen e vendimeve të paligjshme (Neni 383/425 KPK), shkeljen e institutit të rehabilitimit ligjor (Neni 93 KPK) dhe cenimin e parimit të barazisë së armëve në sallë.
-* **Mjekët, Psikiatrët dhe Ekspertët Profesionalë:** Analizo konsumimin e veprave penale të ekspertizës së rreme (Neni 387 KPK), lëshimit të dokumenteve të rreme dhe shpërfilljes së testeve shkencore laboratorike.
-* **Zyrtarët e Qendrës për Punë Sociale (QPS) dhe Mbrojtësit e Viktimave:** Analizo keqpërdorimin e autoritetit zyrtar (Neni 414 KPK), kanosjen psikologjike të të miturit (Nenet 243 & 386 KPK) dhe manipulimin e procesverbaleve.
-* **Organet Hetuese dhe Prokurorët Lokalë:** Analizo fshehjen e provave digjitale shfajësuese (Neni 382 KPK) dhe ngritjen e akuzave në mungesë të elementeve të veprës.
+### 2. 👥 STRUKTURA E PALËVE, AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË LIGJORE
+(Identifiko të gjitha palët reale të këtij dokumenti dhe analizo përgjegjësinë me nga një paragraf të plotë):
+* **Paditësit / Parashtruesit e Shkresës:** Analizo të drejtat e tyre të cenuara, raportin juridik/kontraktor dhe legjitimimin për të kërkuar dëmshpërblim apo mbrojtje.
+* **Të Paditurit / Palët Kundërshtare:** Analizo shkeljet konkrete ligjore, kontraktore apo administrative (p.sh. shkelja e detyrës së besnikërisë Neni 258 LSHT, ushtrimi i konkurrencës së palejuar Neni 259 LSHT, tjetërsimi i fondeve, mospërmbushja e detyrimit, apo veprat e pretenduara).
+* **Personat e Tjerë Përgjegjës / Përfaqësuesit:** Analizo përgjegjësinë solidare të drejtorëve, administratorëve apo subjekteve të ndërlidhura.
 
 ### 3. 🔬 KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DOKUMENTARE (CORPUS DELICTI)
-(Zbërthe fuqinë provuese dhe kontradiktat tekstuale për secilën provë kryesore me nga një paragraf analitik):
-* **E Vërteta Shkencore vs. Deklarimet Verbale:** Analizo provat laboratorike/shkencore ekzistuese kundrejt raporteve mjekësore apo konstatimeve gojore sipas parimit të provës shkencore të Gjykatës Supreme.
-* **Vetë-Kontradiktat në Shkresat dhe Vendimet Zyrtare:** Ballafaqo konstatimet tekstuale të gjykatave (arsyetimet ku pranohen faktet pozitive) kundrejt masave kufizuese në dispozitiv.
-* **Provat Digjitale, Audiot dhe Komunikimet Elektronike:** Vlerëso forcën provuese të regjistrimeve audio, mesazheve dhe vizatimeve grafike si prova të lidhjes emocionale dhe të presionit psikologjik.
-* **Ligjshmëria e Procesverbaleve dhe Prapadatimet (Antidatum):** Analizo dyshimet mbi parafabrikimin e datave në procesverbale dhe papranueshmërinë e provave sipas rregullave procedurale (Neni 257 KPPRK).
+(Zbërthe fuqinë provuese për secilën provë të administruar në shkresë me nga një paragraf analitik):
+* **Provat Financiare, Kontratat dhe Faturat:** Analizo faturat zyrtare, marrëveshjet kontraktore, ekstraktet e ARBK-së, ekstraktet bankare dhe vlerën e dëmit të pretenduar.
+* **Vërtetësia dhe Konsistenca e Dokumentacionit:** Vlerëso përputhjen mes provave shkresore dhe kërkesave të parashtruara në petitum.
 
 ### 4. ⚖️ TABELA SHTERRUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
 (⚠️ URDHËR: ÇDO NEN DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL NË TABELË — Përfshi kolonën e 4-të me Aktgjykimin/Doktrinën e Gjykatës Supreme):
-| Dispozita & Ligji Pozitiv | Instituti Procedural / Penal | Analiza Doktrinare & Pasojat Juridike | 🏛️ Precedenti / Qëndrimi i Gjykatës Supreme (PML / Rev / Komentari) |
+| Dispozita & Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare & Pasojat Juridike | 🏛️ Precedenti / Qëndrimi i Gjykatës Supreme (Rev / PML / Komentari) |
 | :--- | :--- | :--- | :--- |
 
 ### 5. ⚠️ GJETJET KRITIKE, SHKELJET 'CONTRA LEGEM' DHE DETEKTORI I LAPSUSEVE
 * 🔴 **[GJETJET KRITIKE CONTRA LEGEM]:**
-  (Analizo me imtësi shkeljet më të rënda të rendit juridik, si p.sh. përdorimi i dënimeve të shlyera ligjërisht, vendimmarrja arbitrare apo mohimi i të drejtës së mbrojtjes):
-  * Zbërthe arsyetimin pse këto veprime janë absolutisht të paligjshme sipas qëndrimeve të Kolegjit Penal/Civil të Gjykatës Supreme.
+  (Analizo shkeljet më flagrante ligjore dhe kontraktore të evidentuara në shkresë):
+  * Zbërthe arsyetimin pse këto veprime përbëjnë shkelje të rëndë të rendit juridik dhe bazë për dëmshpërblim/sanksionim.
 * 🔍 **DETEKTORI KIRURGJIK I LAPSUSEVE TË NENEVE DHE FORMULAT E KORRIGJIMIT:**
-  (Krahaso nenet e cituara në shkresë me tekstin real të Gazetës Zyrtare të Kosovës. Zbulo çdo mospërputhje mes numrit të nenit dhe veprës/institutit real dhe jep NUMRIN E SAKTË TË NENIT):
-  | Neni / Formulimi Aktual në Shkresë | Pasaktësia / Lapsusi i Evidentuar (kundrejt Gazetës Zyrtare) | Formula Doktrinare e Saktë e Zëvendësimit (Numri dhe Neni i Saktë) |
+  (Krahaso nenet e cituara në shkresë me tekstin real të Gazetës Zyrtare të Kosovës. Nëse ka ndonjë lapsus në numër neni apo paragraf, jep korrigjimin e saktë):
+  | Neni / Formulimi Aktual në Shkresë | Pasaktësia / Lapsusi i Evidentuar | Formula Doktrinare e Saktë e Zëvendësimit |
   | :--- | :--- | :--- |
 
-### 6. 🔬 AUDITIMI I PETITUMIT, KËRKESAVE PROCEDURALE DHE EKZEKUTUESHMËRISË
-(Analizo në thellësi kërkesat e parashtruesit):
-* **Qartësia dhe Përputhshmëria Ligjore e Kërkesave:** Vlerëso nëse kërkesat për urdhëresa emergjente, masa mbrojtëse, fillim hetimesh dhe ekspertiza plotësojnë standardet formale të ligjit dhe jurisprudencës supreme.
-* **Ekzekutueshmëria e Menjëhershme nga Organet Zbatuese:** Analizo mekanizmin praktik se si Policia e Kosovës dhe Prokuroria duhet t'i ekzekutojnë këto kërkesa brenda 24 orëve.
+### 6. 🔬 AUDITIMI I PETITUMIT, MASËS SË SIGURIMIT DHE EKZEKUTUESHMËRISË
+(Analizo në thellësi kërkesat e padisë/shkresës):
+* **Qartësia dhe Përputhshmëria Ligjore e Petitumit:** Vlerëso nëse kërkesa për dëmshpërblim, përjashtim ortaku, kamatëvonesë 8% dhe shpenzime procedurale është formuluar saktë.
+* **Themelësia dhe Ekzekutueshmëria e Masës së Sigurimit:** Analizo kushtet e Nenit 297/298 të LPK-së (rreziku real i tjetërsimit, bllokimi i llogarive bankare).
 
 ### 7. 🛠️ TEKSTI I KORRIGJUAR DHE DRAFT-REMEDIIMI (FORMULIMI SOLEMN GJYQËSOR)
-(Shkruaj DRAFTIN E PLOTË TË KËRKESËS PËRFUNDIMTARE / PETITUMIT me gjuhë të hekurt të Gjykatës Supreme, gati për t'u integruar e dorëzuar në organin procedues):
+(Shkruaj DRAFTIN E PLOTË TË PETITUMIT TË KORRIGJUAR drejtuar organit/gjykatës kompetente me format solemn gjyqësor):
 * **Pjesa Kërkuese Soleme (Petitum-i i Remeduar):**
-  [Shkruaj tekstin e plotë të kërkesës me të gjitha pikat e urdhërueshme të detajuara me nene të sakta dhe afate precize].
+  [Shkruaj tekstin e plotë të aktgjykimit të propozuar me të gjitha pikat e urdhërueshme të detajuara me shuma, përqindje kamate dhe masa konkrete sigurimi].
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E HEKURT PROCEDURALË
-* 🔴 **HAPI 1 (Urgjenca / Afati 24-48 Orë):** Hapat e menjëhershëm proceduralë të deponimit dhe ekzekutimit të masave emergjente.
-* 🟡 **HAPI 2 (Veprimet Hetimore & Sigurimi i Provave):** Hapat e ndërmjetëm të sigurimit të metadatave digjitale, caktimit të komisioneve të pavarura të ekspertëve dhe kërkesave për përjashtim.
-* 🟢 **HAPI 3 (Strategjia në Seancë & Mjetet Juridike):** Taktika e ballafaqimit në shqyrtim kryesor, përgatitja e pyetësorit kryqëzues dhe procedimi drejt Departamentit Special.
+* 🔴 **HAPI 1 (Urgjenca / Afati 24-48 Orë):** Depozitimi i kërkesës për Masë Sigurimi dhe bllokimi i xhirollogarive bankare.
+* 🟡 **HAPI 2 (Veprimet Provuese & Sigurimi Financiar):** Verifikimi i llogarive bankare, ekspertiza financiare dhe sigurimi i pasurive të të paditurve.
+* 🟢 **HAPI 3 (Strategjia në Seancë & Përmbyllja):** Përfaqësimi në seancën përgatitore dhe shqyrtim kryesor në gjykatë.
 """
