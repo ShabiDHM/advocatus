@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V60.0 (PURE CSS WAVE THINKING & COMPACT BADGES)
+// PHOENIX PROTOCOL - CHAT PANEL V70.0 (SEAMLESS STREAMING TRANSITION & ZERO THINKING OVERLAP)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -247,7 +247,10 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
-  const isAwaitingFirstToken = isSendingMessage;
+  // KUSHTI I SAKTË: Shfaqet VETËM para se të vijë shkronja e parë nga AI
+  const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
+  const isAiCurrentlyStreaming = lastMessage?.role === 'ai' && typeof lastMessage.content === 'string' && lastMessage.content.trim().length > 0;
+  const isAwaitingFirstToken = isSendingMessage && !isAiCurrentlyStreaming;
 
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
@@ -394,7 +397,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
-              {/* PURE WAVE BOUNCE INDICATOR */}
+              {/* PURE WAVE BOUNCE INDICATOR - SHFAQET VETËM PARA SE TË FILLOJË TEKSTI */}
               {isAwaitingFirstToken && (
                 <motion.div 
                   key="thinking" 

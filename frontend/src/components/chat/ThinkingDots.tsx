@@ -1,14 +1,36 @@
 // FILE: src/components/chat/ThinkingDots.tsx
-// PHOENIX PROTOCOL - NATIVE TAILWIND HARDWARE-ACCELERATED WAVE BOUNCE V70.0
+// PHOENIX PROTOCOL - HARDWARE-ACCELERATED FRAMER WAVE BOUNCE V80.0
 
 import React from 'react';
+import { motion, type Transition } from 'framer-motion';
 
-export const ThinkingDots: React.FC = () => (
-  <span className="inline-flex items-center gap-1 ml-2 py-0.5">
-    <span className="w-1.5 h-1.5 rounded-full bg-primary-start animate-bounce [animation-delay:-0.32s] shadow-xs shadow-primary-start/50" />
-    <span className="w-1.5 h-1.5 rounded-full bg-primary-start animate-bounce [animation-delay:-0.16s] shadow-xs shadow-primary-start/50" />
-    <span className="w-1.5 h-1.5 rounded-full bg-primary-start animate-bounce shadow-xs shadow-primary-start/50" />
-  </span>
-);
+const dotTransition: Transition = {
+  duration: 0.6,
+  repeat: Infinity,
+  repeatType: 'reverse',
+  ease: 'easeInOut'
+};
+
+export const ThinkingDots: React.FC = () => {
+  return (
+    <span className="inline-flex items-center gap-1.5 ml-1.5 py-0.5">
+      <motion.span
+        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+        transition={{ ...dotTransition, delay: 0 }}
+        className="w-1.5 h-1.5 rounded-full bg-primary-start shadow-xs shadow-primary-start/50 inline-block"
+      />
+      <motion.span
+        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+        transition={{ ...dotTransition, delay: 0.2 }}
+        className="w-1.5 h-1.5 rounded-full bg-primary-start shadow-xs shadow-primary-start/50 inline-block"
+      />
+      <motion.span
+        animate={{ y: [0, -5, 0], opacity: [0.35, 1, 0.35] }}
+        transition={{ ...dotTransition, delay: 0.4 }}
+        className="w-1.5 h-1.5 rounded-full bg-primary-start shadow-xs shadow-primary-start/50 inline-block"
+      />
+    </span>
+  );
+};
 
 export default ThinkingDots;
