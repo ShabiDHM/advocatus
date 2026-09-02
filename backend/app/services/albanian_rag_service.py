@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V200.0 (CLEAN CACHING GUARD & ZERO REFUSAL PERSISTENCE)
+# PHOENIX PROTOCOL - MODULAR RAG SERVICE V210.0 (ZERO TOKEN DUPLICATION • BULLETPROOF CACHE GUARD)
 
 import os
 import logging
@@ -37,27 +37,44 @@ RREGULLAT E HEKURTA KUNDËR HALUCINACIONEVE:
 2. NËSE nuk je 100% i sigurt për numrin e nenit, SHKRUAJ "Neni [verifiko manualisht]" në vend që të improvizosh.
 3. MOS shpik asnjë ligj, nen, precedent, datë, apo fakt.
 4. Nëse konteksti nuk përmban informacion të mjaftueshëm për pyetjen, THUAJ QARTË: "Nuk kam informacion të mjaftueshëm në fashikull për këtë pyetje."
-5. Përdor VETËM ligjet pozitive të Kosovës: KPRK, KPPRK, LPK, LMD, Ligji për Familjen.
+5. Përdor VETËM ligjet pozitive të Kosovës: KPRK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, Ligji për Familjen.
 """
 
 def is_valid_legal_report(text: str) -> bool:
-    """Verifikon që përgjigja është një raport i vërtetë dhe jo një mesazh refuzimi apo gabimi teknik."""
-    if not text or len(text.strip()) < 150:
+    """
+    Verifikon që përgjigja është një raport i vërtetë gjyqësor dhe JO një gabim teknik apo refuzim.
+    """
+    if not text or len(text.strip()) < 300:
         return False
-    if "bie në konflikt me rolin" in text or "Gabim Teknik" in text:
-        return False
+    
+    # Blloko çdo lloj gabimi teknik nga ruajtja në Cache
+    lower_text = text.lower()
+    error_markers = [
+        "përkohësisht i ngarkuar",
+        "error code:",
+        "context_length_exceeded",
+        "not a valid model",
+        "no endpoints found",
+        "bie në konflikt me rolin",
+        "nuk mund të ndihmoj me këtë kërkesë",
+        "gabim teknik"
+    ]
+    for marker in error_markers:
+        if marker in lower_text:
+            return False
+            
     return True
 
 
 class AlbanianRAGService:
     """
-    Shërbimi Kryesor RAG — V200.0 me Mbrojtje të Pastër të Cache-it.
+    Shërbimi Kryesor RAG — V210.0 me Zero Duplikim Tokenash dhe Mbrojtje të Hekurt të Cache-it.
     """
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V200.0 initialized.")
+        logger.info("✅ [RAG] Modular Service V210.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -87,9 +104,9 @@ class AlbanianRAGService:
     def _get_tactical_clickable_pills(self, user_intent: str) -> List[str]:
         if user_intent == "FORENSIC_AUDIT":
             return [
-                "Harto Kallëzimin Penal — Gjenero aktin zyrtar bazuar në shkeljet e gjetura",
-                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit/ekspertit",
-                "Matrica Contra Legem — Tabela përmbledhëse vetëm me shkeljet ligjore"
+                "Harto Shkresën / Kallëzimin Penal — Gjenero draftin zyrtar gati për dorëzim bazuar në shkeljet e gjetura",
+                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit në gjyq",
+                "Matrica Contra Legem — Tabela përmbledhëse e shkeljeve thelbësore ligjore dhe procedurale"
             ]
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY"]:
             return [
@@ -123,8 +140,8 @@ class AlbanianRAGService:
         
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
-        client_position = "DEFENDANT"
-        client_name = "Klienti"
+        client_position = "PALË NË PROCEDURË"
+        client_name = "Klienti / Parashtruesi"
         case_title = "Lënda Ligjore"
         db_documents = []
         case_doc = None
@@ -159,7 +176,7 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
 
         # =========================================================================
-        # ⚡ SMART CACHE CHECK (KTHEN VETËM RAPORTE TË VLEFSHME)
+        # ⚡ SMART CACHE CHECK (KTHEN VETËM RAPORTE TË VLEFSHME DHE JO GABIME)
         # =========================================================================
         
         # 1. Kontrolli për "ANALIZO RASTIN"
@@ -191,24 +208,38 @@ class AlbanianRAGService:
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
-        # Kërkimi me RAG
-        if user_intent == "GENERAL_CHAT":
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
+        # =========================================================================
+        # 🔍 NDËRTIMI I KONTEKSTIT PA DUPLIKIM DHE PA MBINGARKESË TOKENASH
+        # =========================================================================
+        exec_query = optimized_query
+        system_prompt = ""
+
+        if user_intent == "FORENSIC_AUDIT":
+            # Për Forenzikë të 1 dokumenti: Merret teksti i pastër i atij dokumenti
+            doc_text = ""
+            if single_doc_obj:
+                doc_text = single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or ""
+            
+            if not doc_text and db_documents:
+                doc_text = db_documents[0].get("content") or db_documents[0].get("extracted_text") or ""
+
+            manifest_str = f"Dokumenti në Audit: {single_doc_obj.get('filename', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'}"
+            
+            system_prompt = ForensicAuditService.build_prompt(
+                case_title=case_title,
+                client_name=client_name,
+                client_position=client_position,
+                current_date_str=current_date_str,
+                context_str=doc_text,
+                document_text=doc_text,
+                manifest_str=manifest_str,
+                db=self.db,
+                user_id=user_id,
+                case_id=case_id
             )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=20
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+            exec_query = "Kryej Auditimin Suprem Forenzik të dokumentit sipas të gjitha 8 seksioneve të plota doktrinare të Gjykatës Supreme pa asnjë shkurtim."
+
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=35
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=20
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-        else:
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=20
             )
@@ -217,10 +248,6 @@ class AlbanianRAGService:
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
-        # Urdhri i Ekzekutimit Suprem
-        exec_query = optimized_query
-
-        if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             system_prompt = ComprehensiveAnalysisService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -235,21 +262,15 @@ class AlbanianRAGService:
             )
             exec_query = "Gjenero Raportin Master të Plotë dhe Gjithëpërfshirës të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke zbërthyer në thellësi maksimale doktrinare të 8 seksionet e detyrueshme pa asnjë shkurtim."
 
-        elif user_intent == "FORENSIC_AUDIT":
-            system_prompt = ForensicAuditService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                context_str=context_str,
-                manifest_str=manifest_str,
-                db=self.db,
-                user_id=user_id,
-                case_id=case_id
-            )
-            exec_query = "Kryej Auditimin Suprem Forenzik të dokumentit sipas të gjitha 8 seksioneve të plota doktrinare (Pasaporta formale, analiza e aktorëve, kryqëzimi i provave, tabela statutore nen-për-nen, shkeljet Contra Legem, auditimi i petitumit, draft-remediimi dhe master plani i veprimit)."
-
         elif user_intent == "DRAFTING":
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
+            )
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=10
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+
             system_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -263,6 +284,14 @@ class AlbanianRAGService:
                 case_id=case_id
             )
         else:
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
+            )
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=10
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
             LËNDA: **{case_title}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
@@ -274,13 +303,14 @@ class AlbanianRAGService:
             {context_str}
             """
 
+        # THIRRJA E PASTËR: context kalon bosh "" sepse system_prompt tashmë ka të gjithë përmbajtjen e nevojshme
         full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context_str):
+        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
             full_generated_response += content
             yield content
 
         # =========================================================================
-        # 💾 RUAJTJA NË MONGODB VETËM NËSE ËSHTË RAPORT I VLEFSHËM
+        # 💾 RUAJTJA NË MONGODB VETËM NËSE ËSHTË RAPORT I VLEFSHËM GJYQËSOR
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
             # 1. Ruaj për Lëndën
