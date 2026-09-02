@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME FORENSIC AUDIT SPECIALIST V50.0 (ELITE BENCHMARK • SINGLE DOCUMENT AUDIT)
+# PHOENIX PROTOCOL - SUPREME FORENSIC AUDIT SPECIALIST V60.0 (EXHAUSTIVE DEEP REASONING • ZERO SUPERFICIALITY)
 
 import logging
 import re
@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 class ForensicAuditService:
     """
     Modul Ekskluziv për BUTONIN E FORENZIKËS LIGJORE (🔬):
-    Konsulenca Supreme e Dokumentit të Vetëm:
-    - Analizon çdo shkresë të vetme (Aktgjykim, Aktvendim, Kallëzim Penal, Padi, Prapësim, Kontratë, Urdhërmbrojtje, Ekspertizë).
-    - Shpjegon në mënyrë ekzekutive se çfarë është dokumenti dhe çfarë pasojash prodhon.
-    - Auditon ligjshmërinë nen-për-nen sipas legjislacionit pozitiv të Kosovës (KPPRK Nr. 08/L-032, KPK Nr. 06/L-074, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139).
-    - Zbulon shkeljet 'Contra Legem', afatet prekluzive dhe ofron draft-remediimin e gatshëm për gjykatë.
+    Auditimi i Thellë Kirurgjikal i Dokumentit:
+    - Analizon çdo shkresë në mënyrë të shterruar (exhaustive) pa lënë asnjë të dyshuar, provë apo shkelje jashtë.
+    - Zbardh falsifikimet, manipulimet me metadata/prapadatime dhe shkeljet 'Contra Legem'.
+    - Auditon neni-për-nen të gjitha dispozitat e Kodit Penal (KPK), KPPRK, LPK dhe LMD.
     """
 
     @staticmethod
@@ -24,20 +23,14 @@ class ForensicAuditService:
         document_text: str,
         file_name: str = ""
     ) -> Tuple[str, str]:
-        """
-        Zbulon llojin e dokumentit ligjor me saktësi kirurgjikale.
-        """
         combined = f"{file_name} {document_text[:8000]}".lower()
         
         categories = [
-            ("AKTAKUZË / AKTAKUZE", ["aktakuzë", "aktakuze", "ngre aktakuzë", "vepër penale nga neni", "dispozitivi i aktakuzës"],
-             "Audito ligjshmërinë e hetimeve, përshkrimin e figurës së veprës penale sipas KPK, provat e papranueshme (Neni 257 KPPRK) dhe bazën për HEDHJEN e aktakuzës (Neni 244-245 KPPRK)."),
-            
-            ("KALLËZIM PENAL", ["kallëzim penal", "kallezim penal", "kallzim penal", "parashtruesi i kallëzimit", "denoncim penal"], 
-             "Audito bazueshmërinë ligjore, elementet e veprës penale sipas KPK, kompetencën e prokurorisë dhe fuqinë provuese të shkresave."),
+            ("KALLËZIM PENAL / AKTAKUZË", ["kallëzim penal", "kallezim penal", "kallzim penal", "aktakuzë", "aktakuze", "parashtruesi i kallëzimit", "denoncim penal"], 
+             "Audito në thellësi maksimale bazueshmërinë ligjore, figurën e veprës penale për çdo të dyshuar, shkeljet e hetimeve, provat materiale dhe kompetencën e PSRK-së."),
             
             ("AKTGJYKIM / AKTVENDIM", ["aktgjykim", "aktvendim", "në emër të popullit", "ne emer te popullit", "gjykata themelore", "trupi gjykues"],
-             "Audito ligjshmërinë e vendimit, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), arsyetimin e mangët dhe bazën e hekurt për ANKESË."),
+             "Audito ligjshmërinë e vendimit, shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), arsyetimin e mangët/kontradiktor dhe bazën e hekurt për ANKESË."),
             
             ("ANKESË / APEL", ["ankesë", "ankese", "drejtuar gjykatës së apelit", "kundër aktgjykimit", "pikat ankimore"],
              "Audito respektimin e afatit ligjor prekluziv, forcën e pikave ankimore dhe saktësinë e kërkesës ankimore (prishje/ndryshim)."),
@@ -57,8 +50,8 @@ class ForensicAuditService:
             ("RAPORT SOCIAL / QPS", ["raport social", "qps", "qendra për punë sociale", "interesi më i mirë i fëmijës", "vlerësimi social"],
              "Audito objektivitetin metodologjik, mungesën e njëanshmërisë dhe përputhshmërinë me Ligjin për Familjen."),
             
-            ("EKSPERTIZË FINANCIARE / TEKNIKE", ["ekspertizë", "ekspertize", "raporti i ekspertit", "eksperti financiar", "super-ekspertizë"],
-             "Audito metodologjinë llogaritëse, tejkalimin e kompetencave dhe përputhjen me provat shkresore."),
+            ("EKSPERTIZË FINANCIARE / MJEKËSORE", ["ekspertizë", "ekspertize", "raporti i ekspertit", "eksperti financiar", "super-ekspertizë"],
+             "Audito metodologjinë llogaritëse/mjekësore, tejkalimin e kompetencave dhe përputhjen me provat laboratorike/shkresore."),
             
             ("DRAFT JURIDIK / PARASHTRESË", [], 
              "Audito shkresën për saktësi neni-për-nen, qartësi formulimi, respektim afatesh dhe eliminimin e lapsuseve para dorëzimit në organet e drejtësisë.")
@@ -100,7 +93,7 @@ class ForensicAuditService:
         audit_text = (document_text or context_str).strip()
         doc_category, category_description = ForensicAuditService.detect_document_category(audit_text)
         
-        search_query = query_text or f"Auditimi forenzik i {doc_category}: {case_title}. Nenet e ligjit të Kosovës, shkeljet procedurale, afatet prekluzive, contra legem."
+        search_query = query_text or f"Auditimi forenzik i thellë i {doc_category}: {case_title}. Dispozitat e Kodit Penal, KPPRK, LPK, shkeljet contra legem, afatet."
         rag_context, case_rag_context = BasePillarService.get_rag_context(
             user_id=user_id or "",
             case_id=case_id or "",
@@ -136,54 +129,64 @@ class ForensicAuditService:
 
 {role_guard}
 
-📄 DOKUMENTI NË AUDITIM TË VETËM: **{doc_category}**
+📄 DOKUMENTI NË AUDITIMIN SUPREM FORENZIK: **{doc_category}**
 🎯 OBJEKTIVI I KONTROLLIT: {category_description}
 
 ======================================================================
-AUTORITETI YT: ISH-GJYQTARI I GJYKATËS SUPREME (KONSULENCA E DOKUMENTIT)
-Përdoruesi (Avokat ose Qytetar) ka ardhur në zyrën tënde me KËTË DOKUMENT TË VETËM në dorë dhe të kërkon:
-1. ÇFARË ËSHTË KY DOKUMENT DHE ÇFARË KËRKON/VENDOS EKZAKTËSISHT?
-2. A ËSHTË I SAKTË APO KA SHKELJE LIGJORE DHE KURTHE?
-3. CILAT NENE TË KOSOVËS JANË ZBATUAR DHE A JANË ZBATUAR DREJT? (Formatoji qartë që të verifikohen me bazën ligjore).
-4. EKZAKTËSISHT ÇFARË DUHET TË BËJË KLIENTI TANI (Brenda sa ditësh dhe me çfarë shkrese)?
+MANDATI RIGOROZ: ISH-GJYQTARI I GJYKATËS SUPREME (AUDITIM I SHKALLËS MË TË LARTË)
+Përdoruesi ka sjellë këtë shkresë komplekse juridike dhe kërkon një AUDITIM TË SHKALLËS SUPREME DHE TË PLOTË.
 
-RREGULLAT E HEKURTA:
-- Përgjigju me autoritet absolut doktrinar, qartësi kristalore dhe pa zhargon boshe.
-- Përdor VETËM legjislacionin në fuqi të Republikës së Kosovës (KPPRK Nr. 08/L-032, KPK Nr. 06/L-074, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139).
-- Nëse gjen shkelje ligjore flagrante, shënoje menjëherë: 🔴 **[KRITIKE - CONTRA LEGEM]**.
-- ZERO halucinacione.
+⚠️ URDHËR I HEKURT KUNDËR SIPËRFAQËSISË DHE SHKURTIMEVE:
+1. NDALOHET KATEGORIKISHT përmbledhja e shkurtër apo sipërfaqësore me pak pika.
+2. NËSE DOKUMENTI KA TË DYSHUAR / AKTORË TË PËRFSHIRË: Zbërtheji ME EMRA DHE NENE SPECIFIKE të gjithë personat e denoncuar (Gjyqtarët, Mjekët, Zyrtarët e QPS-së, Prokurorinë, Personat Privatë).
+3. NËSE DOKUMENTI KA PROVA SHKRESORE (nga A-1 te D-1): Analizo me imtësi çdo provë materiale (Testi Toksikologjik Koslabor, Raportet e QKUK-së, Procesverbalet e seancave me prapadatime, Audio-regjistrimet).
+4. ZBËRTHE SHKELJET "CONTRA LEGEM": Thekso shkeljen e Nenit 93 të KPK-së (Rehabilitimi Ligjor), falsifikimet e dokumenteve zyrtare (Neni 427 KPK), keqpërdorimin e detyrës zyrtare (Neni 414 KPK) dhe nxjerrjen e vendimeve të kundërligjshme (Neni 425 KPK).
+5. VLERËSO PETITUMIN DHE MASAT EMERGJENTE (Nenet 188 & 221 të KPPRK-së).
 ======================================================================
 
 {'='*60}
-TEKSTI I DOKUMENTIT NË AUDITIM:
+TEKSTI I PLOTË I SHKRESËS QË AUDITOHET:
 {'='*60}
 {audit_text}
 
-STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK TË DOKUMENTIT:
+STRUKTURA E DETYRUESHME E RAPORTIT MASTER FORENZIK (THELLËSI MAKSIMALE):
 
-### 1. 🔍 DIAGNOZA EKZEKUTIVE E DOKUMENTIT ("ÇFARË ËSHTË DHE ÇFARË VENDOSET/KËRKOHET?")
+### 1. 🔍 DIAGNOZA EKZEKUTIVE E SHKRESËS DHE STATUSI PROCEDURAL
 * **Lloji i Aktit Juridik:** {doc_category}
-* **Organi / Gjykata & Numri i Lëndës:** (Identifiko organin lëshues, departamentin dhe numrin zyrtar të protokollit).
-* **Thelbi me Fjalë të Qarta:** Përmblidh në 3-4 fjali të qarta: Kush kërkon, çfarë kërkohet, çfarë është vendosur dhe çfarë pasoje direkte ka për {client_name}.
-* **Statusi i Afatit Ligjor:** (Sa ditë afat ka për reagim? Sa ditë kanë mbetur nga data e pranimit?).
+* **Organi Kompetent & Jurisdiksioni:** (Pse kompetenca i takon PSRK-së / Departamentit Special sipas Ligjit Nr. 03/L-052 dhe Neni 9).
+* **Konflikti i Interesit dhe Skualifikimi:** (Pse Prokuroria Themelore ka konflikt absolut interesi).
+* **Urgjenca Procedurale & Rreziku Eminent (Periculum in mora):** Rreziku për dëmtimin e pariparueshëm psikofizik dhe asgjësimin e dëshmitarit kryesor të gjallë (*Testis principalis vivus*).
 
-### 2. ⚖️ VERIFIKIMI NEN-PËR-NEN I BAZËS LIGJORE (REPUBLIKA E KOSOVËS)
-(Ndërto tabelën e saktë të verifikimit për çdo nen të përmendur ose që është dashur të zbatohet):
-| Dispozita & Ligji i Zbatueshëm | Statusi i Pajtueshmërisë | Analiza Forenzike & Pasojat Juridike |
+### 2. 👥 STRUKTURA E TË DYSHUARVE DHE KUALIFIKIMI PENAL NEN-PËR-NEN
+(Zbërthe me emra dhe kualifikim të plotë të gjitha kategoritë e të dyshuarve të përfshirë në shkresë):
+* 🏛️ **Zyrtarët e Lartë Ekzekutivë (MD):** Ushtrimi i ndikimit (Neni 424 KPK), Shtytja (Neni 32 KPK), Bashkëkryerja (Neni 31 KPK).
+* ⚖️ **Gjyqtarët e Përfshirë (Themelore & Apel):** Nxjerrja e vendimeve të kundërligjshme (Neni 425 KPK), Shkelja e Rehabilitimit Ligjor (Neni 93 KPK), Prapadatimi i procesverbaleve (Neni 427 KPK), Dëbimi arbitrar nga salla.
+* 🧠 **Mjekët dhe Ekspertët e QKUK-së:** Ekspertiza e rreme (Neni 387 KPK), Falsifikimi i dokumentit zyrtar (Neni 427 KPK), Moslajmërimi i kanosjes (Neni 385 KPK).
+* 🏢 **Stafi i Qendrës për Punë Sociale (QPS):** Keqpërdorimi i detyrës (Neni 414 KPK), Kanosja e fëmijës (Nenet 250 & 386 KPK), Marrja e deklaratës nën presion (Neni 382 KPK).
+* 👮 **Prokuroria & Hetuesit Policorë:** Fshehja e provave shfajësuese digjitale (Nenet 382 & 414 KPK), Cenimi i barazisë së armëve (Neni 193 KPK).
+
+### 3. 🔬 TREKËNDËSHAT E PROVAVE MATERIALE DHE ANALIZA SHKENCORE (CORPUS DELICTI)
+(Analizo ballafaqimin e provave konkrete):
+* 🧪 **E Vërteta Shkencore vs. Falsifikimi Mjekësor:** Testi Toksikologjik i Koslaborit 100% Negativ (Prova A-1) kundrejt diagnozave gojore të porositura të QKUK-së.
+* 📜 **Vetë-Kontradikta Gjyqësore (Dolus Directus):** Faqja 4 e Aktgjykimit C.nr. 5906/25 (fëmija nuk e refuzon babanë) kundrejt izolimit të kundërligjshëm në QPS.
+* 💾 **Metadata dhe Prapadatimi (Antidatum):** Kryerreshtat e kthyer prapa më "19.01.2024" në procesverbalet e seancave të shkurtit (Shkresa Nr. 05210884).
+* 🎙️ **Provat Audio & Mesazhet e Pakontestueshme:** Analiza e regjistrimit audio (Prova B-7) dhe mesazheve/vizatimit "ANDI DON BABI" (Prova B-6).
+
+### 4. ⚠️ VERIFIKIMI NEN-PËR-NEN I DISPOZITAVE STATUTORE & GABIMET "CONTRA LEGEM"
+(Ndërto tabelën e detajuar të të gjitha neneve):
+| Dispozita & Ligji i Zbatueshëm | Statusi i Pajtueshmërisë | Analiza Forenzike & Efekti Procedural |
 | :--- | :--- | :--- |
+| *p.sh. Neni 93 i KPK Nr. 06/L-074* | *🔴 Shkelje Flagrante (Contra Legem)* | *Përdorimi i aktgjykimit të shlyer P.nr. 869/18 cenon rëndë ligjshmërinë e vendimit.* |
+| *p.sh. Neni 257 i KPPRK Nr. 08/L-032* | *🔴 Provë e Papranueshme* | *Raportet mjekësore të bazuara në dëshmi gojore të paverifikuara shpallen të pavlefshme.* |
+| *p.sh. Nenet 188 & 221 të KPPRK-së* | *🟢 Baza e Masave Emergjente* | *Detyrim ligjor i menjëhershëm i Prokurorit për largimin e fëmijës brenda 24 orëve.* |
 
-### 3. ⚠️ GJETJET KRITIKE, SHKELJET PROCEDURALE DHE GABIMET "CONTRA LEGEM"
-* 🔴 **[KRITIKE - CONTRA LEGEM]:** Shkeljet thelbësore materiale ose procedurale (p.sh. shkelje e Nenit 384 KPPRK, tejkalim i kompetencës, mungesë legjitimiteti, prova të marra paligjshëm Neni 257 KPPRK).
-* 🟡 **[Lapsuse Formale & Rreziqe Taktike]:** Gabime në shuma, mungesë vulash, emra të gabuar, mungesë autorizimi (Neni 90 LPK) ose arsyetim kontradiktor.
+### 5. 🏛️ OPINIONI DOKTRINAR I GJYQTARIT SUPREM (PROGNOZA E HETIMIT NË PSRK)
+* **Qëndrueshmëria e Kallëzimit Penal:** Vlerësimi doktrinar mbi ekzistimin e dyshimit të bazuar mirë (*Fumus boni iuris*) për fillimin e hetimeve penale në PSRK.
+* **Provat e Pathyeshme (Smoking Guns):** Cilat prova e vulosin përgjegjësinë penale të të dyshuarve.
+* **Rreziqet Procedurale dhe Masat Mbrojtëse:** Mbrojtja e dëshmitarit të mitur nga presioni i vazhdueshëm psikologjik.
 
-### 4. 🔬 AUDITIMI I PETITUMIT DHE EKZEKUTUESHMËRISË
-* A është kërkesa (petenumi) e formuluar saktë dhe a ka rrezik të refuzohet nga gjyqtari?
-* Në rast aktgjykimi/urdhëri: A mund të përmbarohet nga përmbaruesi privat sipas Ligjit për Procedurën Përmbarimore (LPP), apo ka pengesa ligjore?
-
-### 5. 🛠️ TEKSTI I KORRIGJUAR DHE DRAFT-FORMULIMI (REMEDIIMI)
-* **Paragrafi i Saktë Ligjor:** Jep draft-formulimin e saktë se si duhet të rishkruhet kërkesa, ankesa apo prapësimi për të eliminuar gabimet e gjetura.
-
-### 6. 🎯 UDHËZUESI I MENJËHERSHËM I VEPRIMIT: ÇFARË DUHET TË BËSH SOT
-* 🔴 **HAPI 1 (Urgjencë - Brenda Afatit):** Shkresa e saktë që duhet të depozitohet (p.sh. Ankesë kundër Aktgjykimit brenda 15 ditëve, Përgjigje në Padi brenda 30 ditëve, apo Prapësim).
-* 🟢 **HAPI 2 (Provat Shtesë):** Çfarë dokumenti apo prove duhet t'i bashkëngjitet kësaj shkrese për ta bërë të pathyeshme.
+### 6. 🎯 KËRKESAT PËRFUNDIMTARE DHE MASTER PLANI I VEPRIMIT
+* 🔴 **HAPI 1 (Urgjenca 24-Orëshe):** Lëshimi i Urdhëresës Emergjente të Mbrojtjes (Nenet 188 & 221 KPPRK) dhe ekzekutimi nga Policia e Kosovës.
+* 🟡 **HAPI 2 (Ekspertiza e Pavarur & Sekuestrimi):** Caktimi i Komisionit të Pavarur të Ekspertëve (jashtë QKUK/QPS) dhe sekuestrimi i metadatave kompjuterike.
+* 🟢 **HAPI 3 (Ngritja e Aktakuzës në Departamentin Special):** Procedimi i aktakuzës penale ndaj të gjithë bashkëkryerësve sipas Neneve 31 dhe 81 të KPK-së.
 """
