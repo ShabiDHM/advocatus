@@ -1,9 +1,9 @@
 // FILE: src/components/law/LawArticleContent.tsx
-// PHOENIX PROTOCOL - SEMANTIC HIGHLIGHTING & LEGAL CITATION EXPORT ENGINE V20.0
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW ARTICLE CONTENT V30.0
 
 import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FileText, ExternalLink, Copy, Check, Share2, Sparkles } from 'lucide-react';
+import { FileText, ExternalLink, Copy, Check } from 'lucide-react';
 import { ArticleData } from './lawArticleTypes';
 import { TFunction } from 'i18next';
 import { sanitizeSearchText } from '../../utils/legalSemanticEngine';
@@ -25,7 +25,6 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
   const highlightQuery = searchParams.get('highlight') || '';
 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [exportedIndex, setExportedIndex] = useState<number | null>(null);
 
   const isPreamble =
     rawArtNum === '0' ||
@@ -34,15 +33,15 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
 
   const articleHeading = isPreamble ? 'Preambula' : `${t('lawArticle.article', 'Neni')} ${rawArtNum}`;
 
-  // Nxjerrja e fjalëve kyçe për theksim
+  // Fjalët kyçe për theksim (vetëm fjalët me gjatësi mbi 2 shkronja)
   const highlightWords = useMemo(() => {
     if (!highlightQuery.trim()) return [];
     return sanitizeSearchText(highlightQuery)
       .split(/\s+/)
-      .filter((w) => w.length > 2);
+      .filter((w) => w.length >= 3 && !['nga', 'per', 'dhe', 'ose', 'tek'].includes(w));
   }, [highlightQuery]);
 
-  // Ndarja e tekstit të ligjit sipas paragrafëve
+  // Ndarja e tekstit sipas paragrafëve
   const paragraphs = useMemo(() => {
     if (!article.text) return [];
     return article.text
@@ -51,28 +50,27 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
       .filter((p) => p.length > 0);
   }, [article.text]);
 
-  // Funksioni që thekson fjalët kyçe me ngjyrë të verdhë/të artë
+  // Theksimi i fjalëve kyçe me ngjyrë të artë/të verdhë
   const renderHighlightedText = (text: string) => {
     if (highlightWords.length === 0) return text;
 
-    // Krijojmë një Regex për të kapur të gjitha fjalët kyçe
     const escapedTokens = highlightWords.map((token) =>
       token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
-    const regex = new RegExp(`(${escapedTokens.join('|')})`, 'gi');
+    const regex = new RegExp(`\\b(${escapedTokens.join('|')})`, 'gi');
 
     const parts = text.split(regex);
 
     return parts.map((part, i) => {
       const isMatch = highlightWords.some(
-        (hw) => sanitizeSearchText(part) === hw || sanitizeSearchText(part).includes(hw)
+        (hw) => sanitizeSearchText(part) === hw || sanitizeSearchText(part).startsWith(hw)
       );
 
       if (isMatch) {
         return (
           <mark
             key={i}
-            className="bg-amber-400/30 text-amber-900 dark:text-amber-200 border-b-2 border-amber-500 font-semibold px-1 py-0.5 rounded transition-all"
+            className="bg-amber-400/30 text-amber-900 dark:text-amber-200 border-b border-amber-500 font-semibold px-1 py-0.5 rounded transition-all"
           >
             {part}
           </mark>
@@ -82,7 +80,7 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
     });
   };
 
-  // Veprimi: Kopjo thjesht tekstin e paragrafit
+  // Veprimi: Kopjo tekstin e paragrafit
   const handleCopyParagraph = async (text: string, index: number) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -93,26 +91,12 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
     }
   };
 
-  // Veprimi: Eksporto te Parashtresa me Citim të Plotë Ligjor
-  const handleExportToSubmission = async (text: string, index: number) => {
-    try {
-      const paragraphNum = index + 1;
-      const citationText = `[${article.law_title}, Neni ${rawArtNum}, Paragrafi ${paragraphNum}]:\n"${text}"`;
-      
-      await navigator.clipboard.writeText(citationText);
-      setExportedIndex(index);
-      setTimeout(() => setExportedIndex(null), 2500);
-    } catch (err) {
-      console.error('Eksporti dështoi:', err);
-    }
-  };
-
   return (
     <div className="flex flex-col overflow-hidden shadow-sm border border-main rounded-2xl bg-canvas">
       {/* Header i Ligjit */}
       <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-main bg-surface/50">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={onOpenPdf}
@@ -123,16 +107,8 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
               <span>Dokumenti PDF</span>
               <ExternalLink size={11} className="opacity-80 shrink-0" />
             </button>
-
-            {highlightWords.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] font-bold">
-                <Sparkles size={12} />
-                <span>Theksimi Semantik Aktiv: "{highlightQuery}"</span>
-              </div>
-            )}
           </div>
 
-          {/* Titulli Kryesor me Font Dinamik */}
           <h1 className="text-base sm:text-xl md:text-2xl font-black text-text-primary leading-snug tracking-tight">
             {article.law_title}
           </h1>
@@ -150,57 +126,40 @@ export const LawArticleContent: React.FC<LawArticleContentProps> = ({
             </h2>
           </div>
 
-          {/* Lista e Paragrafëve me Butona Veprimi */}
+          {/* Lista e Paragrafëve */}
           <div className="space-y-6">
             {paragraphs.map((paragraph, index) => {
               const isCopied = copiedIndex === index;
-              const isExported = exportedIndex === index;
 
               return (
                 <div
                   key={index}
                   className="group relative p-3 sm:p-4 rounded-xl hover:bg-canvas/60 border border-transparent hover:border-main transition-all duration-200"
                 >
-                  {/* Teksti i Paragrafit me Highlighting */}
+                  {/* Teksti i Paragrafit */}
                   <p className="text-[14px] sm:text-[16px] md:text-[17px] text-text-primary leading-[1.75] sm:leading-[1.85] font-normal text-justify font-serif tracking-normal selection:bg-primary-start/20">
                     {renderHighlightedText(paragraph)}
                   </p>
 
-                  {/* Shirit Veprimesh të Shpejta për Paragrafin */}
+                  {/* Shirit Veprimi me 1 Buton të Pastër */}
                   <div className="mt-3 pt-2 border-t border-main/40 flex items-center justify-between flex-wrap gap-2 text-xs">
                     <span className="text-[10px] font-mono font-bold text-text-muted uppercase">
                       Paragrafi {index + 1}
                     </span>
 
-                    <div className="flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      {/* Butoni Kopjo Paragrafin */}
+                    <div className="opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={() => handleCopyParagraph(paragraph, index)}
-                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                           isCopied
                             ? 'bg-emerald-500 text-white border-emerald-500'
                             : 'bg-canvas hover:bg-surface border-main text-text-secondary hover:text-text-primary'
                         }`}
-                        title="Kopjo vetëm tekstin e këtij paragrafi"
+                        title="Kopjo tekstin e këtij paragrafi"
                       >
                         {isCopied ? <Check size={12} /> : <Copy size={12} />}
                         <span>{isCopied ? 'U kopjua!' : 'Kopjo Paragrafin'}</span>
-                      </button>
-
-                      {/* Butoni Eksporto te Parashtresa */}
-                      <button
-                        type="button"
-                        onClick={() => handleExportToSubmission(paragraph, index)}
-                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                          isExported
-                            ? 'bg-primary-start text-white border-primary-start'
-                            : 'bg-primary-start/10 hover:bg-primary-start/20 border-primary-start/30 text-primary-start'
-                        }`}
-                        title="Kopjo me citim të saktë ligjor për parashtresë"
-                      >
-                        {isExported ? <Check size={12} /> : <Share2 size={12} />}
-                        <span>{isExported ? 'Gati për Parashtresë!' : 'Eksporto te Parashtresa'}</span>
                       </button>
                     </div>
                   </div>
