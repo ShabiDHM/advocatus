@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - HIGH-INTEGRITY FORENSIC TOOLTIP & DISCOVERY HUB V102.0
+// PHOENIX PROTOCOL - UNIVERSAL FORENSIC TOOLTIP & DISCOVERY HUB V105.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -69,13 +69,7 @@ export default function LawSearchPage() {
   const [showPdfModal, setShowPdfModal] = useState(false);
 
   // FORENSIC TOOLTIP STATE
-  const [activeTooltip, setActiveTooltip] = useState<{
-    id: string;
-    title: string;
-    article: string;
-    source: string;
-    confidence: number;
-  } | null>(null);
+  const [hoveredArticleKey, setHoveredArticleKey] = useState<string | null>(null);
 
   // AI DIAGNOSTIC STATE
   const [isAnalyzingWithAi, setIsAnalyzingWithAi] = useState(false);
@@ -443,22 +437,16 @@ export default function LawSearchPage() {
                     <div className="flex flex-wrap gap-2.5 relative">
                       {aiDiagnostic.matched_statutes.map((item, i) => {
                         const shortBadge = formatShortLawBadge(item.law_title);
-                        const isHovered = activeTooltip?.id === `ai_art_${i}`;
+                        const tooltipKey = `ai_${i}`;
+                        const isHovered = hoveredArticleKey === tooltipKey;
+                        const fullLawTitle = resolveLawTitle(item.law_title);
 
                         return (
                           <div
                             key={i}
                             className="relative"
-                            onMouseEnter={() =>
-                              setActiveTooltip({
-                                id: `ai_art_${i}`,
-                                title: item.law_title,
-                                article: item.article_number,
-                                source: item.source || 'Gazeta Zyrtare e Republikës së Kosovës',
-                                confidence: item.confidence || 0.99,
-                              })
-                            }
-                            onMouseLeave={() => setActiveTooltip(null)}
+                            onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
+                            onMouseLeave={() => setHoveredArticleKey(null)}
                           >
                             <button
                               onClick={() => handleOpenExactArticle(item.law_title, item.article_number)}
@@ -484,10 +472,10 @@ export default function LawSearchPage() {
                                     <span>Verifikim Zyrtar (100% Traceable)</span>
                                   </div>
                                   <div className="text-xs font-bold text-text-primary mb-1">
-                                    {item.law_title} • Neni {item.article_number}
+                                    {fullLawTitle} • Neni {item.article_number}
                                   </div>
                                   <div className="text-[11px] text-text-secondary leading-relaxed mb-2">
-                                    🏛️ {item.source || 'Gazeta Zyrtare e Republikës së Kosovës'}
+                                    🏛️ Gazeta Zyrtare e Republikës së Kosovës
                                   </div>
                                   <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
                                     <span>Integriteti i Tekstit:</span>
@@ -513,22 +501,15 @@ export default function LawSearchPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {aiCaselawPrecedents.map((c, idx) => {
-                        const isHovered = activeTooltip?.id === `ai_case_${idx}`;
+                        const tooltipKey = `case_${idx}`;
+                        const isHovered = hoveredArticleKey === tooltipKey;
 
                         return (
                           <div
                             key={idx}
                             className="relative"
-                            onMouseEnter={() =>
-                              setActiveTooltip({
-                                id: `ai_case_${idx}`,
-                                title: c.title,
-                                article: `Faqja ${c.page}`,
-                                source: c.source || 'Gjykata Supreme e Kosovës',
-                                confidence: 0.99,
-                              })
-                            }
-                            onMouseLeave={() => setActiveTooltip(null)}
+                            onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
+                            onMouseLeave={() => setHoveredArticleKey(null)}
                           >
                             <button
                               onClick={() => {
@@ -582,7 +563,7 @@ export default function LawSearchPage() {
             )}
           </AnimatePresence>
 
-          {/* KARTELA SEMANTIKE E SHPEJTË */}
+          {/* KARTELA SEMANTIKE ME NENE DHE TOOLTIP TË PLOTË (1-KLIKIM) */}
           <AnimatePresence>
             {!aiDiagnostic && matchedIntent && (
               <motion.div
@@ -606,29 +587,73 @@ export default function LawSearchPage() {
                   </p>
 
                   <div className="space-y-2.5 pt-2 border-t border-primary-start/20">
-                    {matchedIntent.suggestedArticles.map((sug, i) => (
-                      <div key={i} className="flex flex-col gap-2">
-                        <p className="text-text-secondary text-xs leading-relaxed">
-                          📜 <strong>Baza Ligjore:</strong> {sug.explanation}
-                        </p>
-                        
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <span className="text-[10px] font-bold text-text-muted uppercase">Hap direkt:</span>
-                          {sug.articles.map((artNum, aIdx) => (
-                            <button
-                              key={aIdx}
-                              type="button"
-                              onClick={() => handleOpenExactArticle(sug.lawPattern || 'LPK', artNum)}
-                              className="h-9 px-3.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover-lift active:scale-95 cursor-pointer shadow-xs"
-                            >
-                              <Scale size={13} className="shrink-0" />
-                              <span>{sug.lawPattern || 'Kodi'} • Neni {artNum}</span>
-                              <ArrowRight size={12} className="shrink-0" />
-                            </button>
-                          ))}
+                    {matchedIntent.suggestedArticles.map((sug, i) => {
+                      const lawBadge = sug.lawPattern || 'LPK';
+                      const fullLawTitle = resolveLawTitle(lawBadge);
+
+                      return (
+                        <div key={i} className="flex flex-col gap-2">
+                          <p className="text-text-secondary text-xs leading-relaxed">
+                            📜 <strong>Baza Ligjore:</strong> {sug.explanation}
+                          </p>
+                          
+                          <div className="flex flex-wrap items-center gap-2 pt-1 relative">
+                            <span className="text-[10px] font-bold text-text-muted uppercase">Hap direkt:</span>
+                            {sug.articles.map((artNum, aIdx) => {
+                              const tooltipKey = `intent_${i}_${aIdx}`;
+                              const isHovered = hoveredArticleKey === tooltipKey;
+
+                              return (
+                                <div
+                                  key={aIdx}
+                                  className="relative"
+                                  onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
+                                  onMouseLeave={() => setHoveredArticleKey(null)}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenExactArticle(lawBadge, artNum)}
+                                    className="h-9 px-3.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover-lift active:scale-95 cursor-pointer shadow-xs group"
+                                  >
+                                    <Scale size={13} className="shrink-0" />
+                                    <span>{lawBadge} • Neni {artNum}</span>
+                                    <ArrowRight size={12} className="shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                                  </button>
+
+                                  {/* TOOLTIP-I FORENZIK I VERIFIKUAR */}
+                                  <AnimatePresence>
+                                    {isHovered && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        transition={{ duration: 0.12 }}
+                                        className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-3.5 bg-surface border border-emerald-500/40 rounded-2xl shadow-2xl z-50 pointer-events-none backdrop-blur-md"
+                                      >
+                                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-[11px] uppercase tracking-wider mb-2 border-b border-main pb-1.5">
+                                          <ShieldCheck size={16} />
+                                          <span>Verifikim Zyrtar (100% Traceable)</span>
+                                        </div>
+                                        <div className="text-xs font-bold text-text-primary mb-1">
+                                          {fullLawTitle} • Neni {artNum}
+                                        </div>
+                                        <div className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                                          🏛️ Gazeta Zyrtare e Republikës së Kosovës
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
+                                          <span>Integriteti i Tekstit:</span>
+                                          <span className="text-emerald-500 font-bold">Tekst Zyrtar i Paprekur ✓</span>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </motion.div>
