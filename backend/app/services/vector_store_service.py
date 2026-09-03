@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V50.0 (ZERO LEAKAGE • HYBRID STATUTE & CASE SEARCH)
+# PHOENIX PROTOCOL - SAAS VECTOR STORE V55.0 (SINGLETON DB POOL & KOSOVO-WIDE COURT MATCHER)
 
 import os
 import time
@@ -14,6 +14,9 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Cache për lidhjen e MongoDB për të mos hapur qindra lidhje paralele
+_CACHED_DB = None
+
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -23,14 +26,22 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _get_db():
-    uri = settings.DATABASE_URI or os.getenv("DATABASE_URI")
-    db_name = settings.MONGO_DB_NAME or os.getenv("MONGO_DB_NAME", "advocatus_db")
-    
-    if not uri:
-        logger.error("❌ DATABASE_URI is empty in vector_store_service._get_db()")
-        raise ValueError("DATABASE_URI is not configured.")
-    
-    return MongoClient(uri)[db_name]
+    global _CACHED_DB
+    if _CACHED_DB is not None:
+        return _CACHED_DB
+
+    try:
+        from app.core.db import get_db_instance
+        _CACHED_DB = get_db_instance()
+        return _CACHED_DB
+    except Exception:
+        uri = settings.DATABASE_URI or os.getenv("DATABASE_URI")
+        db_name = settings.MONGO_DB_NAME or os.getenv("MONGO_DB_NAME", "advocatus_db")
+        if not uri:
+            logger.error("❌ DATABASE_URI is empty in vector_store_service._get_db()")
+            raise ValueError("DATABASE_URI is not configured.")
+        _CACHED_DB = MongoClient(uri)[db_name]
+        return _CACHED_DB
 
 
 def get_global_collection(): 
@@ -47,15 +58,15 @@ def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) 
     raw_results = []
     seen_ids = set()
 
-    # 1. KËRKIM I DREJTPËRDREJTË STATUTOR & PRECEDENTËSH
-    article_matches = re.findall(r'\b(?:Neni|Nenit|Nenin)\s*(\d+)\b', query_text, re.IGNORECASE)
-    case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A|PKR)\.?\s*Nr\.?\s*(\d+/\d+)\b', query_text, re.IGNORECASE)
+    # 1. KËRKIM I DREJTPËRDREJTË STATUTOR & PRECEDENTËSH (PHOENIX FIX: Përfshin KE, PA1, PML, Rev, etj.)
+    article_matches = re.findall(r'\b(?:Neni|Nenit|Nenin)\s*(\d+[a-zA-Z]?)\b', query_text, re.IGNORECASE)
+    case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A|PA1|PKR|KE|P|C|Cn)\.?\s*(?:nr|Nr|NR)?\.?\s*(\d+/\d{2,4})\b', query_text, re.IGNORECASE)
 
     direct_queries = []
     if article_matches:
         for art_num in article_matches:
             direct_queries.append({"article_number": str(art_num)})
-            if art_num.isdigit():
+            if str(art_num).isdigit():
                 direct_queries.append({"article_number": int(art_num)})
             direct_queries.append({"title": {"$regex": f"Neni\\s+{art_num}\\b", "$options": "i"}})
 
@@ -63,6 +74,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) 
         for cl_num in case_law_matches:
             direct_queries.append({"title": {"$regex": cl_num, "$options": "i"}})
             direct_queries.append({"text": {"$regex": cl_num, "$options": "i"}})
+            direct_queries.append({"law_title": {"$regex": cl_num, "$options": "i"}})
 
     if direct_queries:
         try:
@@ -117,7 +129,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) 
         law_title = r.get("law_title") or r.get("title") or "Dokument Juridik i Kosovës"
         article_num = str(r.get("article_number", ""))
         is_article = r.get("is_article", False)
-        is_case_law = r.get("is_case_law", False) or any(k in law_title.lower() for k in ["pml", "rev", "supreme", "kushtetuese", "apelit"])
+        is_case_law = r.get("is_case_law", False) or any(k in law_title.lower() for k in ["pml", "rev", "supreme", "kushtetuese", "apelit", "ke."])
 
         if is_case_law:
             source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor (Gjykata Supreme e Kosovës): {law_title}"
@@ -163,13 +175,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
     # 1. KËRKIMI VEKTORIAL ME FILTRIM TË OWNER_ID
     if vector:
         try:
-            vector_filter: Dict[str, Any] = {
-                "$or": [
-                    {"owner_id": user_id},
-                    {"owner_id": ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id}
-                ]
-            }
-            
             pipeline = [{
                 "$vectorSearch": {
                     "index": "vector_index", 
@@ -182,7 +187,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
             }]
             vector_results = list(coll.aggregate(pipeline))
             
-            # FILTRIMI HERMETIK SIPAS CASE_ID (ZERO LEAKAGE)
             for r in vector_results:
                 r_id = str(r.get("_id", ""))
                 r_case_id = str(r.get("case_id", ""))
@@ -233,7 +237,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
             
             fallback_chunks = []
             for doc in docs:
-                text_content = (doc.get("extracted_text") or doc.get("summary") or "").strip()
+                text_content = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or doc.get("summary") or "").strip()
                 if text_content and text_content != "Sinteza...":
                     file_name = doc.get("file_name") or doc.get("title") or "Dokument i Lëndës"
                     fallback_chunks.append({
