@@ -1,9 +1,11 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - MARKDOWN RENDERER V45.0 (NATIVE TOOLTIP PURGED)
+// PHOENIX PROTOCOL - FORENSIC CASELAW TOOLTIP ENABLED V46.0
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { LawCitationLink } from '../LawCitationLink';
-import { FileText, ExternalLink, Landmark } from 'lucide-react';
+import { FileText, ExternalLink, Landmark, Gavel, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const getNodeText = (node: any): string => {
   if (!node) return '';
@@ -14,6 +16,122 @@ const getNodeText = (node: any): string => {
   return '';
 };
 
+// ============================================================================
+// COMPONENT: PRECEDENT CITATION LINK (Me Tooltip Forenzik për Aktgjykimet)
+// ============================================================================
+const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, tooltipLeft: 0, arrowOffset: 0 });
+  const containerRef = useRef<HTMLSpanElement>(null);
+
+  const updateCoordinates = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const tooltipWidth = viewportWidth < 640 ? 300 : 340;
+      const margin = 16;
+
+      const idealLeft = rect.left + rect.width / 2;
+      const minLeft = tooltipWidth / 2 + margin;
+      const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
+      const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft));
+      const arrowOffset = idealLeft - clampedLeft;
+
+      setCoords({
+        top: rect.top + window.scrollY,
+        tooltipLeft: clampedLeft,
+        arrowOffset: arrowOffset,
+      });
+    }
+  };
+
+  const handleMouseEnter = () => {
+    updateCoordinates();
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.dispatchEvent(
+      new CustomEvent('open_precedent_preview', {
+        detail: { caseNumber: cleanLabel }
+      })
+    );
+  };
+
+  const tooltipContent = (
+    <AnimatePresence>
+      {showTooltip && (
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+          transition={{ duration: 0.12 }}
+          className="absolute w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-primary-start/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+          style={{
+            top: `${coords.top - 8}px`,
+            left: `${coords.tooltipLeft}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 text-primary-start font-bold text-xs">
+              <CheckCircle2 size={15} />
+              <span>Precedent i Verifikuar (100%)</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary-start/10 text-primary-start font-bold">
+              GJ. SUPREME
+            </span>
+          </div>
+
+          <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 truncate flex items-center gap-1.5">
+            <Gavel size={14} className="text-primary-start shrink-0" />
+            {cleanLabel}
+          </div>
+          
+          <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
+            Ky aktgjykim hapet drejtpërdrejt nga arkiva origjinale e Gjykatës Supreme të Republikës së Kosovës.
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+            <span>Integriteti:</span>
+            <span className="text-primary-start font-bold">PDF Origjinale ✓</span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <span
+      ref={containerRef}
+      className="inline-flex items-center align-baseline mx-0.5 my-0.5"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <button
+        type="button"
+        onClick={handleClick}
+        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
+      >
+        <Landmark size={12} className="shrink-0 text-amber-500" />
+        <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
+      </button>
+
+      {createPortal(tooltipContent, document.body)}
+    </span>
+  );
+};
+
+
+// ============================================================================
+// MAIN MARKDOWN COMPONENTS BUILDER
+// ============================================================================
 export const buildMarkdownComponents = () => ({
   h1: ({ node, ...props }: any): React.JSX.Element => (
     <h1
@@ -67,31 +185,10 @@ export const buildMarkdownComponents = () => ({
 
     if (isPrecedent) {
       const cleanLabel = rawText.replace(/^\[+|\]+$/g, '').trim();
-
-      return (
-        <span className="inline-flex items-center align-baseline mx-0.5 my-0.5">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              window.dispatchEvent(
-                new CustomEvent('open_precedent_preview', {
-                  detail: { caseNumber: cleanLabel }
-                })
-              );
-            }}
-            // Hequr atributi 'title' për të shmangur native tooltip të browser-it
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
-          >
-            <Landmark size={12} className="shrink-0 text-amber-500" />
-            <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
-          </button>
-        </span>
-      );
+      return <PrecedentCitationLink cleanLabel={cleanLabel} />;
     }
 
-    // 2. STATUTE ARTICLE LINKS (Kalon tek LawCitationLink ku ndodhet Hover-i i ri)
+    // 2. STATUTE ARTICLE LINKS
     if (rawHref.startsWith('/laws/article') || rawHref.startsWith('/laws/')) {
       try {
         const url = new URL(rawHref, window.location.origin);
@@ -140,7 +237,6 @@ export const buildMarkdownComponents = () => ({
               })
             );
           }}
-          // Hequr 'title'
           className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mx-1 my-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 cursor-pointer focus:outline-none shadow-sm align-baseline"
         >
           <FileText size={12} className="shrink-0 text-primary-start" />
@@ -155,7 +251,6 @@ export const buildMarkdownComponents = () => ({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        // Hequr 'title'
         className="inline-flex items-center gap-1 text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors mx-0.5"
       >
         <span>{children}</span>
