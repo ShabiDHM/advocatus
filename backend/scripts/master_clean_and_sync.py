@@ -1,5 +1,5 @@
 # FILE: backend/scripts/master_clean_and_sync.py
-# PHOENIX PROTOCOL - GRANULAR MASTER INGESTOR V16.0 (--caselaw, --statutes, --academic, --clean)
+# PHOENIX PROTOCOL - GRANULAR MASTER INGESTOR V17.0 (FULL SUPREME JURISPRUDENCE & OPINIONS 2012-2025)
 
 import os
 import sys
@@ -27,13 +27,16 @@ from app.services.embedding_service import generate_embeddings_batch
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("master_sync")
 
+# REGEX I ZGJERUAR PËR AKTGJYKIMET, MENDIMET JURIDIKE DHE QËNDRIMET PARIMORE TË SUPREMES
 CASE_NO_PATTERN = re.compile(
-    r'((?:ARJ|PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp|KA)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2}))', 
+    r'((?:ARJ|PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp|KA|CN)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2})|'
+    r'(?:Mendim\s+Juridik|Qëndrim\s+Parimor|Qendrim\s+Parimor|Mendimi\s+Juridik)\s*(?:-\s*)?(?:Nr\.?\s*)?\d+\s*/\s*(?:20\d{2}|\d{2}))', 
     re.IGNORECASE
 )
 
 CASE_HEADER_START_REGEX = re.compile(
-    r'(?:Aktgjykim(?:i)?|Aktvendim(?:i)?|Kolegj(?:i)?)\s+(?:i\s+kolegjit\s+)?(?:penal|civil|administrativ|tregtar|të\s+përgjithshëm)?\s*(?:të\s+Gjykatës\s+Supreme)?',
+    r'(?:Aktgjykim(?:i)?|Aktvendim(?:i)?|Kolegj(?:i)?|Mendim\s+Juridik|Qëndrim\s+Parimor|Qendrim\s+Parimor)\s+'
+    r'(?:i\s+kolegjit\s+)?(?:penal|civil|administrativ|tregtar|të\s+përgjithshëm)?\s*(?:të\s+Gjykatës\s+Supreme)?',
     re.IGNORECASE
 )
 
@@ -198,7 +201,7 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(docs_to_insert)} nene]: {law_title}")
                 stats["laws_new"] += 1
 
-    # 2. VENDIMET E GJYKATËS SUPREME
+    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME (2012-2025)
     if sync_all or sync_only_caselaw:
         print("\n" + "="*60)
         print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law)")
@@ -222,6 +225,7 @@ def run_master_sync():
         for file_path in caselaw_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
+            default_doc_title = clean_law_title_from_filename(fname)
 
             existing_count = coll.count_documents({"source": fname, "file_hash": fhash})
             if existing_count > 5 and not (force_clean_all or sync_only_caselaw):
@@ -234,7 +238,7 @@ def run_master_sync():
 
             doc = fitz.open(str(file_path))
             raw_chunks = []
-            current_case_no = "Gjykata Supreme e Kosovës"
+            current_case_no = default_doc_title
             case_start_page = 1
             chunk_idx = 1
 
@@ -247,7 +251,7 @@ def run_master_sync():
                 
                 if is_new_header or matches:
                     if matches:
-                        current_case_no = matches[0].strip().replace(" ", "")
+                        current_case_no = matches[0].strip().replace("  ", " ")
                     case_start_page = page_num + 1
 
                 chunk_size = 1200
@@ -260,7 +264,7 @@ def run_master_sync():
                     if len(chunk_str) > 20:
                         raw_chunks.append({
                             "chunk_id": str(uuid.uuid4()),
-                            "law_title": f"Gjykata Supreme e Kosovës - {current_case_no}",
+                            "law_title": f"Gjykata Supreme - {current_case_no}",
                             "title": current_case_no,
                             "source": fname,
                             "file_hash": fhash,
@@ -373,7 +377,7 @@ def run_master_sync():
                 stats["acad_new"] += 1
 
     print("\n" + "="*60)
-    print("🏁 SINKRONIZIMI PËRFUNDOI:")
+    print("🏁 SINKRONIZIMI PËRFUNDOI ME SUKSES:")
     print(f"   • Ligje:      {stats['laws_new']} të reja | {stats['laws_skipped']} të sinkronizuara")
     print(f"   • Gj.Supreme: {stats['caselaw_new']} të reja | {stats['caselaw_skipped']} të sinkronizuara")
     print(f"   • Akademia:   {stats['acad_new']} të reja | {stats['acad_skipped']} të sinkronizuara")
