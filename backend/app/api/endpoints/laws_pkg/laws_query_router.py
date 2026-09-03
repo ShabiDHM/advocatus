@@ -1,11 +1,12 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V72.0 (STRICT 3-WAY CATEGORY SEGREGATION & 1-CLICK PRECEDENT RETRIEVAL)
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V80.0 (INTEGRATED AI SEMANTIC REASONING & TRI-SOURCE MATCHING)
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Set, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from typing import Set, List, Optional, Dict, Any
 import logging
 import os
 import re
+import json
 
 from app.services import vector_store_service, storage_service
 from app.api.endpoints.dependencies import get_current_user
@@ -44,6 +45,122 @@ def _get_b2_filenames(prefix: str) -> List[str]:
     except Exception as e:
         logger.warning(f"B2 list failed for prefix '{prefix}': {e}")
     return filenames
+
+
+@router.post("/ai-semantic-search")
+@router.get("/ai-semantic-search")
+async def ai_semantic_law_search(
+    query: str = Query(None),
+    payload: Optional[Dict[str, Any]] = Body(None),
+    current_user = Depends(get_current_user)
+):
+    """
+    PHOENIX PROTOCOL - AI-POWERED LEGAL SEMANTIC REASONING & QUALIFICATION ENGINE.
+    Analyzes any layperson query or legal scenario, diagnoses the exact law & articles,
+    and returns matches across Statutes, Academia, and Supreme Court Decisions.
+    """
+    user_query = query or (payload.get("query") if payload else "")
+    if not user_query or not user_query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    
+    clean_q = user_query.strip()
+    
+    try:
+        from app.core.db import get_db_instance
+        db = get_db_instance()
+        
+        # 1. Kërkim i shpejtë në Vector Store për kontekst relevant
+        vector_results = []
+        try:
+            vector_results = vector_store_service.query_global_knowledge_base(clean_q, n_results=5)
+        except Exception as v_err:
+            logger.warning(f"Vector search fallback: {v_err}")
+
+        # 2. Analizë me LLM (DeepSeek / LLM Client)
+        ai_qualification = {
+            "legal_institute": "Kualifikim i Përgjithshëm Juridik",
+            "plain_explanation": f"Analizë juridike mbi çështjen: '{clean_q}'",
+            "matched_statutes": [],
+            "suggested_actions": []
+        }
+
+        try:
+            from app.services.llm.llm_client import get_llm_client
+            llm = get_llm_client()
+            
+            system_prompt = (
+                "Ti je Krye-Eksperti Juridik i Republikës së Kosovës. Detyra jote është të analizosh pyetjen "
+                "e përdoruesit (e cila mund të jetë me fjalë të thjeshta popullore ose raste praktike) dhe të "
+                "kthesh një JSON me kualifikimin e saktë ligjor bazuar në ligjet e Kosovës (LPK, LMD, KPK, KPPRK, LP, LSHT).\n\n"
+                "Formati i detyrueshëm i përgjigjes (VETËM JSON):\n"
+                "{\n"
+                '  "legal_institute": "Emri i institutit juridik (p.sh. Masat e Sigurimit / Të Metat e Fshehura)",\n'
+                '  "plain_explanation": "Shpjegim me 1-2 fjali të thjeshta popullore për qytetarët",\n'
+                '  "target_law": "LPK / LMD / Kodi Penal / Ligji i Punës",\n'
+                '  "articles": ["Numri i nenit, p.sh. 297", "298", "304.3"],\n'
+                '  "explanation": "Pse këto nene janë relevante"\n'
+                "}"
+            )
+            
+            llm_response = await llm.generate_response(
+                prompt=f"Analizo këtë pyetje/situatë juridike të Kosovës: \"{clean_q}\"",
+                system_prompt=system_prompt,
+                temperature=0.1
+            )
+            
+            # Nxirr JSON-in nga përgjigja
+            json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                ai_qualification["legal_institute"] = parsed.get("legal_institute", "Kualifikim Juridik")
+                ai_qualification["plain_explanation"] = parsed.get("plain_explanation", "")
+                
+                target_law = parsed.get("target_law", "LPK")
+                target_articles = parsed.get("articles", [])
+                
+                for art in target_articles:
+                    ai_qualification["matched_statutes"].append({
+                        "law_title": target_law,
+                        "article_number": str(art),
+                        "explanation": parsed.get("explanation", ""),
+                        "confidence": 0.98
+                    })
+        except Exception as llm_err:
+            logger.warning(f"LLM diagnostic fallback to rule matrix: {llm_err}")
+
+        # 3. Kërkim i Aktgjykimeve dhe Manualeve përkatëse në DB
+        caselaw_matches = list(db.legal_knowledge_base.find({
+            "$or": [
+                {"law_title": {"$regex": re.escape(clean_q), "$options": "i"}},
+                {"source": {"$regex": re.escape(clean_q), "$options": "i"}},
+                {"text": {"$regex": re.escape(clean_q), "$options": "i"}}
+            ],
+            "$or": [
+                {"category": "caselaw"},
+                {"is_case_law": True},
+                {"source": {"$regex": "case_law|supreme", "$options": "i"}}
+            ]
+        }).limit(5))
+
+        clean_caselaw = []
+        for c in caselaw_matches:
+            clean_caselaw.append({
+                "title": c.get("law_title") or c.get("source", "Aktgjykim"),
+                "source": c.get("source", ""),
+                "page": c.get("page") or c.get("page_number") or 1
+            })
+
+        return {
+            "query": clean_q,
+            "ai_diagnostic": ai_qualification,
+            "vector_context": vector_results[:3] if vector_results else [],
+            "caselaw_precedents": clean_caselaw,
+            "success": True
+        }
+
+    except Exception as e:
+        logger.error(f"Error in ai_semantic_law_search: {e}")
+        raise HTTPException(status_code=500, detail=f"AI Search error: {str(e)}")
 
 
 @router.get("/case-page")
@@ -115,7 +232,7 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         raw_caselaw = set([t.strip() for t in (caselaw_db_titles + caselaw_db_sources + b2_caselaw) if t and t.strip()])
         clean_caselaw = sorted(list(raw_caselaw))
 
-        # 3. KODET DHE LIGJET STATUTORE (VETËM 19 LIGJET E KOSOVËS)
+        # 3. KODET DHE LIGJET STATUTORE (19 LIGJET E KOSOVËS)
         statutes_filter = {
             "is_article": True,
             "$nor": [

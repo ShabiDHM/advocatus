@@ -1,5 +1,5 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST LAW OVERVIEW WITH STEP HISTORY NAVIGATION
+// PHOENIX PROTOCOL - ZERO-TECH ACCESSIBLE SEMANTIC LAW ENGINE V60.0
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,10 +8,15 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, ArrowRight, FileText, AlertCircle, 
   BookOpen, ExternalLink, Search, X,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, Sparkles, Filter, Lightbulb
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
+import { 
+  LEGAL_CATEGORIES, 
+  QUICK_HELP_CHIPS,
+  performSemanticSearch 
+} from '../utils/legalSemanticEngine';
 
 interface LawOverviewData {
   law_title: string;
@@ -30,6 +35,7 @@ export default function LawOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isExpanded, setIsExpanded] = useState(false);
   
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -56,18 +62,41 @@ export default function LawOverviewPage() {
   }, [lawTitle, t]);
 
   const pdfUrl = data?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source)}` : null;
-
   const displayHeaderTitle = lawTitle || data?.law_title || '';
 
-  const filteredArticles = useMemo(() => {
-    if (!data?.articles) return [];
-    if (!articleSearchQuery.trim()) return data.articles;
-    const cleanQuery = articleSearchQuery.toLowerCase().trim().replace(/^neni\s*/i, '');
-    return data.articles.filter((art) => {
-      const cleanArt = art.toLowerCase().replace(/^neni\s*/i, '').trim();
-      return cleanArt.includes(cleanQuery) || art.toLowerCase().includes(cleanQuery);
-    });
-  }, [data?.articles, articleSearchQuery]);
+  // REZULTATI I MOTORIT TË KËRKIMIT SEMANTIK DHE FILTRIMIT
+  const searchResults = useMemo(() => {
+    if (!data?.articles) {
+      return {
+        filteredArticles: [],
+        matchedIntent: null,
+        highlightWords: [],
+      };
+    }
+
+    return performSemanticSearch(
+      data.articles,
+      articleSearchQuery,
+      displayHeaderTitle,
+      activeCategory
+    );
+  }, [data?.articles, articleSearchQuery, displayHeaderTitle, activeCategory]);
+
+  const { filteredArticles, matchedIntent, highlightWords } = searchResults;
+
+  const handleOpenArticle = (article: string) => {
+    const highlightParam = highlightWords.length > 0 ? `&highlight=${encodeURIComponent(highlightWords.join(' '))}` : '';
+    navigate(
+      `/laws/article?lawTitle=${encodeURIComponent(displayHeaderTitle)}&articleNumber=${encodeURIComponent(
+        article
+      )}${highlightParam}`
+    );
+  };
+
+  const handleChipClick = (query: string) => {
+    setArticleSearchQuery(query);
+    setActiveCategory('all');
+  };
 
   if (loading) {
     return (
@@ -108,7 +137,7 @@ export default function LawOverviewPage() {
         isExpanded ? 'max-w-[98vw] px-2 sm:px-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8'
       }`}>
         
-        {/* Navigimi me dy ikona të pastra (1 Hap Mbrapa / 1 Hap Përpara) */}
+        {/* Navigimi 1 Hap Mbrapa / 1 Hap Përpara */}
         <div className="flex items-center gap-2 mb-4">
           <button
             type="button"
@@ -131,12 +160,11 @@ export default function LawOverviewPage() {
         {/* Paneli Kryesor */}
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface transition-all duration-300">
           
-          {/* Header Bar i Pastër */}
+          {/* Header Bar */}
           <div className="bg-canvas px-6 sm:px-10 py-6 border-b border-main relative overflow-hidden">
             <div className="relative z-10 flex flex-col gap-4">
               <div className="flex items-center justify-between gap-3">
                 
-                {/* Butoni Shiko PDF të Plotë */}
                 {pdfUrl ? (
                   <button
                     type="button"
@@ -152,7 +180,6 @@ export default function LawOverviewPage() {
                   <div />
                 )}
 
-                {/* Butoni Vetëm me Ikonë për Zmadhimin e Ekranit */}
                 <button
                   type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -167,12 +194,10 @@ export default function LawOverviewPage() {
                 </button>
               </div>
 
-              {/* Titulli Kryesor i Ligjit */}
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary leading-tight tracking-tight">
                 {displayHeaderTitle}
               </h1>
 
-              {/* Numri total i neneve */}
               <div className="flex items-center gap-2 pt-2 border-t border-main/50">
                 <div className="flex items-center gap-2 bg-surface text-text-secondary border border-main px-3 py-1 rounded-xl text-xs font-bold font-mono">
                   <FileText size={14} className="text-primary-start" />
@@ -182,35 +207,146 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
+          {/* KËRKUESI INTELIGJENT & NDËRFAQJA E LEHTË */}
+          <div className="bg-surface px-4 sm:px-8 pt-5 pb-5 border-b border-main flex flex-col gap-4">
+            
+            {/* Search Bar */}
+            <div className="relative w-full">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center gap-1.5 pointer-events-none">
+                <Search size={18} />
+                <Sparkles size={14} className="animate-pulse text-amber-500" />
+              </div>
+
+              <input
+                type="text"
+                placeholder="Shkruaj situatën tënde (p.sh. 's'kam pare për gjyq', 'bllokimi i llogarive', 'avokati pa letrën')..."
+                value={articleSearchQuery}
+                onChange={(e) => setArticleSearchQuery(e.target.value)}
+                className="w-full pl-14 pr-10 py-3.5 bg-canvas border border-main rounded-2xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
+              />
+
+              {articleSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setArticleSearchQuery('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-danger-start p-1 cursor-pointer transition-colors"
+                  title="Pastro kërkimin"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* BUTONAT ME 1-KLIKIM PËR SITUATAT E ZAKONSHME (ZERO-TECH CHIPS) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-text-muted uppercase tracking-wider">
+                <Lightbulb size={13} className="text-amber-500" />
+                <span>Shembuj të Shpejtë (Kliko për të gjetur menjëherë):</span>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 pt-0.5">
+                {QUICK_HELP_CHIPS.map((chip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleChipClick(chip.query)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-canvas hover:bg-hover border border-main hover:border-primary-start/60 text-xs font-semibold text-text-primary transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs hover-lift"
+                  >
+                    <span>{chip.icon}</span>
+                    <span>{chip.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* FILTRAT SIPAS KATEGORIVE (CATEGORY PILLS) */}
+            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pt-1 border-t border-main/50">
+              <div className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1 shrink-0 mr-1">
+                <Filter size={12} className="text-primary-start" />
+                <span>Kategoritë:</span>
+              </div>
+
+              {LEGAL_CATEGORIES.map((cat) => {
+                const isActive = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border shrink-0 ${
+                      isActive
+                        ? 'bg-primary-start text-white border-primary-start shadow-sm'
+                        : 'bg-canvas text-text-secondary border-main hover:border-primary-start/50 hover:text-text-primary'
+                    }`}
+                    title={cat.description}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* SHPJEGIMI NË GJUHË TË THJESHTË POPULLORE (HUMAN-FRIENDLY BANNER) */}
+            <AnimatePresence>
+              {matchedIntent && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 flex items-start gap-3 text-xs shadow-xs"
+                >
+                  <div className="p-2 bg-primary-start text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
+                    <Sparkles size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-black text-text-primary text-xs sm:text-sm">
+                        {matchedIntent.intent}
+                      </span>
+                      <span className="px-2 py-0.5 bg-primary-start/20 text-primary-start rounded-md font-mono text-[10px] font-black uppercase">
+                        Gjetje Automatike
+                      </span>
+                    </div>
+
+                    {/* Shpjegimi popullor */}
+                    <p className="text-text-primary font-medium text-xs leading-relaxed mb-1.5">
+                      💡 <strong>Në fjalë të thjeshta:</strong> {matchedIntent.plainLanguageSummary}
+                    </p>
+
+                    {/* Shpjegimi ligjor */}
+                    {matchedIntent.suggestedArticles.map((sug, i) => (
+                      <p key={i} className="text-text-secondary text-[11px] leading-relaxed">
+                        📜 <strong>Baza Ligjore:</strong> {sug.explanation}
+                      </p>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Trupi me Rrjetën e Neneve */}
           <div className="bg-canvas/30 px-4 sm:px-8 py-6 pb-8 flex flex-col">
             
-            {/* Shiriti i Kërkimit të Nenit */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
                 <BookOpen size={16} className="text-primary-start" />
                 Përmbajtja e Neneve ({filteredArticles.length})
               </h2>
 
-              <div className="relative w-full sm:w-72">
-                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary-start pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Kërko nenin (p.sh. 390)..."
-                  value={articleSearchQuery}
-                  onChange={(e) => setArticleSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2.5 bg-surface border border-main rounded-xl text-xs font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start/30 transition-all"
-                />
-                {articleSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setArticleSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-0.5"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
+              {(articleSearchQuery || activeCategory !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArticleSearchQuery('');
+                    setActiveCategory('all');
+                  }}
+                  className="text-xs font-bold text-primary-start hover:underline cursor-pointer"
+                >
+                  Pastro të gjithë filtrat
+                </button>
+              )}
             </div>
 
             {/* Rrjeta me Scroll */}
@@ -218,8 +354,16 @@ export default function LawOverviewPage() {
               isExpanded ? 'max-h-[75vh]' : 'max-h-[55vh]'
             }`}>
               {filteredArticles.length === 0 ? (
-                <div className="py-12 text-center text-xs font-bold text-text-muted">
-                  Nuk u gjet asnjë nen për kërkimin "{articleSearchQuery}"
+                <div className="py-16 text-center flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-canvas border border-main flex items-center justify-center text-text-muted mb-3">
+                    <Search size={22} />
+                  </div>
+                  <p className="text-xs font-bold text-text-primary">
+                    Nuk u gjet asnjë nen për kërkimin "{articleSearchQuery}"
+                  </p>
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Provoni të klikoni një nga butonat e shembujve më lart (p.sh. "S'kam para për taksa gjyqi").
+                  </p>
                 </div>
               ) : (
                 <div className={`grid gap-2.5 sm:gap-3 ${
@@ -236,14 +380,8 @@ export default function LawOverviewPage() {
                     return (
                       <button
                         key={article}
-                        onClick={() =>
-                          navigate(
-                            `/laws/article?lawTitle=${encodeURIComponent(displayHeaderTitle)}&articleNumber=${encodeURIComponent(
-                              article
-                            )}`
-                          )
-                        }
-                        className="flex items-center justify-center gap-2 px-3 py-3.5 bg-canvas hover:bg-primary-start hover:text-white border border-main hover:border-primary-start rounded-xl transition-all text-xs sm:text-sm font-bold text-text-primary hover-lift active:scale-95 cursor-pointer shadow-xs"
+                        onClick={() => handleOpenArticle(article)}
+                        className="group flex flex-col items-center justify-center p-3.5 bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start rounded-xl transition-all text-xs sm:text-sm font-bold hover-lift active:scale-95 cursor-pointer shadow-xs"
                       >
                         <span className="truncate">{label}</span>
                       </button>
