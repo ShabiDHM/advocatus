@@ -1,8 +1,7 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - MARKDOWN RENDERER V42.0 (DIRECT 1-CLICK IN-CHAT PRECEDENT VIEWER)
+// PHOENIX PROTOCOL - MARKDOWN RENDERER V43.0 (TYPESCRIPT CLEAN & DIRECT IN-CHAT PRECEDENT VIEWER)
 
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { LawCitationLink } from '../LawCitationLink';
 import { FileText, ExternalLink, Landmark } from 'lucide-react';
 
