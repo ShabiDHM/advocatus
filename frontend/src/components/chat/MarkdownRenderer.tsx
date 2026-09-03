@@ -1,5 +1,5 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - FORENSIC CASELAW TOOLTIP ENABLED V46.0
+// PHOENIX PROTOCOL - STRICT UNIFIED FORENSIC TOOLTIP ENGINE V47.0
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,7 +17,7 @@ const getNodeText = (node: any): string => {
 };
 
 // ============================================================================
-// COMPONENT: PRECEDENT CITATION LINK (Me Tooltip Forenzik për Aktgjykimet)
+// COMPONENT: PRECEDENT CITATION LINK (IDENTIK SI TE LAW SEARCH PAGE)
 // ============================================================================
 const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -28,7 +28,7 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const tooltipWidth = viewportWidth < 640 ? 300 : 340;
+      const tooltipWidth = viewportWidth < 640 ? 300 : 320;
       const margin = 16;
 
       const idealLeft = rect.left + rect.width / 2;
@@ -72,36 +72,47 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.95 }}
           transition={{ duration: 0.12 }}
-          className="absolute w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-primary-start/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+          className="absolute w-80 p-4 bg-surface border-2 border-primary-start/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
           style={{
             top: `${coords.top - 8}px`,
             left: `${coords.tooltipLeft}px`,
             transform: 'translate(-50%, -100%)',
           }}
         >
-          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
+          {/* Vula e Identike e Sigurisë */}
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-main">
             <div className="flex items-center gap-1.5 text-primary-start font-bold text-xs">
               <CheckCircle2 size={15} />
               <span>Precedent i Verifikuar (100%)</span>
             </div>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary-start/10 text-primary-start font-bold">
-              GJ. SUPREME
+              PRECEDENT PARIMOR
             </span>
           </div>
 
-          <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 truncate flex items-center gap-1.5">
+          <div className="text-xs font-bold text-text-primary mb-1 truncate flex items-center gap-1.5">
             <Gavel size={14} className="text-primary-start shrink-0" />
             {cleanLabel}
           </div>
           
-          <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
+          <div className="text-[11px] text-text-secondary leading-relaxed mb-2.5">
             Ky aktgjykim hapet drejtpërdrejt nga arkiva origjinale e Gjykatës Supreme të Republikës së Kosovës.
           </div>
 
-          <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+          <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-2 rounded-xl border border-main text-text-muted">
             <span>Integriteti:</span>
             <span className="text-primary-start font-bold">PDF Origjinale ✓</span>
           </div>
+
+          {/* Shigjeta treguese poshtë */}
+          <div
+            className="absolute top-full -translate-x-1/2 -mt-[2px] border-[8px] border-transparent pointer-events-none"
+            style={{
+              borderTopColor: 'var(--tw-prose-body, currentColor)',
+              opacity: 0.6,
+              left: `calc(50% + ${coords.arrowOffset}px)`,
+            }}
+          />
         </motion.div>
       )}
     </AnimatePresence>
@@ -117,7 +128,7 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
       >
         <Landmark size={12} className="shrink-0 text-amber-500" />
         <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
@@ -176,7 +187,7 @@ export const buildMarkdownComponents = () => ({
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR)
+    // 1. SUPREME COURT PRECEDENTS
     const isPrecedent =
       /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
       rawHref.includes('/laws/library?q=') ||
