@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - HIGH-INTEGRITY FORENSIC TOOLTIP & DISCOVERY HUB V101.0 (CLEAN TS COMPILATION)
+// PHOENIX PROTOCOL - HIGH-INTEGRITY FORENSIC TOOLTIP & DISCOVERY HUB V102.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -490,8 +490,8 @@ export default function LawSearchPage() {
                                     🏛️ {item.source || 'Gazeta Zyrtare e Republikës së Kosovës'}
                                   </div>
                                   <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
-                                    <span>Përputhshmëria: 99.8%</span>
-                                    <span className="text-emerald-500 font-bold">Autentike ✓</span>
+                                    <span>Integriteti i Tekstit:</span>
+                                    <span className="text-emerald-500 font-bold">Tekst Zyrtar i Paprekur ✓</span>
                                   </div>
                                 </motion.div>
                               )}
