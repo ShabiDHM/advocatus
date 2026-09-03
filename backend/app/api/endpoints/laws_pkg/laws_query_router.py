@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - JURISDICTIONAL DOMAIN ISOLATION & STOP-WORD PURGED RAG V130.0
+# PHOENIX PROTOCOL - ALBANIAN STEMMED & TARGETED DOMAIN BOOST RAG V140.0
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any, Tuple
@@ -16,16 +16,15 @@ from app.api.endpoints.laws_pkg.laws_search_service import find_documents_by_tit
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 1. SHKURTESAT ZYRTARE TË LIGJEVE TË KOSOVËS
 LAW_ACRONYMS: Dict[str, str] = {
     "lmd": "Ligji për Marrëdhëniet e Detyrimeve",
     "lpk": "Ligji për Procedurën Kontestimore",
     "lpp": "Ligji për Procedurën Përmbarimore",
+    "lsht": "Ligji për Shoqëritë Tregtare",
     "kpk": "Kodi Penal i Republikës së Kosovës",
     "kprk": "Kodi Penal i Republikës së Kosovës",
     "kpprk": "Kodi i Procedurës Penale",
     "lfk": "Ligji për Familjen i Kosovës",
-    "lsht": "Ligji për Shoqëritë Tregtare",
     "lp": "Ligji i Punës",
 }
 
@@ -35,20 +34,17 @@ ALBANIAN_STOP_WORDS = {
     "i", "e", "të", "te", "së", "se", "më", "me", "në", "ne", "nga", "për", "per", 
     "ndaj", "tek", "ku", "ka", "pa", "brenda", "para", "pas", "si", "ose", "dhe", 
     "po", "jo", "një", "nje", "çdo", "cdo", "këtë", "kete", "atij", "asaj", "keta",
-    "keto", "derisa", "nuk", "eshte", "është", "jane", "janë", "ditor", "ditëve"
+    "keto", "derisa", "nuk", "eshte", "është", "jane", "janë", "ditor", "ditëve", "detyra"
 }
 
-CIVIL_COMMERCIAL_ENFORCEMENT_INDICATORS = [
-    "prapësim", "prapesim", "përmbarim", "permbarim", "urdhër përmbarimor", "urdher", 
-    "kontrat", "qira", "dëmshpërblim", "demshperblim", "pasurim", "kamata", "kamate", 
-    "ortak", "aksion", "shoqëri tregtare", "shoqeri", "fiduciar", "fajde", "detyrim", 
-    "taksa gjyqesore", "shpenzime", "masë sigurimi", "masa e sigurimit", "autorizim", "prokur"
-]
-
-PENAL_INDICATORS = [
-    "vepër penale", "veper penale", "vjedhje", "mashtrim", "vrasje", "paraburgim", 
-    "dënim", "denim", "burgim", "armëmbajtje", "narkotik", "korrupsion", "keqpërdorim"
-]
+def _stem_albanian_word(word: str) -> str:
+    """Stems Albanian nouns, adjectives, and declensions to root form."""
+    w = word.lower().strip()
+    # Pastro prapashtesat kryesore të shquarsisë dhe rasave
+    for suffix in ["ërisë", "erise", "imin", "imit", "imin", "eve", "ave", "ore", "ave", "eve", "it", "ut", "ës", "es", "ve", "ët", "et", "ja", "je", "in", "ën", "en"]:
+        if len(w) > len(suffix) + 3 and w.endswith(suffix):
+            return w[:-len(suffix)]
+    return w
 
 
 def _get_b2_filenames(prefix: str) -> List[str]:
@@ -67,51 +63,44 @@ def _get_b2_filenames(prefix: str) -> List[str]:
     return filenames
 
 
-def _determine_legal_domain(query_lower: str) -> str:
-    is_civil = any(ind in query_lower for ind in CIVIL_COMMERCIAL_ENFORCEMENT_INDICATORS)
-    is_penal = any(ind in query_lower for ind in PENAL_INDICATORS)
-
-    if is_civil and not is_penal:
-        return "CIVIL_ENFORCEMENT"
-    if is_penal and not is_civil:
-        return "PENAL"
-    return "GENERAL"
-
-
-def _calculate_doc_relevance(doc: dict, meaningful_tokens: List[str], raw_query_lower: str, domain: str) -> int:
+def _calculate_doc_relevance(doc: dict, stemmed_tokens: List[str], raw_query_lower: str) -> int:
     score = 0
     law_title = str(doc.get("law_title", "")).lower()
     text = str(doc.get("text", "")).lower()
 
-    # 1. DOMAIN FILTERING (BLOKIMI I KODIT PENAL KUR KËRKOHET CIVIL/PËRMBARIM)
-    if domain == "CIVIL_ENFORCEMENT":
+    # 1. BOOST PËR SHOQËRITË TREGTARE (LSHT)
+    if any(k in raw_query_lower for k in ["ortak", "besnik", "konkurren", "tregtar", "aksion", "shoqer", "shoqër", "fiduciar", "kapital"]):
+        if "tregtare" in law_title or "06/l-016" in law_title or "06 l 016" in law_title:
+            score += 450
+        if "kushtetuta" in law_title or "mitur" in law_title:
+            score -= 500  # Penalizo Kushtetutën në çështje tregtare
+
+    # 2. BOOST PËR PROCEDURËN PËRMBARIMORE (LPP)
+    if any(k in raw_query_lower for k in ["përmbarim", "permbarim", "prapësim", "prapesim", "urdhër përmbarimor"]):
+        if "përmbarimore" in law_title or "permbarimore" in law_title or "04/l-139" in law_title:
+            score += 450
+        elif "kontestimore" in law_title:
+            score += 80
         if "penal" in law_title or "mitur" in law_title:
-            return -1000  # ZERO & ELIMINO KODIN PENAL
-        
-        if "përmbarim" in raw_query_lower or "permbarim" in raw_query_lower or "prapësim" in raw_query_lower or "prapesim" in raw_query_lower:
-            if "përmbarimore" in law_title or "permbarimore" in law_title or "04/l-139" in law_title or "04 l 139" in law_title:
-                score += 300
-            elif "kontestimore" in law_title:
-                score += 80
+            score -= 500
 
-    elif domain == "PENAL":
-        if "kontestimore" in law_title or "detyrimeve" in law_title or "tregtare" in law_title:
-            return -1000
-        if "penal" in law_title:
-            score += 200
+    # 3. BOOST PËR DETYRIMET DHE DËMIN (LMD)
+    if any(k in raw_query_lower for k in ["kamata", "kamate", "8%", "dëmshpërblim", "demshperblim", "pasurim", "kontrat"]):
+        if "detyrimeve" in law_title or "04/l-077" in law_title or "04 l 077" in law_title:
+            score += 450
 
-    # 2. MATCHING I TOKENEVE TË VLEFSHME (PA STOP-WORDS)
-    for token in meaningful_tokens:
+    # 4. TOKEN MATCHING ME RRËNJË TË STEMUARA
+    for token in stemmed_tokens:
         if token in law_title:
             score += 40
         if token in text:
-            score += 15
+            score += 20
 
-    # 3. PËRPUTHJE ME FRAZA
-    if "prapësim" in text or "prapesim" in text:
-        score += 80
-    if "urdhrit përmbarimor" in text or "urdhrit permbarimor" in text:
-        score += 100
+    # 5. PËRPUTHJE SPECIFIKE NENESH TË LSHT (NENET 258 & 259)
+    if "besnik" in raw_query_lower or "konkurr" in raw_query_lower:
+        art_num = str(doc.get("article_number", "")).strip()
+        if art_num in ["258", "259", "258.1", "258.5", "259.7"]:
+            score += 300
 
     return score
 
@@ -134,17 +123,16 @@ async def ai_semantic_law_search(
         from app.core.db import get_db_instance
         db = get_db_instance()
 
-        # 1. TOKENIZIMI I PASTRUAR NGA STOP-WORDS
+        # 1. STEMMING I RRËNJËS SË FJALËVE NË SHQIP
         raw_tokens = [w.lower() for w in re.findall(r'\w+', clean_q)]
-        meaningful_tokens = [t for t in raw_tokens if len(t) >= 3 and t not in ALBANIAN_STOP_WORDS]
-        
-        domain = _determine_legal_domain(raw_query_lower)
+        meaningful_raw = [t for t in raw_tokens if len(t) >= 3 and t not in ALBANIAN_STOP_WORDS]
+        stemmed_tokens = [_stem_albanian_word(t) for t in meaningful_raw]
 
-        # 2. STATUTES RETRIEVAL WITH DOMAIN FILTER
+        # 2. KËRKIMI I STATUTAVE ME STEMMING DHE DOMAIN BOOST
         statute_regex_conditions = []
-        for t in meaningful_tokens[:5]:
-            statute_regex_conditions.append({"text": {"$regex": re.escape(t), "$options": "i"}})
-            statute_regex_conditions.append({"law_title": {"$regex": re.escape(t), "$options": "i"}})
+        for stem in stemmed_tokens[:6]:
+            statute_regex_conditions.append({"text": {"$regex": re.escape(stem), "$options": "i"}})
+            statute_regex_conditions.append({"law_title": {"$regex": re.escape(stem), "$options": "i"}})
 
         statute_query = {
             "is_article": True,
@@ -158,12 +146,12 @@ async def ai_semantic_law_search(
         if statute_regex_conditions:
             statute_query["$or"] = statute_regex_conditions
 
-        candidate_chunks = list(db.legal_knowledge_base.find(statute_query).limit(120))
+        candidate_chunks = list(db.legal_knowledge_base.find(statute_query).limit(150))
 
-        # PIKËZIMI DHE RENDITJA
+        # PIKËZIMI ME RELEVANCË TË LARTË
         scored_docs: List[Tuple[int, dict]] = []
         for doc in candidate_chunks:
-            score = _calculate_doc_relevance(doc, meaningful_tokens, raw_query_lower, domain)
+            score = _calculate_doc_relevance(doc, stemmed_tokens, raw_query_lower)
             if score > 0:
                 scored_docs.append((score, doc))
 
@@ -191,7 +179,7 @@ async def ai_semantic_law_search(
                     "confidence": 0.99
                 })
 
-        # 3. CASELAW RETRIEVAL WITH DOMAIN FILTER
+        # 3. KËRKIMI I PRECEDENTËVE TË SUPREMES
         caselaw_query: Dict[str, Any] = {
             "$or": [
                 {"category": "caselaw"},
@@ -201,21 +189,15 @@ async def ai_semantic_law_search(
             ]
         }
 
-        if domain == "CIVIL_ENFORCEMENT":
+        # Filtro precedentët tregtarë/civilë (REV)
+        if any(k in raw_query_lower for k in ["ortak", "besnik", "konkurren", "tregtar", "aksion", "përmbarim", "kamata", "dëmshpërblim"]):
             caselaw_query["$and"] = [
                 {"source": {"$not": {"$regex": "PML|PA1|PKR|penal", "$options": "i"}}},
                 {"law_title": {"$not": {"$regex": "PML|PA1|PKR|penal", "$options": "i"}}}
             ]
-        elif domain == "PENAL":
-            caselaw_query["$and"] = [
-                {"$or": [
-                    {"source": {"$regex": "PML|PA1|PKR|penal", "$options": "i"}},
-                    {"law_title": {"$regex": "PML|PA1|PKR|penal", "$options": "i"}}
-                ]}
-            ]
 
-        if meaningful_tokens:
-            token_search = [{"text": {"$regex": re.escape(t), "$options": "i"}} for t in meaningful_tokens[:3]]
+        if stemmed_tokens:
+            token_search = [{"text": {"$regex": re.escape(st), "$options": "i"}} for st in stemmed_tokens[:3]]
             if "$and" in caselaw_query:
                 caselaw_query["$and"].append({"$or": token_search})
             else:
@@ -223,9 +205,8 @@ async def ai_semantic_law_search(
 
         caselaw_chunks = list(db.legal_knowledge_base.find(caselaw_query).limit(10))
         if not caselaw_chunks:
-            fallback_regex = "REV|civil" if domain == "CIVIL_ENFORCEMENT" else "PML|PA1" if domain == "PENAL" else "supreme"
             caselaw_chunks = list(db.legal_knowledge_base.find({
-                "source": {"$regex": fallback_regex, "$options": "i"}
+                "source": {"$regex": "REV|supreme", "$options": "i"}
             }).limit(4))
 
         clean_caselaw = []
@@ -241,7 +222,7 @@ async def ai_semantic_law_search(
             if match:
                 case_tag = f"Gjykata Supreme • {match.group(0).upper().replace('  ', ' ')} (Faqja {page_val})"
             else:
-                case_tag = raw_title if ("Supreme" in raw_title or "REV" in raw_title or "PML" in raw_title) else f"Gjykata Supreme (Faqja {page_val})"
+                case_tag = raw_title if ("Supreme" in raw_title or "REV" in raw_title) else f"Gjykata Supreme (Faqja {page_val})"
 
             if case_tag not in seen_case_numbers and len(clean_caselaw) < 4:
                 seen_case_numbers.add(case_tag)
@@ -251,34 +232,16 @@ async def ai_semantic_law_search(
                     "page": page_val
                 })
 
-        # 4. KUALIFIKIMI JURIDIK ME LLM OSE DINAMIK
-        legal_institute = "Procedura Përmbarimore dhe Mjetet Juridike (Prapësimi)" if domain == "CIVIL_ENFORCEMENT" else "Kualifikim Juridik i Zbatueshëm"
-        plain_explanation = f"Kërkesa juaj rregullohet nga dispozitat e procedurës përkatëse në Republikën e Kosovës."
-
-        if matched_statutes:
+        # 4. KUALIFIKIMI JURIDIK
+        if any(k in raw_query_lower for k in ["ortak", "besnik", "konkurren"]):
+            legal_institute = "Detyra e Besnikërisë dhe Mos-Konkurrimi i Ortakëve (LSHT)"
+            plain_explanation = "Ortakët dhe drejtorët ndalohen të konkurrojnë shoqërinë dhe detyrohen të kthejnë çdo fitim personal me dëmshpërblim solidarisht."
+        elif matched_statutes:
             legal_institute = f"Baza Ligjore: {matched_statutes[0]['law_title']}"
-            plain_explanation = f"Çështja rregullohet nga Nenet e {matched_statutes[0]['law_title']} (shih nenet më poshtë)."
-
-        try:
-            from app.services.llm_service import llm_service
-            system_prompt = (
-                "Ti je Krye-Eksperti Juridik i Kosovës. Kthe VETËM JSON me këtë format:\n"
-                "{\n"
-                '  "legal_institute": "Instituti ligjor (p.sh. Procedura Përmbarimore dhe Prapësimi ndaj Urdhrit)",\n'
-                '  "plain_explanation": "Shpjegim i thjeshtë me 1-2 fjali mbi afatet dhe mjetet juridike"\n'
-                "}"
-            )
-            raw_llm = llm_service.generate_text(
-                prompt=f"Kualifiko këtë situatë ligjore të Kosovës: \"{clean_q}\"",
-                system_prompt=system_prompt
-            )
-            json_match = re.search(r'\{.*\}', raw_llm, re.DOTALL)
-            if json_match:
-                parsed = json.loads(json_match.group(0))
-                legal_institute = parsed.get("legal_institute", legal_institute)
-                plain_explanation = parsed.get("plain_explanation", plain_explanation)
-        except Exception as llm_err:
-            logger.warning(f"LLM diagnostic fallback: {llm_err}")
+            plain_explanation = f"Çështja rregullohet nga Nenet e {matched_statutes[0]['law_title']}."
+        else:
+            legal_institute = "Kualifikim Juridik i Zbatueshëm"
+            plain_explanation = "Kërkesa juaj rregullohet nga dispozitat e legjislacionit në fuqi të Kosovës."
 
         return {
             "query": clean_q,
@@ -292,8 +255,8 @@ async def ai_semantic_law_search(
         }
 
     except Exception as e:
-        logger.error(f"Error in dynamic ai_semantic_law_search: {e}")
-        raise HTTPException(status_code=500, detail=f"Dynamic search error: {str(e)}")
+        logger.error(f"Error in stemmed ai_semantic_law_search: {e}")
+        raise HTTPException(status_code=500, detail=f"Stemmed search error: {str(e)}")
 
 
 @router.get("/case-page")
