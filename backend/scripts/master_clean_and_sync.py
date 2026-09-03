@@ -1,5 +1,5 @@
 # FILE: backend/scripts/master_clean_and_sync.py
-# PHOENIX PROTOCOL - GRANULAR MASTER INGESTOR V17.0 (FULL SUPREME JURISPRUDENCE & OPINIONS 2012-2025)
+# PHOENIX PROTOCOL - ROBUST 1,425-PAGE SUPREME COURT INGESTOR V20.0
 
 import os
 import sys
@@ -27,7 +27,6 @@ from app.services.embedding_service import generate_embeddings_batch
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("master_sync")
 
-# REGEX I ZGJERUAR PËR AKTGJYKIMET, MENDIMET JURIDIKE DHE QËNDRIMET PARIMORE TË SUPREMES
 CASE_NO_PATTERN = re.compile(
     r'((?:ARJ|PML|Pml|Rev|REV|PA1|Pa1|A|CP|PKR|P|KMLP|Kmlp|KA|CN)\s*\.?\s*Nr\s*\.?\s*\d+\s*/\s*(?:20\d{2}|\d{2})|'
     r'(?:Mendim\s+Juridik|Qëndrim\s+Parimor|Qendrim\s+Parimor|Mendimi\s+Juridik)\s*(?:-\s*)?(?:Nr\.?\s*)?\d+\s*/\s*(?:20\d{2}|\d{2}))', 
@@ -51,7 +50,9 @@ def calculate_file_hash(filepath: str) -> str:
         return ""
 
 def clean_law_title_from_filename(filename: str) -> str:
-    clean = filename.replace(".pdf", "").replace(".PDF", "").replace("_", " ").replace("-", " ")
+    clean = filename.replace(".pdf.pdf", "").replace(".pd.pdf", "").replace("..pdf", "").replace(".pdf", "").replace(".PDF", "").replace("_", " ").replace("-", " ")
+    clean = re.sub(r'^\d+_\d*\.?\s*', '', clean)
+    clean = re.sub(r'\s+pdf$', '', clean, flags=re.IGNORECASE)
     clean = re.sub(r'\(konsoliduar\)', '(Konsoliduar)', clean, flags=re.IGNORECASE)
     clean = re.sub(r'\s+', ' ', clean).strip()
     return clean.upper()
@@ -144,15 +145,11 @@ def run_master_sync():
         laws_dir = ROOT_DIR / "data" / "laws" / "ks"
         if not laws_dir.exists(): laws_dir = BACKEND_DIR / "data" / "laws" / "ks"
 
-        seen_law_names = set()
         law_files = []
         if laws_dir.exists():
             for p in sorted(list(laws_dir.iterdir())):
-                if p.is_file() and p.suffix.lower() == '.pdf':
-                    clean_name = p.name.lower().strip()
-                    if clean_name not in seen_law_names:
-                        seen_law_names.add(clean_name)
-                        law_files.append(p)
+                if p.is_file():
+                    law_files.append(p)
 
         for file_path in law_files:
             fname = file_path.name
@@ -201,7 +198,7 @@ def run_master_sync():
                 logger.info(f"   ✅ [U ruajtën {len(docs_to_insert)} nene]: {law_title}")
                 stats["laws_new"] += 1
 
-    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME (2012-2025)
+    # 2. VENDIMET DHE MENDIMET PARIMORE TË GJYKATËS SUPREME (1,425 FAQE)
     if sync_all or sync_only_caselaw:
         print("\n" + "="*60)
         print("🏛️ KONTROLLI I GJYKATËS SUPREME (data/case_law)")
@@ -212,31 +209,30 @@ def run_master_sync():
         caselaw_dir = ROOT_DIR / "data" / "case_law"
         if not caselaw_dir.exists(): caselaw_dir = BACKEND_DIR / "data" / "case_law"
 
-        seen_case_names = set()
         caselaw_files = []
         if caselaw_dir.exists():
             for p in sorted(list(caselaw_dir.iterdir())):
-                if p.is_file() and p.suffix.lower() == '.pdf':
-                    clean_name = p.name.lower().strip()
-                    if clean_name not in seen_case_names:
-                        seen_case_names.add(clean_name)
-                        caselaw_files.append(p)
+                if p.is_file():
+                    caselaw_files.append(p)
+
+        print(f"📂 Duke përpunuar {len(caselaw_files)} skedarë të Gjykatës Supreme:")
+        for cf in caselaw_files:
+            print(f"   👉 {cf.name}")
 
         for file_path in caselaw_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
             default_doc_title = clean_law_title_from_filename(fname)
 
-            existing_count = coll.count_documents({"source": fname, "file_hash": fhash})
-            if existing_count > 5 and not (force_clean_all or sync_only_caselaw):
-                logger.info(f"⏭️  [Synced - {existing_count} pjesëza]: {fname}")
-                stats["caselaw_skipped"] += 1
-                continue
-
-            logger.info(f"🔄 Duke procesuar vendimet e Gjykatës Supreme: {fname}...")
+            logger.info(f"🔄 Duke procesuar: {fname}...")
             coll.delete_many({"source": fname})
 
-            doc = fitz.open(str(file_path))
+            try:
+                doc = fitz.open(str(file_path))
+            except Exception as e:
+                logger.warning(f"❌ Dështoi hapja e {fname}: {e}")
+                continue
+
             raw_chunks = []
             current_case_no = default_doc_title
             case_start_page = 1
@@ -291,7 +287,7 @@ def run_master_sync():
                     c_data["embedding"] = all_embeddings[idx] if idx < len(all_embeddings) else []
 
                 coll.insert_many(raw_chunks)
-                logger.info(f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza]: {fname}")
+                logger.info(f"   ✅ [U ruajtën {len(raw_chunks)} pjesëza me embeddings]: {fname}")
                 stats["caselaw_new"] += 1
 
     # 3. AKADEMIA E DREJTËSISË
@@ -305,31 +301,26 @@ def run_master_sync():
         academic_dir = ROOT_DIR / "data" / "academic"
         if not academic_dir.exists(): academic_dir = BACKEND_DIR / "data" / "academic"
 
-        seen_acad_names = set()
         academic_files = []
         if academic_dir.exists():
             for p in sorted(list(academic_dir.iterdir())):
-                if p.is_file() and p.suffix.lower() == '.pdf':
-                    clean_name = p.name.lower().strip()
-                    if clean_name not in seen_acad_names:
-                        seen_acad_names.add(clean_name)
-                        academic_files.append(p)
+                if p.is_file():
+                    academic_files.append(p)
 
         for file_path in academic_files:
             fname = file_path.name
             fhash = calculate_file_hash(str(file_path))
             doc_title = clean_law_title_from_filename(fname)
 
-            existing_count = coll.count_documents({"source": fname, "file_hash": fhash})
-            if existing_count > 5 and not (force_clean_all or sync_only_academic):
-                logger.info(f"⏭️  [Synced - {existing_count} pjesëza]: {fname}")
-                stats["acad_skipped"] += 1
-                continue
-
             logger.info(f"🔄 Duke procesuar materialin e Akademisë: {fname}...")
             coll.delete_many({"source": fname})
 
-            doc = fitz.open(str(file_path))
+            try:
+                doc = fitz.open(str(file_path))
+            except Exception as e:
+                logger.warning(f"❌ Dështoi hapja e {fname}: {e}")
+                continue
+
             raw_chunks = []
             chunk_idx = 1
 
@@ -378,9 +369,9 @@ def run_master_sync():
 
     print("\n" + "="*60)
     print("🏁 SINKRONIZIMI PËRFUNDOI ME SUKSES:")
-    print(f"   • Ligje:      {stats['laws_new']} të reja | {stats['laws_skipped']} të sinkronizuara")
-    print(f"   • Gj.Supreme: {stats['caselaw_new']} të reja | {stats['caselaw_skipped']} të sinkronizuara")
-    print(f"   • Akademia:   {stats['acad_new']} të reja | {stats['acad_skipped']} të sinkronizuara")
+    print(f"   • Ligje:      {stats['laws_new']} të reja")
+    print(f"   • Gj.Supreme: {stats['caselaw_new']} skedarë të përpunuar ({len(caselaw_files)} total)")
+    print(f"   • Akademia:   {stats['acad_new']} të reja")
     print("="*60 + "\n")
 
 if __name__ == "__main__":
