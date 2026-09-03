@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIVERSAL FORENSIC TOOLTIP & DISCOVERY HUB V105.0
+// PHOENIX PROTOCOL - SOLID THEME-AWARE FORENSIC TOOLTIP & DISCOVERY HUB V108.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -426,7 +426,7 @@ export default function LawSearchPage() {
                   💡 <strong>Në fjalë të thjeshta:</strong> {aiDiagnostic.plain_explanation}
                 </div>
 
-                {/* Nenet me Forenzikë Tooltip */}
+                {/* Nenet me Forenzikë Tooltip Solid */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
                   <div className="flex flex-col gap-2.5">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -457,7 +457,7 @@ export default function LawSearchPage() {
                               <ArrowRight size={13} className="shrink-0 group-hover:translate-x-0.5 transition-transform" />
                             </button>
 
-                            {/* TOOLTIP-I I SIGURISË SË LARTË FORENZIKE */}
+                            {/* TOOLTIP-I SOLID THEME-AWARE */}
                             <AnimatePresence>
                               {isHovered && (
                                 <motion.div
@@ -465,21 +465,21 @@ export default function LawSearchPage() {
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                   transition={{ duration: 0.12 }}
-                                  className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-3.5 bg-surface border border-emerald-500/40 rounded-2xl shadow-2xl z-50 pointer-events-none backdrop-blur-md"
+                                  className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
                                 >
-                                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-[11px] uppercase tracking-wider mb-2 border-b border-main pb-1.5">
+                                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-[11px] uppercase tracking-wider mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
                                     <ShieldCheck size={16} />
                                     <span>Verifikim Zyrtar (100% Traceable)</span>
                                   </div>
-                                  <div className="text-xs font-bold text-text-primary mb-1">
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                                     {fullLawTitle} • Neni {item.article_number}
                                   </div>
-                                  <div className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                     🏛️ Gazeta Zyrtare e Republikës së Kosovës
                                   </div>
-                                  <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
+                                  <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                     <span>Integriteti i Tekstit:</span>
-                                    <span className="text-emerald-500 font-bold">Tekst Zyrtar i Paprekur ✓</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">Tekst Zyrtar i Paprekur ✓</span>
                                   </div>
                                 </motion.div>
                               )}
@@ -491,7 +491,7 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* Precedentët e Supremes me Tooltip Forenzik */}
+                {/* Precedentët e Supremes me Tooltip Solid */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -526,7 +526,7 @@ export default function LawSearchPage() {
                               <ExternalLink size={12} className="text-text-muted shrink-0" />
                             </button>
 
-                            {/* TOOLTIP-I I PRECEDENTIT TË SUPREMES */}
+                            {/* TOOLTIP-I I PRECEDENTIT TË SUPREMES SOLID */}
                             <AnimatePresence>
                               {isHovered && (
                                 <motion.div
@@ -534,19 +534,19 @@ export default function LawSearchPage() {
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                   transition={{ duration: 0.12 }}
-                                  className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-3.5 bg-surface border border-primary-start/40 rounded-2xl shadow-2xl z-50 pointer-events-none backdrop-blur-md"
+                                  className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-primary-start/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
                                 >
-                                  <div className="flex items-center gap-2 text-primary-start font-black text-[11px] uppercase tracking-wider mb-2 border-b border-main pb-1.5">
+                                  <div className="flex items-center gap-2 text-primary-start font-black text-[11px] uppercase tracking-wider mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
                                     <Gavel size={16} />
                                     <span>Praktikë Gjyqësore e Supremes</span>
                                   </div>
-                                  <div className="text-xs font-bold text-text-primary mb-1 truncate">
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 truncate">
                                     {c.title}
                                   </div>
-                                  <div className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                     📄 Hapje direkte në: <strong>Faqja {c.page}</strong> të PDF-së zyrtare
                                   </div>
-                                  <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
+                                  <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                     <span>Statusi: Vendim Parimor</span>
                                     <span className="text-primary-start font-bold">1-Kliko PDF ↗</span>
                                   </div>
@@ -563,7 +563,7 @@ export default function LawSearchPage() {
             )}
           </AnimatePresence>
 
-          {/* KARTELA SEMANTIKE ME NENE DHE TOOLTIP TË PLOTË (1-KLIKIM) */}
+          {/* KARTELA SEMANTIKE ME TOOLTIP SOLID (1-KLIKIM) */}
           <AnimatePresence>
             {!aiDiagnostic && matchedIntent && (
               <motion.div
@@ -620,7 +620,7 @@ export default function LawSearchPage() {
                                     <ArrowRight size={12} className="shrink-0 group-hover:translate-x-0.5 transition-transform" />
                                   </button>
 
-                                  {/* TOOLTIP-I FORENZIK I VERIFIKUAR */}
+                                  {/* TOOLTIP-I SOLID THEME-AWARE FORENZIK */}
                                   <AnimatePresence>
                                     {isHovered && (
                                       <motion.div
@@ -628,21 +628,21 @@ export default function LawSearchPage() {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.12 }}
-                                        className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-3.5 bg-surface border border-emerald-500/40 rounded-2xl shadow-2xl z-50 pointer-events-none backdrop-blur-md"
+                                        className="absolute left-0 bottom-full mb-2 w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
                                       >
-                                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-[11px] uppercase tracking-wider mb-2 border-b border-main pb-1.5">
+                                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-[11px] uppercase tracking-wider mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
                                           <ShieldCheck size={16} />
                                           <span>Verifikim Zyrtar (100% Traceable)</span>
                                         </div>
-                                        <div className="text-xs font-bold text-text-primary mb-1">
+                                        <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                                           {fullLawTitle} • Neni {artNum}
                                         </div>
-                                        <div className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                                        <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                           🏛️ Gazeta Zyrtare e Republikës së Kosovës
                                         </div>
-                                        <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-1.5 rounded-lg border border-main text-text-muted">
+                                        <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                           <span>Integriteti i Tekstit:</span>
-                                          <span className="text-emerald-500 font-bold">Tekst Zyrtar i Paprekur ✓</span>
+                                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Tekst Zyrtar i Paprekur ✓</span>
                                         </div>
                                       </motion.div>
                                     )}
