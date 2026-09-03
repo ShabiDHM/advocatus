@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V65.0 (8-SECTION SUPREME FORENSIC TRIGGER & DEEP MASTER ANALYSIS)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V66.0 (DIRECT IN-CHAT SUPREME PRECEDENT VIEWER)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -33,6 +33,7 @@ const CaseViewPage: React.FC = () => {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [viewingInitialPage, setViewingInitialPage] = useState<number>(1);
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -146,11 +147,13 @@ const CaseViewPage: React.FC = () => {
   const handleDocumentDeleted = (res: DeletedDocumentResponse) => setLiveDocuments((p) => p.filter((d) => String(d.id) !== String(res.documentId)));
 
   const handleViewOriginal = useCallback((doc: Document) => {
+    setViewingInitialPage(1);
     setViewingUrl(`${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`);
     setViewingDocument(doc);
     setMinimizedDocument(null);
   }, [caseId]);
 
+  // DËGJUESI 1: Për dokumentet e lëndës (/documents/...)
   useEffect(() => {
     const handleOpenDocPreview = (e: any) => {
       const { fileName, href } = e.detail || {};
@@ -188,6 +191,44 @@ const CaseViewPage: React.FC = () => {
     window.addEventListener('open_document_preview', handleOpenDocPreview);
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
+
+  // DËGJUESI 2 (PHOENIX SUPREME): HAPJA DIREKTE E AKTGJYKIMIT TË GJYKATËS SUPREME MBI CHAT
+  useEffect(() => {
+    const handleOpenPrecedent = async (e: any) => {
+      const { caseNumber } = e.detail || {};
+      if (!caseNumber) return;
+
+      try {
+        const cleanCaseNo = caseNumber.trim();
+        const res = await apiService.axiosInstance.get('/laws/case-page', {
+          params: { law_title: cleanCaseNo }
+        });
+
+        const targetPage = (res.data && res.data.page) ? Number(res.data.page) : 1;
+        const rawLawTitle = (res.data && res.data.law_title) ? res.data.law_title : cleanCaseNo;
+        const pdfFileName = rawLawTitle.toLowerCase().endsWith('.pdf') ? rawLawTitle : `${rawLawTitle}.pdf`;
+        const encoded = encodeURIComponent(pdfFileName);
+
+        const url = `${API_V1_URL}/laws/caselaw/pdf/${encoded}`;
+
+        setViewingInitialPage(targetPage);
+        setViewingUrl(url);
+        setViewingDocument({
+          id: cleanCaseNo,
+          file_name: pdfFileName,
+          mime_type: 'application/pdf',
+          status: 'READY',
+          created_at: new Date().toISOString()
+        } as any);
+        setMinimizedDocument(null);
+      } catch (err) {
+        console.error("Failed to open supreme precedent preview directly:", err);
+      }
+    };
+
+    window.addEventListener('open_precedent_preview', handleOpenPrecedent);
+    return () => window.removeEventListener('open_precedent_preview', handleOpenPrecedent);
+  }, []);
 
   const handleClearChat = async () => {
     if (!caseId) return;
@@ -266,7 +307,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // BUTONI "ANALIZO RASTIN" — EKZEKUTIM SUPREM DOKTRINAR ME 8 SEKSIONE
+  // BUTONI "ANALIZO RASTIN"
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
@@ -299,7 +340,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, isAnalyzingCase, analysisResultText]);
 
-  // IKONA "⚖️ FORENZIKË E DOKUMENTIT" — EKZEKUTIM SUPREM ME TË 8 SEKSIONET E PLOTA
+  // IKONA "⚖️ FORENZIKË E DOKUMENTIT"
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds([docIdStr]);
@@ -418,13 +459,13 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
           t={t}
           directUrl={viewingUrl}
           isAuth={true}
+          initialPage={viewingInitialPage}
         />
       )}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL I ANALIZËS SË PLOTË ME TË 8 SEKSIONET */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}

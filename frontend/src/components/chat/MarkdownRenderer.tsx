@@ -1,5 +1,5 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - MARKDOWN RENDERER V41.0 (SUPREME COURT PRECEDENT & STATUTE BADGE HANDLER)
+// PHOENIX PROTOCOL - MARKDOWN RENDERER V42.0 (DIRECT 1-CLICK IN-CHAT PRECEDENT VIEWER)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -59,26 +59,36 @@ export const buildMarkdownComponents = () => ({
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR)
+    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR) - 1-CLICK IN-CHAT MODAL TRIGGER
     const isPrecedent =
       /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
       rawHref.includes('/laws/library?q=') ||
+      rawHref.includes('/laws/search?q=') ||
       rawHref.includes('caseNumber=');
 
     if (isPrecedent) {
       const cleanLabel = rawText.replace(/^\[+|\]+$/g, '').trim();
-      const targetUrl = rawHref.startsWith('/laws/') ? rawHref : `/laws/library?q=${encodeURIComponent(cleanLabel)}`;
 
       return (
         <span className="inline-flex items-center align-baseline mx-0.5 my-0.5">
-          <Link
-            to={targetUrl}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs"
-            title={`Kliko për të verifikuar Aktgjykimin e Gjykatës Supreme (${cleanLabel}) në Bibliotekën Ligjore`}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // PHOENIX: Hap PDF-në e aktgjykimit direkt mbi Chat pa lëvizur nga faqja!
+              window.dispatchEvent(
+                new CustomEvent('open_precedent_preview', {
+                  detail: { caseNumber: cleanLabel }
+                })
+              );
+            }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
+            title={`Hap drejtpërdrejt Aktgjykimin e Gjykatës Supreme (${cleanLabel}) në ekran`}
           >
             <Landmark size={12} className="shrink-0 text-amber-500" />
             <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
-          </Link>
+          </button>
         </span>
       );
     }
