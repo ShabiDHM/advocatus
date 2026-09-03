@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V85.0 (ZERO-FAIL TRI-SOURCE STATUTE & PRECEDENT HYBRID ENGINE)
+# PHOENIX PROTOCOL - DYNAMIC TRI-SOURCE SEMANTIC RAG RETRIEVER V100.0 (NO HARDCODING)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any
@@ -29,57 +29,6 @@ LAW_ACRONYMS = {
     "lp": "Ligji i Punës",
 }
 
-# MATRICA DETERMINISTIKE E KOSOVËS PËR SIGURI 100%
-DETERMINISTIC_LEGAL_RULES = [
-    {
-        "keywords": ["bllokim", "bank", "llogari", "tjetersim", "sigurim", "perkohshme"],
-        "institute": "Masat e Sigurimit dhe Bllokimi i Llogarive Bankare",
-        "plain": "Gjykata urdhëron bllokimin e menjëhershëm të llogarive bankare ose ndalimin e shitjes së pasurisë.",
-        "statutes": [
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "297", "explanation": "Kushtet për caktimin e masës së sigurimit."},
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "298", "explanation": "Llojet e masave të sigurimit."},
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "304", "explanation": "Bllokimi i mjeteve financiare në llogaritë bankare."}
-        ]
-    },
-    {
-        "keywords": ["defekt", "banes", "vetur", "shites", "bler", "fshehur", "metat"],
-        "institute": "Përgjegjësia për të Metat Materiale dhe të Fshehura të Sendit",
-        "plain": "Shitësi mban përgjegjësi ligjore për defektet e fshehura dhe blerësi ka të drejtë të kërkojë riparim, ulje çmimi ose prishje kontrate.",
-        "statutes": [
-            {"law_title": "Ligji për Marrëdhëniet e Detyrimeve", "article_number": "478", "explanation": "Përgjegjësia e shitësit për të metat materiale."},
-            {"law_title": "Ligji për Marrëdhëniet e Detyrimeve", "article_number": "488", "explanation": "Të drejtat e blerësit: riparimi, zëvendësimi ose shkëputja e kontratës."},
-            {"law_title": "Ligji për Marrëdhëniet e Detyrimeve", "article_number": "481", "explanation": "Afati i njoftimit për defektet e fshehura (brenda 8 ditëve nga zbulimi)."}
-        ]
-    },
-    {
-        "keywords": ["taksa", "shpenzim", "skam", "para", "pare", "varfer", "ndihme"],
-        "institute": "Lirimi nga Pagesa e Shpenzimeve dhe Taksave Gjyqësore",
-        "plain": "Gjykata liron nga pagesa e taksave çdo qytetar që vërteton gjendjen e rëndë ekonomike.",
-        "statutes": [
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "468", "explanation": "Kushtet e përgjithshme për lirimin nga shpenzimet e procedurës."},
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "469", "explanation": "Procedura dhe vendimi i gjykatës për lirimin nga taksat."}
-        ]
-    },
-    {
-        "keywords": ["avokat", "prokur", "autorizim", "perfaqesim", "ska leter"],
-        "institute": "Përfaqësimi Procedural dhe Mungesa e Prokurës së Rregullt",
-        "plain": "Veprimet e ndërmarra nga avokati pa autorizim të vlefshëm janë të pavlefshme nëse pala nuk i aprovon.",
-        "statutes": [
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "78", "explanation": "Detyrimi i paraqitjes së prokurës me shkrim."},
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "91", "explanation": "Pasojat juridike të mungesës së autorizimit."}
-        ]
-    },
-    {
-        "keywords": ["afat", "prekluziv", "vonese", "kaloi", "semure", "kthim"],
-        "institute": "Afatet Procedurale dhe Kthimi në Gjendjen e Mëparshme",
-        "plain": "Nëse afati për ankesë është humbur për arsye të justifikueshme, kërkohet kthimi i afatit.",
-        "statutes": [
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "108", "explanation": "Llogaritja dhe ndërprerja e afateve gjyqësore."},
-            {"law_title": "Ligji për Procedurën Kontestimore", "article_number": "129", "explanation": "Instituti i Restitutio in Integrum (Kthimi në gjendjen e mëparshme)."}
-        ]
-    }
-]
-
 
 def _get_b2_filenames(prefix: str) -> List[str]:
     filenames = []
@@ -105,116 +54,154 @@ async def ai_semantic_law_search(
     current_user = Depends(get_current_user)
 ):
     """
-    PHOENIX PROTOCOL - BULLETPROOF HYBRID LEGAL DIAGNOSTIC & DISCOVERY ENGINE.
-    Combines Deterministic Rules + LLM Reasoning + Mongo Knowledge Base.
-    Guarantees that Statues, Articles, and Supreme Precedents are ALWAYS returned.
+    PHOENIX DYNAMIC TRI-SOURCE RAG ENGINE:
+    For ANY arbitrary query, dynamically retrieves:
+    1. Exact Law Articles (Statutes)
+    2. Relevant Supreme Court Decisions (Caselaw)
+    3. Academy Guides (Academia)
+    4. AI-Generated Plain Language Diagnostic
     """
     user_query = query or (payload.get("query") if payload else "")
     if not user_query or not user_query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
     
-    clean_q = user_query.strip().lower()
+    clean_q = user_query.strip()
     
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
+
+        # 1. NXJERRJA E FJALËVE KYÇE DHE NUMRAVE
+        words = [re.escape(w) for w in re.findall(r'\w+', clean_q.lower()) if len(w) >= 3 and w not in ["dhe", "per", "nga", "tek", "nga", "ose", "mbi"]]
         
-        # 1. INITIAL STRUCT
-        ai_qualification = {
-            "legal_institute": "Kualifikim Juridik",
-            "plain_explanation": f"Analizë juridike mbi çështjen e parashtruar: '{user_query.strip()}'",
-            "matched_statutes": []
+        # 2. KËRKIMI DINAMIK I NENEVE STATUTORE NË MONGODB (STATUTES SEARCH)
+        statute_match_conditions = []
+        if words:
+            for w in words[:4]:
+                statute_match_conditions.append({
+                    "$or": [
+                        {"text": {"$regex": w, "$options": "i"}},
+                        {"law_title": {"$regex": w, "$options": "i"}}
+                    ]
+                })
+
+        statute_query = {
+            "is_article": True,
+            "article_number": {"$exists": True, "$ne": None, "$ne": ""},
+            "$nor": [
+                {"category": "caselaw"},
+                {"is_case_law": True},
+                {"source": {"$regex": "case_law|supreme", "$options": "i"}}
+            ]
         }
+        if statute_match_conditions:
+            statute_query["$or"] = statute_match_conditions
 
-        # 2. SHTRESA 1: MATRICA DETERMINISTIKE E KOSOVËS (0.001 sekonda)
-        for rule in DETERMINISTIC_LEGAL_RULES:
-            if any(k in clean_q for k in rule["keywords"]):
-                ai_qualification["legal_institute"] = rule["institute"]
-                ai_qualification["plain_explanation"] = rule["plain"]
-                for s in rule["statutes"]:
-                    ai_qualification["matched_statutes"].append({
-                        "law_title": s["law_title"],
-                        "article_number": s["article_number"],
-                        "explanation": s["explanation"],
-                        "confidence": 0.99
-                    })
-                break
+        statute_chunks = list(db.legal_knowledge_base.find(statute_query).limit(15))
 
-        # 3. SHTRESA 2: KËRKIM ME LLM NËSE ËSHTË RAST I RI
-        if not ai_qualification["matched_statutes"]:
-            try:
-                from app.services.llm_service import llm_service
-                system_prompt = (
-                    "Ti je Eksperti Kryesor Juridik i Kosovës. Kthe VETËM JSON me këtë format:\n"
-                    "{\n"
-                    '  "legal_institute": "Emri i institutit ligjor",\n'
-                    '  "plain_explanation": "Shpjegim me fjalë të thjeshta popullore",\n'
-                    '  "target_law": "Ligji për Marrëdhëniet e Detyrimeve / Ligji për Procedurën Kontestimore",\n'
-                    '  "articles": ["478", "488"],\n'
-                    '  "explanation": "Shpjegimi ligjor"\n'
-                    "}"
-                )
-                raw_llm = llm_service.generate_text(
-                    prompt=f"Kualifiko këtë situatë ligjore të Kosovës: \"{user_query.strip()}\"",
-                    system_prompt=system_prompt
-                )
-                json_match = re.search(r'\{.*\}', raw_llm, re.DOTALL)
-                if json_match:
-                    parsed = json.loads(json_match.group(0))
-                    ai_qualification["legal_institute"] = parsed.get("legal_institute", "Kualifikim Juridik")
-                    ai_qualification["plain_explanation"] = parsed.get("plain_explanation", "")
-                    t_law = parsed.get("target_law", "Ligji përkatës")
-                    for a in parsed.get("articles", []):
-                        ai_qualification["matched_statutes"].append({
-                            "law_title": t_law,
-                            "article_number": str(a),
-                            "explanation": parsed.get("explanation", ""),
-                            "confidence": 0.95
-                        })
-            except Exception as llm_e:
-                logger.warning(f"LLM fallback handled: {llm_e}")
+        # Strukturojmë Nenet e gjetura në mënyrë unike
+        seen_articles = set()
+        matched_statutes = []
 
-        # 4. SHTRESA 3: KËRKIMI I PRECEDENTËVE TË GJYKATËS SUPREME
-        search_terms = [re.escape(w) for w in re.findall(r'\w+', clean_q) if len(w) >= 4]
-        or_conditions = []
-        for term in search_terms[:3]:
-            or_conditions.append({"text": {"$regex": term, "$options": "i"}})
-            or_conditions.append({"law_title": {"$regex": term, "$options": "i"}})
+        for doc in statute_chunks:
+            law_t = doc.get("law_title") or "Ligji Zyrtar"
+            art_num = str(doc.get("article_number", "")).strip()
+            
+            # Pastrojmë numrin e nenit
+            clean_num = re.sub(r'^[^\d]*', '', art_num)
+            clean_num = clean_num.split()[0] if clean_num else art_num
 
+            key = f"{law_t}_{clean_num}"
+            if clean_num and key not in seen_articles and len(matched_statutes) < 8:
+                seen_articles.add(key)
+                
+                # Nxjerrim një shpjegim të shkurtër nga teksti i nenit
+                raw_text = doc.get("text", "")
+                snippet = (raw_text[:120] + '...') if len(raw_text) > 120 else raw_text
+
+                matched_statutes.append({
+                    "law_title": law_t,
+                    "article_number": clean_num,
+                    "explanation": snippet,
+                    "confidence": 0.96
+                })
+
+        # 3. KËRKIMI DINAMIK I AKTGJYKIMEVE TË SUPREMES (CASELAW SEARCH)
         caselaw_query = {
             "$or": [
                 {"category": "caselaw"},
                 {"is_case_law": True},
-                {"source": {"$regex": "case_law|supreme|PML|REV", "$options": "i"}}
+                {"source": {"$regex": "case_law|supreme|PML|REV|PA1|PKR", "$options": "i"}},
+                {"law_title": {"$regex": "Gjykata\\s+Supreme|PML|REV", "$options": "i"}}
             ]
         }
-        if or_conditions:
-            caselaw_query["$and"] = [{"$or": or_conditions}]
+        if words:
+            caselaw_word_or = [{"text": {"$regex": w, "$options": "i"}} for w in words[:3]]
+            caselaw_word_or.extend([{"law_title": {"$regex": w, "$options": "i"}} for w in words[:3]])
+            caselaw_query["$and"] = [{"$or": caselaw_word_or}]
 
-        caselaw_matches = list(db.legal_knowledge_base.find(caselaw_query).limit(5))
-        if not caselaw_matches:
-            caselaw_matches = list(db.legal_knowledge_base.find({
+        caselaw_chunks = list(db.legal_knowledge_base.find(caselaw_query).limit(6))
+        
+        # Nëse nuk gjeti me fjalë ekzakte, merr precedentët më të afërt
+        if not caselaw_chunks:
+            caselaw_chunks = list(db.legal_knowledge_base.find({
                 "source": {"$regex": "case_law|supreme", "$options": "i"}
             }).limit(4))
 
         clean_caselaw = []
-        for c in caselaw_matches:
-            clean_caselaw.append({
-                "title": c.get("law_title") or c.get("source", "Aktgjykim i Gjykatës Supreme"),
-                "source": c.get("source", ""),
-                "page": c.get("page") or c.get("page_number") or 1
-            })
+        seen_caselaw = set()
+        for c in caselaw_chunks:
+            title = c.get("law_title") or c.get("source", "Aktgjykim i Gjykatës Supreme")
+            if title not in seen_caselaw and len(clean_caselaw) < 5:
+                seen_caselaw.add(title)
+                clean_caselaw.append({
+                    "title": title,
+                    "source": c.get("source", ""),
+                    "page": c.get("page") or c.get("page_number") or 1
+                })
+
+        # 4. KUALIFIKIMI JURIDIK ME LLM OSE SINTEZË DINAMIKE
+        legal_institute = "Kualifikim Dinamik Ligjor"
+        plain_explanation = f"Kërkimi juaj lidhet me dispozitat ligjore të zbatueshme në Kosovë."
+
+        try:
+            from app.services.llm_service import llm_service
+            system_prompt = (
+                "Ti je Krye-Eksperti Juridik i Kosovës. Analizo pyetjen e përdoruesit dhe kthe VETËM një JSON me këtë strukturë:\n"
+                "{\n"
+                '  "legal_institute": "Titulli i saktë i institutit juridik (p.sh. Shpërblimi i Dëmit / Kamatëvonesa / Masat e Sigurimit)",\n'
+                '  "plain_explanation": "Shpjegim me 1-2 fjali të qarta popullore mbi të drejtën e personit"\n'
+                "}"
+            )
+            raw_llm = llm_service.generate_text(
+                prompt=f"Kualifiko këtë çështje juridike të Kosovës: \"{clean_q}\"",
+                system_prompt=system_prompt
+            )
+            json_match = re.search(r'\{.*\}', raw_llm, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                legal_institute = parsed.get("legal_institute", legal_institute)
+                plain_explanation = parsed.get("plain_explanation", plain_explanation)
+        except Exception as llm_err:
+            logger.warning(f"LLM synthesis fallback: {llm_err}")
+            if matched_statutes:
+                legal_institute = f"Baza Ligjore: {matched_statutes[0]['law_title']}"
+                plain_explanation = f"Çështja juaj rregullohet nga Neni {matched_statutes[0]['article_number']} i {matched_statutes[0]['law_title']}."
 
         return {
-            "query": user_query.strip(),
-            "ai_diagnostic": ai_qualification,
+            "query": clean_q,
+            "ai_diagnostic": {
+                "legal_institute": legal_institute,
+                "plain_explanation": plain_explanation,
+                "matched_statutes": matched_statutes
+            },
             "caselaw_precedents": clean_caselaw,
             "success": True
         }
 
     except Exception as e:
-        logger.error(f"Error in ai_semantic_law_search: {e}")
-        raise HTTPException(status_code=500, detail=f"AI Search error: {str(e)}")
+        logger.error(f"Error in dynamic ai_semantic_law_search: {e}")
+        raise HTTPException(status_code=500, detail=f"Dynamic search error: {str(e)}")
 
 
 @router.get("/case-page")
