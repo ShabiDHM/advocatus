@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V115.0 (100% DOMAIN-ADAPTIVE • ZERO HARDCODING • ANTI-REFUSAL PRIVILEGE)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V120.0 (WEIGHTED INSTITUTIONAL DOMAIN MATCHER & RAG PARAMETER FIX)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -7,49 +7,73 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-DOMAIN_KEYWORDS = {
-    "PENAL": [
-        "kallëzim penal", "kallezim penal", "kallzim penal", "vepër penale", "veper penale", 
-        "prokurori", "prokuroria", "kpprk", "kprk", "kodi penal", "kodi i procedures penale", 
-        "mashtrim", "vjedhje", "kanosje", "kërcënim", "falsifikim", "lajmërim i rremë", 
-        "dëmtim trupor", "armëmbajtje", "keqpërdorim i detyrës", "korrupsion", 
-        "ekspertizë psikiatrike forenzike", "paraburgim", "aktakuzë", "aktakuze", "hetime", 
-        "shqyrtim fillestar", "shqyrtim kryesor", "psrk", "prokuroria speciale"
-    ],
-    "FAMILJAR": [
-        "bashkëshort", "bashkeshort", "divorc", "shkurorëzim", "shkurorezim", "kujdestari",
-        "kujdestaria e fëmijës", "alimentacion", "ushqimim", "qps", "qendra për punë sociale",
-        "raport social", "kontaktet me fëmijën", "interesi më i mirë i fëmijës", "e drejta prindërore",
-        "dhunë në familje", "urdhër mbrojtje", "urdhërmbrojtje", "trashëgimi", "trashëgimtar", "testament"
-    ],
-    "CIVIL": [
-        "kërkesëpadi", "kerkesepadi", "padi", "kundërpadi", "kunderpadi", "prapësim", "prapsim",
-        "lpk", "lmd", "procedurë kontestimore", "dëmshpërblim", "demshperblim", "kontratë",
-        "borxh", "detyrim", "kompensim", "dëm material", "dëm jomaterial", "masë e përkohshme",
-        "sigurim i kërkesës", "përmbarim", "titull ekzekutiv", "kamata ligjore"
-    ],
-    "PRONËSOR": [
-        "pronë", "prone", "tokë", "shtëpi", "banesë", "apartament", "kadastër", "kadaster",
-        "hipotekë", "hipoteke", "posedim", "servitut", "ndërtim pa leje", "pengim posedimi",
-        "uzurpim", "e drejta sendore", "bashkëpronësi", "pjesëtim i pronës", "kufij parcele"
-    ],
-    "PUNËS": [
-        "punëtor", "punetor", "punëdhënës", "punedhenes", "pagë", "kontratë pune", "shkarkim",
-        "largim nga puna", "trust", "pension", "orë shtesë", "diskriminim në punë",
-        "inspektorati i punës", "marrëdhënie pune"
-    ],
+# Pesha të forta institucionale që përcaktojnë menjëherë lëminë
+INSTITUTIONAL_ANCHORS = {
     "KOMERCIAL": [
-        "tregtar", "kompani", "biznes", "ortakëri", "falimentim", "gjykatë komerciale",
-        "gjykata komerciale", "shoqëri tregtare", "aksione", "shpk", "sha", "faturë", "fature",
-        "kontratë tregtare", "furnizim", "transaksion komercial", "borxh tregtar"
+        "gjykata komerciale", "gjykatës komerciale", "dhomat e shkallës së parë", 
+        "departamenti për çështje ekonomike", "shoqëri tregtare", "shoqëria tregtare", 
+        "sh.p.k.", "shpk", "nui:", "aksionar", "ortak", "arbk", "kontratë tregtare"
+    ],
+    "PENAL": [
+        "prokuroria speciale", "prokurorisë speciale", "prokuroria themelore", 
+        "kallëzim penal", "aktakuzë", "aktakuze", "vepër penale", "paraburgim", 
+        "kpprk", "kprk", "kodi penal", "psrk"
     ],
     "ADMINISTRATIV": [
-        "administrativ", "ministri", "komunë", "leje ndërtimi", "licencë", "vendim administrativ",
-        "konflikt administrativ", "inspektorat", "lppa", "shërbim civil", "rekrutim publik"
+        "konflikt administrativ", "vendim administrativ", "departamenti për çështje administrative",
+        "ministria", "komuna", "inspektorati", "lppa"
+    ],
+    "PUNËS": [
+        "kontratë pune", "marrëdhënie pune", "shkarkim nga puna", "largim nga puna",
+        "inspektorati i punës", "pagë", "paga e papaguar"
+    ],
+    "FAMILJAR": [
+        "shkurorëzim", "divorc", "kujdestaria e fëmijës", "alimentacion", 
+        "qendra për punë sociale", "dhunë në familje", "urdhër mbrojtje"
+    ],
+    "PRONËSOR": [
+        "pengim posedimi", "vërtetim pronësie", "kadastër", "uzurpim", 
+        "e drejta sendore", "lpts", "bashkëpronësi"
     ],
     "KUSHTETUES": [
-        "kushtetues", "kushtetutë", "liri themelore", "të drejtat e njeriut", "gjykata kushtetuese",
-        "proces i rregullt ligjor", "neni 31", "neni 54", "kednj", "protokolli 1"
+        "gjykata kushtetuese", "kërkesë kushtetuese", "neni 31 i kushtetutës", 
+        "neni 54 i kushtetutës", "kednj"
+    ],
+    "CIVIL": [
+        "kërkesëpadi", "padi civile", "dëmshpërblim", "lmd", "lpk", 
+        "procedurë kontestimore", "borxh"
+    ]
+}
+
+DOMAIN_KEYWORDS = {
+    "PENAL": [
+        "vepër penale", "veper penale", "mashtrim", "vjedhje", "kanosje", "kërcënim", 
+        "falsifikim", "keqpërdorim i detyrës", "korrupsion", "hetime", "shqyrtim fillestar"
+    ],
+    "FAMILJAR": [
+        "bashkëshort", "bashkeshort", "ushqimim", "qps", "raport social", 
+        "kontaktet me fëmijën", "interesi më i mirë i fëmijës", "trashëgimi", "testament"
+    ],
+    "CIVIL": [
+        "padi", "kundërpadi", "prapësim", "detyrim", "kompensim", "dëm material", 
+        "dëm jomaterial", "masë e përkohshme", "sigurim i kërkesës", "kamata ligjore"
+    ],
+    "PRONËSOR": [
+        "pronë", "prone", "tokë", "shtëpi", "banesë", "apartament", "kadaster", 
+        "hipotekë", "posedim", "servitut", "pjesëtim i pronës"
+    ],
+    "PUNËS": [
+        "punëtor", "punetor", "punëdhënës", "trust", "pension", "diskriminim në punë"
+    ],
+    "KOMERCIAL": [
+        "tregtar", "biznes", "ortakëri", "falimentim", "aksione", "sha", "faturë", 
+        "furnizim", "transaksion komercial", "detyra e besnikërisë", "konkurrencë e palejuar"
+    ],
+    "ADMINISTRATIV": [
+        "leje ndërtimi", "licencë", "shërbim civil", "rekrutim publik"
+    ],
+    "KUSHTETUES": [
+        "kushtetutë", "liri themelore", "të drejtat e njeriut", "proces i rregullt ligjor"
     ]
 }
 
@@ -86,7 +110,7 @@ DOMAIN_LAWS = {
     "KOMERCIAL": [
         "Ligji për Gjykatën Komerciale (Nr. 08/L-015)",
         "Ligji për Shoqëritë Tregtare (Nr. 06/L-016)",
-        "Ligji për Detyrimet (LMD) dhe Ligji për Falimentimin",
+        "Ligji për Marrëdhëniet e Detyrimeve (LMD Nr. 04/L-077)",
         "Praktika Gjyqësore e Dhomave të Shkallës së Dytë të Gjykatës Komerciale"
     ],
     "ADMINISTRATIV": [
@@ -103,20 +127,32 @@ DOMAIN_LAWS = {
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V115.0 me Doktrinë të Përshtatshme për 8 Domene & Anti-Refusal"""
+    """Shërbimi Bazë Universal — V120.0 me Pesha Institucionale dhe Integrim të Saktë RAG."""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
-        combined_text = f"{case_title} {context_str[:10000]} {manifest_str[:3000]}".lower()
-        domain_scores = {}
+        combined_text = f"{case_title} {context_str[:12000]} {manifest_str[:3000]}".lower()
+        
+        # 1. Kontrolli me peshë të lartë (Institucionet dhe Organet zyrtare)
+        anchor_scores: Dict[str, int] = {}
+        for domain, anchors in INSTITUTIONAL_ANCHORS.items():
+            score = sum(3 for anchor in anchors if anchor in combined_text)
+            anchor_scores[domain] = score
+
+        best_anchor_domain = max(anchor_scores, key=anchor_scores.get)
+        if anchor_scores[best_domain := best_anchor_domain] > 0:
+            return best_domain
+
+        # 2. Kontrolli dytësor i fjalëve kyçe të përgjithshme
+        keyword_scores: Dict[str, int] = {}
         for domain, keywords in DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw.lower() in combined_text)
-            domain_scores[domain] = score
+            keyword_scores[domain] = score
         
-        best_domain = max(domain_scores, key=domain_scores.get)
-        if domain_scores[best_domain] == 0:
+        best_keyword_domain = max(keyword_scores, key=keyword_scores.get)
+        if keyword_scores[best_keyword_domain] == 0:
             return "CIVIL"
-        return best_domain
+        return best_keyword_domain
 
     @staticmethod
     def get_domain_laws(case_domain: str) -> List[str]:
@@ -136,7 +172,7 @@ class BasePillarService:
         user_id: str = "",
         case_id: str = "",
         query_text: str = "",
-        n_results: int = 35
+        n_results: int = 25
     ) -> Tuple[str, str]:
         global_rag_context = ""
         case_rag_context = ""
@@ -158,8 +194,23 @@ class BasePillarService:
                             global_parts.append(f"📌 [{source}]:\n{text}")
                     global_rag_context = "\n\n".join(global_parts)
             
-            if user_id and query_text:
-                case_results = query_case_knowledge_base(user_id, query_text, n_results=n_results, case_id=case_id)
+            # PHOENIX FIX: Përdor 'case_context_id' në mënyrë të sigurt për të shmangur TypeError
+            if user_id and case_id and query_text:
+                try:
+                    case_results = query_case_knowledge_base(
+                        user_id=user_id,
+                        query_text=query_text,
+                        case_context_id=case_id,
+                        n_results=n_results
+                    )
+                except TypeError:
+                    case_results = query_case_knowledge_base(
+                        user_id=user_id,
+                        query_text=query_text,
+                        case_id=case_id,
+                        n_results=n_results
+                    )
+
                 if case_results:
                     case_parts = []
                     for res in case_results:
@@ -172,7 +223,7 @@ class BasePillarService:
         except ImportError as e:
             logger.warning(f"⚠️ [RAG] Vector store nuk u importua: {e}")
         except Exception as e:
-            logger.error(f"❌ [RAG] Gabim gjatë kërkimit: {e}")
+            logger.error(f"❌ [RAG] Gabim gjatë kërkimit të vektorëve: {e}")
         
         return global_rag_context, case_rag_context
 
@@ -224,8 +275,7 @@ class BasePillarService:
                 manifest_str=manifest_str
             )
         
-        # Pozicionimi dinamik dhe neutral në vend të hardcoding DEFENDANT
-        normalized_pos = (client_position or "PALË NË PROCEDURË / PARASHTRUES").strip().upper()
+        normalized_pos = (client_position or "PALË NË PROCEDURË").strip().upper()
         
         supreme_protocol = BasePillarService.build_supreme_jurisprudence_directive(case_domain)
         role_guard = BasePillarService.get_role_guard(normalized_pos, client_name)

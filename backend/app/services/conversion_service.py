@@ -1,17 +1,19 @@
 # FILE: backend/app/services/conversion_service.py
-# PHOENIX PROTOCOL - CONVERSION SERVICE V12.0 (LIBREOFFICE & PURE-PYTHON WORD/IMAGE FALLBACK)
+# PHOENIX PROTOCOL - CONVERSION SERVICE V13.0 (SAFE TXT/OFFICE PIPELINE & COLLISION-FREE UUID)
 
 import logging
 import os
 import subprocess
 import tempfile
 import shutil
+import uuid
 from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+
 def _text_to_pdf_fallback(text_content: str, dest_pdf_path: str, title: str = "Dokument") -> str:
-    """Pure Python text-to-PDF fallback engine for cloud servers without LibreOffice."""
+    """Konvertues i pastër në Python për tekst në PDF pa pasur nevojë për LibreOffice."""
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas
@@ -48,11 +50,12 @@ def _text_to_pdf_fallback(text_content: str, dest_pdf_path: str, title: str = "D
         c.save()
         return dest_pdf_path
     except Exception as e:
-        logger.warning(f"Reportlab PDF fallback failed: {e}")
+        logger.warning(f"ReportLab PDF fallback failed: {e}")
         return ""
 
+
 def _extract_docx_text_python(source_path: str) -> str:
-    """Extracts raw text from .docx using python-docx if available."""
+    """Nxjerr tekstin nga skedarët .docx duke përdorur python-docx."""
     try:
         import docx
         doc = docx.Document(source_path)
@@ -60,15 +63,29 @@ def _extract_docx_text_python(source_path: str) -> str:
         for para in doc.paragraphs:
             if para.text.strip():
                 full_text.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                full_text.append(" | ".join(cell.text.strip() for cell in row.cells if cell.text.strip()))
         return "\n".join(full_text)
     except Exception as e:
         logger.warning(f"python-docx text extraction failed: {e}")
         return ""
 
+
+def _extract_txt_file_python(source_path: str) -> str:
+    """Lexon me siguri tekstin e plotë të skedarëve .txt me enkoding të pastër."""
+    try:
+        with open(source_path, 'r', encoding='utf-8', errors='ignore') as f:
+            return f.read()
+    except Exception as e:
+        logger.warning(f"TXT read failed: {e}")
+        return ""
+
+
 def convert_to_pdf(source_path: str) -> str:
     """
-    Converts DOCX, DOC, XLSX, TXT, JPG, PNG to PDF.
-    Features LibreOffice native conversion with ReportLab/Pillow cloud fallbacks.
+    Konverton çdo format (PDF, DOCX, DOC, TXT, JPG, PNG) në PDF preview.
+    Përdor LibreOffice me fallback automatik në ReportLab dhe Pillow.
     """
     if not os.path.exists(source_path):
         raise FileNotFoundError(f"Source file not found at path: {source_path}")
@@ -76,33 +93,32 @@ def convert_to_pdf(source_path: str) -> str:
     file_name, source_ext = os.path.splitext(os.path.basename(source_path))
     ext = source_ext.lower()
     
+    # PHOENIX FIX: Përdor UUID për të parandaluar mbishkrimin aksidental të skedarëve me emra të njëjtë
+    unique_id = uuid.uuid4().hex[:8]
     output_dir = tempfile.gettempdir()
-    dest_pdf_path = os.path.join(output_dir, f"{file_name}_preview.pdf")
+    dest_pdf_path = os.path.join(output_dir, f"{file_name}_{unique_id}_preview.pdf")
 
-    # --- CASE 1: ALREADY PDF ---
+    # --- RASTI 1: ËSHTË TASHMË PDF ---
     if ext == '.pdf':
         logger.info(f"Source is already PDF. Copying...")
         shutil.copy2(source_path, dest_pdf_path)
         return dest_pdf_path
 
-    # --- CASE 2: IMAGE TO PDF (Scanner Logic) ---
-    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']:
+    # --- RASTI 2: FOTO NË PDF (JPG, PNG, TIFF, BMP) ---
+    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
         try:
             logger.info(f"Converting Image to PDF: {source_path}")
             image = Image.open(source_path)
-            
             if image.mode != 'RGB':
                 image = image.convert('RGB')
-            
-            image.save(dest_pdf_path, "PDF", resolution=100.0)
+            image.save(dest_pdf_path, "PDF", resolution=150.0)
             logger.info(f"Successfully converted Image to PDF: {dest_pdf_path}")
             return dest_pdf_path
         except Exception as e:
             logger.error(f"Image conversion failed: {e}", exc_info=True)
 
-    # --- CASE 3: WORD DOCS (.DOCX / .DOC) VIA LIBREOFFICE WITH PYTHON FALLBACK ---
+    # --- RASTI 3: SKEDARËT E ZYRËS (DOCX, DOC) ME LIBREOFFICE ---
     logger.info(f"Initiating Office conversion for '{file_name}{source_ext}'.")
-    
     command = [
         "soffice",
         "--headless",
@@ -118,7 +134,6 @@ def convert_to_pdf(source_path: str) -> str:
             stderr=subprocess.PIPE,
             timeout=60
         )
-
         expected_output_path = os.path.join(output_dir, f"{file_name}.pdf")
 
         if process.returncode == 0 and os.path.exists(expected_output_path) and os.path.getsize(expected_output_path) > 0:
@@ -130,8 +145,16 @@ def convert_to_pdf(source_path: str) -> str:
     except Exception as libre_err:
         logger.warning(f"LibreOffice execution skipped ({libre_err}). Invoking pure-Python fallback...")
 
-    # --- FALLBACK: PURE PYTHON WORD TO PDF ---
-    if ext in ['.docx', '.doc', '.txt']:
+    # --- RASTI 4: PURE PYTHON FALLBACK PËR WORD DHE TXT ---
+    if ext == '.txt':
+        # PHOENIX FIX: Lexohet teksti real pa u përplasur me python-docx
+        extracted_text = _extract_txt_file_python(source_path)
+        fallback_pdf = _text_to_pdf_fallback(extracted_text, dest_pdf_path, title=file_name)
+        if fallback_pdf and os.path.exists(fallback_pdf):
+            logger.info("Successfully converted TXT to PDF using Pure-Python fallback!")
+            return dest_pdf_path
+
+    if ext in ['.docx', '.doc']:
         extracted_text = _extract_docx_text_python(source_path)
         if not extracted_text:
             extracted_text = f"Dokument i ngarkuar: {file_name}{source_ext}"

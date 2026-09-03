@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V65.1 (CLAUDE SONNET LATEST • 1M CONTEXT • UNIVERSAL ROUTING)
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V66.0 (CLAUDE SONNET LATEST • 1M CONTEXT • UNIVERSAL ROUTING)
 
 import logging
 import asyncio
@@ -59,10 +59,10 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V65.1):
-    - Drejton Butonin "FORENSIKË" dhe "ANALIZO RASTIN" te Anthropic Claude Sonnet Latest (1M tokens).
-    - Mbron sistemin me hierarkinë e fallback-ut (GPT-4o / DeepSeek).
-    - Garanton gjuhë të pastër gjyqësore shqipe për Republikën e Kosovës pa gabime konteksti.
+    Gjeneruesi Suprem i Përgjigjeve (V66.0):
+    - Drejton Detyrat e Rënda (Forenzikë, Analizë Dosjeje, Hartim Aktesh) te Anthropic Claude Sonnet Latest (1M tokens).
+    - Mbron sistemin me hierarkinë e fallback-ut të pathyeshëm (GPT-4o / DeepSeek).
+    - Zbaton gjuhë të pastër gjyqësore shqipe për Republikën e Kosovës pa deformuar kërkesën e përdoruesit.
     """
 
     def __init__(self):
@@ -130,23 +130,25 @@ class ResponseGenerator:
         context: str = ""
     ) -> AsyncGenerator[str, None]:
         try:
-            # Identifikon automatikisht nëse është FORENSIKË apo ANALIZË E DOSJES
+            # Identifikon automatikisht nëse është detyrë e rëndë që kërkon Claude Sonnet
             is_heavy_task = any(kw in system_prompt.upper() for kw in [
                 "RAPORTIT MASTER", "FORENZIKE", "FORENZIK", "CONTRA LEGEM", 
                 "AUDITORIT SUPREM", "GJYKATËS SUPREME", "PASAPORTA PROCEDURALE",
-                "ANALIZË E THELLË", "ANALIZO RASTIN", "DOSJE", "FASHIKULL"
+                "ANALIZË E THELLË", "ANALIZO RASTIN", "DOSJE", "FASHIKULL",
+                "HARTIM PROFESIONAL", "KËRKESËPADI", "KALLËZIM PENAL", "ANKESË"
             ])
             selected_model = TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL
 
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             
+            # PHOENIX FIX: Rregulla të pastra gjuhësore dhe statutore pa imponuar me dhunë 8 seksione kur kërkohet hartim akti
             enhanced_system_prompt = f"""
 {full_context_content}
 
 RREGULLAT E HEKURTA TË GJUHËS DHE DOKTRINËS SË KOSOVËS:
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës (Gjuha zyrtare e Gjykatave dhe Prokurorive).
-2. Gjenero NJË RAPORT TË VETËM, TË PLOTË, DHE SHKENCOR ME TË 8 SEKSIONET.
-3. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139).
+2. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016).
+3. Zbato me rigorozitet formatin, strukturën dhe misionin e përcaktuar në udhëzimet e mësipërme.
 4. Ndalohet kategorikisht përgjigja me refuzim kur teksti përmban shkresa gjyqësore, prova materiale apo pretendime procedurale të palëve.
 """
             messages = [

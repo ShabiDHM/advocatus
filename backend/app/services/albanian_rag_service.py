@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - MODULAR RAG SERVICE V220.0 (DOMAIN-AWARE SUGGESTION CARDS & BULLETPROOF CACHE GUARD)
+# PHOENIX PROTOCOL - DYNAMIC RAG SERVICE V230.0 (ZERO HARDCODED PILLS • 100% CONTEXTUAL INTELLIGENCE)
 
 import os
 import logging
@@ -65,12 +65,12 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V220.0 me Butona Sugjerues të Përshtatur Automatikisht sipas Lëmisë."""
+    """Shërbimi Kryesor RAG — V230.0 me Inteligjencë 100% Dinamike dhe Zero Hardcoding."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Modular Service V220.0 initialized.")
+        logger.info("✅ [RAG] Dynamic Service V230.0 initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -97,46 +97,6 @@ class AlbanianRAGService:
             cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
         
         return cleaned.strip()
-
-    def _get_tactical_clickable_pills(self, user_intent: str, domain: str = "CIVIL") -> List[str]:
-        d = domain.upper()
-        
-        if d == "KOMERCIAL":
-            return [
-                "Harto Kërkesëpadinë Komerciale — Gjenero padinë për Gjykatën Komerciale me kamatën ligjore 8%",
-                "Caktimi i Masës së Sigurimit — Kërkesa për bllokimin e xhirollogarive bankare (Nenet 297/298 LPK)",
-                "Matrica e Shkeljeve Tregtare & LSHT — Tabela e detyrës së besnikërisë dhe konkurrencës së palejuar"
-            ]
-        elif d in ["CIVIL", "PRONËSOR"]:
-            return [
-                "Harto Padinë Civile — Gjenero kërkesëpadinë për dëmshpërblim dhe përmbushje detyrimi",
-                "Caktimi i Masës së Sigurimit — Sigurimi i kërkesëpadisë sipas LPK-së",
-                "Llogarit Dëmin & Kamatën — Dëmi material & jomaterial sipas LMD-së"
-            ]
-        elif d == "PENAL":
-            return [
-                "Harto Kallëzimin Penal në Prokurori — Gjenero aktin zyrtar bazuar në shkeljet e gjetura",
-                "Pyetësori Taktik për Seancë — Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit",
-                "Matrica Contra Legem — Tabela e veprave penale dhe përgjegjësisë së të dyshuarve"
-            ]
-        elif d == "PUNËS":
-            return [
-                "Harto Padinë e Punës — Padi për anulim të vendimit të shkarkimit dhe kompensim pagash",
-                "Llogarit Pagat & Dëmin — Kompensimi integral me kamatëvonesë",
-                "Pyetësori Taktik për Gjyq — Ballafaqimi i punëdhënësit për procedurën disiplinore"
-            ]
-        elif d == "ADMINISTRATIV":
-            return [
-                "Harto Padinë për Konflikt Administrativ — Anulimi i vendimit administrativ të formës së prerë",
-                "Kërkesa për Shtyrjen e Ekzekutimit — Neni 22 i Ligjit për Konfliktet Administrative",
-                "Baza Statutore & LPPA — Shkeljet e procedurës administrative"
-            ]
-        else:
-            return [
-                "Harto Aktin Gjyqësor — Gjenero padinë ose shkresën procedurale përkatëse",
-                "Baza Statutore & Precedentët — Nenet e ligjit të Kosovës dhe vendimet e Gjykatës Supreme",
-                "Pyetësori Taktik — Pyetjet për seancë gjyqësore"
-            ]
 
     async def chat(
         self,
@@ -186,7 +146,6 @@ class AlbanianRAGService:
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
 
-        # Zbulimi automatik i lëmisë (Domain Detection)
         sample_text = " ".join([d.get("content", "")[:3000] for d in db_documents]) if db_documents else ""
         detected_domain = BasePillarService.detect_case_domain(
             case_title=case_title,
@@ -206,10 +165,6 @@ class AlbanianRAGService:
             if not is_dirty and is_valid_legal_report(cached_analysis):
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_deep_analysis për lëndën {case_id}.")
                 yield cached_analysis
-                clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
-                if clickable_pills:
-                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
-                    yield pills_block
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
@@ -220,18 +175,24 @@ class AlbanianRAGService:
             if is_valid_legal_report(cached_doc_audit):
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_analysis për dokumentin {single_doc_obj.get('_id')}.")
                 yield cached_doc_audit
-                clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
-                if clickable_pills:
-                    pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
-                    yield pills_block
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
         # =========================================================================
-        # 🔍 NDËRTIMI I KONTEKSTIT PA DUPLIKIM DHE PA MBINGARKESË TOKENASH
+        # 🔍 NDËRTIMI I KONTEKSTIT DINAMIK
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
+
+        # Direktiva për sugjerime 100% dinamike nga vetë AI
+        DYNAMIC_SUGGESTIONS_PROMPT = """
+        UDHËZIM PËR SUGJERIMET NË FUND TË PËRGJIGJES:
+        Në fund të përgjigjes tënde, gjenero saktësisht 3 hapa të ardhshëm taktikë dhe konkretë që dalin drejtpërdrejt nga kjo shkresë specifike, duke ndjekur këtë format ekzakt:
+        Sugjerime:
+        1. [Veprimi konkret i parë procedural i përshtatur me këtë dokument]
+        2. [Veprimi konkret i dytë]
+        3. [Veprimi konkret i tretë]
+        """
 
         if user_intent == "FORENSIC_AUDIT":
             doc_text = ""
@@ -243,7 +204,7 @@ class AlbanianRAGService:
 
             manifest_str = f"Dokumenti në Audit: {single_doc_obj.get('filename', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'}"
             
-            system_prompt = ForensicAuditService.build_prompt(
+            base_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
                 client_position=client_position,
@@ -256,7 +217,8 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
-            exec_query = f"Kryej Auditimin Suprem Forenzik të dokumentit për lëminë {detected_domain} sipas të gjitha 8 seksioneve doktrinare."
+            system_prompt = f"{base_prompt}\n\n{DYNAMIC_SUGGESTIONS_PROMPT}"
+            exec_query = "Kryej Auditimin Suprem Forenzik të këtij dokumenti duke analizuar çdo detaj faktik dhe procedural të shkruar në të."
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -267,7 +229,7 @@ class AlbanianRAGService:
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
-            system_prompt = ComprehensiveAnalysisService.build_prompt(
+            base_prompt = ComprehensiveAnalysisService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
                 client_position=client_position,
@@ -280,7 +242,8 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
-            exec_query = f"Gjenero Raportin Master të Plotë të Gjykatës Supreme për lëminë {detected_domain} dhe harto aktin përkatës zyrtar."
+            system_prompt = f"{base_prompt}\n\n{DYNAMIC_SUGGESTIONS_PROMPT}"
+            exec_query = "Gjenero Raportin Master të Plotë të Gjykatës Supreme për fashikullin e lëndës."
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -291,7 +254,7 @@ class AlbanianRAGService:
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
-            system_prompt = LegalDraftingService.build_prompt(
+            base_prompt = LegalDraftingService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
                 client_position=client_position,
@@ -303,6 +266,7 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
+            system_prompt = f"{base_prompt}\n\n{DYNAMIC_SUGGESTIONS_PROMPT}"
         else:
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
@@ -314,13 +278,15 @@ class AlbanianRAGService:
 
             system_prompt = f"""
             Ti je "Sokrati - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
-            LËMDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
+            LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
             {ANTI_HALLUCINATION_INSTRUCTION}
 
             DOKUMENTET E LËNDËS:
             {manifest_str}
             {context_str}
+
+            {DYNAMIC_SUGGESTIONS_PROMPT}
             """
 
         full_generated_response = ""
@@ -360,11 +326,5 @@ class AlbanianRAGService:
                     logger.info(f"💾 [Smart Cache SAVED] latest_analysis u ruajt për dokumentin {single_doc_obj['_id']}.")
                 except Exception as save_err:
                     logger.warning(f"Could not cache doc audit: {save_err}")
-
-        # Butonat e Klikueshëm të Përshtatur me Lëminë
-        clickable_pills = self._get_tactical_clickable_pills(user_intent, detected_domain)
-        if clickable_pills:
-            pills_block = "\n\nSugjerime:\n" + "\n".join([f"{idx + 1}. {pill}" for idx, pill in enumerate(clickable_pills)])
-            yield pills_block
 
         yield MANDATORY_LEGAL_DISCLAIMER

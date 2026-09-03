@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/timeline_service.py
-# PHOENIX PROTOCOL - TIMELINE & DEADLINE ENGINE V30.0 (ACCURATE KOSOVO PROCEDURAL DEADLINES)
+# PHOENIX PROTOCOL - TIMELINE & DEADLINE ENGINE V35.0 (ALBANIAN MONTH PARSING & 7-DAY AKTVENDIM DEADLINES)
 
 import logging
 import re
@@ -11,9 +11,13 @@ logger = logging.getLogger(__name__)
 
 # ========== AFATET LIGJORE NË REPUBLIKËN E KOSOVËS ==========
 DEADLINE_RULES = {
-    "ANKIM_CIVIL": {
+    "ANKIM_AKTVENDIM": {
+        "days": 7,
+        "description": "Afati prekluziv për ankesë kundër aktvendimit (7 ditë sipas LPK dhe Ligjit për Gjykatën Komerciale)"
+    },
+    "ANKIM_CIVIL_AKTGJYKIM": {
         "days": 15,
-        "description": "Afati për ankesë kundër aktgjykimit/aktvendimit civil (Neni 177 i LPK)"
+        "description": "Afati për ankesë kundër aktgjykimit civil (Neni 177 i LPK)"
     },
     "ANKIM_PENAL": {
         "days": 15,
@@ -23,44 +27,41 @@ DEADLINE_RULES = {
         "days": 30,
         "description": "Afati ligjor për dorëzimin e përgjigjes në padi (Prapësimi - Neni 398 i LPK)"
     },
-    "PËRSËRITJE_PROCEDURE": {
-        "days": 30,
-        "description": "Afati subjektiv për propozimin për përsëritjen e procedurës nga mësimi i faktit të ri (LPK)"
-    },
     "KTHIM_NË_GJENDJE_TË_MËPARSHME": {
         "days": 15,
-        "description": "Afati për propozim për kthim në gjendjen e mëparshme nga pushimi i pengesës (Neni 130 i LPK)"
-    },
-    "MASË_SIGURIMI": {
-        "days": 0,
-        "description": "Masa e përkohshme e sigurimit kërkohet menjëherë kur ka rrezik të dëmtimit të së drejtës"
+        "description": "Afati për propozim për kthim në gjendjen e mëparshme (Neni 130 i LPK)"
     }
 }
 
-# ========== FORMATET E DATAVE GJYQËSORE ==========
+# Harta e muajve në gjuhën shqipe
+ALBANIAN_MONTHS = {
+    "janar": 1, "shkurt": 2, "mars": 3, "prill": 4, "maj": 5, "qershor": 6,
+    "korrik": 7, "gusht": 8, "shtator": 9, "tetor": 10, "nëntor": 11, "nentor": 11, "dhjetor": 12
+}
+
 DATE_PATTERNS = [
-    r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b',  # 19.01.2024, 19/01/2024, 19-01-2024
-    r'\b(\d{4})-(\d{2})-(\d{2})\b',                   # 2024-01-19
+    r'\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b',  # 31.08.2026, 31/08/2026
+    r'\b(\d{4})-(\d{2})-(\d{2})\b',                   # 2026-08-31
 ]
 
 DOCUMENT_TYPE_KEYWORDS = {
-    "VENDIM": ["aktvendim", "aktgjykim", "vendim", "vendimi", "në emër të popullit"],
+    "AKTVENDIM": ["aktvendim", "aktvendimi", "aktvendimit"],
+    "AKTGJYKIM": ["aktgjykim", "aktgjykimi", "aktgjykimit", "në emër të popullit"],
     "ANKESË": ["ankesë", "ankese", "ankim", "apel", "drejtuar gjykatës së apelit"],
     "PADI": ["kërkesëpadi", "kerkesepadi", "padi", "paditësi"],
-    "KALLËZIM": ["kallëzim penal", "kallezim penal", "kallzim", "vepër penale"],
-    "RAPORT": ["raport social", "qps", "ekspertizë", "ekspertize", "procesverbal", "psikiatri"],
-    "KËRKESË": ["prapësim", "prapsim", "përgjigje në padi", "kërkesë", "kerkese"],
-    "MARRËVESHJE": ["marrëveshje", "marreveshje", "kontratë", "kontrate"],
-    "URDHËR": ["urdhër mbrojtje", "urdher mbrojtje", "urdhërmbrojtje", "masë mbrojtëse"],
+    "KUNDËRPADI": ["kundërpadi", "kunderpadi"],
+    "KALLËZIM": ["kallëzim penal", "kallezim penal", "kallzim", "vepër penale", "aktakuzë"],
+    "RAPORT": ["raport social", "qps", "ekspertizë", "ekspertize", "procesverbal"],
+    "KONTRATË": ["marrëveshje", "marreveshje", "kontratë", "kontrate"],
 }
 
 
 class TimelineService:
     """
-    Shërbimi i Kronologjisë dhe Menaxhimit të Afateve Ligjore:
-    - Lexon dhe indekson datat nga të gjitha shkresat e fashikullit.
-    - Llogarit afatet ligjore sipas LPK, KPPRK dhe Ligjit për Familjen.
-    - Identifikon shkeljet e afateve dhe propozon mjetet e duhura juridike.
+    Shërbimi i Kronologjisë dhe Menaxhimit të Afateve Ligjore (V35.0):
+    - Nxjerr me saktësi si datat numerike ashtu edhe ato tekstuale me muaj shqip ("31 gusht 2026").
+    - Përllogarit saktë afatin 7-ditor për Aktvendime dhe 15-ditor për Aktgjykime.
+    - Integron të dhënat direkte nga 'content' i OCR-së.
     """
 
     @staticmethod
@@ -69,13 +70,13 @@ class TimelineService:
         if not text:
             return dates
 
+        # 1. Datat numerike (31.08.2026)
         for pattern in DATE_PATTERNS:
             matches = re.findall(pattern, text)
             for match in matches:
                 try:
                     if len(match) == 3:
                         part1, part2, part3 = match
-                        # Nëse formati është YYYY-MM-DD
                         if len(str(part1)) == 4:
                             year, month, day = int(part1), int(part2), int(part3)
                         else:
@@ -84,13 +85,28 @@ class TimelineService:
                         if year < 100:
                             year += 2000 if year < 50 else 1900
                         
-                        # Filtro datat e vlefshme historike dhe aktuale (1990 - 2035)
                         if 1 <= day <= 31 and 1 <= month <= 12 and 1990 <= year <= 2035:
                             dt = datetime(year, month, day, tzinfo=timezone.utc)
                             dates.append(dt)
                 except (ValueError, TypeError):
                     continue
-                    
+
+        # 2. PHOENIX FIX: Datat me tekst shqip (p.sh. "31 gusht 2026", "15 korrik 2026")
+        months_regex = "|".join(ALBANIAN_MONTHS.keys())
+        text_date_pattern = rf'\b(\d{{1,2}})\s+({months_regex})\s+(\d{{4}})\b'
+        text_matches = re.findall(text_date_pattern, text, flags=re.IGNORECASE)
+        
+        for day_str, month_name, year_str in text_matches:
+            try:
+                day = int(day_str)
+                month = ALBANIAN_MONTHS.get(month_name.lower())
+                year = int(year_str)
+                if month and 1 <= day <= 31 and 1990 <= year <= 2035:
+                    dt = datetime(year, month, day, tzinfo=timezone.utc)
+                    dates.append(dt)
+            except (ValueError, TypeError):
+                continue
+
         return sorted(set(dates))
 
     @staticmethod
@@ -114,7 +130,6 @@ class TimelineService:
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             
-            # 1. Lexo dokumentet me kërkim të sigurt (ObjectId + String)
             doc_filter = {
                 "$or": [{"case_id": case_id}, {"case_id": case_oid}],
                 "status": {"$ne": "DELETED"}
@@ -125,7 +140,6 @@ class TimelineService:
 
             documents = list(db.documents.find(doc_filter))
             
-            # 2. Lexo provat audio/video
             media_filter = {
                 "$or": [{"case_id": case_id}, {"case_id": case_oid}]
             }
@@ -135,14 +149,14 @@ class TimelineService:
 
             media_items = list(db.media_evidence.find(media_filter))
             
-            # 3. Përpuno dokumentet
+            # Përpunimi i dokumenteve (PHOENIX FIX: Lexon fushën 'content')
             for doc in documents:
                 file_name = doc.get("file_name", "Dokument")
-                extracted_text = doc.get("extracted_text") or doc.get("summary") or ""
+                full_text = doc.get("content") or doc.get("extracted_text") or doc.get("summary") or ""
                 created_at = doc.get("created_at")
                 
-                dates = TimelineService.extract_dates_from_text(extracted_text[:6000])
-                doc_type = TimelineService.detect_document_type(file_name, extracted_text[:2000])
+                dates = TimelineService.extract_dates_from_text(full_text)
+                doc_type = TimelineService.detect_document_type(file_name, full_text[:3000])
                 
                 if dates:
                     for dt in dates:
@@ -167,7 +181,7 @@ class TimelineService:
                     if created_dt not in key_dates:
                         key_dates.append(created_dt)
             
-            # 4. Përpuno provat audio/video
+            # Përpunimi i provave audio/video
             for media in media_items:
                 file_name = media.get("file_name", "Media")
                 created_at = media.get("created_at")
@@ -183,16 +197,12 @@ class TimelineService:
                     if created_dt not in key_dates:
                         key_dates.append(created_dt)
             
-            # 5. Rendit kronologjikisht
             timeline.sort(key=lambda x: x["date_obj"])
             key_dates.sort()
             
-            # 6. Llogarit afatet ligjore
             deadlines = TimelineService.calculate_deadlines(timeline)
             expired_deadlines = [d for d in deadlines if d.get("is_expired", False)]
             open_deadlines = [d for d in deadlines if not d.get("is_expired", False)]
-            
-            # 7. Rekomandimet e veprimit
             recommended_actions = TimelineService.recommend_actions(expired_deadlines, open_deadlines, timeline)
             
             return {
@@ -214,7 +224,7 @@ class TimelineService:
                 "deadlines": [],
                 "expired_deadlines": [],
                 "open_deadlines": [],
-                "recommended_actions": ["Kronologjia u ndërtua nga shkresat e fashikullit."],
+                "recommended_actions": ["Kronologjia po rindërtohet nga fashikulli."],
                 "total_documents": 0,
                 "total_media": 0
             }
@@ -231,19 +241,35 @@ class TimelineService:
             if not date_obj:
                 continue
             
-            if doc_type in ["VENDIM"]:
-                deadline_days = DEADLINE_RULES["ANKIM_CIVIL"]["days"]
+            # PHOENIX FIX: Aktvendimi ka afat 7 ditë, Aktgjykimi ka afat 15 ditë
+            if doc_type == "AKTVENDIM":
+                deadline_days = DEADLINE_RULES["ANKIM_AKTVENDIM"]["days"]
                 deadline_date = date_obj + timedelta(days=deadline_days)
                 is_expired = deadline_date < now
                 
                 deadlines.append({
-                    "document": item.get("document", "Vendim Gjyqësor"),
+                    "document": item.get("document", "Aktvendim Gjyqësor"),
                     "date": item.get("date", ""),
                     "deadline_days": deadline_days,
                     "deadline_date": deadline_date.strftime("%d.%m.%Y"),
                     "is_expired": is_expired,
-                    "description": DEADLINE_RULES["ANKIM_CIVIL"]["description"],
-                    "action_required": "Dorëzo Ankesë në Gjykatën e Apelit" if not is_expired else "Afati i rregullt ka skaduar — shqyrto Kthimin në Gjendje të Mëparshme ose Përsëritjen e Procedurës"
+                    "description": DEADLINE_RULES["ANKIM_AKTVENDIM"]["description"],
+                    "action_required": "Dorëzo Ankesë brenda afatit ligjor prej 7 ditësh" if not is_expired else "Afati i rregullt 7-ditor ka skaduar — shqyrto Kthimin në Gjendje të Mëparshme"
+                })
+
+            elif doc_type == "AKTGJYKIM":
+                deadline_days = DEADLINE_RULES["ANKIM_CIVIL_AKTGJYKIM"]["days"]
+                deadline_date = date_obj + timedelta(days=deadline_days)
+                is_expired = deadline_date < now
+                
+                deadlines.append({
+                    "document": item.get("document", "Aktgjykim Gjyqësor"),
+                    "date": item.get("date", ""),
+                    "deadline_days": deadline_days,
+                    "deadline_date": deadline_date.strftime("%d.%m.%Y"),
+                    "is_expired": is_expired,
+                    "description": DEADLINE_RULES["ANKIM_CIVIL_AKTGJYKIM"]["description"],
+                    "action_required": "Dorëzo Ankesë në Gjykatën e Apelit (15 ditë)" if not is_expired else "Afati i rregullt ka skaduar — shqyrto Mjetet e Jashtëzakonshme"
                 })
             
             elif doc_type in ["PADI"]:
@@ -258,7 +284,7 @@ class TimelineService:
                     "deadline_date": deadline_date.strftime("%d.%m.%Y"),
                     "is_expired": is_expired,
                     "description": DEADLINE_RULES["PËRGJIGJE_NË_PADI"]["description"],
-                    "action_required": "Dorëzo Përgjigje në Padi (Prapësim)" if not is_expired else "Afati i prapësimit ka kaluar — përgatit prapësimin për në Seancë Përgatitore"
+                    "action_required": "Dorëzo Përgjigje në Padi (Prapësim brenda 30 ditësh)" if not is_expired else "Afati i prapësimit ka kaluar — përgatit prapësimin për në Seancë Përgatitore"
                 })
         
         return deadlines
@@ -270,21 +296,14 @@ class TimelineService:
         timeline: List[Dict[str, Any]]
     ) -> List[str]:
         actions = []
-        
-        # 1. Veprimet për afate të hapura
         for od in open_deadlines:
-            actions.append(f"AFAT AKTIV: {od.get('action_required')} brenda datës {od.get('deadline_date')}.")
+            actions.append(f"AFAT AKTIV ({od.get('deadline_days')} ditë): {od.get('action_required')} deri më {od.get('deadline_date')}.")
         
-        # 2. Veprimet kur afatet kanë skaduar
         if expired_deadlines:
-            actions.append("KTHIM NË GJENDJEN E MËPARSHME / PËRSËRITJE: Nëse ka pasur pengesa të arsyeshme ose prova të reja, kërkohet kthimi në afat (Neni 129 LPK).")
+            actions.append("KTHIM NË GJENDJEN E MËPARSHME: Nëse ka pasur pengesa të arsyeshme objektive, kërkohet kthimi në afat (Neni 129 LPK).")
         
-        # 3. Nëse ka raport të QPS-së
-        if any(item.get("type") == "RAPORT" for item in timeline):
-            actions.append("KUNDËRSHTIM I RAPORTIT TË QPS: Dorëzo vërejtje me shkrim kundër njëanshmërisë së raportit social para seancës.")
-
         if not actions:
-            actions.append("Ndiq rrjedhën e rregullt procedurale sipas kalendarit të seancave.")
+            actions.append("Ndiq rrjedhën e rregullt procedurale sipas ligjit.")
             
         return actions
 
@@ -295,7 +314,7 @@ class TimelineService:
         
         lines = []
         lines.append("=" * 60)
-        lines.append("📅 KRONOLOGJIA E SAKTË E RASTIT DHE STATUSI I AFATEVE:")
+        lines.append("📅 KRONOLOGJIA E SAKTË DHE AFATET LIGJORE TË FASHIKULLIT:")
         lines.append("=" * 60)
         
         for item in timeline_data.get("timeline", []):
@@ -306,7 +325,7 @@ class TimelineService:
         
         if timeline_data.get("open_deadlines"):
             lines.append("")
-            lines.append("🟢 AFATET LIGJORE TË HAPURA:")
+            lines.append("🟢 AFATET PROCEDURALE TË HAPURA:")
             for d in timeline_data.get("open_deadlines", []):
                 lines.append(f"   ⏳ {d.get('document', '')} — Afati: {d.get('deadline_date', '')} ➔ {d.get('action_required', '')}")
 
@@ -316,16 +335,9 @@ class TimelineService:
             for d in timeline_data.get("expired_deadlines", []):
                 lines.append(f"   ⚠️ {d.get('document', '')} — Skaduar më: {d.get('deadline_date', '')} ➔ {d.get('action_required', '')}")
         
-        if timeline_data.get("recommended_actions"):
-            lines.append("")
-            lines.append("🎯 HAPAT E SUGJERUAR PROCEDURALË:")
-            for action in timeline_data.get("recommended_actions", []):
-                lines.append(f"   🔹 {action}")
-        
         lines.append("=" * 60)
-        
         return "\n".join(lines)
 
 
-# Singleton instance
+# Singleton
 timeline_service = TimelineService()

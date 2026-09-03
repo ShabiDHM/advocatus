@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/role_guard_service.py
-# PHOENIX PROTOCOL - ROLE GUARD SERVICE V70.0 (3 DISTINCT PROCEDURAL STANCES • ZERO REFUSAL LOCK)
+# PHOENIX PROTOCOL - ROLE GUARD SERVICE V75.0 (3 DISTINCT PROCEDURAL STANCES • ZERO REFUSAL LOCK)
 
 import logging
 from typing import Optional, Dict, Any
@@ -28,7 +28,7 @@ VALID_ROLES = {
 
 class RoleGuardService:
     """
-    Shërbimi i Përfaqësimit të 3 Roleve Procedurale (V70.0):
+    Shërbimi i Përfaqësimit të 3 Roleve Procedurale (V75.0):
     1. PADITËS (Strategji Sulmi & Ndjekje Penale/Civile);
     2. I PADITUR (Mbrojtje e Hekurt & Rrëzim i Pretendimeve);
     3. NEUTRAL (Auditimi i Paanshëm i Gjyqtarit / Arbitrit).
@@ -39,7 +39,7 @@ class RoleGuardService:
         if not role:
             return "I PADITUR"
         
-        role_upper = role.upper().strip()
+        role_upper = str(role).upper().strip()
         return VALID_ROLES.get(role_upper, "I PADITUR")
 
     @staticmethod
@@ -51,7 +51,14 @@ class RoleGuardService:
             if not case:
                 return "I PADITUR"
             
-            raw_role = case.get("client_position") or case.get("role") or "DEFENDANT"
+            # PHOENIX FIX: Kontrollon të gjitha fushat ku mund të jetë ruajtur roli në MongoDB
+            raw_role = (
+                case.get("client_position") or 
+                case.get("client_role") or 
+                case.get("role") or 
+                case.get("position") or 
+                "DEFENDANT"
+            )
             return RoleGuardService.normalize_role(raw_role)
             
         except Exception as e:
@@ -61,26 +68,27 @@ class RoleGuardService:
     @staticmethod
     def get_role_instruction(role: str, client_name: str) -> str:
         normalized = RoleGuardService.normalize_role(role)
+        c_name = client_name.strip() if (client_name and client_name.strip()) else "Klienti"
         
         # 1. ROLI: PADITËS / SULM
         if normalized == "PADITËS":
             return f"""
-QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR I PADITËSIT / PARASHTRUESIT ({client_name}).
+QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR I PADITËSIT / PARASHTRUESIT ({c_name}).
 MISIONI YT PROCEDURAL:
 1. Ndërto strategjinë sulmuese për të PROVUAR plotësisht padinë/kallëzimin me prova të pakontestueshme materiale.
 2. Identifiko dhe zbërthe të gjitha shkeljet ligjore, dëmet dhe përgjegjësinë e palës së denoncuar/të paditur.
 3. Kërko masat emergjente mbrojtëse (Nenet 188 & 221 KPPRK / Masat e Sigurimit LPK) dhe maksimizo kompensimin e dëmit.
-4. Çdo analizë dhe auditim synon të vulosë fitoren ligjore të {client_name}.
+4. Çdo analizë dhe auditim synon të vulosë fitoren ligjore të {c_name}.
 """
         # 2. ROLI: I PADITUR / MBROJTJE
         elif normalized == "I PADITUR":
             return f"""
-QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR MBROJTËS I TË PADITURIT / TË DYSHUARIT ({client_name}).
+QËNDRIMI STRATEGJIK: TI JE AVOKATI KRYESOR MBROJTËS I TË PADITURIT / TË DYSHUARIT ({c_name}).
 MISIONI YT PROCEDURAL:
-1. Ndërto MBROJTJEN E HEKURT të {client_name} dhe rrëzo të gjitha pretendimet e palës kundërshtare.
+1. Ndërto MBROJTJEN E HEKURT të {c_name} dhe rrëzo të gjitha pretendimet e palës kundërshtare.
 2. Zbulo shkeljet thelbësore procedurale (Neni 384 KPPRK / Neni 182 LPK), provat e papranueshme dhe prapadatimet në shkresa.
 3. Ndërto kundërsulmin procedural: Prapësime, Kundërpadi, Parashkrim dhe Kallëzime Penale për Lajmërim të Rremë.
-4. Çdo analizë synon pafajësinë, hedhjen e aktit dhe refuzimin e kërkesave kundër {client_name}.
+4. Çdo analizë synon pafajësinë, hedhjen e aktit dhe refuzimin e kërkesave kundër {c_name}.
 """
         # 3. ROLI: NEUTRAL / GJYQTAR / EKSPERT
         else:
@@ -96,12 +104,13 @@ MISIONI YT PROCEDURAL:
     @staticmethod
     def build_role_guard(role: str, client_name: str) -> str:
         normalized = RoleGuardService.normalize_role(role)
-        role_instruction = RoleGuardService.get_role_instruction(normalized, client_name)
+        c_name = client_name.strip() if (client_name and client_name.strip()) else "Klienti"
+        role_instruction = RoleGuardService.get_role_instruction(normalized, c_name)
         
         return f"""
 {'='*60}
 🛡️ POZICIONI PROCEDURAL I ZGJEDHUR: **{normalized}**
-Klienti: **{client_name}**
+Klienti: **{c_name}**
 {'='*60}
 {role_instruction}
 
@@ -114,8 +123,9 @@ RREGULLAT E HEKURTA:
     @staticmethod
     def build_role_trace(role: str, client_name: str, case_domain: str = "") -> str:
         normalized = RoleGuardService.normalize_role(role)
+        c_name = client_name.strip() if (client_name and client_name.strip()) else "Klienti"
         domain_part = f" | LËMIA: {case_domain}" if case_domain else ""
-        return f"📌 ROLI: {normalized} | KLIENTI: {client_name}{domain_part}"
+        return f"📌 ROLI: {normalized} | KLIENTI: {c_name}{domain_part}"
 
     @staticmethod
     def get_role_specific_tone(role: str) -> str:

@@ -1,81 +1,90 @@
 # FILE: backend/app/services/rag/intent_detector.py
-# PHOENIX PROTOCOL - INTENT DETECTOR V2.0 (COMPREHENSIVE ANALYSIS ADDED)
+# PHOENIX PROTOCOL - INTENT DETECTOR V3.0 (ROBUST MULTI-INFLECTION ALBANIAN INTENT ROUTER)
 
 import re
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class IntentDetector:
     """
-    Zbulon se çfarë kërkon përdoruesi:
-    - COMPREHENSIVE_ANALYSIS: Raporti i plotë forenzik
-    - FORENSIC_AUDIT: Ikona ⚖️ — Auditim forenzik i dokumentit
-    - DRAFTING: Hartim i akteve zyrtare
-    - PILLAR_STRATEGY: Karta 1 — Strategjia
-    - PILLAR_STATUTES: Karta 2 — Baza Statutore
-    - PILLAR_QUESTIONS: Karta 3 — Pyetësori
-    - PILLAR_DAMAGES: Karta 4 — Dëmet
-    - GENERAL_CHAT: Bisedë e përgjithshme
+    Zbuluesi Qendror i Qëllimit të Përdoruesit (V3.0):
+    - COMPREHENSIVE_ANALYSIS: Butoni "Analizo Rastin" / Raporti Master i Dosjes
+    - FORENSIC_AUDIT: Ikona ⚖️ / Auditimi i thellë i një dokumenti specifik
+    - DRAFTING: Hartimi i çdo lloj padie, ankesa, prapësimi, kallëzimi apo kontrate
+    - PILLARS: Kërkesat e veçanta (Strategjia, Pyetësori, Dëmet, Baza Ligjore)
+    - GENERAL_CHAT: Pyetje të përgjithshme ligjore
     """
 
     @staticmethod
     def detect(query: str) -> str:
-        q = query.lower()
-        
-        # 0. ANALIZA E PLOTË E RASTIT (RAPORTI I UNIFIKUAR)
+        if not query:
+            return "GENERAL_CHAT"
+
+        q = query.lower().strip()
+
+        # 0. ANALIZA E PLOTË E DOSJES (RAPORTI MASTER I FASHIKULLIT)
         comprehensive_keywords = [
             "analizo rastin", "analizo rast", "analiza e plotë", "analiza e plote",
             "raport i plotë", "raport i plote", "analizë e plotë", "analize e plote",
-            "raport forenzik", "analiza forenzike", "analiza e rastit"
+            "raport forenzik", "analiza forenzike", "analiza e rastit", "analizo dosjen",
+            "analizo fashikullin", "raporti master", "raport master", "analizë e thellë",
+            "pasaporta procedurale"
         ]
         if any(k in q for k in comprehensive_keywords):
             return "COMPREHENSIVE_ANALYSIS"
 
-        # 1. FORENZIKA LIGJORE (⚖️)
+        # 1. AUDITIMI FORENZIK I DOKUMENTIT (⚖️)
         audit_keywords = [
-            "forenzika ligjore", "forenzikë ligjore", "forenzike", "forenzikë",
-            "direktivë forenzike", "auditim forenzik", "audito dokumentin",
-            "verifiko dokumentin", "kontroll forenzik", "konsulenca e gjyqtarit suprem"
+            "direktivë forenzike", "direktive forenzike", "auditimi forenzik", "auditim forenzik",
+            "audito dokumentin", "verifiko dokumentin", "kontroll forenzik", "forenzikë e dokumentit",
+            "forenzike e dokumentit", "konsulenca e gjyqtarit", "konsulencë gjyqësore"
         ]
         if any(k in q for k in audit_keywords):
             return "FORENSIC_AUDIT"
 
-        # 2. HARTIM I AKTEVE
-        draft_triggers = [
-            "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin",
-            "harto padinë", "harto kallëzimin penal", "harto prapësimin",
-            "harto ankesën", "harto kontratën"
-        ]
-        if any(k in q for k in draft_triggers):
+        # 2. HARTIM I AKTEVE GJYQËSORE (DRAFTING) - Kap të gjitha lakimet
+        is_drafting_intent = (
+            any(w in q for w in ["harto", "gjenero", "përpilo", "perpilo", "shkruaj", "drafto", "krijo"]) and
+            any(w in q for w in [
+                "padi", "kërkesëpadi", "kerkesepadi", "kallëzim", "kallezim", 
+                "ankesë", "ankese", "ankim", "prapësim", "prapsim", "kundërpadi", 
+                "kunderpadi", "kontratë", "kontrate", "shkresë", "shkrese", "akt", "draft"
+            ])
+        ) or any(t in q for t in [
+            "ma harto", "ma gjenero", "shkruaj aktin", "përpilo aktin", 
+            "harto aktin", "përgatit padinë", "përgatit ankesën"
+        ])
+
+        if is_drafting_intent:
             return "DRAFTING"
-        
-        # 3. PYETËSORI TAKTIK
+
+        # 3. PYETËSORI TAKTIK PËR SEANCË
         if any(k in q for k in [
-            "pyetësorin taktik", "pyetësor", "pyetje taktike", "ballafaqim",
-            "dëshmitarët", "marrja në pyetje", "seancë", "kundër-pyetje"
+            "pyetësor", "pyetesor", "pyetje taktike", "ballafaqim",
+            "dëshmitar", "deshmitar", "marrja në pyetje", "seancë", "kundër-pyetje"
         ]):
             return "PILLAR_QUESTIONS"
-        
-        # 4. DËMET DHE MASAT
+
+        # 4. LLOGARITJA E DËMIT DHE MASAT E SIGURIMIT
         if any(k in q for k in [
-            "llogarit dëmet", "llogaritja e dëmit", "lmd", "kamatën ligjore",
-            "masat emergjente", "dëmit material", "dëmet materiale e jomateriale"
+            "llogarit dëmet", "llogaritja e dëmit", "kamatë", "kamate", "kamata ligjore",
+            "masat emergjente", "masë e sigurimit", "mase e sigurimit", "dëm material", "dëmit material"
         ]):
             return "PILLAR_DAMAGES"
 
-        # 5. BAZA STATUTARE
+        # 5. BAZA STATUTORE DHE PRECEDENTËT
         if any(k in q for k in [
-            "nxirr bazën e plotë ligjore", "baza statutore dhe jurisprudenca",
-            "lapsuse në shkresa", "precedentët dhe qëndrimet e gjykatës supreme"
+            "nxirr bazën e plotë ligjore", "baza statutore", "nenet e ligjit",
+            "precedentët", "precedentet", "praktika e gjykatës supreme"
         ]):
             return "PILLAR_STATUTES"
 
-        # 6. STRATEGJIA
+        # 6. STRATEGJIA DHE MATRICA E PROVAVE
         if any(k in q for k in [
-            "shtyllat strategjike të kërkesëpadisë", "strategjia dhe matrica e provave",
-            "qëndrueshmërinë e lëndës", "gjendjen e lëndës",
-            "çfarë më kanë bërë", "çfarë të bëj tash", "hapat e ardhshëm"
+            "strategjia", "shtyllat strategjike", "matrica e provave",
+            "qëndrueshmërinë e lëndës", "hapat e ardhshëm", "plani i veprimit"
         ]):
             return "PILLAR_STRATEGY"
 

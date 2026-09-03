@@ -1,5 +1,5 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.0 (429 RATE-LIMIT AUTO-RETRY & MULTI-PAGE RESILIENCE)
+# PHOENIX PROTOCOL - AI VISION OCR ENGINE V20.0 (OPENROUTER MULTIMODAL ZERO-DROP TRANSCRIBER)
 
 import os
 import json
@@ -7,18 +7,19 @@ import logging
 import re
 import io
 import time
-import requests
+import base64
 from typing import Dict, List, Tuple, Optional, Any
+
+from app.services.llm.llm_client import _get_sync_client, _get_api_key
 
 logger = logging.getLogger(__name__)
 
-# --- SECURE CREDENTIALS ---
-OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "K89840741888957")
-
-INVOICE_KEYWORDS = {
-    'sq': ['total', 'shuma', 'data', 'faturë', 'kupon', 'tvsh', 'zbritje', 'pagesë', 'çmimi', 'numri fiskal'],
-    'en': ['total', 'amount', 'sum', 'vat', 'date', 'invoice', 'receipt', 'tax', 'subtotal', 'fiscal'],
-}
+# Modelet e Inteligjencës Vizuale (Të testuara në OpenRouter për OCR të dokumenteve)
+VISION_PRIMARY_MODEL = "openai/gpt-4o-mini"
+VISION_FALLBACK_MODELS = [
+    "google/gemini-2.0-flash-001",
+    "anthropic/claude-sonnet-latest"
+]
 
 class SmartOCRResult:
     def __init__(self, text: str, confidence: float = 0.0, metadata: Optional[Dict[str, Any]] = None):
@@ -30,7 +31,7 @@ class SmartOCRResult:
     def to_dict(self) -> Dict[str, Any]:
         return {'text': self.text, 'confidence': self.confidence, 'metadata': self.metadata, 'structured_data': self.structured_data}
 
-# --- HYBRID PARSER: LOCAL PDF TEXT EXTRACTOR ---
+# --- 1. LOCAL PDF DIGITAL EXTRACTOR (Nëse dokumenti ka tekst dixhital të gatshëm) ---
 
 def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     try:
@@ -38,112 +39,99 @@ def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         text_runs = []
         for page in reader.pages:
-            text_runs.append(page.extract_text() or "")
+            t = page.extract_text() or ""
+            if t.strip():
+                text_runs.append(t)
         full_text = "\n".join(text_runs).strip()
-        if len(full_text) > 80:
-            logger.info(f"✅ Local PDF text extraction success: {len(full_text)} chars")
+        if len(full_text) > 100:
+            logger.info(f"✅ [Local PDF] U nxorën {len(full_text)} karaktere dixhitale pa pasur nevojë për OCR.")
             return full_text
     except Exception as e:
         logger.warning(f"Local PDF parser skipped: {e}")
     return None
 
-# --- ADVANCED OCR.SPACE ENGINE WITH 429 AUTO-RETRY ---
+# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (Zëvendësimi i Plotë i OCR Space) ---
 
-def run_ocr_space_ocr(image_bytes: bytes) -> Tuple[str, float]:
+def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
     """
-    Sends image or PDF bytes to OCR.space API with automatic 429 rate limit backoff.
+    Përdor Inteligjencën Vizuale të OpenRouter (GPT-4o-mini / Gemini / Claude)
+    për të transkriptuar 100% të gjithë tekstin shqip nga faqja e skanuar.
     """
-    if not OCR_SPACE_API_KEY:
-        logger.error("❌ OCR_SPACE_API_KEY is missing from environment variables.")
+    api_key = _get_api_key()
+    if not api_key:
+        logger.error("❌ Mungon OPENROUTER_API_KEY për Vision OCR.")
         return "", 0.0
 
-    url = "https://api.ocr.space/parse/image"
-    is_pdf = image_bytes.startswith(b'%PDF-')
-    
-    filename = "page.pdf" if is_pdf else "page.png"
-    mime = "application/pdf" if is_pdf else "image/png"
-    
-    payload = {
-        "apikey": OCR_SPACE_API_KEY,
-        "language": "eng", 
-        "isOverlayRequired": False,
-        "OCREngine": "2",
-        "scale": True,
-        "detectOrientation": True
-    }
-    
-    max_attempts = 4
-    for attempt in range(max_attempts):
-        try:
-            files = {"file": (filename, image_bytes, mime)}
-            response = requests.post(url, files=files, data=payload, timeout=35)
-            
-            # Handle OCR.space 429 Too Many Requests or Rate Limit Error codes
-            if response.status_code == 429 or "429" in response.text:
-                wait_seconds = 1.5 * (attempt + 1)
-                logger.warning(f"⚠️ [OCR.space 429] Rate limit hit. Backing off {wait_seconds:.1f}s before retry ({attempt + 1}/{max_attempts})...")
-                time.sleep(wait_seconds)
+    b64_image = base64.b64encode(image_bytes).decode('utf-8')
+    data_url = f"data:image/jpeg;base64,{b64_image}"
+
+    client = _get_sync_client()
+
+    ocr_system_prompt = (
+        "Ti je një Transkriptues Ligjor dhe Ekspert i Forenzikës së Dokumenteve për Gjykatat e Kosovës.\n"
+        "DETYRA JOTE E VETME:\n"
+        "Transkripto me saktësi 100% literale çdo fjalë, numër, datë, dhe element të shkruar në këtë faqe të skanuar.\n\n"
+        "RREGULLAT E HEKURTA:\n"
+        "1. Transkripto çdo datë (p.sh. 31.08.2026), numër lënde (p.sh. KE.nr.662/2022), emra palësh, emra gjyqtarësh dhe shuma monetare me saktësi absolute.\n"
+        "2. Ruaj strukturën origjinale të paragrafeve, pikave të dispozitivit (I, II, III) dhe neneve ligjore.\n"
+        "3. MOS bëj përmbledhje, MOS bëj analiza, dhe MOS shto asnjë koment. Kthe VETËM tekstin e plotë të transkriptuar."
+    )
+
+    models_to_try = [VISION_PRIMARY_MODEL] + [m for m in VISION_FALLBACK_MODELS if m != VISION_PRIMARY_MODEL]
+
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                logger.info(f"👁️ [AI Vision OCR] Duke transkriptuar faqen me modelin: {model_name}...")
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": ocr_system_prompt},
+                                {"type": "image_url", "image_url": {"url": data_url}}
+                            ]
+                        }
+                    ],
+                    temperature=0.0,
+                    max_tokens=4000
+                )
+
+                if response and response.choices and len(response.choices) > 0:
+                    raw_text = response.choices[0].message.content or ""
+                    cleaned_text = raw_text.strip()
+                    if len(cleaned_text) > 10:
+                        logger.info(f"✅ [AI Vision OCR] Faqja u transkriptua me sukses: {len(cleaned_text)} karaktere me {model_name}.")
+                        return cleaned_text, 0.99
+            except Exception as e:
+                logger.warning(f"⚠️ [AI Vision OCR] Modeli {model_name} dështoi (Përpjekja {attempt + 1}): {e}")
+                time.sleep(1.0)
                 continue
 
-            response.raise_for_status()
-            result = response.json()
-            
-            # Check if OCR.space returned an internal error message
-            if result.get("IsErroredOnProcessing"):
-                err_msg = result.get("ErrorMessage", ["Processing error"])
-                err_str = " ".join(err_msg) if isinstance(err_msg, list) else str(err_msg)
-                if "429" in err_str or "limit" in err_str.lower():
-                    wait_seconds = 2.0 * (attempt + 1)
-                    logger.warning(f"⚠️ [OCR.space Error 429] {err_str}. Backing off {wait_seconds:.1f}s...")
-                    time.sleep(wait_seconds)
-                    continue
-                logger.error(f"❌ OCR.space Internal Error: {err_str}")
-                return "", 0.0
-            
-            parsed_results = result.get("ParsedResults", [])
-            if not parsed_results:
-                return "", 0.0
-                
-            full_text = parsed_results[0].get("ParsedText", "")
-            return full_text, 0.95
-            
-        except requests.exceptions.RequestException as e:
-            if "429" in str(e) and attempt < max_attempts - 1:
-                wait_seconds = 1.8 * (attempt + 1)
-                logger.warning(f"⚠️ [OCR.space 429 Exception] Pausing {wait_seconds:.1f}s...")
-                time.sleep(wait_seconds)
-                continue
-            if attempt == max_attempts - 1:
-                logger.error(f"❌ OCR.space Request Failed after {max_attempts} attempts: {e}")
-                return "", 0.0
-            time.sleep(1.0)
-        except Exception as e:
-            logger.error(f"❌ OCR.space Unexpected Failure: {e}")
-            return "", 0.0
-
+    logger.error("❌ Të gjitha modelet e AI Vision dështuan për këtë faqe.")
     return "", 0.0
 
 def rule_based_correction(text: str) -> str:
     if not text: 
         return text
     text = re.sub(r'SPARKOSOVA', 'SPAR KOSOVA', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bKate\b', 'Kafe', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bSandun\b', 'Sanduiç', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bUj\b', 'Ujë', text, flags=re.IGNORECASE)
     return text.strip()
 
 def extract_text_from_image_bytes(image_bytes: bytes) -> str:
     try:
+        # Nëse është PDF dixhital, nxjerr tekstin pa shpenzuar asnjë token
         if image_bytes.startswith(b'%PDF-'):
             local_text = extract_text_from_pdf_locally(image_bytes)
             if local_text:
                 return rule_based_correction(local_text)
                 
-        raw_text, confidence = run_ocr_space_ocr(image_bytes)
+        # Nëse është imazh/skanim, përdor AI Vision OCR me sy inteligjentë
+        raw_text, confidence = run_ai_vision_ocr(image_bytes)
         corrected_text = rule_based_correction(raw_text)
         return corrected_text
     except Exception as e:
-        logger.error(f"❌ OCR extraction failed: {e}")
+        logger.error(f"❌ Gabim i përgjithshëm në OCR: {e}")
         return ""
 
 def extract_text_from_image(file_path: str) -> str:
@@ -154,7 +142,7 @@ def extract_text_from_image(file_path: str) -> str:
             image_bytes = f.read()
         return extract_text_from_image_bytes(image_bytes)
     except Exception as e:
-        logger.error(f"❌ OCR disk extraction failed: {e}")
+        logger.error(f"❌ Gabim gjatë leximit të imazhit nga disku: {e}")
         return ""
 
 def preprocess_image_for_ocr(pil_image): 

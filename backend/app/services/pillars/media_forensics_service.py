@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/media_forensics_service.py
-# PHOENIX PROTOCOL - MEDIA FORENSICS V25.0 (UNIFIED ULTRA-FAST VERBATIM & RAG INDEXING)
+# PHOENIX PROTOCOL - MEDIA FORENSICS V26.0 (DIRECT OPENAI WHISPER ENGINE & PRECISE RAG INDEXING)
 
 import os
 import re
@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from bson import ObjectId
 from openai import OpenAI
-import redis.asyncio as aioredis
 
 from app.core.config import settings
 from app.services.vector_store_service import create_and_store_embeddings_from_chunks
@@ -20,13 +19,11 @@ from app.services.pillars.role_guard_service import RoleGuardService
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-WHISPER_TURBO_MODEL = "openai/whisper-large-v3-turbo"
-WHISPER_FALLBACK_MODEL = "openai/whisper-1"
+WHISPER_MODEL = "whisper-1"
 
 WHISPER_INITIAL_PROMPT = (
-    "Transkriptim forenzik fjalë-për-fjalë (verbatim) në gjuhën shqipe dhe bisedore: "
-    "dialog i drejtpërdrejtë, fjalët ekzakte të palëve, 'babi', 'mami', 'gjykata', 'seanca'."
+    "Transkriptim forenzik fjalë-për-fjalë (verbatim) në gjuhën shqipe: "
+    "dialog i drejtpërdrejtë, fjalët ekzakte të palëve, biseda telefonike, seanca gjyqësore."
 )
 
 NOISE_PATTERNS = [
@@ -46,10 +43,10 @@ NOISE_PATTERNS = [
 class MediaForensicsService:
     """
     Modul Ekskluziv për Zbardhjen Verbatim të Provave Audio dhe Video:
-    - Nxjerrje automatike e zërit me FFmpeg nga çdo video/audio
-    - Kompresim 32k mono 16kHz për të mos tejkaluar limitin 25MB të Whisper
-    - 100% Verbatim me sekonda [MM:SS - MM:SS]
-    - Indeksim i drejtpërdrejtë në RAG si Provë Materiale për Paditë dhe Analizat
+    - Nxjerrje automatike e zërit me FFmpeg nga çdo video/audio.
+    - Kompresim 32k mono 16kHz për të mos tejkaluar limitin 25MB të Whisper.
+    - 100% Verbatim me sekonda [MM:SS - MM:SS].
+    - Indeksim i drejtpërdrejtë në RAG si Provë Materiale për lëndën.
     """
 
     @classmethod
@@ -118,9 +115,11 @@ class MediaForensicsService:
 
     @classmethod
     def transcribe_audio_file(cls, file_path: str) -> str:
-        api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            return "[Gabim: Mungon API Key për transkriptim.]"
+        # PHOENIX FIX: Përdor çelësin OpenAI për Whisper pasi OpenRouter nuk mbështet /audio/transcriptions
+        openai_key = getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY", "")
+        if not openai_key:
+            logger.error("❌ Mungon OPENAI_API_KEY për Whisper.")
+            return "[Gabim: Mungon OPENAI_API_KEY për transkriptimin e zërit.]"
 
         whisper_audio_path = cls.extract_audio_for_whisper(file_path) or file_path
         created_temp = (whisper_audio_path != file_path)
@@ -130,26 +129,16 @@ class MediaForensicsService:
             if file_size_mb > 24.5:
                 return f"[Gabim: Skedari audio është {file_size_mb:.1f}MB. Kufiri maksimal është 25MB.]"
 
-            client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL, timeout=120.0)
+            # Lidhu direkt me endpoint-in zyrtar të OpenAI për transkriptim të sigurt
+            client = OpenAI(api_key=openai_key, timeout=120.0)
 
-            response_data = None
-            try:
-                with open(whisper_audio_path, "rb") as audio_file:
-                    response_data = client.audio.transcriptions.create(
-                        model=WHISPER_TURBO_MODEL,
-                        file=audio_file,
-                        prompt=WHISPER_INITIAL_PROMPT,
-                        response_format="verbose_json"
-                    )
-            except Exception as turbo_err:
-                logger.warning(f"Whisper turbo fallback: {turbo_err}")
-                with open(whisper_audio_path, "rb") as audio_file:
-                    response_data = client.audio.transcriptions.create(
-                        model=WHISPER_FALLBACK_MODEL,
-                        file=audio_file,
-                        prompt=WHISPER_INITIAL_PROMPT,
-                        response_format="verbose_json"
-                    )
+            with open(whisper_audio_path, "rb") as audio_file:
+                response_data = client.audio.transcriptions.create(
+                    model=WHISPER_MODEL,
+                    file=audio_file,
+                    prompt=WHISPER_INITIAL_PROMPT,
+                    response_format="verbose_json"
+                )
 
             formatted_lines = []
             segments = getattr(response_data, "segments", None)

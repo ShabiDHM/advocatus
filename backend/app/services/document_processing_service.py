@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V30.0 (EXACT REAL PAGE COUNT & ZERO TRUNCATION)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V35.0 (UNIFIED CONTENT STORAGE & RESILIENT TIMEOUTS)
 
 import os
 import tempfile
@@ -83,7 +83,7 @@ async def orchestrate_document_processing_mongo(
     redis_client: Any = None,
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V30.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V35.0] Processing booted for doc: {document_id_str}")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -134,16 +134,18 @@ async def orchestrate_document_processing_mongo(
             logger.warning(f"Could not calculate page count for {doc_name}: {page_err}")
             real_page_count = 1
 
-        # Faza 2: 60% Leximi me OCR
-        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin & OCR...")
+        # Faza 2: 60% Leximi me AI Vision & OCR (Koha përshtatet me numrin e faqeve)
+        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin me AI Vision...")
         
+        ocr_timeout = max(90.0, real_page_count * 20.0)
         try:
             extracted = await asyncio.wait_for(
                 asyncio.to_thread(text_extraction_service.extract_text, temp_original_file_path, document.get("mime_type", "")),
-                timeout=90.0
+                timeout=ocr_timeout
             )
             if extracted and len(extracted.strip()) > 10:
                 raw_text = extracted
+                logger.info(f"✅ [Orchestrator] U nxorën {len(raw_text)} karaktere nga {real_page_count} faqe.")
         except Exception as extract_err:
             logger.warning(f"OCR warning for {doc_name} (using fallback): {extract_err}")
 
@@ -153,8 +155,10 @@ async def orchestrate_document_processing_mongo(
         async def task_summary():
             try:
                 sterilized_text = llm_service.sterilize_legal_text(raw_text)
-                return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=15.0)
-            except Exception:
+                # PHOENIX FIX: Zgjatet timeout nga 15s në 40s për t'i dhënë kohë AI-së të përmbledhë saktë
+                return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=40.0)
+            except Exception as e:
+                logger.warning(f"Summary task timeout/fallback: {e}")
                 return raw_text[:800]
 
         async def task_embeddings():
@@ -196,7 +200,7 @@ async def orchestrate_document_processing_mongo(
         try:
             results = await asyncio.wait_for(
                 asyncio.gather(task_summary(), task_embeddings(), task_storage(), task_preview(), return_exceptions=True),
-                timeout=45.0
+                timeout=75.0
             )
             if len(results) > 0 and isinstance(results[0], str): 
                 final_summary = results[0]
@@ -211,7 +215,7 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Orchestrator pipeline exception on {doc_name}: {general_err}")
     
     finally:
-        # Faza 5: 100% GATI (Ruhet Numri Real i Faqeve dhe Teksti i Plotë)
+        # Faza 5: 100% GATI (PHOENIX FIX: Ruhen të dyja fushat 'content' dhe 'extracted_text')
         try:
             await asyncio.to_thread(
                 db.documents.update_one,
@@ -220,7 +224,9 @@ async def orchestrate_document_processing_mongo(
                     "$set": {
                         "page_count": real_page_count,
                         "pages": real_page_count,
+                        "content": raw_text,
                         "extracted_text": raw_text,
+                        "text": raw_text,
                         "summary": final_summary,
                         "processed_text_storage_key": text_key,
                         "preview_storage_key": preview_storage_key,
@@ -231,7 +237,7 @@ async def orchestrate_document_processing_mongo(
                     }
                 }
             )
-            logger.info(f"✅ [Orchestrator V30.0] Document {document_id_str} ({real_page_count} pages) is 100% READY.")
+            logger.info(f"✅ [Orchestrator V35.0] Document {document_id_str} ({real_page_count} pages) is 100% READY.")
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 

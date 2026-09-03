@@ -1,53 +1,49 @@
 # FILE: backend/app/services/albanian_ner_service.py
-# PHOENIX PROTOCOL - NER CLOUD INDEPENDENCE V31.0 (GDPR SECURE FALLBACK)
-# 1. BUG FIX: Resolves the key resolution bug by checking both OPENROUTER_API_KEY and DEEPSEEK_API_KEY.
-# 2. ENHANCEMENT: Implements a highly defensive, local rule-based entity extractor to protect PII offline.
-# 3. GDPR COMPLIANCE: Guarantees names and titles are redacted locally if the cloud API is offline.
-# 4. STATUS: 100% compliant with Python 3.13, compatible with Render, and production-ready.
+# PHOENIX PROTOCOL - NER CLOUD INDEPENDENCE V32.0 (CENTRALIZED GATEWAY & GDPR COMPLIANT)
 
 import os
 import json
 import logging
 import re
-from typing import List, Tuple, Optional
-from openai import OpenAI
+from typing import List, Tuple, Optional, Dict, Any
+
+# Importimi nga Porta Qendrore e LLM
+from app.services.llm.llm_client import (
+    _call_llm,
+    clean_and_parse_json,
+    FAST_MODEL
+)
 
 logger = logging.getLogger(__name__)
 
-# PHOENIX V31.0: Supports both active keys to prevent silent key mismatch failures
-API_KEY = os.getenv("OPENROUTER_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
 
 class AlbanianNERService:
+    """
+    Shërbimi i Njohjes së Entiteteve (NER) dhe Mbrojtjes GDPR:
+    - Përdor portën qendrore të unifikuar LLM për identifikimin e personave, organizatave dhe datave.
+    - Rezervë e hekurt lokale (Local Regex Extractor) për mbrojtjen e të dhënave personale (PII).
+    """
+
     def __init__(self):
-        self.client = OpenAI(api_key=API_KEY, base_url=OPENROUTER_BASE_URL) if API_KEY else None
-        if self.client:
-            logger.info("✅ [NER] Named Entity Recognition client successfully initialized.")
-        else:
-            logger.warning("⚠️ [NER] API Key missing. NER running exclusively on local fallback.")
+        logger.info("✅ [NER] Albanian NER Service V32.0 Initialized with Centralized LLM Gateway.")
 
     def extract_entities_local(self, text: str) -> List[Tuple[str, str, int]]:
         """
-        Local rule-based entity extractor to guarantee GDPR safety 
-        even if the API client is missing, expired, or offline.
+        Nxjerrje lokale me rregulla strikte për mbrojtje GDPR 
+        edhe kur shërbimi cloud është offline.
         """
         results = []
         
-        # 1. Pattern matching Albanian names preceded by professional legal titles
         titles_pattern = r"\b(avokat|avokati|gjyqtar|gjyqtari|aksionar|aksionari|drejtor|drejtori|punëmarrës|punëmarrësi|punëdhënës|punëdhënësi|z\.|znj\.)\s+([A-Z][a-zëç]+(?:\s+[A-Z][a-zëç]+)+)\b"
-        
-        # 2. Pattern matching standalone double-capitalized names (standard name + surname)
         name_pattern = r"\b([A-Z][a-zëç]+)\s+([A-Z][a-zëç]+)\b"
         
-        # Strict exceptions to prevent redacting official statutes or legal organizations
         legal_exceptions = {
-            "Gjykata", "Themelore", "Komerciale", "Kodi", "Penal", "Procedurës", 
+            "Gjykata", "Themelore", "Komerciale", "Apelit", "Supreme", "Kodi", "Penal", "Procedurës", 
             "Marrëdhëniet", "Detyrimeve", "Pronësinë", "Ligji", "Kushtetues", "Republikës",
             "Departamenti", "Ekonomik", "Creative", "Team", "ShPK", "SHPK", "NUI", "ARBK"
         }
         
-        # Parse titles + names
+        # 1. Emrat me tituj profesionalë
         for match in re.finditer(titles_pattern, text, flags=re.IGNORECASE):
             name = match.group(2)
             if not any(part in legal_exceptions for part in name.split()):
@@ -55,7 +51,7 @@ class AlbanianNERService:
                 if idx != -1:
                     results.append((name, "PERSON", idx))
                     
-        # Parse standalone double-capitalized names
+        # 2. Emrat standardë me dy fjalë të mëdha
         for match in re.finditer(name_pattern, text):
             name = match.group(0)
             part1 = match.group(1)
@@ -71,39 +67,53 @@ class AlbanianNERService:
         if not text: 
             return []
             
-        # PHOENIX GDPR FAIL-SAFE: Instantly use the local extractor if the cloud client is offline
-        if not self.client:
-            logger.info("ℹ️ [NER] Utilizing Local rule-based entity extractor.")
-            return self.extract_entities_local(text)
-            
-        prompt = "Ti je ekspert i NER. Identifiko: PERSON, ORGANIZATION, LOCATION, DATE, MONEY. Kthe JSON listë: [{'text': '...', 'label': '...'}]"
+        prompt = (
+            "Ti je ekspert i Njohjes së Entiteteve Ligjore (NER) për Kosovën.\n"
+            "DETYRA: Identifiko entitetet e mëposhtme: PERSON, ORGANIZATION, LOCATION, DATE, MONEY.\n"
+            "Kthe VETËM një JSON me formatin: {'entities': [{'text': 'Emri', 'label': 'PERSON'}]}"
+        )
+
         try:
-            res = self.client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[{"role": "system", "content": prompt}, {"role": "user", "content": text[:10000]}],
-                temperature=0.1, 
-                response_format={"type": "json_object"}
+            raw_content = _call_llm(
+                system_prompt=prompt,
+                user_content=text[:12000],
+                json_mode=True,
+                temperature=0.0,
+                model=FAST_MODEL
             )
-            data = json.loads(res.choices[0].message.content)
-            entities = next(iter(data.values())) if isinstance(data, dict) else []
-            results = []
-            for ent in (entities if isinstance(entities, list) else []):
-                name, label = ent.get("text", ""), ent.get("label", "UNKNOWN").upper()
-                idx = text.find(name)
-                if name and idx != -1: 
-                    results.append((name, label, idx))
-            return results
+
+            if raw_content:
+                data = clean_and_parse_json(raw_content)
+                entities = data.get("entities") if isinstance(data, dict) else None
+                if not entities and isinstance(data, dict):
+                    entities = next(iter(data.values()), [])
+
+                results = []
+                for ent in (entities if isinstance(entities, list) else []):
+                    name = ent.get("text", "").strip()
+                    label = ent.get("label", "UNKNOWN").upper().strip()
+                    idx = text.find(name)
+                    if name and idx != -1: 
+                        results.append((name, label, idx))
+
+                if results:
+                    return results
+
         except Exception as e:
-            logger.error(f"⚠️ Cloud NER Failed: {e}. Falling back to local extractor.")
-            return self.extract_entities_local(text)
+            logger.warning(f"⚠️ Cloud NER dështoi: {e}. Po përdoret nxjerrësi lokal GDPR.")
+
+        # Fallback lokal i sigurt
+        return self.extract_entities_local(text)
 
     def get_albanian_placeholder(self, entity_label: str) -> str:
         placeholder_map = {
             "PERSON": "[EMRI_ANONIMIZUAR]", 
             "ORGANIZATION": "[ORGANIZATË_ANONIMIZUAR]", 
             "LOCATION": "[VENDNDODHJA_ANONIMIZUAR]", 
-            "DATE": "[DATA_ANONIMIZUAR]"
+            "DATE": "[DATA_ANONIMIZUAR]",
+            "MONEY": "[VLERA_ANONIMIZUAR]"
         }
         return placeholder_map.get(entity_label.upper(), f"[{entity_label}_ANONIMIZUAR]")
+
 
 ALBANIAN_NER_SERVICE = AlbanianNERService()
