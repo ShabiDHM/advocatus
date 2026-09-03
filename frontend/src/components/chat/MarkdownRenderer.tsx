@@ -1,5 +1,5 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - MARKDOWN RENDERER V43.0 (TYPESCRIPT CLEAN & DIRECT IN-CHAT PRECEDENT VIEWER)
+// PHOENIX PROTOCOL - MARKDOWN RENDERER V45.0 (NATIVE TOOLTIP PURGED)
 
 import React from 'react';
 import { LawCitationLink } from '../LawCitationLink';
@@ -58,7 +58,7 @@ export const buildMarkdownComponents = () => ({
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR) - 1-CLICK IN-CHAT MODAL TRIGGER
+    // 1. SUPREME COURT PRECEDENTS (PML, Rev, AC, CA, AGJ, PKR)
     const isPrecedent =
       /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
       rawHref.includes('/laws/library?q=') ||
@@ -75,15 +75,14 @@ export const buildMarkdownComponents = () => ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              // PHOENIX: Hap PDF-në e aktgjykimit direkt mbi Chat pa lëvizur nga faqja!
               window.dispatchEvent(
                 new CustomEvent('open_precedent_preview', {
                   detail: { caseNumber: cleanLabel }
                 })
               );
             }}
+            // Hequr atributi 'title' për të shmangur native tooltip të browser-it
             className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 hover:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs cursor-pointer focus:outline-none"
-            title={`Hap drejtpërdrejt Aktgjykimin e Gjykatës Supreme (${cleanLabel}) në ekran`}
           >
             <Landmark size={12} className="shrink-0 text-amber-500" />
             <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
@@ -92,7 +91,7 @@ export const buildMarkdownComponents = () => ({
       );
     }
 
-    // 2. STATUTE ARTICLE LINKS (/laws/article?lawTitle=...&articleNumber=...)
+    // 2. STATUTE ARTICLE LINKS (Kalon tek LawCitationLink ku ndodhet Hover-i i ri)
     if (rawHref.startsWith('/laws/article') || rawHref.startsWith('/laws/')) {
       try {
         const url = new URL(rawHref, window.location.origin);
@@ -120,7 +119,7 @@ export const buildMarkdownComponents = () => ({
       }
     }
 
-    // 3. EVIDENCE DOCUMENT LINKS (/documents/... or file extensions)
+    // 3. EVIDENCE DOCUMENT LINKS
     const isDocLink =
       rawHref.toLowerCase().includes('/documents/') ||
       rawHref.toLowerCase().endsWith('.pdf') ||
@@ -141,8 +140,8 @@ export const buildMarkdownComponents = () => ({
               })
             );
           }}
+          // Hequr 'title'
           className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mx-1 my-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 cursor-pointer focus:outline-none shadow-sm align-baseline"
-          title="Kliko për të hapur dhe verifikuar këtë dokument"
         >
           <FileText size={12} className="shrink-0 text-primary-start" />
           <span className="underline decoration-primary-start/40">{rawText || children}</span>
@@ -156,6 +155,7 @@ export const buildMarkdownComponents = () => ({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
+        // Hequr 'title'
         className="inline-flex items-center gap-1 text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors mx-0.5"
       >
         <span>{children}</span>

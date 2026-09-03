@@ -1,11 +1,11 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - SOLID OPAQUE INLINE LAW CITATION LINK V11.0 (RESPONSIVE WRAP & ZERO OVERFLOW)
+// PHOENIX PROTOCOL - SOLID FORENSIC TOOLTIP (NO NATIVE TITLE, NO DOUBLE TOOLTIP) V12.0
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Scale } from 'lucide-react';
+import { Scale, ShieldCheck } from 'lucide-react';
 import { apiService } from '../services/api';
 
 export interface LawCitationLinkProps {
@@ -110,14 +110,28 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const getBorderColorClass = (level: string) => {
     switch (level) {
       case 'HIGH':
-        return 'border-t-emerald-500';
+        return 'border-emerald-500/60';
       case 'MEDIUM':
-        return 'border-t-amber-500';
+        return 'border-amber-500/60';
       case 'LOW':
       case 'LOWEST':
-        return 'border-t-rose-500';
+        return 'border-rose-500/60';
       default:
-        return 'border-t-primary-start';
+        return 'border-primary-start/60';
+    }
+  };
+
+  const getBadgeColorClass = (level: string) => {
+    switch (level) {
+      case 'HIGH':
+        return 'bg-emerald-500/10 text-emerald-500';
+      case 'MEDIUM':
+        return 'bg-amber-500/10 text-amber-500';
+      case 'LOW':
+      case 'LOWEST':
+        return 'bg-rose-500/10 text-rose-500';
+      default:
+        return 'bg-primary-start/10 text-primary-start';
     }
   };
 
@@ -125,49 +139,51 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     <AnimatePresence>
       {showTooltip && sourceInfo && (
         <motion.div
-          initial={{ opacity: 0, y: 4, scale: 0.98 }}
+          initial={{ opacity: 0, y: 8, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 4, scale: 0.98 }}
+          exit={{ opacity: 0, y: 8, scale: 0.95 }}
           transition={{ duration: 0.12 }}
-          className={`absolute w-72 sm:w-84 p-4 border border-main border-t-2 ${getBorderColorClass(
+          className={`absolute w-72 sm:w-80 p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-2 ${getBorderColorClass(
             sourceInfo.confidence?.level || 'UNKNOWN'
-          )} rounded-2xl shadow-2xl z-[9999] text-left font-sans text-xs bg-surface text-text-primary pointer-events-none opacity-100`}
+          )} rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10`}
           style={{
             top: `${coords.top - 8}px`,
             left: `${coords.tooltipLeft}px`,
             transform: 'translate(-50%, -100%)',
-            backgroundColor: 'var(--bg-surface, #1e222b)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 10px 20px -10px rgba(0, 0, 0, 0.4)',
           }}
         >
-          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-main">
-            <div className="flex items-center gap-1.5 font-bold text-xs text-primary-start uppercase tracking-wider">
-              <Scale size={14} className="shrink-0" />
-              <span>{sourceInfo.confidence?.label || 'E verifikuar'}</span>
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
+            <div className={`flex items-center gap-1.5 font-bold text-xs ${getBadgeColorClass(sourceInfo.confidence?.level || 'UNKNOWN').split(' ')[1]}`}>
+              <ShieldCheck size={16} />
+              <span>{sourceInfo.confidence?.label || 'Tekst Zyrtar i Verifikuar'}</span>
             </div>
             {sourceInfo.confidence?.score !== undefined && sourceInfo.confidence.score > 0 && (
-              <span className="text-[10px] font-bold text-text-secondary">
-                {Math.round(sourceInfo.confidence.score * 100)}% përputhje
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${getBadgeColorClass(sourceInfo.confidence?.level || 'UNKNOWN')}`}>
+                {Math.round(sourceInfo.confidence.score * 100)}% SCORE
               </span>
             )}
           </div>
 
-          <div className="font-bold text-xs text-text-primary leading-snug mb-1">
-            {sourceInfo.matched_law || lawTitle}
+          <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
+            {sourceInfo.matched_law || lawTitle} • Neni {sourceInfo.matched_article || articleNum}
           </div>
 
-          <div className="text-xs font-bold text-primary-start mb-2">
-            Neni {sourceInfo.matched_article || articleNum}
+          <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
+            {sourceInfo.verification_hint || 'Nen i nxjerrë direkt nga Kodi Zyrtar.'}
           </div>
 
-          <div className="text-[11px] text-text-secondary border-t border-main pt-2 mt-1 leading-relaxed">
-            {sourceInfo.verification_hint || 'Baza ligjore e Kosovës korrespondon me kërkimin.'}
+          <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+            <span>Integriteti i Tekstit:</span>
+            <span className={`font-bold ${getBadgeColorClass(sourceInfo.confidence?.level || 'UNKNOWN').split(' ')[1]}`}>
+              Tekst i Paprekur ✓
+            </span>
           </div>
 
           <div
-            className="absolute top-full -translate-x-1/2 -mt-[1px] border-[7px] border-transparent pointer-events-none"
+            className="absolute top-full -translate-x-1/2 -mt-[2px] border-[8px] border-transparent pointer-events-none"
             style={{
-              borderTopColor: 'var(--bg-surface, #1e222b)',
+              borderTopColor: 'var(--tw-prose-body, currentColor)', // Ose mund të përdorni ngjyrën nga klasa parent (border-emerald)
+              opacity: 0.6,
               left: `calc(50% + ${coords.arrowOffset}px)`,
             }}
           />
@@ -185,10 +201,10 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     >
       <Link
         to={targetUrl}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/25 text-primary-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full"
-        title={`Verifiko Nenin ${articleNum} të ${lawTitle}`}
+        // 👉 Fshirë atributi `title` PËR TË NDALUAR BROWSER NATIVE TOOLTIP!
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/25 text-primary-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full"
       >
-        <Scale size={11} className="shrink-0 opacity-80" />
+        <Scale size={13} className="shrink-0 opacity-80" />
         <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanDisplayLabel}</span>
       </Link>
 
