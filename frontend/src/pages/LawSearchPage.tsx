@@ -1,10 +1,10 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH V39.0 (100% DATABASE-DRIVEN & ZERO HARDCODED ARRAYS)
+// PHOENIX PROTOCOL - LAW SEARCH & DIRECT 1-CLICK PRECEDENT VIEWER V40.0
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X, Scale, ArrowLeft, ChevronDown, Check, ShieldCheck, GraduationCap, Gavel } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
@@ -16,11 +16,11 @@ function normalizeForDisplay(title: string): string {
 export default function LawSearchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [activeTab, setActiveTab] = useState<'statutes' | 'academic' | 'caselaw'>('statutes');
   const [filterQuery, setFilterQuery] = useState('');
   
-  // Të dhënat vijnë 100% LIVE nga baza e të dhënave pa asnjë hardcoding
   const [statuteTitles, setStatuteTitles] = useState<string[]>([]);
   const [academicTitles, setAcademicTitles] = useState<string[]>([]);
   const [caselawTitles, setCaselawTitles] = useState<string[]>([]);
@@ -32,25 +32,64 @@ export default function LawSearchPage() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Hapja direkte e PDF-së në faqen e saktë
+  const openPrecedentDirectly = useCallback(async (queryOrTitle: string, availableCaselaw: string[]) => {
+    const cleanQuery = queryOrTitle.trim();
+    if (!cleanQuery) return;
+
+    setActiveTab('caselaw');
+
+    // Gjej skedarin PDF që përputhet me emrin ose numrin e rastit
+    let targetFilename = cleanQuery;
+    const lowerQ = cleanQuery.toLowerCase();
+    const matchedFromList = availableCaselaw.find(t => t.toLowerCase().includes(lowerQ));
+    if (matchedFromList) {
+      targetFilename = matchedFromList;
+    }
+
+    setSelectedPdfFilename(targetFilename);
+
+    try {
+      const res = await apiService.axiosInstance.get('/laws/case-page', { params: { law_title: cleanQuery } });
+      if (res.data && res.data.page) {
+        setInitialPageNumber(res.data.page);
+        if (res.data.law_title && res.data.law_title.toLowerCase().endsWith('.pdf')) {
+          setSelectedPdfFilename(res.data.law_title);
+        }
+      } else {
+        setInitialPageNumber(1);
+      }
+    } catch {
+      setInitialPageNumber(1);
+    }
+
+    setShowPdfModal(true);
+  }, []);
+
   useEffect(() => {
+    const queryFromUrl = searchParams.get('q');
+
     apiService.getLawTitles()
       .then((res: any) => {
         if (res) {
-          if (res.statutes && Array.isArray(res.statutes)) {
-            setStatuteTitles(res.statutes);
-          }
-          if (res.academic_manuals && Array.isArray(res.academic_manuals)) {
-            setAcademicTitles(res.academic_manuals);
-          }
-          if (res.case_law && Array.isArray(res.case_law)) {
-            setCaselawTitles(res.case_law);
+          const loadedStatutes = (res.statutes && Array.isArray(res.statutes)) ? res.statutes : [];
+          const loadedAcademic = (res.academic_manuals && Array.isArray(res.academic_manuals)) ? res.academic_manuals : [];
+          const loadedCaselaw = (res.case_law && Array.isArray(res.case_law)) ? res.case_law : [];
+
+          setStatuteTitles(loadedStatutes);
+          setAcademicTitles(loadedAcademic);
+          setCaselawTitles(loadedCaselaw);
+
+          // PHOENIX 1-CLICK: Nëse vjen nga linku i Chatit (?q=REV.Nr...), hap menjëherë PDF-në e duhur në faqen e saktë!
+          if (queryFromUrl) {
+            openPrecedentDirectly(queryFromUrl, loadedCaselaw);
           }
         }
       })
       .catch((err) => {
         console.error("[LawSearchPage] Error loading database titles:", err);
       });
-  }, []);
+  }, [searchParams, openPrecedentDirectly]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
