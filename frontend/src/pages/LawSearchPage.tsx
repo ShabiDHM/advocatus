@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIVERSAL AI-POWERED LEGAL DIAGNOSTIC & DISCOVERY HUB V91.0
+// PHOENIX PROTOCOL - UNIVERSAL AI-POWERED LEGAL DIAGNOSTIC & DISCOVERY HUB V92.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -135,6 +135,32 @@ export default function LawSearchPage() {
     return null;
   }, [searchQuery]);
 
+  // Gjetja e saktë e titullit zyrtar nga baza
+  const resolveLawTitle = useCallback((pattern?: string): string => {
+    if (!pattern) return statuteTitles[0] || 'Ligji';
+    const lowerPat = pattern.toLowerCase();
+
+    const matched = statuteTitles.find((t) => {
+      const lower = t.toLowerCase();
+      if (lowerPat === 'lpk') return lower.includes('kontestimore') || lower.includes('03/l-006') || lower.includes('03 l 006');
+      if (lowerPat === 'lmd') return lower.includes('detyrimeve') || lower.includes('04/l-077') || lower.includes('04 l 077');
+      if (lowerPat === 'kpk' || lowerPat === 'kprk') return lower.includes('penal') && !lower.includes('procedur');
+      if (lowerPat === 'kpprk') return lower.includes('procedur') && lower.includes('penal');
+      if (lowerPat === 'lp') return lower.includes('punës') || lower.includes('punes');
+      if (lowerPat === 'lsht') return lower.includes('tregtare');
+      return lower.includes(lowerPat);
+    });
+
+    return matched || pattern;
+  }, [statuteTitles]);
+
+  // Hapja e menjëhershme e nenit me 1-Kliko
+  const handleOpenExactArticle = (lawPattern: string, articleNumber: string) => {
+    const cleanArt = articleNumber.replace(/\D+/g, '') || articleNumber;
+    const targetTitle = resolveLawTitle(lawPattern);
+    navigate(`/laws/article?lawTitle=${encodeURIComponent(targetTitle)}&articleNumber=${encodeURIComponent(cleanArt)}&highlight=${encodeURIComponent(searchQuery)}`);
+  };
+
   // THIRRJA E THELLË ME AI PËR GJETJEN E NENEVE
   const handleFindArticlesWithAi = async () => {
     if (!searchQuery.trim() || isAnalyzingWithAi) return;
@@ -215,11 +241,6 @@ export default function LawSearchPage() {
     setSearchQuery(queryText);
     setIsListExpanded(true);
     setAiDiagnostic(null);
-  };
-
-  const handleOpenExactArticle = (lawTitle: string, articleNumber: string) => {
-    const cleanArt = articleNumber.replace(/\D+/g, '') || articleNumber;
-    navigate(`/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(cleanArt)}&highlight=${encodeURIComponent(searchQuery)}`);
   };
 
   const pdfUrl = useMemo(() => {
@@ -441,7 +462,7 @@ export default function LawSearchPage() {
             )}
           </AnimatePresence>
 
-          {/* KARTELA SEMANTIKE E SHPEJTË */}
+          {/* KARTELA SEMANTIKE ME NENE TË KLIKUESHME (1-KLIKIM) */}
           <AnimatePresence>
             {!aiDiagnostic && matchedIntent && (
               <motion.div
@@ -460,14 +481,37 @@ export default function LawSearchPage() {
                       Përputhje Semantike
                     </span>
                   </div>
-                  <p className="text-text-primary font-medium text-xs leading-relaxed mb-1.5">
+                  <p className="text-text-primary font-medium text-xs leading-relaxed mb-2">
                     💡 <strong>Në fjalë të thjeshta:</strong> {matchedIntent.plainLanguageSummary}
                   </p>
-                  {matchedIntent.suggestedArticles.map((sug, i) => (
-                    <p key={i} className="text-text-secondary text-[11px] leading-relaxed">
-                      📜 <strong>Baza Ligjore:</strong> {sug.explanation}
-                    </p>
-                  ))}
+
+                  {/* Nenet e klikueshme direkt */}
+                  <div className="space-y-2 pt-1 border-t border-primary-start/20">
+                    {matchedIntent.suggestedArticles.map((sug, i) => (
+                      <div key={i} className="flex flex-col gap-1.5">
+                        <p className="text-text-secondary text-[11px] leading-relaxed">
+                          📜 <strong>Baza Ligjore:</strong> {sug.explanation}
+                        </p>
+                        
+                        {/* Butonat e Nenit me 1-Kliko */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <span className="text-[10px] font-bold text-text-muted uppercase">Hap direkt:</span>
+                          {sug.articles.map((artNum, aIdx) => (
+                            <button
+                              key={aIdx}
+                              type="button"
+                              onClick={() => handleOpenExactArticle(sug.lawPattern || 'LPK', artNum)}
+                              className="px-3 py-1.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover-lift active:scale-95 cursor-pointer shadow-xs"
+                            >
+                              <Scale size={13} />
+                              <span>{sug.lawPattern || 'Kodi'} • Neni {artNum}</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             )}
