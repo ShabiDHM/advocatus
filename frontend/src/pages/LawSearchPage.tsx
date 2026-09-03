@@ -1,13 +1,12 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - HIGH-INTEGRITY FORENSIC TOOLTIP & DISCOVERY HUB V100.0
+// PHOENIX PROTOCOL - HIGH-INTEGRITY FORENSIC TOOLTIP & DISCOVERY HUB V101.0 (CLEAN TS COMPILATION)
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, X, Scale, ArrowLeft, ChevronDown, Check, 
   ShieldCheck, GraduationCap, Gavel, Lightbulb, 
-  BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText,
-  Lock, CheckCircle2, Award
+  BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
@@ -47,6 +46,7 @@ interface AiDiagnosticData {
     article_number: string;
     explanation: string;
     confidence: number;
+    source?: string;
   }>;
 }
 
@@ -428,7 +428,6 @@ export default function LawSearchPage() {
                   </button>
                 </div>
 
-                {/* Shpjegimi popullor */}
                 <div className="bg-surface/80 border border-main rounded-2xl p-4 text-xs sm:text-sm text-text-primary leading-relaxed">
                   💡 <strong>Në fjalë të thjeshta:</strong> {aiDiagnostic.plain_explanation}
                 </div>
@@ -455,7 +454,7 @@ export default function LawSearchPage() {
                                 id: `ai_art_${i}`,
                                 title: item.law_title,
                                 article: item.article_number,
-                                source: 'Gazeta Zyrtare e Republikës së Kosovës',
+                                source: item.source || 'Gazeta Zyrtare e Republikës së Kosovës',
                                 confidence: item.confidence || 0.99,
                               })
                             }
