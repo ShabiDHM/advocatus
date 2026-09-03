@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V17.0 (BACKGROUND ANALYSIS LOADER STATE)
+// PHOENIX PROTOCOL - CHAT HEADER V20.0 ("ASISTENTI SHABI" BRANDING & REAL-TIME STATUS)
 
 import React from 'react';
 import { Download, Trash2, FileSearch, Loader2 } from 'lucide-react';
@@ -32,7 +32,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* Left: Titulli i Agjentit dhe LED Drita e Statusit */}
       <div className="flex items-center gap-2 min-w-0">
         <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none truncate">
-          {t('chatPanel.title', 'Asistenti Sokratik')}
+          {t('chatPanel.title', 'Asistenti Shabi')}
         </h2>
         <div className="flex items-center justify-center ml-0.5 shrink-0">
           <span
@@ -56,7 +56,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {isAnalyzingCase ? (
             <>
               <Loader2 size={14} className="text-white animate-spin shrink-0" />
-              <span className="text-white font-bold whitespace-nowrap animate-pulse">Duke analizuar...</span>
+              <span className="text-white font-bold whitespace-nowrap animate-pulse">Shabi duke analizuar...</span>
             </>
           ) : (
             <>

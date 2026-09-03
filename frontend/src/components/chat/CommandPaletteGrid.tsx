@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/chat/CommandPaletteGrid.tsx
-// PHOENIX PROTOCOL - COMMAND PALETTE GRID V48.0 (MINIMALIST & HIGH-CLASS WELCOME SCREEN)
+// PHOENIX PROTOCOL - COMMAND PALETTE GRID V50.0 ("SHABI" ASISTENTI LIGJOR)
 
 import React from 'react';
 import { Info, Sparkles } from 'lucide-react';
@@ -23,7 +23,7 @@ export const CommandPaletteGrid: React.FC<CommandPaletteGridProps> = ({
         </div>
 
         <h3 className="text-base sm:text-lg md:text-xl font-black text-text-primary tracking-tight">
-          Unë jam <span className="text-primary-start">SOKRATI</span>, Asistenti Ligjor i rastit tuaj, {userSalutation}
+          Unë jam <span className="text-primary-start">SHABI</span>, Asistenti Ligjor i rastit tuaj, {userSalutation}
         </h3>
 
         <p className="text-xs sm:text-sm text-text-secondary leading-relaxed font-medium px-2">

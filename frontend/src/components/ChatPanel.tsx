@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V75.0 (DYNAMIC WAVE ANIMATION FOR FORENSIC & CASE ANALYSIS)
+// PHOENIX PROTOCOL - CHAT PANEL V80.0 ("SHABI DUKE MENDUAR" & DYNAMIC WAVE INTEGRATION)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -150,10 +150,10 @@ const formatUserDisplayMessage = (content: string) => {
 const resolveSuggestionCardUI = (query: string) => {
   const q = query.toLowerCase();
 
-  if (q.includes('harto') || q.includes('kallëzim') || q.includes('padi')) {
+  if (q.includes('harto') || q.includes('kallëzim') || q.includes('padi') || q.includes('ankesë')) {
     return {
-      title: 'Harto Shkresën / Kallëzimin Penal',
-      desc: 'Gjenero draftin zyrtar gati për dorëzim bazuar në shkeljet e gjetura.',
+      title: 'Harto Shkresën / Mjetin Ligjor',
+      desc: query,
       icon: <FileText size={16} className="text-primary-start shrink-0 mt-0.5" />
     };
   }
@@ -161,29 +161,29 @@ const resolveSuggestionCardUI = (query: string) => {
   if (q.includes('pyetësor') || q.includes('pyetje') || q.includes('seancë')) {
     return {
       title: 'Pyetësori Taktik për Seancë',
-      desc: 'Pyetje kirurgjike për ballafaqimin e dëshmitarit dhe ekspertit në gjyq.',
+      desc: query,
       icon: <HelpCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
     };
   }
 
-  if (q.includes('contra legem') || q.includes('matrica') || q.includes('audito')) {
+  if (q.includes('contra legem') || q.includes('matrica') || q.includes('audito') || q.includes('ndarje')) {
     return {
-      title: 'Matrica Contra Legem',
-      desc: 'Tabela përmbledhëse e shkeljeve thelbësore ligjore dhe procedurale.',
+      title: 'Veprim Procedural & Ndarje',
+      desc: query,
       icon: <Scale size={16} className="text-blue-500 shrink-0 mt-0.5" />
     };
   }
 
-  if (q.includes('dëm') || q.includes('kamat')) {
+  if (q.includes('dëm') || q.includes('kamat') || q.includes('shum')) {
     return {
       title: 'Llogaritja e Dëmit & Kamata',
-      desc: 'Dëmi material & jomaterial sipas LMD-së me kamatën ligjore.',
+      desc: query,
       icon: <Coins size={16} className="text-emerald-500 shrink-0 mt-0.5" />
     };
   }
 
   return {
-    title: 'Veprim i Sugjeruar',
+    title: 'Hapi i Sugjeruar',
     desc: query,
     icon: <Sparkles size={16} className="text-primary-start shrink-0 mt-0.5" />
   };
@@ -259,14 +259,12 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
-  // Kushti i saktë i transmetimit të vërtetë të fjalëve
   const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
   const isAiCurrentlyStreaming = 
     lastMessage?.role === 'ai' && 
     typeof lastMessage.content === 'string' && 
     !isThinkingPlaceholder(lastMessage.content);
 
-  // Shfaqet kur jemi duke dërguar mesazh OSE duke analizuar rastin/forenzikë para se të vijnë fjalët reale
   const isAwaitingFirstToken = (isSendingMessage || isAnalyzingCase) && !isAiCurrentlyStreaming;
 
   return (
@@ -343,7 +341,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                       ) : isAiPlaceholder ? (
                         <div className="flex items-center gap-2 py-0.5">
                           <span className="text-xs font-bold text-primary-start tracking-wide">
-                            {isAnalyzingCase ? 'Duke analizuar fashikullin e lëndës' : 'Sokrati duke menduar'}
+                            {isAnalyzingCase ? 'Shabi duke analizuar fashikullin' : 'Shabi duke menduar'}
                           </span>
                           <ThinkingDots />
                         </div>
@@ -364,7 +362,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                           <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <span className="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-1.5 ml-1">
                               <Sparkles size={12} className="text-primary-start animate-pulse" />
-                              {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar')}
+                              {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar nga Shabi')}
                             </span>
                             
                             <div className="flex flex-col gap-2 w-full">
@@ -426,7 +424,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
-              {/* PURE WAVE BOUNCE INDICATOR - KUR PRITET SHKRONJA E PARË PA PLACEHOLDER NË MESSAGES */}
+              {/* PURE WAVE BOUNCE INDICATOR ME EMRIN SHABI */}
               {isAwaitingFirstToken && !displayMessages.some(m => m.role === 'ai' && isThinkingPlaceholder(m.content)) && (
                 <motion.div 
                   key="thinking" 
@@ -440,7 +438,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   </div>
                   <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
                     <span className="text-xs font-bold text-primary-start tracking-wide">
-                      {isAnalyzingCase ? 'Duke analizuar fashikullin e lëndës' : 'Sokrati duke menduar'}
+                      {isAnalyzingCase ? 'Shabi duke analizuar fashikullin' : 'Shabi duke menduar'}
                     </span>
                     <ThinkingDots />
                   </div>
