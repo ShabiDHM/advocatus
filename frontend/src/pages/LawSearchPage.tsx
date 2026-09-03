@@ -1,11 +1,11 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIVERSAL AI-POWERED LEGAL DIAGNOSTIC & DISCOVERY HUB V92.0
+// PHOENIX PROTOCOL - CLEAN & MINIMALIST UNIVERSAL DISCOVERY HUB V93.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, X, Scale, ArrowLeft, ChevronDown, Check, 
-  ShieldCheck, GraduationCap, Gavel, Sparkles, Lightbulb, 
+  ShieldCheck, GraduationCap, Gavel, Lightbulb, 
   BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -125,7 +125,9 @@ export default function LawSearchPage() {
     const clean = sanitizeSearchText(searchQuery);
     if (!clean || clean.length < 3) return null;
 
-    for (const rule of SEMANTIC_INTENT_MATRIX) {
+    const sortedRules = [...SEMANTIC_INTENT_MATRIX].sort((a, b) => b.priority - a.priority);
+
+    for (const rule of sortedRules) {
       const isMatch = rule.keywords.some((kw) => {
         const sanitizedKw = sanitizeSearchText(kw);
         return clean.includes(sanitizedKw) || sanitizedKw.includes(clean);
@@ -144,10 +146,11 @@ export default function LawSearchPage() {
       const lower = t.toLowerCase();
       if (lowerPat === 'lpk') return lower.includes('kontestimore') || lower.includes('03/l-006') || lower.includes('03 l 006');
       if (lowerPat === 'lmd') return lower.includes('detyrimeve') || lower.includes('04/l-077') || lower.includes('04 l 077');
+      if (lowerPat === 'lsht') return lower.includes('tregtare') || lower.includes('06/l-016') || lower.includes('06 l 016');
+      if (lowerPat === 'lpp') return lower.includes('permbarimore') || lower.includes('përmbarimore') || lower.includes('04/l-139');
       if (lowerPat === 'kpk' || lowerPat === 'kprk') return lower.includes('penal') && !lower.includes('procedur');
       if (lowerPat === 'kpprk') return lower.includes('procedur') && lower.includes('penal');
       if (lowerPat === 'lp') return lower.includes('punës') || lower.includes('punes');
-      if (lowerPat === 'lsht') return lower.includes('tregtare');
       return lower.includes(lowerPat);
     });
 
@@ -299,12 +302,12 @@ export default function LawSearchPage() {
           </div>
         </div>
 
-        {/* SHIRITI I KËRKIMIT UNIVERSAL SEMANTIK */}
+        {/* SHIRITI I KËRKIMIT UNIVERSAL */}
         <div className="glass-panel p-5 sm:p-6 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-3.5">
           <div className="relative w-full">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center gap-1.5 pointer-events-none">
+            {/* VETËM LLUPA E PASTËR */}
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
               <Search size={20} />
-              <Sparkles size={16} className="text-amber-500 animate-pulse" />
             </div>
 
             <input
@@ -318,7 +321,7 @@ export default function LawSearchPage() {
                 if (e.key === 'Enter') handleFindArticlesWithAi();
               }}
               placeholder="Shkruaj çfarëdo rasti apo pyetje (p.sh. 'bleva një banesë me defekt', 'bllokimi i bankave')..."
-              className="w-full pl-14 pr-36 py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
+              className="w-full pl-12 pr-36 py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
             />
 
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -451,7 +454,7 @@ export default function LawSearchPage() {
                           className="px-3 py-1.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex items-center gap-1.5 transition-all cursor-pointer hover-lift"
                         >
                           <FileText size={13} className="text-primary-start" />
-                          <span className="truncate max-w-[240px]">{c.title}</span>
+                          <span className="truncate max-w-[280px] font-bold text-xs">{c.title}</span>
                           <ExternalLink size={11} className="text-text-muted" />
                         </button>
                       ))}
@@ -472,7 +475,7 @@ export default function LawSearchPage() {
                 className="mt-1 bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 flex items-start gap-3.5 text-xs shadow-xs"
               >
                 <div className="p-2.5 bg-primary-start text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
-                  <Sparkles size={18} />
+                  <Scale size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-black text-text-primary text-xs sm:text-sm flex items-center gap-2 flex-wrap mb-1">
@@ -485,7 +488,6 @@ export default function LawSearchPage() {
                     💡 <strong>Në fjalë të thjeshta:</strong> {matchedIntent.plainLanguageSummary}
                   </p>
 
-                  {/* Nenet e klikueshme direkt */}
                   <div className="space-y-2 pt-1 border-t border-primary-start/20">
                     {matchedIntent.suggestedArticles.map((sug, i) => (
                       <div key={i} className="flex flex-col gap-1.5">
@@ -493,7 +495,6 @@ export default function LawSearchPage() {
                           📜 <strong>Baza Ligjore:</strong> {sug.explanation}
                         </p>
                         
-                        {/* Butonat e Nenit me 1-Kliko */}
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <span className="text-[10px] font-bold text-text-muted uppercase">Hap direkt:</span>
                           {sug.articles.map((artNum, aIdx) => (
