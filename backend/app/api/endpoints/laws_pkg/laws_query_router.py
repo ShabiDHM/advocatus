@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - LAWS QUERY ROUTER V71.0 (STRICT 3-WAY CATEGORY SEGREGATION: STATUTES / CASELAW / ACADEMIC)
+# PHOENIX PROTOCOL - LAWS QUERY ROUTER V72.0 (STRICT 3-WAY CATEGORY SEGREGATION & 1-CLICK PRECEDENT RETRIEVAL)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Set, List
+from typing import Set, List, Optional
 import logging
 import os
 import re
@@ -128,7 +128,6 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         }
         all_statute_titles = db.legal_knowledge_base.distinct("law_title", statutes_filter)
         
-        # Pastrim i pastër: vetëm emrat e ligjeve pa prapashtesa PDF dhe pa vendime gjykatash
         raw_statutes = []
         for t in all_statute_titles:
             t_clean = t.strip()
@@ -146,6 +145,26 @@ async def get_law_titles(current_user = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error fetching law titles: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
+
+
+@router.get("/library")
+async def get_laws_library(
+    q: Optional[str] = Query(None), 
+    limit: int = Query(50, ge=1, le=200),
+    current_user = Depends(get_current_user)
+):
+    """
+    PHOENIX ENGINE: Unified Library Gateway.
+    If 'q' is provided, searches case law & statutes across the 7,050 pages.
+    Otherwise returns the complete library catalog.
+    """
+    try:
+        if q and q.strip():
+            return vector_store_service.query_global_knowledge_base(q.strip(), n_results=limit)
+        return await get_law_titles(current_user=current_user)
+    except Exception as e:
+        logger.error(f"Error in /library endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Library error: {str(e)}")
 
 
 @router.get("/by-title")
@@ -208,7 +227,6 @@ async def get_law_article(
         clean_law_title = law_title.strip()
         clean_art = str(article_number).strip()
 
-        # 1. Resolve Acronyms (e.g. LMD -> Ligji për Marrëdhëniet e Detyrimeve)
         clean_key = clean_law_title.lower()
         if clean_key in LAW_ACRONYMS:
             clean_law_title = LAW_ACRONYMS[clean_key]

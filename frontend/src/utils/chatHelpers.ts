@@ -1,5 +1,5 @@
 // FILE: frontend/src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V70.0 (UNIVERSAL STATUTE & SUPREME PRECEDENT 1-CLICK LINKER)
+// PHOENIX PROTOCOL - CHAT HELPERS V71.0 (SUPREME PRECEDENT 1-CLICK VERIFICATION ROUTING)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -133,12 +133,13 @@ export const autoLinkLegalCitations = (text: any): string => {
   const processedLines = lines.map((line) => {
     let lineProcessed = line;
 
-    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (p.sh. PML.Nr.85/2025, Rev.Nr.142/2022, AC.nr.12/24)
+    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (Lidhja e saktë drejtpërdrejt te /laws/search)
     const supremePrecedentRegex = /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/gi;
     lineProcessed = lineProcessed.replace(supremePrecedentRegex, (fullMatch, prefix, numPair) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const cleanCaseNo = `${prefix.toUpperCase()}.Nr.${numPair}`;
-      const url = `/laws/library?q=${encodeURIComponent(cleanCaseNo)}`;
+      // PHOENIX FIX: Lidh te faqja zyrtare e kërkimit të ligjeve dhe jurisprudencës
+      const url = `/laws/search?q=${encodeURIComponent(cleanCaseNo)}`;
       return createToken(`[${cleanCaseNo}](${url})`);
     });
 
@@ -150,7 +151,7 @@ export const autoLinkLegalCitations = (text: any): string => {
       }
     }
 
-    // PASS 1: Ligji PARA listës së neneve (p.sh. "Kodi Penal (KPRK Nr. 06/L-074): Nenet 31, 32, 81...")
+    // PASS 1: Ligji PARA listës së neneve
     const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?:\s*\([^\)]*\))?:\s*(?:Nenet?|Nenit|Neni|Nenin)?\s*([\d\s,.\-–e(dhe)]+)/gi;
     lineProcessed = lineProcessed.replace(lawBeforeListRegex, (fullMatch, lawCandidate, numbersBlock) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
@@ -161,7 +162,7 @@ export const autoLinkLegalCitations = (text: any): string => {
       return `${lawCandidate}: ${linkedNums}`;
     });
 
-    // PASS 2: Nenet me ligj PAS tyre (p.sh. "Nenet 31, 32 dhe 93 të KPRK-së")
+    // PASS 2: Nenet me ligj PAS tyre
     const explicitLawRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–e(dhe)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?=[.,;\n\r\)]|$)/gi;
     lineProcessed = lineProcessed.replace(explicitLawRegex, (fullMatch, _prefix, numbersBlock, lawCandidate) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
@@ -172,7 +173,7 @@ export const autoLinkLegalCitations = (text: any): string => {
       return `${linkedNums} të ${lawCandidate.trim()}`;
     });
 
-    // PASS 3: Nenet e vetmuara (p.sh. "Neni 93" ose "Nenet 188 dhe 221")
+    // PASS 3: Nenet e vetmuara
     const standaloneArticleRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–e(dhe)]+)(?:\s*\(([^)]+)\))?/gi;
     lineProcessed = lineProcessed.replace(standaloneArticleRegex, (fullMatch, _prefix, numbersBlock, parenText) => {
       if (fullMatch.includes('___LAW_TOKEN_') || !/\d/.test(numbersBlock)) return fullMatch;
