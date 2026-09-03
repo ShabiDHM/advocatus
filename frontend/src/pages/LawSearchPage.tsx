@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - CLEAN & MINIMALIST UNIVERSAL DISCOVERY HUB V93.0
+// PHOENIX PROTOCOL - ULTRA-WIDE 2-COLUMN RESPONSIVE DISCOVERY HUB V95.0
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -273,7 +273,8 @@ export default function LawSearchPage() {
 
   return (
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-4xl mx-auto px-4 sm:px-8 pt-24 sm:pt-28">
+      {/* KONTEJNERI I ZGJERUAR MAX-W-7XL */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         
         {/* Navigation & Header */}
         <div className="flex flex-col gap-4 mb-6">
@@ -303,11 +304,10 @@ export default function LawSearchPage() {
         </div>
 
         {/* SHIRITI I KËRKIMIT UNIVERSAL */}
-        <div className="glass-panel p-5 sm:p-6 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-3.5">
+        <div className="glass-panel p-5 sm:p-7 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-4">
           <div className="relative w-full">
-            {/* VETËM LLUPA E PASTËR */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
-              <Search size={20} />
+              <Search size={22} />
             </div>
 
             <input
@@ -320,11 +320,11 @@ export default function LawSearchPage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleFindArticlesWithAi();
               }}
-              placeholder="Shkruaj çfarëdo rasti apo pyetje (p.sh. 'bleva një banesë me defekt', 'bllokimi i bankave')..."
-              className="w-full pl-12 pr-36 py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
+              placeholder="Shkruaj çfarëdo rasti apo pyetje (p.sh. 'bleva një banesë me defekt', 'prapësimi ndaj urdhrit përmbarimor', 'bllokimi i bankave')..."
+              className="w-full pl-12 pr-40 py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
             />
 
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
               {searchQuery && (
                 <button
                   type="button"
@@ -332,10 +332,10 @@ export default function LawSearchPage() {
                     setSearchQuery('');
                     setAiDiagnostic(null);
                   }}
-                  className="p-1.5 text-text-muted hover:text-danger-start transition-colors cursor-pointer"
+                  className="p-2 text-text-muted hover:text-danger-start transition-colors cursor-pointer"
                   title="Pastro"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               )}
 
@@ -345,13 +345,13 @@ export default function LawSearchPage() {
                   type="button"
                   onClick={handleFindArticlesWithAi}
                   disabled={isAnalyzingWithAi}
-                  className="px-3 py-2 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all hover-lift cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all hover-lift cursor-pointer disabled:opacity-50"
                   title="Gjej Nenet me Inteligjencë Artificiale"
                 >
                   {isAnalyzingWithAi ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Bot size={14} />
+                    <Bot size={16} />
                   )}
                   <span>Gjej Nenet me AI</span>
                 </button>
@@ -372,7 +372,7 @@ export default function LawSearchPage() {
                   key={idx}
                   type="button"
                   onClick={() => handleChipClick(chip.query)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-canvas hover:bg-hover border border-main hover:border-primary-start text-xs font-semibold text-text-primary transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs hover-lift active:scale-95"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-canvas hover:bg-hover border border-main hover:border-primary-start text-xs font-semibold text-text-primary transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs hover-lift active:scale-95"
                 >
                   <span>{chip.icon}</span>
                   <span>{chip.label}</span>
@@ -385,51 +385,51 @@ export default function LawSearchPage() {
           <AnimatePresence>
             {aiDiagnostic && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
+                initial={{ opacity: 0, scale: 0.99 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                className="mt-2 bg-gradient-to-br from-primary-start/15 via-surface to-canvas border-2 border-primary-start/40 rounded-3xl p-5 shadow-lg flex flex-col gap-3.5"
+                exit={{ opacity: 0, scale: 0.99 }}
+                className="mt-2 bg-gradient-to-br from-primary-start/15 via-surface to-canvas border-2 border-primary-start/40 rounded-3xl p-6 shadow-lg flex flex-col gap-4"
               >
                 <div className="flex items-center justify-between flex-wrap gap-2 border-b border-primary-start/20 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-primary-start text-white rounded-xl shadow-xs">
-                      <Bot size={18} />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-primary-start text-white rounded-xl shadow-xs">
+                      <Bot size={20} />
                     </div>
                     <div>
                       <span className="text-[10px] font-black uppercase text-primary-start tracking-wider">KUALIFIKIMI I NENEVE ME AI</span>
-                      <h3 className="font-black text-sm sm:text-base text-text-primary">{aiDiagnostic.legal_institute}</h3>
+                      <h3 className="font-black text-sm sm:text-lg text-text-primary">{aiDiagnostic.legal_institute}</h3>
                     </div>
                   </div>
 
                   <button
                     onClick={() => setAiDiagnostic(null)}
-                    className="text-text-muted hover:text-text-primary p-1 cursor-pointer"
+                    className="text-text-muted hover:text-text-primary p-1.5 cursor-pointer"
                   >
-                    <X size={16} />
+                    <X size={18} />
                   </button>
                 </div>
 
                 {/* Shpjegimi popullor */}
-                <div className="bg-surface/80 border border-main rounded-2xl p-3.5 text-xs text-text-primary leading-relaxed">
+                <div className="bg-surface/80 border border-main rounded-2xl p-4 text-xs sm:text-sm text-text-primary leading-relaxed">
                   💡 <strong>Në fjalë të thjeshta:</strong> {aiDiagnostic.plain_explanation}
                 </div>
 
                 {/* Nenet e gjetura me 1-klikim */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2.5">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider">
                       📜 Nenet e Identifikuara nga Ligji i Kosovës (Kliko për hapje direkte):
                     </span>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2.5">
                       {aiDiagnostic.matched_statutes.map((item, i) => (
                         <button
                           key={i}
                           onClick={() => handleOpenExactArticle(item.law_title, item.article_number)}
-                          className="px-3.5 py-2 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-2 transition-all hover-lift active:scale-95 cursor-pointer shadow-sm"
+                          className="px-4 py-2.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all hover-lift active:scale-95 cursor-pointer shadow-sm"
                         >
-                          <Scale size={14} />
+                          <Scale size={15} />
                           <span>{item.law_title} • Neni {item.article_number}</span>
-                          <ArrowRight size={13} />
+                          <ArrowRight size={14} />
                         </button>
                       ))}
                     </div>
@@ -438,11 +438,11 @@ export default function LawSearchPage() {
 
                 {/* Precedentët e Supremes */}
                 {aiCaselawPrecedents.length > 0 && (
-                  <div className="flex flex-col gap-2 pt-2 border-t border-main/50">
+                  <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider">
                       ⚖️ Precedentët e Gjetur të Gjykatës Supreme:
                     </span>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {aiCaselawPrecedents.map((c, idx) => (
                         <button
                           key={idx}
@@ -451,11 +451,13 @@ export default function LawSearchPage() {
                             setInitialPageNumber(c.page || 1);
                             setShowPdfModal(true);
                           }}
-                          className="px-3 py-1.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex items-center gap-1.5 transition-all cursor-pointer hover-lift"
+                          className="px-3.5 py-2.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex items-center justify-between gap-2 transition-all cursor-pointer hover-lift text-left"
                         >
-                          <FileText size={13} className="text-primary-start" />
-                          <span className="truncate max-w-[280px] font-bold text-xs">{c.title}</span>
-                          <ExternalLink size={11} className="text-text-muted" />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText size={14} className="text-primary-start shrink-0" />
+                            <span className="truncate font-bold text-xs">{c.title}</span>
+                          </div>
+                          <ExternalLink size={12} className="text-text-muted shrink-0" />
                         </button>
                       ))}
                     </div>
@@ -472,26 +474,26 @@ export default function LawSearchPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-1 bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 flex items-start gap-3.5 text-xs shadow-xs"
+                className="mt-1 bg-primary-start/10 border border-primary-start/30 rounded-2xl p-5 flex items-start gap-4 text-xs shadow-xs"
               >
                 <div className="p-2.5 bg-primary-start text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
-                  <Scale size={18} />
+                  <Scale size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-black text-text-primary text-xs sm:text-sm flex items-center gap-2 flex-wrap mb-1">
+                  <div className="font-black text-text-primary text-xs sm:text-base flex items-center gap-2 flex-wrap mb-1.5">
                     <span>🎯 {matchedIntent.intent}</span>
                     <span className="px-2 py-0.5 bg-primary-start/20 text-primary-start rounded-md text-[10px] font-black uppercase">
                       Përputhje Semantike
                     </span>
                   </div>
-                  <p className="text-text-primary font-medium text-xs leading-relaxed mb-2">
+                  <p className="text-text-primary font-medium text-xs sm:text-sm leading-relaxed mb-3">
                     💡 <strong>Në fjalë të thjeshta:</strong> {matchedIntent.plainLanguageSummary}
                   </p>
 
-                  <div className="space-y-2 pt-1 border-t border-primary-start/20">
+                  <div className="space-y-2.5 pt-2 border-t border-primary-start/20">
                     {matchedIntent.suggestedArticles.map((sug, i) => (
-                      <div key={i} className="flex flex-col gap-1.5">
-                        <p className="text-text-secondary text-[11px] leading-relaxed">
+                      <div key={i} className="flex flex-col gap-2">
+                        <p className="text-text-secondary text-xs leading-relaxed">
                           📜 <strong>Baza Ligjore:</strong> {sug.explanation}
                         </p>
                         
@@ -502,11 +504,11 @@ export default function LawSearchPage() {
                               key={aIdx}
                               type="button"
                               onClick={() => handleOpenExactArticle(sug.lawPattern || 'LPK', artNum)}
-                              className="px-3 py-1.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover-lift active:scale-95 cursor-pointer shadow-xs"
+                              className="px-3.5 py-2 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover-lift active:scale-95 cursor-pointer shadow-xs"
                             >
-                              <Scale size={13} />
+                              <Scale size={14} />
                               <span>{sug.lawPattern || 'Kodi'} • Neni {artNum}</span>
-                              <ArrowRight size={12} />
+                              <ArrowRight size={13} />
                             </button>
                           ))}
                         </div>
@@ -520,54 +522,54 @@ export default function LawSearchPage() {
         </div>
 
         {/* 3 TABS KRYESORE */}
-        <div className="grid grid-cols-3 w-full gap-1.5 mb-6 bg-surface p-1.5 rounded-2xl border border-main shadow-sm">
+        <div className="grid grid-cols-3 w-full gap-2 mb-6 bg-surface p-2 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
             onClick={() => { setActiveTab('statutes'); }}
-            className={`w-full py-3 px-1 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Scale size={15} className="shrink-0 hidden xs:inline" />
+            <Scale size={16} className="shrink-0 hidden xs:inline" />
             <span className="truncate">Kodet ({filteredStatutes.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab('academic'); }}
-            className={`w-full py-3 px-1 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <GraduationCap size={15} className="shrink-0 hidden xs:inline" />
+            <GraduationCap size={16} className="shrink-0 hidden xs:inline" />
             <span className="truncate">Akademia ({filteredAcademic.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab('caselaw'); }}
-            className={`w-full py-3 px-1 sm:px-4 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
-            <Gavel size={15} className="shrink-0 hidden xs:inline" />
+            <Gavel size={16} className="shrink-0 hidden xs:inline" />
             <span className="truncate">Aktgjykimet ({filteredCaselaw.length})</span>
           </button>
         </div>
 
-        {/* LISTA E MATERIALEVE TË FILTRUARA */}
-        <div className="glass-panel p-5 sm:p-7 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-main">
+        {/* LISTA E MATERIALEVE TË FILTRUARA ME 2 KOLONA NË DESKTOP */}
+        <div className="glass-panel p-6 sm:p-8 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
+          <div className="flex items-center justify-between mb-5 pb-3 border-b border-main">
             <button
               type="button"
               onClick={() => setIsListExpanded(!isListExpanded)}
-              className="flex items-center gap-2 text-xs font-black text-text-primary uppercase tracking-wider hover:text-primary-start transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-xs sm:text-sm font-black text-text-primary uppercase tracking-wider hover:text-primary-start transition-colors cursor-pointer"
             >
-              <BookOpen size={16} className="text-primary-start" />
+              <BookOpen size={18} className="text-primary-start" />
               <span>
                 {activeTab === 'statutes' ? 'Kodet Zyrtare të Kosovës' : activeTab === 'academic' ? 'Manualet e Akademisë së Drejtësisë' : 'Precedentët & Aktgjykimet e Gjykatës Supreme'}
               </span>
-              <ChevronDown size={16} className={`transition-transform duration-200 ${isListExpanded ? 'rotate-180 text-primary-start' : ''}`} />
+              <ChevronDown size={18} className={`transition-transform duration-200 ${isListExpanded ? 'rotate-180 text-primary-start' : ''}`} />
             </button>
 
             <div className="flex items-center gap-3">
@@ -592,64 +594,67 @@ export default function LawSearchPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="max-h-[500px] overflow-y-auto custom-scrollbar space-y-2 pr-1"
+                className="max-h-[550px] overflow-y-auto custom-scrollbar pr-1"
               >
                 {activeList.length === 0 ? (
-                  <div className="py-12 text-center flex flex-col items-center justify-center">
-                    <Search size={24} className="text-text-muted mb-2" />
-                    <p className="text-xs font-bold text-text-primary">
+                  <div className="py-16 text-center flex flex-col items-center justify-center">
+                    <Search size={28} className="text-text-muted mb-2" />
+                    <p className="text-xs sm:text-sm font-bold text-text-primary">
                       Nuk u gjet asnjë material në këtë kategori për "{searchQuery}"
                     </p>
-                    <p className="text-[11px] text-text-muted mt-1">
+                    <p className="text-xs text-text-muted mt-1">
                       Provoni të shtypni butonin "Gjej Nenet me AI" më lart ose zgjidhni një skedë tjetër.
                     </p>
                   </div>
                 ) : (
-                  activeList.map((lawTitle, idx) => {
-                    const displayTitle = normalizeForDisplay(lawTitle);
-                    const isPdf = activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf');
+                  /* 2 KOLONA PARALELE NË DESKTOP */
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {activeList.map((lawTitle, idx) => {
+                      const displayTitle = normalizeForDisplay(lawTitle);
+                      const isPdf = activeTab === 'academic' || activeTab === 'caselaw' || lawTitle.toLowerCase().endsWith('.pdf');
 
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSelectLaw(lawTitle)}
-                        className="w-full text-left p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift"
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0 pr-3">
-                          <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors">
-                            {activeTab === 'academic' ? (
-                              <GraduationCap size={18} className="text-primary-start group-hover:text-white" />
-                            ) : activeTab === 'caselaw' ? (
-                              <Gavel size={18} className="text-primary-start group-hover:text-white" />
-                            ) : (
-                              <Scale size={18} className="text-primary-start group-hover:text-white" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-bold text-xs sm:text-sm block truncate leading-relaxed">
-                              {displayTitle}
-                            </span>
-                            <span className="text-[10px] text-text-muted group-hover:text-white/80 font-mono flex items-center gap-1.5 mt-0.5">
-                              {isPdf ? (
-                                <>
-                                  <ExternalLink size={11} />
-                                  <span>Dokument PDF • Hapje e menjëhershme</span>
-                                </>
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectLaw(lawTitle)}
+                          className="w-full text-left p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0 pr-3">
+                            <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors">
+                              {activeTab === 'academic' ? (
+                                <GraduationCap size={18} className="text-primary-start group-hover:text-white" />
+                              ) : activeTab === 'caselaw' ? (
+                                <Gavel size={18} className="text-primary-start group-hover:text-white" />
                               ) : (
-                                <>
-                                  <Check size={11} className="text-emerald-500 group-hover:text-white" />
-                                  <span>Kodi Zyrtar • Shiko të gjitha nenet</span>
-                                </>
+                                <Scale size={18} className="text-primary-start group-hover:text-white" />
                               )}
-                            </span>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-xs sm:text-sm block truncate leading-relaxed">
+                                {displayTitle}
+                              </span>
+                              <span className="text-[10px] text-text-muted group-hover:text-white/80 font-mono flex items-center gap-1.5 mt-0.5">
+                                {isPdf ? (
+                                  <>
+                                    <ExternalLink size={11} />
+                                    <span>Dokument PDF • Hapje e menjëhershme</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check size={11} className="text-emerald-500 group-hover:text-white" />
+                                    <span>Kodi Zyrtar • Shiko të gjitha nenet</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        <ArrowRight size={18} className="text-text-muted group-hover:text-white group-hover:translate-x-1 transition-all shrink-0" />
-                      </button>
-                    );
-                  })
+                          <ArrowRight size={18} className="text-text-muted group-hover:text-white group-hover:translate-x-1 transition-all shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </motion.div>
             )}
