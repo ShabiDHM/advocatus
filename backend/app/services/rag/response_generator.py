@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V75.0 (CLAUDE SONNET 4.6 ELITE ROUTER)
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V80.0 (16K TOKEN BUFFER • 300S TIMEOUT • 8-SECTION INTEGRITY)
 
 import logging
 import asyncio
@@ -39,7 +39,7 @@ FAST_TASK_FALLBACKS = [
     "anthropic/claude-sonnet-4.6"
 ]
 
-LLM_TIMEOUT = 140
+LLM_TIMEOUT = 300  # 5 Minuta Timeout për Fashikujt Integralë
 MAX_RETRIES = 2
 MAX_SINGLE_PASS_CHARS = 1_200_000
 
@@ -51,10 +51,10 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V75.0):
-    - Drejton Forenzikën dhe Analizën te Anthropic Claude Sonnet 4.6 (1M context).
-    - Hierarki e blinduar fallback-u (Fable / GPT-4o / DeepSeek).
-    - Gjuhë e pastër doktrinare shqipe e Gjykatës Supreme të Kosovës.
+    Gjeneruesi Suprem i Përgjigjeve (V80.0):
+    - Drejton Forenzikën dhe Analizën e Fashikullit te Anthropic Claude Sonnet 4.6 (1M context).
+    - Kapacitet masiv gjenerimi (16,384 tokena) me mbrojtje nga ndërprerja në mes.
+    - Garanton përfundimin e të 8 Seksioneve të plota të Gjykatës Supreme.
     """
 
     def __init__(self):
@@ -65,7 +65,7 @@ class ResponseGenerator:
         self, 
         messages: List[Dict[str, str]], 
         stream: bool = True, 
-        max_tokens: int = 8192,
+        max_tokens: int = 16384,
         model: Optional[str] = None,
         is_heavy_task: bool = False
     ):
@@ -129,17 +129,19 @@ class ResponseGenerator:
                 "HARTIM PROFESIONAL", "KËRKESËPADI", "KALLËZIM PENAL", "ANKESË"
             ])
             selected_model = TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL
+            task_max_tokens = 16384 if is_heavy_task else 4096
 
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             
             enhanced_system_prompt = f"""
 {full_context_content}
 
-RREGULLAT E HEKURTA TË GJUHËS DHE DOKTRINËS SË KOSOVËS:
+RREGULLAT E HEKURTA TË DOKTRINËS DHE INTEGRITETIT TË RAPORTIT:
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës (Gjuha zyrtare e Gjykatave dhe Prokurorive).
-2. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016).
-3. Zbato me rigorozitet formatin dhe strukturën e përcaktuar në udhëzimet e mësipërme.
-4. Ndalohet kategorikisht përgjigja me refuzim kur teksti përmban shkresa gjyqësore, prova materiale apo pretendime procedurale të palëve.
+2. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016, Ligji për PSRK Nr. 03/L-052).
+3. DISIPLINA STRUKTURORE DHE PËRMBUSHJA E TË GJITHA SEKSIONEVE:
+   Gjenero detyrimisht dhe pa asnjë shkurtim të 8 SEKSIONET e kërkuara nga Seksioni 1 deri te Seksioni 8 me Master Planin e Veprimit brenda 24-48 orëve. Shpërndaj vëllimin në mënyrë të balancuar në mënyrë që të përfshihen të gjitha tabelat, përgjegjësitë ligjore dhe mjetet juridike.
+4. Ndalohet kategorikisht ndërprerja e raportit pa arritur te Hapat Taktikë të Seksionit 8.
 """
             messages = [
                 {"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]},
@@ -149,7 +151,7 @@ RREGULLAT E HEKURTA TË GJUHËS DHE DOKTRINËS SË KOSOVËS:
             response = await self._call_with_retry(
                 messages, 
                 stream=True, 
-                max_tokens=8192,
+                max_tokens=task_max_tokens,
                 model=selected_model,
                 is_heavy_task=is_heavy_task
             )

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V70.0 (CLAUDE SONNET 4.6 • 1M CONTEXT)
+# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V75.0 (CLAUDE SONNET 4.6 • 16K OUTPUT BUFFER • 300S TIMEOUT)
 
 import os
 import json
@@ -43,7 +43,7 @@ TEMP_DRAFTING = 0.0
 TEMP_CHAT = 0.05
 
 OPENROUTER_HEADERS = {
-    "HTTP-Referer": "https://juristi-ai.com",
+    "HTTP-Referer": "https://juristi.tech",
     "X-Title": "Juristi AI - Kosova Legal Tech Orchestrator"
 }
 
@@ -59,7 +59,7 @@ def _get_sync_client() -> OpenAI:
     return OpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=140.0,
+        timeout=300.0,
         default_headers=OPENROUTER_HEADERS
     )
 
@@ -68,7 +68,7 @@ def _get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=140.0,
+        timeout=300.0,
         default_headers=OPENROUTER_HEADERS
     )
 
@@ -150,7 +150,7 @@ def _call_llm(
                 {"role": "user", "content": sanitized_user_content}
             ],
             "temperature": temperature,
-            "max_tokens": 8192
+            "max_tokens": 16384
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -197,7 +197,7 @@ async def _call_llm_async(
                 {"role": "user", "content": sanitized_user_content}
             ],
             "temperature": temperature,
-            "max_tokens": 8192
+            "max_tokens": 16384
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -268,7 +268,7 @@ async def stream_text_async(
                 ],
                 temperature=temp,
                 stream=True,
-                max_tokens=8192
+                max_tokens=16384
             )
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
