@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/timeline_service.py
-# PHOENIX PROTOCOL - TIMELINE & DEADLINE ENGINE V35.0 (ALBANIAN MONTH PARSING & 7-DAY AKTVENDIM DEADLINES)
+# PHOENIX PROTOCOL - TIMELINE & DEADLINE ENGINE V36.0 (TIMEZONE-SAFE UTC NORMALIZER & 7-DAY AKTVENDIM DEADLINES)
 
 import logging
 import re
@@ -56,12 +56,28 @@ DOCUMENT_TYPE_KEYWORDS = {
 }
 
 
+def _ensure_utc(dt_val: Any) -> Optional[datetime]:
+    """PHOENIX ZERO-CRASH: Normalizon çdo datë në UTC tz-aware për të shmangur përplasjet offset-naive vs aware."""
+    if not dt_val:
+        return None
+    if isinstance(dt_val, str):
+        try:
+            dt_clean = dt_val.replace('Z', '+00:00')
+            dt_val = datetime.fromisoformat(dt_clean)
+        except Exception:
+            return None
+    if isinstance(dt_val, datetime):
+        if dt_val.tzinfo is None:
+            return dt_val.replace(tzinfo=timezone.utc)
+        return dt_val.astimezone(timezone.utc)
+    return None
+
+
 class TimelineService:
     """
-    Shërbimi i Kronologjisë dhe Menaxhimit të Afateve Ligjore (V35.0):
-    - Nxjerr me saktësi si datat numerike ashtu edhe ato tekstuale me muaj shqip ("31 gusht 2026").
-    - Përllogarit saktë afatin 7-ditor për Aktvendime dhe 15-ditor për Aktgjykime.
-    - Integron të dhënat direkte nga 'content' i OCR-së.
+    Shërbimi i Kronologjisë dhe Menaxhimit të Afateve Ligjore (V36.0):
+    - Normalizon 100% të gjitha datat në UTC pa gabime offset-naive.
+    - Përllogarit saktë afatet procedurale sipas ligjeve të Kosovës.
     """
 
     @staticmethod
@@ -91,7 +107,7 @@ class TimelineService:
                 except (ValueError, TypeError):
                     continue
 
-        # 2. PHOENIX FIX: Datat me tekst shqip (p.sh. "31 gusht 2026", "15 korrik 2026")
+        # 2. Datat me tekst shqip (p.sh. "31 gusht 2026", "15 korrik 2026")
         months_regex = "|".join(ALBANIAN_MONTHS.keys())
         text_date_pattern = rf'\b(\d{{1,2}})\s+({months_regex})\s+(\d{{4}})\b'
         text_matches = re.findall(text_date_pattern, text, flags=re.IGNORECASE)
@@ -149,7 +165,7 @@ class TimelineService:
 
             media_items = list(db.media_evidence.find(media_filter))
             
-            # Përpunimi i dokumenteve (PHOENIX FIX: Lexon fushën 'content')
+            # Përpunimi i dokumenteve
             for doc in documents:
                 file_name = doc.get("file_name", "Dokument")
                 full_text = doc.get("content") or doc.get("extracted_text") or doc.get("summary") or ""
@@ -160,43 +176,48 @@ class TimelineService:
                 
                 if dates:
                     for dt in dates:
+                        dt_utc = _ensure_utc(dt)
+                        if dt_utc:
+                            timeline.append({
+                                "date": dt_utc.strftime("%d.%m.%Y"),
+                                "date_obj": dt_utc,
+                                "document": file_name,
+                                "type": doc_type,
+                                "source": "document_text"
+                            })
+                            if dt_utc not in key_dates:
+                                key_dates.append(dt_utc)
+                elif created_at:
+                    created_dt = _ensure_utc(created_at)
+                    if created_dt:
                         timeline.append({
-                            "date": dt.strftime("%d.%m.%Y"),
-                            "date_obj": dt,
+                            "date": created_dt.strftime("%d.%m.%Y"),
+                            "date_obj": created_dt,
                             "document": file_name,
                             "type": doc_type,
-                            "source": "document_text"
+                            "source": "system_date"
                         })
-                        if dt not in key_dates:
-                            key_dates.append(dt)
-                elif created_at:
-                    created_dt = created_at if isinstance(created_at, datetime) else datetime.fromisoformat(str(created_at))
-                    timeline.append({
-                        "date": created_dt.strftime("%d.%m.%Y"),
-                        "date_obj": created_dt,
-                        "document": file_name,
-                        "type": doc_type,
-                        "source": "system_date"
-                    })
-                    if created_dt not in key_dates:
-                        key_dates.append(created_dt)
+                        if created_dt not in key_dates:
+                            key_dates.append(created_dt)
             
             # Përpunimi i provave audio/video
             for media in media_items:
                 file_name = media.get("file_name", "Media")
                 created_at = media.get("created_at")
                 if created_at:
-                    created_dt = created_at if isinstance(created_at, datetime) else datetime.fromisoformat(str(created_at))
-                    timeline.append({
-                        "date": created_dt.strftime("%d.%m.%Y"),
-                        "date_obj": created_dt,
-                        "document": f"Media: {file_name}",
-                        "type": "PROVË AUDIO/VIDEO",
-                        "source": "media_date"
-                    })
-                    if created_dt not in key_dates:
-                        key_dates.append(created_dt)
+                    created_dt = _ensure_utc(created_at)
+                    if created_dt:
+                        timeline.append({
+                            "date": created_dt.strftime("%d.%m.%Y"),
+                            "date_obj": created_dt,
+                            "document": f"Media: {file_name}",
+                            "type": "PROVË AUDIO/VIDEO",
+                            "source": "media_date"
+                        })
+                        if created_dt not in key_dates:
+                            key_dates.append(created_dt)
             
+            # Renditje e sigurt: të gjitha objektet janë të garantuara UTC
             timeline.sort(key=lambda x: x["date_obj"])
             key_dates.sort()
             
@@ -241,7 +262,6 @@ class TimelineService:
             if not date_obj:
                 continue
             
-            # PHOENIX FIX: Aktvendimi ka afat 7 ditë, Aktgjykimi ka afat 15 ditë
             if doc_type == "AKTVENDIM":
                 deadline_days = DEADLINE_RULES["ANKIM_AKTVENDIM"]["days"]
                 deadline_date = date_obj + timedelta(days=deadline_days)
