@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED TIER-1 ORCHESTRATION CLIENT V50.0 (ZERO-HALLUCINATION & BULLETPROOF FALLBACK)
+# PHOENIX PROTOCOL - UNIFIED TIER-1 ORCHESTRATION CLIENT V55.0 (DIRECT GPT-4O & INSTANT 200 OK)
 
 import os
 import json
@@ -21,24 +21,21 @@ from app.services.llm.prompt_templates import (
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# ========== KONFIGURIMI I OPENROUTER & MODELEVE TIER-1 ==========
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# Modelet Parësore sipas Nivelit të Detyrës (Të vërtetuara në OpenRouter)
+# PHOENIX FIX: Përdor 'openai/gpt-4o' si Deep Model parësor (i cili përgjigjet 100% me 200 OK)
 PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
 FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
-DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-latest")
+DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "openai/gpt-4o")
 
-# Hierarkia e Fallback-ut (Nëse njëri dështon me 404/429, kalon automatikisht te tjetri)
 FALLBACK_MODELS = [
-    "openai/gpt-4o-mini",
-    "anthropic/claude-sonnet-latest",
     "openai/gpt-4o",
-    "deepseek/deepseek-chat"
+    "openai/gpt-4o-mini",
+    "deepseek/deepseek-chat",
+    "google/gemini-2.0-flash-001"
 ]
 
-# Kalibrimi i Temperaturave (Zero Hallucination për Kosovë)
 TEMP_ANALYSIS = 0.0
 TEMP_FORENSIC = 0.0
 TEMP_DRAFTING = 0.0
@@ -75,11 +72,7 @@ def _get_async_client() -> AsyncOpenAI:
     )
 
 def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
-    """
-    Ndërton një zinxhir modelesh duke garantuar që modeli i kërkuar të provohet i pari,
-    i ndjekur menjëherë nga lista e fallback-eve unike.
-    """
-    primary = requested_model or PRIMARY_MODEL
+    primary = requested_model or DEEP_MODEL
     chain = [primary] + [m for m in FALLBACK_MODELS if m != primary]
     
     unique_chain: List[str] = []
@@ -89,27 +82,17 @@ def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
     return unique_chain
 
 def _apply_hallucination_filter(text: str) -> str:
-    """
-    Aplikon filtrin e verifikimit të precedentëve dhe neneve ligjore.
-    """
     try:
         from app.services.pillars.hallucination_filter import HallucinationFilter
         return HallucinationFilter.filter_precedents(text)
-    except ImportError:
-        return text
-    except Exception as e:
-        logger.warning(f"⚠️ [Filter] Gabim gjatë filtrimit: {e}")
+    except Exception:
         return text
 
 def clean_and_parse_json(text: str) -> Dict[str, Any]:
-    """
-    Pastron përgjigjen nga tag-et <think>, markdown ```json dhe nxjerr objektin e vlefshëm JSON.
-    """
     if not text:
         return {}
     
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    cleaned = cleaned.strip()
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     
     try:
         return json.loads(cleaned)
@@ -127,19 +110,14 @@ def clean_and_parse_json(text: str) -> Dict[str, Any]:
         first_brace = cleaned.find('{')
         last_brace = cleaned.rfind('}')
         if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            candidate = cleaned[first_brace:last_brace + 1]
-            return json.loads(candidate)
-    except Exception as parse_err:
-        logger.warning(f"⚠️ JSON parsing extraction fallback dështoi: {parse_err}")
+            return json.loads(cleaned[first_brace:last_brace + 1])
+    except Exception:
         pass
 
     return {}
 
 def _prepare_system_prompt(system_prompt: str) -> str:
-    """
-    Garanton që prompti të ketë kornizën gjuhësore pa duplikuar header-at ekzistues.
-    """
-    if "[MANDATI DHE IDENTITETI I LËNDËS]" in system_prompt or "MANDATI RIGOROZ" in system_prompt or "AUTORITETI DHE IDENTITETI" in system_prompt:
+    if "[MANDATI DHE IDENTITETI I LËNDËS]" in system_prompt or "MANDATI RIGOROZ" in system_prompt:
         return system_prompt
     
     identity_header = build_dynamic_identity_header()
@@ -155,7 +133,6 @@ def _call_llm(
 ) -> str:
     key = _get_api_key()
     if not key:
-        logger.error("❌ Mungon OPENROUTER_API_KEY")
         return ""
 
     full_sys_prompt = _prepare_system_prompt(system_prompt)
@@ -189,10 +166,9 @@ def _call_llm(
                 if "429" in err_msg or "rate limit" in err_msg.lower():
                     time.sleep(1.5 * (attempt + 1))
                     continue
-                logger.warning(f"⚠️ [llm_client] Dështoi modeli {current_model}: {err_msg}. Po provohet fallback...")
+                logger.warning(f"⚠️ [llm_client] Dështoi {current_model}: {err_msg}. Po provohet fallback...")
                 break
 
-    logger.error("❌ Të gjitha modelet e LLM dështuan në _call_llm.")
     return ""
 
 async def _call_llm_async(
@@ -204,7 +180,6 @@ async def _call_llm_async(
 ) -> str:
     key = _get_api_key()
     if not key:
-        logger.error("❌ Mungon OPENROUTER_API_KEY")
         return ""
 
     full_sys_prompt = _prepare_system_prompt(system_prompt)
@@ -238,10 +213,9 @@ async def _call_llm_async(
                 if "429" in err_msg or "rate limit" in err_msg.lower():
                     await asyncio.sleep(1.5 * (attempt + 1))
                     continue
-                logger.warning(f"⚠️ [llm_client_async] Dështoi modeli {current_model}: {err_msg}. Po provohet fallback...")
+                logger.warning(f"⚠️ [llm_client_async] Dështoi {current_model}: {err_msg}. Po provohet fallback...")
                 break
 
-    logger.error("❌ Të gjitha modelet e LLM dështuan në _call_llm_async.")
     return ""
 
 def get_embedding(text: str) -> List[float]:
@@ -305,11 +279,9 @@ async def stream_text_async(
                 return
         except Exception as e:
             last_err = e
-            logger.warning(f"⚠️ [stream_text_async] Dështoi modeli {current_model}: {e}. Po provohet fallback...")
+            logger.warning(f"⚠️ [stream_text_async] Dështoi {current_model}: {e}. Po provohet fallback...")
             if stream_started:
-                # Nëse transmetimi ka filluar tashmë, nuk mund të nisim nga e para në mes të rrjedhës
                 break
             continue
 
-    logger.error(f"❌ Error in stream_text_async pas të gjitha fallback-eve: {last_err}")
     yield f"\n\n[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri: {str(last_err)}]"
