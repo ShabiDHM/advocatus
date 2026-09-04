@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V75.0 (INSTANT REPORT OPEN IF EXISTS • FRESH RE-ANALYSIS ON DEMAND)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V80.0 (0ms INSTANT OPEN IF CACHED • LIVE STREAM INSIDE MODAL ON FRESH RUN)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -97,10 +97,10 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
-      // Ngarko analizën ekzistuese nëse ndodhet në bazën e të dhënave
-      const existingAnalysis = (details as any)?.latest_deep_analysis || (details as any)?.latest_comprehensive_analysis || '';
-      if (existingAnalysis && existingAnalysis.trim().length > 100) {
-        setAnalysisResultText(existingAnalysis.trim());
+      // ⚡ NGARKIMI I MENJËHERSHËM I ANALIZËS NËSE EKZISTON NË MONGODB
+      const rawAnalysis = (details as any)?.latest_deep_analysis || (details as any)?.latest_comprehensive_analysis || (details as any)?.latest_analysis;
+      if (typeof rawAnalysis === 'string' && rawAnalysis.trim().length > 100) {
+        setAnalysisResultText(rawAnalysis.trim());
       }
 
       const backendMessages = extractAndNormalizeHistory(details);
@@ -338,26 +338,27 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE E MENJËHERSHME NËSE EKZISTON • GJENERIM VETËM NËSE ËSHTË E ZBRAZËT
+  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE MENJËHERË E MODALIT DHE RRJEDHJE DIREKTE
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
-    // 1. KONTROLLI I MENJËHERSHËM (0 MS): Nëse analiza ekziston tashmë, hape direkt pa rrotullim!
-    const existingAnalysis = 
+    // 1. NËSE EKZISTON ANALIZA: HAPE DIREKT NË 0 MILISEKONDA PA ASNJE PRITJE!
+    const existing = 
       (analysisResultText && analysisResultText.trim().length > 100 ? analysisResultText : '') ||
-      (caseData.details as any)?.latest_deep_analysis ||
-      (caseData.details as any)?.latest_comprehensive_analysis ||
+      (typeof (caseData.details as any)?.latest_deep_analysis === 'string' && (caseData.details as any)?.latest_deep_analysis.trim().length > 100 ? (caseData.details as any)?.latest_deep_analysis : '') ||
+      (typeof (caseData.details as any)?.latest_comprehensive_analysis === 'string' && (caseData.details as any)?.latest_comprehensive_analysis.trim().length > 100 ? (caseData.details as any)?.latest_comprehensive_analysis : '') ||
       '';
 
-    if (existingAnalysis && existingAnalysis.trim().length > 100) {
-      setAnalysisResultText(existingAnalysis.trim());
+    if (existing && existing.trim().length > 100) {
+      setAnalysisResultText(existing.trim());
       setIsAnalysisModalOpen(true);
       return;
     }
 
-    // 2. EKZEKUTIMI NË SFOND: Vetëm nëse analiza nuk ekziston (ose u fshi me kosh)
-    setIsAnalyzingCase(true);
+    // 2. NËSE NUK EKZISTON: HAP MENJËHERË MODALIN DHE FILLO LIVE STREAM BRENDA MODALIT!
     setAnalysisResultText('');
+    setIsAnalysisModalOpen(true);
+    setIsAnalyzingCase(true);
 
     try {
       const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë Doktrinar të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke kryer autopsinë forenzike të të gjitha shkresave, procesverbaleve dhe provave materiale.";
@@ -366,10 +367,10 @@ const CaseViewPage: React.FC = () => {
       let accumulated = '';
       for await (const chunk of stream) {
         accumulated += chunk;
+        setAnalysisResultText(accumulated); // 📺 Përditësohet në kohë reale brenda dritares së hapur!
       }
 
       if (accumulated.trim().length > 0) {
-        setAnalysisResultText(accumulated);
         setCaseData((prev) => ({
           ...prev,
           details: prev.details ? ({
@@ -379,7 +380,6 @@ const CaseViewPage: React.FC = () => {
             analysis_dirty: false,
           } as any) : null,
         }));
-        setIsAnalysisModalOpen(true);
       }
     } catch (err) {
       console.error("Case Background Analysis Error:", err);
