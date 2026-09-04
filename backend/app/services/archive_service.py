@@ -1,5 +1,5 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE SERVICE V8.0 (KEEP DOCUMENT ACTIVE IN PANEL AFTER ARCHIVING)
+# PHOENIX PROTOCOL - ARCHIVE SERVICE V9.0 (STRICT PDF HANDLING & CLEAN PREVIEW)
 
 import os
 import logging
@@ -26,7 +26,6 @@ class ArchiveService:
             logger.error("B2_BUCKET_NAME not found in environment variables")
 
     def _to_oid(self, id_str: Any) -> ObjectId:
-        """Safely convert to ObjectId."""
         if isinstance(id_str, ObjectId):
             return id_str
         try:
@@ -105,9 +104,6 @@ class ArchiveService:
         return ArchiveItemInDB.model_validate(doc_data)
 
     def archive_document(self, db: Database, case_id: str, doc_id: str, owner: Any) -> Optional[ArchiveItemInDB]:
-        """
-        Creates a copy of the active document in the Archive without deleting or hiding it from the Documents Panel.
-        """
         try:
             user_id = str(owner.id) if hasattr(owner, 'id') else str(owner)
             user_oid = self._to_oid(user_id)
@@ -150,10 +146,6 @@ class ArchiveService:
 
             res = self.db.archives.insert_one(doc_data)
             doc_data["id"] = res.inserted_id
-
-            # FIX: Intentionally OMITTED changing the document's status to "ARCHIVED".
-            # The document remains "READY" and stays visible in the active Documents Panel!
-
             return ArchiveItemInDB.model_validate(doc_data)
         except Exception as e:
             logger.error(f"❌ Error in archive_document: {e}")
@@ -248,29 +240,40 @@ class ArchiveService:
         return result.modified_count
 
     async def save_generated_file(self, user_id: str, filename: str, content: bytes, category: str, title: str, case_id: Optional[str] = None) -> ArchiveItemInDB:
+        """
+        Ruan skedarin PDF të gjeneruar në Backblaze B2 dhe ruan rekordin në MongoDB.
+        """
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
-        pdf_content, final_filename = pdf_service.convert_bytes_to_pdf(content, filename)
+        
+        # Sigurohemi që emri i skedarit mbaron me .pdf
+        final_filename = filename if filename.lower().endswith('.pdf') else f"{filename}.pdf"
         storage_key = f"archive/{user_id}/{timestamp}_{final_filename}"
         
         try:
-            s3_client.put_object(Bucket=self.bucket, Key=storage_key, Body=pdf_content)
+            s3_client.put_object(
+                Bucket=self.bucket, 
+                Key=storage_key, 
+                Body=content,
+                ContentType="application/pdf"
+            )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
             
-        file_ext = final_filename.split('.')[-1].upper() if '.' in final_filename else "PDF"
         user_oid = self._to_oid(user_id)
+        clean_title = title if title.lower().endswith('.pdf') else f"{title}.pdf"
+        
         doc_data: Dict[str, Any] = {
             "user_id": user_oid,
             "owner_id": user_oid,
-            "title": title,
+            "title": clean_title,
             "item_type": "FILE",
-            "file_type": file_ext,
+            "file_type": "PDF",
             "category": category,
             "storage_key": storage_key,
-            "file_size": len(pdf_content),
+            "file_size": len(content),
             "created_at": datetime.now(timezone.utc),
-            "description": "Generated System Document",
+            "description": "Raport Ekzekutiv i Gjeneruar nga Sistemi",
             "is_shared": False
         }
         if case_id and case_id.strip() and case_id != "null":
@@ -278,48 +281,6 @@ class ArchiveService:
         
         result = self.db.archives.insert_one(doc_data)
         doc_data["id"] = result.inserted_id
-        return ArchiveItemInDB.model_validate(doc_data)
-    
-    async def archive_existing_document(self, user_id: str, case_id: str, source_key: str, filename: str, category: str = "CASE_FILE", original_doc_id: Optional[str] = None) -> ArchiveItemInDB:
-        s3_client = get_s3_client()
-        timestamp = int(datetime.now().timestamp())
-        dest_key = f"archive/{user_id}/{timestamp}_{filename}"
-        
-        try:
-            source_meta = s3_client.head_object(Bucket=self.bucket, Key=source_key)
-            file_size = source_meta.get('ContentLength', 0)
-            
-            copy_source = {'Bucket': self.bucket, 'Key': source_key}
-            s3_client.copy(copy_source, self.bucket, dest_key)
-            logger.info(f"✅ S3 Archive Copy Successful: {source_key} -> {dest_key}")
-            
-        except Exception as e:
-            logger.error(f"S3 Archive Error (Bucket: {self.bucket}, Source: {source_key}): {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to archive document: {str(e)}")
-
-        file_ext = filename.split('.')[-1].upper() if '.' in filename else "FILE"
-        user_oid = self._to_oid(user_id)
-        doc_data: Dict[str, Any] = {
-            "user_id": user_oid,
-            "owner_id": user_oid,
-            "case_id": self._to_oid(case_id),
-            "title": filename,
-            "item_type": "FILE",
-            "file_type": file_ext,
-            "category": category,
-            "storage_key": dest_key,
-            "file_size": file_size,
-            "created_at": datetime.now(timezone.utc),
-            "description": "Archived from Case",
-            "is_shared": False
-        }
-
-        if original_doc_id:
-            doc_data["original_doc_id"] = self._to_oid(original_doc_id)
-
-        result = self.db.archives.insert_one(doc_data)
-        doc_data["id"] = result.inserted_id
-        
         return ArchiveItemInDB.model_validate(doc_data)
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str, int]:
@@ -329,55 +290,25 @@ class ArchiveService:
         item = self.db.archives.find_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
         
         if not item:
-            raise HTTPException(status_code=404, detail="Archive item not found or access denied")
+            raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet në arkivë.")
         
         if item.get("item_type") == "FOLDER":
-            raise HTTPException(status_code=400, detail="Cannot download a folder directly")
+            raise HTTPException(status_code=400, detail="Dosjet nuk mund të shkarkohen direkt.")
             
         storage_key = item.get("storage_key")
         if not storage_key:
-             raise HTTPException(status_code=404, detail="File storage key missing")
+             raise HTTPException(status_code=404, detail="Mungon çelësi i ruajtjes së skedarit.")
 
         s3_client = get_s3_client()
         try:
             response = s3_client.get_object(Bucket=self.bucket, Key=storage_key)
             file_size = response.get('ContentLength', item.get("file_size", 0))
-            return response['Body'], item.get("title", "download"), file_size
+            
+            # Kthejmë gjithmonë titullin me .pdf
+            raw_title = item.get("title", "raport.pdf")
+            final_title = raw_title if raw_title.lower().endswith('.pdf') else f"{raw_title}.pdf"
+            
+            return response['Body'], final_title, file_size
         except Exception as e:
             logger.error(f"S3 Download Error for {storage_key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to retrieve file content")
-
-    def get_presigned_url(self, user_id: str, item_id: str, disposition: str = "inline") -> str:
-        oid_user = self._to_oid(user_id)
-        oid_item = self._to_oid(item_id)
-        
-        item = self.db.archives.find_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]})
-        if not item: raise HTTPException(status_code=404, detail="Item not found")
-        
-        storage_key = item.get("storage_key")
-        if not storage_key: raise HTTPException(status_code=404, detail="File storage key missing")
-        
-        filename = item.get("title", "download")
-        safe_filename = urllib.parse.quote(filename)
-        
-        s3_client = get_s3_client()
-        
-        params = {
-            'Bucket': self.bucket,
-            'Key': storage_key,
-            'ResponseContentDisposition': f"{disposition}; filename*=UTF-8''{safe_filename}"
-        }
-        
-        if filename.lower().endswith(".pdf"):
-            params['ResponseContentType'] = "application/pdf"
-            
-        try:
-            url = s3_client.generate_presigned_url(
-                'get_object',
-                Params=params,
-                ExpiresIn=3600
-            )
-            return url
-        except Exception as e:
-            logger.error(f"Presigned URL generation failed: {e}")
-            raise HTTPException(status_code=500, detail="Could not generate download link")
+            raise HTTPException(status_code=500, detail="Dështoi leximi i përmbajtjes nga hapësira ruajtëse.")

@@ -1,8 +1,5 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V2.5 (TURBO STREAM RESTORATION)
-# 1. FIXED: Reverted Redirect (307) to StreamingResponse (200) to fix Frontend Viewer compatibility.
-# 2. PERF: Implemented 64KB chunking (iter_chunks) for faster download speeds.
-# 3. FIXED: Preserved 'Content-Length' to allow browser progress bars.
+# PHOENIX PROTOCOL - ARCHIVE API V3.0 (STRICT PDF MIME-TYPE & TURBO STREAMING)
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
 from fastapi.responses import StreamingResponse
@@ -30,6 +27,12 @@ class ArchiveCaseShareRequest(BaseModel):
     case_id: str
     is_shared: bool
 
+class ArchiveForensicReportRequest(BaseModel):
+    case_id: str
+    title: str
+    content: str
+
+
 # --- ENDPOINTS ---
 
 @router.get("/items", response_model=List[ArchiveItemOut])
@@ -51,7 +54,6 @@ def create_archive_folder(
     case_id: Optional[str] = Form(None),
     db: Database = Depends(get_db)
 ):
-    """Creates a new logical folder."""
     service = ArchiveService(db)
     return service.create_folder(str(current_user.id), title, parent_id, case_id)
 
@@ -87,7 +89,6 @@ def rename_archive_item(
     service = ArchiveService(db)
     service.rename_item(str(current_user.id), item_id, body.new_title)
 
-# PHOENIX NEW: SHARE SINGLE ITEM
 @router.put("/items/{item_id}/share", response_model=ArchiveItemOut)
 def share_archive_item(
     item_id: str,
@@ -95,22 +96,15 @@ def share_archive_item(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Toggles visibility of an archive item in the Client Portal.
-    """
     service = ArchiveService(db)
     return service.share_item(str(current_user.id), item_id, body.is_shared)
 
-# PHOENIX NEW: SHARE ALL ITEMS FOR CASE
 @router.put("/case/share", status_code=status.HTTP_200_OK)
 def share_archive_case(
     body: ArchiveCaseShareRequest,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Bulk toggles visibility for ALL archive files belonging to a case.
-    """
     service = ArchiveService(db)
     count = service.share_case_items(str(current_user.id), body.case_id, body.is_shared)
     return {"message": "Success", "updated_count": count}
@@ -124,22 +118,24 @@ def download_archive_item(
 ):
     service = ArchiveService(db)
     
-    # Unpack tuple from service (stream body, filename, file_size)
-    stream_body, filename, file_size = service.get_file_stream(str(current_user.id), item_id)
+    stream_body, raw_filename, file_size = service.get_file_stream(str(current_user.id), item_id)
     
+    # 🔒 SIGURIMI I EMËRTIMIT DHE FORMATIT TË SAKTË PDF
+    filename = raw_filename if raw_filename.lower().endswith('.pdf') else f"{raw_filename}.pdf"
     safe_filename = urllib.parse.quote(filename)
-    content_type, _ = mimetypes.guess_type(filename)
-    if not content_type: content_type = "application/octet-stream"
+    
+    content_type = "application/pdf"
         
     disposition_type = "inline" if preview else "attachment"
     
     headers = {
         "Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}",
-        "Content-Length": str(file_size)
+        "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes"
     }
+    if file_size > 0:
+        headers["Content-Length"] = str(file_size)
     
-    # TURBO MODE: Iterate in 64KB chunks (65536 bytes) instead of default small chunks.
-    # This reduces overhead and speeds up the transfer significantly.
     return StreamingResponse(
         stream_body.iter_chunks(chunk_size=65536), 
         media_type=content_type, 
