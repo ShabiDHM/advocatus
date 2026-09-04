@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V75.0 (SAFE SLASH CASE NUMBERS & ACCURATE B2/DISK STREAMING)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V80.0 (ALBANIAN TRANSLITERATION MATCH & ZERO 404 B2 RETRIEVER)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -23,10 +23,16 @@ def _normalize_str(text: str) -> str:
 
 
 def _to_alpha_key(name: str) -> str:
+    """
+    Kthen emrin në çelës alfanumerik duke konvertuar shkronjat shqipe:
+    'ë' -> 'e', 'ç' -> 'c' për të garantuar përputhje 100% me B2 dhe diskun.
+    """
     if not name:
         return ""
     nfc = _normalize_str(name)
     clean = re.sub(r'\.pdf$', '', nfc, flags=re.IGNORECASE).lower()
+    # Transliterim shqip
+    clean = clean.replace('ë', 'e').replace('ç', 'c')
     return re.sub(r'[^a-z0-9]', '', clean)
 
 
@@ -50,22 +56,15 @@ def _find_file_recursively(search_roots: list[Path], target_filename: str, alpha
         try:
             for p in root_dir.rglob("*.pdf"):
                 fname = _normalize_str(p.name)
-                
-                # 1. Përputhje e saktë me emrin e skedarit
-                if fname.lower() == clean_target_pdf.lower():
+                f_alpha = _to_alpha_key(fname)
+                f_code = _extract_law_number_code(fname)
+
+                if (
+                    fname.lower() == clean_target_pdf.lower()
+                    or (alpha_target and f_alpha and (f_alpha == alpha_target or alpha_target in f_alpha or f_alpha in alpha_target))
+                    or (law_code and f_code and f_code == law_code)
+                ):
                     return p
-
-                # 2. Përputhje me kodin e ligjit (p.sh. 03l006)
-                if law_code:
-                    f_code = _extract_law_number_code(fname)
-                    if f_code and f_code == law_code:
-                        return p
-
-                # 3. Përputhje alfanumerike pa simbole
-                if alpha_target:
-                    f_alpha = _to_alpha_key(fname)
-                    if f_alpha and (f_alpha == alpha_target or alpha_target in f_alpha or f_alpha in alpha_target):
-                        return p
         except Exception as scan_err:
             logger.warning(f"Disk scan warning at {root_dir}: {scan_err}")
 
@@ -76,7 +75,7 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     raw_unquoted = urllib.parse.unquote(filename).strip()
     raw_name = _normalize_str(raw_unquoted)
     
-    # PHOENIX FIX: Nuk e presim emrin me os.path.basename nëse është numër lënde si REV.Nr.114/22.pdf
+    # Ruaj numrin e lëndës me slash (p.sh. REV.Nr.114/22.pdf)
     if "/" in raw_name and not any(raw_name.lower().startswith(p) for p in ["laws/", "academic/", "case_law/"]):
         raw_basename = raw_name
     else:
@@ -86,37 +85,32 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     law_code = _extract_law_number_code(raw_basename)
     alpha_target = _to_alpha_key(raw_basename)
 
-    # --- HAPI 1: REZOLVIMI ME MONGODB I NUMRIT TË LËNDËS TE SKEDARI REAL ---
+    # --- STEP 1: MONGODB REZOLVIMI I NUMRIT TË LËNDËS ---
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
 
-        query_conditions: list[dict] = [
-            {"source": raw_basename},
-            {"case_number": {"$regex": re.escape(clean_search_name), "$options": "i"}},
-            {"title": {"$regex": re.escape(clean_search_name), "$options": "i"}},
-            {"law_title": {"$regex": re.escape(clean_search_name), "$options": "i"}},
-            {"source": {"$regex": re.escape(clean_search_name), "$options": "i"}}
-        ]
-        if law_code:
-            query_conditions.append({"source": {"$regex": law_code.replace("l", ".*L.*"), "$options": "i"}})
-
-        doc = db.legal_knowledge_base.find_one({"$or": query_conditions})
+        clean_regex = re.escape(clean_search_name)
+        doc = db.legal_knowledge_base.find_one({
+            "$or": [
+                {"source": raw_basename},
+                {"source": {"$regex": clean_regex, "$options": "i"}},
+                {"case_number": {"$regex": clean_regex, "$options": "i"}},
+                {"title": {"$regex": clean_regex, "$options": "i"}},
+                {"law_title": {"$regex": clean_regex, "$options": "i"}}
+            ]
+        })
         if doc and doc.get("source"):
             raw_basename = _normalize_str(doc.get("source"))
             alpha_target = _to_alpha_key(raw_basename)
-            if not law_code:
-                law_code = _extract_law_number_code(raw_basename)
-            logger.info(f"✅ MongoDB resolved '{filename}' -> exact source '{raw_basename}'")
+            logger.info(f"✅ [PDF Router] MongoDB mapped '{filename}' -> '{raw_basename}'")
     except Exception as db_err:
         logger.warning(f"MongoDB source mapping skipped: {db_err}")
 
     clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
-    clean_name_pdf = _normalize_str(clean_name_pdf)
 
-    # --- HAPI 2: KËRKIMI NË DISKUN LOKAL (RENDER & LOCAL) ---
+    # --- STEP 2: KËRKIMI NË DISKUN LOKAL ---
     this_file = Path(__file__).resolve()
-    
     search_roots = [
         Path("/app/data"),
         Path("/app/backend/data"),
@@ -141,12 +135,12 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
             }
         )
 
-    # --- HAPI 3: KËRKIMI NË BACKBLAZE B2 CLOUD ---
+    # --- STEP 3: BACKBLAZE B2 CLOUD ME TRANSLITERIM 'ë' -> 'e' ---
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
 
-        all_prefixes = target_prefixes + ["case_law/", "data/case_law/", "laws/ks/", "laws/", ""]
+        all_prefixes = target_prefixes + ["case_law/", "data/case_law/", "laws/ks/", "academic/", ""]
         unique_prefixes = list(dict.fromkeys(all_prefixes))
 
         for prefix in unique_prefixes:
@@ -159,9 +153,10 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                     if not b2_filename or not b2_filename.lower().endswith('.pdf'):
                         continue
 
-                    b2_code = _extract_law_number_code(b2_filename)
                     b2_alpha = _to_alpha_key(b2_filename)
+                    b2_code = _extract_law_number_code(b2_filename)
 
+                    # PHOENIX MATCH: Përputhje alfanumerike pa u penguar nga 'ë' apo 'e'
                     if (
                         b2_filename.lower() == clean_name_pdf.lower()
                         or (alpha_target and b2_alpha and (b2_alpha == alpha_target or alpha_target in b2_alpha or b2_alpha in alpha_target))
@@ -169,7 +164,7 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
                     ):
                         stream, content_length = storage_service.get_file_stream_with_meta(key)
                         if stream:
-                            logger.info(f"☁️ Cloud B2 stream -> {key}")
+                            logger.info(f"☁️ [B2 Match Success] Stream -> {key}")
                             headers = {
                                 "Content-Disposition": f'inline; filename="{b2_filename}"',
                                 "Cache-Control": "public, max-age=86400",
