@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V66.0 (DIRECT IN-CHAT SUPREME PRECEDENT VIEWER)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V75.0 (INSTANT REPORT OPEN IF EXISTS • FRESH RE-ANALYSIS ON DEMAND)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -97,6 +97,12 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
+      // Ngarko analizën ekzistuese nëse ndodhet në bazën e të dhënave
+      const existingAnalysis = (details as any)?.latest_deep_analysis || (details as any)?.latest_comprehensive_analysis || '';
+      if (existingAnalysis && existingAnalysis.trim().length > 100) {
+        setAnalysisResultText(existingAnalysis.trim());
+      }
+
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
@@ -153,7 +159,7 @@ const CaseViewPage: React.FC = () => {
     setMinimizedDocument(null);
   }, [caseId]);
 
-  // DËGJUESI 1: Për dokumentet e lëndës (/documents/...)
+  // DËGJUESI 1: Për dokumentet e lëndës
   useEffect(() => {
     const handleOpenDocPreview = (e: any) => {
       const { fileName, href } = e.detail || {};
@@ -192,7 +198,7 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
 
-  // DËGJUESI 2 (PHOENIX SUPREME): HAPJA DIREKTE E AKTGJYKIMIT TË GJYKATËS SUPREME MBI CHAT
+  // DËGJUESI 2: Precedentët e Gjykatës Supreme
   useEffect(() => {
     const handleOpenPrecedent = async (e: any) => {
       const { caseNumber } = e.detail || {};
@@ -230,17 +236,42 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_precedent_preview', handleOpenPrecedent);
   }, []);
 
+  // 🧹 PASTRIMI TOTAL I CHATIT DHE MEMORIES SË ANALIZËS
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
       await apiService.clearChatHistory(caseId);
       setChatMessages([]);
+      setAnalysisResultText('');
+      setCaseData((prev) => ({
+        ...prev,
+        details: prev.details ? ({
+          ...prev.details,
+          latest_deep_analysis: '',
+          latest_comprehensive_analysis: '',
+          analysis_dirty: true,
+        } as any) : null,
+      }));
       await persistChatHistory([]);
       localStorage.removeItem(`chat_${caseId}`);
     } catch {
       alert(t('error.generic', 'Ndodhi një gabim.'));
     }
   };
+
+  // 🧹 WIPEOUT I VEÇANTË NGA MODALI I ANALIZËS
+  const handleDeleteAnalysisFromModal = useCallback(() => {
+    setAnalysisResultText('');
+    setCaseData((prev) => ({
+      ...prev,
+      details: prev.details ? ({
+        ...prev.details,
+        latest_deep_analysis: '',
+        latest_comprehensive_analysis: '',
+        analysis_dirty: true,
+      } as any) : null,
+    }));
+  }, []);
 
   const handleChatSubmit = useCallback(async (
     text: string, 
@@ -307,20 +338,29 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // BUTONI "ANALIZO RASTIN"
+  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE E MENJËHERSHME NËSE EKZISTON • GJENERIM VETËM NËSE ËSHTË E ZBRAZËT
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
-    if (analysisResultText.length > 100) {
+    // 1. KONTROLLI I MENJËHERSHËM (0 MS): Nëse analiza ekziston tashmë, hape direkt pa rrotullim!
+    const existingAnalysis = 
+      (analysisResultText && analysisResultText.trim().length > 100 ? analysisResultText : '') ||
+      (caseData.details as any)?.latest_deep_analysis ||
+      (caseData.details as any)?.latest_comprehensive_analysis ||
+      '';
+
+    if (existingAnalysis && existingAnalysis.trim().length > 100) {
+      setAnalysisResultText(existingAnalysis.trim());
       setIsAnalysisModalOpen(true);
       return;
     }
 
+    // 2. EKZEKUTIMI NË SFOND: Vetëm nëse analiza nuk ekziston (ose u fshi me kosh)
     setIsAnalyzingCase(true);
     setAnalysisResultText('');
 
     try {
-      const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke zbërthyer në thellësi kirurgjikale të 8 seksionet e detyrueshme: 1. Diagnoza e gjendjes reale faktike, 2. Kryqëzimi i plotë ndërinstitucional i të gjithë aktorëve dhe shkresave, 3. Matrica e provave reale vs. pretendimeve, 4. Kualifikimi statutor neni-për-nen, 5. Përgjegjësia ligjore dhe shkeljet me dashje (Nenet 414 & 425 KPK), 6. Hierarkia e mjeteve të rregullta dhe të jashtëzakonshme juridike, 7. Master Plani i veprimit me afate, dhe 8. Këshilla ekzekutive.";
+      const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë Doktrinar të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke kryer autopsinë forenzike të të gjitha shkresave, procesverbaleve dhe provave materiale.";
       const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic');
       
       let accumulated = '';
@@ -330,6 +370,15 @@ const CaseViewPage: React.FC = () => {
 
       if (accumulated.trim().length > 0) {
         setAnalysisResultText(accumulated);
+        setCaseData((prev) => ({
+          ...prev,
+          details: prev.details ? ({
+            ...prev.details,
+            latest_deep_analysis: accumulated,
+            latest_comprehensive_analysis: accumulated,
+            analysis_dirty: false,
+          } as any) : null,
+        }));
         setIsAnalysisModalOpen(true);
       }
     } catch (err) {
@@ -338,7 +387,7 @@ const CaseViewPage: React.FC = () => {
     } finally {
       setIsAnalyzingCase(false);
     }
-  }, [caseId, isAnalyzingCase, analysisResultText]);
+  }, [caseId, isAnalyzingCase, analysisResultText, caseData.details]);
 
   // IKONA "⚖️ FORENZIKË E DOKUMENTIT"
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
@@ -347,31 +396,7 @@ const CaseViewPage: React.FC = () => {
 
     const docName = doc.file_name || 'këtë dokument';
     const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
-Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare:
-
-1. PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE
-   - Përcakto kompetencën (lëndore/territoriale/funksionale), legjitimimin e palëve, vlerën e kontestit dhe afatet ligjore prekluzive.
-
-2. STRUKTURA E AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË
-   - Zbërthe rolin dhe veprimet e secilit aktor të përmendur dhe vlerëso ligjshmërinë apo shkeljet ligjore.
-
-3. KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DISKREPANCAT
-   - Ballafaqo pretendimet gojore me provat e vërtetuara materiale/shkencore dhe vlerëso ligjshmërinë e provave (Neni 257 KPPRK / Neni 8 LPK).
-
-4. VERIFIKIMI NEN-PËR-NEN I DISPOZITAVE STATUTORE (KOSOVË)
-   - Ndërto tabelën shterruese të verifikimit për të gjitha dispozitat ligjore të zbatueshme.
-
-5. GJETJET KRITIKE DHE SHKELJET [CONTRA LEGEM]
-   - Evidento çdo shkelje thelbësore procedurale apo zbatim të kundërligjshëm të normave materiale.
-
-6. AUDITIMI I PETITUMIT DHE EKZEKUTUESHMËRISË
-   - Vlerëso saktësinë e kërkesës, rrezikun e refuzimit dhe ekzekutueshmërinë sipas Ligjit për Procedurën Përmbarimore (LPP).
-
-7. DRAFT-REMEDIIMI (FORMULIMI GJYQËSOR I KORRIGJUAR)
-   - Jep tekstin e saktë profesional se si duhet të rishkruhet pjesa me gabime.
-
-8. MASTER PLANI I VEPRIMIT DHE STRATEGJIA E FITORES
-   - Hapat e menjëhershëm proceduralë me afate të numëruara.`;
+Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare, me nxjerrjen e çdo neni në Tabelën e Seksionit 4 me formatin Neni X i [Ligjit] për verifikim 1-klikim.`;
 
     handleChatSubmit(supremeAuditPrompt, 'document', 'DEEP', 'automatic', [docIdStr], 'ks');
   }, [handleChatSubmit]);
@@ -473,6 +498,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         caseId={currentCaseId}
         caseTitle={caseTitle}
         clientName={clientName}
+        onDeleteAnalysis={handleDeleteAnalysisFromModal}
       />
     </motion.div>
   );
