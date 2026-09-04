@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V66.0 (CLAUDE SONNET LATEST • 1M CONTEXT • UNIVERSAL ROUTING)
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V75.0 (CLAUDE SONNET 4.6 ELITE ROUTER)
 
 import logging
 import asyncio
@@ -9,7 +9,6 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 from openai import AsyncOpenAI
 from app.core.config import settings
 
-# Importimi nga Porta Qendrore e LLM
 from app.services.llm.llm_client import (
     _get_api_key,
     _get_async_client,
@@ -23,32 +22,25 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Modelet e Unifikuara nga llm_client
 TIER1_ELITE_MODEL = DEEP_MODEL
 CHAT_FAST_MODEL = FAST_MODEL
 
-# Hierarkia e Sigurt e Fallback-ut (Modele 100% aktive në OpenRouter me dritare 128K deri 1M tokens)
 HEAVY_TASK_FALLBACKS = [
-    TIER1_ELITE_MODEL,
-    "anthropic/claude-sonnet-latest",
-    "anthropic/claude-3.7-sonnet",
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-fable-latest",
     "openai/gpt-4o",
     "deepseek/deepseek-chat",
     "openai/gpt-4o-mini"
 ]
 
 FAST_TASK_FALLBACKS = [
-    CHAT_FAST_MODEL,
     "openai/gpt-4o-mini",
     "deepseek/deepseek-chat",
-    "anthropic/claude-haiku-latest",
-    TIER1_ELITE_MODEL
+    "anthropic/claude-sonnet-4.6"
 ]
 
 LLM_TIMEOUT = 140
 MAX_RETRIES = 2
-
-# Dritare masive 1M tokens për analizë dosjesh
 MAX_SINGLE_PASS_CHARS = 1_200_000
 
 OPENROUTER_HEADERS = {
@@ -59,10 +51,10 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V66.0):
-    - Drejton Detyrat e Rënda (Forenzikë, Analizë Dosjeje, Hartim Aktesh) te Anthropic Claude Sonnet Latest (1M tokens).
-    - Mbron sistemin me hierarkinë e fallback-ut të pathyeshëm (GPT-4o / DeepSeek).
-    - Zbaton gjuhë të pastër gjyqësore shqipe për Republikën e Kosovës pa deformuar kërkesën e përdoruesit.
+    Gjeneruesi Suprem i Përgjigjeve (V75.0):
+    - Drejton Forenzikën dhe Analizën te Anthropic Claude Sonnet 4.6 (1M context).
+    - Hierarki e blinduar fallback-u (Fable / GPT-4o / DeepSeek).
+    - Gjuhë e pastër doktrinare shqipe e Gjykatës Supreme të Kosovës.
     """
 
     def __init__(self):
@@ -91,7 +83,7 @@ class ResponseGenerator:
         for current_model in unique_models:
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
-                    logger.info(f"⚖️ [Juristi AI Engine] Po thërras modelin: {current_model} (Përpjekja {attempt})...")
+                    logger.info(f"⚖️ [Juristi AI Engine] Po thërras modelin elitar: {current_model} (Përpjekja {attempt})...")
                     kwargs: Dict[str, Any] = {
                         "model": current_model,
                         "messages": messages,
@@ -130,7 +122,6 @@ class ResponseGenerator:
         context: str = ""
     ) -> AsyncGenerator[str, None]:
         try:
-            # Identifikon automatikisht nëse është detyrë e rëndë që kërkon Claude Sonnet
             is_heavy_task = any(kw in system_prompt.upper() for kw in [
                 "RAPORTIT MASTER", "FORENZIKE", "FORENZIK", "CONTRA LEGEM", 
                 "AUDITORIT SUPREM", "GJYKATËS SUPREME", "PASAPORTA PROCEDURALE",
@@ -141,14 +132,13 @@ class ResponseGenerator:
 
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             
-            # PHOENIX FIX: Rregulla të pastra gjuhësore dhe statutore pa imponuar me dhunë 8 seksione kur kërkohet hartim akti
             enhanced_system_prompt = f"""
 {full_context_content}
 
 RREGULLAT E HEKURTA TË GJUHËS DHE DOKTRINËS SË KOSOVËS:
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës (Gjuha zyrtare e Gjykatave dhe Prokurorive).
 2. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016).
-3. Zbato me rigorozitet formatin, strukturën dhe misionin e përcaktuar në udhëzimet e mësipërme.
+3. Zbato me rigorozitet formatin dhe strukturën e përcaktuar në udhëzimet e mësipërme.
 4. Ndalohet kategorikisht përgjigja me refuzim kur teksti përmban shkresa gjyqësore, prova materiale apo pretendime procedurale të palëve.
 """
             messages = [

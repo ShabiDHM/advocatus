@@ -1,5 +1,5 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED TIER-1 ORCHESTRATION CLIENT V55.0 (DIRECT GPT-4O & INSTANT 200 OK)
+# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V70.0 (CLAUDE SONNET 4.6 • 1M CONTEXT)
 
 import os
 import json
@@ -24,16 +24,17 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# PHOENIX FIX: Përdor 'openai/gpt-4o' si Deep Model parësor (i cili përgjigjet 100% me 200 OK)
+# PHOENIX SUPREME: Modeli Elitar i Verifikuar në OpenRouter
 PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
 FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
-DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "openai/gpt-4o")
+DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-4.6")
 
 FALLBACK_MODELS = [
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-fable-latest",
     "openai/gpt-4o",
-    "openai/gpt-4o-mini",
     "deepseek/deepseek-chat",
-    "google/gemini-2.0-flash-001"
+    "openai/gpt-4o-mini"
 ]
 
 TEMP_ANALYSIS = 0.0
@@ -58,7 +59,7 @@ def _get_sync_client() -> OpenAI:
     return OpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=120.0,
+        timeout=140.0,
         default_headers=OPENROUTER_HEADERS
     )
 
@@ -67,7 +68,7 @@ def _get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         api_key=key, 
         base_url=OPENROUTER_URL, 
-        timeout=120.0,
+        timeout=140.0,
         default_headers=OPENROUTER_HEADERS
     )
 
