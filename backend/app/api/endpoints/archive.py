@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V4.0 (STRICT CORS EXPOSE HEADERS FOR REACT-PDF COMPATIBILITY)
+# PHOENIX PROTOCOL - ARCHIVE API V5.0 (SAFE BUFFERED RESPONSE FOR PDF ZERO CORRUPTION)
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from typing import List, Annotated, Optional, Dict, Any
 from pymongo.database import Database
 from pydantic import BaseModel
@@ -130,15 +130,20 @@ def download_archive_item(
         "Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}",
         "Cache-Control": "public, max-age=3600",
         "Accept-Ranges": "bytes",
-        # 🔑 PHOENIX FIX: EXPOSE HEADERS PËR WEB WORKERS TË REACT-PDF
         "Access-Control-Expose-Headers": "Accept-Ranges, Content-Range, Content-Length, Content-Disposition"
     }
-    
-    if file_size > 0:
-        headers["Content-Length"] = str(file_size)
-    
-    return StreamingResponse(
-        stream_body.iter_chunks(chunk_size=65536), 
-        media_type=content_type, 
-        headers=headers
-    )
+
+    # 🔒 ZGJIDHJA KIRURGJIKALE PËR KORRUPTIMIN E PDF: Lexo të gjitha Bytes!
+    try:
+        if hasattr(stream_body, 'read'):
+            file_bytes = stream_body.read()
+        else:
+            file_bytes = stream_body
+            
+        return Response(
+            content=file_bytes, 
+            media_type=content_type, 
+            headers=headers
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dështoi transferimi i skedarit nga serveri: {str(e)}")
