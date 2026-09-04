@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V55.1 (100% GJUHA SHQIPE • PREPAID PAYWALL GATEKEEPER)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V56.0 (TOTAL WIPEOUT ENDPOINT FOR FORENSIC AUDIT • 100% GJUHA SHQIPE)
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
@@ -180,7 +180,6 @@ async def upload_document_for_case(
 ):
     case_oid = validate_object_id(case_id)
     
-    # 1. VERIFIKIMI I PAGESËS DHE STATUSIT TË LËNDËS
     user_role = getattr(current_user, "role", "USER").upper()
     has_sub = getattr(current_user, "has_active_subscription", False) or (getattr(current_user, "subscription_status", "") == "ACTIVE")
     is_admin = user_role in ["ADMIN", "SUPERADMIN", "STAFF"]
@@ -191,7 +190,6 @@ async def upload_document_for_case(
 
     is_case_unlocked = bool(case_doc.get("is_unlocked", False))
 
-    # Nëse përdoruesi nuk është admin, nuk ka abonim aktiv dhe lënda nuk është paguar:
     if not is_admin and not has_sub and not is_case_unlocked:
         price = os.getenv("CASE_UNLOCK_PRICE_EUR", "9.99")
         raise HTTPException(
@@ -199,7 +197,6 @@ async def upload_document_for_case(
             detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshe prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
         )
 
-    # 2. Kontrolli i madhësisë së skedarit (Maksimumi 50 MB)
     pdf_bytes = await file.read()
     if len(pdf_bytes) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
@@ -207,12 +204,10 @@ async def upload_document_for_case(
             detail="Skedari është shumë i madh. Madhësia maksimale e lejuar është 50 MB."
         )
 
-    # 3. Pastrimi i emrit të skedarit
     raw_filename = file.filename or "dokument.pdf"
     filename = storage_service.sanitize_filename(raw_filename)
     content_type = _resolve_media_type(filename, file.content_type)
 
-    # 4. Ngarko në Storage
     key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(pdf_bytes),
@@ -230,7 +225,6 @@ async def upload_document_for_case(
     except Exception as e:
         logger.warning(f"Could not populate local preview cache: {e}")
 
-    # 5. Ruaj në MongoDB
     existing_doc = db.documents.find_one({
         "case_id": case_oid,
         "owner_id": current_user.id,
@@ -260,18 +254,56 @@ async def upload_document_for_case(
     insert_result = db.documents.insert_one(document_data)
     doc_id_str = str(insert_result.inserted_id)
 
-    # Shëno lëndën si DIRTY (kërkon analizë të re pas ngarkimit)
     db.cases.update_one(
         {"$or": [{"_id": case_oid}, {"_id": case_id}]},
         {"$set": {"analysis_dirty": True, "updated_at": datetime.now(timezone.utc)}}
     )
 
-    # 6. Ekzekutimi në Background
     from app.services.document_processing_service import orchestrate_document_processing_mongo
     background_tasks.add_task(orchestrate_document_processing_mongo, doc_id_str)
 
     new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
     return DocumentOut.model_validate(new_doc)
+
+
+# =========================================================================
+# 🧹 PHOENIX TOTAL WIPEOUT: FSHIRJA E PLOTË E AUDITIMIT TË NJË DOKUMENTI
+# =========================================================================
+@router.post("/{case_id}/documents/{doc_id}/clear-audit")
+@router.delete("/{case_id}/documents/{doc_id}/clear-audit")
+async def clear_document_audit_endpoint(
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+
+    # 1. Verifiko që dokumenti ekziston dhe i përket lëndës së këtij përdoruesi
+    doc = db.documents.find_one({
+        "_id": doc_oid,
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "owner_id": current_user.id
+    })
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    # 2. Total Wipeout nga MongoDB me $unset
+    db.documents.update_one(
+        {"_id": doc_oid},
+        {"$unset": {
+            "latest_analysis": "",
+            "latest_forensic_audit": "",
+            "last_audited_at": ""
+        }}
+    )
+
+    return {
+        "status": "success",
+        "message": "Auditimi i dokumentit u fshi plotësisht nga baza e të dhënave (Total Wipeout).",
+        "document_id": doc_id
+    }
 
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)

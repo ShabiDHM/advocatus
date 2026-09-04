@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V6.0 (SMART STREAMING AUTO-SCROLL & USER SCROLL OVERRIDE)
+// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V7.0 (ULTRA-RESPONSIVE MOBILE/TABLET/DESKTOP ADAPTIVE SHEET)
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,27 +21,25 @@ interface CaseAnalysisModalProps {
   caseId: string;
   caseTitle?: string;
   clientName?: string;
+  modalHeaderTitle?: string;
   onDeleteAnalysis?: () => Promise<void> | void;
 }
 
 const FONT_LEVELS = [
-  { label: '85%', base: 14, h1: 20, h2: 17, h3: 15, line: 1.6 },
-  { label: '100%', base: 15.5, h1: 22, h2: 18.5, h3: 16.5, line: 1.7 },
-  { label: '115%', base: 17.5, h1: 25, h2: 21, h3: 18.5, line: 1.8 }, // Default Komod
-  { label: '130%', base: 19.5, h1: 28, h2: 23, h3: 20.5, line: 1.85 },
-  { label: '150%', base: 22, h1: 31, h2: 26, h3: 23, line: 1.9 }
+  { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
+  { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
+  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 }, // Default Komod
+  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
+  { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
 
-// Funksion pastrimi: Heq rreshtat e statusit dhe bllokun e sugjerimeve të brendshme
 const sanitizeReportDocument = (rawText: string): string => {
   if (!rawText) return '';
-  
   let text = rawText;
   text = text.replace(/📋\s*Duke\s+analizuar[^\n]*\n?/gi, '');
   text = text.replace(/✅\s*Pjesa\s+\d+\/\d+\s+u\s+analizua\.?\s*/gi, '');
   text = text.replace(/🔗\s*Duke\s+përmbledhur[^\n]*\n?/gi, '');
   text = text.replace(/(?:\n|^)(?:#{1,4}\s*)?Sugjerime:[\s\S]*?(?=(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË|$)/gi, '\n\n');
-  
   return text.trim();
 };
 
@@ -52,6 +50,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   caseId,
   caseTitle = 'Lënda Ligjore',
   clientName = 'Klienti',
+  modalHeaderTitle,
   onDeleteAnalysis,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
@@ -61,11 +60,10 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
 
-  // Referenca për kontejnerin e scrollimit dhe menaxhimin e auto-scrollit
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef<boolean>(false);
 
-  // Zgjedhja e madhësisë së fontit me memorizim në LocalStorage (Default: Level 2 = 115% / 17.5px)
+  // Madhësia e fontit me memorizim në LocalStorage
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_forensic_font_size');
@@ -80,26 +78,22 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const pristineDocument = sanitizeReportDocument(analysisText);
   const autoLinkedContent = autoLinkLegalCitations(pristineDocument);
 
-  // 🚀 PHOENIX SMART AUTO-SCROLL: Ndiq tekstin poshtë kur mbërrijnë copa të reja
+  // Smart auto-scroll gjatë streaming-ut
   useEffect(() => {
     if (!isOpen) return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    // Nëse përdoruesi nuk ka lëvizur manualisht lart, ec automatikisht te fundi
     if (!isUserScrolledUpRef.current) {
       container.scrollTop = container.scrollHeight;
     }
   }, [analysisText, isOpen]);
 
-  // Monitorimi i lëvizjes së miut nga përdoruesi
   const handleScroll = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    
-    // Nëse distanca nga fundi është mbi 80px, përdoruesi ka shkuar lart për të lexuar
     const userScrolledUp = distanceFromBottom > 80;
     isUserScrolledUpRef.current = userScrolledUp;
     setShowScrollBottomBtn(userScrolledUp);
@@ -149,9 +143,13 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     setIsArchiving(true);
     setArchiveSuccess(false);
     try {
+      const archiveDocTitle = modalHeaderTitle 
+        ? `${modalHeaderTitle} - ${caseTitle}`
+        : `Raporti Forenzik: ${caseTitle}`;
+
       await apiService.archiveForensicReport(
         caseId,
-        `Raporti Forenzik: ${caseTitle}`,
+        archiveDocTitle,
         pristineDocument
       );
       setArchiveSuccess(true);
@@ -165,13 +163,12 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const handleDeleteAnalysis = async () => {
     if (!caseId) return;
-    if (!window.confirm("A jeni i sigurt që doni të fshini këtë analizë nga baza e të dhënave (Cascade Wipeout) për ta rigjeneruar nga e para?")) {
+    if (!window.confirm("A jeni i sigurt që doni të fshini këtë analizë nga baza e të dhënave për ta rigjeneruar nga e para?")) {
       return;
     }
 
     setIsDeleting(true);
     try {
-      await apiService.clearChatHistory(caseId);
       if (onDeleteAnalysis) {
         await onDeleteAnalysis();
       }
@@ -186,51 +183,53 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-2 sm:p-4 md:p-6 select-none">
+      <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[250] p-0 sm:p-3 md:p-6 select-none">
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 15 }}
+          initial={{ opacity: 0, scale: 0.98, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 15 }}
+          exit={{ opacity: 0, scale: 0.98, y: 10 }}
           className={`glass-panel w-full ${
-            isFullscreen ? 'h-full max-h-screen rounded-none' : 'max-w-6xl h-[92vh] max-h-[950px] rounded-3xl'
-          } p-5 sm:p-7 shadow-2xl border border-main bg-card flex flex-col transition-all duration-200 relative`}
+            isFullscreen 
+              ? 'h-full max-h-screen rounded-none border-0' 
+              : 'h-full sm:h-[94vh] max-w-6xl sm:max-h-[960px] rounded-none sm:rounded-3xl border-0 sm:border sm:border-main'
+          } p-3 sm:p-5 md:p-7 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
-          {/* Header Ekzekutiv */}
-          <div className="flex items-center justify-between pb-4 border-b border-main shrink-0 gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 bg-primary-start/10 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/20 shrink-0 shadow-xs">
-                <FileSearch size={20} />
+          {/* Header Ultra-Adaptiv për Mobile dhe Desktop */}
+          <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-main shrink-0 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-start/10 text-primary-start rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary-start/20 shrink-0 shadow-xs">
+                <FileSearch className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
-                  Raporti i Plotë Forenzik i Lëndës
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs sm:text-sm md:text-base font-black text-text-primary uppercase tracking-tight truncate leading-tight">
+                  {modalHeaderTitle || "Raporti i Plotë Forenzik"}
                 </h3>
-                <p className="text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
-                  {caseTitle} — {clientName}
+                <p className="text-[10px] sm:text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
+                  {caseTitle} <span className="opacity-60">•</span> {clientName}
                 </p>
               </div>
             </div>
 
-            {/* Butonat e Kontrollit në Header: Font Resizer + Kosh + Fullscreen + Mbyllje */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Kontrolluesi Interaktiv i Madhësisë së Fontit */}
-              <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 mr-1 text-xs shadow-inner">
+            {/* Butonat e Kontrollit: Kompakt në Mobile */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {/* Font Resizer */}
+              <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
                 <button
                   type="button"
                   onClick={handleDecreaseFont}
                   disabled={fontLevelIndex <= 0}
-                  className="px-2.5 py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-lg hover:bg-hover transition-colors font-bold flex items-center gap-0.5 cursor-pointer"
-                  title="Zvogëlo Madhësinë e Tekstit (A-)"
+                  className="p-1 sm:px-2 sm:py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-md hover:bg-hover transition-colors font-bold flex items-center cursor-pointer"
+                  title="Zvogëlo Tekstin (A-)"
                 >
-                  <ZoomOut size={13} />
-                  <span>A-</span>
+                  <ZoomOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline ml-0.5">A-</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleResetFont}
-                  className="px-2 py-1 text-[11px] font-mono font-bold text-primary-start hover:text-primary-end rounded-lg hover:bg-hover transition-colors cursor-pointer"
-                  title="Rivendos në Madhësinë Komode (115%)"
+                  className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-mono font-bold text-primary-start hover:text-primary-end rounded-md hover:bg-hover transition-colors cursor-pointer"
+                  title="Rivendos Madhësinë"
                 >
                   {activeFont.label}
                 </button>
@@ -238,11 +237,11 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                   type="button"
                   onClick={handleIncreaseFont}
                   disabled={fontLevelIndex >= FONT_LEVELS.length - 1}
-                  className="px-2.5 py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-lg hover:bg-hover transition-colors font-bold flex items-center gap-0.5 cursor-pointer"
-                  title="Zmadho Madhësinë e Tekstit (A+)"
+                  className="p-1 sm:px-2 sm:py-1 text-text-muted hover:text-text-primary disabled:opacity-30 rounded-md hover:bg-hover transition-colors font-bold flex items-center cursor-pointer"
+                  title="Zmadho Tekstin (A+)"
                 >
-                  <span>A+</span>
-                  <ZoomIn size={13} />
+                  <span className="hidden sm:inline mr-0.5">A+</span>
+                  <ZoomIn className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
 
@@ -250,16 +249,16 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 type="button"
                 onClick={handleDeleteAnalysis}
                 disabled={isDeleting}
-                className="p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                title="Fshi Analizën (Cascade Wipeout)"
+                className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
+                title="Fshi Analizën"
               >
-                {isDeleting ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
+                {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
+                className="hidden sm:flex p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
                 title={isFullscreen ? "Zvogëlo" : "Zmadho Ekranin"}
               >
                 {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -268,49 +267,61 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-lg sm:rounded-xl transition-colors cursor-pointer"
                 title="Mbyll"
               >
-                <X size={18} />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>
 
-          {/* Trupi i Dokumentit me Smart Auto-Scroll dhe Shkallëzim Dinamik të Fontit */}
+          {/* Trupi i Dokumentit me Touch Scroll dhe Formatim të Qartë */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-8 mt-3 bg-surface/40 rounded-2xl border border-main text-text-primary shadow-inner select-text relative"
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-2 sm:my-3 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y"
           >
-            {/* Scoped CSS për rregullim të saktë të madhësisë në të gjithë raportin */}
             <style>{`
               .dynamic-forensic-report p,
               .dynamic-forensic-report li,
-              .dynamic-forensic-report td,
               .dynamic-forensic-report span:not(.lucide) {
                 font-size: ${activeFont.base}px !important;
                 line-height: ${activeFont.line} !important;
               }
+              .dynamic-forensic-report td {
+                font-size: ${Math.max(11.5, activeFont.base - 1.5)}px !important;
+                line-height: 1.45 !important;
+                padding: 6px 8px !important;
+              }
+              .dynamic-forensic-report th {
+                font-size: ${Math.max(11, activeFont.base - 2)}px !important;
+                padding: 8px 8px !important;
+              }
               .dynamic-forensic-report h1 {
                 font-size: ${activeFont.h1}px !important;
-                line-height: 1.3 !important;
-                margin-top: 1.4em !important;
-                margin-bottom: 0.6em !important;
-              }
-              .dynamic-forensic-report h2 {
-                font-size: ${activeFont.h2}px !important;
-                line-height: 1.35 !important;
+                line-height: 1.25 !important;
                 margin-top: 1.2em !important;
                 margin-bottom: 0.5em !important;
               }
-              .dynamic-forensic-report h3 {
-                font-size: ${activeFont.h3}px !important;
-                line-height: 1.4 !important;
-                margin-top: 1em !important;
+              .dynamic-forensic-report h2 {
+                font-size: ${activeFont.h2}px !important;
+                line-height: 1.3 !important;
+                margin-top: 1.1em !important;
                 margin-bottom: 0.4em !important;
               }
-              .dynamic-forensic-report th {
-                font-size: ${Math.max(12, activeFont.base - 2)}px !important;
+              .dynamic-forensic-report h3 {
+                font-size: ${activeFont.h3}px !important;
+                line-height: 1.35 !important;
+                margin-top: 0.9em !important;
+                margin-bottom: 0.3em !important;
+              }
+              /* Rrëshqitje e sigurt e tabelave në mobile pa prishur faqen */
+              .dynamic-forensic-report table {
+                display: block !important;
+                width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                margin: 1em 0 !important;
               }
             `}</style>
 
@@ -321,7 +332,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* Butoni Lundrues për Rikthim te Fundi i Streaming-ut */}
+          {/* Butoni Lundrues për Rikthim te Fundi */}
           <AnimatePresence>
             {showScrollBottomBtn && (
               <motion.button
@@ -330,39 +341,40 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 exit={{ opacity: 0, y: 10, scale: 0.9 }}
                 type="button"
                 onClick={scrollToBottom}
-                className="absolute bottom-20 right-10 z-20 px-3.5 py-2 bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold rounded-full shadow-2xl border border-slate-700/80 backdrop-blur-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-all"
+                className="absolute bottom-16 sm:bottom-20 right-4 sm:right-10 z-20 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900/90 hover:bg-slate-900 text-white text-[11px] sm:text-xs font-bold rounded-full shadow-2xl border border-slate-700/80 backdrop-blur-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-all"
               >
-                <span>Shko te Fundi</span>
-                <ArrowDown size={14} className="animate-bounce" />
+                <span>Te Fundi</span>
+                <ArrowDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-bounce" />
               </motion.button>
             )}
           </AnimatePresence>
 
-          {/* Veprimet Ekzekutive */}
-          <div className="flex items-center justify-between pt-4 mt-3 border-t border-main gap-3 shrink-0">
+          {/* Veprimet Ekzekutive: Touch-friendly 44px në Mobile */}
+          <div className="flex items-center justify-between pt-2.5 sm:pt-4 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleArchive}
               disabled={isArchiving || !pristineDocument}
-              className="h-10 px-5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold uppercase tracking-wider text-primary-start flex items-center gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer"
+              className="flex-1 sm:flex-initial h-10 sm:h-10 px-3 sm:px-5 bg-surface hover:bg-hover border border-main rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               {isArchiving ? (
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
               ) : archiveSuccess ? (
-                <CheckCircle2 size={15} className="text-status-success" />
+                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-status-success" />
               ) : (
-                <Save size={15} />
+                <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               )}
-              {archiveSuccess ? 'U ruajt në Arkiv!' : 'Ruaj në Arkiv'}
+              <span className="truncate">{archiveSuccess ? 'U ruajt!' : 'Ruaj në Arkiv'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleCopy}
               disabled={!pristineDocument}
-              className="h-10 px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
+              className="flex-1 sm:flex-initial h-10 sm:h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
-              <Copy size={14} /> {copied ? 'U Kopjua Raporti!' : 'Kopjo Raportin'}
+              <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
+              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Raportin'}</span>
             </button>
           </div>
         </motion.div>

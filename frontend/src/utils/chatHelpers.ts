@@ -1,5 +1,5 @@
 // FILE: frontend/src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V71.0 (SUPREME PRECEDENT 1-CLICK VERIFICATION ROUTING)
+// PHOENIX PROTOCOL - CHAT HELPERS V75.0 (UNIVERSAL 1-CLICK ARTICLE BADGE & PRECEDENT ROUTING)
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -8,31 +8,31 @@ interface StatuteDefinition {
 
 const STATUTES_REGISTRY: StatuteDefinition[] = [
   {
-    regex: /(?:Kodi\s+i\s+Procedurës\s+Penale(?:\s+të\s+Republikës\s+së\s+Kosovës)?|KPPRK|KPP|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-032)/i,
+    regex: /(?:Kodi\s+i\s+Procedurës\s+Penale(?:\s+të\s+Republikës\s+së\s+Kosovës)?|KPPRK(?:-së)?|KPP(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-032)/i,
     cleanName: 'KPPRK'
   },
   {
-    regex: /(?:Kodi\s+Penal(?:\s+i\s+Republikës\s+së\s+Kosovës)?|KPRK|KPK|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-074)/i,
+    regex: /(?:Kodi\s+Penal(?:\s+i\s+Republikës\s+së\s+Kosovës)?|KPRK(?:-së)?|KPK(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-074)/i,
     cleanName: 'KPRK'
   },
   {
-    regex: /(?:Ligji\s+për\s+Procedurën\s+Kontestimore|LPK|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-006)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Procedurën\s+Kontestimore|LPK(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-006)/i,
     cleanName: 'LPK'
   },
   {
-    regex: /(?:Ligji\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve|LMD|Ligj(?:it|i)?\s+Nr\.?\s*04\/L-077)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Marrëdhëniet\s+e\s+Detyrimeve|LMD(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*04\/L-077)/i,
     cleanName: 'LMD'
   },
   {
-    regex: /(?:Ligji\s+për\s+Familjen(?:\s+i\s+Kosovës)?|LFK|LF|Ligj(?:it|i)?\s+Nr\.?\s*2004\/32)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Familjen(?:\s+të\s+Kosovës)?|LFK(?:-së)?|LF(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*2004\/32)/i,
     cleanName: 'Ligji për Familjen'
   },
   {
-    regex: /(?:Kushtetut(?:ës|a|ën)?(?:\s+së\s+Republikës\s+së\s+Kosovës)?)/i,
+    regex: /(?:Kushtetut(?:ës|a|ën|e)?(?:\s+së\s+Republikës\s+së\s+Kosovës)?)/i,
     cleanName: 'Kushtetuta e Republikës së Kosovës'
   },
   {
-    regex: /(?:Ligj(?:it|i)?\s+Nr\.?\s*(?:08\/L-168|03\/L-121|03\/L-052)(?:\s+për\s+Prokurorinë\s+Speciale)?|PSRK)/i,
+    regex: /(?:Ligj(?:it|i)?\s+Nr\.?\s*(?:08\/L-168|03\/L-121|03\/L-052)(?:\s+për\s+Prokurorinë\s+Speciale)?|PSRK(?:-së)?)/i,
     cleanName: 'Ligji për Prokurorinë Speciale'
   },
   {
@@ -40,35 +40,35 @@ const STATUTES_REGISTRY: StatuteDefinition[] = [
     cleanName: 'Kodi i Drejtësisë për të Mitur'
   },
   {
-    regex: /(?:Konvent(?:ës|a)?\s+Evropiane\s+për\s+të\s+Drejtat\s+e\s+Njeriut|KEDNJ|GJEDNJ)/i,
+    regex: /(?:Konvent(?:ës|a|ën)?\s+Evropiane\s+për\s+të\s+Drejtat\s+e\s+Njeriut|KEDNJ|GJEDNJ)/i,
     cleanName: 'KEDNJ'
   },
   {
-    regex: /(?:Konvent(?:ës|a)?(?:\s+së\s+Kombeve\s+të\s+Bashkuara|\s+së\s+OKB-së)?\s+për\s+të\s+Drejtat\s+e\s+Fëmijës|KEDF)/i,
+    regex: /(?:Konvent(?:ës|a|ën)?(?:\s+së\s+Kombeve\s+të\s+Bashkuara|\s+së\s+OKB-së)?\s+për\s+të\s+Drejtat\s+e\s+Fëmijës|KEDF)/i,
     cleanName: 'Konventa për të Drejtat e Fëmijës'
   },
   {
-    regex: /(?:Ligji\s+për\s+Procedurën\s+Përmbarimore|LPP|Ligj(?:it|i)?\s+Nr\.?\s*04\/L-139)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Procedurën\s+Përmbarimore|LPP(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*04\/L-139)/i,
     cleanName: 'Ligji për Procedurën Përmbarimore'
   },
   {
-    regex: /(?:Ligji\s+për\s+Parandalimin\s+dhe\s+Mbrojtjen\s+nga\s+Dhuna\s+në\s+Familje|LMDHF|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-185|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-182)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Parandalimin\s+dhe\s+Mbrojtjen\s+nga\s+Dhuna\s+në\s+Familje|LMDHF|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-185|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-182)/i,
     cleanName: 'Ligji për Mbrojtjen nga Dhuna në Familje'
   },
   {
-    regex: /(?:Ligji\s+për\s+Shoqëritë\s+Tregtare|LSHT|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-016)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Shoqëritë\s+Tregtare|LSHT(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*06\/L-016)/i,
     cleanName: 'Ligji për Shoqëritë Tregtare'
   },
   {
-    regex: /(?:Ligji\s+i\s+Punës|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-212)/i,
+    regex: /(?:Ligj(?:it|i)?\s+i\s+Punës|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-212)/i,
     cleanName: 'Ligji i Punës'
   },
   {
-    regex: /(?:Ligji\s+për\s+Gjykatën\s+Komerciale|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-015)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Gjykatën\s+Komerciale|Ligj(?:it|i)?\s+Nr\.?\s*08\/L-015)/i,
     cleanName: 'Ligji për Gjykatën Komerciale'
   },
   {
-    regex: /(?:Ligji\s+për\s+Pronësinë|LPTS|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-154)/i,
+    regex: /(?:Ligj(?:it|i)?\s+për\s+Pronësinë|LPTS(?:-së)?|Ligj(?:it|i)?\s+Nr\.?\s*03\/L-154)/i,
     cleanName: 'Ligji për Pronësinë dhe të Drejtat Tjera Sendore'
   }
 ];
@@ -122,23 +122,26 @@ export const autoLinkLegalCitations = (text: any): string => {
     return `___LAW_TOKEN_${savedTokens.length - 1}___`;
   };
 
+  // 1. ZGJIDHJA KIRURGJIKALE PËR BACKTICKS:
+  // Heqim thonjëzat e kodit (`) rreth neneve dhe ligjeve në mënyrë që ReactMarkdown t'i trajtojë si linke dhe jo si tekst kodi!
+  let sanitized = text.replace(/`((?:Nen[ieatë]+|Rev|PML|AC|CA|PKR|AP|AGJ|Kushtetut|Ligj|KEDNJ|Konvent)[^`\n]+)`/gi, '$1');
+
   // Mbroj lidhjet ekzistuese të markdown-it
-  let processed = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
+  let processed = sanitized.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
     return createToken(fullMatch);
   });
 
   const lines = processed.split('\n');
-  let activeSectionLaw = 'KPRK';
+  let activeSectionLaw = 'LPK';
 
   const processedLines = lines.map((line) => {
     let lineProcessed = line;
 
-    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (Lidhja e saktë drejtpërdrejt te /laws/search)
-    const supremePrecedentRegex = /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/gi;
+    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (Me ose pa hapësira: Rev. Nr. 240/2024, PML.Nr. 171/2025)
+    const supremePrecedentRegex = /\b(PML|Rev|REV|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+\/\d{2,4})\b/gi;
     lineProcessed = lineProcessed.replace(supremePrecedentRegex, (fullMatch, prefix, numPair) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const cleanCaseNo = `${prefix.toUpperCase()}.Nr.${numPair}`;
-      // PHOENIX FIX: Lidh te faqja zyrtare e kërkimit të ligjeve dhe jurisprudencës
       const url = `/laws/search?q=${encodeURIComponent(cleanCaseNo)}`;
       return createToken(`[${cleanCaseNo}](${url})`);
     });
@@ -152,7 +155,7 @@ export const autoLinkLegalCitations = (text: any): string => {
     }
 
     // PASS 1: Ligji PARA listës së neneve
-    const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?:\s*\([^\)]*\))?:\s*(?:Nenet?|Nenit|Neni|Nenin)?\s*([\d\s,.\-–e(dhe)]+)/gi;
+    const lawBeforeListRegex = /([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?:\s*\([^\)]*\))?:\s*(?:Nenet?|Nenit|Neni|Nenin|Neneve)?\s*([\d\s,.\-–e(dhe)]+)/gi;
     lineProcessed = lineProcessed.replace(lawBeforeListRegex, (fullMatch, lawCandidate, numbersBlock) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const matchedLaw = resolveStatuteName(lawCandidate);
@@ -162,8 +165,8 @@ export const autoLinkLegalCitations = (text: any): string => {
       return `${lawCandidate}: ${linkedNums}`;
     });
 
-    // PASS 2: Nenet me ligj PAS tyre
-    const explicitLawRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–e(dhe)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?=[.,;\n\r\)]|$)/gi;
+    // PASS 2: Nenet me ligj PAS tyre (Përfshirë rasën gjinore: 'Neni 145 i Ligjit për Familjen', 'Nenit 8 të LPK-së')
+    const explicitLawRegex = /\b(Nenet?|Nenit|Nenin|Neni|Neneve)\s+([\d\s,.\-–e(dhe)]+)\s*(?:i|e|të|së)?\s*([A-Za-z0-9\/\-ëçËÇ\s\(\)\.]{2,120}?)(?=[.,;\n\r\)]|$)/gi;
     lineProcessed = lineProcessed.replace(explicitLawRegex, (fullMatch, _prefix, numbersBlock, lawCandidate) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const matchedLaw = resolveStatuteName(lawCandidate);
@@ -174,12 +177,12 @@ export const autoLinkLegalCitations = (text: any): string => {
     });
 
     // PASS 3: Nenet e vetmuara
-    const standaloneArticleRegex = /\b(Nenet?|Nenit|Nenin|Neni)\s+([\d\s,.\-–e(dhe)]+)(?:\s*\(([^)]+)\))?/gi;
+    const standaloneArticleRegex = /\b(Nenet?|Nenit|Nenin|Neni|Neneve)\s+([\d\s,.\-–e(dhe)]+)(?:\s*\(([^)]+)\))?/gi;
     lineProcessed = lineProcessed.replace(standaloneArticleRegex, (fullMatch, _prefix, numbersBlock, parenText) => {
       if (fullMatch.includes('___LAW_TOKEN_') || !/\d/.test(numbersBlock)) return fullMatch;
 
       const detectedLawFromParen = parenText ? resolveStatuteName(parenText) : '';
-      const lawToUse = detectedLawFromParen || activeSectionLaw || 'KPRK';
+      const lawToUse = detectedLawFromParen || activeSectionLaw || 'LPK';
 
       const linkedNums = createLinkedNumbers(numbersBlock, lawToUse, createToken);
       return parenText ? `${linkedNums} (${parenText})` : linkedNums;

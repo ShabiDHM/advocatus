@@ -1,5 +1,5 @@
-// FILE: src/services/caseService.ts
-// PHOENIX PROTOCOL - CASE & FORENSIC ANALYSIS SERVICE MODULE
+// FILE: frontend/src/services/caseService.ts
+// PHOENIX PROTOCOL - CASE & FORENSIC ANALYSIS SERVICE MODULE V56.0 (TOTAL WIPEOUT ENDPOINTS)
 
 import { apiClient, API_V1_URL } from './apiClient';
 import axios from 'axios';
@@ -219,6 +219,12 @@ export class CaseService {
 
   public async clearCaseAnalysis(caseId: string): Promise<void> {
     await apiClient.post(`/cases/${caseId}/analyze/clear`);
+  }
+
+  // 🧹 TOTAL WIPEOUT I AUDITIMIT TË DOKUMENTIT
+  public async clearDocumentAudit(caseId: string, documentId: string): Promise<any> {
+    const response = await apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
+    return response.data;
   }
 
   // ========== GRAPH ONTOLOGY ==========

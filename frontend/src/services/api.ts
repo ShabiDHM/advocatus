@@ -1,5 +1,5 @@
-// FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE (UNIFIES ALL DOMAIN MICRO-SERVICES)
+// FILE: frontend/src/services/api.ts
+// PHOENIX PROTOCOL - MASTER API FACADE V57.0 (ADDED CLEAR DOCUMENT AUDIT METHOD)
 
 export * from './apiClient';
 export * from './authService';
@@ -70,6 +70,7 @@ class ApiService {
   public archiveStrategyReport = caseService.archiveStrategyReport.bind(caseService);
   public crossExamineDocument = caseService.crossExamineDocument.bind(caseService);
   public clearCaseAnalysis = caseService.clearCaseAnalysis.bind(caseService);
+  public clearDocumentAudit = caseService.clearDocumentAudit.bind(caseService);
   public getCaseGraph = caseService.getCaseGraph.bind(caseService);
   public rebuildCaseGraph = caseService.rebuildCaseGraph.bind(caseService);
   public searchFirmGraph = caseService.searchFirmGraph.bind(caseService);

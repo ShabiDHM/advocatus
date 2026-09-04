@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V85.0 (SEPARATE DEDICATED DOCUMENT AUDIT MODAL & ZERO CHAT POLLUTION)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V86.0 (TOTAL WIPEOUT INTEGRATION FOR SINGLE DOCUMENT AUDIT)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -45,7 +45,7 @@ const CaseViewPage: React.FC = () => {
   const [analysisResultText, setAnalysisResultText] = useState<string>('');
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. State i Ri dhe i Dedikuar për Auditimin e 1 Dokumenti (Peshorja ⚖️)
+  // 2. State i Dedikuar për Auditimin e 1 Dokumenti (Peshorja ⚖️)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [docAuditResultText, setDocAuditResultText] = useState<string>('');
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
@@ -278,17 +278,28 @@ const CaseViewPage: React.FC = () => {
     }));
   }, []);
 
-  // 🧹 WIPEOUT I VEÇANTË PËR DOKUMENTIN E AUDITUAR
-  const handleDeleteDocAuditFromModal = useCallback(() => {
-    if (!currentAuditedDoc) return;
+  // 🧹 TOTAL WIPEOUT I AUDITIMIT TË DOKUMENTIT (FRONTEND STATE + MONGODB DATABASE)
+  const handleDeleteDocAuditFromModal = useCallback(async () => {
+    if (!currentAuditedDoc || !caseId) return;
     const targetId = String(currentAuditedDoc.id);
+
+    // 1. Pastrim i menjëhershëm në frontend
     setDocAuditResultText('');
     setLiveDocuments((prev) => prev.map((d) => String(d.id) === targetId ? {
       ...d,
       latest_analysis: '',
-      latest_forensic_audit: ''
+      latest_forensic_audit: '',
+      last_audited_at: null
     } as any : d));
-  }, [currentAuditedDoc, setLiveDocuments]);
+
+    // 2. Fshirje e plotë nga MongoDB Atlas përmes Backend API
+    try {
+      await apiService.clearDocumentAudit(caseId, targetId);
+    } catch (err) {
+      console.error("Failed to clear document audit on MongoDB:", err);
+      alert("Dështoi fshirja e auditimit nga baza e të dhënave.");
+    }
+  }, [caseId, currentAuditedDoc, setLiveDocuments]);
 
   const handleChatSubmit = useCallback(async (
     text: string, 
