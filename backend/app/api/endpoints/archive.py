@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V3.0 (STRICT PDF MIME-TYPE & TURBO STREAMING)
+# PHOENIX PROTOCOL - ARCHIVE API V4.0 (STRICT CORS EXPOSE HEADERS FOR REACT-PDF COMPATIBILITY)
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
 from fastapi.responses import StreamingResponse
@@ -120,19 +120,20 @@ def download_archive_item(
     
     stream_body, raw_filename, file_size = service.get_file_stream(str(current_user.id), item_id)
     
-    # 🔒 SIGURIMI I EMËRTIMIT DHE FORMATIT TË SAKTË PDF
     filename = raw_filename if raw_filename.lower().endswith('.pdf') else f"{raw_filename}.pdf"
     safe_filename = urllib.parse.quote(filename)
     
     content_type = "application/pdf"
-        
     disposition_type = "inline" if preview else "attachment"
     
     headers = {
         "Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}",
         "Cache-Control": "public, max-age=3600",
-        "Accept-Ranges": "bytes"
+        "Accept-Ranges": "bytes",
+        # 🔑 PHOENIX FIX: EXPOSE HEADERS PËR WEB WORKERS TË REACT-PDF
+        "Access-Control-Expose-Headers": "Accept-Ranges, Content-Range, Content-Length, Content-Disposition"
     }
+    
     if file_size > 0:
         headers["Content-Length"] = str(file_size)
     
