@@ -1,11 +1,11 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V5.1 (ZERO-WARNING CLEAN TYPESCRIPT BUILD)
+// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V6.0 (SMART STREAMING AUTO-SCROLL & USER SCROLL OVERRIDE)
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut
+  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -59,6 +59,11 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+
+  // Referenca për kontejnerin e scrollimit dhe menaxhimin e auto-scrollit
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUpRef = useRef<boolean>(false);
 
   // Zgjedhja e madhësisë së fontit me memorizim në LocalStorage (Default: Level 2 = 115% / 17.5px)
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
@@ -72,10 +77,43 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  if (!isOpen) return null;
-
   const pristineDocument = sanitizeReportDocument(analysisText);
   const autoLinkedContent = autoLinkLegalCitations(pristineDocument);
+
+  // 🚀 PHOENIX SMART AUTO-SCROLL: Ndiq tekstin poshtë kur mbërrijnë copa të reja
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Nëse përdoruesi nuk ka lëvizur manualisht lart, ec automatikisht te fundi
+    if (!isUserScrolledUpRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [analysisText, isOpen]);
+
+  // Monitorimi i lëvizjes së miut nga përdoruesi
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    
+    // Nëse distanca nga fundi është mbi 80px, përdoruesi ka shkuar lart për të lexuar
+    const userScrolledUp = distanceFromBottom > 80;
+    isUserScrolledUpRef.current = userScrolledUp;
+    setShowScrollBottomBtn(userScrolledUp);
+  };
+
+  const scrollToBottom = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    isUserScrolledUpRef.current = false;
+    setShowScrollBottomBtn(false);
+  };
+
+  if (!isOpen) return null;
 
   const activeFont = FONT_LEVELS[fontLevelIndex];
 
@@ -155,7 +193,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
           className={`glass-panel w-full ${
             isFullscreen ? 'h-full max-h-screen rounded-none' : 'max-w-6xl h-[92vh] max-h-[950px] rounded-3xl'
-          } p-5 sm:p-7 shadow-2xl border border-main bg-card flex flex-col transition-all duration-200`}
+          } p-5 sm:p-7 shadow-2xl border border-main bg-card flex flex-col transition-all duration-200 relative`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
           {/* Header Ekzekutiv */}
@@ -238,8 +276,12 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* Trupi i Dokumentit me Shkallëzim Dinamik të Fontit */}
-          <div className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-8 mt-3 bg-surface/40 rounded-2xl border border-main text-text-primary shadow-inner select-text">
+          {/* Trupi i Dokumentit me Smart Auto-Scroll dhe Shkallëzim Dinamik të Fontit */}
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto custom-finance-scroll p-4 sm:p-8 mt-3 bg-surface/40 rounded-2xl border border-main text-text-primary shadow-inner select-text relative"
+          >
             {/* Scoped CSS për rregullim të saktë të madhësisë në të gjithë raportin */}
             <style>{`
               .dynamic-forensic-report p,
@@ -278,6 +320,23 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               </ReactMarkdown>
             </div>
           </div>
+
+          {/* Butoni Lundrues për Rikthim te Fundi i Streaming-ut */}
+          <AnimatePresence>
+            {showScrollBottomBtn && (
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                type="button"
+                onClick={scrollToBottom}
+                className="absolute bottom-20 right-10 z-20 px-3.5 py-2 bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold rounded-full shadow-2xl border border-slate-700/80 backdrop-blur-md flex items-center gap-1.5 cursor-pointer hover:border-sky-500/50 transition-all"
+              >
+                <span>Shko te Fundi</span>
+                <ArrowDown size={14} className="animate-bounce" />
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* Veprimet Ekzekutive */}
           <div className="flex items-center justify-between pt-4 mt-3 border-t border-main gap-3 shrink-0">
