@@ -1,11 +1,11 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V3.0 (PURE DOCUMENT PRESENTATION)
+// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V4.0 (CASCADE WIPEOUT HEADER BUTTON)
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
-  Loader2, Maximize2, Minimize2 
+  Loader2, Maximize2, Minimize2, Trash2 
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,6 +21,7 @@ interface CaseAnalysisModalProps {
   caseId: string;
   caseTitle?: string;
   clientName?: string;
+  onDeleteAnalysis?: () => Promise<void> | void;
 }
 
 // Funksion pastrimi: Heq rreshtat e debugut "Pjesa 1/9..." dhe "Sugjerime:" nga raporti ekzekutiv
@@ -47,11 +48,13 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   caseId,
   caseTitle = 'Lënda Ligjore',
   clientName = 'Klienti',
+  onDeleteAnalysis,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
   const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
@@ -85,6 +88,28 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   };
 
+  // 🧹 CASCADE WIPEOUT BUTONI I KOSHIT NË HEADER
+  const handleDeleteAnalysis = async () => {
+    if (!caseId) return;
+    if (!window.confirm("A jeni i sigurt që doni të fshini këtë analizë nga baza e të dhënave (Cascade Wipeout) për ta rigjeneruar nga e para?")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await apiService.clearChatHistory(caseId);
+      if (onDeleteAnalysis) {
+        await onDeleteAnalysis();
+      }
+      onClose();
+    } catch (err: any) {
+      console.error("Failed to delete analysis:", err);
+      alert("Dështoi fshirja e analizës.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-2 sm:p-4 md:p-6 select-none">
@@ -113,7 +138,18 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               </div>
             </div>
 
+            {/* Butonat e Kontrollit në Header: Kosh (Wipeout) + Fullscreen + Mbyllje */}
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleDeleteAnalysis}
+                disabled={isDeleting}
+                className="p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
+                title="Fshi Analizën (Cascade Wipeout)"
+              >
+                {isDeleting ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)}
@@ -122,6 +158,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               >
                 {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
+
               <button
                 type="button"
                 onClick={onClose}

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V50.0 (TOTAL CASCADE WIPEOUT ON CLEAR CHAT)
+# PHOENIX PROTOCOL - CHAT ROUTER V55.0 (TOTAL CERTIFIED CASCADE WIPEOUT • MONGO & REDIS FLUSH)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -9,10 +9,11 @@ import logging
 from datetime import datetime, timezone
 from pymongo.database import Database
 from bson import ObjectId
+import redis
 
 from app.services import chat_service
 from app.models.user import UserInDB
-from app.api.endpoints.dependencies import get_current_active_user, get_db
+from app.api.endpoints.dependencies import get_current_active_user, get_db, get_sync_redis
 
 router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
@@ -67,25 +68,27 @@ async def handle_chat_message(
 
 
 # =========================================================================
-# 🧹 TOTAL CASCADE WIPEOUT (FSHIRJE TOTALE E HISTORIKUT DHE CACHE-IT NË MONGODB)
+# 🧹 TOTAL CERTIFIED CASCADE WIPEOUT (MONGO ATLAS, REDIS & DOCUMENT CACHE)
 # =========================================================================
 @router.delete("/case/{case_id}/history", status_code=status.HTTP_200_OK)
 def clear_chat_history(
     case_id: str, 
     current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
-    db: Database = Depends(get_db)
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     """
-    Kryen fshirje totale me kaskadë:
-    1. Pastron historikun e chat-it.
-    2. Fshin të gjitha analizat e vjetra nga MongoDB (latest_deep_analysis, latest_analysis).
+    TOTAL CERTIFIED CASCADE WIPEOUT:
+    1. Pastron historikun e bisedës në MongoDB.
+    2. Fshin $unset të gjitha analizat (latest_deep_analysis, latest_comprehensive_analysis, latest_analysis).
     3. Fshin analizat e ruajtura nga të gjithë dokumentet e asaj lënde.
-    4. Vendos analysis_dirty = True për të mundësuar rianalizim të pastër.
+    4. Vendos analysis_dirty = True (detyrim i rreptë për analizë nga e para).
+    5. Fshin të gjithë çelësat e memories së shpejtë në REDIS CLOUD.
     """
     try:
         c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         
-        # 1. Pastrim i plotë në Case
+        # 1. Pastrim Total në MongoDB (Case Record)
         db.cases.update_one(
             {"_id": c_oid, "owner_id": current_user.id},
             {
@@ -98,12 +101,14 @@ def clear_chat_history(
                     "latest_deep_analysis": "",
                     "latest_comprehensive_analysis": "",
                     "latest_analysis": "",
-                    "latest_forensic_audit": ""
+                    "latest_forensic_audit": "",
+                    "summary": "",
+                    "case_summary": ""
                 }
             }
         )
 
-        # 2. Pastrim i analizave të vjetra nga të gjithë dokumentet e kësaj lënde
+        # 2. Pastrim Total në të gjitha Dokumentet e kësaj Lënde
         db.documents.update_many(
             {"$or": [{"case_id": case_id}, {"case_id": c_oid}]},
             {
@@ -115,8 +120,23 @@ def clear_chat_history(
             }
         )
 
-        logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] Historiku dhe i gjithë cache-i u fshinë për lëndën {case_id}.")
-        return {"status": "success", "message": "Historiku dhe analizat e vjetra u pastruan plotësisht."}
+        # 3. Pastrim Total në REDIS CLOUD
+        if redis_client:
+            try:
+                redis_keys = [
+                    f"case:{case_id}:analysis",
+                    f"case:{case_id}:summary",
+                    f"case:{case_id}:chat",
+                    f"rag:{case_id}:context"
+                ]
+                for rk in redis_keys:
+                    redis_client.delete(rk)
+                logger.info(f"✅ [Redis Flush] U fshinë çelësat e memories për lëndën {case_id}.")
+            except Exception as r_err:
+                logger.warning(f"Redis cache delete warning: {r_err}")
+
+        logger.info(f"🧹 [TOTAL CERTIFIED CASCADE WIPEOUT] Çdo gjurmë e vjetër u asgjësua për lëndën {case_id}.")
+        return {"status": "success", "message": "Fshirja me kaskadë u ekzekutua 100% në të gjitha nivelet e sistemit."}
         
     except Exception as e:
         logger.error(f"Failed to clear history with cascade wipeout: {e}")

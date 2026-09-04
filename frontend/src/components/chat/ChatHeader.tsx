@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V20.0 ("ASISTENTI SHABI" BRANDING & REAL-TIME STATUS)
+// PHOENIX PROTOCOL - CHAT HEADER V21.0 ("RASTI DUKE U ANALIZUAR..." & CLEAN ISOLATION)
 
 import React from 'react';
 import { Download, Trash2, FileSearch, Loader2 } from 'lucide-react';
@@ -56,7 +56,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {isAnalyzingCase ? (
             <>
               <Loader2 size={14} className="text-white animate-spin shrink-0" />
-              <span className="text-white font-bold whitespace-nowrap animate-pulse">Shabi duke analizuar...</span>
+              <span className="text-white font-bold whitespace-nowrap animate-pulse">Rasti duke u analizuar...</span>
             </>
           ) : (
             <>
