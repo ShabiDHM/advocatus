@@ -1,5 +1,5 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V13.0 (EXPLICIT OPPOSING PARTY & LEGAL METADATA)
+# PHOENIX PROTOCOL - CASE MODEL V14.0 (UNION STRING/DICT ANALYSIS SUPPORT & ZERO 500 ERRORS)
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Union
@@ -16,7 +16,7 @@ class ClientData(BaseModel):
 class ChatMessage(BaseModel):
     role: str 
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: Optional[Union[datetime, str]] = Field(default_factory=datetime.utcnow)
 
 # Base Case Model
 class CaseBase(BaseModel):
@@ -28,7 +28,7 @@ class CaseBase(BaseModel):
     org_id: Optional[PyObjectId] = None 
     client_position: Optional[str] = "DEFENDANT"
     
-    # Real Party Names & Financials (Explicitly Preserved in API)
+    # Real Party Names & Financials
     client_name: Optional[str] = None
     opposing_party: Optional[Union[str, Dict[str, Any]]] = None
     court: Optional[str] = None
@@ -69,8 +69,13 @@ class CaseInDB(CaseBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
-    latest_analysis: Optional[Dict[str, Any]] = None
-    latest_deep_analysis: Optional[Dict[str, Any]] = None
+    
+    # PHOENIX FIX: Pranon si Tekst Markdown (str) ashtu edhe Dict pa dhënë gabim 500
+    latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
+    
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: List[str] = []
 
@@ -88,8 +93,13 @@ class CaseOut(CaseBase):
     
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
-    latest_analysis: Optional[Dict[str, Any]] = None
-    latest_deep_analysis: Optional[Dict[str, Any]] = None
+    
+    # PHOENIX FIX: Pranon si Tekst Markdown (str) ashtu edhe Dict në dalje
+    latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
+    latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
+    
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: Optional[List[str]] = []
 
