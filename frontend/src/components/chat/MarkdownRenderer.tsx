@@ -1,5 +1,5 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - STRICT UNIFIED FORENSIC TOOLTIP ENGINE V48.0 (1:1 V12.0 DESIGN PARITY)
+// PHOENIX PROTOCOL - STRICT UNIFIED FORENSIC TOOLTIP & RESPONSIVE TABLE ENGINE V50.0
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,7 +17,7 @@ const getNodeText = (node: any): string => {
 };
 
 // ============================================================================
-// COMPONENT: PRECEDENT CITATION LINK (IDENTIK NË ÇDO PIKË ME LAW CITATION V12.0)
+// COMPONENT: PRECEDENT CITATION LINK (SUPREME COURT PRECEDENT BADGE)
 // ============================================================================
 const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -66,7 +66,6 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
     e.preventDefault();
     e.stopPropagation();
     setShowTooltip(false);
-    // PHOENIX: Hap PDF-në e aktgjykimit direkt mbi Chat pa ndërruar faqe
     window.dispatchEvent(
       new CustomEvent('open_precedent_preview', {
         detail: { caseNumber: cleanLabel }
@@ -89,36 +88,31 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
             transform: 'translate(-50%, -100%)',
           }}
         >
-          {/* Header identik me V12.0 */}
           <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-1.5 font-bold text-xs text-amber-500">
               <ShieldCheck size={16} />
               <span>Precedent Zyrtar i Verifikuar</span>
             </div>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold bg-amber-500/10 text-amber-500">
-              100% SCORE
+              SUPREME
             </span>
           </div>
 
-          {/* Titulli i Aktvendimit */}
           <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
             Gjykata Supreme e Kosovës • {cleanLabel}
           </div>
 
-          {/* Udhëzimi Verifikues */}
           <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
-            Qëndrim parimor gjyqësor i zbatueshëm në shqyrtimin e lëndës. Kliko për të hapur arsyetimin origjinal në PDF.
+            Qëndrim parimor gjyqësor i detyrueshëm. Kliko për të hapur aktgjykimin origjinal në format PDF.
           </div>
 
-          {/* Blloku i Integritetit identik me V12.0 */}
           <div className="flex items-center justify-between text-[10px] font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-            <span>Integriteti i Vendimit:</span>
+            <span>Integriteti i Dosjes:</span>
             <span className="font-bold text-amber-500">
               Aktgjykim Origjinal (PDF) ✓
             </span>
           </div>
 
-          {/* Shigjeta poshtë */}
           <div
             className="absolute top-full -translate-x-1/2 -mt-[2px] border-[8px] border-transparent pointer-events-none"
             style={{
@@ -142,7 +136,7 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-500 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-500 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
       >
         <Landmark size={13} className="shrink-0 opacity-80" />
         <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
@@ -153,9 +147,8 @@ const PrecedentCitationLink: React.FC<{ cleanLabel: string }> = ({ cleanLabel })
   );
 };
 
-
 // ============================================================================
-// MAIN MARKDOWN COMPONENTS BUILDER
+// MAIN MARKDOWN COMPONENTS BUILDER ME MBROJTJE NDAJ OVERFLOW DHE TABELA ELEGANTE
 // ============================================================================
 export const buildMarkdownComponents = () => ({
   h1: ({ node, ...props }: any): React.JSX.Element => (
@@ -177,7 +170,7 @@ export const buildMarkdownComponents = () => ({
     />
   ),
   p: ({ node, ...props }: any): React.JSX.Element => (
-    <p className="mb-2.5 last:mb-0 leading-relaxed text-text-secondary text-xs sm:text-sm" {...props} />
+    <p className="mb-2.5 last:mb-0 leading-relaxed text-text-secondary text-xs sm:text-sm break-words" {...props} />
   ),
   ul: ({ node, ...props }: any): React.JSX.Element => (
     <ul className="list-disc list-inside space-y-1 my-2 text-text-secondary pl-1 text-xs sm:text-sm" {...props} />
@@ -186,24 +179,103 @@ export const buildMarkdownComponents = () => ({
     <ol className="list-decimal list-inside space-y-1.5 my-2 text-text-secondary pl-1 text-xs sm:text-sm" {...props} />
   ),
   li: ({ node, ...props }: any): React.JSX.Element => (
-    <li className="leading-relaxed text-text-secondary" {...props} />
+    <li className="leading-relaxed text-text-secondary break-words" {...props} />
   ),
   strong: ({ node, ...props }: any): React.JSX.Element => (
     <strong className="font-bold text-text-primary" {...props} />
   ),
   blockquote: ({ node, ...props }: any): React.JSX.Element => (
     <blockquote
-      className="border-l-2 border-primary-start/40 pl-3.5 my-2.5 italic text-text-secondary bg-surface/50 py-1 rounded-r-lg"
+      className="border-l-2 border-primary-start/40 pl-3.5 my-2.5 italic text-text-secondary bg-surface/50 py-1 rounded-r-lg break-words"
       {...props}
     />
   ),
+
+  // =========================================================================
+  // 🛡️ TABELAT RESPONSIVE: MBROJTJE TOTALE NGA DALJA JASHTË KUTISË
+  // =========================================================================
+  table: ({ node, ...props }: any): React.JSX.Element => (
+    <div className="w-full my-3 overflow-x-auto rounded-xl border border-main bg-surface/30 shadow-xs custom-finance-scroll">
+      <table className="w-full min-w-[500px] text-left border-collapse text-xs" {...props} />
+    </div>
+  ),
+  thead: ({ node, ...props }: any): React.JSX.Element => (
+    <thead className="bg-surface/80 border-b border-main text-text-primary font-bold tracking-wider uppercase text-[11px]" {...props} />
+  ),
+  tbody: ({ node, ...props }: any): React.JSX.Element => (
+    <tbody className="divide-y divide-main/40 text-text-secondary" {...props} />
+  ),
+  tr: ({ node, ...props }: any): React.JSX.Element => (
+    <tr className="hover:bg-hover/40 transition-colors" {...props} />
+  ),
+  th: ({ node, ...props }: any): React.JSX.Element => (
+    <th className="px-3.5 py-2.5 font-bold text-text-primary whitespace-nowrap" {...props} />
+  ),
+  td: ({ node, children, ...props }: any): React.JSX.Element => {
+    // Kontrollo nëse qeliza përmban tekst raw të linkut të formatit [Neni X](url)
+    const textContent = getNodeText(children);
+    const linkMatch = textContent.match(/\[(.*?)\]\((.*?)\)/);
+
+    if (linkMatch) {
+      const label = linkMatch[1];
+      const targetUrl = linkMatch[2];
+      const surroundingText = textContent.replace(linkMatch[0], '').trim();
+
+      return (
+        <td className="px-3.5 py-2.5 align-top leading-relaxed break-words max-w-[280px]" {...props}>
+          <div className="flex flex-wrap items-center gap-1">
+            <LawCitationLink
+              lawTitle={label}
+              articleNum=""
+              fullMatch={label}
+              targetUrl={targetUrl}
+            />
+            {surroundingText && <span className="text-text-secondary text-[11px]">{surroundingText}</span>}
+          </div>
+        </td>
+      );
+    }
+
+    return (
+      <td className="px-3.5 py-2.5 align-top leading-relaxed break-words max-w-[280px] sm:max-w-[340px]" {...props}>
+        {children}
+      </td>
+    );
+  },
+
+  // =========================================================================
+  // 🛡️ BLLOQET E KRONOLOGJISË DHE KODIT: MBROJTJE ME THYERJE RRESHTI
+  // =========================================================================
+  pre: ({ node, ...props }: any): React.JSX.Element => (
+    <div className="w-full my-3 overflow-x-auto rounded-xl border border-main bg-surface/70 p-3 shadow-inner custom-finance-scroll">
+      <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-text-primary" {...props} />
+    </div>
+  ),
+  code: ({ node, inline, className, children, ...props }: any): React.JSX.Element => {
+    if (inline) {
+      return (
+        <code className="px-1.5 py-0.5 rounded-md bg-surface border border-main font-mono text-[11px] text-primary-start font-semibold" {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className="font-mono text-xs text-text-primary whitespace-pre-wrap break-words" {...props}>
+        {children}
+      </code>
+    );
+  },
+
+  // =========================================================================
+  // 🔗 LINKET INTERAKTIVE TË NENEVE, PRECEDENTËVE DHE DOKUMENTEVE
+  // =========================================================================
   a: ({ href, children }: any): React.JSX.Element => {
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. SUPREME COURT PRECEDENTS
+    // 1. PRECEDENTËT E GJYKATËS SUPREME (Rev ose PML)
     const isPrecedent =
-      /\b(PML|Rev|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
+      /\b(PML|Rev|REV|AC|CA|PKR|AP|AGJ)\.?\s*(?:Nr\.?|nr\.?)\s*(\d+\/\d{2,4})\b/i.test(rawText) ||
       rawHref.includes('/laws/library?q=') ||
       rawHref.includes('/laws/search?q=') ||
       rawHref.includes('caseNumber=');
@@ -213,11 +285,11 @@ export const buildMarkdownComponents = () => ({
       return <PrecedentCitationLink cleanLabel={cleanLabel} />;
     }
 
-    // 2. STATUTE ARTICLE LINKS
+    // 2. LIDHJET ME NENET STATUTORE LIGJORE
     if (rawHref.startsWith('/laws/article') || rawHref.startsWith('/laws/')) {
       try {
         const url = new URL(rawHref, window.location.origin);
-        const lawTitle = url.searchParams.get('lawTitle') || 'Ligj i Paidentifikuar';
+        const lawTitle = url.searchParams.get('lawTitle') || 'Ligj';
         const articleNum = url.searchParams.get('articleNumber') || '1';
         const fullMatch = rawText || `${lawTitle} - Neni ${articleNum}`;
 
@@ -241,7 +313,7 @@ export const buildMarkdownComponents = () => ({
       }
     }
 
-    // 3. EVIDENCE DOCUMENT LINKS
+    // 3. DOKUMENTET E DOSJES (PDF / SHKRESA)
     const isDocLink =
       rawHref.toLowerCase().includes('/documents/') ||
       rawHref.toLowerCase().endsWith('.pdf') ||
@@ -270,13 +342,13 @@ export const buildMarkdownComponents = () => ({
       );
     }
 
-    // 4. GENERIC EXTERNAL LINKS
+    // 4. LINKET E JASHTME
     return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors mx-0.5"
+        className="inline-flex items-center gap-1 text-primary-start font-semibold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors mx-0.5 break-words"
       >
         <span>{children}</span>
         <ExternalLink size={11} className="shrink-0 opacity-70" />
