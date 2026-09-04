@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V86.0 (CLEAN CHAT ISOLATION • ZERO TS WARNINGS)
+// PHOENIX PROTOCOL - CHAT PANEL V87.0 (OFFICIAL JURISTI AI BRANDING • CLEAN HYGIENE)
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -251,7 +251,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     typeof lastMessage.content === 'string' && 
     !isThinkingPlaceholder(lastMessage.content);
 
-  // 🔒 IZOLIM TOTAL: Chati shfaq 'duke menduar' VETËM për mesazhet e veta të chatit, JO për analizën e fashikullit
+  // Izolim: Chati shfaq 'duke menduar' vetëm për pyetjet aktive të chatit
   const isAwaitingFirstToken = isSendingMessage && !isAiCurrentlyStreaming;
 
   return (
@@ -327,7 +327,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                       ) : isAiPlaceholder ? (
                         <div className="flex items-center gap-2 py-0.5">
                           <span className="text-xs font-bold text-primary-start tracking-wide">
-                            Shabi duke menduar
+                            Juristi AI duke menduar
                           </span>
                           <ThinkingDots />
                         </div>
@@ -347,7 +347,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                           <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-main/50 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <span className="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-1.5 ml-1">
                               <Sparkles size={12} className="text-primary-start animate-pulse" />
-                              {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar nga Shabi')}
+                              {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar nga Juristi AI')}
                             </span>
                             
                             <div className="flex flex-col gap-2 w-full">
@@ -409,7 +409,6 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 );
               })}
 
-              {/* WAVE BOUNCE VETËM PËR CHATIN AKTIV */}
               {isAwaitingFirstToken && !displayMessages.some(m => m.role === 'ai' && isThinkingPlaceholder(m.content)) && (
                 <motion.div 
                   key="thinking" 
@@ -423,7 +422,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   </div>
                   <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
                     <span className="text-xs font-bold text-primary-start tracking-wide">
-                      Shabi duke menduar
+                      Juristi AI duke menduar
                     </span>
                     <ThinkingDots />
                   </div>
