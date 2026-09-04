@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_pdf_router.py
-# PHOENIX PROTOCOL - LAWS PDF ROUTER V85.0 (UNIVERSAL B2 ENUMERATION & STREAMER)
+# PHOENIX PROTOCOL - LAWS PDF ROUTER V90.0 (DEEP LOCAL RECURSION & PAGINATED B2 STREAMER)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -50,7 +50,6 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         raw_basename = os.path.basename(raw_name) if "/" in raw_name else raw_name
 
     clean_search_name = re.sub(r'\.pdf$', '', raw_basename, flags=re.IGNORECASE).strip()
-    law_code = _extract_law_number_code(raw_basename)
     alpha_target = _to_alpha_key(raw_basename)
 
     # --- HAPI 1: MONGODB MAPPING ---
@@ -78,21 +77,36 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
     clean_name_pdf = raw_basename if raw_basename.lower().endswith('.pdf') else f"{raw_basename}.pdf"
     clean_name_pdf = _normalize_str(clean_name_pdf)
 
-    # --- HAPI 2: DISK LOKAL ---
+    # --- HAPI 2: DISK LOKAL (ME KËRKIM TË THELLË DERI NË RRËNJË TË PROJEKTIT) ---
     this_file = Path(__file__).resolve()
-    search_roots = [
-        Path("/app/data"),
-        Path("/app/backend/data"),
-        this_file.parents[4] / "data",
-        this_file.parents[3] / "data",
+    
+    candidate_roots = [
         Path.cwd() / "data",
+        Path.cwd().parent / "data",
         Path.cwd() / "backend" / "data",
         Path("data").resolve(),
+        Path("../data").resolve(),
+        Path("/app/data"),
+        Path("/app/backend/data"),
     ]
 
+    # Shto të gjithë prindërit e mundshëm të skedarit (duke përfshirë parents[5] - rrënja e projektit)
+    for p_idx in range(len(this_file.parents)):
+        candidate_roots.append(this_file.parents[p_idx] / "data")
+        candidate_roots.append(this_file.parents[p_idx] / "data" / "case_law")
+        candidate_roots.append(this_file.parents[p_idx] / "data" / "academic")
+
+    search_roots = []
+    seen_roots = set()
+    for r in candidate_roots:
+        try:
+            if r and r.exists() and str(r.resolve()) not in seen_roots:
+                seen_roots.add(str(r.resolve()))
+                search_roots.append(r)
+        except Exception:
+            pass
+
     for root_dir in search_roots:
-        if not root_dir or not root_dir.exists():
-            continue
         try:
             for p in root_dir.rglob("*.pdf"):
                 fname = _normalize_str(p.name)
@@ -115,44 +129,71 @@ def _stream_from_b2_or_local(filename: str, target_prefixes: list[str]) -> Strea
         except Exception:
             pass
 
-    # --- HAPI 3: BACKBLAZE B2 SEARCH (PA LIMIT DOSEJ) ---
+    # --- HAPI 3: BACKBLAZE B2 SEARCH ME PAGINIM (PA LIMIT 1000 SKEDARËSH) ---
     try:
         s3 = storage_service.get_s3_client()
         bucket = storage_service.B2_BUCKET_NAME
-
         prefixes_to_check = ["", "case_law/", "data/case_law/", "laws/ks/", "academic/"]
+
+        # 3.1 Kontroll i shpejtë i drejtpërdrejtë (Direct Key Head-Object)
+        for prefix in prefixes_to_check:
+            direct_key = f"{prefix}{clean_name_pdf}".replace("//", "/")
+            try:
+                s3.head_object(Bucket=bucket, Key=direct_key)
+                stream, content_length = storage_service.get_file_stream_with_meta(direct_key)
+                if stream:
+                    logger.info(f"☁️ [B2 Direct Match] Stream -> {direct_key}")
+                    headers = {
+                        "Content-Disposition": f'inline; filename="{clean_name_pdf}"',
+                        "Cache-Control": "public, max-age=86400",
+                        "Accept-Ranges": "bytes"
+                    }
+                    if content_length > 0:
+                        headers["Content-Length"] = str(content_length)
+
+                    return StreamingResponse(
+                        stream,
+                        media_type="application/pdf",
+                        headers=headers
+                    )
+            except Exception:
+                pass
+
+        # 3.2 Kërkim me Paginator (Skanim i plotë pa limit)
+        paginator = s3.get_paginator('list_objects_v2')
         for prefix in prefixes_to_check:
             try:
-                b2_response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-                contents = b2_response.get('Contents', [])
-                for obj in contents:
-                    key = obj.get('Key', '')
-                    b2_filename = _normalize_str(os.path.basename(key))
-                    if not b2_filename or not b2_filename.lower().endswith('.pdf'):
-                        continue
+                page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
+                for page in page_iterator:
+                    contents = page.get('Contents', [])
+                    for obj in contents:
+                        key = obj.get('Key', '')
+                        b2_filename = _normalize_str(os.path.basename(key))
+                        if not b2_filename or not b2_filename.lower().endswith('.pdf'):
+                            continue
 
-                    b2_alpha = _to_alpha_key(b2_filename)
+                        b2_alpha = _to_alpha_key(b2_filename)
 
-                    if (
-                        b2_filename.lower() == clean_name_pdf.lower()
-                        or (alpha_target and b2_alpha and (b2_alpha == alpha_target or alpha_target in b2_alpha or b2_alpha in alpha_target))
-                    ):
-                        stream, content_length = storage_service.get_file_stream_with_meta(key)
-                        if stream:
-                            logger.info(f"☁️ [B2 Match Success] Stream -> {key}")
-                            headers = {
-                                "Content-Disposition": f'inline; filename="{b2_filename}"',
-                                "Cache-Control": "public, max-age=86400",
-                                "Accept-Ranges": "bytes"
-                            }
-                            if content_length > 0:
-                                headers["Content-Length"] = str(content_length)
+                        if (
+                            b2_filename.lower() == clean_name_pdf.lower()
+                            or (alpha_target and b2_alpha and (b2_alpha == alpha_target or alpha_target in b2_alpha or b2_alpha in alpha_target))
+                        ):
+                            stream, content_length = storage_service.get_file_stream_with_meta(key)
+                            if stream:
+                                logger.info(f"☁️ [B2 Paginated Match] Stream -> {key}")
+                                headers = {
+                                    "Content-Disposition": f'inline; filename="{b2_filename}"',
+                                    "Cache-Control": "public, max-age=86400",
+                                    "Accept-Ranges": "bytes"
+                                }
+                                if content_length > 0:
+                                    headers["Content-Length"] = str(content_length)
 
-                            return StreamingResponse(
-                                stream,
-                                media_type="application/pdf",
-                                headers=headers
-                            )
+                                return StreamingResponse(
+                                    stream,
+                                    media_type="application/pdf",
+                                    headers=headers
+                                )
             except Exception:
                 continue
     except Exception as e:
