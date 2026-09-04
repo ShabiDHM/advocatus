@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V111.0
+// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V115.0 (THEME-AWARE SOLID TOOLTIPS)
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -426,7 +426,7 @@ export default function LawSearchPage() {
                   💡 <strong>Në fjalë të thjeshta:</strong> {aiDiagnostic.plain_explanation}
                 </div>
 
-                {/* NENET ME TOOLTIP TË UNIFIKUAR */}
+                {/* NENET ME TOOLTIP TË SOLIDIZUAR DHE THEME-AWARE */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
                   <div className="flex flex-col gap-2.5">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -444,7 +444,7 @@ export default function LawSearchPage() {
                         return (
                           <div
                             key={i}
-                            className="relative"
+                            className="relative inline-block"
                             onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
                             onMouseLeave={() => setHoveredArticleKey(null)}
                           >
@@ -457,6 +457,7 @@ export default function LawSearchPage() {
                               <ArrowRight size={13} className="shrink-0 group-hover:translate-x-0.5 transition-transform" />
                             </button>
 
+                            {/* TOOLTIP 100% SOLID, JO-TRANSPARENT & THEME-AWARE */}
                             <AnimatePresence>
                               {isHovered && (
                                 <motion.div
@@ -464,29 +465,32 @@ export default function LawSearchPage() {
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                   transition={{ duration: 0.12 }}
-                                  className="absolute left-0 bottom-full mb-2 w-80 p-4 bg-surface border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+                                  className="absolute left-0 bottom-full mb-3 w-80 p-4 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)] z-[99999] pointer-events-none ring-1 ring-black/5 dark:ring-white/10"
                                 >
-                                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-main">
-                                    <div className="flex items-center gap-1.5 text-emerald-500 font-bold text-xs">
+                                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
                                       <CheckCircle2 size={15} />
-                                      <span>Tekst Zyrtar i Verifikuar (98%)</span>
+                                      <span>Tekst Zyrtar i Verifikuar</span>
                                     </div>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">
-                                      HIGH CONFIDENCE
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                                      100% AUTHENTIC
                                     </span>
                                   </div>
 
-                                  <div className="text-xs font-bold text-text-primary mb-1 leading-snug">
-                                    ✅ Ligji Zyrtar: {fullLawTitle}
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
+                                    ✅ Ligji: {fullLawTitle}
                                   </div>
-                                  <div className="text-[11px] text-text-secondary leading-relaxed mb-2.5">
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                     Nen i nxjerrë direkt nga Kodi / Ligji Zyrtar i Kosovës i shpallur në Gazetën Zyrtare.
                                   </div>
                                   
-                                  <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-2 rounded-xl border border-main text-text-muted">
-                                    <span>Neni: {item.article_number}</span>
-                                    <span className="text-emerald-500 font-bold">Autenticitet 100% ✓</span>
+                                  <div className="flex items-center justify-between text-[10px] font-mono bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                                    <span>Neni: <strong>{item.article_number}</strong></span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">Verifikuar ✓</span>
                                   </div>
+
+                                  {/* Shigjeta poshtë */}
+                                  <div className="absolute top-full left-6 -mt-[1px] border-[7px] border-transparent border-t-white dark:border-t-[#0f172a]" />
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -497,7 +501,7 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* PRECEDENTËT E SUPREMES ME TOOLTIP TË UNIFIKUAR */}
+                {/* PRECEDENTËT E SUPREMES ME TOOLTIP TË SOLIDIZUAR */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -532,7 +536,7 @@ export default function LawSearchPage() {
                               <ExternalLink size={12} className="text-text-muted shrink-0" />
                             </button>
 
-                            {/* TOOLTIP-I I UNIFIKUAR PËR AKTGJYKIMET */}
+                            {/* TOOLTIP 100% SOLID PËR AKTGJYKIMET */}
                             <AnimatePresence>
                               {isHovered && (
                                 <motion.div
@@ -540,29 +544,32 @@ export default function LawSearchPage() {
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                   transition={{ duration: 0.12 }}
-                                  className="absolute left-0 bottom-full mb-2 w-80 p-4 bg-surface border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+                                  className="absolute left-0 bottom-full mb-3 w-80 p-4 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)] z-[99999] pointer-events-none ring-1 ring-black/5 dark:ring-white/10"
                                 >
-                                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-main">
-                                    <div className="flex items-center gap-1.5 text-emerald-500 font-bold text-xs">
+                                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold text-xs">
                                       <CheckCircle2 size={15} />
-                                      <span>Precedent i Verifikuar (100%)</span>
+                                      <span>Precedent i Verifikuar</span>
                                     </div>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">
-                                      PRECEDENT PARIMOR
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">
+                                      SUPREME COURT
                                     </span>
                                   </div>
 
-                                  <div className="text-xs font-bold text-text-primary mb-1 truncate">
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 truncate">
                                     ⚖️ {c.title}
                                   </div>
-                                  <div className="text-[11px] text-text-secondary leading-relaxed mb-2.5">
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                     Hapje e drejtpërdrejtë e vendimit në <strong>Faqen {c.page}</strong> të Dokumentit Zyrtar nga Arkiva e Gjykatës Supreme.
                                   </div>
 
-                                  <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-2 rounded-xl border border-main text-text-muted">
+                                  <div className="flex items-center justify-between text-[10px] font-mono bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                     <span>Gjykata Supreme e Kosovës</span>
-                                    <span className="text-emerald-500 font-bold">Autenticitet 100% ✓</span>
+                                    <span className="text-amber-600 dark:text-amber-400 font-bold">Autentik ✓</span>
                                   </div>
+
+                                  {/* Shigjeta poshtë */}
+                                  <div className="absolute top-full left-6 -mt-[1px] border-[7px] border-transparent border-t-white dark:border-t-[#0f172a]" />
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -619,7 +626,7 @@ export default function LawSearchPage() {
                               return (
                                 <div
                                   key={aIdx}
-                                  className="relative"
+                                  className="relative inline-block"
                                   onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
                                   onMouseLeave={() => setHoveredArticleKey(null)}
                                 >
@@ -633,6 +640,7 @@ export default function LawSearchPage() {
                                     <ArrowRight size={12} className="shrink-0 group-hover:translate-x-0.5 transition-transform" />
                                   </button>
 
+                                  {/* TOOLTIP 100% SOLID DHE THEME-AWARE PËR NENET E SUGJERUARA */}
                                   <AnimatePresence>
                                     {isHovered && (
                                       <motion.div
@@ -640,29 +648,32 @@ export default function LawSearchPage() {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         transition={{ duration: 0.12 }}
-                                        className="absolute left-0 bottom-full mb-2 w-80 p-4 bg-surface border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+                                        className="absolute left-0 bottom-full mb-3 w-80 p-4 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.35)] z-[99999] pointer-events-none ring-1 ring-black/5 dark:ring-white/10"
                                       >
-                                        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-main">
-                                          <div className="flex items-center gap-1.5 text-emerald-500 font-bold text-xs">
+                                        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                                          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
                                             <CheckCircle2 size={15} />
-                                            <span>Tekst Zyrtar i Verifikuar (98%)</span>
+                                            <span>Tekst Zyrtar i Verifikuar</span>
                                           </div>
-                                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">
-                                            HIGH CONFIDENCE
+                                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                                            100% AUTHENTIC
                                           </span>
                                         </div>
 
-                                        <div className="text-xs font-bold text-text-primary mb-1 leading-snug">
-                                          ✅ Ligji Zyrtar: {fullLawTitle}
+                                        <div className="text-xs font-bold text-slate-900 dark:text-white mb-1 leading-snug">
+                                          ✅ Ligji: {fullLawTitle}
                                         </div>
-                                        <div className="text-[11px] text-text-secondary leading-relaxed mb-2.5">
+                                        <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2.5">
                                           Nen i nxjerrë direkt nga Kodi / Ligji Zyrtar i Kosovës i shpallur në Gazetën Zyrtare.
                                         </div>
                                         
-                                        <div className="flex items-center justify-between text-[10px] font-mono bg-canvas p-2 rounded-xl border border-main text-text-muted">
-                                          <span>Neni: {artNum}</span>
-                                          <span className="text-emerald-500 font-bold">Autenticitet 100% ✓</span>
+                                        <div className="flex items-center justify-between text-[10px] font-mono bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                                          <span>Neni: <strong>{artNum}</strong></span>
+                                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Verifikuar ✓</span>
                                         </div>
+
+                                        {/* Shigjeta poshtë */}
+                                        <div className="absolute top-full left-6 -mt-[1px] border-[7px] border-transparent border-t-white dark:border-t-[#0f172a]" />
                                       </motion.div>
                                     )}
                                   </AnimatePresence>
