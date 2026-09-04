@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - DYNAMIC RAG SERVICE V245.0 (STRICT SINGLE-DOCUMENT ISOLATION GUARD)
+# PHOENIX PROTOCOL - DYNAMIC RAG SERVICE V250.0 (FULL INTEGRAL DOSSIER SYNTHESIS • SUPREME INQUISITION)
 
 import os
 import logging
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 MANDATORY_LEGAL_DISCLAIMER = (
     "\n\n---\n"
     "⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n"
-    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Shabi (Juristi AI) për qëllime informative, "
+    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, "
     "kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i "
     "Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin "
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
@@ -36,8 +36,8 @@ ANTI_HALLUCINATION_INSTRUCTION = """
 RREGULLAT E HEKURTA TË DOKTRINËS DHE HARTIMIT:
 1. CITO NENET me saktësi absolute neni-për-nen duke u mbështetur në shkresat e fashikullit dhe ligjet e Kosovës.
 2. MOS shpik fakte, data apo shuma që nuk figurojnë në fashikull.
-3. Përpilo dhe harto gjithmonë aktin e kërkuar procedural (Ankesë, Padi, Prapësim, Kundërpadi) duke shfrytëzuar të gjitha provat e administruara në dosje, pa refuzuar kurrë hartimin e tyre.
-4. Përdor VETËM ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016, Ligji për Gjykatën Komerciale Nr. 08/L-015.
+3. Përpilo dhe harto gjithmonë aktin e kërkuar procedural duke shfrytëzuar të gjitha provat e administruara në dosje.
+4. Përdor ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016, Ligji për Gjykatën Komerciale Nr. 08/L-015, Ligji për PSRK Nr. 03/L-052.
 """
 
 
@@ -63,12 +63,12 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V245.0 me Izolim Rigoroz të Dokumenteve."""
+    """Shërbimi Kryesor RAG — V250.0 me Full Integral Dossier Synthesis."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Shabi Dynamic Service V245.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Dynamic Service V250.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -90,6 +90,7 @@ class AlbanianRAGService:
             r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
             r"\bLPK\b": "Ligji për Procedurën Kontestimore",
             r"\bLFK\b": "Ligji për Familjen i Kosovës",
+            r"\bPSRK\b": "Prokuroria Speciale e Republikës së Kosovës",
         }
         for abbr, expansion in abbreviations.items():
             cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
@@ -136,11 +137,12 @@ class AlbanianRAGService:
                     doc_strs = [str(did) for did in document_ids]
                     doc_filter["_id"] = {"$in": doc_oids + doc_strs}
 
-                db_documents = list(self.db.documents.find(doc_filter))
+                # Tërheqja e plotë e dokumenteve me renditje kronologjike
+                db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("date", 1)]))
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        # Identifikimi i një dokumenti të vetëm nëse është përzgjedhur
+        # Identifikimi i një dokumenti të vetëm nëse është përzgjedhur (Auditim i Shkresës me Peshore ⚖️)
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
         from app.services import vector_store_service
@@ -148,8 +150,7 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
 
         # 🔒 MBROJTJA ME DRYN HEKURI:
-        # Nëse thirrja ka ardhur me 1 dokument të vetëm (ikona ⚖️) ose kërkohet auditim dokumenti,
-        # DETIROHET 'FORENSIC_AUDIT' dhe ndalohet kategorikisht përzierja me analizën e krejt rastit!
+        # Nëse thirrja ka ardhur me 1 dokument të vetëm, detyrohet FORENSIC_AUDIT
         if single_doc_obj and (
             user_intent in ["FORENSIC_AUDIT", "COMPREHENSIVE_ANALYSIS"] or
             "direktivë forenzike" in query.lower() or
@@ -157,11 +158,12 @@ class AlbanianRAGService:
         ):
             user_intent = "FORENSIC_AUDIT"
 
+        # Zbulimi dinamik i lëmisë
         sample_text = ""
         if single_doc_obj:
             sample_text = (single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or "")[:5000]
         elif db_documents:
-            sample_text = " ".join([d.get("content", "")[:3000] for d in db_documents])
+            sample_text = " ".join([(d.get("content") or d.get("extracted_text") or "")[:1500] for d in db_documents[:5]])
 
         detected_domain = BasePillarService.detect_case_domain(
             case_title=case_title,
@@ -170,9 +172,11 @@ class AlbanianRAGService:
         )
 
         # =========================================================================
-        # ⚡ SMART CACHE CHECK
+        # ⚡ SMART CACHE CHECK (Me mbrojtje nga kthimi i analizave të vjetra)
         # =========================================================================
-        if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
+        is_explicit_reanalysis = any(w in query.lower() for w in ["analizo", "ri-analizo", "gjenero", "kallxim", "audit", "raport"])
+
+        if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc and not is_explicit_reanalysis:
             is_dirty = case_doc.get("analysis_dirty", False)
             cached_analysis = case_doc.get("latest_deep_analysis") or case_doc.get("latest_comprehensive_analysis")
 
@@ -182,11 +186,10 @@ class AlbanianRAGService:
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
-        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
+        if user_intent == "FORENSIC_AUDIT" and single_doc_obj and not is_explicit_reanalysis:
             is_case_dirty = case_doc.get("analysis_dirty", False) if case_doc else False
             cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
             
-            # Nëse lënda nuk është shënuar si e ndotur (dirty) dhe ka audit të vlefshëm, kthe nga cache
             if not is_case_dirty and is_valid_legal_report(cached_doc_audit):
                 logger.info(f"⚡ [Smart Cache HIT] Kthehet latest_analysis për dokumentin {single_doc_obj.get('_id')}.")
                 yield cached_doc_audit
@@ -201,9 +204,9 @@ class AlbanianRAGService:
 
         DYNAMIC_SUGGESTIONS_PROMPT = """
         UDHËZIM PËR SUGJERIMET NË FUND TË PËRGJIGJES:
-        Në fund të përgjigjes tënde, gjenero saktësisht 3 hapa të ardhshëm taktikë dhe konkretë që dalin drejtpërdrejt nga kjo shkresë specifike, duke ndjekur këtë format ekzakt:
+        Në fund të përgjigjes tënde, gjenero saktësisht 3 hapa të ardhshëm taktikë dhe konkretë që dalin drejtpërdrejt nga kjo shkresë specifike:
         Sugjerime:
-        1. [Veprimi konkret i parë procedural i përshtatur me këtë dokument]
+        1. [Veprimi konkret i parë procedural]
         2. [Veprimi konkret i dytë]
         3. [Veprimi konkret i tretë]
         """
@@ -219,7 +222,6 @@ class AlbanianRAGService:
             doc_name = single_doc_obj.get('file_name', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'
             manifest_str = f"Dokumenti në Audit: {doc_name}"
             
-            # Izolim i plotë: nuk dërgojmë case_id për RAG që të mos lejohet ndotja nga shkresat e tjera
             base_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -231,19 +233,46 @@ class AlbanianRAGService:
                 case_domain=detected_domain,
                 db=self.db,
                 user_id=user_id,
-                case_id=""  # Izolim i qëllimshëm
+                case_id=""
             )
             system_prompt = f"{base_prompt}\n\n{DYNAMIC_SUGGESTIONS_PROMPT}"
             exec_query = f"Kryej Auditimin Suprem Forenzik të dokumentit '{doc_name}' duke nxjerrë ÇDO NEN në Tabelën e Seksionit 4 dhe duke analizuar shkeljet procedurale ekskluzivisht mbi bazën e këtij akti."
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=20
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+            # =========================================================================
+            # 🚀 FULL INTEGRAL DOSSIER SYNTHESIS (Gëlltitja e të gjitha shkresave)
+            # =========================================================================
+            dossier_blocks = []
+            manifest_lines = []
+
+            for idx, doc in enumerate(db_documents, 1):
+                doc_title = doc.get("file_name") or doc.get("title") or f"Dokumenti #{idx}"
+                doc_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
+                doc_date = doc.get("document_date") or doc.get("created_at") or ""
+                if hasattr(doc_date, "strftime"):
+                    doc_date = doc_date.strftime("%d.%m.%Y")
+                
+                manifest_lines.append(f"{idx}. {doc_title} (Data/Ref: {doc_date})")
+                dossier_blocks.append(
+                    f"======================================================================\n"
+                    f"SHKRESA #{idx} NË FASHIKULL: {doc_title} | DATA: {doc_date}\n"
+                    f"======================================================================\n"
+                    f"{doc_text}\n"
+                )
+
+            # Nëse kemi dokumente në bazë, përdorim fashikullin e plotë pa e cunguar me vektorë
+            if dossier_blocks:
+                integral_context_str = "\n".join(dossier_blocks)
+                manifest_str = "\n".join(manifest_lines)
+            else:
+                # Fallback vetëm nëse nuk ka dokumente të ngarkuara
+                case_docs = vector_store_service.query_case_knowledge_base(
+                    user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
+                )
+                global_docs = vector_store_service.query_global_knowledge_base(
+                    query_text=optimized_query, n_results=15
+                )
+                manifest_str, integral_context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
             base_prompt = ComprehensiveAnalysisService.build_prompt(
                 case_title=case_title,
@@ -251,7 +280,7 @@ class AlbanianRAGService:
                 client_position=client_position,
                 current_date_str=current_date_str,
                 manifest_str=manifest_str,
-                context_str=context_str,
+                context_str=integral_context_str,
                 case_domain=detected_domain,
                 db=self.db,
                 query_text=optimized_query,
@@ -259,7 +288,11 @@ class AlbanianRAGService:
                 case_id=case_id
             )
             system_prompt = f"{base_prompt}\n\n{DYNAMIC_SUGGESTIONS_PROMPT}"
-            exec_query = "Gjenero Raportin Master të Plotë të Gjykatës Supreme për fashikullin e lëndës."
+            exec_query = (
+                "Kryej Auditimin Doktrinar Suprem të plotë të këtij fashikulli. "
+                "Shqyrto të gjitha shkresat, kryqëzo provat materiale me deklaratat, zbulo çdo shkelje thelbësore, "
+                "identifiko përgjegjësitë e secilit aktor dhe gjenero Raportin Master të plotë në të 8 Seksionet pa asnjë shkurtim."
+            )
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -295,7 +328,7 @@ class AlbanianRAGService:
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
             system_prompt = f"""
-            Ti je "Shabi - Asistenti Ligjor Inteligjent dhe Avokati Kryesor në Kosovë".
+            Ti je "Juristi AI - Asistenti Ligjor Inteligjent dhe Eksperti Kryesor i Doktrinës Ligjore në Kosovë".
             LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
 
             {ANTI_HALLUCINATION_INSTRUCTION}
@@ -313,7 +346,7 @@ class AlbanianRAGService:
             yield content
 
         # =========================================================================
-        # 💾 RUAJTJA NË MONGODB
+        # 💾 RUAJTJA E ANALIZËS SË RE NË MONGODB
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
             if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None:
