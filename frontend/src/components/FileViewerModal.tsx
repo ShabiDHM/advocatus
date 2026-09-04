@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V60.0 (SECURE TOKEN URL APPENDING FOR ZERO-MEMORY LEAKS)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V61.0 (SURGICAL BLOB & SECURE URL HANDLING)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -99,22 +99,22 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
   const processBlob = useCallback(async (blob: Blob, targetMode: ViewerMode) => {
     if (targetMode === 'TEXT' || targetMode === 'CSV') {
-        const text = await blob.text();
-        if (targetMode === 'CSV') {
-            const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
-            const data = rows.map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
-            setCsvContent(data);
-            setViewerMode('CSV');
-        } else {
-            setTextContent(text);
-            setViewerMode('TEXT');
-        }
-        setIsLoading(false);
+      const text = await blob.text();
+      if (targetMode === 'CSV') {
+        const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
+        const data = rows.map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
+        setCsvContent(data);
+        setViewerMode('CSV');
+      } else {
+        setTextContent(text);
+        setViewerMode('TEXT');
+      }
+      setIsLoading(false);
     } else {
-        const objectUrl = URL.createObjectURL(blob);
-        setFileSource(objectUrl);
-        setViewerMode(targetMode);
-        setIsLoading(false);
+      const objectUrl = URL.createObjectURL(blob);
+      setFileSource(objectUrl);
+      setViewerMode(targetMode);
+      setIsLoading(false);
     }
   }, []);
 
@@ -132,52 +132,63 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
       try {
         const token = apiService.getToken();
 
-        // 💡 ZGJIDHJA KIRURGJIKALE PËR TË SHMANGUR BLOB-IN OSE CORS-IN:
-        // Nëse kemi një `directUrl` (si nga Arkiva), ia ngjitim `?token=...` në fund të URL-së!
-        // Kështu PDF.js e trajton atë si URL të mbrojtur direkt nga backend-i, 
-        // duke bërë "Byte-Range Streaming" njësoj si dokumentet e lëndës, pa ngarkuar memorjen!
-        let activeUrl = directUrl;
-        if (activeUrl && token && !activeUrl.includes('token=')) {
-          activeUrl += (activeUrl.includes('?') ? '&' : '?') + `token=${token}`;
-        }
-
-        if (activeUrl && targetMode === 'PDF') {
-          setFileSource({
-            url: activeUrl,
-            httpHeaders: { Authorization: `Bearer ${token}` },
-            withCredentials: true
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        if (activeUrl && activeUrl.startsWith('blob:')) {
-          if (targetMode === 'PDF' || targetMode === 'IMAGE') {
-            setFileSource(activeUrl);
-            setIsLoading(false);
-          } else {
-            const res = await window.fetch(activeUrl);
+        // 1. ZGJIDHJA PËR BLOB URL: Mos shto parametra dhe mos vendos HTTP headers
+        if (directUrl && directUrl.startsWith('blob:')) {
+          if (targetMode === 'TEXT' || targetMode === 'CSV') {
+            const res = await window.fetch(directUrl);
             const blob = await res.blob();
             await processBlob(blob, targetMode);
+          } else {
+            setFileSource(directUrl);
+            setIsLoading(false);
           }
           return;
         }
 
-        if (caseId && documentData?.id) {
-          const blob = await apiService.getPreviewDocument(caseId, documentData.id);
-          await processBlob(blob, targetMode);
-          return;
-        }
+        // 2. ZGJIDHJA PËR HTTP/HTTPS URLs (Cloud Storage vs API Endpoints)
+        if (directUrl && (directUrl.startsWith('http://') || directUrl.startsWith('https://') || directUrl.startsWith('/'))) {
+          const isPresignedCloudUrl = directUrl.includes('X-Amz-') || 
+                                     directUrl.includes('backblazeb2.com') || 
+                                     directUrl.includes('Signature=');
 
-        if (documentData?.id && !caseId) {
-          const blob = await apiService.getArchiveFileBlob(documentData.id);
-          await processBlob(blob, targetMode);
-          return;
-        }
+          if (isPresignedCloudUrl) {
+            // Presigned URLs nuk pranojnë token shtesë apo custom Authorization headers
+            setFileSource(directUrl);
+            setIsLoading(false);
+            return;
+          }
 
-        if (activeUrl) {
+          let activeUrl = directUrl;
+          if (token && !activeUrl.includes('token=')) {
+            activeUrl += (activeUrl.includes('?') ? '&' : '?') + `token=${token}`;
+          }
+
+          if (targetMode === 'PDF') {
+            setFileSource({
+              url: activeUrl,
+              httpHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
+              withCredentials: true
+            });
+            setIsLoading(false);
+            return;
+          }
+
           setFileSource(activeUrl);
           setIsLoading(false);
+          return;
+        }
+
+        // 3. MARRJA NGA ID NËSE NUK KA DIRECT URL
+        const docId = documentData?.id || documentData?._id;
+        if (caseId && docId) {
+          const blob = await apiService.getPreviewDocument(caseId, docId);
+          await processBlob(blob, targetMode);
+          return;
+        }
+
+        if (docId && !caseId) {
+          const blob = await apiService.getArchiveFileBlob(docId);
+          await processBlob(blob, targetMode);
           return;
         }
 
@@ -193,11 +204,12 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     loadData();
 
     return () => {
+      // Pastrim vetëm për blob URL-të e brendshme, jo ato të menaxhuara nga prindi
       if (fileSource && typeof fileSource === 'string' && fileSource.startsWith('blob:') && fileSource !== directUrl) {
         URL.revokeObjectURL(fileSource);
       }
     };
-  }, [caseId, documentData?.id, directUrl, processBlob]);
+  }, [caseId, documentData?.id, documentData?._id, directUrl, processBlob]);
 
   const handleMinimizeAction = () => {
     setIsMinimized(true);
