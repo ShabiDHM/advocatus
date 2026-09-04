@@ -1,5 +1,5 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER MODAL V43.0 (AUTHENTICATED STREAM & ZERO 401 ERRORS)
+// PHOENIX PROTOCOL - FILE VIEWER MODAL V60.0 (SECURE TOKEN URL APPENDING FOR ZERO-MEMORY LEAKS)
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -128,21 +128,23 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     );
     setViewerMode(targetMode);
 
-    const token = apiService.getToken();
-    let activeUrl = directUrl;
-
-    // Bashkëngjit tokenin në URL nëse mungon
-    if (activeUrl && token && !activeUrl.includes('token=')) {
-      activeUrl += (activeUrl.includes('?') ? '&' : '?') + `token=${token}`;
-    }
-
     const loadData = async () => {
       try {
+        const token = apiService.getToken();
+
+        // 💡 ZGJIDHJA KIRURGJIKALE PËR TË SHMANGUR BLOB-IN OSE CORS-IN:
+        // Nëse kemi një `directUrl` (si nga Arkiva), ia ngjitim `?token=...` në fund të URL-së!
+        // Kështu PDF.js e trajton atë si URL të mbrojtur direkt nga backend-i, 
+        // duke bërë "Byte-Range Streaming" njësoj si dokumentet e lëndës, pa ngarkuar memorjen!
+        let activeUrl = directUrl;
+        if (activeUrl && token && !activeUrl.includes('token=')) {
+          activeUrl += (activeUrl.includes('?') ? '&' : '?') + `token=${token}`;
+        }
+
         if (activeUrl && targetMode === 'PDF') {
-          // PHOENIX FIX: Dërgo Bearer Header dhe Credentials në mënyrë të sigurt
           setFileSource({
             url: activeUrl,
-            httpHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+            httpHeaders: { Authorization: `Bearer ${token}` },
             withCredentials: true
           });
           setIsLoading(false);
