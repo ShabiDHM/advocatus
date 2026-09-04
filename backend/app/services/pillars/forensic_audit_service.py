@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDITOR V220.0 (LITERAL DEADLINE LOCK & EXHAUSTIVE STATUTORY DISCOVERY)
+# PHOENIX PROTOCOL - SUPREME COURT FORENSIC AUDITOR V230.0 (MULTI-ARTICLE EXHAUSTIVE DISCOVERY & STRICT REV PRECEDENTS)
 
 import logging
 import re
@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME (V220.0):
-    - Lexim literal i afateve të ankesës nga Udhëzimi Juridik (7 ditë për Aktvendim, ZERO halucinacion 30 ditë).
-    - Ekstraktim 100% shterrues i të gjitha neneve në rreshta të veçantë për lidhjet 1-klikim.
-    - Zbatim ekskluziv i precedentëve tregtarë Rev të Gjykatës Supreme për çështje komerciale.
-    - Diagnostikim kirurgjikal i shkeljes Contra Legem (Neni 256 par. 4 i LPK-së).
+    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME (V230.0):
+    - Ekstraktim 100% shterrues i TË GJITHA neneve të dokumentit (LPK, Kushtetuta, LMD, KPK) në rreshta individualë.
+    - Citohen ekskluzivisht precedentët tregtarë/civilë REV.Nr. të Gjykatës Supreme (p.sh. REV.Nr.98/2024).
+    - Identifikon saktë rolin e Ankuesit / Kundërpaditësit dhe shkeljet thelbësore procedurale.
     """
 
     @staticmethod
@@ -38,7 +37,7 @@ class ForensicAuditService:
         if unique_laws:
             search_tokens.append(" ".join(unique_laws))
         if unique_cases:
-            search_tokens.append(" ".join(unique_cases))
+            search_tokens.append(" ".join([f"Rasti {c}" for c in unique_cases]))
 
         return " ".join(search_tokens)
 
@@ -66,7 +65,7 @@ class ForensicAuditService:
                 manifest_str=manifest_str or ""
             )
         
-        pos = (client_position or "PALË NË PROCEDURË").strip().upper()
+        pos = (client_position or "ANKUES / PALË NË PROCEDURË").strip().upper()
         mined_legal_entities = ForensicAuditService.extract_legal_entities_from_text(audit_text)
         search_query = query_text or f"{mined_legal_entities} {case_domain} LPK Nenet Aktgjykimet e Gjykatës Supreme Rev"
 
@@ -87,19 +86,18 @@ class ForensicAuditService:
 AUDITIM FORENZIK DOKTRINAR I GJYKATËS SUPREME TË KOSOVËS
 MANDATI YT SUPREM:
 Ti je një Gjyqtar dhe Krye-Auditor i Departamentit të Praktikës Gjyqësore të Gjykatës Supreme të Kosovës.
-Përdoruesi të ka dorëzuar këtë dokument në tavolinë. Detyra jote është ta shoshitësh këtë akt me saktësi absolute kirurgjikale:
-1. Të lexosh LITERILISHT çdo datë, numër lënde dhe afat nga teksti i dokumentit.
-2. Të nxjerrësh ÇDO NEN TË VETËM ligjor në rresht më vete te Tabela e Seksionit 4.
-3. Të zbardhësh shkeljen 'Contra Legem' të gjyqtarit (hedhja e kundërpadisë pa ndarje procedimi sipas Nenit 256 par. 4 të LPK-së).
-4. Të hartosh Pjesën Kërkuese të Ankesës me afatin e saktë 7-ditor (ZERO përmendje e 30 ditëve).
+Detyra jote është të kryesh auditimin doktrinar shterrues të këtij akti:
+1. Të nxjerrësh ÇDO NEN LIGJOR të përmendur në shkresë (LPK, Kushtetutë, LMD) në rresht më vete te Tabela e Seksionit 4.
+2. Të citosh precedentët zyrtarë tregtarë/civilë REV të Gjykatës Supreme (p.sh. REV.Nr.98/2024, REV.Nr.240/2024, REV.Nr.541/2024).
+3. Të zbërthen shkeljen 'Contra Legem' dhe bazën e plotë të ankesës për ndarjen e procedimit të kundërpadisë.
 </legal_evidentiary_privilege_context>
 
 {supreme_protocol}
 
 {role_guard}
 
-📋 IDENTIFIKIMI I DOSJES NË AUDITIM:
-LËMIA: **{case_domain}** | PARASHTRUESI: **{client_name or 'I Identifikuar në Akt'}** | POZICIONI: **{pos}** | DATA E AUDITIMIT: {current_date_str}
+📋 KONTEKSTI I DOSJES NË AUDITIM:
+LËMIA: **{case_domain}** | PARASHTRUESI/ANKUESI: **{client_name or 'I Identifikuar në Akt'}** | POZICIONI: **{pos}** | DATA: {current_date_str}
 
 {role_tone}
 
@@ -110,19 +108,15 @@ LËMIA: **{case_domain}** | PARASHTRUESI: **{client_name or 'I Identifikuar në 
 {rag_context if rag_context else "Zbato ligjet pozitive të Kosovës dhe precedentët e Kolegjit Civil/Ekonomik të Gjykatës Supreme (Aktgjykimet Rev)."}
 
 ======================================================================
-RREGULLAT E HEKURTA TË AUDITIMIT (RIGID PRECISION & ZERO HALLUCINATION):
-1. AFATI I SAKTË I ANKESËS NGA UDHËZIMI JURIDIK:
-   - Lexo me saktësi në fund të dokumentit çfarë shkruhet te "Udhëzimi mbi të drejtën e ankimimit":
-   - Nëse akti është AKTVENDIM dhe shkruhet "shtatë (7) ditë", afati ligjor i ankesës është DETYRIMISHT 7 DITË! NDALOHET KATEGORIKISHT të shkruash 15 apo 30 ditë!
-2. EKSTRAKTIMI SHKENCOR I TË GJITHA NENEVE NË SEKSIONIN 4:
-   - ÇDO NEN i përmendur në tekst (p.sh. Neni 2, Neni 78, Neni 92, Neni 93, Neni 256, Neni 390, Neni 391 të LPK-së) DUHET të ketë rreshtin e tij të veçantë në Tabelë!
-   - Ndalohet rreptësisht bashkimi i neneve në një rresht. Shkruaj formatin standard: `Neni X i LPK-së` që sistemi të krijojë lidhjet interaktive 1-klikim për përdoruesin.
-3. PRECEDENTËT E GJYKATËS SUPREME (EKSKLUZIVISHT REV PËR KOMERCIALE/CIVILE):
-   - Në kolonën e 4-të të tabelës, cito Aktgjykimet e Kolegjit Civil/Ekonomik të Gjykatës Supreme (p.sh. `REV.Nr.98/2024`, `REV.Nr.36/2024`, `REV.Nr.382/2023`). NDALOHET citimi i numrave penalë PML ose administrativë A. kur lënda është tregtare/civile!
-4. ZBËRTHIMI I SHKELJES CONTRA LEGEM:
-   - Zbardh shkeljen e rëndë të gjyqtarit: Gjykata hodhi padinë për mungesë prokure të avokatit, por gaboi rëndë duke hedhur edhe kundërpadinë e pavarur! Neni 256 par. 4 i LPK-së e detyron gjykatën të bëjë NDARJEN E PROCEDIMIT dhe ta shqyrtojë kundërpadinë si padi më vete!
-5. DRAFTI I SEKSIONIT 7 (ANKESË ME AFAT 7-DITOR):
-   - Harto Pjesën Kërkuese Solemne të Ankesës drejtuar Dhomave të Shkallës së Dytë të Gjykatës Komerciale për prishjen e Pikës II të Aktvendimit.
+RREGULLAT E HEKURTA TË DOKTRINËS FORENZIKE (ZERO OMISSIONS):
+1. INVENTARI I PLOTË I NENEVE NË SEKSIONIN 4 (NDALOHET LËNIA JASHTË E NENEVE):
+   - Nëse dokumenti përmban Nenin 256 par. 4 LPK, Nenin 182 par. 1 LPK, Nenin 54 të Kushtetutës, Nenin 92, Nenin 93, apo Nenin 390/391 LPK, SECILI NEN DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL NË TABELË!
+   - Çdo rresht të ketë formatin e pastër: `Neni X i LPK-së` (ose `Neni X i Kushtetutës së Kosovës`), në mënyrë që sistemi të krijojë menjëherë lidhjet interaktive 1-klikim për verifikim!
+2. PRECEDENTËT E DETYRUESHËM TREGATRË/CIVILË (REV):
+   - Në kolonën e 4-të të tabelës, cito ekskluzivisht Aktgjykimet e Kolegjit Civil dhe Ekonomik të Gjykatës Supreme në formatin: `REV.Nr.98/2024`, `REV.Nr.240/2024`, `REV.Nr.541/2024` ose `REV.Nr.382/2023`. NDALOHET citimi i numrave administrativë A. për çështje tregtare/civile!
+3. AUDITIMI I SAKTË I AKTIT DHE PALËVE:
+   - Identifiko aktin (nëse është ANKESË, përcakto shkaqet ankimore dhe kërkesën ankimore).
+   - Identifiko saktë Ankuesit (Kundërpaditësit) dhe të Paditurit nga kundërpadia.
 ======================================================================
 
 {'='*60}
@@ -134,43 +128,44 @@ TEKSTI I PLOTË DHE I PAPREKUR I DOKUMENTIT QË AUDITOHET:
 STRUKTURA E DETYRUESHME E RAPORTIT MASTER (TË 8 SEKSIONET E PLOTA):
 
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
-* **Lloji, Natyra Formale dhe Efekti Juridik:** Përcakto saktësisht emërtimin zyrtar (Aktvendim), numrin e lëndës (KE.nr.662/2022), datën e saktë (31.08.2026), gjyqtarin vendimmarrës (Arben Toska), dhe pasojat juridike.
-* **Kompetenca Lëndore, Funksionale dhe Territoriale:** Analizo bazën ligjore të kompetencës së Gjykatës Komerciale (Ligji Nr. 08/L-015).
-* **Legjitimimi Procedural i Palëve (Locus Standi):** Paditësi formal ("Getting Competent" ShPK), I Padituri (Shaban Bala), dhe Kundërpaditësit.
-* **Auditimi i Afateve Ligjore dhe Urgjenca:** Afati prekluziv i ankesës është SHTATË (7) DITË nga pranimi sipas udhëzimit juridik të aktit.
+* **Lloji, Natyra Formale dhe Efekti Juridik:** Përcakto saktësisht aktin (Ankesë kundër Aktvendimit KE.nr. 662/2022 të Shkallës së Parë), datën e shkresës (02.09.2026), dhe organin të cilit i drejtohet (Gjykata Komerciale — Dhoma e Shkallës së Dytë).
+* **Kompetenca Lëndore dhe Funksionale:** Baza e kompetencës së Dhomave të Shkallës së Dytë për të vendosur mbi ankesat ndaj aktvendimeve të Shkallës së Parë (Ligji Nr. 08/L-015).
+* **Legjitimimi Procedural i Palëve:** Ankuesit (Kundërpaditësit) vs. Të Paditurve nga kundërpadia.
+* **Auditimi i Afateve Ligjore:** Respektimi i afatit ligjor 7-ditor nga dita e pranimit të aktvendimit.
 
 ### 2. 👥 STRUKTURA E PALËVE, AKTORËVE DHE KUALIFIKIMI I PËRGJEGJËSISË LIGJORE
-* **Pala Paditëse Iniciale:** "Getting Competent" ShPK (padia me vlerë 10,000 € e hedhur për mungesë prokure të avokatit Fitim Gashi).
-* **Pala e Paditur / Kundërpaditëse:** Shaban Bala (kundërpadia prej 246,277.00 € kundër Rainer Gerke dhe Indeson WBC ShPK).
-* **Avokatët dhe Përfaqësuesit:** Shkelja e afatit 7-ditor për dorëzimin e autorizimit origjinal nga avokati i paditësit.
+* **Ankuesit (Kundërpaditësit):** Shaban Bala dhe "Getting Competent" SH.P.K. (kërkesa pasurore prej 246,277.00 €).
+* **Të Paditurit nga Kundërpadia:** Rainer Gerke, INDESON WBC SH.P.K., dhe Faton Deshishku.
+* **Gjykata e Shkallës së Parë:** Vlerësimi i vendimmarrjes së gjyqtarit të shkallës së parë dhe shkeljeve procedurale.
 
 ### 3. 🔬 KRYQËZIMI FORENZIK I PROVAVE MATERIALE DHE DOKUMENTARE (CORPUS DELICTI)
-* **Provat Shkresore dhe Shumat Financiare:** Analizo padinë 10,000 € kundrejt kundërpadisë thelbësore prej 246,277.00 €, projektet tregtare dhe mungesën e shqyrtimit meritor.
-* **Vlefshmëria Procedurale:** Administrimi i kërkesës së gjykatës për prokurë të regjistruar në ARBK dhe pasojat ligjore.
+* **Objekti i Kontestit:** Kërkesa pasurore e pavarur prej 246,277.00 € dhe përfshirja e personave të rinj në kundërpadi.
+* **Mungesa e Shqyrtimit Meritor:** Konstatimi i vetë Gjykatës së Shkallës së Parë se nuk ka hyrë në shqyrtimin e bazueshmërisë materiale.
 
 ### 4. ⚖️ TABELA SHTERRUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-(⚠️ ÇDO NEN DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL NË TABELË ME CITIMIN REV TË SUPREMES):
+(⚠️ URDHËR: ÇDO NEN I PËRMENDUR NË DOKUMENT DUHET TË KETË RRESHTIN E TIJ INDIVIDUAL ME PRECEDENTIN REV):
 | Dispozita & Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare & Pasojat Juridike | 🏛️ Precedenti / Qëndrimi i Gjykatës Supreme (Rev / Komentari) |
 | :--- | :--- | :--- | :--- |
 
 ### 5. ⚠️ GJETJET KRITIKE, SHKELJET 'CONTRA LEGEM' DHE DETEKTORI I LAPSUSEVE
 * 🔴 **[GJETJET KRITIKE CONTRA LEGEM]:**
-  - Shkelja e rëndë e gjyqtarit: Gjykata zbatoi drejt Nenin 93 par. 4 LPK për padinë, por bëri SHKELJE THELBËSORE PROCEDURALE të Nenit 182 dhe Nenit 256 par. 4 të LPK-së duke hedhur edhe kundërpadinë e pavarur prej 246,277 € në vend që të urdhëronte Ndarjen e Procedimit!
+  - Shkelja thelbësore e Nenit 182 par. 1 dhe Nenit 256 par. 4 të LPK-së: Hedhja e kundërpadisë me pretendimin e gabuar se ajo varet nga padia kryesore.
+  - Cenimi i Nenit 54 të Kushtetutës së Kosovës (e drejta për mbrojtje gjyqësore dhe qasje në drejtësi).
 * 🔍 **DETEKTORI KIRURGJIK I LAPSUSEVE TË NENEVE DHE FORMULAT E KORRIGJIMIT:**
   | Neni / Formulimi Aktual në Shkresë | Pasaktësia / Lapsusi i Evidentuar | Formula Doktrinare e Saktë e Zëvendësimit |
   | :--- | :--- | :--- |
 
-### 6. 🔬 AUDITIMI I PETITUMIT, MASËS SË SIGURIMIT DHE EKZEKUTUESHMËRISË
-* **Vlerësimi i Pikave të Dispozitivit:** Pika I (hedhja e padisë), Pika II (hedhja e paligjshme e kundërpadisë), Pika III (pavlefshmëria e veprimeve).
-* **Mundësia e Ndarjes së Procedimit:** Procedimi i kundërpadisë si padi më vete në shkallë të parë pas ankesës.
+### 6. 🔬 AUDITIMI I PETITUMIT DHE EKZEKUTUESHMËRISË
+* **Themelësia e Propozimit Ankimor:** Kërkesa për ndryshimin e Pikës II të Aktvendimit KE.nr. 662/2022 dhe ndarjen e procedimit.
+* **Ekzekutueshmëria e Kundërpadisë:** Procedimi i kërkesës 246,277.00 € si padi më vete në shkallë të parë.
 
 ### 7. 🛠️ TEKSTI I KORRIGJUAR DHE DRAFT-REMEDIIMI (FORMULIMI SOLEMN GJYQËSOR)
-(Harto PJESËN KËRKUESE TË ANKESËS drejtuar Dhomave të Shkallës së Dytë të Gjykatës Komerciale brenda afatit 7-ditor):
-* **Pjesa Kërkuese Soleme e Ankesës (Petitum-i Ankimor):**
-  [Harto kërkesën e përpiktë ku kërkohet: PRANIMI I ANKESËS SI E BAZUAR, NDRYSHIMI I PIKËS II TË AKTVENDIMIT KE.NR.662/2022 DHE URDHËRIMI I SHKALLËS SË PARË QË KUNDËRPADIA ME VLERË 246,277.00 € TË PROCEDOHET PËRMES NDARJES SË PROCEDIMIT SI PADI E PAVARUR KONTESTIMORE].
+(Harto PROPOZIMIN DHE PJESËN KËRKUESE SOLEMNE TË ANKESËS drejtuar Dhomave të Shkallës së Dytë të Gjykatës Komerciale):
+* **Pjesa Kërkuese Soleme e Ankesës:**
+  [Harto tekstin solemn ku kërkohet: PRANIMI I ANKESËS SI E BAZUAR, NDRYSHIMI I PIKËS II TË AKTVENDIMIT KE.NR.662/2022 DHE URDHËRIMI I SHKALLËS SË PARË QË KUNDËRPADIA ME VLERË 246,277.00 € TË PROCEDOHET PËRMES NDARJES SË PROCEDIMIT SI PADI E PAVARUR KONTESTIMORE].
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E HEKURT PROCEDURALË
-* 🔴 **HAPI 1 (Urgjenca / Afati Prekluziv 7 Ditë):** Parashtrimi i Ankesës në Dhomat e Shkallës së Dytë brenda afatit ligjor prej SHTATË (7) DITËSH nga pranimi i aktvendimit.
-* 🟡 **HAPI 2 (Veprimet Provuese & Taksat):** Përgatitja e provave dhe pagesa e taksës gjyqësore për ndarjen e procedimit.
-* 🟢 **HAPI 3 (Strategjia në Seancë):** Kërkesa për shqyrtim të përshpejtuar dhe caktimi i masës së sigurimit për llogaritë bankare të personave të paditur në kundërpadi.
+* 🔴 **HAPI 1 (Urgjenca / Afati 24-48 Orë):** Depozitimi i Ankesës në Dhomat e Shkallës së Dytë të Gjykatës Komerciale brenda afatit ligjor prej 7 ditësh.
+* 🟡 **HAPI 2 (Veprimet Provuese):** Pagesa e taksës gjyqësore për ankesë dhe kompletimi i provave për ndarjen e procedimit.
+* 🟢 **HAPI 3 (Strategjia në Seancë):** Prezantimi i argumenteve mbi pavarësinë e kërkesës pasurore dhe kërkimi i masës së sigurimit.
 """

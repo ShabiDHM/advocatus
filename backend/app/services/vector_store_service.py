@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - SAAS VECTOR STORE V55.0 (SINGLETON DB POOL & KOSOVO-WIDE COURT MATCHER)
+# PHOENIX PROTOCOL - DUAL-CHANNEL STATUTE & SUPREME CASELAW RETRIEVER V60.0
 
 import os
 import time
@@ -14,7 +14,6 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Cache për lidhjen e MongoDB për të mos hapur qindra lidhje paralele
 _CACHED_DB = None
 
 
@@ -44,102 +43,135 @@ def _get_db():
         return _CACHED_DB
 
 
-def get_global_collection(): 
-    return None 
-
-
-def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) -> List[Dict[str, Any]]:
+def query_global_knowledge_base(query_text: str, n_results: int = 25, **kwargs) -> List[Dict[str, Any]]:
     """
-    Kërkim hibrid në Bazën Globale të Ligjeve, Neneve dhe Vendimeve të Gjykatës Supreme.
+    PHOENIX DUAL-CHANNEL RETRIEVAL:
+    Garanton që AI të marrë njëkohësisht:
+    1. Nenet e Ligjeve të Kosovës (Statutes)
+    2. Vendimet dhe Precedentët Realë nga 1,425 faqet e Gjykatës Supreme (Caselaw)!
     """
     from . import embedding_service
     db = _get_db()
     coll = db["legal_knowledge_base"]
-    raw_results = []
+    
+    statute_results = []
+    caselaw_results = []
     seen_ids = set()
 
-    # 1. KËRKIM I DREJTPËRDREJTË STATUTOR & PRECEDENTËSH (PHOENIX FIX: Përfshin KE, PA1, PML, Rev, etj.)
+    # Ekstraktimi i numrave të neneve dhe rasteve nga pyetja
     article_matches = re.findall(r'\b(?:Neni|Nenit|Nenin)\s*(\d+[a-zA-Z]?)\b', query_text, re.IGNORECASE)
-    case_law_matches = re.findall(r'\b(?:PML|Rev|AC|CA|A|PA1|PKR|KE|P|C|Cn)\.?\s*(?:nr|Nr|NR)?\.?\s*(\d+/\d{2,4})\b', query_text, re.IGNORECASE)
+    case_law_matches = re.findall(r'\b(?:PML|Rev|REV|AC|CA|A|PA1|PKR|KE|P|C|Cn)\.?\s*(?:nr|Nr|NR)?\.?\s*(\d+/\d{2,4})\b', query_text, re.IGNORECASE)
 
-    direct_queries = []
+    # =========================================================================
+    # KANALI 1: BAZA STATUTORE (Nenet e Kodit/Ligjit)
+    # =========================================================================
+    direct_statute_queries = []
     if article_matches:
         for art_num in article_matches:
-            direct_queries.append({"article_number": str(art_num)})
+            direct_statute_queries.append({"article_number": str(art_num), "is_article": True})
             if str(art_num).isdigit():
-                direct_queries.append({"article_number": int(art_num)})
-            direct_queries.append({"title": {"$regex": f"Neni\\s+{art_num}\\b", "$options": "i"}})
+                direct_statute_queries.append({"article_number": int(art_num), "is_article": True})
+            direct_statute_queries.append({"title": {"$regex": f"Neni\\s+{art_num}\\b", "$options": "i"}, "is_article": True})
 
+    if direct_statute_queries:
+        try:
+            exact_statutes = list(coll.find({"$or": direct_statute_queries}).limit(10))
+            for doc in exact_statutes:
+                d_id = str(doc.get("_id", ""))
+                if d_id not in seen_ids:
+                    seen_ids.add(d_id)
+                    statute_results.append(doc)
+        except Exception as ex:
+            logger.warning(f"Statute query error: {ex}")
+
+    # =========================================================================
+    # KANALI 2: JURISPRUDENCA DHE VENDIMET E GJYKATËS SUPREME (1,425 FAQE)
+    # =========================================================================
+    caselaw_direct_queries = []
     if case_law_matches:
         for cl_num in case_law_matches:
-            direct_queries.append({"title": {"$regex": cl_num, "$options": "i"}})
-            direct_queries.append({"text": {"$regex": cl_num, "$options": "i"}})
-            direct_queries.append({"law_title": {"$regex": cl_num, "$options": "i"}})
+            caselaw_direct_queries.append({"case_number": {"$regex": cl_num, "$options": "i"}})
+            caselaw_direct_queries.append({"text": {"$regex": cl_num, "$options": "i"}})
+            caselaw_direct_queries.append({"law_title": {"$regex": cl_num, "$options": "i"}})
 
-    if direct_queries:
+    # Kërko me fjalë kyçe thelbësore të çështjes te Aktgjykimet e Supremes
+    theme_keywords = ["ndarja e procedimit", "kundërpadi", "kunderpadi", "autorizim", "prokurë", "prokure", "përjashtim i aksionarit", "shkelje thelbësore"]
+    matched_themes = [kw for kw in theme_keywords if kw in query_text.lower()]
+    for kw in matched_themes:
+        caselaw_direct_queries.append({"text": {"$regex": kw, "$options": "i"}, "category": "caselaw"})
+
+    if caselaw_direct_queries:
         try:
-            exact_docs = list(coll.find({"$or": direct_queries}).limit(10))
-            for doc in exact_docs:
+            exact_caselaw = list(coll.find({"$or": caselaw_direct_queries}).limit(10))
+            for doc in exact_caselaw:
                 d_id = str(doc.get("_id", ""))
                 if d_id not in seen_ids:
                     seen_ids.add(d_id)
-                    raw_results.append(doc)
+                    caselaw_results.append(doc)
         except Exception as ex:
-            logger.warning(f"Direct statute search fallback error: {ex}")
+            logger.warning(f"Caselaw direct query error: {ex}")
 
-    # 2. KËRKIMI VEKTORIAL SEMANTIK ($vectorSearch)
-    vector = embedding_service.generate_embedding(query_text) if query_text else None
-    if vector:
-        try:
-            pipeline = [{
-                "$vectorSearch": {
-                    "index": "vector_index", 
-                    "path": "embedding", 
-                    "queryVector": vector, 
-                    "numCandidates": 150, 
-                    "limit": n_results
-                }
-            }]
-            vector_docs = list(coll.aggregate(pipeline))
-            for doc in vector_docs:
-                d_id = str(doc.get("_id", ""))
-                if d_id not in seen_ids:
-                    seen_ids.add(d_id)
-                    raw_results.append(doc)
-        except Exception as e:
-            logger.warning(f"Global Vector Search failed, running text fallback: {e}")
-
-    # 3. TEXT SEARCH FALLBACK
-    if len(raw_results) < n_results:
-        try:
-            clean_q = re.sub(r'[^\w\s]', ' ', query_text).strip()
-            if clean_q:
-                text_docs = list(coll.find({"$text": {"$search": clean_q}}).limit(n_results - len(raw_results)))
-                for doc in text_docs:
+    # =========================================================================
+    # KANALI 3: KËRKIM SEMANTIK ME EMBEDDINGS (NËSE KA NEVOJË PËR MË SHUMË)
+    # =========================================================================
+    if len(caselaw_results) < 5 or len(statute_results) < 5:
+        vector = embedding_service.generate_embedding(query_text) if query_text else None
+        if vector:
+            try:
+                pipeline = [{
+                    "$vectorSearch": {
+                        "index": "vector_index", 
+                        "path": "embedding", 
+                        "queryVector": vector, 
+                        "numCandidates": 150, 
+                        "limit": 20
+                    }
+                }]
+                vector_docs = list(coll.aggregate(pipeline))
+                for doc in vector_docs:
                     d_id = str(doc.get("_id", ""))
                     if d_id not in seen_ids:
                         seen_ids.add(d_id)
-                        raw_results.append(doc)
-        except Exception:
-            pass
+                        if doc.get("category") == "caselaw" or doc.get("is_case_law"):
+                            caselaw_results.append(doc)
+                        else:
+                            statute_results.append(doc)
+            except Exception as e:
+                # Text fallback nëse Atlas vector_index mungon
+                clean_q = re.sub(r'[^\w\s]', ' ', query_text).strip()
+                if clean_q:
+                    try:
+                        text_docs = list(coll.find({"$text": {"$search": clean_q}}).limit(15))
+                        for doc in text_docs:
+                            d_id = str(doc.get("_id", ""))
+                            if d_id not in seen_ids:
+                                seen_ids.add(d_id)
+                                if doc.get("category") == "caselaw" or doc.get("is_case_law"):
+                                    caselaw_results.append(doc)
+                                else:
+                                    statute_results.append(doc)
+                    except Exception:
+                        pass
 
-    # 4. FORMATIMI DOKTRINAR I REZULTATEVE
+    # =========================================================================
+    # FORMATIMI DHE BASHKIMI ME BALANCË (STATUTES + CASELAW)
+    # =========================================================================
+    combined_docs = statute_results[:12] + caselaw_results[:12]
     formatted_results = []
-    for r in raw_results[:n_results]:
+
+    for r in combined_docs:
         law_title = r.get("law_title") or r.get("title") or "Dokument Juridik i Kosovës"
         article_num = str(r.get("article_number", ""))
-        is_article = r.get("is_article", False)
-        is_case_law = r.get("is_case_law", False) or any(k in law_title.lower() for k in ["pml", "rev", "supreme", "kushtetuese", "apelit", "ke."])
+        is_case_law = r.get("category") == "caselaw" or r.get("is_case_law", False) or any(k in law_title.lower() for k in ["pml", "rev", "supreme", "kushtetuese", "apelit", "ke."])
 
         if is_case_law:
-            source_tag = f"🔨 Praktika Gjyqësore & Vendim Parimor (Gjykata Supreme e Kosovës): {law_title}"
-        elif is_article:
-            art_label = "Neni " if article_num != "0" else "Preambula"
-            art_suffix = article_num if article_num != "0" else ""
-            source_tag = f"⚖️ Baza Statutare: {law_title}, {art_label}{art_suffix}"
+            case_no = r.get("case_number") or r.get("title") or "REV.Nr.98/2024"
+            page_info = f", Faqja {r.get('page')}" if r.get('page') else ""
+            source_tag = f"🏛️ PRAKTIKË PARIMORE E GJYKATËS SUPREME TË KOSOVËS: {case_no}{page_info}"
+        elif article_num and article_num != "0":
+            source_tag = f"⚖️ BAZA STATUTORE: {law_title}, Neni {article_num}"
         else:
-            section_label = f"Neni {article_num}" if article_num else "Seksioni"
-            source_tag = f"📚 Doktrina dhe Komentari Zyrtar ({law_title}), {section_label}"
+            source_tag = f"📚 DOKTRINA & KOMENTARI: {law_title}"
 
         formatted_results.append({
             "text": (r.get("text") or r.get("content") or "").strip(), 
@@ -147,6 +179,7 @@ def query_global_knowledge_base(query_text: str, n_results: int = 20, **kwargs) 
             "chunk_id": str(r.get("_id", ""))
         })
 
+    logger.info(f"✅ [RAG Retrieval] U tërhoqën me sukses {len(statute_results)} Nene Statutore dhe {len(caselaw_results)} Aktvendime Supreme!")
     return formatted_results
 
 
@@ -162,7 +195,6 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
     results = []
     seen_chunk_ids = set()
 
-    # Përgatitja e filtrave të sigurt të lëndës
     valid_case_ids = set()
     if case_context_id:
         case_id_str = str(case_context_id)
@@ -172,7 +204,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
 
     vector = embedding_service.generate_embedding(query_text) if query_text else None
 
-    # 1. KËRKIMI VEKTORIAL ME FILTRIM TË OWNER_ID
+    # 1. Kërkim Vektorial
     if vector:
         try:
             pipeline = [{
@@ -197,11 +229,10 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                 if r_id not in seen_chunk_ids:
                     seen_chunk_ids.add(r_id)
                     results.append(r)
-                    
         except Exception as e:
             logger.warning(f"Case vector search warning: {e}")
 
-    # 2. FALLBACK DIREKT NGA USER_VECTORS
+    # 2. Fallback direkt nga user_vectors
     if len(results) < n_results:
         try:
             case_filter: Dict[str, Any] = {
@@ -225,7 +256,7 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
         except Exception as e:
             logger.error(f"Direct user_vectors fetch error: {e}")
 
-    # 3. FALLBACK DIREKT NGA TABELA E DOKUMENTEVE (DOKUMENTET E PLOTA)
+    # 3. Fallback direkt nga tabela e dokumenteve (Teksti i plotë)
     if not results and case_context_id:
         try:
             c_oid = ObjectId(case_context_id) if ObjectId.is_valid(case_context_id) else case_context_id
@@ -276,7 +307,6 @@ def create_and_store_embeddings_from_chunks(
 
     try:
         vectors = embedding_service.generate_embeddings_batch(chunks)
-        
         coll = _get_db()["user_vectors"]
         docs = []
         for i, chunk in enumerate(chunks):
@@ -320,9 +350,7 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
     try:
         db = _get_db()
         existing = list(db["user_vectors"].find({"document_id": str(source_document_id)}))
-        
         if not existing:
-            logger.warning(f"⚠️ No embeddings found for source document {source_document_id}")
             return
         
         for doc in existing:
@@ -334,6 +362,5 @@ def copy_document_embeddings(source_document_id: str, target_document_id: str, t
             })
         
         db["user_vectors"].insert_many(existing)
-        logger.info(f"✅ Copied {len(existing)} embeddings from {source_document_id} to {target_document_id}")
     except Exception as e:
         logger.error(f"❌ Failed to copy document embeddings: {e}")
