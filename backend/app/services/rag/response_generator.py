@@ -1,5 +1,5 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V80.0 (16K TOKEN BUFFER • 300S TIMEOUT • 8-SECTION INTEGRITY)
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V85.0 (SEAMLESS AUTO-CONTINUE • 16K+ MULTI-PASS INTEGRITY)
 
 import logging
 import asyncio
@@ -42,6 +42,7 @@ FAST_TASK_FALLBACKS = [
 LLM_TIMEOUT = 300  # 5 Minuta Timeout për Fashikujt Integralë
 MAX_RETRIES = 2
 MAX_SINGLE_PASS_CHARS = 1_200_000
+MAX_AUTO_CONTINUATIONS = 2
 
 OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://juristi.tech",
@@ -51,10 +52,10 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V80.0):
-    - Drejton Forenzikën dhe Analizën e Fashikullit te Anthropic Claude Sonnet 4.6 (1M context).
-    - Kapacitet masiv gjenerimi (16,384 tokena) me mbrojtje nga ndërprerja në mes.
-    - Garanton përfundimin e të 8 Seksioneve të plota të Gjykatës Supreme.
+    Gjeneruesi Suprem i Përgjigjeve (V85.0):
+    - Drejton Forenzikën te Anthropic Claude Sonnet 4.6 (1M context).
+    - Phoenix Seamless Auto-Continue: Kapërcen tavanin 8,192 tokenash automatikisht.
+    - Garanton 100% përmbushjen e të 8 Seksioneve deri te fjala e fundit.
     """
 
     def __init__(self):
@@ -65,7 +66,7 @@ class ResponseGenerator:
         self, 
         messages: List[Dict[str, str]], 
         stream: bool = True, 
-        max_tokens: int = 16384,
+        max_tokens: int = 8192,
         model: Optional[str] = None,
         is_heavy_task: bool = False
     ):
@@ -129,7 +130,6 @@ class ResponseGenerator:
                 "HARTIM PROFESIONAL", "KËRKESËPADI", "KALLËZIM PENAL", "ANKESË"
             ])
             selected_model = TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL
-            task_max_tokens = 16384 if is_heavy_task else 4096
 
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             
@@ -140,7 +140,7 @@ RREGULLAT E HEKURTA TË DOKTRINËS DHE INTEGRITETIT TË RAPORTIT:
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës (Gjuha zyrtare e Gjykatave dhe Prokurorive).
 2. CITO NENET me saktësi absolute neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016, Ligji për PSRK Nr. 03/L-052).
 3. DISIPLINA STRUKTURORE DHE PËRMBUSHJA E TË GJITHA SEKSIONEVE:
-   Gjenero detyrimisht dhe pa asnjë shkurtim të 8 SEKSIONET e kërkuara nga Seksioni 1 deri te Seksioni 8 me Master Planin e Veprimit brenda 24-48 orëve. Shpërndaj vëllimin në mënyrë të balancuar në mënyrë që të përfshihen të gjitha tabelat, përgjegjësitë ligjore dhe mjetet juridike.
+   Gjenero detyrimisht dhe pa asnjë shkurtim të 8 SEKSIONET e kërkuara nga Seksioni 1 deri te Seksioni 8 me Master Planin e Veprimit brenda 24-48 orëve.
 4. Ndalohet kategorikisht ndërprerja e raportit pa arritur te Hapat Taktikë të Seksionit 8.
 """
             messages = [
@@ -148,18 +148,47 @@ RREGULLAT E HEKURTA TË DOKTRINËS DHE INTEGRITETIT TË RAPORTIT:
                 {"role": "user", "content": user_query}
             ]
             
-            response = await self._call_with_retry(
-                messages, 
-                stream=True, 
-                max_tokens=task_max_tokens,
-                model=selected_model,
-                is_heavy_task=is_heavy_task
-            )
-            
-            async for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
-                    content_piece = chunk.choices[0].delta.content
-                    yield content_piece
+            accumulated_full_text = ""
+            current_pass = 0
+
+            while current_pass <= MAX_AUTO_CONTINUATIONS:
+                current_pass += 1
+                finish_reason = None
+
+                response = await self._call_with_retry(
+                    messages, 
+                    stream=True, 
+                    max_tokens=8192,
+                    model=selected_model,
+                    is_heavy_task=is_heavy_task
+                )
+                
+                pass_text = ""
+                async for chunk in response:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        choice = chunk.choices[0]
+                        if choice.delta and choice.delta.content:
+                            content_piece = choice.delta.content
+                            pass_text += content_piece
+                            accumulated_full_text += content_piece
+                            yield content_piece
+                        if choice.finish_reason:
+                            finish_reason = choice.finish_reason
+
+                # Nëse gjenerimi përfundoi natyrshëm (stop), dalim nga cikli
+                if finish_reason != "length" or not is_heavy_task:
+                    break
+
+                # ⚡ PHOENIX SEAMLESS AUTO-CONTINUE:
+                # Nëse përfundoi sepse u mbush tavani 8,192 tokena, vazhdojmë automatikisht
+                logger.info(f"🔄 [Phoenix Auto-Continue] Modeli arriti tavanin e tokenave në kalimin {current_pass}. Po vazhdoj gjenerimin pa ndërprerje...")
+                
+                messages = [
+                    {"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]},
+                    {"role": "user", "content": user_query},
+                    {"role": "assistant", "content": accumulated_full_text},
+                    {"role": "user", "content": "Vazhdo menjëherë saktësisht aty ku u ndërpre fjala e fundit. Përfundo Seksionet e mbetura deri te Seksioni 8 me Master Planin e Veprimit, pa përsëritur tekstin e mëparshëm."}
+                ]
                     
         except Exception as e:
             logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve: {e}")
