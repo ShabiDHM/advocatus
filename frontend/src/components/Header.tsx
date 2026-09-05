@@ -1,9 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V18.0 (ADDED EXCLUSIVE ZYRA FORENZIKE FOR SUPER ADMIN)
+// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V19.0 (CLEAN BRAND ALIGNMENT • REMOVED LEFT BUTTON)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, Menu, X, BookOpen, Sun, Moon 
+    Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, X, BookOpen, Sun, Moon 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -137,15 +137,8 @@ const Header: React.FC = () => {
           opacity: 1
         }}
       >
-        {/* Left: Brand */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button 
-            onClick={() => setIsMobileMenuOpen(true)} 
-            className="mobile-menu-button p-2 text-text-primary lg:hidden hover:bg-hover rounded-xl transition-colors focus:outline-none cursor-pointer"
-            aria-label={t('header.menu', 'Menu')}
-          >
-            <Menu size={22} />
-          </button>
+        {/* Left: Brand PA ASNJË BUTON PARA SAJ */}
+        <div className="flex items-center shrink-0">
           <Link to="/business" className="flex items-center">
             <BrandLogo />
           </Link>
