@@ -1,6 +1,7 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG / FORENSIC SENTINEL V1.0
-// ZERO TS WARNINGS • ZERO HARDCODING • MULTI-STATE EXPANDABLE DRAWER (50% / 85%)
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG: 3-ROLE FORENSIC COLLEGIATE V2.0
+// POLICE DETECTIVE • DUAL-COMPETENCY PROSECUTOR (BASIC & PSRK) • SUPREME COURT JUSTICE
+// ZERO TS WARNINGS • ZERO HARDCODING • EXPANDABLE (50% / 85%)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -8,7 +9,6 @@ import {
   Maximize2,
   Minimize2,
   ShieldAlert,
-  AlertTriangle,
   CheckCircle2,
   Sparkles,
   Copy,
@@ -18,14 +18,19 @@ import {
   Filter,
   ArrowRight,
   Search,
-  Flame
+  Flame,
+  Scale,
+  Gavel
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 export type FindingSeverity = 'CRITICAL' | 'SUSPICIOUS' | 'SMOKING_GUN';
+export type ForensicRolePerspective = 'ALL' | 'POLICE' | 'PROSECUTOR' | 'SUPREME_JUDGE';
 
 export interface ForensicFindingItem {
   id: string;
+  role: 'POLICE' | 'PROSECUTOR' | 'SUPREME_JUDGE';
+  jurisdictionSubtype?: 'THEMELORE' | 'PSRK' | 'CIVIL_LPK' | 'CRIMINAL_KPPRK';
   level: FindingSeverity;
   title: string;
   sourceA: string;
@@ -56,7 +61,8 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   // Gjendjet e Skanimit & Gjetjeve
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [findings, setFindings] = useState<ForensicFindingItem[]>([]);
-  const [activeFilter, setActiveFilter] = useState<'ALL' | FindingSeverity>('ALL');
+  const [activeRoleFilter, setActiveRoleFilter] = useState<ForensicRolePerspective>('ALL');
+  const [activeSeverityFilter, setActiveSeverityFilter] = useState<'ALL' | FindingSeverity>('ALL');
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -71,27 +77,35 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Ekzekutimi i Skanimit Autonom të Hetuesit
+  // Ekzekutimi i Skanimit Autonom me të 3 Rolet
   const handleRunAutonomousInvestigation = async () => {
     if (!caseId || isScanning) return;
     setIsScanning(true);
 
     try {
-      const prompt = `[DIREKTIVË HETIMORE SUPREME — PROTOKOLLI PHOENIX: DITARI I HETUESIT]
+      const prompt = `[DIREKTIVË SUPREME — PROTOKOLLI PHOENIX: KOLEGJIUMI FORENZIK ME 3 ROLE]
 LËNDA: ${clientName}
 HASH: ${chainOfCustodyHash}
 
-Vepro si Kryehetuesi Forenzik dhe zbulo të gjitha kontradiktat, alibitë e rreme dhe shkeljet e fshehura në këtë dosje.
-RREPTËSISHT: Përgjigju duke listuar incidentet në këtë format të saktë me numra:
+Analizo këtë dosje me tre këndvështrime të pavarura profesionale:
+1. HETUESI POLICOR: Fokusohu te faktet, orët, kamerat, GPS dhe alibitë e rreme.
+2. PROKURORI I SHTETIT ME KOMPETENCË TË DYFISHTË:
+   - Kontrollo veprat e Prokurorisë Themelore (Mashtrim Neni 323, Falsifikim Neni 390, Keqpërdorim Besimi Neni 330).
+   - Nëse dëmi është i madh ose ka zyrtarë publikë, kalo te Prokuroria Speciale PSRK (Korrupsion Neni 414, Pastrim Parash).
+3. GJYQTARI I GJYKATËS SUPREME: Gjej shkeljet thelbësore procedurale (Neni 182 LPK, Neni 257 KPPRK për prova të paligjshme) dhe pikat ku vendimi i ankimuar rrëzohet në Apel.
+
+FORMATI I DETYRUAR ME NUMRA:
 
 INCIDENTI 1:
+ROLI: [POLIC ose PROKUROR ose GJYQTAR_SUPREM]
+KOMPETENCA: [THEMELORE ose PSRK ose CIVIL_LPK ose CRIMINAL_KPPRK]
 TITULLI: [Titulli i shkurtër i përplasjes]
 NIVELI: [KRITIKE ose DYSHIM ose SMOKING_GUN]
 PROVA_A: [Dokumenti ose Audioja A me faqe/sekondë]
 PROVA_B: [Dokumenti, Videoja ose Fatura B me faqe/sekondë]
 KONTRADIKTA: [Përshkrimi i saktë i përplasjes mes tyre]
-NENI: [Neni përkatës i LPK, KPPRK ose KPRK]
-TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
+NENI: [Nenet konkrete të ligjit]
+TAKTIKA: [Këshillë taktike për avokatin]
 
 (Vazhdo me INCIDENTI 2, INCIDENTI 3, etj.)`;
 
@@ -101,27 +115,39 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
         acc += chunk;
       }
 
-      // Parser i strukturuar për të nxjerrë kartat e hetuesit
       const parsedFindings = parseInvestigatorStream(acc);
       setFindings(parsedFindings);
     } catch (err) {
       console.error("Autonomous investigator error:", err);
-      alert("Dështoi skanimi i hetuesit autonom.");
+      alert("Dështoi skanimi i kolegjiumit hetimor.");
     } finally {
       setIsScanning(false);
     }
   };
 
-  // Funksion ndihmës për kthimin e tekstit të modelit në objekte të strukturuara
   const parseInvestigatorStream = (text: string): ForensicFindingItem[] => {
     const items: ForensicFindingItem[] = [];
     const blocks = text.split(/INCIDENTI\s+\d+:/i).filter(b => b.trim().length > 0);
 
     blocks.forEach((block, index) => {
       const getField = (tag: string) => {
-        const match = block.match(new RegExp(`${tag}:\\s*([^\\n]+(?:\\n(?!TITULLI|NIVELI|PROVA_A|PROVA_B|KONTRADIKTA|NENI|TAKTIKA)[^\\n]+)*)`, 'i'));
+        const match = block.match(new RegExp(`${tag}:\\s*([^\\n]+(?:\\n(?!ROLI|KOMPETENCA|TITULLI|NIVELI|PROVA_A|PROVA_B|KONTRADIKTA|NENI|TAKTIKA)[^\\n]+)*)`, 'i'));
         return match ? match[1].trim() : '';
       };
+
+      const rawRole = getField('ROLI').toUpperCase();
+      let role: 'POLICE' | 'PROSECUTOR' | 'SUPREME_JUDGE' = 'POLICE';
+      if (rawRole.includes('PROKUROR')) {
+        role = 'PROSECUTOR';
+      } else if (rawRole.includes('GJYQTAR') || rawRole.includes('SUPREM')) {
+        role = 'SUPREME_JUDGE';
+      }
+
+      const rawSubtype = getField('KOMPETENCA').toUpperCase();
+      let jurisdictionSubtype: 'THEMELORE' | 'PSRK' | 'CIVIL_LPK' | 'CRIMINAL_KPPRK' = 'THEMELORE';
+      if (rawSubtype.includes('PSRK')) jurisdictionSubtype = 'PSRK';
+      else if (rawSubtype.includes('CIVIL') || rawSubtype.includes('LPK')) jurisdictionSubtype = 'CIVIL_LPK';
+      else if (rawSubtype.includes('KPPRK')) jurisdictionSubtype = 'CRIMINAL_KPPRK';
 
       const rawLevel = getField('NIVELI').toUpperCase();
       let level: FindingSeverity = 'SUSPICIOUS';
@@ -133,13 +159,15 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
 
       items.push({
         id: `finding-${Date.now()}-${index}`,
+        role,
+        jurisdictionSubtype,
         level,
         title: getField('TITULLI') || `Gjetje Hetimore #${index + 1}`,
-        sourceA: getField('PROVA_A') || 'Dokumenti i parë në fashikull',
-        sourceB: getField('PROVA_B') || 'Dëshmia ose prova materiale përballë',
+        sourceA: getField('PROVA_A') || 'Dokumenti i parë',
+        sourceB: getField('PROVA_B') || 'Dëshmia materiale përballë',
         contradictionDetails: getField('KONTRADIKTA') || block.trim().slice(0, 300),
-        legalArticles: getField('NENI') || 'Nenet e LPK / KPPRK',
-        tacticalAdvice: getField('TAKTIKA') || 'Kërkoni ballafaqim të drejtpërdrejtë në seancën e radhës.'
+        legalArticles: getField('NENI') || 'Nenet e KPRK / KPPRK / LPK',
+        tacticalAdvice: getField('TAKTIKA') || 'Kërkoni ballafaqim në seancën e radhës.'
       });
     });
 
@@ -147,7 +175,7 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
   };
 
   const handleCopyFinding = (finding: ForensicFindingItem) => {
-    const text = `[GJETJE HETIMORE NGA DITARI I HETUESIT]:\nTitulli: ${finding.title}\nNiveli: ${finding.level}\nBurimi 1: ${finding.sourceA}\nBurimi 2: ${finding.sourceB}\nPërplasja: ${finding.contradictionDetails}\nBaza Ligjore: ${finding.legalArticles}\nTaktika e Rekomanduar: ${finding.tacticalAdvice}`;
+    const text = `[GJETJE HETIMORE NGA DITARI I HETUESIT]:\nRoli: ${finding.role} (${finding.jurisdictionSubtype || 'Standard'})\nTitulli: ${finding.title}\nNiveli: ${finding.level}\nBurimi 1: ${finding.sourceA}\nBurimi 2: ${finding.sourceB}\nPërplasja: ${finding.contradictionDetails}\nBaza Ligjore: ${finding.legalArticles}\nTaktika: ${finding.tacticalAdvice}`;
     navigator.clipboard.writeText(text);
     setCopiedId(finding.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -155,21 +183,22 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
 
   if (!isOpen) return null;
 
-  // Filtrimi i Gjetjeve
+  // Filtrimi i Kombinuar (sipas Rolit + Aspektit të Rrezikut + Kërkimit)
   const filteredFindings = findings.filter(f => {
-    const matchesCategory = activeFilter === 'ALL' || f.level === activeFilter;
+    const matchesRole = activeRoleFilter === 'ALL' || f.role === activeRoleFilter;
+    const matchesSeverity = activeSeverityFilter === 'ALL' || f.level === activeSeverityFilter;
     const matchesSearch = f.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
                           f.contradictionDetails.toLowerCase().includes(searchFilter.toLowerCase()) ||
                           f.legalArticles.toLowerCase().includes(searchFilter.toLowerCase());
-    return matchesCategory && matchesSearch;
+    return matchesRole && matchesSeverity && matchesSearch;
   });
 
-  const criticalCount = findings.filter(f => f.level === 'CRITICAL').length;
-  const suspiciousCount = findings.filter(f => f.level === 'SUSPICIOUS').length;
-  const smokingCount = findings.filter(f => f.level === 'SMOKING_GUN').length;
+  const policeCount = findings.filter(f => f.role === 'POLICE').length;
+  const prosecutorCount = findings.filter(f => f.role === 'PROSECUTOR').length;
+  const judgeCount = findings.filter(f => f.role === 'SUPREME_JUDGE').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end transition-all">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end transition-all select-none">
       <aside
         className={`bg-card border-l border-main h-full shadow-2xl flex flex-col transition-all duration-300 ease-in-out ${
           isWidescreen ? 'w-full lg:w-[85%]' : 'w-full sm:w-[90%] md:w-[75%] lg:w-[50%]'
@@ -187,17 +216,16 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                   Ditari i Hetuesit
                 </h2>
                 <span className="px-2 py-0.5 rounded-full bg-rose-600/15 text-rose-500 border border-rose-600/30 text-[10px] font-mono font-bold uppercase">
-                  Forensic Sentinel
+                  Kolegjiumi Forenzik
                 </span>
               </div>
               <p className="text-xs text-text-muted mt-0.5 truncate max-w-sm">
-                Skanimi i vazhdueshëm për alibi të rreme, shkelje procedurale dhe kontradikta
+                Hetues Policor • Prokuror Shteti & PSRK • Gjyqtar Suprem
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Butoni i Zgjerimit (50% / 85%) */}
             <button
               type="button"
               onClick={() => setIsWidescreen(!isWidescreen)}
@@ -207,7 +235,6 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
               {isWidescreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
 
-            {/* Butoni i Mbylljes */}
             <button
               type="button"
               onClick={onClose}
@@ -218,102 +245,120 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
           </div>
         </header>
 
-        {/* SHIRITI I VEPRIMIT & FILTRAT */}
-        <div className="p-4 border-b border-main bg-surface/20 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* SHIRITI I 3 ROLEVE TË KOLEGJIUMIT */}
+        <div className="px-5 pt-3 pb-2 border-b border-main bg-surface/30 space-y-3">
+          {/* BUTONAT E ROLEVE */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-finance-scroll">
+            <button
+              type="button"
+              onClick={() => setActiveRoleFilter('ALL')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activeRoleFilter === 'ALL'
+                  ? 'bg-rose-600 text-white shadow-md'
+                  : 'bg-surface hover:bg-hover text-text-muted border border-main'
+              }`}
+            >
+              <span>⚡ Kolegjiumi i Plotë</span>
+              <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">{findings.length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveRoleFilter('POLICE')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activeRoleFilter === 'POLICE'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30'
+              }`}
+            >
+              <span>🔍 Hetuesi Policor</span>
+              <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">{policeCount}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveRoleFilter('PROSECUTOR')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activeRoleFilter === 'PROSECUTOR'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30'
+              }`}
+            >
+              <span>🦅 Prokuror Shteti & PSRK</span>
+              <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">{prosecutorCount}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveRoleFilter('SUPREME_JUDGE')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activeRoleFilter === 'SUPREME_JUDGE'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border border-purple-500/30'
+              }`}
+            >
+              <Gavel size={13} />
+              <span>⚖️ Gjykata Supreme</span>
+              <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">{judgeCount}</span>
+            </button>
+          </div>
+
+          {/* KËRKIMI DHE BUTONI I SKANIMIT */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
             <div className="relative flex-1">
-              <Search size={14} className="absolute left-3.5 top-3 text-text-muted" />
+              <Search size={13} className="absolute left-3.5 top-2.5 text-text-muted" />
               <input
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filtro gjetjet e hetuesit..."
-                className="w-full bg-surface border border-main rounded-xl pl-9 pr-3.5 py-2 text-xs text-text-primary focus:outline-none focus:border-primary-start"
+                placeholder="Filtro sipas neneve, orës ose personave..."
+                className="w-full bg-surface border border-main rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
               />
             </div>
 
-            <button
-              type="button"
-              onClick={handleRunAutonomousInvestigation}
-              disabled={isScanning}
-              className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-40 shrink-0"
-            >
-              {isScanning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              <span>{findings.length > 0 ? 'Ri-Skano Dosjen' : 'Nis Hetimin e Thellë'}</span>
-            </button>
-          </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Filtri i Rrezikut */}
+              <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setActiveSeverityFilter('ALL')}
+                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'ALL' ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted'}`}
+                >
+                  Të gjitha
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSeverityFilter('CRITICAL')}
+                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'CRITICAL' ? 'bg-rose-500 text-white shadow-sm' : 'text-rose-500'}`}
+                >
+                  Kritike
+                </button>
+              </div>
 
-          {/* Butonat e Filtrimit sipas Shkallës së Rrezikut */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs custom-finance-scroll">
-            <button
-              type="button"
-              onClick={() => setActiveFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeFilter === 'ALL'
-                  ? 'bg-primary-start text-white shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border border-main'
-              }`}
-            >
-              <Filter size={12} />
-              <span>Të Gjitha</span>
-              <span className="font-mono text-[10px] ml-0.5">({findings.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveFilter('CRITICAL')}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeFilter === 'CRITICAL'
-                  ? 'bg-rose-600 text-white shadow-sm'
-                  : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20'
-              }`}
-            >
-              <Flame size={12} />
-              <span>Kritike</span>
-              <span className="font-mono text-[10px] ml-0.5">({criticalCount})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveFilter('SUSPICIOUS')}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeFilter === 'SUSPICIOUS'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
-              }`}
-            >
-              <AlertTriangle size={12} />
-              <span>Dyshime</span>
-              <span className="font-mono text-[10px] ml-0.5">({suspiciousCount})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveFilter('SMOKING_GUN')}
-              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeFilter === 'SMOKING_GUN'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20'
-              }`}
-            >
-              <CheckCircle2 size={12} />
-              <span>Smoking Guns</span>
-              <span className="font-mono text-[10px] ml-0.5">({smokingCount})</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleRunAutonomousInvestigation}
+                disabled={isScanning}
+                className="h-8 px-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-40"
+              >
+                {isScanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                <span>{findings.length > 0 ? 'Ri-Skano' : 'Fillo Hetimin'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* TRUPI I DITARIT: LISTA E GJETJEVE */}
+        {/* TRUPI I DITARIT: LISTA E GJETJEVE TË STRUKTURUARA */}
         <main className="flex-1 overflow-y-auto custom-finance-scroll p-5 space-y-4">
           {filteredFindings.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-text-muted text-center p-8 gap-3">
-              <ShieldAlert size={48} className="opacity-25 text-rose-500" />
+              <Scale size={48} className="opacity-25 text-primary-start" />
               <div className="max-w-md space-y-1">
                 <p className="text-sm font-bold text-text-primary">
-                  {isScanning ? 'Hetuesi po skanon të 31 shkresat dhe provat...' : 'Ditari i Hetuesit është i pastër'}
+                  {isScanning ? 'Kolegjiumi po analizon fashikullin e lëndës...' : 'Nuk u gjet asnjë incident për këtë filtër'}
                 </p>
                 <p className="text-xs">
-                  Shtypni <span className="font-bold text-text-primary">"Nis Hetimin e Thellë"</span> për të kërkuar automatikisht përplasjet midis procesverbaleve, audios dhe vendimeve gjyqësore.
+                  Shtypni <span className="font-bold text-text-primary">"Fillo Hetimin"</span> për të aktivizuar Hetuesin Policor, Prokurorin e Shtetit (Themelore & PSRK) dhe Gjyqtarin Suprem.
                 </p>
               </div>
             </div>
@@ -323,10 +368,17 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                 const isCritical = item.level === 'CRITICAL';
                 const isSmoking = item.level === 'SMOKING_GUN';
 
+                // Përcaktimi i stemës dhe ngjyrës së rolit
+                const roleBadge = item.role === 'POLICE'
+                  ? { label: '🔍 Hetuesi Policor', color: 'bg-blue-500/15 text-blue-500 border-blue-500/30' }
+                  : item.role === 'PROSECUTOR'
+                  ? { label: item.jurisdictionSubtype === 'PSRK' ? '🦅 Prokuroria Speciale PSRK' : '🦅 Prokuroria Themelore', color: 'bg-amber-500/15 text-amber-500 border-amber-500/30' }
+                  : { label: '⚖️ Gjykata Supreme', color: 'bg-purple-500/15 text-purple-500 border-purple-500/30' };
+
                 return (
                   <article
                     key={item.id}
-                    className={`p-5 rounded-2xl border transition-all space-y-3.5 bg-card shadow-sm ${
+                    className={`p-5 rounded-2xl border transition-all space-y-3 bg-card shadow-sm ${
                       isCritical
                         ? 'border-rose-500/40 hover:border-rose-500 shadow-rose-500/5'
                         : isSmoking
@@ -334,12 +386,16 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                         : 'border-amber-500/40 hover:border-amber-500'
                     }`}
                   >
-                    {/* Koka e Kartës së Incidentit */}
+                    {/* Koka e Kartës me Stemën e Rolit */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${roleBadge.color}`}>
+                            {roleBadge.label}
+                          </span>
+
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
                               isCritical
                                 ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
                                 : isSmoking
@@ -363,7 +419,7 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                       </button>
                     </div>
 
-                    {/* Burimet e Përplasjes: Prova A kundër Provës B */}
+                    {/* Përplasja e Provave */}
                     <div className="p-3 rounded-xl bg-surface/70 border border-main text-xs space-y-1.5 font-mono">
                       <div className="flex items-center gap-2 text-text-muted truncate">
                         <FileText size={13} className="text-primary-start shrink-0" />
@@ -372,7 +428,7 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                       </div>
                       <div className="flex items-center gap-2 text-rose-500 font-bold text-[10px] uppercase">
                         <ArrowRight size={12} className="rotate-90 sm:rotate-0" />
-                        <span>Bie ndesh drejtpërdrejt me:</span>
+                        <span>Bie ndesh me:</span>
                       </div>
                       <div className="flex items-center gap-2 text-text-muted truncate">
                         <FileText size={13} className="text-rose-500 shrink-0" />
@@ -381,23 +437,27 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
                       </div>
                     </div>
 
-                    {/* Detajet e Përplasjes */}
+                    {/* Detajet */}
                     <div className="text-xs text-text-primary leading-relaxed select-text font-sans">
-                      <p className="font-bold text-text-muted uppercase text-[10px] tracking-wider mb-1">
-                        Zbardhja e Hetuesit:
+                      <p className="font-bold text-text-muted uppercase text-[10px] tracking-wider mb-0.5">
+                        Zbardhja e Kolegjiumit:
                       </p>
                       <p className="whitespace-pre-wrap">{item.contradictionDetails}</p>
                     </div>
 
-                    {/* Neni i Shkelur & Taktika e Avokatit */}
+                    {/* Neni dhe Këshilla Taktike */}
                     <div className="pt-2 border-t border-main grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div className="p-2.5 rounded-xl bg-surface border border-main space-y-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Neni i Shkelur:</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                          <Filter size={11} /> Nenet e Zbatuara:
+                        </span>
                         <p className="font-mono font-bold text-primary-start truncate">{item.legalArticles}</p>
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-primary-start/5 border border-primary-start/20 space-y-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-start">Këshilla Taktike:</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-start flex items-center gap-1">
+                          <Flame size={11} /> Veprimi Taktik:
+                        </span>
                         <p className="text-text-primary text-[11px] truncate">{item.tacticalAdvice}</p>
                       </div>
                     </div>
@@ -412,9 +472,9 @@ TAKTIKA: [Pyetja kurth ose veprimi për avokatin në seancë]
         <footer className="p-4 border-t border-main bg-surface/30 flex items-center justify-between text-xs text-text-muted">
           <span className="flex items-center gap-1.5 font-medium">
             <RefreshCw size={12} className={isScanning ? 'animate-spin text-primary-start' : ''} />
-            {isScanning ? 'Hetuesi po punon në sfond...' : `${findings.length} incidente të analizuara`}
+            {isScanning ? 'Kolegjiumi po analizon...' : `${findings.length} gjetje nga të 3 rolet`}
           </span>
-          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1M Token Core)</span>
+          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1M Token Context)</span>
         </footer>
       </aside>
     </div>
