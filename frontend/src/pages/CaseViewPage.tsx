@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V88.0 (ROLE-GATED CASE ANALYSIS FOR ADMIN & SINGLE-PAY ONLY)
-// ZERO CHAT POLLUTION • SMART MONGODB CACHING • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - CASE VIEW PAGE V89.0 (UNIFIED FORENSIC COLLEGIATE & ZERO CHAT POLLUTION)
+// SMART 0MS MONGODB CACHING • INVESTIGATOR'S LOG INTEGRATED • ADMIN-ONLY DELETE GATING
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -21,6 +21,7 @@ import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { CaseAnalysisModal } from '../components/case/CaseAnalysisModal';
 import { DocumentAuditModal } from '../components/case/DocumentAuditModal';
+import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 
 type CaseData = { details: Case | null };
 
@@ -41,24 +42,26 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Kontrolli i Qasjes: Vetëm Admin / Superadmin ose Single Pay
-  const isAdminOrAuthorized = useMemo(() => {
+  // Kontrolli Admin për të Drejtën e Fshirjes së Memories (Trash Button)
+  const isAdmin = useMemo(() => {
     if (!user) return false;
     const role = (user.role || (user as any).user_role || '').toUpperCase();
-    const tier = ((user as any).tier || '').toUpperCase();
-    return role === 'ADMIN' || role === 'SUPERADMIN' || tier === 'SINGLE_PAY' || tier === 'VIP';
+    return role === 'ADMIN' || role === 'SUPERADMIN';
   }, [user]);
 
-  // 1. State për Analizën e Plotë të Lëndës (ANALIZO RASTIN)
+  // 1. Analiza e Plotë e Lëndës (ANALIZO RASTIN)
   const [isAnalyzingCase, setIsAnalyzingCase] = useState<boolean>(false);
   const [analysisResultText, setAnalysisResultText] = useState<string>('');
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. State i Dedikuar për Auditimin e 1 Dokumenti (Peshorja ⚖️)
+  // 2. Auditimi i 1 Dokumenti (Peshorja ⚖️)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [docAuditResultText, setDocAuditResultText] = useState<string>('');
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
   const [isAuditingDoc, setIsAuditingDoc] = useState<boolean>(false);
+
+  // 3. Ditari i Hetuesit (Kolegjiumi me 3 Rolet për Seancë)
+  const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -494,12 +497,34 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
 
   return (
     <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4">
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4 space-y-4">
         
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
         />
+
+        {/* SHIRITI I PËRGATITJES SË SEANCËS: DITARI I HETUESIT ME 3 ROLE */}
+        <div className="flex items-center justify-between gap-3 bg-surface border border-main px-4 py-2.5 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-lg shrink-0">🕵️</span>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-wider text-text-primary truncate">
+                Ditari i Hetuesit — Përgatitja e Seancës (3 Rolet)
+              </p>
+              <p className="text-[11px] text-text-muted truncate">
+                Zbulimi i alibive të rreme, shkeljeve të LPK-së dhe pyetjeve kurth para gjyqit
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowInvestigatorDrawer(true)}
+            className="h-8 px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+          >
+            <span>Hap Ditarin</span>
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
@@ -515,7 +540,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
             t={t}
           />
 
-          <div className="lg:col-span-7 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-200px)] min-h-[650px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          <div className="lg:col-span-7 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-250px)] min-h-[600px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -532,8 +557,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              // PHOENIX FIX: Butoni Analizo Rastin i kalohet VETËM Adminit / Single-Pay
-              onOpenCaseAnalysis={isAdminOrAuthorized ? handleStartBackgroundCaseAnalysis : undefined}
+              onOpenCaseAnalysis={handleStartBackgroundCaseAnalysis}
               isAnalyzingCase={isAnalyzingCase}
             />
           </div>
@@ -556,7 +580,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS */}
+      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS (KOSHI VETËM PËR ADMIN) */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -564,10 +588,10 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         caseId={currentCaseId}
         caseTitle={caseTitle}
         clientName={clientName}
-        onDeleteAnalysis={handleDeleteAnalysisFromModal}
+        onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUDITIMI I DEDIKUAR PËR 1 DOKUMENT TË VETËM */}
+      {/* MODAL 2: AUDITIMI I 1 DOKUMENTI (KOSHI VETËM PËR ADMIN) */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
@@ -576,8 +600,19 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         documentId={String(currentAuditedDoc?.id || '')}
         documentName={currentAuditedDoc?.file_name || 'Dokument'}
         clientName={clientName}
-        onDeleteAudit={handleDeleteDocAuditFromModal}
+        onDeleteAudit={isAdmin ? handleDeleteDocAuditFromModal : undefined}
       />
+
+      {/* MODAL 3: DITARI I HETUESIT (KOLEGJIUMI ME 3 ROLE) */}
+      {caseId && (
+        <InvestigatorLogDrawer
+          isOpen={showInvestigatorDrawer}
+          onClose={() => setShowInvestigatorDrawer(false)}
+          caseId={currentCaseId}
+          clientName={clientName}
+          chainOfCustodyHash={`SHA256-${currentCaseId.slice(-8).toUpperCase()}`}
+        />
+      )}
     </motion.div>
   );
 };

@@ -1,5 +1,6 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V87.0 (OFFICIAL JURISTI AI BRANDING • CLEAN HYGIENE)
+// PHOENIX PROTOCOL - CHAT PANEL V88.0 (INTELLIGENT "PËRDITËSO ANALIZËN" PROP TRANSMISSION)
+// ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • CLEAN HYGIENE
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,6 +52,8 @@ interface ChatPanelProps {
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onOpenCaseAnalysis?: () => void;
   isAnalyzingCase?: boolean;
+  isAnalysisDirty?: boolean;
+  hasExistingAnalysis?: boolean;
 }
 
 const isThinkingPlaceholder = (text?: string): boolean => {
@@ -193,6 +196,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     isPro = true,
     onOpenCaseAnalysis,
     isAnalyzingCase = false,
+    isAnalysisDirty = false,
+    hasExistingAnalysis = false,
   } = props;
 
   const [input, setInput] = useState('');
@@ -251,7 +256,6 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     typeof lastMessage.content === 'string' && 
     !isThinkingPlaceholder(lastMessage.content);
 
-  // Izolim: Chati shfaq 'duke menduar' vetëm për pyetjet aktive të chatit
   const isAwaitingFirstToken = isSendingMessage && !isAiCurrentlyStreaming;
 
   return (
@@ -265,6 +269,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         isPro={isPro}
         onAnalyzeCase={onOpenCaseAnalysis}
         isAnalyzingCase={isAnalyzingCase}
+        isAnalysisDirty={isAnalysisDirty}
+        hasExistingAnalysis={hasExistingAnalysis}
       />
 
       {/* BODY CONTEXT */}
