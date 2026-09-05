@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/case/DocumentAuditModal.tsx
-// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V2.0 (ULTRA-RESPONSIVE MOBILE/TABLET/DESKTOP ADAPTIVE SHEET)
+// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V3.0 (SECURE ADMIN-ONLY DELETION)
+// ZERO TS WARNINGS • ZERO HARDCODING • SOLID THEME-AWARE
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +29,7 @@ interface DocumentAuditModalProps {
 const FONT_LEVELS = [
   { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
   { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
-  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 }, // Default Komod
+  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
   { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
   { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
@@ -189,7 +190,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
           } p-3 sm:p-5 md:p-7 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
-          {/* Header Ultra-Adaptiv për Mobile dhe Desktop me Peshoren ⚖️ */}
+          {/* Header */}
           <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-main shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-start/15 text-primary-start rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0 shadow-xs">
@@ -205,9 +206,8 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
               </div>
             </div>
 
-            {/* Butonat e Kontrollit: Kompakt në Mobile */}
+            {/* Kontrollet */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Font Resizer */}
               <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
                 <button
                   type="button"
@@ -239,15 +239,18 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={handleDeleteAudit}
-                disabled={isDeleting}
-                className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
-                title="Fshi këtë Audit"
-              >
-                {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              </button>
+              {/* PHOENIX FIX: Butoni i Fshirjes shfaqet VETËM kur onDeleteAudit është i pranishëm (ADMIN) */}
+              {onDeleteAudit && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAudit}
+                  disabled={isDeleting}
+                  className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
+                  title="Fshi këtë Audit"
+                >
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                </button>
+              )}
 
               <button
                 type="button"
@@ -269,7 +272,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
             </div>
           </div>
 
-          {/* Trupi i Dokumentit me Touch Scroll dhe Formatim të Qartë */}
+          {/* Trupi i Auditimit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -309,7 +312,6 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
                 margin-top: 0.9em !important;
                 margin-bottom: 0.3em !important;
               }
-              /* Rrëshqitje e sigurt e tabelave në mobile pa prishur faqen */
               .doc-audit-report table {
                 display: block !important;
                 width: 100% !important;
@@ -326,7 +328,6 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
             </div>
           </div>
 
-          {/* Butoni Lundrues për Rikthim te Fundi */}
           <AnimatePresence>
             {showScrollBottomBtn && (
               <motion.button
@@ -343,7 +344,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Veprimet Ekzekutive: Touch-friendly në Mobile */}
+          {/* Veprimet */}
           <div className="flex items-center justify-between pt-2.5 sm:pt-4 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"

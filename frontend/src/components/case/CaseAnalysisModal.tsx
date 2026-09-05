@@ -1,5 +1,6 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V7.0 (ULTRA-RESPONSIVE MOBILE/TABLET/DESKTOP ADAPTIVE SHEET)
+// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V8.0 (SECURE ADMIN-ONLY DELETION)
+// ZERO TS WARNINGS • ZERO HARDCODING • SOLID THEME-AWARE
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +29,7 @@ interface CaseAnalysisModalProps {
 const FONT_LEVELS = [
   { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
   { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
-  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 }, // Default Komod
+  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
   { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
   { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
@@ -63,7 +64,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef<boolean>(false);
 
-  // Madhësia e fontit me memorizim në LocalStorage
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_forensic_font_size');
@@ -78,7 +78,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const pristineDocument = sanitizeReportDocument(analysisText);
   const autoLinkedContent = autoLinkLegalCitations(pristineDocument);
 
-  // Smart auto-scroll gjatë streaming-ut
   useEffect(() => {
     if (!isOpen) return;
     const container = scrollContainerRef.current;
@@ -195,7 +194,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
           } p-3 sm:p-5 md:p-7 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
-          {/* Header Ultra-Adaptiv për Mobile dhe Desktop */}
+          {/* Header Ultra-Adaptiv */}
           <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-main shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-start/10 text-primary-start rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary-start/20 shrink-0 shadow-xs">
@@ -211,7 +210,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               </div>
             </div>
 
-            {/* Butonat e Kontrollit: Kompakt në Mobile */}
+            {/* Kontrollet */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {/* Font Resizer */}
               <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
@@ -245,15 +244,18 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={handleDeleteAnalysis}
-                disabled={isDeleting}
-                className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
-                title="Fshi Analizën"
-              >
-                {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              </button>
+              {/* PHOENIX FIX: Butoni i Fshirjes shfaqet VETËM kur onDeleteAnalysis është i pranishëm (ADMIN) */}
+              {onDeleteAnalysis && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAnalysis}
+                  disabled={isDeleting}
+                  className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
+                  title="Fshi Analizën"
+                >
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                </button>
+              )}
 
               <button
                 type="button"
@@ -275,7 +277,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* Trupi i Dokumentit me Touch Scroll dhe Formatim të Qartë */}
+          {/* Trupi i Raportit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -315,7 +317,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 margin-top: 0.9em !important;
                 margin-bottom: 0.3em !important;
               }
-              /* Rrëshqitje e sigurt e tabelave në mobile pa prishur faqen */
               .dynamic-forensic-report table {
                 display: block !important;
                 width: 100% !important;
@@ -349,13 +350,13 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Veprimet Ekzekutive: Touch-friendly 44px në Mobile */}
+          {/* Veprimet Ekzekutive */}
           <div className="flex items-center justify-between pt-2.5 sm:pt-4 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleArchive}
               disabled={isArchiving || !pristineDocument}
-              className="flex-1 sm:flex-initial h-10 sm:h-10 px-3 sm:px-5 bg-surface hover:bg-hover border border-main rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer min-h-[40px]"
+              className="flex-1 sm:flex-initial h-10 px-3 sm:px-5 bg-surface hover:bg-hover border border-main rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               {isArchiving ? (
                 <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
@@ -371,7 +372,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               type="button"
               onClick={handleCopy}
               disabled={!pristineDocument}
-              className="flex-1 sm:flex-initial h-10 sm:h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
+              className="flex-1 sm:flex-initial h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
               <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Raportin'}</span>
