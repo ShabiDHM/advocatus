@@ -1,9 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V17.0 (DRAFTING EXCISED)
+// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V18.0 (ADDED EXCLUSIVE ZYRA FORENZIKE FOR SUPER ADMIN)
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, Building2, Menu, X, BookOpen, Sun, Moon 
+    Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, Menu, X, BookOpen, Sun, Moon 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -26,23 +26,27 @@ const Header: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || (user as any)?.role === 'SUPERADMIN';
 
-  // 1. LISTA BAZË E NAVIGIMIT PËR TË GJITHË PËRDORUESIT (PA HARTIM)
+  // 1. LISTA BAZË E NAVIGIMIT PËR TË GJITHË PËRDORUESIT
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // 2. VETËM PËR ADMIN SHTOHET LINKU I ADMIN-IT (PA HARTIM)
+  // 2. VETËM PËR ADMIN / SUPER ADMIN SHTOHEN LINIQET EKSKLUZIVE
   if (isAdmin) {
     navItems.splice(1, 0, {
       icon: Shield,
       label: t('sidebar.adminPanel', 'Admin'),
       path: '/admin',
     });
-    // PHOENIX FIX: FileText / Hartimi u hoq nga navigimi
+    navItems.splice(2, 0, {
+      icon: ShieldCheck,
+      label: 'Zyra Forenzike',
+      path: '/admin/forensic-desk',
+    });
   }
 
   useEffect(() => {
@@ -114,6 +118,12 @@ const Header: React.FC = () => {
     if (path === '/business') {
       return location.pathname.startsWith('/business');
     }
+    if (path === '/admin/forensic-desk') {
+      return location.pathname.startsWith('/admin/forensic-desk');
+    }
+    if (path === '/admin') {
+      return location.pathname === '/admin' || location.pathname.startsWith('/admin/support');
+    }
     return location.pathname === path;
   };
 
@@ -153,7 +163,7 @@ const Header: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
+                  flex items-center gap-2 px-3.5 xl:px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-200
                   ${active 
                     ? 'bg-primary-start text-white shadow-md shadow-primary-start/20' 
                     : 'text-text-muted hover:text-text-primary hover:bg-hover border border-transparent'
@@ -161,7 +171,7 @@ const Header: React.FC = () => {
                 `}
               >
                 <item.icon size={16} />
-                <span className="hidden xl:inline">{item.label}</span>
+                <span>{item.label}</span>
               </NavLink>
             );
           })}
@@ -210,6 +220,15 @@ const Header: React.FC = () => {
                   <p className="text-sm font-bold text-text-primary truncate">{user?.username}</p>
                   <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
+
+                {isAdmin && (
+                  <button 
+                    onClick={() => { setIsProfileOpen(false); navigate('/admin/forensic-desk'); }} 
+                    className="w-full text-left flex items-center px-4 py-2.5 text-sm font-bold text-primary-start hover:bg-primary-start/10 transition-colors cursor-pointer"
+                  >
+                    <ShieldCheck size={16} className="mr-3 text-primary-start" />Zyra Forenzike
+                  </button>
+                )}
 
                 <button 
                   onClick={() => { setIsProfileOpen(false); navigate('/account'); }} 
