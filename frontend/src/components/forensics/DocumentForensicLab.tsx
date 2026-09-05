@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V3.0 (CASE & DOCUMENT MODULAR LAB)
-// ZERO JARGON • DUAL SCOPE (CASE & DOC) • NO EMOJIS IN TABS • ZERO TS WARNINGS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V4.0 (AUTO-SCROLL STREAM & FULLSCREEN EXPAND)
+// ZERO TS WARNINGS • AUTO-SCROLL TO BOTTOM • EXPAND/COLLAPSE FULLSCREEN • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
@@ -11,7 +11,10 @@ import {
   Trash2,
   Loader2,
   RefreshCw,
-  Search
+  Search,
+  Maximize2,
+  Minimize2,
+  ArrowDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -40,70 +43,70 @@ interface DocumentForensicLabProps {
   onEvidenceChange?: () => void;
 }
 
-// Konfigurimi Doktrinar për Dokumentin
 const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; getPrompt: (docName: string) => string }> = {
   PILLAR_1: {
     title: '1. Ekzaminimi & Faktet',
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
-Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 1:
-- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri i protokollit, Afatet ligjore prekluzive të atakimit).
-- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural (Parashtruesi, Pala Kundërshtare, Interesi Juridik).
-- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar (Faktet thelbësore, Provat materiale, Boshllëqet provuese).
-Ofro analizë shteruese doktrinare, të thellë dhe pa shkurtime.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
+Dokumenti: "${docName}"
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 1 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore prekluzive).
+- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
+- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
+NDALOHET GJENERIMI I NENEVE APO PLANEVE NË KËTË SHTJELLË.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
     subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 2: NENET DHE SHKELJET]
-Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 2:
-- Seksioni 4: Tabela Shteruese e Dispozitave Ligjore të Kosovës dhe Precedentëve të Gjykatës Supreme (Çdo nen të formatohet ekzaktësisht "Neni X i [Ligjit]" për verifikim 1-klikim me precedentin përkatës PML ose Revizion).
-- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit Ligjor.
-Gjenero tabelat e plota dhe arsyetimin doktrinar të shkallës më të lartë.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
+Dokumenti: "${docName}"
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 2 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës (Formati: Neni X i [Ligjit]) me precedentët përkatës të Gjykatës Supreme (PML / Revizion).
+- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit.
+NDALOHET GJENERIMI I PJESËVE TË TJERA NË KËTË SHTJELLË.`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
-Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 3:
-- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive e Aktit.
-- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet e Drejtpërdrejta Taktike mbi Goditjen e Shkresës (Prapësime, Ankesa, Kundërshtime Ekspertize).
-- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore (Hapi 1 Urgjenca, Hapi 2 Plotësimi, Hapi 3 Mbrojtja).
-Ofro strategji agresive dhe taktike të fitores ligjore.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
+Dokumenti: "${docName}"
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 3 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
+- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
+- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.
+PËRQENDROHU VETËM TE PLANI DHE KUNDËRSHTIMET.`
   }
 };
 
-// Konfigurimi Doktrinar për të gjithë Lëndën (Rastin)
 const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prompt: string }> = {
   PILLAR_1: {
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
-    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 1: FAKTI & HISTORIKU]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 1:
-- Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
-- Seksioni 2: Kronologjia e Plotë Tabulare e Ngjarjeve (Data, Veprimi Procedural, Shkelja, Pasojat Juridike).
-- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
-Jep analizë të thellë, të plotë doktrinare, pa shkurtime.`
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1 E RASTIT: FAKTI DHE HISTORIKU]
+Gjenero EKSKLUZIVISHT Seksionet 1 dhe 2 për të gjithë fashikullin:
+- Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.
+- Seksioni 2: Kronologjia Tabulare e Ngjarjeve dhe Kryqëzimi i Palëve.
+MOS gjenero seksionet 3, 4, 5, 6, 7, 8.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
-    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 2: SHKELJET & NENET]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 2:
-- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
-- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Ligjit]".
-- Seksioni 5: Përgjegjësia Penale (Nenet 390, 392, 398, 414 KPK) dhe Shkeljet Thelbësore të Procedurës (Neni 182 LPK).
-Gjenero tabelat e plota dhe arsyetimin ligjor të shkallës më të lartë.`
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2 E RASTIT: SHKELJET DHE NENET]
+Gjenero EKSKLUZIVISHT Seksionet 3, 4 dhe 5 për të gjithë fashikullin:
+- Seksioni 3: Matrica e Provave Materiale.
+- Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).
+- Seksioni 5: Përgjegjësia Penale dhe Shkeljet Thelbësore (Neni 182 LPK).
+MOS gjenero seksionet e tjera.`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
-    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 3: PLANI I VEPRIMIT]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 3:
-- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
-- Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
-- Seksioni 8: Master Plani i Veprimit me Afate të Prera Ligjore (48-orëshe dhe Procedurale).
-Ofro strategji agresive dhe taktike të fitores në gjyq.`
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3 E RASTIT: PLANI I VEPRIMIT]
+Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin:
+- Seksioni 6: Përgatitja e Mjeteve Juridike.
+- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.
+- Seksioni 8: Master Plani i Veprimit me Afate të Prera.
+MOS gjenero seksionet e para.`
   }
 };
 
@@ -119,12 +122,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Përzgjedhësi mes Autopsisë së Dokumentit dhe Autopsisë së Rastit
   const [autopsyScope, setAutopsyScope] = useState<AutopsyScope>('DOCUMENT');
-
-  // Menaxhimi i 3 Shtjellave për Dokumentin dhe Rastin
   const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
-  
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+
   const [docPillars, setDocPillars] = useState<Record<PillarType, string>>({
     PILLAR_1: '',
     PILLAR_2: '',
@@ -148,14 +150,44 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUpRef = useRef<boolean>(false);
 
+  const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
   const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
 
   const activePillarsMap = autopsyScope === 'DOCUMENT' ? docPillars : casePillars;
   const currentPillarContent = activePillarsMap[activePillar] || '';
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
+
+  // AUTO-SCROLL AUTOMATIK GJATË STREAM-IT
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (!isUserScrolledUpRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [currentPillarContent, isCurrentPillarLoading]);
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const userScrolledUp = distanceFromBottom > 80;
+    isUserScrolledUpRef.current = userScrolledUp;
+    setShowScrollBottomBtn(userScrolledUp);
+  };
+
+  const scrollToBottom = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    isUserScrolledUpRef.current = false;
+    setShowScrollBottomBtn(false);
+  };
 
   const extractFileSize = (d: any): string => {
     const rawBytes = d.size ?? d.file_size ?? d.bytes ?? d.file_size_bytes ?? d.length ?? d.metadata?.file_size ?? d.metadata?.size;
@@ -167,16 +199,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         return `${(num / (1024 * 1024)).toFixed(1)} MB`;
       }
     }
-
-    const rawKb = d.file_size_kb ?? d.size_kb;
-    if (rawKb !== undefined && rawKb !== null) {
-      const num = typeof rawKb === 'string' ? parseFloat(rawKb) : Number(rawKb);
-      if (!isNaN(num) && num > 0) {
-        if (num < 1024) return `${num.toFixed(0)} KB`;
-        return `${(num / 1024).toFixed(1)} MB`;
-      }
-    }
-
     return 'PDF e Indeksuar';
   };
 
@@ -187,7 +209,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId]);
 
-  // Ngarkimi i shtjellave të rastit nga MongoDB
   const loadCasePillars = async () => {
     if (!caseId) return;
     try {
@@ -202,7 +223,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     } catch {}
   };
 
-  // Ngarkimi i shtjellave të dokumentit kur ndryshon shkresa
   useEffect(() => {
     if (selectedDocId && caseId) {
       setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
@@ -295,6 +315,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     if (!caseId || loadingPillars[pillar]) return;
 
     setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
+    isUserScrolledUpRef.current = false;
 
     if (autopsyScope === 'DOCUMENT') {
       if (!activeDoc) return;
@@ -308,7 +329,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           [activeDoc.id],
           'ks',
           'DEEP',
-          'document',
+          'automatic',
           false
         );
 
@@ -329,7 +350,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
     } else {
-      // AUTOPSIA E RASTIT
       setCasePillars((prev) => ({ ...prev, [pillar]: '' }));
 
       try {
@@ -397,143 +417,142 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* KOLONA E MAJTË: NGARKIMI & LISTA E SHKRESAVE */}
-      <div className="lg:col-span-5 space-y-4">
-        {/* Dropzone për Ngarkim me OCR */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-main pb-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-              <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
-            </h3>
-            <span className="text-[10px] font-mono text-text-muted">Vision OCR & LPK</span>
-          </div>
-
-          <div
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (!isUploading) handleUploadFiles(e.dataTransfer.files);
-            }}
-            className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-2xl p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
-          >
-            {isUploading ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-2">
-                <Loader2 size={22} className="animate-spin text-primary-start" />
-                <span className="text-xs font-bold text-primary-start">{uploadProgressText}</span>
-              </div>
-            ) : (
-              <>
-                <div className="w-10 h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
-                  <UploadCloud size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                  <p className="text-[10px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
-                </div>
-              </>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => handleUploadFiles(e.target.files)}
-          />
-        </div>
-
-        {/* Paneli i Kërkimit dhe Përzgjedhjes së Shkresës */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="relative flex-1 mr-2">
-              <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filtro shkresat..."
-                className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
-              />
+    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300`}>
+      {/* KOLONA E MAJTË (Fshihet kur zmadhohet në ekran të plotë) */}
+      {!isFullscreen && (
+        <div className="lg:col-span-5 space-y-4">
+          <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-main pb-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
+              </h3>
+              <span className="text-[10px] font-mono text-text-muted">Vision OCR & LPK</span>
             </div>
-            <button
-              onClick={loadDocuments}
-              title="Rifresko listën"
-              className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+
+            <div
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (!isUploading) handleUploadFiles(e.dataTransfer.files);
+              }}
+              className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-2xl p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
             >
-              <RefreshCw size={13} className={loadingDocs ? 'animate-spin' : ''} />
-            </button>
+              {isUploading ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-2">
+                  <Loader2 size={22} className="animate-spin text-primary-start" />
+                  <span className="text-xs font-bold text-primary-start">{uploadProgressText}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
+                    <UploadCloud size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
+                    <p className="text-[10px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => handleUploadFiles(e.target.files)}
+            />
           </div>
 
-          <div className="space-y-2 max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
-            {filteredDocs.length === 0 ? (
-              <div className="text-center py-8 text-xs text-text-muted">
-                {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë në dosje.'}
+          <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="relative flex-1 mr-2">
+                <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filtro shkresat..."
+                  className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
+                />
               </div>
-            ) : (
-              filteredDocs.map((doc) => {
-                const isSelected = doc.id === selectedDocId;
-                const isDeleting = doc.id === deletingDocId;
+              <button
+                onClick={loadDocuments}
+                title="Rifresko listën"
+                className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+              >
+                <RefreshCw size={13} className={loadingDocs ? 'animate-spin' : ''} />
+              </button>
+            </div>
 
-                return (
-                  <div
-                    key={doc.id}
-                    onClick={() => {
-                      setSelectedDocId(doc.id);
-                      setAutopsyScope('DOCUMENT');
-                    }}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      isSelected && autopsyScope === 'DOCUMENT'
-                        ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
-                        : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                        <FileText size={16} />
-                      </div>
-                      <div className="truncate text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold truncate text-text-primary">{doc.name}</p>
-                          {doc.has_violation && (
-                            <span title="Shkelje procedurale e zbuluar!" className="text-rose-500 shrink-0">
-                              <AlertCircle size={13} />
-                            </span>
-                          )}
+            <div className="space-y-2 max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
+              {filteredDocs.length === 0 ? (
+                <div className="text-center py-8 text-xs text-text-muted">
+                  {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë në dosje.'}
+                </div>
+              ) : (
+                filteredDocs.map((doc) => {
+                  const isSelected = doc.id === selectedDocId;
+                  const isDeleting = doc.id === deletingDocId;
+
+                  return (
+                    <div
+                      key={doc.id}
+                      onClick={() => {
+                        setSelectedDocId(doc.id);
+                        setAutopsyScope('DOCUMENT');
+                      }}
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected && autopsyScope === 'DOCUMENT'
+                          ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
+                          : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
+                          <FileText size={16} />
                         </div>
-                        <p className="text-[10px] font-mono text-text-muted">
-                          {doc.sizeFormatted} • Statusi: {doc.status}
-                        </p>
+                        <div className="truncate text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold truncate text-text-primary">{doc.name}</p>
+                            {doc.has_violation && (
+                              <span title="Shkelje procedurale e zbuluar!" className="text-rose-500 shrink-0">
+                                <AlertCircle size={13} />
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-text-muted">
+                            {doc.sizeFormatted} • Statusi: {doc.status}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteDocument(doc.id, doc.name, e)}
+                          disabled={isDeleting}
+                          title="Hiq nga dosja forenzike"
+                          className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        >
+                          {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteDocument(doc.id, doc.name, e)}
-                        disabled={isDeleting}
-                        title="Hiq nga dosja forenzike"
-                        className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                      >
-                        {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* KOLONA E DJATHTË: AUTOPSIA ME ZGJEDHËS TË DOKUMENTIT DHE RASTIT */}
-      <div className="lg:col-span-7 glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between">
+      {/* KOLONA E DJATHTË: AUTOPSIA ME AUTO-SCROLL DHE EXPAND */}
+      <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
-          {/* Header Bar me Zgjedhësin mes Dokumentit dhe Rastit */}
+          {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
-            {/* DUAL SCOPE SWITCHER */}
             <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0">
               <button
                 type="button"
@@ -560,8 +579,17 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat e Veprimit (Vetëm Tekst i Pastër - PA KRYQËZO) */}
+            {/* Butonat me Zgjerim (Expand) */}
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="h-8 w-8 bg-surface hover:bg-hover border border-main rounded-xl text-text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                title={isFullscreen ? "Zvogëlo pamjen" : "Zgjero në ekran të plotë"}
+              >
+                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+
               <button
                 type="button"
                 onClick={handleCopyReport}
@@ -576,14 +604,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 onClick={handleArchivePillar}
                 disabled={isArchiving || !currentPillarContent}
                 className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
-                title="Ruaj këtë shtjellë në Arkiv si PDF"
               >
                 {isArchiving ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
               </button>
             </div>
           </div>
 
-          {/* Treguesi i Shkresës Aktive */}
           <div className="text-xs text-text-muted">
             {autopsyScope === 'DOCUMENT' ? (
               <p>
@@ -596,7 +622,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* 3 SHTJELLAT (VETËM TEKST I PAZTËR - ZERO EMOJI / ZERO IKONA) */}
+          {/* 3 SHTJELLAT */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
               const cfg = currentConfigs[pillarKey];
@@ -631,7 +657,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             })}
           </div>
 
-          {/* Subtitle & Rigjenerimi i Lirë për Adminin */}
           <div className="py-1 px-1 flex items-center justify-between gap-2 text-text-muted text-[11px]">
             <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
             {currentPillarContent && !isCurrentPillarLoading && (
@@ -645,8 +670,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* Hapësira e Raportit të Autopsisë */}
-          <div className="h-[460px] overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col">
+          {/* TRUPI I AUTOPSISË ME AUTO-SCROLL */}
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className={`${isFullscreen ? 'h-[620px]' : 'h-[460px]'} overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col relative transition-all duration-200`}
+          >
             {!currentPillarContent && !isCurrentPillarLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto">
                 <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary mb-1">
@@ -689,10 +718,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 )}
               </div>
             )}
+
+            {showScrollBottomBtn && (
+              <button
+                type="button"
+                onClick={scrollToBottom}
+                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+              >
+                <span>Te Fundi</span>
+                <ArrowDown size={12} className="animate-bounce" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Shënimi Institucional në Fund */}
         <div className="pt-3 border-t border-main flex items-center justify-between text-[11px] text-text-muted">
           <span className="font-medium">
             Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
