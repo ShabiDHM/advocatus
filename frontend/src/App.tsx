@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V6.0 (DRAFTING EXCISED)
+// PHOENIX PROTOCOL - ROUTING V7.0 (ADDED EXCLUSIVE ADMIN FORENSIC DESK ROUTE)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -16,13 +16,13 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import CaseViewPage from './pages/CaseViewPage';
 import CalendarPage from './pages/CalendarPage';
-// PHOENIX FIX: DraftingPage u hoq
 import SupportPage from './pages/SupportPage';
 import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminSupportPage from './pages/AdminSupportPage';
+import AdminForensicDeskPage from './pages/AdminForensicDeskPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
@@ -102,7 +102,7 @@ const AppRoutes: React.FC = () => {
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/support" element={<AdminSupportPage />} />
-        {/* PHOENIX FIX: /drafting u hoq */}
+        <Route path="/admin/forensic-desk" element={<AdminForensicDeskPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />
