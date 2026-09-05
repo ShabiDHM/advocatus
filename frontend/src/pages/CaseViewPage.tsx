@@ -1,5 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V86.0 (TOTAL WIPEOUT INTEGRATION FOR SINGLE DOCUMENT AUDIT)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V87.0 (STRICT CHAT ISOLATION: CASE ANALYSIS & DOC AUDIT)
+// ZERO CHAT POLLUTION • SMART MONGODB CACHING • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -278,12 +279,11 @@ const CaseViewPage: React.FC = () => {
     }));
   }, []);
 
-  // 🧹 TOTAL WIPEOUT I AUDITIMIT TË DOKUMENTIT (FRONTEND STATE + MONGODB DATABASE)
+  // 🧹 TOTAL WIPEOUT I AUDITIMIT TË DOKUMENTIT
   const handleDeleteDocAuditFromModal = useCallback(async () => {
     if (!currentAuditedDoc || !caseId) return;
     const targetId = String(currentAuditedDoc.id);
 
-    // 1. Pastrim i menjëhershëm në frontend
     setDocAuditResultText('');
     setLiveDocuments((prev) => prev.map((d) => String(d.id) === targetId ? {
       ...d,
@@ -292,7 +292,6 @@ const CaseViewPage: React.FC = () => {
       last_audited_at: null
     } as any : d));
 
-    // 2. Fshirje e plotë nga MongoDB Atlas përmes Backend API
     try {
       await apiService.clearDocumentAudit(caseId, targetId);
     } catch (err) {
@@ -301,6 +300,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, currentAuditedDoc, setLiveDocuments]);
 
+  // BISEDA E ZAKONSHME E CHAT-IT (RUHET NË HISTORI: saveHistory = true)
   const handleChatSubmit = useCallback(async (
     text: string, 
     mode: ChatMode, 
@@ -324,7 +324,8 @@ const CaseViewPage: React.FC = () => {
         documentIds, 
         jurisdiction, 
         reasoning, 
-        mode === 'document' ? domain : 'automatic'
+        mode === 'document' ? domain : 'automatic',
+        true // PHOENIX FIX: Chati i zakonshëm e ruan historikun!
       );
 
       for await (const chunk of stream) {
@@ -366,7 +367,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE NË CaseAnalysisModal
+  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE NË CaseAnalysisModal (IZOLIM I PLOTË: saveHistory = false)
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
@@ -388,7 +389,9 @@ const CaseViewPage: React.FC = () => {
 
     try {
       const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë Doktrinar të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke kryer autopsinë forenzike të të gjitha shkresave, procesverbaleve dhe provave materiale.";
-      const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic');
+      
+      // PHOENIX FIX: Parametri i fundit 'false' garanton ZERO NDOTJE NË CHAT!
+      const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic', false);
       
       let accumulated = '';
       for await (const chunk of stream) {
@@ -415,7 +418,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, isAnalyzingCase, analysisResultText, caseData.details]);
 
-  // ⚖️ BUTONI I PESHORES NË DOKUMENT: HAPJE NË DocumentAuditModal (ZERO CHAT POLLUTION)
+  // ⚖️ BUTONI I PESHORES NË DOKUMENT: HAPJE NË DocumentAuditModal (IZOLIM I PLOTË: saveHistory = false)
   const handleVerifyDocumentLaws = useCallback(async (doc: Document) => {
     if (!caseId || isAuditingDoc) return;
 
@@ -440,7 +443,8 @@ const CaseViewPage: React.FC = () => {
       const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
 Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare, me nxjerrjen e çdo neni në Tabelën e Seksionit 4 me formatin Neni X i [Ligjit] për verifikim 1-klikim.`;
 
-      const stream = apiService.sendChatMessageStream(caseId, supremeAuditPrompt, [docIdStr], 'ks', 'DEEP', 'document');
+      // PHOENIX FIX: Parametri i fundit 'false' garanton ZERO NDOTJE NË CHAT!
+      const stream = apiService.sendChatMessageStream(caseId, supremeAuditPrompt, [docIdStr], 'ks', 'DEEP', 'document', false);
 
       let accumulated = '';
       for await (const chunk of stream) {
