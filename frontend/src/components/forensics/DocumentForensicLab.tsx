@@ -1,25 +1,17 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DOCUMENT FORENSIC LAB V2.0 (3-PILLAR MODULAR AUTOPSY & PDF ARCHIVING)
-// ZERO TS WARNINGS • ZERO TOKEN TRUNCATION • PURE LEGAL-TECH ALBANIAN • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V3.0 (CASE & DOCUMENT MODULAR LAB)
+// ZERO JARGON • DUAL SCOPE (CASE & DOC) • NO EMOJIS IN TABS • ZERO TS WARNINGS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FileText,
   UploadCloud,
-  Scale,
   CheckCircle2,
   AlertCircle,
   Trash2,
   Loader2,
-  Copy,
-  ShieldCheck,
   RefreshCw,
-  Search,
-  BookOpen,
-  Building2,
-  Swords,
-  Play,
-  Save,
+  Search
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,7 +21,8 @@ import { forensicService } from '../../services/forensicService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
-export type LabDocPillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
+export type AutopsyScope = 'DOCUMENT' | 'CASE';
+export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
 
 interface DocumentItem {
   id: string;
@@ -47,22 +40,21 @@ interface DocumentForensicLabProps {
   onEvidenceChange?: () => void;
 }
 
-const LAB_PILLAR_CONFIGS: Record<LabDocPillarType, { title: string; subtitle: string; icon: any; getPrompt: (docName: string) => string }> = {
+// Konfigurimi Doktrinar për Dokumentin
+const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; getPrompt: (docName: string) => string }> = {
   PILLAR_1: {
     title: '1. Ekzaminimi & Faktet',
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
-    icon: Building2,
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
 Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 1:
 - Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri i protokollit, Afatet ligjore prekluzive të atakimit).
 - Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural (Parashtruesi, Pala Kundërshtare, Interesi Juridik).
 - Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar (Faktet thelbësore, Provat materiale, Boshllëqet provuese).
-Ofro analizë shteruese, të thellë doktrinare dhe pa shkurtime.`
+Ofro analizë shteruese doktrinare, të thellë dhe pa shkurtime.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
     subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
-    icon: Scale,
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 2: NENET DHE SHKELJET]
 Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 2:
 - Seksioni 4: Tabela Shteruese e Dispozitave Ligjore të Kosovës dhe Precedentëve të Gjykatës Supreme (Çdo nen të formatohet ekzaktësisht "Neni X i [Ligjit]" për verifikim 1-klikim me precedentin përkatës PML ose Revizion).
@@ -72,13 +64,46 @@ Gjenero tabelat e plota dhe arsyetimin doktrinar të shkallës më të lartë.`
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
-    icon: Swords,
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE E DOKUMENTIT — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
 Kryej autopsinë forenzike të dokumentit "${docName}" ekskluzivisht për SHTJELLËN 3:
 - Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive e Aktit.
 - Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet e Drejtpërdrejta Taktike mbi Goditjen e Shkresës (Prapësime, Ankesa, Kundërshtime Ekspertize).
 - Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore (Hapi 1 Urgjenca, Hapi 2 Plotësimi, Hapi 3 Mbrojtja).
 Ofro strategji agresive dhe taktike të fitores ligjore.`
+  }
+};
+
+// Konfigurimi Doktrinar për të gjithë Lëndën (Rastin)
+const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prompt: string }> = {
+  PILLAR_1: {
+    title: '1. Fakti & Historiku',
+    subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
+    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 1: FAKTI & HISTORIKU]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 1:
+- Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
+- Seksioni 2: Kronologjia e Plotë Tabulare e Ngjarjeve (Data, Veprimi Procedural, Shkelja, Pasojat Juridike).
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
+Jep analizë të thellë, të plotë doktrinare, pa shkurtime.`
+  },
+  PILLAR_2: {
+    title: '2. Shkeljet & Nenet',
+    subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
+    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 2: SHKELJET & NENET]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 2:
+- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
+- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Ligjit]".
+- Seksioni 5: Përgjegjësia Penale (Nenet 390, 392, 398, 414 KPK) dhe Shkeljet Thelbësore të Procedurës (Neni 182 LPK).
+Gjenero tabelat e plota dhe arsyetimin ligjor të shkallës më të lartë.`
+  },
+  PILLAR_3: {
+    title: '3. Plani i Veprimit',
+    subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
+    prompt: `[DIREKTIVË FORENZIKE E RASTIT — SHTJELLA 3: PLANI I VEPRIMIT]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 3:
+- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
+- Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
+- Seksioni 8: Master Plani i Veprimit me Afate të Prera Ligjore (48-orëshe dhe Procedurale).
+Ofro strategji agresive dhe taktike të fitores në gjyq.`
   }
 };
 
@@ -94,14 +119,25 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Menaxhimi i 3 Shtjellave Modulare për Dokumentin
-  const [activePillar, setActivePillar] = useState<LabDocPillarType>('PILLAR_1');
-  const [pillarResults, setPillarResults] = useState<Record<LabDocPillarType, string>>({
+  // Përzgjedhësi mes Autopsisë së Dokumentit dhe Autopsisë së Rastit
+  const [autopsyScope, setAutopsyScope] = useState<AutopsyScope>('DOCUMENT');
+
+  // Menaxhimi i 3 Shtjellave për Dokumentin dhe Rastin
+  const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
+  
+  const [docPillars, setDocPillars] = useState<Record<PillarType, string>>({
     PILLAR_1: '',
     PILLAR_2: '',
     PILLAR_3: ''
   });
-  const [loadingPillars, setLoadingPillars] = useState<Record<LabDocPillarType, boolean>>({
+
+  const [casePillars, setCasePillars] = useState<Record<PillarType, string>>({
+    PILLAR_1: '',
+    PILLAR_2: '',
+    PILLAR_3: ''
+  });
+
+  const [loadingPillars, setLoadingPillars] = useState<Record<PillarType, boolean>>({
     PILLAR_1: false,
     PILLAR_2: false,
     PILLAR_3: false
@@ -115,7 +151,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
   const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
-  const currentPillarContent = pillarResults[activePillar] || '';
+
+  const activePillarsMap = autopsyScope === 'DOCUMENT' ? docPillars : casePillars;
+  const currentPillarContent = activePillarsMap[activePillar] || '';
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
 
@@ -145,14 +183,40 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   useEffect(() => {
     if (caseId) {
       loadDocuments();
+      loadCasePillars();
     }
   }, [caseId]);
 
-  // Resetimi i rezultateve kur ndryshon dokumenti i zgjedhur
+  // Ngarkimi i shtjellave të rastit nga MongoDB
+  const loadCasePillars = async () => {
+    if (!caseId) return;
+    try {
+      const details: any = await apiService.getCaseDetails(caseId);
+      if (details?.forensic_pillars) {
+        setCasePillars({
+          PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
+          PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
+          PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
+        });
+      }
+    } catch {}
+  };
+
+  // Ngarkimi i shtjellave të dokumentit kur ndryshon shkresa
   useEffect(() => {
-    setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-    setActivePillar('PILLAR_1');
-  }, [selectedDocId]);
+    if (selectedDocId && caseId) {
+      setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+      apiService.getDocument(caseId, selectedDocId).then((doc: any) => {
+        if (doc?.forensic_pillars) {
+          setDocPillars({
+            PILLAR_1: doc.forensic_pillars.DOC_PILLAR_1 || doc.forensic_pillars.PILLAR_1 || '',
+            PILLAR_2: doc.forensic_pillars.DOC_PILLAR_2 || doc.forensic_pillars.PILLAR_2 || '',
+            PILLAR_3: doc.forensic_pillars.DOC_PILLAR_3 || doc.forensic_pillars.PILLAR_3 || ''
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [selectedDocId, caseId]);
 
   const loadDocuments = async () => {
     if (!caseId) return;
@@ -189,7 +253,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setUploadProgressText(`Duke indeksuar & kryer Vision OCR: ${file.name} (${i + 1}/${files.length})...`);
+        setUploadProgressText(`Duke indeksuar me OCR: ${file.name} (${i + 1}/${files.length})...`);
         await apiService.uploadDocument(caseId, file);
       }
       setUploadProgressText("Dokumentet u indeksuan me sukses!");
@@ -216,7 +280,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       setDocuments(prev => prev.filter(d => d.id !== docId));
       if (selectedDocId === docId) {
         setSelectedDocId(null);
-        setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
       }
       if (onEvidenceChange) onEvidenceChange();
     } catch (err) {
@@ -227,56 +291,75 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  const handleGeneratePillar = async (pillar: LabDocPillarType) => {
-    if (!activeDoc || !caseId || loadingPillars[pillar]) return;
+  const handleGeneratePillar = async (pillar: PillarType) => {
+    if (!caseId || loadingPillars[pillar]) return;
 
     setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
-    setPillarResults((prev) => ({ ...prev, [pillar]: '' }));
 
-    try {
-      const prompt = LAB_PILLAR_CONFIGS[pillar].getPrompt(activeDoc.name);
-      const stream = apiService.sendChatMessageStream(
-        caseId,
-        prompt,
-        [activeDoc.id],
-        'ks',
-        'DEEP',
-        'document',
-        false // PHOENIX FIX: Izolim absolut nga Chat-i
-      );
+    if (autopsyScope === 'DOCUMENT') {
+      if (!activeDoc) return;
+      setDocPillars((prev) => ({ ...prev, [pillar]: '' }));
 
-      let accumulated = '';
-      for await (const chunk of stream) {
-        accumulated += chunk;
-        const currentAcc = accumulated;
-        setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
+      try {
+        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(activeDoc.name);
+        const stream = apiService.sendChatMessageStream(
+          caseId,
+          prompt,
+          [activeDoc.id],
+          'ks',
+          'DEEP',
+          'document',
+          false
+        );
+
+        let accumulated = '';
+        for await (const chunk of stream) {
+          accumulated += chunk;
+          const currentAcc = accumulated;
+          setDocPillars((prev) => ({ ...prev, [pillar]: currentAcc }));
+        }
+
+        if (accumulated.trim().length > 50) {
+          await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
+        }
+      } catch (err) {
+        console.error(`Doc Pillar Error [${pillar}]:`, err);
+        alert(`Ndodhi një gabim gjatë auditimit.`);
+      } finally {
+        setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
+    } else {
+      // AUTOPSIA E RASTIT
+      setCasePillars((prev) => ({ ...prev, [pillar]: '' }));
 
-      if (accumulated.includes('SHKELJE') || accumulated.includes('Neni 182')) {
-        setDocuments(prev => prev.map(d => d.id === activeDoc.id ? { ...d, has_violation: true } : d));
+      try {
+        const prompt = CASE_PILLAR_CONFIGS[pillar].prompt;
+        const stream = apiService.sendChatMessageStream(
+          caseId,
+          prompt,
+          undefined,
+          'ks',
+          'DEEP',
+          'automatic',
+          false
+        );
+
+        let accumulated = '';
+        for await (const chunk of stream) {
+          accumulated += chunk;
+          const currentAcc = accumulated;
+          setCasePillars((prev) => ({ ...prev, [pillar]: currentAcc }));
+        }
+
+        if (accumulated.trim().length > 50) {
+          await forensicService.saveCasePillar(caseId, pillar, accumulated);
+        }
+      } catch (err) {
+        console.error(`Case Pillar Error [${pillar}]:`, err);
+        alert(`Ndodhi një gabim gjatë analizës së rastit.`);
+      } finally {
+        setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
-    } catch (err) {
-      console.error(`Pillar Analysis Error [${pillar}]:`, err);
-      alert(`Ndodhi një gabim gjatë auditimit të ${LAB_PILLAR_CONFIGS[pillar].title}.`);
-    } finally {
-      setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
-    }
-  };
-
-  const handleRunCrossExamination = async () => {
-    if (!selectedDocId || !caseId || isCurrentPillarLoading) return;
-    setLoadingPillars(prev => ({ ...prev, [activePillar]: true }));
-    setPillarResults(prev => ({ ...prev, [activePillar]: 'Duke kryqëzuar shkresën me të gjitha provat e tjera të fashikullit...' }));
-
-    try {
-      const result = await forensicService.crossExamineDocument(caseId, selectedDocId);
-      const formatted = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-      setPillarResults(prev => ({ ...prev, [activePillar]: formatted }));
-    } catch (err) {
-      console.error("Cross examine error:", err);
-      alert("Dështoi ekzaminimi i kryqëzuar.");
-    } finally {
-      setLoadingPillars(prev => ({ ...prev, [activePillar]: false }));
     }
   };
 
@@ -288,13 +371,16 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   };
 
   const handleArchivePillar = async () => {
-    if (!caseId || !activeDoc || !currentPillarContent) return;
+    if (!caseId || !currentPillarContent) return;
     setIsArchiving(true);
     setArchiveSuccess(false);
 
     try {
-      const archiveTitle = `${LAB_PILLAR_CONFIGS[activePillar].title} - ${activeDoc.name}`;
-      await apiService.archiveForensicReport(caseId, archiveTitle, currentPillarContent);
+      const activeTitle = autopsyScope === 'DOCUMENT'
+        ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.name || 'Dokument'}`
+        : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
+
+      await apiService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
       setArchiveSuccess(true);
       setTimeout(() => setArchiveSuccess(false), 3000);
     } catch (err: any) {
@@ -307,6 +393,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const filteredDocs = documents.filter(d =>
     d.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -391,15 +479,18 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 return (
                   <div
                     key={doc.id}
-                    onClick={() => setSelectedDocId(doc.id)}
+                    onClick={() => {
+                      setSelectedDocId(doc.id);
+                      setAutopsyScope('DOCUMENT');
+                    }}
                     className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      isSelected
+                      isSelected && autopsyScope === 'DOCUMENT'
                         ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
                         : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
-                      <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
+                      <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
                         <FileText size={16} />
                       </div>
                       <div className="truncate text-xs">
@@ -418,7 +509,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      {isSelected && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
+                      {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                       <button
                         type="button"
                         onClick={(e) => handleDeleteDocument(doc.id, doc.name, e)}
@@ -437,42 +528,46 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       </div>
 
-      {/* KOLONA E DJATHTË: 3 SHTJELLAT MODULARE TË AUTOPSISË */}
+      {/* KOLONA E DJATHTË: AUTOPSIA ME ZGJEDHËS TË DOKUMENTIT DHE RASTIT */}
       <div className="lg:col-span-7 glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between">
         <div className="space-y-3">
-          {/* Header Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Scale size={18} className="text-primary-start" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary">
-                  Autopsia Ligjore & Integriteti i Aktit
-                </h3>
-              </div>
-              <p className="text-xs text-text-muted mt-0.5 truncate max-w-md">
-                Dokumenti: <span className="font-bold text-text-primary">{activeDoc?.name || 'Asnjë i përzgjedhur'}</span>
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Header Bar me Zgjedhësin mes Dokumentit dhe Rastit */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
+            {/* DUAL SCOPE SWITCHER */}
+            <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0">
               <button
                 type="button"
-                onClick={handleRunCrossExamination}
-                disabled={!selectedDocId || isCurrentPillarLoading}
-                className="h-8 sm:h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-primary-start flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer"
-                title="Kryqëzo me të gjithë fashikullin"
+                onClick={() => setAutopsyScope('DOCUMENT')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  autopsyScope === 'DOCUMENT'
+                    ? 'bg-primary-start text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
               >
-                <BookOpen size={13} />
-                <span className="hidden sm:inline">Kryqëzo</span>
+                Autopsia e Dokumentit
               </button>
 
               <button
                 type="button"
+                onClick={() => setAutopsyScope('CASE')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  autopsyScope === 'CASE'
+                    ? 'bg-primary-start text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                Autopsia e Rastit
+              </button>
+            </div>
+
+            {/* Butonat e Veprimit (Vetëm Tekst i Pastër - PA KRYQËZO) */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
                 onClick={handleCopyReport}
                 disabled={!currentPillarContent}
-                className="h-8 sm:h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer"
+                className="h-8 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
               >
-                {copiedReport ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
                 <span>{copiedReport ? 'U Kopjua' : 'Kopjo'}</span>
               </button>
 
@@ -480,22 +575,33 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 type="button"
                 onClick={handleArchivePillar}
                 disabled={isArchiving || !currentPillarContent}
-                className="h-8 sm:h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-primary-start flex items-center gap-1.5 transition-all disabled:opacity-40 cursor-pointer"
+                className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
                 title="Ruaj këtë shtjellë në Arkiv si PDF"
               >
-                {isArchiving ? <Loader2 size={13} className="animate-spin" /> : archiveSuccess ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Save size={13} />}
-                <span>{archiveSuccess ? 'U Ruajt!' : 'Arkivo'}</span>
+                {isArchiving ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
               </button>
             </div>
           </div>
 
-          {/* 3 SHTJELLAT SWITCHER */}
+          {/* Treguesi i Shkresës Aktive */}
+          <div className="text-xs text-text-muted">
+            {autopsyScope === 'DOCUMENT' ? (
+              <p>
+                Dokumenti në Ekzaminim: <span className="font-bold text-text-primary">{activeDoc?.name || 'Asnjë i përzgjedhur'}</span>
+              </p>
+            ) : (
+              <p>
+                Fashikulli i Plotë: <span className="font-bold text-text-primary">Ekspertizë Master për të Gjithë Dosjen</span>
+              </p>
+            )}
+          </div>
+
+          {/* 3 SHTJELLAT (VETËM TEKST I PAZTËR - ZERO EMOJI / ZERO IKONA) */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-            {(Object.keys(LAB_PILLAR_CONFIGS) as LabDocPillarType[]).map((pillarKey) => {
-              const cfg = LAB_PILLAR_CONFIGS[pillarKey];
-              const IconComp = cfg.icon;
+            {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
+              const cfg = currentConfigs[pillarKey];
               const isSelected = activePillar === pillarKey;
-              const hasContent = Boolean(pillarResults[pillarKey]?.trim());
+              const hasContent = Boolean(activePillarsMap[pillarKey]?.trim());
               const isLoading = loadingPillars[pillarKey];
 
               return (
@@ -503,7 +609,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   key={pillarKey}
                   type="button"
                   onClick={() => setActivePillar(pillarKey)}
-                  className={`px-2 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -514,65 +620,60 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   }`}
                 >
                   {isLoading ? (
-                    <Loader2 size={13} className="animate-spin text-white" />
-                  ) : (
-                    <IconComp size={13} className={isSelected ? 'text-white' : 'text-text-muted'} />
-                  )}
+                    <Loader2 size={12} className="animate-spin text-white" />
+                  ) : null}
                   <span className="truncate">{cfg.title}</span>
                   {hasContent && !isLoading && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} title="E ruajtur në MongoDB" />
                   )}
                 </button>
               );
             })}
           </div>
 
-          {/* Subtitle & Re-analyze action */}
+          {/* Subtitle & Rigjenerimi i Lirë për Adminin */}
           <div className="py-1 px-1 flex items-center justify-between gap-2 text-text-muted text-[11px]">
-            <p className="truncate font-medium">{LAB_PILLAR_CONFIGS[activePillar].subtitle}</p>
+            <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
             {currentPillarContent && !isCurrentPillarLoading && (
               <button
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
-                className="text-primary-start hover:text-primary-end font-bold flex items-center gap-1 hover:underline cursor-pointer shrink-0"
+                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0"
               >
-                <RefreshCw size={11} />
                 <span>Rigjenero</span>
               </button>
             )}
           </div>
 
-          {/* Hapësira e Raportit të Autopsisë me Markdown Renderer */}
-          <div className="h-[470px] overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col">
+          {/* Hapësira e Raportit të Autopsisë */}
+          <div className="h-[460px] overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col">
             {!currentPillarContent && !isCurrentPillarLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto">
-                <div className="w-12 h-12 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center mb-3 border border-primary-start/20">
-                  {React.createElement(LAB_PILLAR_CONFIGS[activePillar].icon, { size: 24 })}
-                </div>
                 <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary mb-1">
-                  {LAB_PILLAR_CONFIGS[activePillar].title}
+                  {currentConfigs[activePillar].title}
                 </h4>
                 <p className="text-[11px] text-text-muted max-w-sm mb-5 leading-relaxed">
-                  {activeDoc ? `Klikoni butonin më poshtë për të kryer autopsinë e thellë për shkresën "${activeDoc.name}".` : 'Përzgjidhni një shkresë në të majtë për të filluar.'}
+                  {autopsyScope === 'DOCUMENT'
+                    ? (activeDoc ? `Klikoni më poshtë për të kryer autopsinë e shkresës "${activeDoc.name}".` : 'Përzgjidhni një shkresë në të majtë.')
+                    : 'Klikoni më poshtë për të kryer analizën e thellë për të gjithë fashikullin.'}
                 </p>
                 <button
                   type="button"
-                  disabled={!selectedDocId}
+                  disabled={autopsyScope === 'DOCUMENT' && !selectedDocId}
                   onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-5 py-2.5 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-start/20 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40"
+                  className="px-5 py-2.5 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-start/20 cursor-pointer transition-all disabled:opacity-40"
                 >
-                  <Play size={13} className="fill-white" />
-                  <span>Analizo {LAB_PILLAR_CONFIGS[activePillar].title}</span>
+                  <span>Analizo {currentConfigs[activePillar].title}</span>
                 </button>
               </div>
             ) : isCurrentPillarLoading && !currentPillarContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-9 h-9 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                  Duke analizuar {LAB_PILLAR_CONFIGS[activePillar].title}...
+                  Duke analizuar {currentConfigs[activePillar].title}...
                 </p>
                 <p className="text-[10px] text-text-muted mt-1">
-                  Juristi AI po kryen autopsinë e thellë forenzike të shkresës.
+                  Juristi AI po kryen autopsinë e thellë doktrinare.
                 </p>
               </div>
             ) : (
@@ -583,7 +684,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 {isCurrentPillarLoading && (
                   <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 text-xs font-bold">
                     <Loader2 size={13} className="animate-spin" />
-                    <span>Duke gjeneruar analizën doktrinare...</span>
+                    <span>Duke gjeneruar rrjedhën doktrinare...</span>
                   </div>
                 )}
               </div>
@@ -591,11 +692,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           </div>
         </div>
 
-        {/* Shënimi Doktrinar në Fund */}
+        {/* Shënimi Institucional në Fund */}
         <div className="pt-3 border-t border-main flex items-center justify-between text-[11px] text-text-muted">
-          <span className="flex items-center gap-1.5 font-medium">
-            <ShieldCheck size={14} className="text-emerald-500" />
-            Standard i Pajtueshëm me Gjykatën Supreme & OAK
+          <span className="font-medium">
+            Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
           </span>
           <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1M Context)</span>
         </div>
