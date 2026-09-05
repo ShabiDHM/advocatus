@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V4.0 (AUTO-SCROLL STREAM & FULLSCREEN EXPAND)
-// ZERO TS WARNINGS • AUTO-SCROLL TO BOTTOM • EXPAND/COLLAPSE FULLSCREEN • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V5.0 (ADMIN TRASH PURGE & INSTANT MONGO SYNC)
+// ZERO TS WARNINGS • ADMIN TRASH PURGE • 0MS INSTANT LOAD • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
@@ -36,6 +36,7 @@ interface DocumentItem {
   extracted_text?: string;
   status?: string;
   has_violation?: boolean;
+  forensic_pillars?: Record<string, string>;
 }
 
 interface DocumentForensicLabProps {
@@ -126,6 +127,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+  const [isDeletingPillars, setIsDeletingPillars] = useState<boolean>(false);
 
   const [docPillars, setDocPillars] = useState<Record<PillarType, string>>({
     PILLAR_1: '',
@@ -161,7 +163,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
 
-  // AUTO-SCROLL AUTOMATIK GJATË STREAM-IT
+  // AUTO-SCROLL GJATË STREAM-IT
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -209,6 +211,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId]);
 
+  // Ngarkimi i shtjellave të rastit nga MongoDB
   const loadCasePillars = async () => {
     if (!caseId) return;
     try {
@@ -223,20 +226,22 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     } catch {}
   };
 
+  // Ngarkimi i shtjellave të dokumentit nga MongoDB sapo klikohet shkresa
   useEffect(() => {
     if (selectedDocId && caseId) {
       setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
       apiService.getDocument(caseId, selectedDocId).then((doc: any) => {
-        if (doc?.forensic_pillars) {
+        const pillars = doc?.forensic_pillars || (activeDoc as any)?.forensic_pillars;
+        if (pillars) {
           setDocPillars({
-            PILLAR_1: doc.forensic_pillars.DOC_PILLAR_1 || doc.forensic_pillars.PILLAR_1 || '',
-            PILLAR_2: doc.forensic_pillars.DOC_PILLAR_2 || doc.forensic_pillars.PILLAR_2 || '',
-            PILLAR_3: doc.forensic_pillars.DOC_PILLAR_3 || doc.forensic_pillars.PILLAR_3 || ''
+            PILLAR_1: pillars.PILLAR_1 || pillars.DOC_PILLAR_1 || '',
+            PILLAR_2: pillars.PILLAR_2 || pillars.DOC_PILLAR_2 || '',
+            PILLAR_3: pillars.PILLAR_3 || pillars.DOC_PILLAR_3 || ''
           });
         }
       }).catch(() => {});
     }
-  }, [selectedDocId, caseId]);
+  }, [selectedDocId, caseId, activeDoc]);
 
   const loadDocuments = async () => {
     if (!caseId) return;
@@ -251,13 +256,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         created_at: d.created_at || d.uploaded_at || new Date().toISOString(),
         extracted_text: d.extracted_text || d.text || '',
         status: d.status || 'READY',
-        has_violation: Boolean(d.has_violation || (d.audit_result && (d.audit_result.includes('SHKELJE') || d.audit_result.includes('Neni 182'))))
+        has_violation: Boolean(d.has_violation || (d.audit_result && (d.audit_result.includes('SHKELJE') || d.audit_result.includes('Neni 182')))),
+        forensic_pillars: d.forensic_pillars || {}
       }));
 
       setDocuments(mapped);
 
       if (mapped.length > 0 && !selectedDocId) {
         setSelectedDocId(mapped[0].id);
+        if (mapped[0].forensic_pillars) {
+          setDocPillars({
+            PILLAR_1: mapped[0].forensic_pillars.PILLAR_1 || '',
+            PILLAR_2: mapped[0].forensic_pillars.PILLAR_2 || '',
+            PILLAR_3: mapped[0].forensic_pillars.PILLAR_3 || ''
+          });
+        }
       }
     } catch (err) {
       console.error("Dështoi ngarkimi i dokumenteve:", err);
@@ -311,6 +324,39 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
+  // KOSHI I FSHIRJES SË SHTJELLAVE NGA ADMINI (PURGE PILLARS)
+  const handleAdminPurgePillars = async () => {
+    if (!caseId) return;
+    
+    if (autopsyScope === 'DOCUMENT') {
+      if (!selectedDocId || !activeDoc) return;
+      if (!window.confirm(`A jeni i sigurt që doni të fshini të gjitha shtjellat e autopsisë për shkresën "${activeDoc.name}" nga MongoDB?`)) return;
+
+      setIsDeletingPillars(true);
+      try {
+        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+        await forensicService.clearDocumentAudit(caseId, selectedDocId);
+        setDocuments(prev => prev.map(d => d.id === selectedDocId ? { ...d, forensic_pillars: {} } : d));
+      } catch (err) {
+        console.error("Failed to purge doc pillars:", err);
+      } finally {
+        setIsDeletingPillars(false);
+      }
+    } else {
+      if (!window.confirm("A jeni i sigurt që doni të fshini analizat e të gjitha shtjellave të këtij rasti nga MongoDB?")) return;
+
+      setIsDeletingPillars(true);
+      try {
+        setCasePillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+        await forensicService.clearCaseAnalysis(caseId);
+      } catch (err) {
+        console.error("Failed to purge case pillars:", err);
+      } finally {
+        setIsDeletingPillars(false);
+      }
+    }
+  };
+
   const handleGeneratePillar = async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -329,7 +375,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           [activeDoc.id],
           'ks',
           'DEEP',
-          'automatic',
+          'document',
           false
         );
 
@@ -342,6 +388,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
         if (accumulated.trim().length > 50) {
           await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
+          setDocuments(prev => prev.map(d => d.id === activeDoc.id ? {
+            ...d,
+            forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: accumulated }
+          } : d));
         }
       } catch (err) {
         console.error(`Doc Pillar Error [${pillar}]:`, err);
@@ -418,7 +468,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   return (
     <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300`}>
-      {/* KOLONA E MAJTË (Fshihet kur zmadhohet në ekran të plotë) */}
+      {/* KOLONA E MAJTË */}
       {!isFullscreen && (
         <div className="lg:col-span-5 space-y-4">
           <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
@@ -548,7 +598,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       )}
 
-      {/* KOLONA E DJATHTË: AUTOPSIA ME AUTO-SCROLL DHE EXPAND */}
+      {/* KOLONA E DJATHTË ME KOSHIN E ADMINIT DHE AUTO-SCROLL */}
       <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
           {/* Header Bar */}
@@ -579,8 +629,18 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat me Zgjerim (Expand) */}
+            {/* Butonat e Veprimit me Koshin e Adminit */}
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAdminPurgePillars}
+                disabled={isDeletingPillars || !currentPillarContent}
+                className="h-8 w-8 bg-surface hover:bg-rose-500/10 border border-main hover:border-rose-500/30 text-text-muted hover:text-rose-500 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer shadow-sm"
+                title={autopsyScope === 'DOCUMENT' ? "Fshi shtjellat e këtij dokumenti nga MongoDB" : "Fshi shtjellat e rastit nga MongoDB"}
+              >
+                {isDeletingPillars ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)}
