@@ -1,12 +1,13 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - EXECUTIVE MASTER FORENSIC REPORT MODAL V8.0 (SECURE ADMIN-ONLY DELETION)
-// ZERO TS WARNINGS • ZERO HARDCODING • SOLID THEME-AWARE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V9.0 (TABBED EXECUTIVE WORKSPACE)
+// 3 MODULAR TABS • ZERO TRUNCATION • ADMIN-ONLY DELETE • SOLID THEME-AWARE
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown
+  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown,
+  Building2, Scale, Swords, FileText
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,6 +15,8 @@ import remarkGfm from 'remark-gfm';
 import { apiService } from '../../services/api';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
+
+type ReportPillarTab = 'ALL' | 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
 
 interface CaseAnalysisModalProps {
   isOpen: boolean;
@@ -54,6 +57,9 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   modalHeaderTitle,
   onDeleteAnalysis,
 }) => {
+  // Tab-i Aktiv i 3 Shtjellave
+  const [activePillar, setActivePillar] = useState<ReportPillarTab>('ALL');
+
   const [copied, setCopied] = useState<boolean>(false);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
   const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
@@ -76,7 +82,38 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
   const pristineDocument = sanitizeReportDocument(analysisText);
-  const autoLinkedContent = autoLinkLegalCitations(pristineDocument);
+
+  // Ndarja e Zgjuar e Raportit në 3 Pjesë me Regex
+  const { pillar1Text, pillar2Text, pillar3Text } = useMemo(() => {
+    if (!pristineDocument) return { pillar1Text: '', pillar2Text: '', pillar3Text: '' };
+
+    // Kërkojmë ndarjet e Seksioneve
+    const p1Match = pristineDocument.match(/###\s*1\.\s*🏛️[\s\S]*?(?=###\s*3\.\s*🔬|$)/i);
+    const p2Match = pristineDocument.match(/###\s*3\.\s*🔬[\s\S]*?(?=###\s*6\.\s*🔨|$)/i);
+    const p3Match = pristineDocument.match(/###\s*6\.\s*🔨[\s\S]*$/i);
+
+    return {
+      pillar1Text: p1Match ? p1Match[0].trim() : '',
+      pillar2Text: p2Match ? p2Match[0].trim() : '',
+      pillar3Text: p3Match ? p3Match[0].trim() : ''
+    };
+  }, [pristineDocument]);
+
+  // Përcaktimi i Tekstit për Shfaqje sipas Tab-it
+  const displayedContent = useMemo(() => {
+    if (activePillar === 'PILLAR_1') {
+      return pillar1Text || pristineDocument;
+    }
+    if (activePillar === 'PILLAR_2') {
+      return pillar2Text || pristineDocument;
+    }
+    if (activePillar === 'PILLAR_3') {
+      return pillar3Text || pristineDocument;
+    }
+    return pristineDocument;
+  }, [activePillar, pillar1Text, pillar2Text, pillar3Text, pristineDocument]);
+
+  const autoLinkedContent = autoLinkLegalCitations(displayedContent);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -132,7 +169,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(pristineDocument);
+    navigator.clipboard.writeText(displayedContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -191,18 +228,18 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             isFullscreen 
               ? 'h-full max-h-screen rounded-none border-0' 
               : 'h-full sm:h-[94vh] max-w-6xl sm:max-h-[960px] rounded-none sm:rounded-3xl border-0 sm:border sm:border-main'
-          } p-3 sm:p-5 md:p-7 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
+          } p-3 sm:p-5 md:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
-          {/* Header Ultra-Adaptiv */}
-          <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-main shrink-0 gap-2">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 sm:pb-3.5 border-b border-main shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-start/10 text-primary-start rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary-start/20 shrink-0 shadow-xs">
                 <FileSearch className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-xs sm:text-sm md:text-base font-black text-text-primary uppercase tracking-tight truncate leading-tight">
-                  {modalHeaderTitle || "Raporti i Plotë Forenzik"}
+                  {modalHeaderTitle || "Raporti Master i Autopsisë Forenzike"}
                 </h3>
                 <p className="text-[10px] sm:text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
                   {caseTitle} <span className="opacity-60">•</span> {clientName}
@@ -212,7 +249,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
             {/* Kontrollet */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Font Resizer */}
               <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
                 <button
                   type="button"
@@ -244,7 +280,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 </button>
               </div>
 
-              {/* PHOENIX FIX: Butoni i Fshirjes shfaqet VETËM kur onDeleteAnalysis është i pranishëm (ADMIN) */}
               {onDeleteAnalysis && (
                 <button
                   type="button"
@@ -277,11 +312,66 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
+          {/* SHIRITI I 3 SHTJELLAVE (3-PILLAR TAB SWITCHER) */}
+          <div className="pt-2.5 pb-1 flex items-center gap-1.5 overflow-x-auto shrink-0 custom-finance-scroll">
+            <button
+              type="button"
+              onClick={() => setActivePillar('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activePillar === 'ALL'
+                  ? 'bg-primary-start text-white shadow-sm'
+                  : 'bg-surface hover:bg-hover text-text-muted border border-main'
+              }`}
+            >
+              <FileText size={13} />
+              <span>Raporti i Plotë</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePillar('PILLAR_1')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activePillar === 'PILLAR_1'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20'
+              }`}
+            >
+              <Building2 size={13} />
+              <span>🏛️ 1. Fakti & Historiku</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePillar('PILLAR_2')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activePillar === 'PILLAR_2'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
+              }`}
+            >
+              <Scale size={13} />
+              <span>⚖️ 2. Shkeljet & Nenet</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActivePillar('PILLAR_3')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                activePillar === 'PILLAR_3'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20'
+              }`}
+            >
+              <Swords size={13} />
+              <span>🎯 3. Plani i Veprimit</span>
+            </button>
+          </div>
+
           {/* Trupi i Raportit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-2 sm:my-3 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y"
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-2 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y"
           >
             <style>{`
               .dynamic-forensic-report p,
@@ -333,7 +423,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* Butoni Lundrues për Rikthim te Fundi */}
           <AnimatePresence>
             {showScrollBottomBtn && (
               <motion.button
@@ -350,8 +439,8 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Veprimet Ekzekutive */}
-          <div className="flex items-center justify-between pt-2.5 sm:pt-4 border-t border-main gap-2 sm:gap-3 shrink-0">
+          {/* Veprimet */}
+          <div className="flex items-center justify-between pt-2.5 sm:pt-3 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleArchive}
@@ -375,7 +464,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               className="flex-1 sm:flex-initial h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
-              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Raportin'}</span>
+              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Pjesën'}</span>
             </button>
           </div>
         </motion.div>
