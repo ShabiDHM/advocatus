@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - LEGAL PALANTIR KOSOVA: MASTER FORENSIC STUDIO SHELL V3.0
-// 5 AUTONOMOUS LABS UNIFIED • ZERO TS WARNINGS • ZERO HARDCODING • IMMUTABLE EVIDENCE FOUNDRY
+// PHOENIX PROTOCOL - LEGAL PALANTIR KOSOVA: MASTER FORENSIC STUDIO SHELL V3.1
+// 5 AUTONOMOUS LABS + THE INVESTIGATOR'S LOG (SENTINEL) • ZERO TS WARNINGS • ZERO HARDCODING
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -29,6 +29,9 @@ import { AudioForensicLab } from '../components/forensics/AudioForensicLab';
 import { VisualForensicLab } from '../components/forensics/VisualForensicLab';
 import { FinancialForensicLab } from '../components/forensics/FinancialForensicLab';
 import { SynthesisWarRoom } from '../components/forensics/SynthesisWarRoom';
+
+// Importimi i Ditarit të Hetuesit Autonom
+import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | 'WAR_ROOM';
 
@@ -64,6 +67,9 @@ export const AdminForensicDeskPage: React.FC = () => {
   const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
   const [loadingCases, setLoadingCases] = useState<boolean>(false);
   const [existingCasesList, setExistingCasesList] = useState<any[]>([]);
+
+  // Gjendja e Ditarit të Hetuesit
+  const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
 
   // Kuotat e Provave sipas Laboratorëve
   const [labCounts, setLabCounts] = useState<LabEvidenceCounts>({
@@ -208,7 +214,7 @@ export const AdminForensicDeskPage: React.FC = () => {
                 Legal Palantir Kosova
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-primary-start/15 text-primary-start border border-primary-start/30 font-mono text-[10px] font-bold uppercase tracking-wider">
-                Forensic Studio v3.0
+                Forensic Studio v3.1
               </span>
               {activeDossier && (
                 <button
@@ -229,8 +235,19 @@ export const AdminForensicDeskPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Zgjedhësi i Dosjeve & Butoni i Regjistrimit të Ri */}
+        {/* Zgjedhësi i Dosjeve, Butoni i Ditarit të Hetuesit & Butoni i Regjistrimit të Ri */}
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* BUTONI I DITARIT TË HETUESIT (SENTINEL TRIGGER) */}
+          <button
+            type="button"
+            onClick={() => setShowInvestigatorDrawer(true)}
+            className="h-10 px-3.5 rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+            title="Hap Ditarin e Hetuesit Autonom"
+          >
+            <span className="text-sm">🕵️</span>
+            <span>Ditari i Hetuesit</span>
+          </button>
+
           <div className="relative flex items-center bg-surface border border-main rounded-2xl px-3 py-1.5 shadow-sm">
             <FolderOpen size={16} className="text-primary-start mr-2 shrink-0" />
             <select
@@ -446,6 +463,17 @@ export const AdminForensicDeskPage: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* PANELI ANËSOR RRËSHQITËS: DITARI I HETUESIT (INVESTIGATOR'S LOG SENTINEL) */}
+      {activeDossier && (
+        <InvestigatorLogDrawer
+          isOpen={showInvestigatorDrawer}
+          onClose={() => setShowInvestigatorDrawer(false)}
+          caseId={activeDossier.id}
+          clientName={activeDossier.clientName}
+          chainOfCustodyHash={activeDossier.chainOfCustodyHash}
+        />
+      )}
 
       {/* MODALI I KRIJIMIT TË DOSJES SË RE FORENZIKE */}
       {showNewDossierModal && (
