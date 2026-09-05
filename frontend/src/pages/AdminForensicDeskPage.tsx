@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - LEGAL PALANTIR KOSOVA: MASTER FORENSIC STUDIO SHELL V3.1
-// 5 AUTONOMOUS LABS + THE INVESTIGATOR'S LOG (SENTINEL) • ZERO TS WARNINGS • ZERO HARDCODING
+// PHOENIX PROTOCOL - FORENSIC AUTOPSY LAB: MASTER DESK V4.0 (CLEAN INSTITUTIONAL DESIGN)
+// ZERO JARGON • 5 AUTONOMOUS LABS • SENTINEL INVESTIGATOR LOG • ZERO TS WARNINGS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -23,14 +23,14 @@ import {
 import { apiService } from '../services/api';
 import { forensicService } from '../services/forensicService';
 
-// Importimi i 5 Laboratorëve të Pavarur Forenzikë
+// Importimi i 5 Laboratorëve Forenzikë
 import { DocumentForensicLab } from '../components/forensics/DocumentForensicLab';
 import { AudioForensicLab } from '../components/forensics/AudioForensicLab';
 import { VisualForensicLab } from '../components/forensics/VisualForensicLab';
 import { FinancialForensicLab } from '../components/forensics/FinancialForensicLab';
 import { SynthesisWarRoom } from '../components/forensics/SynthesisWarRoom';
 
-// Importimi i Ditarit të Hetuesit Autonom
+// Importimi i Ditarit të Hetuesit
 import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | 'WAR_ROOM';
@@ -59,19 +59,13 @@ interface LabEvidenceCounts {
 }
 
 export const AdminForensicDeskPage: React.FC = () => {
-  // Laboratori Aktiv
   const [activeLab, setActiveLab] = useState<ForensicLabType>('DOCUMENTS');
-
-  // Menaxhimi i Dosjes Aktive
   const [activeDossier, setActiveDossier] = useState<ForensicDossier | null>(null);
   const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
   const [loadingCases, setLoadingCases] = useState<boolean>(false);
   const [existingCasesList, setExistingCasesList] = useState<any[]>([]);
-
-  // Gjendja e Ditarit të Hetuesit
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
 
-  // Kuotat e Provave sipas Laboratorëve
   const [labCounts, setLabCounts] = useState<LabEvidenceCounts>({
     DOCUMENTS: 0,
     AUDIO: 0,
@@ -80,7 +74,6 @@ export const AdminForensicDeskPage: React.FC = () => {
     WAR_ROOM: 0
   });
 
-  // Formular për Dosje të Re
   const [newDossierForm, setNewDossierForm] = useState({
     clientName: '',
     clientPhone: '',
@@ -92,7 +85,6 @@ export const AdminForensicDeskPage: React.FC = () => {
 
   const [copiedHash, setCopiedHash] = useState<boolean>(false);
 
-  // Hash deterministik për Chain of Custody
   const generateDeterministicHash = (seed: string): string => {
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
@@ -138,7 +130,6 @@ export const AdminForensicDeskPage: React.FC = () => {
     loadExistingDossiers();
   }, [loadExistingDossiers]);
 
-  // Ngarkimi i numrit të saktë të provave për lëndën aktive
   const refreshEvidenceCounts = useCallback(async () => {
     if (!activeDossier?.id) return;
     try {
@@ -169,7 +160,6 @@ export const AdminForensicDeskPage: React.FC = () => {
     }
   }, [activeDossier?.id, refreshEvidenceCounts]);
 
-  // Krijimi i Dosjes së Re me Formular
   const handleCreateNewDossier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDossierForm.clientName.trim()) {
@@ -202,20 +192,17 @@ export const AdminForensicDeskPage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-canvas text-text-primary p-3 sm:p-6 lg:p-8 max-w-[1750px] mx-auto transition-colors select-none">
-      {/* KOKA SUPREME: IDENTITETI DHE STATUSI I DOSJES FORENZIKE */}
+      {/* KOKA INSTITUCIONALE E LABORATORIT TË AUTOPSISË */}
       <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-5 border-b border-main">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-600 via-indigo-700 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/20 shrink-0">
-            <ShieldAlert size={26} />
+          <div className="w-11 h-11 rounded-2xl bg-primary-start text-white flex items-center justify-center shadow-md shrink-0">
+            <ShieldAlert size={24} />
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-text-primary">
-                Legal Palantir Kosova
+                Laboratori i Autopsisë
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-primary-start/15 text-primary-start border border-primary-start/30 font-mono text-[10px] font-bold uppercase tracking-wider">
-                Forensic Studio v3.1
-              </span>
               {activeDossier && (
                 <button
                   type="button"
@@ -230,26 +217,24 @@ export const AdminForensicDeskPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-text-muted font-medium mt-0.5">
-              Laboratori Multimodal i Ekspertizës Ligjore • Verifikim Shkencor i Provave • Standard OAK & Gjykata Supreme
+              Qendra Administrative e Ekspertizës dhe Verifikimit Forenzik të Provave
             </p>
           </div>
         </div>
 
-        {/* Zgjedhësi i Dosjeve, Butoni i Ditarit të Hetuesit & Butoni i Regjistrimit të Ri */}
+        {/* Zgjedhësi i Dosjes, Ditari i Hetuesit & Krijimi i Dosjes */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* BUTONI I DITARIT TË HETUESIT (SENTINEL TRIGGER) */}
           <button
             type="button"
             onClick={() => setShowInvestigatorDrawer(true)}
-            className="h-10 px-3.5 rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-            title="Hap Ditarin e Hetuesit Autonom"
+            className="h-10 px-4 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+            title="Hap Ditarin e Hetuesit"
           >
-            <span className="text-sm">🕵️</span>
             <span>Ditari i Hetuesit</span>
           </button>
 
-          <div className="relative flex items-center bg-surface border border-main rounded-2xl px-3 py-1.5 shadow-sm">
-            <FolderOpen size={16} className="text-primary-start mr-2 shrink-0" />
+          <div className="relative flex items-center bg-surface border border-main rounded-xl px-3 py-1.5 shadow-sm">
+            <FolderOpen size={15} className="text-primary-start mr-2 shrink-0" />
             <select
               value={activeDossier?.id || ''}
               onChange={(e) => {
@@ -281,7 +266,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowNewDossierModal(true)}
-            className="h-10 px-4 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+            className="h-10 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <Plus size={15} />
             <span>Dosje e Re</span>
@@ -392,7 +377,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         )}
       </nav>
 
-      {/* TRUPI OPERATIV I ZYRËS: RENDERIMI I LABORATORIT TË ZGJEDHUR */}
+      {/* TRUPI OPERATIV I ZYRËS */}
       <main className="space-y-6">
         {!activeDossier ? (
           <div className="p-12 text-center glass-panel rounded-3xl border border-main bg-card flex flex-col items-center justify-center gap-4">
@@ -400,7 +385,7 @@ export const AdminForensicDeskPage: React.FC = () => {
               <FolderPlus size={32} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-text-primary">Asnjë Dosje Forenzike nuk është aktive</h3>
+              <h3 className="text-base font-bold text-text-primary">Asnjë Dosje nuk është aktive</h3>
               <p className="text-xs text-text-muted mt-1 max-w-sm">
                 Përzgjidhni një dosje ekzistuese në menunë sipër ose klikoni "Dosje e Re" për të filluar administrimin e provave.
               </p>
@@ -408,7 +393,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowNewDossierModal(true)}
-              className="h-10 px-5 rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+              className="h-10 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Plus size={15} />
               <span>Regjistro Dosjen e Parë</span>
@@ -464,7 +449,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         )}
       </main>
 
-      {/* PANELI ANËSOR RRËSHQITËS: DITARI I HETUESIT (INVESTIGATOR'S LOG SENTINEL) */}
+      {/* PANELI ANËSOR: DITARI I HETUESIT */}
       {activeDossier && (
         <InvestigatorLogDrawer
           isOpen={showInvestigatorDrawer}
@@ -475,13 +460,13 @@ export const AdminForensicDeskPage: React.FC = () => {
         />
       )}
 
-      {/* MODALI I KRIJIMIT TË DOSJES SË RE FORENZIKE */}
+      {/* MODALI I KRIJIMIT TË DOSJES SË RE */}
       {showNewDossierModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-main rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-main pb-3">
               <h3 className="text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FolderOpen size={18} className="text-primary-start" /> Regjistrimi i Dosjes Forenzike
+                <FolderOpen size={18} className="text-primary-start" /> Regjistrimi i Dosjes
               </h3>
               <button
                 type="button"
@@ -550,7 +535,7 @@ export const AdminForensicDeskPage: React.FC = () => {
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer"
                 >
-                  Hap Dosjen Zyrtare
+                  Hap Dosjen
                 </button>
               </div>
             </form>

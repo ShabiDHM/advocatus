@@ -1,31 +1,33 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V9.0 (TABBED EXECUTIVE WORKSPACE)
-// 3 MODULAR TABS • ZERO TRUNCATION • ADMIN-ONLY DELETE • SOLID THEME-AWARE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V14.0 (STRICT ANTI-ABUSE TOKEN BARRIER)
+// ZERO TS WARNINGS • NO MANUAL RE-RUN WITHOUT NEW DOC • ADMIN-ONLY DELETE • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown,
-  Building2, Scale, Swords, FileText
+  Building2, Scale, Swords, Play, RefreshCw, AlertCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../../services/api';
+import { forensicService } from '../../services/forensicService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
-type ReportPillarTab = 'ALL' | 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
+export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
 
 interface CaseAnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
-  analysisText: string;
   caseId: string;
   caseTitle?: string;
   clientName?: string;
   modalHeaderTitle?: string;
+  initialPillars?: Record<string, string>;
+  isAnalysisDirty?: boolean;
   onDeleteAnalysis?: () => Promise<void> | void;
 }
 
@@ -37,28 +39,67 @@ const FONT_LEVELS = [
   { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
 
-const sanitizeReportDocument = (rawText: string): string => {
-  if (!rawText) return '';
-  let text = rawText;
-  text = text.replace(/📋\s*Duke\s+analizuar[^\n]*\n?/gi, '');
-  text = text.replace(/✅\s*Pjesa\s+\d+\/\d+\s+u\s+analizua\.?\s*/gi, '');
-  text = text.replace(/🔗\s*Duke\s+përmbledhur[^\n]*\n?/gi, '');
-  text = text.replace(/(?:\n|^)(?:#{1,4}\s*)?Sugjerime:[\s\S]*?(?=(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË|$)/gi, '\n\n');
-  return text.trim();
+const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; icon: any; prompt: string }> = {
+  PILLAR_1: {
+    title: '1. Fakti & Historiku',
+    subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
+    icon: Building2,
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 1:
+- Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
+- Seksioni 2: Kronologjia e Plotë Tabulare e Ngjarjeve (Data, Veprimi Procedural, Shkelja, Pasojat Juridike).
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
+Jep analizë të thellë, të plotë doktrinare, pa shkurtime.`
+  },
+  PILLAR_2: {
+    title: '2. Shkeljet & Nenet',
+    subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
+    icon: Scale,
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 2:
+- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
+- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Ligjit]".
+- Seksioni 5: Përgjegjësia Penale (Nenet 390, 392, 398, 414 KPK) dhe Shkeljet Thelbësore të Procedurës (Neni 182 LPK).
+Gjenero tabelat e plota dhe arsyetimin ligjor të shkallës më të lartë.`
+  },
+  PILLAR_3: {
+    title: '3. Plani i Veprimit',
+    subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
+    icon: Swords,
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
+Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 3:
+- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
+- Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
+- Seksioni 8: Master Plani i Veprimit me Afate të Prera Ligjore (48-orëshe dhe Procedurale).
+Ofro strategji agresive dhe taktike të fitores në gjyq.`
+  }
 };
 
 export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   isOpen,
   onClose,
-  analysisText,
   caseId,
   caseTitle = 'Lënda Ligjore',
   clientName = 'Klienti',
   modalHeaderTitle,
+  initialPillars = {},
+  isAnalysisDirty = false,
   onDeleteAnalysis,
 }) => {
-  // Tab-i Aktiv i 3 Shtjellave
-  const [activePillar, setActivePillar] = useState<ReportPillarTab>('ALL');
+  const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
+
+  // Gjendja e 3 Shtjellave (Ngarkohet direkt nga MongoDB)
+  const [pillarResults, setPillarResults] = useState<Record<PillarType, string>>({
+    PILLAR_1: initialPillars.PILLAR_1 || '',
+    PILLAR_2: initialPillars.PILLAR_2 || '',
+    PILLAR_3: initialPillars.PILLAR_3 || ''
+  });
+
+  const [loadingPillars, setLoadingPillars] = useState<Record<PillarType, boolean>>({
+    PILLAR_1: false,
+    PILLAR_2: false,
+    PILLAR_3: false
+  });
 
   const [copied, setCopied] = useState<boolean>(false);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
@@ -81,39 +122,69 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  const pristineDocument = sanitizeReportDocument(analysisText);
-
-  // Ndarja e Zgjuar e Raportit në 3 Pjesë me Regex
-  const { pillar1Text, pillar2Text, pillar3Text } = useMemo(() => {
-    if (!pristineDocument) return { pillar1Text: '', pillar2Text: '', pillar3Text: '' };
-
-    // Kërkojmë ndarjet e Seksioneve
-    const p1Match = pristineDocument.match(/###\s*1\.\s*🏛️[\s\S]*?(?=###\s*3\.\s*🔬|$)/i);
-    const p2Match = pristineDocument.match(/###\s*3\.\s*🔬[\s\S]*?(?=###\s*6\.\s*🔨|$)/i);
-    const p3Match = pristineDocument.match(/###\s*6\.\s*🔨[\s\S]*$/i);
-
-    return {
-      pillar1Text: p1Match ? p1Match[0].trim() : '',
-      pillar2Text: p2Match ? p2Match[0].trim() : '',
-      pillar3Text: p3Match ? p3Match[0].trim() : ''
-    };
-  }, [pristineDocument]);
-
-  // Përcaktimi i Tekstit për Shfaqje sipas Tab-it
-  const displayedContent = useMemo(() => {
-    if (activePillar === 'PILLAR_1') {
-      return pillar1Text || pristineDocument;
+  // BARIERA E KURSIMIT: Ngarkim i pastër në 0ms nga MongoDB sa herë hapet dritarja
+  useEffect(() => {
+    if (isOpen && caseId) {
+      if (initialPillars && Object.keys(initialPillars).length > 0) {
+        setPillarResults({
+          PILLAR_1: initialPillars.PILLAR_1 || '',
+          PILLAR_2: initialPillars.PILLAR_2 || '',
+          PILLAR_3: initialPillars.PILLAR_3 || ''
+        });
+      } else {
+        apiService.getCaseDetails(caseId).then((details: any) => {
+          if (details?.forensic_pillars) {
+            setPillarResults({
+              PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
+              PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
+              PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
+            });
+          }
+        }).catch(() => {});
+      }
     }
-    if (activePillar === 'PILLAR_2') {
-      return pillar2Text || pristineDocument;
-    }
-    if (activePillar === 'PILLAR_3') {
-      return pillar3Text || pristineDocument;
-    }
-    return pristineDocument;
-  }, [activePillar, pillar1Text, pillar2Text, pillar3Text, pristineDocument]);
+  }, [isOpen, caseId, initialPillars]);
 
-  const autoLinkedContent = autoLinkLegalCitations(displayedContent);
+  const currentContent = pillarResults[activePillar] || '';
+  const isCurrentLoading = loadingPillars[activePillar];
+  const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentContent), [currentContent]);
+
+  const handleGeneratePillar = async (pillar: PillarType) => {
+    if (!caseId || loadingPillars[pillar]) return;
+
+    setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
+    setPillarResults((prev) => ({ ...prev, [pillar]: '' }));
+
+    try {
+      const prompt = PILLAR_CONFIGS[pillar].prompt;
+      const stream = apiService.sendChatMessageStream(
+        caseId,
+        prompt,
+        undefined,
+        'ks',
+        'DEEP',
+        'automatic',
+        false // PHOENIX FIX: Izolim absolut nga Chat-i
+      );
+
+      let accumulated = '';
+      for await (const chunk of stream) {
+        accumulated += chunk;
+        const currentAcc = accumulated;
+        setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
+      }
+
+      // Ruan menjëherë në MongoAtlas
+      if (accumulated.trim().length > 50) {
+        await forensicService.saveCasePillar(caseId, pillar, accumulated);
+      }
+    } catch (err) {
+      console.error(`Pillar Analysis Error [${pillar}]:`, err);
+      alert(`Ndodhi një gabim gjatë analizimit të ${PILLAR_CONFIGS[pillar].title}.`);
+    } finally {
+      setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -123,7 +194,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     if (!isUserScrolledUpRef.current) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [analysisText, isOpen]);
+  }, [currentContent, isOpen]);
 
   const handleScroll = () => {
     const container = scrollContainerRef.current;
@@ -169,25 +240,19 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(displayedContent);
+    if (!currentContent) return;
+    navigator.clipboard.writeText(currentContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleArchive = async () => {
-    if (!caseId || !pristineDocument) return;
+    if (!caseId || !currentContent) return;
     setIsArchiving(true);
     setArchiveSuccess(false);
     try {
-      const archiveDocTitle = modalHeaderTitle 
-        ? `${modalHeaderTitle} - ${caseTitle}`
-        : `Raporti Forenzik: ${caseTitle}`;
-
-      await apiService.archiveForensicReport(
-        caseId,
-        archiveDocTitle,
-        pristineDocument
-      );
+      const archiveTitle = `${PILLAR_CONFIGS[activePillar].title} - ${caseTitle}`;
+      await apiService.archiveForensicReport(caseId, archiveTitle, currentContent);
       setArchiveSuccess(true);
       setTimeout(() => setArchiveSuccess(false), 3000);
     } catch (err: any) {
@@ -199,19 +264,16 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const handleDeleteAnalysis = async () => {
     if (!caseId) return;
-    if (!window.confirm("A jeni i sigurt që doni të fshini këtë analizë nga baza e të dhënave për ta rigjeneruar nga e para?")) {
-      return;
-    }
+    if (!window.confirm("A jeni i sigurt që doni të pastroni analizat nga baza e të dhënave?")) return;
 
     setIsDeleting(true);
     try {
+      setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
       if (onDeleteAnalysis) {
         await onDeleteAnalysis();
       }
-      onClose();
     } catch (err: any) {
       console.error("Failed to delete analysis:", err);
-      alert("Dështoi fshirja e analizës.");
     } finally {
       setIsDeleting(false);
     }
@@ -238,9 +300,16 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 <FileSearch className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-xs sm:text-sm md:text-base font-black text-text-primary uppercase tracking-tight truncate leading-tight">
-                  {modalHeaderTitle || "Raporti Master i Autopsisë Forenzike"}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-sm md:text-base font-black text-text-primary uppercase tracking-tight truncate leading-tight">
+                    {modalHeaderTitle || "Raporti Master i Autopsisë Forenzike"}
+                  </h3>
+                  {isAnalysisDirty && (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase flex items-center gap-1 shrink-0 animate-pulse">
+                      <AlertCircle size={11} /> Dokument i Ri në Dosje
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] sm:text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
                   {caseTitle} <span className="opacity-60">•</span> {clientName}
                 </p>
@@ -280,13 +349,14 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 </button>
               </div>
 
+              {/* Koshi shfaqet VETËM nëse përcillet onDeleteAnalysis (Admin Only) */}
               {onDeleteAnalysis && (
                 <button
                   type="button"
                   onClick={handleDeleteAnalysis}
                   disabled={isDeleting}
                   className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
-                  title="Fshi Analizën"
+                  title="Pastro Analizën nga Baza e të Dhënave"
                 >
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 </button>
@@ -312,66 +382,65 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE (3-PILLAR TAB SWITCHER) */}
-          <div className="pt-2.5 pb-1 flex items-center gap-1.5 overflow-x-auto shrink-0 custom-finance-scroll">
-            <button
-              type="button"
-              onClick={() => setActivePillar('ALL')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-                activePillar === 'ALL'
-                  ? 'bg-primary-start text-white shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border border-main'
-              }`}
-            >
-              <FileText size={13} />
-              <span>Raporti i Plotë</span>
-            </button>
+          {/* VETËM 3 SHTJELLAT (3-PILLAR SWITCHER) */}
+          <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
+            {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
+              const cfg = PILLAR_CONFIGS[pillarKey];
+              const IconComp = cfg.icon;
+              const isSelected = activePillar === pillarKey;
+              const hasContent = Boolean(pillarResults[pillarKey]?.trim());
+              const isLoading = loadingPillars[pillarKey];
 
-            <button
-              type="button"
-              onClick={() => setActivePillar('PILLAR_1')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-                activePillar === 'PILLAR_1'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20'
-              }`}
-            >
-              <Building2 size={13} />
-              <span>🏛️ 1. Fakti & Historiku</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActivePillar('PILLAR_2')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-                activePillar === 'PILLAR_2'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
-              }`}
-            >
-              <Scale size={13} />
-              <span>⚖️ 2. Shkeljet & Nenet</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActivePillar('PILLAR_3')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
-                activePillar === 'PILLAR_3'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20'
-              }`}
-            >
-              <Swords size={13} />
-              <span>🎯 3. Plani i Veprimit</span>
-            </button>
+              return (
+                <button
+                  key={pillarKey}
+                  type="button"
+                  onClick={() => setActivePillar(pillarKey)}
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                    isSelected
+                      ? pillarKey === 'PILLAR_1'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : pillarKey === 'PILLAR_2'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                        : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-surface hover:bg-hover text-text-muted border-main'
+                  }`}
+                >
+                  {isLoading ? (
+                    <Loader2 size={13} className="animate-spin text-white" />
+                  ) : (
+                    <IconComp size={13} className={isSelected ? 'text-white' : 'text-text-muted'} />
+                  )}
+                  <span className="truncate">{cfg.title}</span>
+                  {hasContent && !isLoading && (
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} title="E ruajtur në MongoDB" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Trupi i Raportit */}
+          {/* Shiriti Nën-Titull & Butoni i Përditësimit VETËM NËSE KA DOKUMENT TË RI */}
+          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
+            <p className="truncate font-medium">{PILLAR_CONFIGS[activePillar].subtitle}</p>
+            {currentContent && !isCurrentLoading && isAnalysisDirty && (
+              <button
+                type="button"
+                onClick={() => handleGeneratePillar(activePillar)}
+                className="px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all"
+                title="Janë ngarkuar prova të reja. Klikoni për të rifreskuar këtë shtjellë!"
+              >
+                <RefreshCw size={11} className="animate-spin" />
+                <span>Përditëso Shtjellën</span>
+              </button>
+            )}
+          </div>
+
+          {/* Trupi i Raportit ose Butoni Fillestar i Analizimit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-2 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y"
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-1 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y flex flex-col"
           >
             <style>{`
               .dynamic-forensic-report p,
@@ -416,11 +485,49 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               }
             `}</style>
 
-            <div className="markdown-content dynamic-forensic-report prose prose-slate dark:prose-invert max-w-none text-text-primary">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {autoLinkedContent}
-              </ReactMarkdown>
-            </div>
+            {!currentContent && !isCurrentLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto">
+                <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center mb-4 border border-primary-start/20">
+                  {React.createElement(PILLAR_CONFIGS[activePillar].icon, { size: 28 })}
+                </div>
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary mb-1">
+                  {PILLAR_CONFIGS[activePillar].title}
+                </h4>
+                <p className="text-xs text-text-muted max-w-md mb-6 leading-relaxed">
+                  {PILLAR_CONFIGS[activePillar].subtitle}. Kjo shtjellë nuk është analizuar ende. Klikoni më poshtë për ta gjeneruar me modelin Deep Reasoning.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleGeneratePillar(activePillar)}
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center gap-2 cursor-pointer transition-all hover-lift"
+                >
+                  <Play size={14} className="fill-white" />
+                  <span>Analizo {PILLAR_CONFIGS[activePillar].title}</span>
+                </button>
+              </div>
+            ) : isCurrentLoading && !currentContent ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
+                <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
+                <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
+                  Duke analizuar {PILLAR_CONFIGS[activePillar].title}...
+                </p>
+                <p className="text-[11px] text-text-muted mt-1">
+                  Juristi AI po kryen autopsinë doktrinare të fashikullit.
+                </p>
+              </div>
+            ) : (
+              <div className="markdown-content dynamic-forensic-report prose prose-slate dark:prose-invert max-w-none text-text-primary">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {autoLinkedContent}
+                </ReactMarkdown>
+                {isCurrentLoading && (
+                  <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 text-xs font-bold">
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Duke gjeneruar analizën doktrinare...</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <AnimatePresence>
@@ -439,12 +546,12 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Veprimet */}
+          {/* Veprimet: Vetëm Ruajtje në Arkiv dhe Kopjim */}
           <div className="flex items-center justify-between pt-2.5 sm:pt-3 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={handleArchive}
-              disabled={isArchiving || !pristineDocument}
+              disabled={isArchiving || !currentContent}
               className="flex-1 sm:flex-initial h-10 px-3 sm:px-5 bg-surface hover:bg-hover border border-main rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               {isArchiving ? (
@@ -460,11 +567,11 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             <button
               type="button"
               onClick={handleCopy}
-              disabled={!pristineDocument}
+              disabled={!currentContent}
               className="flex-1 sm:flex-initial h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
-              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Pjesën'}</span>
+              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Shtjellën'}</span>
             </button>
           </div>
         </motion.div>

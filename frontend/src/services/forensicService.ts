@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC & COMPREHENSIVE CASE ANALYSIS MICRO-SERVICE V2.0
-// FULL MULTIMODAL INTEGRATION (AUDIO, VIDEO, EXIF, FINANCIAL, WAR ROOM) • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC & COMPREHENSIVE CASE ANALYSIS MICRO-SERVICE V3.0
+// FULL MULTIMODAL INTEGRATION & 3-PILLAR MONGO ATLAS PERSISTENCE • ZERO TS WARNINGS • 100% COMPLETE
 
 import { apiClient } from './apiClient';
 import type {
@@ -47,8 +47,24 @@ export interface MediaEvidenceItem {
 
 export class ForensicService {
   // =========================================================================
-  // 🏛️ 1. ANALIZA E PLOTË E LËNDËS (COMPREHENSIVE CASE ANALYSIS)
+  // 🏛️ 1. ANALIZA E PLOTË E LËNDËS & SHTJELLAT PERSISTENTE NË MONGO ATLAS
   // =========================================================================
+
+  public async saveCasePillar(caseId: string, pillarKey: string, content: string): Promise<{ status: string; message: string }> {
+    const response = await apiClient.put<{ status: string; message: string }>(`/chat/case/${caseId}/pillars`, {
+      pillar_key: pillarKey,
+      content
+    });
+    return response.data;
+  }
+
+  public async saveDocumentPillar(caseId: string, documentId: string, pillarKey: string, content: string): Promise<{ status: string; message: string }> {
+    const response = await apiClient.put<{ status: string; message: string }>(`/chat/case/${caseId}/documents/${documentId}/pillars`, {
+      pillar_key: pillarKey,
+      content
+    });
+    return response.data;
+  }
 
   public async analyzeCase(
     caseId: string, 

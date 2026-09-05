@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V90.0 (PERFECT DUAL-PANEL SYMMETRY & SEAMLESS MOBILE ADAPTATION)
-// ZERO TS WARNINGS • 100% RESPONSIVE HEIGHT SYNC • INVESTIGATOR & AUDIT MODALS
+// PHOENIX PROTOCOL - CASE VIEW PAGE V92.0 (MODULAR 3-PILLAR SYNC & DUAL-PANEL SYMMETRY)
+// ZERO TS WARNINGS • 100% RESPONSIVE HEIGHT SYNC • PURE SOCRATIC CHAT HYGIENE • COMPLETE FILE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -49,16 +49,12 @@ const CaseViewPage: React.FC = () => {
     return role === 'ADMIN' || role === 'SUPERADMIN';
   }, [user]);
 
-  // 1. Analiza e Plotë e Lëndës (ANALIZO RASTIN)
-  const [isAnalyzingCase, setIsAnalyzingCase] = useState<boolean>(false);
-  const [analysisResultText, setAnalysisResultText] = useState<string>('');
+  // 1. Modali i 3 Shtjellave Forenzike të Lëndës (ANALIZO RASTIN)
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. Auditimi i 1 Dokumenti (Peshorja ⚖️)
+  // 2. Modali i 3 Shtjellave të Dokumentit (Peshorja ⚖️)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
-  const [docAuditResultText, setDocAuditResultText] = useState<string>('');
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
-  const [isAuditingDoc, setIsAuditingDoc] = useState<boolean>(false);
 
   // 3. Ditari i Hetuesit
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
@@ -72,19 +68,6 @@ const CaseViewPage: React.FC = () => {
   const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
   const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
   const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
-
-  // Kontrolli Dinamik: A është e kryer analiza dhe a është e freskët?
-  const hasExistingAnalysis = useMemo(() => {
-    return Boolean(
-      (analysisResultText && analysisResultText.trim().length > 100) ||
-      (typeof (caseData.details as any)?.latest_deep_analysis === 'string' && (caseData.details as any)?.latest_deep_analysis.trim().length > 100) ||
-      (typeof (caseData.details as any)?.latest_comprehensive_analysis === 'string' && (caseData.details as any)?.latest_comprehensive_analysis.trim().length > 100)
-    );
-  }, [analysisResultText, caseData.details]);
-
-  const isAnalysisDirty = useMemo(() => {
-    return Boolean((caseData.details as any)?.analysis_dirty);
-  }, [caseData.details]);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -128,11 +111,6 @@ const CaseViewPage: React.FC = () => {
       ]);
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-
-      const rawAnalysis = (details as any)?.latest_deep_analysis || (details as any)?.latest_comprehensive_analysis || (details as any)?.latest_analysis;
-      if (typeof rawAnalysis === 'string' && rawAnalysis.trim().length > 100) {
-        setAnalysisResultText(rawAnalysis.trim());
-      }
 
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
@@ -269,7 +247,6 @@ const CaseViewPage: React.FC = () => {
     try {
       await apiService.clearChatHistory(caseId);
       setChatMessages([]);
-      setAnalysisResultText('');
       setCaseData((prev) => ({
         ...prev,
         details: prev.details ? ({
@@ -287,7 +264,6 @@ const CaseViewPage: React.FC = () => {
   };
 
   const handleDeleteAnalysisFromModal = useCallback(() => {
-    setAnalysisResultText('');
     setCaseData((prev) => ({
       ...prev,
       details: prev.details ? ({
@@ -303,7 +279,6 @@ const CaseViewPage: React.FC = () => {
     if (!currentAuditedDoc || !caseId) return;
     const targetId = String(currentAuditedDoc.id);
 
-    setDocAuditResultText('');
     setLiveDocuments((prev) => prev.map((d) => String(d.id) === targetId ? {
       ...d,
       latest_analysis: '',
@@ -386,100 +361,11 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ⚡ ANALIZO RASTIN (saveHistory = false)
-  const handleStartBackgroundCaseAnalysis = useCallback(async () => {
-    if (!caseId || isAnalyzingCase) return;
-
-    const existing = 
-      (analysisResultText && analysisResultText.trim().length > 100 ? analysisResultText : '') ||
-      (typeof (caseData.details as any)?.latest_deep_analysis === 'string' && (caseData.details as any)?.latest_deep_analysis.trim().length > 100 ? (caseData.details as any)?.latest_deep_analysis : '') ||
-      (typeof (caseData.details as any)?.latest_comprehensive_analysis === 'string' && (caseData.details as any)?.latest_comprehensive_analysis.trim().length > 100 ? (caseData.details as any)?.latest_comprehensive_analysis : '') ||
-      '';
-
-    if (existing && existing.trim().length > 100 && !isAnalysisDirty) {
-      setAnalysisResultText(existing.trim());
-      setIsAnalysisModalOpen(true);
-      return;
-    }
-
-    setAnalysisResultText('');
-    setIsAnalysisModalOpen(true);
-    setIsAnalyzingCase(true);
-
-    try {
-      const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë Doktrinar të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke kryer autopsinë forenzike të të gjitha shkresave, procesverbaleve dhe provave materiale.";
-      const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic', false);
-      
-      let accumulated = '';
-      for await (const chunk of stream) {
-        accumulated += chunk;
-        setAnalysisResultText(accumulated);
-      }
-
-      if (accumulated.trim().length > 0) {
-        setCaseData((prev) => ({
-          ...prev,
-          details: prev.details ? ({
-            ...prev.details,
-            latest_deep_analysis: accumulated,
-            latest_comprehensive_analysis: accumulated,
-            analysis_dirty: false,
-          } as any) : null,
-        }));
-      }
-    } catch (err) {
-      console.error("Case Background Analysis Error:", err);
-      alert("Ndodhi një gabim gjatë gjenerimit të raportit. Ju lutem provoni përsëri.");
-    } finally {
-      setIsAnalyzingCase(false);
-    }
-  }, [caseId, isAnalyzingCase, analysisResultText, caseData.details, isAnalysisDirty]);
-
-  // ⚖️ AUDITIMI I DOKUMENTIT (saveHistory = false)
-  const handleVerifyDocumentLaws = useCallback(async (doc: Document) => {
-    if (!caseId || isAuditingDoc) return;
-
-    const docIdStr = String(doc.id);
-    const docName = doc.file_name || 'Dokument';
+  // ⚖️ HAPJA E MODALIT TË AUDITIMIT TË DOKUMENTIT (ME 3 SHTJELLA MODULARE)
+  const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     setCurrentAuditedDoc(doc);
-
-    const existingAudit = (doc as any).latest_analysis || (doc as any).latest_forensic_audit;
-    if (typeof existingAudit === 'string' && existingAudit.trim().length > 100) {
-      setDocAuditResultText(existingAudit.trim());
-      setIsDocAuditModalOpen(true);
-      return;
-    }
-
-    setDocAuditResultText('');
     setIsDocAuditModalOpen(true);
-    setIsAuditingDoc(true);
-
-    try {
-      const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
-Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare, me nxjerrjen e çdo neni në Tabelën e Seksionit 4 me formatin Neni X i [Ligjit] për verifikim 1-klikim.`;
-
-      const stream = apiService.sendChatMessageStream(caseId, supremeAuditPrompt, [docIdStr], 'ks', 'DEEP', 'document', false);
-
-      let accumulated = '';
-      for await (const chunk of stream) {
-        accumulated += chunk;
-        setDocAuditResultText(accumulated);
-      }
-
-      if (accumulated.trim().length > 0) {
-        setLiveDocuments((prev) => prev.map((d) => String(d.id) === docIdStr ? {
-          ...d,
-          latest_analysis: accumulated,
-          latest_forensic_audit: accumulated
-        } as any : d));
-      }
-    } catch (err) {
-      console.error("Single Document Audit Error:", err);
-      alert("Ndodhi një gabim gjatë auditimit të dokumentit.");
-    } finally {
-      setIsAuditingDoc(false);
-    }
-  }, [caseId, isAuditingDoc, setLiveDocuments]);
+  }, []);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -571,10 +457,10 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onOpenCaseAnalysis={handleStartBackgroundCaseAnalysis}
-              isAnalyzingCase={isAnalyzingCase}
-              isAnalysisDirty={isAnalysisDirty}
-              hasExistingAnalysis={hasExistingAnalysis}
+              onOpenCaseAnalysis={() => setIsAnalysisModalOpen(true)}
+              isAnalyzingCase={false}
+              isAnalysisDirty={false}
+              hasExistingAnalysis={false}
             />
           </div>
         </div>
@@ -596,22 +482,20 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS */}
+      {/* MODAL 1: ANALIZA FORENZIKE E LËNDËS ME 3 SHTJELLA MODULARE */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
-        analysisText={analysisResultText}
         caseId={currentCaseId}
         caseTitle={caseTitle}
         clientName={clientName}
         onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUDITIMI I 1 DOKUMENTI */}
+      {/* MODAL 2: AUDITIMI FORENZIK I 1 DOKUMENTI ME 3 SHTJELLA MODULARE */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
-        auditText={docAuditResultText}
         caseId={currentCaseId}
         documentId={String(currentAuditedDoc?.id || '')}
         documentName={currentAuditedDoc?.file_name || 'Dokument'}
