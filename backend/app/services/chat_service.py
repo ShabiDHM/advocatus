@@ -1,5 +1,5 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V28.0 (UNIFIED & STREAMING SYNC)
+# PHOENIX PROTOCOL - CHAT SERVICE V29.0 (STRICT CHAT ISOLATION & OPTIONAL PERSISTENCE)
 
 from __future__ import annotations
 import logging
@@ -22,11 +22,13 @@ async def stream_chat_response(
     user_id: str,
     document_ids: Optional[List[str]] = None,
     jurisdiction: Optional[str] = 'ks',
-    domain: Optional[str] = 'automatic'
+    domain: Optional[str] = 'automatic',
+    save_history: bool = True
 ) -> AsyncGenerator[str, None]:
     """
-    Unified chat endpoint. Uses AlbanianRAGService.chat() exclusively
-    with full context grounding and automatic legal disclaimer integration.
+    Unified chat endpoint with strict chat history isolation:
+    - If save_history is True: persists to case.chat_history (Standard Interactive Chat).
+    - If save_history is False: streams directly to the caller without polluting chat history.
     """
     try:
         oid, user_oid = ObjectId(case_id), ObjectId(user_id)
@@ -35,21 +37,22 @@ async def stream_chat_response(
             yield "Gabim: Qasja u refuzua."
             return
 
-        # Sync User Message to History
-        db.cases.update_one(
-            {"_id": oid}, 
-            {"$push": {"chat_history": ChatMessage(
-                role="user", 
-                content=user_query, 
-                timestamp=datetime.now(timezone.utc)
-            ).model_dump()}}
-        )
+        # PHOENIX ISOLATION: Ruaj në chat_history VETËM nëse save_history == True
+        if save_history:
+            db.cases.update_one(
+                {"_id": oid}, 
+                {"$push": {"chat_history": ChatMessage(
+                    role="user", 
+                    content=user_query, 
+                    timestamp=datetime.now(timezone.utc)
+                ).model_dump()}}
+            )
         
         full_response = ""
         yield " "  # Keep-alive
 
         chat_history = case.get("chat_history", [])
-        recent_history = chat_history[-10:]  # last 5 exchanges
+        recent_history = chat_history[-10:] if save_history else []  # Mos ngarko historikun nëse është thirrje e izoluar
 
         agent_service = AlbanianRAGService(db=db)
         async for token in agent_service.chat(
@@ -64,8 +67,8 @@ async def stream_chat_response(
             full_response += token
             yield token
 
-        # Sync AI Message to History (përmban edhe Klauzolën e Përgjegjësisë Ligjore)
-        if full_response.strip():
+        # PHOENIX ISOLATION: Ruaj përgjigjen e AI në chat_history VETËM nëse save_history == True
+        if save_history and full_response.strip():
             db.cases.update_one(
                 {"_id": oid}, 
                 {"$push": {"chat_history": ChatMessage(

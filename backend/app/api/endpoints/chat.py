@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V55.0 (TOTAL CERTIFIED CASCADE WIPEOUT • MONGO & REDIS FLUSH)
+# PHOENIX PROTOCOL - CHAT ROUTER V56.0 (CHAT ISOLATION & OPTIONAL HISTORY PERSISTENCE)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from typing import Annotated, Optional, List, Literal, Dict, Any
+from typing import Annotated, Optional, List, Literal
 from pydantic import BaseModel
 import logging
 from datetime import datetime, timezone
@@ -23,6 +23,7 @@ class ChatMessageRequest(BaseModel):
     document_ids: Optional[List[str]] = None
     jurisdiction: Optional[str] = 'ks'
     domain: Optional[str] = 'automatic'
+    save_history: Optional[bool] = True  # PHOENIX FIX: Nëse është False, NUK ndot kurrë chat_history!
 
 class ChatFeedbackRequest(BaseModel):
     message_index: int
@@ -46,7 +47,8 @@ async def handle_chat_message(
             user_id=str(current_user.id),
             document_ids=chat_request.document_ids,
             jurisdiction=chat_request.jurisdiction,
-            domain=chat_request.domain
+            domain=chat_request.domain,
+            save_history=chat_request.save_history if chat_request.save_history is not None else True
         )
         
         headers = {
@@ -77,14 +79,6 @@ def clear_chat_history(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    """
-    TOTAL CERTIFIED CASCADE WIPEOUT:
-    1. Pastron historikun e bisedës në MongoDB.
-    2. Fshin $unset të gjitha analizat (latest_deep_analysis, latest_comprehensive_analysis, latest_analysis).
-    3. Fshin analizat e ruajtura nga të gjithë dokumentet e asaj lënde.
-    4. Vendos analysis_dirty = True (detyrim i rreptë për analizë nga e para).
-    5. Fshin të gjithë çelësat e memories së shpejtë në REDIS CLOUD.
-    """
     try:
         c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         

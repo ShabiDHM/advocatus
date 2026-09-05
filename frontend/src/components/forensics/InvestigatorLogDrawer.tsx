@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG: 3-ROLE FORENSIC COLLEGIATE V2.3
-// FIXED Z-INDEX (Z-9999 TOP LEVEL) • NO HORIZONTAL SCROLLBAR • HIGH VISIBILITY CONTROLS
-// ZERO TS WARNINGS • ZERO HARDCODING • SOLID OPAQUE THEME AWARE • FULL ALERT INTEGRATION
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG: 3-ROLE FORENSIC COLLEGIATE V2.4
+// ISOLATED STREAM (ZERO CHAT POLLUTION) • FIXED Z-9999 • NO HORIZONTAL SCROLLBAR
+// ZERO TS WARNINGS • ZERO HARDCODING • SOLID OPAQUE THEME AWARE
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -56,10 +56,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   clientName = 'Pala e Menaxhuar',
   chainOfCustodyHash = 'SHA256-000000'
 }) => {
-  // Gjendja e Madhësisë së Dritares (52% apo 90%)
   const [isWidescreen, setIsWidescreen] = useState<boolean>(false);
-
-  // Gjendjet e Skanimit & Gjetjeve
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [findings, setFindings] = useState<ForensicFindingItem[]>([]);
   const [activeRoleFilter, setActiveRoleFilter] = useState<ForensicRolePerspective>('ALL');
@@ -67,7 +64,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Mbyllja me tastin Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -78,7 +74,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Ekzekutimi i Skanimit Autonom me të 3 Rolet
+  // Ekzekutimi i Skanimit Autonom të Izoluar (saveHistory = false)
   const handleRunAutonomousInvestigation = async () => {
     if (!caseId || isScanning) return;
     setIsScanning(true);
@@ -110,7 +106,17 @@ TAKTIKA: [Këshillë taktike për avokatin]
 
 (Vazhdo me INCIDENTI 2, INCIDENTI 3, etj.)`;
 
-      const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic');
+      // PHOENIX FIX: Parametri i fundit është 'false' -> NUK RUHET NË CHAT_HISTORY!
+      const stream = apiService.sendChatMessageStream(
+        caseId, 
+        prompt, 
+        undefined, 
+        'ks', 
+        'DEEP', 
+        'automatic', 
+        false
+      );
+
       let acc = '';
       for await (const chunk of stream) {
         acc += chunk;
@@ -184,7 +190,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
 
   if (!isOpen) return null;
 
-  // Filtrimi i Kombinuar
   const filteredFindings = findings.filter(f => {
     const matchesRole = activeRoleFilter === 'ALL' || f.role === activeRoleFilter;
     const matchesSeverity = activeSeverityFilter === 'ALL' || f.level === activeSeverityFilter;
@@ -199,15 +204,12 @@ TAKTIKA: [Këshillë taktike për avokatin]
   const judgeCount = findings.filter(f => f.role === 'SUPREME_JUDGE').length;
 
   return (
-    /* Z-INDEX 9999 ME SFOND TË PLOTË (SOLID OPAQUE OVERLAY) */
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex justify-end transition-all select-none">
-      {/* DRAWER-I ME SFOND SOLID 100% (JO TRANSPARENT) */}
       <aside
         className={`h-full shadow-2xl flex flex-col transition-all duration-300 ease-in-out border-l border-main bg-canvas text-text-primary ${
           isWidescreen ? 'w-full lg:w-[90%]' : 'w-full sm:w-[94%] md:w-[80%] lg:w-[55%]'
         }`}
       >
-        {/* KOKA E RE SUPREME: SHFAQET 100% NË KRYE TË EKRANIT ME BUTONAT E QARTË */}
         <header className="h-16 px-6 border-b border-main flex items-center justify-between gap-4 bg-surface shadow-md shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 via-amber-600 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/30 shrink-0">
@@ -228,9 +230,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
             </div>
           </div>
 
-          {/* KONTROLLET KRYESORE: ZGJERIM DHE MBYLLJE ME TEKST TË MADH */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Butoni i Zgjerimit */}
             <button
               type="button"
               onClick={() => setIsWidescreen(!isWidescreen)}
@@ -241,7 +241,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
               <span className="hidden sm:inline">{isWidescreen ? 'Kthe (55%)' : 'Zgjero (90%)'}</span>
             </button>
 
-            {/* Butoni i Mbylljes */}
             <button
               type="button"
               onClick={onClose}
@@ -254,7 +253,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
           </div>
         </header>
 
-        {/* SHIRITI I 3 ROLEVE: PA ASNJË HORIZONTAL SCROLLBAR (FLEX-WRAP PASTRË) */}
         <div className="px-6 py-3.5 border-b border-main bg-surface/50 space-y-3 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -311,7 +309,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
             </button>
           </div>
 
-          {/* KËRKIMI DHE BUTONI I HETIMIT */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
             <div className="relative flex-1">
               <Search size={13} className="absolute left-3.5 top-2.5 text-text-muted" />
@@ -325,7 +322,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Filtri i Rrezikut me AlertTriangle Aktiv */}
               <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-[11px]">
                 <button
                   type="button"
@@ -364,7 +360,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
           </div>
         </div>
 
-        {/* TRUPI I DITARIT ME SFOND SOLID 100% */}
         <main className="flex-1 overflow-y-auto custom-finance-scroll p-6 space-y-4 bg-canvas">
           {filteredFindings.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-text-muted text-center p-8 gap-3">
@@ -401,7 +396,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
                         : 'border-amber-500/40 hover:border-amber-500'
                     }`}
                   >
-                    {/* Koka e Kartës me Stemën e Rolit */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -442,7 +436,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
                       </button>
                     </div>
 
-                    {/* Përplasja e Provave */}
                     <div className="p-3 rounded-xl bg-canvas border border-main text-xs space-y-1.5 font-mono">
                       <div className="flex items-center gap-2 text-text-muted truncate">
                         <FileText size={13} className="text-primary-start shrink-0" />
@@ -460,7 +453,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
                       </div>
                     </div>
 
-                    {/* Detajet */}
                     <div className="text-xs text-text-primary leading-relaxed select-text font-sans">
                       <p className="font-bold text-text-muted uppercase text-[10px] tracking-wider mb-0.5">
                         Zbardhja e Kolegjiumit:
@@ -468,7 +460,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
                       <p className="whitespace-pre-wrap">{item.contradictionDetails}</p>
                     </div>
 
-                    {/* Neni dhe Këshilla Taktike */}
                     <div className="pt-2 border-t border-main grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div className="p-2.5 rounded-xl bg-canvas border border-main space-y-0.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
@@ -491,7 +482,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
           )}
         </main>
 
-        {/* FOOTER I DITARIT */}
         <footer className="h-12 px-6 border-t border-main bg-surface flex items-center justify-between text-xs text-text-muted shrink-0">
           <span className="flex items-center gap-1.5 font-medium">
             <RefreshCw size={12} className={isScanning ? 'animate-spin text-primary-start' : ''} />

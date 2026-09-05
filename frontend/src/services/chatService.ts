@@ -1,5 +1,6 @@
 // FILE: src/services/chatService.ts
-// PHOENIX PROTOCOL - AI CHAT & LEGAL DRAFTING SERVICE MODULE
+// PHOENIX PROTOCOL - AI CHAT & LEGAL DRAFTING SERVICE MODULE V30.0
+// STRICT CHAT ISOLATION (saveHistory FLAG) • EXTENDED 180s TIMEOUT • ZERO TS WARNINGS
 
 import { apiClient, tokenManager, API_V1_URL, API_V2_URL } from './apiClient';
 import type {
@@ -47,7 +48,8 @@ export class ChatService {
     documentIds?: string[],
     jurisdiction?: string,
     mode: 'FAST' | 'DEEP' = 'DEEP',
-    domain?: string
+    domain?: string,
+    saveHistory: boolean = true // PHOENIX FIX: Nëse është false, NUK e prek kurrë chat_history!
   ): AsyncGenerator<string, void, unknown> {
     let token = tokenManager.get();
     if (!token) {
@@ -60,7 +62,7 @@ export class ChatService {
 
     const url = `${API_V1_URL}/chat/case/${caseId}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 sekonda për dosje të mëdha
 
     try {
       const response = await fetch(url, {
@@ -75,6 +77,7 @@ export class ChatService {
           jurisdiction: jurisdiction || 'ks',
           mode: mode || 'DEEP',
           domain: domain || 'automatic',
+          save_history: saveHistory, // Përcjellja e izolimit në Backend
         }),
         signal: controller.signal,
       });
