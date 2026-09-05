@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG: 3-ROLE FORENSIC COLLEGIATE V2.0
-// POLICE DETECTIVE • DUAL-COMPETENCY PROSECUTOR (BASIC & PSRK) • SUPREME COURT JUSTICE
-// ZERO TS WARNINGS • ZERO HARDCODING • EXPANDABLE (50% / 85%)
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG: 3-ROLE FORENSIC COLLEGIATE V2.1
+// 100% OPAQUE SOLID BACKGROUND • THEME AWARE (LIGHT/DARK) • CLEAR EXPAND CONTROLS
+// ZERO TS WARNINGS • ZERO HARDCODING
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -55,7 +55,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   clientName = 'Pala e Menaxhuar',
   chainOfCustodyHash = 'SHA256-000000'
 }) => {
-  // Gjendja e Madhësisë së Dritares (50% apo 85%)
+  // Gjendja e Madhësisë së Dritares (52% apo 88%)
   const [isWidescreen, setIsWidescreen] = useState<boolean>(false);
 
   // Gjendjet e Skanimit & Gjetjeve
@@ -183,7 +183,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
 
   if (!isOpen) return null;
 
-  // Filtrimi i Kombinuar (sipas Rolit + Aspektit të Rrezikut + Kërkimit)
+  // Filtrimi i Kombinuar
   const filteredFindings = findings.filter(f => {
     const matchesRole = activeRoleFilter === 'ALL' || f.role === activeRoleFilter;
     const matchesSeverity = activeSeverityFilter === 'ALL' || f.level === activeSeverityFilter;
@@ -198,21 +198,22 @@ TAKTIKA: [Këshillë taktike për avokatin]
   const judgeCount = findings.filter(f => f.role === 'SUPREME_JUDGE').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end transition-all select-none">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex justify-end transition-all select-none">
+      {/* DRAWER-I ME SFOND TË NGURTË (SOLID OPAQUE THEME-AWARE) */}
       <aside
-        className={`bg-card border-l border-main h-full shadow-2xl flex flex-col transition-all duration-300 ease-in-out ${
-          isWidescreen ? 'w-full lg:w-[85%]' : 'w-full sm:w-[90%] md:w-[75%] lg:w-[50%]'
+        className={`h-full shadow-2xl flex flex-col transition-all duration-300 ease-in-out border-l border-main bg-canvas text-text-primary ${
+          isWidescreen ? 'w-full lg:w-[88%]' : 'w-full sm:w-[92%] md:w-[78%] lg:w-[52%]'
         }`}
       >
         {/* KOKA E DITARIT TË HETUESIT */}
-        <header className="p-5 border-b border-main flex items-center justify-between gap-3 bg-surface/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 via-amber-600 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/20 shrink-0">
-              <ShieldAlert size={22} />
+        <header className="p-5 border-b border-main flex items-center justify-between gap-3 bg-surface shadow-sm shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-600 via-amber-600 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/20 shrink-0">
+              <ShieldAlert size={24} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black uppercase tracking-tight text-text-primary">
+                <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-text-primary">
                   Ditari i Hetuesit
                 </h2>
                 <span className="px-2 py-0.5 rounded-full bg-rose-600/15 text-rose-500 border border-rose-600/30 text-[10px] font-mono font-bold uppercase">
@@ -226,33 +227,37 @@ TAKTIKA: [Këshillë taktike për avokatin]
           </div>
 
           <div className="flex items-center gap-2">
+            {/* BUTONI I QARTË ME TEKST PËR ZGJERIMIN E EKRANIT */}
             <button
               type="button"
               onClick={() => setIsWidescreen(!isWidescreen)}
-              title={isWidescreen ? 'Kthe në pamje standarde (50%)' : 'Zgjero në madhësi të plotë (85%)'}
-              className="p-2 rounded-xl bg-surface hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-surface hover:bg-hover border border-main text-text-primary font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              title={isWidescreen ? 'Kthe në 52%' : 'Zgjero në 88%'}
             >
-              {isWidescreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              {isWidescreen ? <Minimize2 size={14} className="text-primary-start" /> : <Maximize2 size={14} className="text-primary-start" />}
+              <span className="hidden sm:inline">{isWidescreen ? 'Kthe (52%)' : 'Zgjero Ekranin (88%)'}</span>
             </button>
 
+            {/* BUTONI I MBYLLJES */}
             <button
               type="button"
               onClick={onClose}
+              title="Mbyll dritaren (Esc)"
               className="p-2 rounded-xl bg-surface hover:bg-rose-500/10 border border-main text-text-muted hover:text-rose-500 transition-colors cursor-pointer"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
         </header>
 
         {/* SHIRITI I 3 ROLEVE TË KOLEGJIUMIT */}
-        <div className="px-5 pt-3 pb-2 border-b border-main bg-surface/30 space-y-3">
+        <div className="px-5 pt-3.5 pb-2.5 border-b border-main bg-surface/50 space-y-3 shrink-0">
           {/* BUTONAT E ROLEVE */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-finance-scroll">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-finance-scroll">
             <button
               type="button"
               onClick={() => setActiveRoleFilter('ALL')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                 activeRoleFilter === 'ALL'
                   ? 'bg-rose-600 text-white shadow-md'
                   : 'bg-surface hover:bg-hover text-text-muted border border-main'
@@ -265,7 +270,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
             <button
               type="button"
               onClick={() => setActiveRoleFilter('POLICE')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                 activeRoleFilter === 'POLICE'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30'
@@ -278,7 +283,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
             <button
               type="button"
               onClick={() => setActiveRoleFilter('PROSECUTOR')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                 activeRoleFilter === 'PROSECUTOR'
                   ? 'bg-amber-600 text-white shadow-md'
                   : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30'
@@ -291,7 +296,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
             <button
               type="button"
               onClick={() => setActiveRoleFilter('SUPREME_JUDGE')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
                 activeRoleFilter === 'SUPREME_JUDGE'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 border border-purple-500/30'
@@ -317,12 +322,11 @@ TAKTIKA: [Këshillë taktike për avokatin]
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Filtri i Rrezikut */}
               <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-[11px]">
                 <button
                   type="button"
                   onClick={() => setActiveSeverityFilter('ALL')}
-                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'ALL' ? 'bg-card text-text-primary shadow-sm' : 'text-text-muted'}`}
+                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'ALL' ? 'bg-canvas text-text-primary shadow-sm' : 'text-text-muted'}`}
                 >
                   Të gjitha
                 </button>
@@ -339,7 +343,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
                 type="button"
                 onClick={handleRunAutonomousInvestigation}
                 disabled={isScanning}
-                className="h-8 px-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-40"
+                className="h-9 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-40"
               >
                 {isScanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                 <span>{findings.length > 0 ? 'Ri-Skano' : 'Fillo Hetimin'}</span>
@@ -348,8 +352,8 @@ TAKTIKA: [Këshillë taktike për avokatin]
           </div>
         </div>
 
-        {/* TRUPI I DITARIT: LISTA E GJETJEVE TË STRUKTURUARA */}
-        <main className="flex-1 overflow-y-auto custom-finance-scroll p-5 space-y-4">
+        {/* TRUPI I DITARIT ME SFOND TË PASTËR SOLID */}
+        <main className="flex-1 overflow-y-auto custom-finance-scroll p-6 space-y-4 bg-canvas">
           {filteredFindings.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-text-muted text-center p-8 gap-3">
               <Scale size={48} className="opacity-25 text-primary-start" />
@@ -368,7 +372,6 @@ TAKTIKA: [Këshillë taktike për avokatin]
                 const isCritical = item.level === 'CRITICAL';
                 const isSmoking = item.level === 'SMOKING_GUN';
 
-                // Përcaktimi i stemës dhe ngjyrës së rolit
                 const roleBadge = item.role === 'POLICE'
                   ? { label: '🔍 Hetuesi Policor', color: 'bg-blue-500/15 text-blue-500 border-blue-500/30' }
                   : item.role === 'PROSECUTOR'
@@ -378,7 +381,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
                 return (
                   <article
                     key={item.id}
-                    className={`p-5 rounded-2xl border transition-all space-y-3 bg-card shadow-sm ${
+                    className={`p-5 rounded-2xl border transition-all space-y-3 bg-surface shadow-sm ${
                       isCritical
                         ? 'border-rose-500/40 hover:border-rose-500 shadow-rose-500/5'
                         : isSmoking
@@ -413,26 +416,26 @@ TAKTIKA: [Këshillë taktike për avokatin]
                         type="button"
                         onClick={() => handleCopyFinding(item)}
                         title="Kopjo incidentin për shkresë gjyqësore"
-                        className="p-1.5 rounded-lg bg-surface hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
+                        className="p-1.5 rounded-lg bg-canvas hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
                       >
                         {copiedId === item.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
                       </button>
                     </div>
 
                     {/* Përplasja e Provave */}
-                    <div className="p-3 rounded-xl bg-surface/70 border border-main text-xs space-y-1.5 font-mono">
+                    <div className="p-3 rounded-xl bg-canvas border border-main text-xs space-y-1.5 font-mono">
                       <div className="flex items-center gap-2 text-text-muted truncate">
                         <FileText size={13} className="text-primary-start shrink-0" />
-                        <span className="font-bold text-text-primary truncate">A:</span>
+                        <span className="font-bold text-text-primary shrink-0">A:</span>
                         <span className="truncate">{item.sourceA}</span>
                       </div>
                       <div className="flex items-center gap-2 text-rose-500 font-bold text-[10px] uppercase">
-                        <ArrowRight size={12} className="rotate-90 sm:rotate-0" />
+                        <ArrowRight size={12} className="rotate-90 sm:rotate-0 shrink-0" />
                         <span>Bie ndesh me:</span>
                       </div>
                       <div className="flex items-center gap-2 text-text-muted truncate">
                         <FileText size={13} className="text-rose-500 shrink-0" />
-                        <span className="font-bold text-text-primary truncate">B:</span>
+                        <span className="font-bold text-text-primary shrink-0">B:</span>
                         <span className="truncate">{item.sourceB}</span>
                       </div>
                     </div>
@@ -447,7 +450,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
 
                     {/* Neni dhe Këshilla Taktike */}
                     <div className="pt-2 border-t border-main grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-surface border border-main space-y-0.5">
+                      <div className="p-2.5 rounded-xl bg-canvas border border-main space-y-0.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
                           <Filter size={11} /> Nenet e Zbatuara:
                         </span>
@@ -469,7 +472,7 @@ TAKTIKA: [Këshillë taktike për avokatin]
         </main>
 
         {/* FOOTER I DITARIT */}
-        <footer className="p-4 border-t border-main bg-surface/30 flex items-center justify-between text-xs text-text-muted">
+        <footer className="p-4 border-t border-main bg-surface flex items-center justify-between text-xs text-text-muted shrink-0">
           <span className="flex items-center gap-1.5 font-medium">
             <RefreshCw size={12} className={isScanning ? 'animate-spin text-primary-start' : ''} />
             {isScanning ? 'Kolegjiumi po analizon...' : `${findings.length} gjetje nga të 3 rolet`}
