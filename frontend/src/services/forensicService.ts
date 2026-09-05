@@ -1,5 +1,6 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC & COMPREHENSIVE CASE ANALYSIS MICRO-SERVICE V1.1 (CLEAN ZERO-COLLISION TYPING)
+// PHOENIX PROTOCOL - FORENSIC & COMPREHENSIVE CASE ANALYSIS MICRO-SERVICE V2.0
+// FULL MULTIMODAL INTEGRATION (AUDIO, VIDEO, EXIF, FINANCIAL, WAR ROOM) • ZERO TS WARNINGS
 
 import { apiClient } from './apiClient';
 import type {
@@ -12,6 +13,38 @@ import type {
   ForensicInterrogationResponse
 } from './caseService';
 
+// =========================================================================
+// 🎙️ & 🎬 TIPA PËR PROVAT AUDIO / VIDEO & EXIF FORENZIKE
+// =========================================================================
+
+export interface MediaEvidenceItem {
+  id: string;
+  _id?: string;
+  case_id: string;
+  owner_id: string;
+  file_name: string;
+  storage_key: string;
+  media_type: 'video' | 'audio';
+  mime_type: string;
+  status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  transcript?: string;
+  visual_analysis?: {
+    exif_data?: Record<string, any>;
+    gps_coordinates?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    };
+    cctv_frame_analysis?: string;
+    detected_entities?: string[];
+    [key: string]: any;
+  };
+  role?: string;
+  case_domain?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export class ForensicService {
   // =========================================================================
   // 🏛️ 1. ANALIZA E PLOTË E LËNDËS (COMPREHENSIVE CASE ANALYSIS)
@@ -22,7 +55,7 @@ export class ForensicService {
     clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL', 
     force?: boolean
   ): Promise<CaseAnalysisResult & { cached?: boolean; message?: string; latest_deep_analysis?: DeepAnalysisResult }> {
-    const params: any = {};
+    const params: Record<string, any> = {};
     if (clientPosition) params.client_position = clientPosition;
     if (force) params.force = force;
     const response = await apiClient.post<any>(`/cases/${caseId}/analyze`, null, { params });
@@ -112,6 +145,30 @@ export class ForensicService {
   public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
     const response = await apiClient.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
     return response.data;
+  }
+
+  // =========================================================================
+  // 🎙️ & 🎬 5. MEDIA FORENSICS (AUDIO WHISPER, VIDEO CCTV, EXIF/GPS)
+  // =========================================================================
+
+  public async getCaseMedia(caseId: string): Promise<MediaEvidenceItem[]> {
+    const response = await apiClient.get<MediaEvidenceItem[]>(`/cases/${caseId}/media`);
+    return response.data;
+  }
+
+  public async uploadCaseMedia(caseId: string, file: File): Promise<MediaEvidenceItem> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<MediaEvidenceItem>(`/cases/${caseId}/media/upload`, formData);
+    return response.data;
+  }
+
+  public async deleteCaseMedia(caseId: string, mediaId: string): Promise<void> {
+    await apiClient.delete(`/cases/${caseId}/media/${mediaId}`);
+  }
+
+  public getMediaStreamUrl(caseId: string, mediaId: string, token: string): string {
+    return `/api/v1/cases/${caseId}/media/${mediaId}/stream?token=${encodeURIComponent(token)}`;
   }
 }
 
