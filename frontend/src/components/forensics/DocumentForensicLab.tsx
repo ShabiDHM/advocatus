@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DOCUMENT FORENSIC LAB V1.2 (PRO-LEVEL AUTOPSY & LPK/KPPRK VIOLATIONS)
-// ZERO TS WARNINGS • ZERO HARDCODING • FULL ACTIONS (DELETE & AUDIT FLAGS)
+// PHOENIX PROTOCOL - DOCUMENT FORENSIC LAB V1.3 (PRO-LEVEL AUTOPSY & ACCURATE METADATA FORMATTING)
+// ZERO TS WARNINGS • ZERO HARDCODING • VISION OCR & CROSS-EXAMINATION
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -25,7 +25,7 @@ import { forensicService } from '../../services/forensicService';
 interface DocumentItem {
   id: string;
   name: string;
-  size?: number;
+  sizeFormatted: string;
   content_type?: string;
   created_at?: string;
   extracted_text?: string;
@@ -58,6 +58,30 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Nxjerrja dhe Formatimi i Saktë i Madhësisë së Skedarit
+  const extractFileSize = (d: any): string => {
+    const rawBytes = d.size ?? d.file_size ?? d.bytes ?? d.file_size_bytes ?? d.length ?? d.metadata?.file_size ?? d.metadata?.size;
+    if (rawBytes !== undefined && rawBytes !== null) {
+      const num = typeof rawBytes === 'string' ? parseFloat(rawBytes) : Number(rawBytes);
+      if (!isNaN(num) && num > 0) {
+        if (num < 1024) return `${num} B`;
+        if (num < 1024 * 1024) return `${(num / 1024).toFixed(0)} KB`;
+        return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+      }
+    }
+
+    const rawKb = d.file_size_kb ?? d.size_kb;
+    if (rawKb !== undefined && rawKb !== null) {
+      const num = typeof rawKb === 'string' ? parseFloat(rawKb) : Number(rawKb);
+      if (!isNaN(num) && num > 0) {
+        if (num < 1024) return `${num.toFixed(0)} KB`;
+        return `${(num / 1024).toFixed(1)} MB`;
+      }
+    }
+
+    return 'PDF e Indeksuar';
+  };
+
   useEffect(() => {
     if (caseId) {
       loadDocuments();
@@ -72,7 +96,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       const mapped: DocumentItem[] = (docs || []).map((d: any) => ({
         id: d.id || d._id,
         name: d.name || d.file_name || 'Dokument pa titull',
-        size: d.size || d.file_size || 0,
+        sizeFormatted: extractFileSize(d),
         content_type: d.content_type || 'application/pdf',
         created_at: d.created_at || d.uploaded_at || new Date().toISOString(),
         extracted_text: d.extracted_text || d.text || '',
@@ -118,7 +142,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // Fshirja e Shkresës nga Dosja
   const handleDeleteDocument = async (docId: string, docName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -142,7 +165,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // Ekzekutimi i Autopsisë Forenzike për dokumentin e përzgjedhur
   const handleRunDocumentAutopsy = async () => {
     const activeDoc = documents.find(d => d.id === selectedDocId);
     if (!activeDoc || !caseId || isAuditing) return;
@@ -165,7 +187,6 @@ Jep raportin në stil solemn doktrinar me rekomandime për Gjykatë/PSRK.`;
         acc += chunk;
         setAuditReport(acc);
       }
-      // Përditëso gjendjen lokale nëse u zbuluan shkelje
       if (acc.includes('SHKELJE') || acc.includes('Neni 182')) {
         setDocuments(prev => prev.map(d => d.id === selectedDocId ? { ...d, has_violation: true } : d));
       }
@@ -177,7 +198,6 @@ Jep raportin në stil solemn doktrinar me rekomandime për Gjykatë/PSRK.`;
     }
   };
 
-  // Ekzaminimi i Kryqëzuar me Fashikullin
   const handleRunCrossExamination = async () => {
     if (!selectedDocId || !caseId || isAuditing) return;
     setIsAuditing(true);
@@ -315,7 +335,7 @@ Jep raportin në stil solemn doktrinar me rekomandime për Gjykatë/PSRK.`;
                           )}
                         </div>
                         <p className="text-[10px] font-mono text-text-muted">
-                          {(doc.size ? doc.size / 1024 : 0).toFixed(0)} KB • Statusi: {doc.status}
+                          {doc.sizeFormatted} • Statusi: {doc.status}
                         </p>
                       </div>
                     </div>
