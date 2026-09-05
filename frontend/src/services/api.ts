@@ -1,9 +1,10 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V57.0 (ADDED CLEAR DOCUMENT AUDIT METHOD)
+// PHOENIX PROTOCOL - MASTER API FACADE V59.0 (EXPLICIT FORENSIC EXPORT • ZERO TS COLLISIONS)
 
 export * from './apiClient';
 export * from './authService';
 export * from './caseService';
+export { forensicService, ForensicService } from './forensicService';
 export * from './financeService';
 export * from './archiveService';
 export * from './calendarService';
@@ -14,6 +15,7 @@ export * from './lawService';
 import { apiClient, setGlobalLogoutHandler } from './apiClient';
 import { authService } from './authService';
 import { caseService } from './caseService';
+import { forensicService } from './forensicService';
 import { financeService } from './financeService';
 import { archiveService } from './archiveService';
 import { calendarService } from './calendarService';
@@ -41,7 +43,7 @@ class ApiService {
   public forgotPassword = authService.forgotPassword.bind(authService);
   public resetPassword = authService.resetPassword.bind(authService);
 
-  // Case Methods
+  // Case Methods (Core CRUD & Records)
   public getCases = caseService.getCases.bind(caseService);
   public createCase = caseService.createCase.bind(caseService);
   public getCaseDetails = caseService.getCaseDetails.bind(caseService);
@@ -62,15 +64,6 @@ class ApiService {
   public renameDocument = caseService.renameDocument.bind(caseService);
   public reprocessDocument = caseService.reprocessDocument.bind(caseService);
   public reprocessCaseDocuments = caseService.reprocessCaseDocuments.bind(caseService);
-  public analyzeCase = caseService.analyzeCase.bind(caseService);
-  public analyzeDeepStrategy = caseService.analyzeDeepStrategy.bind(caseService);
-  public analyzeDeepSimulation = caseService.analyzeDeepSimulation.bind(caseService);
-  public analyzeDeepChronology = caseService.analyzeDeepChronology.bind(caseService);
-  public analyzeDeepContradictions = caseService.analyzeDeepContradictions.bind(caseService);
-  public archiveStrategyReport = caseService.archiveStrategyReport.bind(caseService);
-  public crossExamineDocument = caseService.crossExamineDocument.bind(caseService);
-  public clearCaseAnalysis = caseService.clearCaseAnalysis.bind(caseService);
-  public clearDocumentAudit = caseService.clearDocumentAudit.bind(caseService);
   public getCaseGraph = caseService.getCaseGraph.bind(caseService);
   public rebuildCaseGraph = caseService.rebuildCaseGraph.bind(caseService);
   public searchFirmGraph = caseService.searchFirmGraph.bind(caseService);
@@ -84,12 +77,23 @@ class ApiService {
   public publicMobileUpload = caseService.publicMobileUpload.bind(caseService);
   public fetchImageBlob = caseService.fetchImageBlob.bind(caseService);
   public analyzeSpreadsheet = caseService.analyzeSpreadsheet.bind(caseService);
-  public forensicAnalyzeSpreadsheet = caseService.forensicAnalyzeSpreadsheet.bind(caseService);
   public analyzeExistingSpreadsheet = caseService.analyzeExistingSpreadsheet.bind(caseService);
   public interrogateFinancialRecords = caseService.interrogateFinancialRecords.bind(caseService);
-  public forensicInterrogateEvidence = caseService.forensicInterrogateEvidence.bind(caseService);
-  public archiveForensicReport = caseService.archiveForensicReport.bind(caseService);
-  public downloadForensicReport = caseService.downloadForensicReport.bind(caseService);
+
+  // 🏛️ Forensic & Comprehensive Analysis Methods (Delegated to Isolated ForensicService)
+  public analyzeCase = forensicService.analyzeCase.bind(forensicService);
+  public clearCaseAnalysis = forensicService.clearCaseAnalysis.bind(forensicService);
+  public archiveForensicReport = forensicService.archiveForensicReport.bind(forensicService);
+  public downloadForensicReport = forensicService.downloadForensicReport.bind(forensicService);
+  public clearDocumentAudit = forensicService.clearDocumentAudit.bind(forensicService);
+  public crossExamineDocument = forensicService.crossExamineDocument.bind(forensicService);
+  public analyzeDeepStrategy = forensicService.analyzeDeepStrategy.bind(forensicService);
+  public analyzeDeepSimulation = forensicService.analyzeDeepSimulation.bind(forensicService);
+  public analyzeDeepChronology = forensicService.analyzeDeepChronology.bind(forensicService);
+  public analyzeDeepContradictions = forensicService.analyzeDeepContradictions.bind(forensicService);
+  public archiveStrategyReport = forensicService.archiveStrategyReport.bind(forensicService);
+  public forensicAnalyzeSpreadsheet = forensicService.forensicAnalyzeSpreadsheet.bind(forensicService);
+  public forensicInterrogateEvidence = forensicService.forensicInterrogateEvidence.bind(forensicService);
 
   // Finance Methods
   public getInvoices = financeService.getInvoices.bind(financeService);

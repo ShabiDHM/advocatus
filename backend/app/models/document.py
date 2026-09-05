@@ -1,5 +1,5 @@
 # FILE: backend/app/models/document.py
-# PHOENIX PROTOCOL - DOCUMENT MODELS V4.1 (ADDED EXPLICIT PAGE_COUNT & RESILIENT METRICS)
+# PHOENIX PROTOCOL - DOCUMENT MODELS V5.0 (PERSISTED FORENSIC AUDIT CACHE & ZERO 0ms REANALYSIS)
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, List, Any
@@ -8,11 +8,13 @@ from enum import Enum
 
 from .common import PyObjectId
 
+
 class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
     FAILED = "FAILED"
     ARCHIVED = "ARCHIVED"
+
 
 class DocumentBase(BaseModel):
     file_name: Optional[str] = "Dokument"
@@ -21,6 +23,7 @@ class DocumentBase(BaseModel):
     summary: Optional[str] = None
     page_count: Optional[int] = 1
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
 
 class DocumentInDB(DocumentBase):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
@@ -35,6 +38,11 @@ class DocumentInDB(DocumentBase):
     progress_message: Optional[str] = None
     is_shared: Optional[bool] = False
     
+    # ⚡ PHOENIX FORENSIC CACHE: Ruajtja e Auditimit për Hapje në 0 Milisekonda
+    latest_analysis: Optional[str] = None
+    latest_forensic_audit: Optional[str] = None
+    last_audited_at: Optional[datetime] = None
+
     # PHOENIX ENGINE: Persisted Strategic Analysis
     litigation_analysis: Optional[Dict[str, Any]] = None
     
@@ -47,6 +55,7 @@ class DocumentInDB(DocumentBase):
             datetime: lambda v: v.isoformat()
         }
     )
+
 
 class DocumentOut(DocumentInDB):
     pass
