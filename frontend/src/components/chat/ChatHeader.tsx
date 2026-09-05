@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V21.0 ("RASTI DUKE U ANALIZUAR..." & CLEAN ISOLATION)
+// PHOENIX PROTOCOL - CHAT HEADER V22.0 (ROLE-GATED "ANALIZO RASTIN" & CLEAN ISOLATION)
 
 import React from 'react';
 import { Download, Trash2, FileSearch, Loader2 } from 'lucide-react';
@@ -45,26 +45,28 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Butoni Theme-Aware ANALIZO RASTIN + Veprimet */}
+      {/* Right: Butoni ANALIZO RASTIN (Shfaqet VETËM kur përdoruesi është Admin / Single-Pay) */}
       <div className="flex items-center justify-end gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onAnalyzeCase}
-          disabled={isAnalyzingCase}
-          className="h-8 px-3.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 disabled:opacity-80 cursor-pointer border border-primary-start/30"
-        >
-          {isAnalyzingCase ? (
-            <>
-              <Loader2 size={14} className="text-white animate-spin shrink-0" />
-              <span className="text-white font-bold whitespace-nowrap animate-pulse">Rasti duke u analizuar...</span>
-            </>
-          ) : (
-            <>
-              <FileSearch size={14} className="text-white shrink-0" />
-              <span className="text-white font-bold whitespace-nowrap">Analizo Rastin</span>
-            </>
-          )}
-        </button>
+        {onAnalyzeCase && (
+          <button
+            type="button"
+            onClick={onAnalyzeCase}
+            disabled={isAnalyzingCase}
+            className="h-8 px-3.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 disabled:opacity-80 cursor-pointer border border-primary-start/30"
+          >
+            {isAnalyzingCase ? (
+              <>
+                <Loader2 size={14} className="text-white animate-spin shrink-0" />
+                <span className="text-white font-bold whitespace-nowrap animate-pulse">Rasti duke u analizuar...</span>
+              </>
+            ) : (
+              <>
+                <FileSearch size={14} className="text-white shrink-0" />
+                <span className="text-white font-bold whitespace-nowrap">Analizo Rastin</span>
+              </>
+            )}
+          </button>
+        )}
 
         {onExportChat && (
           <button

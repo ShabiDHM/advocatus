@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V87.0 (STRICT CHAT ISOLATION: CASE ANALYSIS & DOC AUDIT)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V88.0 (ROLE-GATED CASE ANALYSIS FOR ADMIN & SINGLE-PAY ONLY)
 // ZERO CHAT POLLUTION • SMART MONGODB CACHING • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -40,6 +40,14 @@ const CaseViewPage: React.FC = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Kontrolli i Qasjes: Vetëm Admin / Superadmin ose Single Pay
+  const isAdminOrAuthorized = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || (user as any).user_role || '').toUpperCase();
+    const tier = ((user as any).tier || '').toUpperCase();
+    return role === 'ADMIN' || role === 'SUPERADMIN' || tier === 'SINGLE_PAY' || tier === 'VIP';
+  }, [user]);
 
   // 1. State për Analizën e Plotë të Lëndës (ANALIZO RASTIN)
   const [isAnalyzingCase, setIsAnalyzingCase] = useState<boolean>(false);
@@ -134,7 +142,6 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // Auto-Sync Polling
   useEffect(() => {
     const hasProcessingDocs = liveDocuments.some(
       (doc) => doc.status === 'PROCESSING' || doc.status === 'PENDING'
@@ -166,7 +173,6 @@ const CaseViewPage: React.FC = () => {
     setMinimizedDocument(null);
   }, [caseId]);
 
-  // DËGJUESI 1: Për dokumentet e lëndës
   useEffect(() => {
     const handleOpenDocPreview = (e: any) => {
       const { fileName, href } = e.detail || {};
@@ -205,7 +211,6 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
 
-  // DËGJUESI 2: Precedentët e Gjykatës Supreme
   useEffect(() => {
     const handleOpenPrecedent = async (e: any) => {
       const { caseNumber } = e.detail || {};
@@ -243,7 +248,6 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_precedent_preview', handleOpenPrecedent);
   }, []);
 
-  // 🧹 PASTRIMI TOTAL I CHATIT
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
@@ -279,7 +283,6 @@ const CaseViewPage: React.FC = () => {
     }));
   }, []);
 
-  // 🧹 TOTAL WIPEOUT I AUDITIMIT TË DOKUMENTIT
   const handleDeleteDocAuditFromModal = useCallback(async () => {
     if (!currentAuditedDoc || !caseId) return;
     const targetId = String(currentAuditedDoc.id);
@@ -300,7 +303,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, currentAuditedDoc, setLiveDocuments]);
 
-  // BISEDA E ZAKONSHME E CHAT-IT (RUHET NË HISTORI: saveHistory = true)
+  // BISEDA E ZAKONSHME E CHAT-IT (saveHistory = true)
   const handleChatSubmit = useCallback(async (
     text: string, 
     mode: ChatMode, 
@@ -325,7 +328,7 @@ const CaseViewPage: React.FC = () => {
         jurisdiction, 
         reasoning, 
         mode === 'document' ? domain : 'automatic',
-        true // PHOENIX FIX: Chati i zakonshëm e ruan historikun!
+        true
       );
 
       for await (const chunk of stream) {
@@ -367,7 +370,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ⚡ BUTONI "ANALIZO RASTIN": HAPJE NË CaseAnalysisModal (IZOLIM I PLOTË: saveHistory = false)
+  // ⚡ ANALIZO RASTIN (saveHistory = false)
   const handleStartBackgroundCaseAnalysis = useCallback(async () => {
     if (!caseId || isAnalyzingCase) return;
 
@@ -389,8 +392,6 @@ const CaseViewPage: React.FC = () => {
 
     try {
       const prompt = "ANALIZO RASTIN — Gjenero Raportin Master të Plotë Doktrinar të Gjykatës Supreme për të gjithë fashikullin e lëndës, duke kryer autopsinë forenzike të të gjitha shkresave, procesverbaleve dhe provave materiale.";
-      
-      // PHOENIX FIX: Parametri i fundit 'false' garanton ZERO NDOTJE NË CHAT!
       const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic', false);
       
       let accumulated = '';
@@ -418,7 +419,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, isAnalyzingCase, analysisResultText, caseData.details]);
 
-  // ⚖️ BUTONI I PESHORES NË DOKUMENT: HAPJE NË DocumentAuditModal (IZOLIM I PLOTË: saveHistory = false)
+  // ⚖️ AUDITIMI I DOKUMENTIT (saveHistory = false)
   const handleVerifyDocumentLaws = useCallback(async (doc: Document) => {
     if (!caseId || isAuditingDoc) return;
 
@@ -426,7 +427,6 @@ const CaseViewPage: React.FC = () => {
     const docName = doc.file_name || 'Dokument';
     setCurrentAuditedDoc(doc);
 
-    // 1. Hapje në 0ms nëse ky dokument tashmë e ka auditimin të kryer më parë
     const existingAudit = (doc as any).latest_analysis || (doc as any).latest_forensic_audit;
     if (typeof existingAudit === 'string' && existingAudit.trim().length > 100) {
       setDocAuditResultText(existingAudit.trim());
@@ -434,7 +434,6 @@ const CaseViewPage: React.FC = () => {
       return;
     }
 
-    // 2. Nëse jo, hap menjëherë modalin e dedikuar dhe transmeto live stream brenda tij
     setDocAuditResultText('');
     setIsDocAuditModalOpen(true);
     setIsAuditingDoc(true);
@@ -443,7 +442,6 @@ const CaseViewPage: React.FC = () => {
       const supremeAuditPrompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
 Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "${docName}" sipas të 8 seksioneve të plota doktrinare, me nxjerrjen e çdo neni në Tabelën e Seksionit 4 me formatin Neni X i [Ligjit] për verifikim 1-klikim.`;
 
-      // PHOENIX FIX: Parametri i fundit 'false' garanton ZERO NDOTJE NË CHAT!
       const stream = apiService.sendChatMessageStream(caseId, supremeAuditPrompt, [docIdStr], 'ks', 'DEEP', 'document', false);
 
       let accumulated = '';
@@ -534,7 +532,8 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onOpenCaseAnalysis={handleStartBackgroundCaseAnalysis}
+              // PHOENIX FIX: Butoni Analizo Rastin i kalohet VETËM Adminit / Single-Pay
+              onOpenCaseAnalysis={isAdminOrAuthorized ? handleStartBackgroundCaseAnalysis : undefined}
               isAnalyzingCase={isAnalyzingCase}
             />
           </div>
@@ -557,7 +556,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS (TË GJITHA SHKRESAT) */}
+      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -568,7 +567,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         onDeleteAnalysis={handleDeleteAnalysisFromModal}
       />
 
-      {/* MODAL 2: AUDITIMI I DEDIKUAR PËR 1 DOKUMENT TË VETËM (PESHORJA ⚖️) */}
+      {/* MODAL 2: AUDITIMI I DEDIKUAR PËR 1 DOKUMENT TË VETËM */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
