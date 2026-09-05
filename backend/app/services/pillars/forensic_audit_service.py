@@ -1,5 +1,6 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - SUPREME COURT SINGLE-DOCUMENT FORENSIC AUDITOR V260.0 (100% DYNAMIC • 1-CLICK CITATIONS • ZERO HARDCODING)
+# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V270.0
+# GJUHË E PAZTËR JURIDIKE SHQIPE (ZERO ANGLISHT) • 100% DINAMIK • ZERO HARDCODING
 
 import logging
 import re
@@ -12,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V260.0):
+    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V270.0):
     - 100% Dinamik, Shkencor dhe i Paanshëm: Ekstraktim ekskluzivisht nga teksti real i këtij dokumenti.
     - ZERO HARDCODING: Asnjë emër, numër lënde, shumë apo fakt i fabrikuar me dorë.
-    - ZERO DRAFTING: Nuk shkruan draft shkrese; fokusohet 100% në AUTOPSINË DHE KËSHILLIMIN STRATEGJIK.
-    - 1-Klikim Verifikim: Çdo dispozitë e cituar formatohet ekzaktësisht 'Neni X i [Ligjit]'.
-    - Diagnostikon saktësinë formale, afatet prekluzive, lapsuset dhe precedentët supremë (Rev dhe PML).
+    - NDALIM I DRAFTIMIT: Nuk shkruan formularë padish; fokusohet 100% në AUTOPSINË DHE KËSHILLIMIN STRATEGJIK.
+    - Verifikim me Një Klikim: Çdo dispozitë e cituar formatohet ekzaktësisht 'Neni X i [Emri i Ligjit]'.
+    - Gjuha: Ekskluzivisht gjuha standarde juridike shqipe e Kosovës pa fjalë të huaja.
     """
 
     @staticmethod
@@ -58,111 +59,120 @@ class ForensicAuditService:
         manifest_str: Optional[str] = None,
         db: Any = None
     ) -> str:
-        audit_text = (document_text or context_str).strip()
+        teksti_shkreses = (document_text or context_str).strip()
         
         # Zbulim dinamik i lëmisë nga vetë teksti i shkresës
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
                 case_title=case_title,
-                context_str=audit_text[:15000],
+                context_str=teksti_shkreses[:15000],
                 manifest_str=manifest_str or ""
             )
         
-        pos = (client_position or "PALË NË PROCEDURË").strip().upper()
-        mined_legal_entities = ForensicAuditService.extract_legal_entities_from_text(audit_text)
+        pozicioni = (client_position or "PALË NË PROCEDURË").strip().upper()
+        entitetet_ligjore = ForensicAuditService.extract_legal_entities_from_text(teksti_shkreses)
         
-        # Përcaktimi dinamik i precedentëve përkatës (PML për penale, Rev për civile/komerciale)
-        domain_upper = case_domain.upper()
-        precedent_terms = []
-        if "PENAL" in domain_upper:
-            precedent_terms.append("Aktgjykimet PML të Kolegjit Penal")
-        if any(d in domain_upper for d in ["CIVIL", "KOMERCIAL", "PRONËSOR", "FAMILJAR", "PUNË"]):
-            precedent_terms.append("Aktgjykimet Rev të Kolegjit Civil dhe Komercial")
+        # Përcaktimi dinamik i precedentëve përkatës (PML për penale, Revizion për civile/komerciale)
+        lemia_upper = case_domain.upper()
+        termat_precedenteve = []
+        if "PENAL" in lemia_upper:
+            termat_precedenteve.append("Aktgjykimet PML të Kolegjit Penal")
+        if any(d in lemia_upper for d in ["CIVIL", "KOMERCIAL", "PRONËSOR", "FAMILJAR", "PUNË"]):
+            termat_precedenteve.append("Aktgjykimet Revizion të Kolegjit Civil dhe Komercial")
         
-        precedents_hint = " dhe ".join(precedent_terms) or "Aktgjykimet PML dhe Rev"
-        search_query = query_text or f"{mined_legal_entities} {case_domain} Nenet {precedents_hint} Gjykatës Supreme"
+        orientimi_precedenteve = " dhe ".join(termat_precedenteve) or "Aktgjykimet PML dhe Revizionet"
+        pyetja_kerkimore = query_text or f"{entitetet_ligjore} {case_domain} Nenet {orientimi_precedenteve} të Gjykatës Supreme"
 
         # Izolim i plotë RAG: vetëm precedentët dhe normat ligjore për këtë akt
-        rag_context = ""
+        baza_globale = ""
         try:
-            rag_context, _ = BasePillarService.get_rag_context(
+            baza_globale, _ = BasePillarService.get_rag_context(
                 user_id=user_id or "",
                 case_id="",  # Izolim absolut për të parandaluar ndotjen nga shkresa të tjera
-                query_text=search_query,
+                query_text=pyetja_kerkimore,
                 n_results=30
             )
         except Exception as rag_err:
-            logger.warning(f"Forensic RAG search fallback: {rag_err}")
+            logger.warning(f"Kërkimi i precedentëve: {rag_err}")
 
-        supreme_protocol = BasePillarService.build_supreme_jurisprudence_directive(case_domain)
-        role_guard = RoleGuardService.build_role_guard(pos, client_name)
-        role_tone = RoleGuardService.get_role_specific_tone(pos)
-        laws_list = "\n".join([f"- {law}" for law in BasePillarService.get_domain_laws(case_domain)])
+        protokolli_suprem = BasePillarService.build_supreme_jurisprudence_directive(case_domain)
+        mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)
+        toni_rolit = RoleGuardService.get_role_specific_tone(pozicioni)
+        lista_ligjeve = "\n".join([f"- {ligji}" for ligji in BasePillarService.get_domain_laws(case_domain)])
 
         return f"""
-<legal_evidentiary_privilege_context>
-AUDITIM FORENZIK DOKTRINAR I SHKRESËS • KOLEGJI KONSULENT I GJYKATËS SUPREME TË KOSOVËS
+<konteksti_i_autopsise_forenzike_se_shkreses>
+JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+REPUBLIKA E KOSOVËS • EKSPERTIZË DOKTRINARE E PROVAVE DHE MBROJTJE GJYQËSORE
+
 MANDATI YT SUPREM:
 Përpara teje ndodhet një dokument specifik gjyqësor, administrativ apo procedural për auditim të thellë doktrinar.
 Detyra jote absolute është AUTOPSIA FORENZIKE E KËSAJ SHKRESE DHE DHËNIA E KËSHILLËS STRATEGJIKE:
 1. Audito VETËM DHE EKSKLUZIVISHT këtë shkresë specifike që ndodhet më poshtë në tekst.
-2. NDALOHET KATEGORIKISHT HARTIMI I NJË SHKRESE FORMALE (mos shkruaj 'Gjykatës Themelore: Padi/Ankesë'). Roli yt është të evidentosh me sy inkuizitor saktësinë, të metat, lapsuset, pasojat juridike dhe veprimin e duhur procedural.
-3. Zbërthe çdo nen ligjor në formatin standard për verifikim të menjëhershëm: `Neni X i [Ligjit]`.
-4. Zbulo nëse akti vuan nga mangësi thelbësore (kontradiktë arsyetim-dispozitiv, moskompetencë, tejkalim i afateve prekluzive, apo zbatim i gabuar i së drejtës materiale).
-</legal_evidentiary_privilege_context>
+2. NDALOHET KATEGORIKISHT HARTIMI I FORMULARËVE TË PADISË (mos shkruaj 'Gjykatës Themelore: Padi ose Ankesë'). Roli yt është të evidentosh me sy inkuizitor saktësinë, të metat, lapsuset, pasojat juridike dhe veprimin e duhur procedural.
+3. Zbërthe çdo nen ligjor në formatin standard për verifikim me një klikim: `Neni X i [Emri i Ligjit]`.
+4. Zbulo nëse akti vuan nga mangësi thelbësore (kontradiktë mes arsyetimit dhe dispozitivit, moskompetencë lëndore, tejkalim i afateve prekluzive, apo zbatim i gabuar i së drejtës materiale).
+5. GJUHË E PAZTËR SHQIPE: Përgjigju VETËM në gjuhën standarde juridike të Republikës së Kosovës pa fjalë apo kllapa në gjuhë të huaja.
+</konteksti_i_autopsise_forenzike_se_shkreses>
 
-{supreme_protocol}
+{protokolli_suprem}
 
-{role_guard}
+{mbrojtja_rolit}
 
 📋 IDENTIFIKIMI I SHKRESËS NË AUDITIM:
 {manifest_str or 'Dokument Procedural i Administruar'}
 LËMIA E PËRCAKTUAR NGA SHKRESA: **{case_domain}**
-POZICIONI PROCEDURAL I KLIENTIT: **{pos}**
-DATA E AUDITIMIT: {current_date_str}
+POZICIONI PROCEDURAL I KLIENTIT: **{pozicioni}**
+DATA E AUDITIMIT DOKTRINAR: {current_date_str}
 
-{role_tone}
+{toni_rolit}
 
-📚 KORNIZA STATUTORE E ZBATUESHME NË REPUBLIKËN E KOSOVËS:
-{laws_list}
+📚 KORNIZA LIGJORE E ZBATUESHME NË REPUBLIKËN E KOSOVËS:
+{lista_ligjeve}
 
-🏛️ JURISPRUDENCA DHE PRECEDENTËT E RELEVANTË NGA BAZA GLOBALE (Rev / PML):
-{rag_context if rag_context else "Zbato legjislacionin pozitiv të Republikës së Kosovës dhe praktikat e konsoliduara të Kolegjeve të Gjykatës Supreme."}
+🏛️ JURISPRUDENCA DHE PRECEDENTËT SUPREMË NGA BAZA GLOBALE (Revizionet / PML):
+{baza_globale if baza_globale else "Zbato legjislacionin pozitiv të Republikës së Kosovës dhe praktikat e konsoliduara të Kolegjeve të Gjykatës Supreme."}
 
 ======================================================================
-RREGULLAT E HEKURTA TË AUDITIMIT FORENZIK (ZERO DRAFTING • PURE AUDIT):
+RREGULLAT E HEKURTA TË AUTOPSISË FORENZIKE (AUTOPSI E PAZTËR LIGJORE):
 
 1. BESNIKËRI DHE SHKENCORITET NDAJ KËTIJ DOKUMENTI TË VETËM:
    - Të gjitha faktet, emrat, organet, datat dhe numrat e lëndës duhet të merren 100% nga teksti real i këtij dokumenti.
    - Nëse një e dhënë mungon në shkresë, deklaroje qartë; mos bëj kurrë supozime.
 
-2. DETEKTORI I SHKELJEVE 'CONTRA LEGEM' DHE AFATEVE:
+2. DETEKTORI I SHKELJEVE DHE AFATEVE LIGJORE:
    - Verifiko afatet prekluzive ligjore:
-     * Aktvendimi gjyqësor: afati i ankesës 7 ditë (LPK / Gjykata Komerciale).
-     * Aktgjykimi gjyqësor: afati i ankesës 15 ditë (LPK / KPPRK).
-     * Përgjigja në padi: afati 30 ditë (LPK).
-     * Vendimi administrativ: afati i konfliktit administrativ 30 ditë (LKA).
+     * Aktvendimi gjyqësor: afati i ankesës 7 ditë (sipas Ligjit për Procedurën Kontestimore / Gjykatës Komerciale).
+     * Aktgjykimi gjyqësor: afati i ankesës 15 ditë (sipas LPK-së ose Kodit të Procedurës Penale).
+     * Përgjigja në padi (prapësimi): afati 30 ditë (LPK).
+     * Vendimi administrativ: afati i konfliktit administrativ 30 ditë.
    - Verifiko nëse ka kontradiktë flagrante mes asaj që pranohet në arsyetim dhe asaj që urdhërohet në dispozitiv.
 
-3. VERIFIKIMI 1-KLIKIM DHE PRECEDENTËT SUPREMË:
+3. VERIFIKIMI ME NJË KLIKIM DHE PRECEDENTËT SUPREMË:
    - ÇDO NEN i cituar apo i zbatueshëm për këtë shkresë DUHET të shfaqet në tabelën e Seksionit 4 me formatin ekzakt:
-     `Neni X i [Ligjit]` (p.sh. `Neni 182 i LPK-së`, `Neni 383 i KPRK-së`, `Neni 31 i Kushtetutës`).
-   - Lidh çdo dispozitë me precedentin përkatës të Gjykatës Supreme (Rev ose PML).
+     `Neni X i [Emri i Ligjit]` (p.sh. `Neni 182 i Ligjit për Procedurën Kontestimore`, `Neni 383 i Kodit Penal`, `Neni 31 i Kushtetutës`).
+   - Lidh çdo dispozitë me precedentin përkatës të Gjykatës Supreme (Revizion ose PML).
 ======================================================================
 
 {'='*60}
-TEKSTI I PLOTË DHE I PAPREKUR I SHKRESËS QË AUDITOHET:
+TEKSTI I PLOTË I SHKRESËS QË AUDITOHET:
 {'='*60}
-{audit_text}
+{teksti_shkreses}
 {'='*60}
 
-STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK TË DOKUMENTIT (8 SEKSIONE):
+STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK TË DOKUMENTIT (8 SEKSIONE TË PLOTA):
+
+# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+## AUTOPSIA DOKTRINARE DHE INTEGRITETI I SHKRESËS GJYQËSORE
+**SHKRESA NË AUDITIM:** {manifest_str or 'Dokument Gjyqësor'} | **LËMIA:** {case_domain} | **DATA:** {current_date_str}
+
+---
 
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
 * **Lloji dhe Natyra Formale e Shkresës:** (Padi, Ankesë, Aktvendim, Aktgjykim, Raport Ekspertize, Procesverbal, Kontratë, etj.).
 * **Organi Nxjerrës / Titullari Procedural:** Gjykata, prokuroria, eksperti, apo autoriteti përgjegjës.
 * **Numri Identifikues i Regjistrit / Shenja e Lëndës:** Numri i saktë i protokollit apo shkresës.
-* **Auditimi i Afateve dhe Prekluziviteti:** A është nxjerrë/paraqitur brenda afatit ligjor? Sa është afati për ta atakuar?
+* **Auditimi i Afateve dhe Prekluziviteti:** A është nxjerrë apo paraqitur brenda afatit ligjor? Sa është afati i saktë për ta atakuar?
 
 ### 2. 👥 STRUKTURA E PALËVE DHE LEGJITIMITETI PROCEDURAL
 * **Parashtruesi / Autori i Aktit:** Legjitimiteti aktiv dhe cilësia procedurale.
@@ -174,29 +184,29 @@ STRUKTURA E DETYRUESHME E RAPORTIT FORENZIK TË DOKUMENTIT (8 SEKSIONE):
 * **Provat e Administruara në Akt:** Cilat prova materiale, shkencore apo dëshmi përmenden.
 * **Boshllëqet Provuese dhe Cenueshmëria:** Çfarë provash thelbësore janë shpërfillur apo mungojnë.
 
-### 4. ⚖️ TABELA SHTERRUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-(Çdo nen të citohet me formatin `Neni X i [Ligjit]` për verifikim 1-klikim, me precedentin përkatës Rev ose PML):
-| Dispozita & Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare & Pasojat Juridike | 🏛️ Precedenti / Qëndrimi i Gjykatës Supreme |
+### 4. ⚖️ TABELA SHTERUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
+(Çdo nen të citohet me formatin e plotë `Neni X i [Emri i Ligjit]` për verifikim me një klikim, me precedentin përkatës Revizion ose PML):
+| Dispozita dhe Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare dhe Pasojat Juridike | 🏛️ Precedenti dhe Qëndrimi i Gjykatës Supreme |
 | :--- | :--- | :--- | :--- |
 
-### 5. ⚠️ GJETJET KRITIKE, SHKELJET 'CONTRA LEGEM' DHE DETEKTORI I GABIMEVE
-* 🔴 **Shkeljet Thelbësore të Konstatuara:** (Moskompetencë, shkelje procedurale, tejkalim kërkese, kontradiktë arsyetim-dispozitiv).
+### 5. ⚠️ GJETJET KRITIKE, SHKELJET NË KUNDËRSHTIM ME LIGJIN DHE DETEKTORI I GABIMEVE
+* 🔴 **Shkeljet Thelbësore të Konstatuara:** (Moskompetencë lëndore, shkelje procedurale, tejkalim i kërkesëpadisë, kontradiktë mes arsyetimit dhe dispozitivit).
 * 🔍 **Detektori i Pasaktësive dhe Lapsuseve në Shkresë:**
-  | Formulimi / Paragrafi Aktual në Shkresë | Pasaktësia / Lapsusi Doktrinar i Identifikuar | Formula e Saktë Ligjore e Zëvendësimit |
+  | Formulimi Aktual në Shkresë | Pasaktësia apo Lapsusi Doktrinar i Identifikuar | Formula e Saktë Ligjore e Zëvendësimit |
   | :--- | :--- | :--- |
 
-### 6. 🔬 AUDITIMI I KËRKESËS (PETITUMIT) DHE EKZEKUTUESHMËRISË
+### 6. 🔬 AUDITIMI I KËRKESËS DHE EKZEKUTUESHMËRISË
 * **Vlerësimi i Qartësisë së Kërkesës apo Dispozitivit:** A është kërkesa e saktë, e ekzekutueshme dhe e mbështetur në normë?
-* **Rreziqet Procedurale:** Pengesat që çojnë në rrëzimin, hedhjen apo prishjen e aktit në instancat më të larta.
+* **Rreziqet Procedurale:** Pengesat që çojnë në rrëzimin, hedhjen apo prishjen e aktit në instancat më të larta ankimore.
 * **Forca Ekzekutive:** A përbën titull ekzekutiv dhe si mund të pezullohet apo kundërshtohet.
 
 ### 7. 💡 DIAGNOZA KORRIGJUESE DHE REKOMANDIMET E DREJTPËRDREJTA PËR SHKRESËN
 * **Vlerësimi i Qëndrueshmërisë Ligjore:** Pikat e forta dhe dobësitë fatale të kësaj shkrese.
-* **Këshilla Taktike mbi Korrigjimin / Sulmin:** Çfarë argumentesh duhen goditur, çfarë duhen shtuar dhe si neutralizohet efekti i dëmshëm.
+* **Këshilla Taktike mbi Korrigjimin apo Goditjen:** Çfarë argumentesh duhen goditur, çfarë duhen shtuar dhe si neutralizohet efekti i dëmshëm.
 * **Rekomandimi i Hapit Taktik:** A duhet të paraqitet Ankesë, Prapësim, Padi për Anulim, Kërkesë për Masë Sigurimi, apo Kundërshtim Ekspertize.
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E ARDHSHËM PROCEDURALË
 * 🔴 **HAPI 1 (Urgjenca / Veprimi brenda Afatit Prekluziv):** Veprimi i parë i detyrueshëm procedural para skadimit të afatit.
-* 🟡 **HAPI 2 (Plotësimi Provues dhe Kundër-Sulmi):** Masat për sigurimin e provave, kundër-ekspertizat apo parashtresat plotësuese.
+* 🟡 **HAPI 2 (Plotësimi Provues dhe Kundër-Goditja):** Masat për sigurimin e provave, kundër-ekspertizat apo parashtresat plotësuese.
 * 🟢 **HAPI 3 (Mbrojtja në Organin Kompetent):** Linja përfundimtare e mbrojtjes për fitoren e plotë ligjore.
 """

@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V89.0 (UNIFIED FORENSIC COLLEGIATE & ZERO CHAT POLLUTION)
-// SMART 0MS MONGODB CACHING • INVESTIGATOR'S LOG INTEGRATED • ADMIN-ONLY DELETE GATING
+// PHOENIX PROTOCOL - CASE VIEW PAGE V90.0 (PERFECT DUAL-PANEL SYMMETRY & SEAMLESS MOBILE ADAPTATION)
+// ZERO TS WARNINGS • 100% RESPONSIVE HEIGHT SYNC • INVESTIGATOR & AUDIT MODALS
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -42,7 +42,7 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Kontrolli Admin për të Drejtën e Fshirjes së Memories (Trash Button)
+  // Kontrolli Admin për Koshin e Fshirjes
   const isAdmin = useMemo(() => {
     if (!user) return false;
     const role = (user.role || (user as any).user_role || '').toUpperCase();
@@ -60,7 +60,7 @@ const CaseViewPage: React.FC = () => {
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
   const [isAuditingDoc, setIsAuditingDoc] = useState<boolean>(false);
 
-  // 3. Ditari i Hetuesit (Kolegjiumi me 3 Rolet për Seancë)
+  // 3. Ditari i Hetuesit
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
 
   const isPro = true;
@@ -72,6 +72,19 @@ const CaseViewPage: React.FC = () => {
   const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
   const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
   const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
+
+  // Kontrolli Dinamik: A është e kryer analiza dhe a është e freskët?
+  const hasExistingAnalysis = useMemo(() => {
+    return Boolean(
+      (analysisResultText && analysisResultText.trim().length > 100) ||
+      (typeof (caseData.details as any)?.latest_deep_analysis === 'string' && (caseData.details as any)?.latest_deep_analysis.trim().length > 100) ||
+      (typeof (caseData.details as any)?.latest_comprehensive_analysis === 'string' && (caseData.details as any)?.latest_comprehensive_analysis.trim().length > 100)
+    );
+  }, [analysisResultText, caseData.details]);
+
+  const isAnalysisDirty = useMemo(() => {
+    return Boolean((caseData.details as any)?.analysis_dirty);
+  }, [caseData.details]);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -383,7 +396,7 @@ const CaseViewPage: React.FC = () => {
       (typeof (caseData.details as any)?.latest_comprehensive_analysis === 'string' && (caseData.details as any)?.latest_comprehensive_analysis.trim().length > 100 ? (caseData.details as any)?.latest_comprehensive_analysis : '') ||
       '';
 
-    if (existing && existing.trim().length > 100) {
+    if (existing && existing.trim().length > 100 && !isAnalysisDirty) {
       setAnalysisResultText(existing.trim());
       setIsAnalysisModalOpen(true);
       return;
@@ -420,7 +433,7 @@ const CaseViewPage: React.FC = () => {
     } finally {
       setIsAnalyzingCase(false);
     }
-  }, [caseId, isAnalyzingCase, analysisResultText, caseData.details]);
+  }, [caseId, isAnalyzingCase, analysisResultText, caseData.details, isAnalysisDirty]);
 
   // ⚖️ AUDITIMI I DOKUMENTIT (saveHistory = false)
   const handleVerifyDocumentLaws = useCallback(async (doc: Document) => {
@@ -496,8 +509,8 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
   }
 
   return (
-    <motion.div className="w-full min-h-screen pb-8 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-4 space-y-4">
+    <motion.div className="w-full min-h-screen pb-6 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-3 sm:space-y-4">
         
         <CaseHeaderBar
           caseDetails={caseData.details}
@@ -507,12 +520,12 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         {/* SHIRITI I PËRGATITJES SË SEANCËS: DITARI I HETUESIT ME 3 ROLE */}
         <div className="flex items-center justify-between gap-3 bg-surface border border-main px-4 py-2.5 rounded-2xl shadow-sm">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-lg shrink-0">🕵️</span>
+            <span className="text-base sm:text-lg shrink-0">🕵️</span>
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-wider text-text-primary truncate">
                 Ditari i Hetuesit — Përgatitja e Seancës (3 Rolet)
               </p>
-              <p className="text-[11px] text-text-muted truncate">
+              <p className="text-[10px] sm:text-[11px] text-text-muted truncate">
                 Zbulimi i alibive të rreme, shkeljeve të LPK-së dhe pyetjeve kurth para gjyqit
               </p>
             </div>
@@ -526,7 +539,8 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 z-0 items-stretch">
+        {/* GRID-I ME SIMETRI TË PËRKYER (EVIDENCE VAULT & CHAT PANEL) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
             documents={liveDocuments}
@@ -540,7 +554,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
             t={t}
           />
 
-          <div className="lg:col-span-7 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-250px)] min-h-[600px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          <div className="lg:col-span-7 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-255px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -559,6 +573,8 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
               clientPosition={clientPosition}
               onOpenCaseAnalysis={handleStartBackgroundCaseAnalysis}
               isAnalyzingCase={isAnalyzingCase}
+              isAnalysisDirty={isAnalysisDirty}
+              hasExistingAnalysis={hasExistingAnalysis}
             />
           </div>
         </div>
@@ -580,7 +596,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS (KOSHI VETËM PËR ADMIN) */}
+      {/* MODAL 1: ANALIZA E PLOTË E LËNDËS */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -591,7 +607,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUDITIMI I 1 DOKUMENTI (KOSHI VETËM PËR ADMIN) */}
+      {/* MODAL 2: AUDITIMI I 1 DOKUMENTI */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
@@ -603,7 +619,7 @@ Kryej auditimin e thellë forenzik të shkallës më të lartë të dokumentit "
         onDeleteAudit={isAdmin ? handleDeleteDocAuditFromModal : undefined}
       />
 
-      {/* MODAL 3: DITARI I HETUESIT (KOLEGJIUMI ME 3 ROLE) */}
+      {/* MODAL 3: DITARI I HETUESIT (3 ROLET) */}
       {caseId && (
         <InvestigatorLogDrawer
           isOpen={showInvestigatorDrawer}

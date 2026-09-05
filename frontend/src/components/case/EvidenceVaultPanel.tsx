@@ -1,5 +1,5 @@
 // FILE: src/components/case/EvidenceVaultPanel.tsx
-// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V13.0 (INTEGRATED 1-CLICK LEGAL AUDIT PROP)
+// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V14.0 (PIXEL-PERFECT SYMMETRY & MOBILE RESPONSIVENESS)
 
 import React, { useState } from 'react';
 import { Document, DeletedDocumentResponse } from '../../data/types';
@@ -38,14 +38,14 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
   const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
 
   return (
-    <div className="lg:col-span-5 flex flex-col h-[580px] sm:h-[720px] lg:h-[calc(100vh-200px)] min-h-[650px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
+    <div className="lg:col-span-5 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-255px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
       {/* Top Segmented Sub-Tab Switcher */}
-      <div className="p-2.5 sm:p-3 bg-canvas border-b border-main flex items-center justify-between gap-2 shrink-0">
+      <div className="p-2 sm:p-2.5 bg-canvas border-b border-main flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-main w-full">
           <button
             type="button"
             onClick={() => setEvidenceTab('documents')}
-            className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer ${
               evidenceTab === 'documents'
                 ? 'bg-primary-start text-white shadow-sm'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -58,7 +58,7 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
           <button
             type="button"
             onClick={() => setEvidenceTab('audio')}
-            className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer ${
               evidenceTab === 'audio'
                 ? 'bg-primary-start text-white shadow-sm'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
