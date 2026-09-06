@@ -1,6 +1,6 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - DYNAMIC RAG SERVICE V256.0 (MODULAR 3-PILLAR DISPATCHER & ZERO TOKEN TRUNCATION)
-# 100% COMPLETE CODE • ZERO HARDCODING • PURE LEGAL-TECH ALBANIAN • ZERO PYTHON WARNINGS
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V257.0 (RUAJTJA E BLINDUAR NË MONGODB DHE MEMORJA 0MS)
+# 100% I PLOTË • ZERO TRUNCATION • GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TS/PYTHON WARNINGS
 
 import os
 import logging
@@ -64,12 +64,12 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V256.0 me Shpërndarës Modular të 3 Shtjellave dhe Mbrojtje të Tokenave."""
+    """Shërbimi Kryesor RAG — V257.0 me Ruajtje të Blinduar në MongoDB dhe Hapje në 0ms."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Modular Service V256.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V257.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -147,13 +147,15 @@ class AlbanianRAGService:
         from app.services import vector_store_service
         user_intent = IntentDetector.detect(query)
         optimized_query = self._optimize_query(query)
+        query_lower = query.lower()
 
-        # 🔒 Nëse zgjidhet 1 dokument dhe ka direktivë forenzike, kalohet në FORENSIC_AUDIT
-        if single_doc_obj and (
+        # 🔒 KONTROLL I BLINDUAR I INTENTIT PËR RUAJTJE TË SIGURT
+        if "analizo rastin" in query_lower or "raportin master" in query_lower or "autopsi e plotë" in query_lower:
+            user_intent = "COMPREHENSIVE_ANALYSIS"
+        elif single_doc_obj and (
             user_intent in ["FORENSIC_AUDIT", "COMPREHENSIVE_ANALYSIS"] or
-            "direktivë forenzike" in query.lower() or
-            "shtjella" in query.lower() or
-            "audit" in query.lower()
+            "direktivë forenzike" in query_lower or
+            "audit" in query_lower
         ):
             user_intent = "FORENSIC_AUDIT"
 
@@ -169,12 +171,35 @@ class AlbanianRAGService:
             manifest_str=""
         )
 
-        exec_query = optimized_query
-        system_prompt = ""
+        # =========================================================================
+        # ⚡ SMART CACHE CHECK (HAPJE NË 0ms NËSE EKZISTON NË MONGODB)
+        # =========================================================================
+
+        # 1. KONTROLLI I AUDITIMIT TË DOKUMENTIT TË VETËM (0ms Instant Hit)
+        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
+            cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
+            if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
+                logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin: {single_doc_obj.get('file_name', single_doc_obj.get('_id'))}")
+                yield cached_doc_audit
+                yield MANDATORY_LEGAL_DISCLAIMER
+                return
+
+        # 2. KONTROLLI I ANALIZËS SË PLOTË TË LËNDËS (0ms Instant Hit)
+        if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
+            is_dirty = case_doc.get("analysis_dirty", False)
+            cached_analysis = case_doc.get("latest_deep_analysis") or case_doc.get("latest_comprehensive_analysis")
+
+            if not is_dirty and cached_analysis and is_valid_legal_report(cached_analysis):
+                logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_deep_analysis për lëndën {case_id}.")
+                yield cached_analysis
+                yield MANDATORY_LEGAL_DISCLAIMER
+                return
 
         # =========================================================================
-        # 🎯 TRAJTIMI MODULAR I 3 SHTJELLAVE (ZERO OVERRIDE / ZERO TOKEN TRUNCATION)
+        # 🔍 NËSE NUK KA CACHE: FILLON GJENERIMI I RI NGA AI
         # =========================================================================
+        exec_query = optimized_query
+        system_prompt = ""
 
         if user_intent == "FORENSIC_AUDIT":
             doc_text = ""
@@ -187,7 +212,6 @@ class AlbanianRAGService:
             doc_name = single_doc_obj.get('file_name', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'
             manifest_str = f"Dokumenti në Audit: {doc_name}"
             
-            # Përcjellim optimized_query direkt që ForensicAuditService të dijë cila shtjellë kërkohet
             base_prompt = ForensicAuditService.build_prompt(
                 case_title=case_title,
                 client_name=client_name,
@@ -203,7 +227,7 @@ class AlbanianRAGService:
                 case_id=""
             )
             system_prompt = base_prompt
-            exec_query = optimized_query  # Ruan direktivën ekzakte të Shtjellës pa e mbishkruar!
+            exec_query = optimized_query
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             dossier_blocks = []
@@ -250,7 +274,7 @@ class AlbanianRAGService:
                 case_id=case_id
             )
             system_prompt = base_prompt
-            exec_query = optimized_query  # Ruan direktivën ekzakte të Shtjellës pa e mbishkruar!
+            exec_query = optimized_query
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
@@ -296,9 +320,45 @@ class AlbanianRAGService:
             {context_str}
             """
 
+        # Gjenerimi i Përgjigjes me Stream
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
             full_generated_response += content
             yield content
+
+        # =========================================================================
+        # 💾 RUAJTJA AUTOMATIKE E BLINDUAR NË MONGODB (E RIKTHYER 100%)
+        # =========================================================================
+        if is_valid_legal_report(full_generated_response):
+            # 1. Ruajtja e Analizës së Plotë të Lëndës (Për hapje të përhershme në 0ms)
+            if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None:
+                try:
+                    self.db.cases.update_one(
+                        {"_id": c_oid},
+                        {"$set": {
+                            "latest_deep_analysis": full_generated_response.strip(),
+                            "latest_comprehensive_analysis": full_generated_response.strip(),
+                            "analysis_dirty": False,
+                            "last_analyzed_at": datetime.now(timezone.utc)
+                        }}
+                    )
+                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt me sukses latest_deep_analysis në MongoDB për lëndën {case_id}!")
+                except Exception as save_err:
+                    logger.warning(f"Could not cache case analysis: {save_err}")
+
+            # 2. Ruajtja e Auditimit të Dokumentit të Vetëm (Për hapje të përhershme në 0ms)
+            if user_intent == "FORENSIC_AUDIT" and single_doc_obj and self.db is not None:
+                try:
+                    self.db.documents.update_one(
+                        {"_id": single_doc_obj["_id"]},
+                        {"$set": {
+                            "latest_analysis": full_generated_response.strip(),
+                            "latest_forensic_audit": full_generated_response.strip(),
+                            "last_audited_at": datetime.now(timezone.utc)
+                        }}
+                    )
+                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt latest_analysis për dokumentin {single_doc_obj.get('_id')}!")
+                except Exception as save_err:
+                    logger.warning(f"Could not cache doc audit: {save_err}")
 
         yield MANDATORY_LEGAL_DISCLAIMER
