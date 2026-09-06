@@ -1,6 +1,6 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V273.0 (BALANCED HIGH-DENSITY PILLAR 3)
-# GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TRUNCATION ACROSS ALL 3 PILLARS • SAKTËSI DOKTRINARE 100%
+# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V274.0 (EXHAUSTIVE FORENSIC AUDIT)
+# GJUHË E PAZTËR JURIDIKE SHQIPE • 100% SHTERUES • ZERO ARTIFICIAL CAPS • SAKTËSI DOKTRINARE ABSOLUTE
 
 import logging
 import re
@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V273.0):
-    - 100% I Balancuar në të 3 Shtjellat: Zero ndërprerje edhe për shkresa voluminoze 30+ faqesh.
-    - Shtjella 1: Pasaporta, Palët dhe Baza Provuese (Seksionet 1, 2 dhe 3 të plota).
-    - Shtjella 2: Nenet dhe Detektori i Lapsuseve (Seksionet 4 dhe 5 të plota).
-    - Shtjella 3: Auditimi, Diagnoza dhe Master Plani (Seksionet 6, 7 dhe 8 të plota).
-    - Saktësi Absolute: Formatim neni-për-nen dhe precedentë supremë PML/Revizion.
+    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V274.0):
+    - 100% Shterues (Exhaustive): Zbulon të gjitha nenet, shkeljet dhe lapsuset pa asnjë kufizim sasior.
+    - Shtjella 1: Pasaporta, Palët dhe Baza Provuese (Seksionet 1, 2 dhe 3).
+    - Shtjella 2: Nenet dhe Detektori Shterues i të Gjitha Lapsuseve (Seksionet 4 dhe 5).
+    - Shtjella 3: Auditimi, Diagnoza dhe Master Plani (Seksionet 6, 7 dhe 8).
+    - ZERO HARDCODING: Ekstraktim ekskluzivisht nga teksti real i shkresës së administruar.
     """
 
     @staticmethod
@@ -99,7 +99,7 @@ class ForensicAuditService:
         lista_ligjeve = "\n".join([f"- {ligji}" for ligji in BasePillarService.get_domain_laws(case_domain)])
 
         # =========================================================================
-        # 🎯 PËRCAKTIMI MODULAR ME DENSITET TË BALANCUAR NË TË 3 SHTJELLAT
+        # 🎯 PËRCAKTIMI MODULAR SHTERUES (PA ASNJË KUFIZIM TË PABAZË)
         # =========================================================================
         query_lower = (query_text or "").lower()
 
@@ -127,28 +127,25 @@ Përfundo plotësisht këtë Shtjellë 1 deri te fjala e fundit e Seksionit 3!
 """
         elif "shtjella 2" in query_lower or "nenet" in query_lower or "shkeljet" in query_lower:
             struktura_seksioneve = """
-STRUKTURA E DETYRUESHME E SHTJELLËS 2 (GJENERO VETËM SEKSIONET 4 DHE 5):
+STRUKTURA E DETYRUESHME E SHTJELLËS 2 (GJENERO VETËM SEKSIONET 4 DHE 5 NË MËNYRË SHTERUESE):
 
-RREGULL I HEKURT I DENSITETIT: Në qelitë e tabelave ji i saktë, i prerë dhe i ngjeshur (2–3 fjali për qeli). Kjo garanton që Seksioni 5 të shkruhet i plotë deri në fund!
-
-### 4. ⚖️ TABELA SHTERUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-(Përzgjidh 6–8 nenet më thelbësore me formatin e plotë `Neni X i [Emri i Ligjit]` dhe precedentin përkatës Revizion ose PML):
-| Dispozita dhe Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare dhe Shkelja | 🏛️ Precedenti i Gjykatës Supreme |
+### 4. ⚖️ TABELA SHTERUESE E TË GJITHA DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
+(Identifiko dhe nxirr shterueshëm TË GJITHA nenet e legjislacionit pozitiv të Kosovës që lidhen me këtë shkresë me formatin `Neni X i [Emri i Ligjit]` dhe precedentët përkatës Revizion ose PML):
+| Dispozita dhe Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare dhe Shkelja e Identifikuar | 🏛️ Precedenti dhe Qëndrimi i Gjykatës Supreme |
 | :--- | :--- | :--- | :--- |
 
-### 5. ⚠️ GJETJET KRITIKE, SHKELJET NË KUNDËRSHTIM ME LIGJIN DHE DETEKTORI I GABIMEVE
+### 5. ⚠️ GJETJET KRITIKE, SHKELJET NË KUNDËRSHTIM ME LIGJIN DHE DETEKTORI SHTERUES I GABIMEVE
 * 🔴 **Shkeljet Thelbësore të Konstatuara:** (Moskompetencë lëndore, shkelje procedurale, tejkalim i kërkesëpadisë, kontradiktë mes arsyetimit dhe dispozitivit sipas Nenit 182 LPK / KPK).
-* 🔍 **Detektori i Pasaktësive dhe Lapsuseve në Shkresë (Top 3–5 lapsuset):**
-  | Formulimi Aktual në Shkresë | Pasaktësia apo Lapsusi Doktrinar i Identifikuar | Formula e Saktë Ligjore e Zëvendësimit |
+* 🔍 **Detektori Shterues i të Gjitha Pasaktësive dhe Lapsuseve në Shkresë:**
+  (Nxirr pa asnjë përjashtim ÇDO pasaktësi faktike, datë të ngatërruar, numër të gabuar lënde, emër të pasaktë, shkelje të procedurës apo lapsus doktrinar të gjetur në këtë shkresë):
+  | Formulimi Aktual / Pasaktësia në Shkresë | Lloji i Lapsusit / Shkeljes Doktrinare | Formula e Saktë Ligjore e Zëvendësimit / Kundërshtimit |
   | :--- | :--- | :--- |
 
-Përfundo plotësisht këtë Shtjellë 2 deri te fjala e fundit e Seksionit 5 pa u ndërprerë kurrë!
+Përfundo plotësisht këtë Shtjellë 2 deri te lapsusi i fundit pa u ndërprerë kurrë!
 """
         elif "shtjella 3" in query_lower or "plani" in query_lower or "kundërshtimet" in query_lower:
             struktura_seksioneve = """
 STRUKTURA E DETYRUESHME E SHTJELLËS 3 (GJENERO VETËM SEKSIONET 6, 7 DHE 8):
-
-RREGULL I DENSITETIT: Ji i saktë, i prerë dhe kirurgjikal në formulim në mënyrë që Master Plani i Seksionit 8 të përfundojë 100% i plotë!
 
 ### 6. 🔬 AUDITIMI I KËRKESËS DHE EKZEKUTUESHMËRISË
 * **Vlerësimi i Qartësisë së Kërkesës apo Dispozitivit:** A është kërkesa e saktë, e ekzekutueshme dhe e mbështetur në normë?
@@ -169,14 +166,13 @@ RREGULL I DENSITETIT: Ji i saktë, i prerë dhe kirurgjikal në formulim në më
 Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Konkluzionit Taktik!
 """
         else:
-            # Nëse është thirrje e përgjithshme monolitike
             struktura_seksioneve = """
 STRUKTURA E PLOTË (8 SEKSIONET):
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
 ### 2. 👥 STRUKTURA E PALËVE DHE LEGJITIMITETI PROCEDURAL
 ### 3. 🔬 KRYQËZIMI FORENZIK I FAKTEVE DHE BAZËS PROVUESE
 ### 4. ⚖️ TABELA SHTERUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-### 5. ⚠️ GJETJET KRITIKE DHE DETEKTORI I GABIMEVE
+### 5. ⚠️ GJETJET KRITIKE DHE DETEKTORI SHTERUES I GABIMEVE
 ### 6. 🔬 AUDITIMI I KËRKESËS DHE EKZEKUTUESHMËRISË
 ### 7. 💡 DIAGNOZA KORRIGJUESE DHE REKOMANDIMET
 ### 8. 🎯 MASTER PLANI I VEPRIMIT
@@ -189,8 +185,9 @@ REPUBLIKA E KOSOVËS • EKSPERTIZË DOKTRINARE E PROVAVE DHE MBROJTJE GJYQËSOR
 
 MANDATI YT SUPREM:
 Përpara teje ndodhet një dokument specifik gjyqësor, administrativ apo procedural për auditim të thellë doktrinar.
-Detyra jote absolute është AUTOPSIA FORENZIKE E KËSAJ SHKRESE DHE DHËNIA E KËSHILLËS STRATEGJIKE.
-PËRGJIGJU VETËM PËR SEKSIONET E KËRKUARA NË KËTË SHTJELLË. MOS E KALOFSH TEMËN DHE MOS GJENERO SEKSIONE TË PANEVOJSHME.
+Detyra jote absolute është AUTOPSIA FORENZIKE SHTERUESE E KËSAJ SHKRESE DHE DHËNIA E KËSHILLËS STRATEGJIKE.
+PËRGJIGJU VETËM PËR SEKSIONET E KËRKUARA NË KËTË SHTJELLË.
+ZBULIMI I SHKELJEVE DHE LAPSUSAVE DUHET TË JETË SHTERUES: MOS LINI ASNJË GABIM APO NEN TË PAPARASHIKUAR!
 Detyra jote është të përfundosh 100% strukturën e kërkuar më poshtë pa u ndërprerë kurrë në mes!
 </konteksti_i_autopsise_forenzike_se_shkreses>
 
