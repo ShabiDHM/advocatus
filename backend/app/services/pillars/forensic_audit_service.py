@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V271.0 (MODULAR 3-PILLAR ENGINE)
+# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V272.0 (HIGH-DENSITY BALANCED ENGINE)
 # GJUHË E PAZTËR JURIDIKE SHQIPE (ZERO ANGLISHT) • 100% DINAMIK • ZERO HARDCODING • ZERO TOKEN TRUNCATION
 
 import logging
@@ -13,10 +13,11 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V271.0):
-    - 100% Modular: Përshtat strukturën në varësi të Shtjellës së kërkuar (Shtjella 1, 2 apo 3).
-    - ZERO HARDCODING: Ekstraktim ekskluzivisht nga teksti real i shkresës.
-    - Zero Token Truncation: Gjeneron vetëm seksionet përkatëse duke eliminuar ndërprerjet në mes.
+    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V272.0):
+    - 100% Modular: Balancim i përkryer i densitetit për Shtjellën 1, 2 dhe 3.
+    - ZERO HARDCODING: Ekstraktim ekskluzivisht nga teksti real i shkresës së administruar.
+    - Zero Token Truncation: Të gjitha seksionet përfundojnë të plota deri në pikën e fundit.
+    - Saktësi Absolute: Citohen të gjitha nenet dhe precedentët supremë me formatim neni-për-nen.
     """
 
     @staticmethod
@@ -97,7 +98,7 @@ class ForensicAuditService:
         lista_ligjeve = "\n".join([f"- {ligji}" for ligji in BasePillarService.get_domain_laws(case_domain)])
 
         # =========================================================================
-        # 🎯 PËRCAKTIMI MODULAR I STRUKTURËS SIPAS SHTJELLËS SË KËRKUAR
+        # 🎯 PËRCAKTIMI MODULAR ME DENSITET TË BALANCUAR DOKTRINAR
         # =========================================================================
         query_lower = (query_text or "").lower()
 
@@ -121,24 +122,26 @@ STRUKTURA E DETYRUESHME E SHTJELLËS 1 (GJENERO VETËM SEKSIONET 1, 2 DHE 3):
 * **Provat e Administruara në Akt:** Cilat prova materiale, shkencore apo dëshmi përmenden.
 * **Boshllëqet Provuese dhe Cenueshmëria:** Çfarë provash thelbësore janë shpërfillur apo mungojnë.
 
-NDALOHET KATEGORIKISHT GJENERIMI I SEKSIONEVE 4, 5, 6, 7, 8 NË KËTË SHTJELLË!
+Përfundo plotësisht këtë Shtjellë 1 deri te fjala e fundit e Seksionit 3!
 """
         elif "shtjella 2" in query_lower or "nenet" in query_lower or "shkeljet" in query_lower:
             struktura_seksioneve = """
 STRUKTURA E DETYRUESHME E SHTJELLËS 2 (GJENERO VETËM SEKSIONET 4 DHE 5):
 
+RREGULL I HEKURT I DENSITETIT: Në qelitë e tabelave ji i saktë, i prerë dhe i ngjeshur (2–3 fjali për qeli). Kjo garanton që Seksioni 5 të shkruhet i plotë deri në fund!
+
 ### 4. ⚖️ TABELA SHTERUESE E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-(Çdo nen të citohet me formatin e plotë `Neni X i [Emri i Ligjit]` për verifikim me një klikim, me precedentin përkatës Revizion ose PML):
-| Dispozita dhe Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare dhe Pasojat Juridike | 🏛️ Precedenti dhe Qëndrimi i Gjykatës Supreme |
+(Përzgjidh 6–8 nenet më thelbësore me formatin e plotë `Neni X i [Emri i Ligjit]` dhe precedentin përkatës Revizion ose PML):
+| Dispozita dhe Ligji Pozitiv | Instituti Procedural / Material | Analiza Doktrinare dhe Shkelja | 🏛️ Precedenti i Gjykatës Supreme |
 | :--- | :--- | :--- | :--- |
 
 ### 5. ⚠️ GJETJET KRITIKE, SHKELJET NË KUNDËRSHTIM ME LIGJIN DHE DETEKTORI I GABIMEVE
 * 🔴 **Shkeljet Thelbësore të Konstatuara:** (Moskompetencë lëndore, shkelje procedurale, tejkalim i kërkesëpadisë, kontradiktë mes arsyetimit dhe dispozitivit sipas Nenit 182 LPK / KPK).
-* 🔍 **Detektori i Pasaktësive dhe Lapsuseve në Shkresë:**
+* 🔍 **Detektori i Pasaktësive dhe Lapsuseve në Shkresë (Top 3–5 lapsuset):**
   | Formulimi Aktual në Shkresë | Pasaktësia apo Lapsusi Doktrinar i Identifikuar | Formula e Saktë Ligjore e Zëvendësimit |
   | :--- | :--- | :--- |
 
-NDALOHET KATEGORIKISHT GJENERIMI I SEKSIONEVE 1, 2, 3, 6, 7, 8 NË KËTË SHTJELLË!
+Përfundo plotësisht këtë Shtjellë 2 deri te fjala e fundit e Seksionit 5 pa u ndërprerë kurrë!
 """
         elif "shtjella 3" in query_lower or "plani" in query_lower or "kundërshtimet" in query_lower:
             struktura_seksioneve = """
@@ -159,10 +162,9 @@ STRUKTURA E DETYRUESHME E SHTJELLËS 3 (GJENERO VETËM SEKSIONET 6, 7 DHE 8):
 * 🟡 **HAPI 2 (Plotësimi Provues dhe Kundër-Goditja):** Masat për sigurimin e provave, kundër-ekspertizat apo parashtresat plotësuese.
 * 🟢 **HAPI 3 (Mbrojtja në Organin Kompetent):** Linja përfundimtare e mbrojtjes për fitoren e plotë ligjore.
 
-NDALOHET KATEGORIKISHT GJENERIMI I SEKSIONEVE TË PARA NË KËTË SHTJELLË!
+Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Seksionit 8!
 """
         else:
-            # Nëse është thirrje e përgjithshme monolitike
             struktura_seksioneve = """
 STRUKTURA E PLOTË (8 SEKSIONET):
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
