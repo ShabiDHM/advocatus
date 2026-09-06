@@ -1,6 +1,5 @@
 // FILE: frontend/src/components/case/StandardCaseAnalysisModal.tsx
 // PHOENIX PROTOCOL - UNIFIED FAST CASE ANALYSIS MODAL V6.0 (ERROR RECOVERY & CASCADE WIPEOUT)
-// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • SMART RETRY LOCK • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
