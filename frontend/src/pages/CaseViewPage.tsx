@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V96.0 (MOUSE CLICK DOCUMENT SELECTION & HIGHLIGHT SYNC)
-// ZERO TS WARNINGS • SINGLE-CLICK ACTIVE SELECTION • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V97.0 (TRUE MOUSE TOGGLE SELECTION/DESELECTION & MODAL INTEGRITY)
+// ZERO TS WARNINGS • SINGLE-CLICK TOGGLE (SELECT/DESELECT) • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -42,10 +42,10 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // 1. Dritarja Modale e Re: Analizo Rastin
+  // 1. Dritarja Modale: Analizo Rastin (Pasqyra e Rastit)
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. Dritarja Modale e Re: Analizo Dokumentin
+  // 2. Dritarja Modale: Analizo Dokumentin (Pasqyra e Shkresës)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -66,20 +66,27 @@ const CaseViewPage: React.FC = () => {
     return Boolean((caseData.details as any)?.analysis_dirty);
   }, [caseData.details]);
 
-  // Shkresa e përzgjedhur aktive (me kornizë të theksuar majtas)
+  // Shkresa aktive e përzgjedhur (Kthehet NULL nëse përdoruesi e ka diselektuar!)
   const selectedDocObj = useMemo(() => {
     if (selectedDocumentIds.length > 0) {
       return liveDocuments.find(d => selectedDocumentIds.includes(String(d.id))) || null;
     }
-    return liveDocuments.length > 0 ? liveDocuments[0] : null;
+    return null;
   }, [selectedDocumentIds, liveDocuments]);
 
-  // Nëse nuk ka shkresë të përzgjedhur ende, theksojmë të parën sapo ngarkohen
-  useEffect(() => {
-    if (liveDocuments.length > 0 && selectedDocumentIds.length === 0) {
-      setSelectedDocumentIds([String(liveDocuments[0].id)]);
-    }
-  }, [liveDocuments, selectedDocumentIds]);
+  // FUNKSIONI TOGGLE: Kliko një herë ➔ Selekto; Kliko sërish mbi të njëjtën shkresë ➔ Diselekto!
+  const handleSelectDocument = useCallback((doc: Document) => {
+    const docIdStr = String(doc.id);
+    setSelectedDocumentIds((prev) => {
+      if (prev.includes(docIdStr)) {
+        // Diselektim (Toggle Off)
+        return [];
+      } else {
+        // Selektim i ri (Toggle On)
+        return [docIdStr];
+      }
+    });
+  }, []);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -288,12 +295,12 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 🏛️ BUTONI: ANALIZO RASTIN
+  // 🏛️ BUTONI: ANALIZO RASTIN (Hap VETËM modalin e lëndës: Pasqyra e Rastit)
   const handleOpenCaseAnalysis = useCallback(() => {
     setIsAnalysisModalOpen(true);
   }, []);
 
-  // ⚖️ BUTONI: ANALIZO DOKUMENTIN
+  // ⚖️ BUTONI: ANALIZO DOKUMENTIN (Hap modalin e dokumentit vetëm nëse ka shkresë të zgjedhur)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     if (!caseId) return;
     setCurrentAuditedDoc(doc);
@@ -302,7 +309,7 @@ const CaseViewPage: React.FC = () => {
 
   const handleTriggerSelectedDocAudit = useCallback(() => {
     if (!selectedDocObj) {
-      alert("Ju lutem përzgjidhni të paktën 1 shkresë në listën majtas.");
+      alert("Ju lutem klikoni mbi një shkresë në listën majtas për ta analizuar.");
       return;
     }
     handleVerifyDocumentLaws(selectedDocObj);
@@ -366,7 +373,7 @@ const CaseViewPage: React.FC = () => {
           </button>
         </div>
 
-        {/* GRID-I KRYESOR: ME SELEKTIMIN E SAKTË ME MIU TE EVIDENCEVAULTPANEL */}
+        {/* GRID-I KRYESOR: ME SELEKTIMIN/DISELEKTIMIN ME MIU */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
@@ -379,7 +386,7 @@ const CaseViewPage: React.FC = () => {
             onRenameDocument={setDocumentToRename}
             onVerifyDocumentLaws={handleVerifyDocumentLaws}
             selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
-            onSelectDocument={(doc: Document) => setSelectedDocumentIds([String(doc.id)])}
+            onSelectDocument={handleSelectDocument}
             t={t}
           />
 
@@ -425,7 +432,7 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* 1. MODAL I RI: ANALIZO RASTIN (E Shpejtë • GPT-4o-Mini • Anti-Abuzim) */}
+      {/* 1. MODAL: ANALIZO RASTIN -> HAP VETËM PASQYRËN E RASTIT */}
       <StandardCaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -435,7 +442,7 @@ const CaseViewPage: React.FC = () => {
         isAnalysisDirty={isAnalysisDirty}
       />
 
-      {/* 2. MODAL I RI: ANALIZO DOKUMENTIN (E Shpejtë • GPT-4o-Mini) */}
+      {/* 2. MODAL: ANALIZO DOKUMENTIN -> HAP PASQYRËN E SHKRESËS SË ZGJEDHUR */}
       <StandardDocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
