@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/StandardDocumentAuditModal.tsx
-// PHOENIX PROTOCOL - UNIFIED FAST DOCUMENT AUDIT MODAL V3.0 (ZERO EXTERNAL DEPENDENCY • ZERO TS WARNINGS)
-// POWERED BY FAST MODEL (GPT-4O-MINI) • ANTI-SPAM LOCK • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - UNIFIED FAST DOCUMENT AUDIT MODAL V4.0 (TRUE ATOMIC MONGODB CASCADE WIPEOUT)
+// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • TOTAL PURGE SYNC • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,6 +41,7 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
 }) => {
   const [reportContent, setReportContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
@@ -52,7 +53,7 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // 1. Leximi i pasqyrës ekzistuese të shkresës nga MongoDB (0ms Cache)
+  // Leximi i pasqyrës ekzistuese nga MongoDB (0ms Cache)
   useEffect(() => {
     if (isOpen && caseId && documentId) {
       apiService.getDocuments(caseId)
@@ -61,9 +62,13 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
           const savedAudit = currentDoc?.latest_analysis || currentDoc?.latest_forensic_audit || currentDoc?.standard_analysis || '';
           if (savedAudit && typeof savedAudit === 'string' && savedAudit.trim().length > 50) {
             setReportContent(savedAudit);
+          } else {
+            setReportContent('');
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setReportContent('');
+        });
     }
   }, [isOpen, caseId, documentId]);
 
@@ -76,7 +81,7 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
 
   // Gjenerimi i shpejtë dhe ekonomik me GPT-4o-Mini (FAST Mode)
   const handleGenerateAudit = useCallback(async () => {
-    if (!caseId || !documentId || isLoading) return;
+    if (!caseId || !documentId || isLoading || isPurging) return;
 
     setIsLoading(true);
     setReportContent('');
@@ -113,15 +118,23 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
     } finally {
       setIsLoading(false);
     }
-  }, [caseId, documentId, documentName, isLoading]);
+  }, [caseId, documentId, documentName, isLoading, isPurging]);
 
+  // TOTAL CASCADE WIPEOUT: Asgjësim atomik me $unset në MongoDB Atlas
   const handleClearContent = async () => {
-    if (!reportContent) return;
-    if (window.confirm("A dëshironi ta pastroni këtë pasqyrë nga shkresa? Pastrimi do të mundësojë ri-analizimin.")) {
+    if (!reportContent || !caseId || !documentId || isPurging) return;
+    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht pasqyrën e kësaj shkrese nga serveri (Total Cascade Wipeout)?");
+    if (!confirmWipe) return;
+
+    setIsPurging(true);
+    try {
+      await apiService.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
       setReportContent('');
-      try {
-        await apiService.clearDocumentAudit(caseId, documentId);
-      } catch {}
+    } catch (err) {
+      console.error("Could not purge document audit on MongoDB:", err);
+      alert("Dështoi asgjësimi i pasqyrës së shkresës në server.");
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -208,15 +221,16 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                 </button>
               </div>
 
-              {/* Trash */}
+              {/* Trash: TOTAL CASCADE WIPEOUT NË MONGODB ATLAS */}
               {reportContent && (
                 <button
                   type="button"
                   onClick={handleClearContent}
+                  disabled={isPurging}
                   className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                  title="Pastro pasqyrën dhe mundëso ri-analizimin"
+                  title="Asgjëso përfundimisht nga MongoDB Atlas (Total Wipeout)"
                 >
-                  <Trash2 size={16} />
+                  {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
               )}
 
@@ -275,7 +289,8 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                 <button
                   type="button"
                   onClick={handleGenerateAudit}
-                  className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift"
+                  disabled={isPurging}
+                  className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift disabled:opacity-50"
                 >
                   <Sparkles size={14} />
                   <span>Gjenero Pasqyrën e Shkresës</span>
@@ -314,7 +329,7 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
             {reportContent && !isLoading && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium" title="Shkresa është analizuar tashmë">
                 <Lock size={12} className="text-text-muted" />
-                <span className="hidden sm:inline">Shkresa është e analizuar (Pastrojeni me kosh për ta ri-analizuar)</span>
+                <span className="hidden sm:inline">Shkresa është e analizuar (Pastrojeni me kosh për ta asgjësuar nga serveri)</span>
                 <span className="sm:hidden">E analizuar</span>
               </div>
             )}

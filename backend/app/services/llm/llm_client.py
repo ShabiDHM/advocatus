@@ -1,5 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V75.0 (CLAUDE SONNET 4.6 • 16K OUTPUT BUFFER • 300S TIMEOUT)
+# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V76.0 (COST-SAFE ROUTING & STRICT MODEL CHAIN)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • REDIS FLUSH
 
 import os
 import json
@@ -24,17 +25,17 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# PHOENIX SUPREME: Modeli Elitar i Verifikuar në OpenRouter
+# PHOENIX SUPREME: Konfigurimi Ekonomik dhe Doktrinar i Modeleve
 PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
 FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
 DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-4.6")
 
+# Fallback-ët ekonomikë për kërkesat e përgjithshme
 FALLBACK_MODELS = [
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-fable-latest",
-    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "google/gemini-2.0-flash-001",
     "deepseek/deepseek-chat",
-    "openai/gpt-4o-mini"
+    "openai/gpt-4o"
 ]
 
 TEMP_ANALYSIS = 0.0
@@ -73,7 +74,8 @@ def _get_async_client() -> AsyncOpenAI:
     )
 
 def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
-    primary = requested_model or DEEP_MODEL
+    # PHOENIX FIX: Nëse nuk specifikohet modeli, default është modeli ekonomik PRIMARY_MODEL (GPT-4o-Mini)
+    primary = requested_model or PRIMARY_MODEL
     chain = [primary] + [m for m in FALLBACK_MODELS if m != primary]
     
     unique_chain: List[str] = []

@@ -1,5 +1,6 @@
 # FILE: app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V14.0 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLARS)
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V15.0 (ATOMIC ANALYSIS PURGE & TOTAL CASCADE WIPEOUT)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS $UNSET SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
@@ -204,7 +205,40 @@ async def update_case_chat_history(
     return {"status": "success", "message": "Chat history saved"}
 
 # =========================================================================
-# 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB (ME TOTAL CASCADE WIPEOUT PËR 1 SHTJELLË)
+# 🧹 PHOENIX TOTAL PURGE: ASGJËSIMI I PLOTË I ANALIZËS SË RASTIT NGA MONGODB
+# =========================================================================
+@router.post("/{case_id}/analysis/clear", status_code=status.HTTP_200_OK)
+@router.delete("/{case_id}/analysis/clear", status_code=status.HTTP_200_OK)
+async def clear_full_case_analysis_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Asgjëson me $unset çdo analizë të vjetër të lëndës nga MongoDB Atlas."""
+    case_oid = validate_object_id(case_id)
+    
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {
+            "$unset": {
+                "latest_deep_analysis": "",
+                "latest_comprehensive_analysis": "",
+                "latest_analysis": "",
+                "standard_summary": "",
+                "forensic_pillars": ""
+            },
+            "$set": {
+                "analysis_dirty": True,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    logger.info(f"🧹 [FULL CASE ANALYSIS PURGED] U fshi me $unset çdo gjurmë e analizës për lëndën {case_id} nga MongoDB!")
+    return {"status": "success", "message": "Analiza e lëndës u asgjësua plotësisht nga MongoDB."}
+
+# =========================================================================
+# 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB
 # =========================================================================
 
 @router.post("/{case_id}/pillars", status_code=status.HTTP_200_OK)
@@ -261,7 +295,6 @@ async def delete_single_case_pillar_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Fshin me $unset vetëm shtjellën e caktuar dhe pastron memorien e vjetëruar."""
     case_oid = validate_object_id(case_id)
     pillar_key = pillar_name.strip()
 
@@ -284,7 +317,7 @@ async def delete_single_case_pillar_endpoint(
     return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
 
 # =========================================================================
-# ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM (ME TOTAL CASCADE WIPEOUT PËR 1 SHTJELLË)
+# ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM
 # =========================================================================
 
 @router.post("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
@@ -337,7 +370,6 @@ async def delete_single_document_pillar_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Fshin me $unset vetëm shtjellën e caktuar të dokumentit nga MongoDB Atlas."""
     doc_oid = validate_object_id(document_id)
     case_oid = validate_object_id(case_id)
     pillar_key = pillar_name.strip()

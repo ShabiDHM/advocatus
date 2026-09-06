@@ -1,24 +1,25 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V14.0 (UNION STRING/DICT ANALYSIS SUPPORT & ZERO 500 ERRORS)
+# PHOENIX PROTOCOL - CASE MODEL V15.0 (UNIFIED PILLARS, DIRTY STATE & STANDARD SUMMARY SUPPORT)
+# 100% COMPLETE CODE • ZERO 500 ERRORS • PYDANTIC V2 COMPLIANT • MONGO ATLAS SYNC
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from .common import PyObjectId
 
-# Sub-model for embedded client details
+# Nën-modeli për të dhënat e klientit
 class ClientData(BaseModel):
     name: str
     email: Optional[str] = None
     phone: Optional[str] = None
 
-# Chat Message Model
+# Modeli i Mesazhit në Chat
 class ChatMessage(BaseModel):
     role: str 
     content: str
     timestamp: Optional[Union[datetime, str]] = Field(default_factory=datetime.utcnow)
 
-# Base Case Model
+# Modeli Bazë i Lëndës
 class CaseBase(BaseModel):
     case_number: Optional[str] = None 
     title: str
@@ -26,9 +27,10 @@ class CaseBase(BaseModel):
     status: str = "OPEN"
     client_id: Optional[PyObjectId] = None 
     org_id: Optional[PyObjectId] = None 
+    owner_id: Optional[Union[PyObjectId, str]] = None
     client_position: Optional[str] = "DEFENDANT"
     
-    # Real Party Names & Financials
+    # Emrat e Palëve dhe Financat
     client_name: Optional[str] = None
     opposing_party: Optional[Union[str, Dict[str, Any]]] = None
     court: Optional[str] = None
@@ -37,7 +39,11 @@ class CaseBase(BaseModel):
     opponent_name: Optional[str] = None
     disputed_amount: Optional[float] = 0.0
 
-# Create - Accepts Form Data
+    # PHOENIX STATE: Statusi i Lëndës dhe Mbrojtja Anti-Abuzim
+    analysis_dirty: Optional[bool] = False
+    is_unlocked: Optional[bool] = False
+
+# Modeli për Krijim Lënde
 class CaseCreate(CaseBase):
     title: str
     clientName: Optional[str] = None
@@ -45,7 +51,7 @@ class CaseCreate(CaseBase):
     clientPhone: Optional[str] = None
     opposingParty: Optional[str] = None
 
-# Update
+# Modeli për Përditësim
 class CaseUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -60,8 +66,9 @@ class CaseUpdate(BaseModel):
     disputed_amount: Optional[float] = None
     client: Optional[ClientData] = None
     org_id: Optional[PyObjectId] = None
+    analysis_dirty: Optional[bool] = None
 
-# DB Model
+# Modeli i Databazës (MongoDB)
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
     user_id: PyObjectId 
@@ -70,11 +77,14 @@ class CaseInDB(CaseBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
     
-    # PHOENIX FIX: Pranon si Tekst Markdown (str) ashtu edhe Dict pa dhënë gabim 500
+    # PHOENIX PERSISTENCE: Shtjellat Forenzike dhe Pasqyra e Shpejtë e Klientit
+    standard_summary: Optional[Union[str, Dict[str, Any]]] = None
+    forensic_pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
+    last_analyzed_at: Optional[Union[datetime, str]] = None
     
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: List[str] = []
@@ -84,7 +94,7 @@ class CaseInDB(CaseBase):
         arbitrary_types_allowed=True,
     )
 
-# Return Model
+# Modeli i Daljes (API Response)
 class CaseOut(CaseBase):
     id: PyObjectId = Field(alias="_id", serialization_alias="id")
     user_id: PyObjectId
@@ -94,16 +104,19 @@ class CaseOut(CaseBase):
     client: Optional[ClientData] = None
     chat_history: Optional[List[ChatMessage]] = []
     
-    # PHOENIX FIX: Pranon si Tekst Markdown (str) ashtu edhe Dict në dalje
+    # PHOENIX SYNC: Lejon daljen e të gjitha analizave te Frontendi
+    standard_summary: Optional[Union[str, Dict[str, Any]]] = None
+    forensic_pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
+    last_analyzed_at: Optional[Union[datetime, str]] = None
     
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: Optional[List[str]] = []
 
-    # Explicitly exposed counters
+    # Numëruesit e ekspozuar
     document_count: int = 0
     alert_count: int = 0
     event_count: int = 0

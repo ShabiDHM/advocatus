@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/StandardCaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - UNIFIED FAST CASE ANALYSIS MODAL V4.0 (EXPLICIT CASE DOSSIER IDENTITY)
-// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • ANTI-SPAM LOCK • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - UNIFIED FAST CASE ANALYSIS MODAL V5.0 (TRUE ATOMIC MONGODB CASCADE WIPEOUT)
+// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • TOTAL PURGE SYNC • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,6 +41,7 @@ export const StandardCaseAnalysisModal: React.FC<StandardCaseAnalysisModalProps>
 }) => {
   const [reportContent, setReportContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
@@ -60,9 +61,13 @@ export const StandardCaseAnalysisModal: React.FC<StandardCaseAnalysisModalProps>
           const savedSummary = details?.latest_deep_analysis || details?.latest_analysis || details?.standard_summary || '';
           if (savedSummary && typeof savedSummary === 'string' && savedSummary.trim().length > 50) {
             setReportContent(savedSummary);
+          } else {
+            setReportContent('');
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setReportContent('');
+        });
     }
   }, [isOpen, caseId]);
 
@@ -75,7 +80,7 @@ export const StandardCaseAnalysisModal: React.FC<StandardCaseAnalysisModalProps>
 
   // Gjenerimi i shpejtë dhe ekonomik i të gjithë fashikullit me GPT-4o-Mini
   const handleGenerateAnalysis = useCallback(async () => {
-    if (!caseId || isLoading) return;
+    if (!caseId || isLoading || isPurging) return;
 
     setIsLoading(true);
     setReportContent('');
@@ -94,7 +99,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
       const stream = apiService.sendChatMessageStream(
         caseId,
         fastPrompt,
-        undefined, // I gjithë fashikulli (Zero kufizim te 1 shkresë)
+        undefined,
         'ks',
         'FAST',
         'automatic',
@@ -112,12 +117,23 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
     } finally {
       setIsLoading(false);
     }
-  }, [caseId, caseTitle, clientName, isLoading]);
+  }, [caseId, caseTitle, clientName, isLoading, isPurging]);
 
-  const handleClearContent = () => {
-    if (!reportContent) return;
-    if (window.confirm("A dëshironi ta pastroni këtë pasqyrë të lëndës nga ekrani?")) {
+  // TOTAL CASCADE WIPEOUT: Asgjësim i përhershëm në MongoDB Atlas
+  const handleClearContent = async () => {
+    if (!reportContent || !caseId || isPurging) return;
+    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht pasqyrën e lëndës nga serveri (Total Cascade Wipeout)?");
+    if (!confirmWipe) return;
+
+    setIsPurging(true);
+    try {
+      await apiService.axiosInstance.post(`/cases/${caseId}/analysis/clear`);
       setReportContent('');
+    } catch (err) {
+      console.error("Could not purge case analysis on MongoDB:", err);
+      alert("Dështoi asgjësimi i analizës në server.");
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -143,7 +159,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
 
   if (!isOpen) return null;
 
-  // Mbrojtja Anti-Abuzim
+  // Mbrojtja Anti-Abuzim: Zhbllokohet vetëm nëse është bosh ose nëse fashikulli ka ndryshuar
   const isActionAllowed = !reportContent || isAnalysisDirty;
 
   return (
@@ -212,15 +228,16 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
                 </button>
               </div>
 
-              {/* Trash */}
+              {/* Trash: TOTAL CASCADE WIPEOUT NË MONGODB */}
               {reportContent && (
                 <button
                   type="button"
                   onClick={handleClearContent}
+                  disabled={isPurging}
                   className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                  title="Pastro pasqyrën"
+                  title="Asgjëso përfundimisht nga MongoDB Atlas (Total Wipeout)"
                 >
-                  <Trash2 size={16} />
+                  {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
               )}
 
