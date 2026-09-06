@@ -1,13 +1,13 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V14.0 (STRICT ANTI-ABUSE TOKEN BARRIER)
-// ZERO TS WARNINGS • NO MANUAL RE-RUN WITHOUT NEW DOC • ADMIN-ONLY DELETE • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V16.0 (CLEAN MINIMAL EMPTY STATE)
+// ZERO TS WARNINGS • NO FILLER TEXT • NO EMOJIS IN TABS • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown,
-  Building2, Scale, Swords, Play, RefreshCw, AlertCircle
+  RefreshCw, AlertCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -39,11 +39,10 @@ const FONT_LEVELS = [
   { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
 
-const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; icon: any; prompt: string }> = {
+const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prompt: string }> = {
   PILLAR_1: {
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
-    icon: Building2,
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
 Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 1:
 - Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
@@ -54,7 +53,6 @@ Jep analizë të thellë, të plotë doktrinare, pa shkurtime.`
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
-    icon: Scale,
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
 Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 2:
 - Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
@@ -65,7 +63,6 @@ Gjenero tabelat e plota dhe arsyetimin ligjor të shkallës më të lartë.`
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
-    icon: Swords,
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
 Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 3:
 - Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
@@ -88,7 +85,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 }) => {
   const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
 
-  // Gjendja e 3 Shtjellave (Ngarkohet direkt nga MongoDB)
   const [pillarResults, setPillarResults] = useState<Record<PillarType, string>>({
     PILLAR_1: initialPillars.PILLAR_1 || '',
     PILLAR_2: initialPillars.PILLAR_2 || '',
@@ -122,7 +118,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // BARIERA E KURSIMIT: Ngarkim i pastër në 0ms nga MongoDB sa herë hapet dritarja
+  // Ngarkimi në 0ms nga MongoDB sapo hapet dritarja
   useEffect(() => {
     if (isOpen && caseId) {
       if (initialPillars && Object.keys(initialPillars).length > 0) {
@@ -164,7 +160,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         'ks',
         'DEEP',
         'automatic',
-        false // PHOENIX FIX: Izolim absolut nga Chat-i
+        false
       );
 
       let accumulated = '';
@@ -174,7 +170,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
       }
 
-      // Ruan menjëherë në MongoAtlas
       if (accumulated.trim().length > 50) {
         await forensicService.saveCasePillar(caseId, pillar, accumulated);
       }
@@ -349,7 +344,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 </button>
               </div>
 
-              {/* Koshi shfaqet VETËM nëse përcillet onDeleteAnalysis (Admin Only) */}
               {onDeleteAnalysis && (
                 <button
                   type="button"
@@ -382,11 +376,10 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* VETËM 3 SHTJELLAT (3-PILLAR SWITCHER) */}
+          {/* VETËM 3 SHTJELLAT (PA EMOJI) */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
-              const IconComp = cfg.icon;
               const isSelected = activePillar === pillarKey;
               const hasContent = Boolean(pillarResults[pillarKey]?.trim());
               const isLoading = loadingPillars[pillarKey];
@@ -408,9 +401,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 >
                   {isLoading ? (
                     <Loader2 size={13} className="animate-spin text-white" />
-                  ) : (
-                    <IconComp size={13} className={isSelected ? 'text-white' : 'text-text-muted'} />
-                  )}
+                  ) : null}
                   <span className="truncate">{cfg.title}</span>
                   {hasContent && !isLoading && (
                     <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} title="E ruajtur në MongoDB" />
@@ -420,7 +411,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             })}
           </div>
 
-          {/* Shiriti Nën-Titull & Butoni i Përditësimit VETËM NËSE KA DOKUMENT TË RI */}
+          {/* Shiriti Nën-Titull */}
           <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
             <p className="truncate font-medium">{PILLAR_CONFIGS[activePillar].subtitle}</p>
             {currentContent && !isCurrentLoading && isAnalysisDirty && (
@@ -428,7 +419,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
                 className="px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all"
-                title="Janë ngarkuar prova të reja. Klikoni për të rifreskuar këtë shtjellë!"
               >
                 <RefreshCw size={11} className="animate-spin" />
                 <span>Përditëso Shtjellën</span>
@@ -436,7 +426,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </div>
 
-          {/* Trupi i Raportit ose Butoni Fillestar i Analizimit */}
+          {/* Trupi i Raportit (EMPTY STATE I PAZTËR DHE MINIMAL) */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -485,23 +475,17 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               }
             `}</style>
 
+            {/* EMPTY STATE I PAZTËR: PA TEKST TË TEPËRT */}
             {!currentContent && !isCurrentLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto">
-                <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center mb-4 border border-primary-start/20">
-                  {React.createElement(PILLAR_CONFIGS[activePillar].icon, { size: 28 })}
-                </div>
-                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary mb-1">
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
                   {PILLAR_CONFIGS[activePillar].title}
                 </h4>
-                <p className="text-xs text-text-muted max-w-md mb-6 leading-relaxed">
-                  {PILLAR_CONFIGS[activePillar].subtitle}. Kjo shtjellë nuk është analizuar ende. Klikoni më poshtë për ta gjeneruar me modelin Deep Reasoning.
-                </p>
                 <button
                   type="button"
                   onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center gap-2 cursor-pointer transition-all hover-lift"
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
                 >
-                  <Play size={14} className="fill-white" />
                   <span>Analizo {PILLAR_CONFIGS[activePillar].title}</span>
                 </button>
               </div>
@@ -510,9 +494,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
                   Duke analizuar {PILLAR_CONFIGS[activePillar].title}...
-                </p>
-                <p className="text-[11px] text-text-muted mt-1">
-                  Juristi AI po kryen autopsinë doktrinare të fashikullit.
                 </p>
               </div>
             ) : (
@@ -523,7 +504,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 {isCurrentLoading && (
                   <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 text-xs font-bold">
                     <Loader2 size={13} className="animate-spin" />
-                    <span>Duke gjeneruar analizën doktrinare...</span>
+                    <span>Duke gjeneruar rrjedhën doktrinare...</span>
                   </div>
                 )}
               </div>
@@ -546,7 +527,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </AnimatePresence>
 
-          {/* Veprimet: Vetëm Ruajtje në Arkiv dhe Kopjim */}
+          {/* Veprimet */}
           <div className="flex items-center justify-between pt-2.5 sm:pt-3 border-t border-main gap-2 sm:gap-3 shrink-0">
             <button
               type="button"

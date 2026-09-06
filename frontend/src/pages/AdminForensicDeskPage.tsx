@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - FORENSIC AUTOPSY LAB: MASTER DESK V4.1 (PURE ALBANIAN COURT INTEGRITY)
-// ZERO JARGON • ZERO ENGLISH STRINGS • 5 AUTONOMOUS LABS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - FORENSIC AUTOPSY LAB: MASTER DESK V4.2 (SOLID THEME-AWARE MODAL ENGINE)
+// ZERO TRANSPARENCY BLEED • 100% THEME-AWARE • SOLID OPAQUE CARD • ZERO TS WARNINGS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,7 +18,8 @@ import {
   UserCheck,
   Building2,
   RefreshCw,
-  FolderPlus
+  FolderPlus,
+  X
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { forensicService } from '../services/forensicService';
@@ -460,80 +461,92 @@ export const AdminForensicDeskPage: React.FC = () => {
         />
       )}
 
-      {/* MODALI I KRIJIMIT TË DOSJES SË RE */}
+      {/* MODALI I KRIJIMIT TË DOSJES SË RE (100% OPAQUE & THEME-AWARE) */}
       {showNewDossierModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-main rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-main pb-3">
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 select-none">
+          <div 
+            className="border border-main rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 text-text-primary relative transition-colors duration-200"
+            style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
+          >
+            <div className="flex items-center justify-between border-b border-main pb-3.5">
               <h3 className="text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                 <FolderOpen size={18} className="text-primary-start" /> Regjistrimi i Dosjes
               </h3>
               <button
                 type="button"
                 onClick={() => setShowNewDossierModal(false)}
-                className="text-text-muted hover:text-text-primary text-sm font-bold cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-surface hover:bg-hover border border-main text-text-muted hover:text-text-primary flex items-center justify-center transition-colors cursor-pointer"
+                title="Mbyll"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewDossier} className="space-y-3.5 text-xs">
+            <form onSubmit={handleCreateNewDossier} className="space-y-4 text-xs">
               <div>
-                <label className="block text-text-muted font-bold mb-1">Emri i Plotë i Klientit / Palës *</label>
+                <label className="block text-text-muted font-bold mb-1.5 uppercase text-[10px] tracking-wider">
+                  Emri i Plotë i Klientit / Palës *
+                </label>
                 <input
                   type="text"
                   required
                   value={newDossierForm.clientName}
                   onChange={(e) => setNewDossierForm({ ...newDossierForm, clientName: e.target.value })}
                   placeholder="p.sh. Agim Krasniqi"
-                  className="w-full bg-surface border border-main rounded-xl px-3.5 py-2.5 text-text-primary focus:outline-none focus:border-primary-start"
+                  className="w-full bg-canvas border border-main rounded-xl px-3.5 py-2.5 text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-text-muted font-bold mb-1">Telefoni / WhatsApp</label>
+                  <label className="block text-text-muted font-bold mb-1.5 uppercase text-[10px] tracking-wider">
+                    Telefoni / WhatsApp
+                  </label>
                   <input
                     type="text"
                     value={newDossierForm.clientPhone}
                     onChange={(e) => setNewDossierForm({ ...newDossierForm, clientPhone: e.target.value })}
                     placeholder="+383 44 ..."
-                    className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary focus:outline-none focus:border-primary-start"
+                    className="w-full bg-canvas border border-main rounded-xl px-3.5 py-2.5 text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-text-muted font-bold mb-1">Email</label>
+                  <label className="block text-text-muted font-bold mb-1.5 uppercase text-[10px] tracking-wider">
+                    Email
+                  </label>
                   <input
                     type="email"
                     value={newDossierForm.clientEmail}
                     onChange={(e) => setNewDossierForm({ ...newDossierForm, clientEmail: e.target.value })}
                     placeholder="email@shembull.ks"
-                    className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary focus:outline-none focus:border-primary-start"
+                    className="w-full bg-canvas border border-main rounded-xl px-3.5 py-2.5 text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-text-muted font-bold mb-1">Gjykata / Prokuroria Kompetente</label>
+                <label className="block text-text-muted font-bold mb-1.5 uppercase text-[10px] tracking-wider">
+                  Gjykata / Prokuroria Kompetente
+                </label>
                 <input
                   type="text"
                   value={newDossierForm.courtJurisdiction}
                   onChange={(e) => setNewDossierForm({ ...newDossierForm, courtJurisdiction: e.target.value })}
-                  className="w-full bg-surface border border-main rounded-xl px-3.5 py-2.5 text-text-primary focus:outline-none focus:border-primary-start"
+                  className="w-full bg-canvas border border-main rounded-xl px-3.5 py-2.5 text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-primary-start focus:ring-1 focus:ring-primary-start transition-all"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-main">
                 <button
                   type="button"
                   onClick={() => setShowNewDossierModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-text-muted hover:bg-hover cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-text-primary hover:bg-hover transition-colors cursor-pointer"
                 >
                   Anulo
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider shadow-md transition-all cursor-pointer hover-lift"
                 >
                   Hap Dosjen
                 </button>
