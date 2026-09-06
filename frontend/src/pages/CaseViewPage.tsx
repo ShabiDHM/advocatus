@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V92.0 (MODULAR 3-PILLAR SYNC & DUAL-PANEL SYMMETRY)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V93.0 (DUAL AUTOPSY ROUTING & DUAL-PANEL SYMMETRY)
 // ZERO TS WARNINGS • 100% RESPONSIVE HEIGHT SYNC • PURE SOCRATIC CHAT HYGIENE • COMPLETE FILE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -49,10 +49,10 @@ const CaseViewPage: React.FC = () => {
     return role === 'ADMIN' || role === 'SUPERADMIN';
   }, [user]);
 
-  // 1. Modali i 3 Shtjellave Forenzike të Lëndës (ANALIZO RASTIN)
+  // 1. Modali i 3 Shtjellave Forenzike të Lëndës (Autopsia e Rastit)
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. Modali i 3 Shtjellave të Dokumentit (Peshorja ⚖️)
+  // 2. Modali i 3 Shtjellave të Dokumentit (Autopsia e Dokumentit)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -68,6 +68,13 @@ const CaseViewPage: React.FC = () => {
   const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
   const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
   const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
+
+  // Dokumenti aktiv i përzgjedhur për autopsi
+  const activeSelectedDoc = useMemo(() => {
+    if (currentAuditedDoc) return currentAuditedDoc;
+    if (liveDocuments && liveDocuments.length > 0) return liveDocuments[0];
+    return null;
+  }, [currentAuditedDoc, liveDocuments]);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
     if (!caseId) return;
@@ -276,13 +283,14 @@ const CaseViewPage: React.FC = () => {
   }, []);
 
   const handleDeleteDocAuditFromModal = useCallback(async () => {
-    if (!currentAuditedDoc || !caseId) return;
-    const targetId = String(currentAuditedDoc.id);
+    if (!activeSelectedDoc || !caseId) return;
+    const targetId = String(activeSelectedDoc.id);
 
     setLiveDocuments((prev) => prev.map((d) => String(d.id) === targetId ? {
       ...d,
       latest_analysis: '',
       latest_forensic_audit: '',
+      forensic_pillars: {},
       last_audited_at: null
     } as any : d));
 
@@ -292,7 +300,7 @@ const CaseViewPage: React.FC = () => {
       console.error("Failed to clear document audit on MongoDB:", err);
       alert("Dështoi fshirja e auditimit nga baza e të dhënave.");
     }
-  }, [caseId, currentAuditedDoc, setLiveDocuments]);
+  }, [caseId, activeSelectedDoc, setLiveDocuments]);
 
   // BISEDA E ZAKONSHME E CHAT-IT (saveHistory = true)
   const handleChatSubmit = useCallback(async (
@@ -361,11 +369,19 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // ⚖️ HAPJA E MODALIT TË AUDITIMIT TË DOKUMENTIT (ME 3 SHTJELLA MODULARE)
+  // HAPJA E AUTOPSISË SË DOKUMENTIT TË PËRZGJEDHUR
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     setCurrentAuditedDoc(doc);
     setIsDocAuditModalOpen(true);
   }, []);
+
+  const handleOpenDocAuditFromHeader = useCallback(() => {
+    if (activeSelectedDoc) {
+      handleVerifyDocumentLaws(activeSelectedDoc);
+    } else {
+      alert("Ju lutem përzgjidhni një shkresë në listën e dokumenteve majtas.");
+    }
+  }, [activeSelectedDoc, handleVerifyDocumentLaws]);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -458,6 +474,8 @@ const CaseViewPage: React.FC = () => {
               userSalutation={userSalutation}
               clientPosition={clientPosition}
               onOpenCaseAnalysis={() => setIsAnalysisModalOpen(true)}
+              onOpenDocAnalysis={handleOpenDocAuditFromHeader}
+              selectedDocName={activeSelectedDoc?.file_name}
               isAnalyzingCase={false}
               isAnalysisDirty={false}
               hasExistingAnalysis={false}
@@ -482,7 +500,7 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: ANALIZA FORENZIKE E LËNDËS ME 3 SHTJELLA MODULARE */}
+      {/* MODAL 1: AUTOPSIA E RASTIT (FASHIKULLI I PLOTË ME 3 SHTJELLA) */}
       <CaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -492,13 +510,13 @@ const CaseViewPage: React.FC = () => {
         onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUDITIMI FORENZIK I 1 DOKUMENTI ME 3 SHTJELLA MODULARE */}
+      {/* MODAL 2: AUTOPSIA E DOKUMENTIT (SHKRESA KONKRETE ME 3 SHTJELLA) */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
         caseId={currentCaseId}
-        documentId={String(currentAuditedDoc?.id || '')}
-        documentName={currentAuditedDoc?.file_name || 'Dokument'}
+        documentId={String(activeSelectedDoc?.id || '')}
+        documentName={activeSelectedDoc?.file_name || 'Dokument'}
         clientName={clientName}
         onDeleteAudit={isAdmin ? handleDeleteDocAuditFromModal : undefined}
       />

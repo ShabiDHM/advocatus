@@ -1,9 +1,9 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V23.0 (DYNAMIC "PËRDITËSO ANALIZËN" STATUS ENGINE)
-// ZERO TS WARNINGS • DYNAMIC BUTTON STATES (DIRTY / CACHED / INITIAL)
+// PHOENIX PROTOCOL - CHAT HEADER V24.0 (DUAL FORENSIC AUTOPSY CONTROLS: CASE & DOC)
+// ZERO TS WARNINGS • DUAL AUTOPSY BUTTONS • PURE INSTITUTIONAL DESIGN • 100% COMPLETE CODE
 
 import React from 'react';
-import { Download, Trash2, FileSearch, Loader2, RefreshCw } from 'lucide-react';
+import { Download, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -14,6 +14,8 @@ interface ChatHeaderProps {
   t: TFunction;
   isPro?: boolean;
   onAnalyzeCase?: () => void;
+  onAnalyzeDocument?: () => void;
+  selectedDocName?: string;
   isAnalyzingCase?: boolean;
   isAnalysisDirty?: boolean;
   hasExistingAnalysis?: boolean;
@@ -28,16 +30,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onExportChat,
   t,
   onAnalyzeCase,
+  onAnalyzeDocument,
+  selectedDocName,
   isAnalyzingCase = false,
   isAnalysisDirty = false,
   hasExistingAnalysis = false,
 }) => {
   return (
     <div className="flex flex-row items-center justify-between px-3.5 sm:px-5 py-2.5 border-b border-main bg-surface z-50 shrink-0 h-13 min-h-[52px] select-none">
-      {/* Left: Titulli i Agjentit dhe LED Drita e Statusit */}
+      {/* Left: Titulli i Asistentit dhe LED Statusi */}
       <div className="flex items-center gap-2 min-w-0">
         <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none truncate">
-          {t('chatPanel.title', 'Asistenti Shabi')}
+          {t('chatPanel.title', 'Asistenti Sokratik')}
         </h2>
         <div className="flex items-center justify-center ml-0.5 shrink-0">
           <span
@@ -50,14 +54,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Butoni Inteligjent me 4 Gjendje Dinamike */}
+      {/* Right: Dy Butonat e Qartë të Autopsisë (Rasti & Dokumenti) */}
       <div className="flex items-center justify-end gap-2 shrink-0">
+        {/* BUTONI 1: AUTOPSIA E RASTIT (FASHIKULLI I PLOTË) */}
         {onAnalyzeCase && (
           <button
             type="button"
             onClick={onAnalyzeCase}
             disabled={isAnalyzingCase}
-            className={`h-8 px-3.5 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 disabled:opacity-80 cursor-pointer border ${
+            className={`h-8 px-3 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 disabled:opacity-80 cursor-pointer border ${
               isAnalyzingCase
                 ? 'bg-primary-start text-white border-primary-start/30'
                 : isAnalysisDirty
@@ -66,35 +71,35 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 ? 'bg-surface hover:bg-hover text-text-primary border-main'
                 : 'bg-primary-start hover:bg-primary-start/90 text-white border-primary-start/30'
             }`}
-            title={
-              isAnalysisDirty
-                ? 'Janë shtuar dokumente të reja. Klikoni për të përditësuar raportin master!'
-                : hasExistingAnalysis
-                ? 'Hap raportin e ruajtur (0ms)'
-                : 'Krijo Raportin e Plotë Doktrinar'
-            }
+            title="Kryej autopsinë e thellë forenzike për të gjithë fashikullin e lëndës"
           >
             {isAnalyzingCase ? (
               <>
-                <Loader2 size={14} className="text-white animate-spin shrink-0" />
-                <span className="text-white font-bold whitespace-nowrap animate-pulse">Rasti duke u analizuar...</span>
+                <Loader2 size={13} className="text-white animate-spin shrink-0" />
+                <span className="text-white font-bold whitespace-nowrap">Duke analizuar...</span>
               </>
             ) : isAnalysisDirty ? (
               <>
-                <RefreshCw size={14} className="text-white shrink-0 animate-spin" />
-                <span className="text-white font-bold whitespace-nowrap">Përditëso Analizën</span>
+                <RefreshCw size={13} className="text-white shrink-0 animate-spin" />
+                <span className="text-white font-bold whitespace-nowrap">Përditëso Rastin</span>
               </>
             ) : hasExistingAnalysis ? (
-              <>
-                <FileSearch size={14} className="text-primary-start shrink-0" />
-                <span className="font-bold whitespace-nowrap">Shiko Analizën</span>
-              </>
+              <span>Shiko Rastin</span>
             ) : (
-              <>
-                <FileSearch size={14} className="text-white shrink-0" />
-                <span className="font-bold whitespace-nowrap">Analizo Rastin</span>
-              </>
+              <span>Autopsia e Rastit</span>
             )}
+          </button>
+        )}
+
+        {/* BUTONI 2: AUTOPSIA E DOKUMENTIT (SHKRESA KONKRETE) */}
+        {onAnalyzeDocument && (
+          <button
+            type="button"
+            onClick={onAnalyzeDocument}
+            className="h-8 px-3 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap focus:outline-none hover-lift active:scale-95 bg-surface hover:bg-hover text-primary-start border border-main cursor-pointer"
+            title={selectedDocName ? `Kryej autopsinë e shkresës: ${selectedDocName}` : "Përzgjidhni një shkresë majtas për autopsi"}
+          >
+            <span>Autopsia e Dokumentit</span>
           </button>
         )}
 
