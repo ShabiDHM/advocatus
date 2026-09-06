@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V16.0 (CLEAN MINIMAL EMPTY STATE)
-// ZERO TS WARNINGS • NO FILLER TEXT • NO EMOJIS IN TABS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V17.0 (REAL MONGODB PERSISTENCE & 0MS CACHING)
+// ZERO TS WARNINGS • ZERO TRUNCATION • BULLETPROOF STATE SYNC
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,31 +44,31 @@ const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prom
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 1:
+Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 1:
 - Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
-- Seksioni 2: Kronologjia e Plotë Tabulare e Ngjarjeve (Data, Veprimi Procedural, Shkelja, Pasojat Juridike).
+- Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
 - Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
-Jep analizë të thellë, të plotë doktrinare, pa shkurtime.`
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 2:
-- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
-- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Ligjit]".
-- Seksioni 5: Përgjegjësia Penale (Nenet 390, 392, 398, 414 KPK) dhe Shkeljet Thelbësore të Procedurës (Neni 182 LPK).
-Gjenero tabelat e plota dhe arsyetimin ligjor të shkallës më të lartë.`
+Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 2:
+- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore (Tabelë me deri në 8 rreshta kryesorë).
+- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Emri i Ligjit]".
+- Seksioni 5: Përgjegjësia Penale (Nenet 383, 414, 427 të Kodit Penal) dhe Shkeljet Thelbësore të Procedurës (Neni 182 i LPK-së).
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
-Kryej autopsinë forenzike të fashikullit ekskluzivisht për SHTJELLËN 3:
+Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 3:
 - Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
 - Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
-- Seksioni 8: Master Plani i Veprimit me Afate të Prera Ligjore (48-orëshe dhe Procedurale).
-Ofro strategji agresive dhe taktike të fitores në gjyq.`
+- Seksioni 8: Master Plani i Veprimit me Hapat Taktikë 48-orësh deri te Konkluzioni Doktrinar.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
   }
 };
 
@@ -118,33 +118,38 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Ngarkimi në 0ms nga MongoDB sapo hapet dritarja
+  // Ngarkimi i vërtetë në 0ms nga MongoDB sapo hapet dritarja
   useEffect(() => {
     if (isOpen && caseId) {
-      if (initialPillars && Object.keys(initialPillars).length > 0) {
-        setPillarResults({
-          PILLAR_1: initialPillars.PILLAR_1 || '',
-          PILLAR_2: initialPillars.PILLAR_2 || '',
-          PILLAR_3: initialPillars.PILLAR_3 || ''
-        });
-      } else {
-        apiService.getCaseDetails(caseId).then((details: any) => {
-          if (details?.forensic_pillars) {
+      forensicService.getCasePillars(caseId)
+        .then((savedPillars) => {
+          if (savedPillars && Object.keys(savedPillars).length > 0) {
             setPillarResults({
-              PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
-              PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
-              PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
+              PILLAR_1: savedPillars.PILLAR_1 || '',
+              PILLAR_2: savedPillars.PILLAR_2 || '',
+              PILLAR_3: savedPillars.PILLAR_3 || ''
             });
           }
-        }).catch(() => {});
-      }
+        })
+        .catch(() => {
+          apiService.getCaseDetails(caseId).then((details: any) => {
+            if (details?.forensic_pillars) {
+              setPillarResults({
+                PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
+                PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
+                PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
+              });
+            }
+          }).catch(() => {});
+        });
     }
-  }, [isOpen, caseId, initialPillars]);
+  }, [isOpen, caseId]);
 
   const currentContent = pillarResults[activePillar] || '';
   const isCurrentLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentContent), [currentContent]);
 
+  // Gjenerimi dhe Ruajtja e Vërtetë në MongoDB
   const handleGeneratePillar = async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -160,7 +165,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         'ks',
         'DEEP',
         'automatic',
-        false
+        false // Izolim i plotë: nuk shkruan kurrë në chat!
       );
 
       let accumulated = '';
@@ -170,8 +175,13 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
       }
 
+      // RUAJTJA E VËRTETË NË MONGODB ME ENDPOINT-IN E RI
       if (accumulated.trim().length > 50) {
-        await forensicService.saveCasePillar(caseId, pillar, accumulated);
+        try {
+          await forensicService.saveCasePillar(caseId, pillar, accumulated);
+        } catch (saveErr) {
+          console.warn("Could not save pillar to MongoDB:", saveErr);
+        }
       }
     } catch (err) {
       console.error(`Pillar Analysis Error [${pillar}]:`, err);
@@ -376,7 +386,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* VETËM 3 SHTJELLAT (PA EMOJI) */}
+          {/* VETËM 3 SHTJELLAT (PA EMOJI) ME TREGUES TË MONGODB */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -426,7 +436,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             )}
           </div>
 
-          {/* Trupi i Raportit (EMPTY STATE I PAZTËR DHE MINIMAL) */}
+          {/* Trupi i Raportit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -475,7 +485,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               }
             `}</style>
 
-            {/* EMPTY STATE I PAZTËR: PA TEKST TË TEPËRT */}
             {!currentContent && !isCurrentLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
                 <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">

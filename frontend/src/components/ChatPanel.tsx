@@ -1,6 +1,6 @@
-// FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V90.0 (DUAL FORENSIC AUTOPSY ROUTING & PURE SOCRATIC HYGIENE)
-// ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE
+// FILE: src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V89.0 (DUAL AUTOPSY BUTTONS IN CHAT HEADER)
+// ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • CLEAN HYGIENE
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,7 +51,7 @@ interface ChatPanelProps {
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
   onOpenCaseAnalysis?: () => void;
-  onOpenDocAnalysis?: () => void;
+  onAnalyzeDocument?: () => void;
   selectedDocName?: string;
   isAnalyzingCase?: boolean;
   isAnalysisDirty?: boolean;
@@ -70,6 +70,27 @@ const isThinkingPlaceholder = (text?: string): boolean => {
 };
 
 const formatUserDisplayMessage = (content: string) => {
+  if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
+    const docMatch = content.match(/"([^"]+)"/);
+    const rawDocName = docMatch ? docMatch[1] : 'Dokumenti';
+    const cleanDocName = rawDocName.replace(/\.[^/.]+$/, "");
+    
+    return (
+      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
+        <span className="p-1 rounded-md bg-primary-start/15 text-primary-start border border-primary-start/30 flex items-center justify-center">
+          <Scale size={13} />
+        </span>
+        <span className="uppercase tracking-wider text-[11px] font-black text-text-primary">
+          Auditimi Forenzik
+        </span>
+        <span className="text-text-muted">•</span>
+        <span className="text-text-secondary font-medium max-w-[180px] sm:max-w-[280px] truncate text-[11px]">
+          {cleanDocName}
+        </span>
+      </div>
+    );
+  }
+
   if (content.includes('shtyllat strategjike') || content.includes('matrica e provave')) {
     return (
       <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
@@ -176,7 +197,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     clientPosition = 'DEFENDANT',
     isPro = true,
     onOpenCaseAnalysis,
-    onOpenDocAnalysis,
+    onAnalyzeDocument,
     selectedDocName,
     isAnalyzingCase = false,
     isAnalysisDirty = false,
@@ -229,14 +250,8 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
   const safeMessages = Array.isArray(messages) ? messages : [];
 
-  // PHOENIX HYGIENE: Përjashton çdo direktivë të fshehtë forenzike nga Chat-i
   const displayMessages = safeMessages.filter(
-    (m) => 
-      m && 
-      typeof m.content === 'string' && 
-      m.content.trim() !== '' &&
-      !m.content.startsWith('[DIREKTIVË FORENZIKE') &&
-      !m.content.startsWith('[DIREKTIVË E FORENZIKËS')
+    (m) => m && typeof m.content === 'string' && m.content.trim() !== ''
   );
 
   const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
@@ -257,7 +272,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         t={t}
         isPro={isPro}
         onAnalyzeCase={onOpenCaseAnalysis}
-        onAnalyzeDocument={onOpenDocAnalysis}
+        onAnalyzeDocument={onAnalyzeDocument}
         selectedDocName={selectedDocName}
         isAnalyzingCase={isAnalyzingCase}
         isAnalysisDirty={isAnalysisDirty}
@@ -284,6 +299,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                 const autoLinkedText = autoLinkLegalCitations(cleanText);
 
                 const isSpecialCommand = msg.role === 'user' && (
+                  msg.content.startsWith('[DIREKTIVË') || 
                   msg.content.includes('shtyllat strategjike') ||
                   msg.content.includes('nxirr bazën e plotë ligjore') ||
                   msg.content.includes('pyetësorin taktik') ||

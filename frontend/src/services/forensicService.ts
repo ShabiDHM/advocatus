@@ -1,6 +1,5 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC & COMPREHENSIVE CASE ANALYSIS MICRO-SERVICE V3.0
-// FULL MULTIMODAL INTEGRATION & 3-PILLAR MONGO ATLAS PERSISTENCE • ZERO TS WARNINGS • 100% COMPLETE
+// PHOENIX PROTOCOL - FORENSIC SERVICE V3.1 (FULL MONGODB PERSISTENCE: PILLARS & DOC AUDITS)
 
 import { apiClient } from './apiClient';
 import type {
@@ -12,10 +11,6 @@ import type {
   ForensicSpreadsheetAnalysisResult,
   ForensicInterrogationResponse
 } from './caseService';
-
-// =========================================================================
-// 🎙️ & 🎬 TIPA PËR PROVAT AUDIO / VIDEO & EXIF FORENZIKE
-// =========================================================================
 
 export interface MediaEvidenceItem {
   id: string;
@@ -47,24 +42,41 @@ export interface MediaEvidenceItem {
 
 export class ForensicService {
   // =========================================================================
-  // 🏛️ 1. ANALIZA E PLOTË E LËNDËS & SHTJELLAT PERSISTENTE NË MONGO ATLAS
+  // 🏛️ 1. ANALIZA E PLOTË E LËNDËS DHE 3 SHTJELLAT NË MONGODB
   // =========================================================================
 
-  public async saveCasePillar(caseId: string, pillarKey: string, content: string): Promise<{ status: string; message: string }> {
-    const response = await apiClient.put<{ status: string; message: string }>(`/chat/case/${caseId}/pillars`, {
-      pillar_key: pillarKey,
-      content
-    });
+  public async saveCasePillar(caseId: string, pillar: string, content: string): Promise<{ status: string; pillar: string }> {
+    const response = await apiClient.post<{ status: string; pillar: string }>(`/cases/${caseId}/pillars`, { pillar, content });
     return response.data;
   }
 
-  public async saveDocumentPillar(caseId: string, documentId: string, pillarKey: string, content: string): Promise<{ status: string; message: string }> {
-    const response = await apiClient.put<{ status: string; message: string }>(`/chat/case/${caseId}/documents/${documentId}/pillars`, {
-      pillar_key: pillarKey,
-      content
-    });
+  public async getCasePillars(caseId: string): Promise<Record<string, string>> {
+    const response = await apiClient.get<Record<string, string>>(`/cases/${caseId}/pillars`);
     return response.data;
   }
+
+  // =========================================================================
+  // ⚖️ 2. AUDITIMI I DOKUMENTIT TË VETËM DHE RUAJTJA NË MONGODB
+  // =========================================================================
+
+  public async saveDocumentAnalysis(caseId: string, documentId: string, content: string): Promise<{ status: string; document_id: string }> {
+    const response = await apiClient.post<{ status: string; document_id: string }>(`/cases/${caseId}/documents/${documentId}/analysis`, { content });
+    return response.data;
+  }
+
+  public async clearDocumentAudit(caseId: string, documentId: string): Promise<any> {
+    const response = await apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
+    return response.data;
+  }
+
+  public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> {
+    const response = await apiClient.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`);
+    return response.data;
+  }
+
+  // =========================================================================
+  // 🔬 3. STRATEGJIA E THELLË & SIMULIMI DOKTRINAR
+  // =========================================================================
 
   public async analyzeCase(
     caseId: string, 
@@ -98,24 +110,6 @@ export class ForensicService {
     link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
   }
-
-  // =========================================================================
-  // ⚖️ 2. AUDITIMI I DOKUMENTIT TË VETËM (SINGLE-DOCUMENT FORENSIC AUDIT)
-  // =========================================================================
-
-  public async clearDocumentAudit(caseId: string, documentId: string): Promise<any> {
-    const response = await apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
-    return response.data;
-  }
-
-  public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> {
-    const response = await apiClient.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`);
-    return response.data;
-  }
-
-  // =========================================================================
-  // 🔬 3. STRATEGJIA E THELLË & SIMULIMI DOKTRINAR
-  // =========================================================================
 
   public async analyzeDeepStrategy(caseId: string, clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL'): Promise<DeepAnalysisResult> {
     const params = clientPosition ? { client_position: clientPosition } : {};

@@ -1,364 +1,208 @@
-# FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V257.0 (RUAJTJA E BLINDUAR NË MONGODB DHE MEMORJA 0MS)
-# 100% I PLOTË • ZERO TRUNCATION • GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TS/PYTHON WARNINGS
+# FILE: backend/app/services/pillars/comprehensive_analysis_service.py
+# PROTOKOLLI PHOENIX - SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA MODULARE V230.0
+# ZERO TRUNCATION • 3 INDEPENDENT PILLARS • GJUHË E PAZTËR SHQIPE (ZERO ANGLISHT)
 
-import os
 import logging
 import re
-from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
-from datetime import datetime, timezone
-from bson import ObjectId
-
-from app.core.config import settings
-
-# Modulet RAG
-from app.services.rag.intent_detector import IntentDetector
-from app.services.rag.context_builder import ContextBuilder
-from app.services.rag.response_generator import ResponseGenerator
+from typing import Dict, Any, Optional
 from app.services.pillars.base_pillar_service import BasePillarService
-
-# Importimi i Shtyllave Kryesore Elitare
-from app.services.pillars.forensic_audit_service import ForensicAuditService
-from app.services.pillars.legal_drafting_service import LegalDraftingService
-from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
+from app.services.pillars.role_guard_service import RoleGuardService
 
 logger = logging.getLogger(__name__)
 
-MANDATORY_LEGAL_DISCLAIMER = (
-    "\n\n---\n"
-    "⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n"
-    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, "
-    "kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i "
-    "Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin "
-    "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
-)
 
-ANTI_HALLUCINATION_INSTRUCTION = """
-RREGULLAT E HEKURTA TË DOKTRINËS DHE HARTIMIT:
-1. CITO NENET me saktësi absolute neni-për-nen duke u mbështetur në shkresat e fashikullit dhe ligjet e Kosovës.
-2. MOS shpik fakte, data apo shuma që nuk figurojnë në fashikull.
-3. Përpilo dhe harto gjithmonë aktin e kërkuar procedural duke shfrytëzuar të gjitha provat e administruara në dosje.
-4. Përdor ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016, Ligji për Gjykatën Komerciale Nr. 08/L-015, Ligji për PSRK Nr. 03/L-052.
+class ComprehensiveAnalysisService:
+    """
+    SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA TË PAVARURA (V230.0):
+    - 100% I Pavarur nga Ndërprerjet: Çdo shtjellë gjenerohet me dritare të plotë të pavarur.
+    - Shtjella 1: Fakti dhe Historiku (Seksionet 1 dhe 2).
+    - Shtjella 2: Ligji dhe Shkeljet (Seksionet 3, 4 dhe 5).
+    - Shtjella 3: Strategjia dhe Plani i Veprimit (Seksionet 6, 7 dhe 8).
+    - Gjuha: Ekskluzivisht gjuha standarde juridike shqipe e Kosovës pa fjalë të huaja.
+    """
+
+    @staticmethod
+    def build_prompt(
+        case_title: str,
+        client_name: str,
+        client_position: str,
+        current_date_str: str,
+        manifest_str: str,
+        context_str: str,
+        case_domain: Optional[str] = None,
+        query_text: Optional[str] = None,
+        user_id: Optional[str] = None,
+        case_id: Optional[str] = None,
+        db: Any = None
+    ) -> str:
+        pozicioni = (client_position or "PALË NË PROCEDURË").strip().upper()
+        query_upper = (query_text or "").upper()
+        
+        # Zbulimi i Shtjellës së Kërkuar nga Query
+        target_pillar = 0
+        if "SHTJELLA_1" in query_upper or "PJESA_1" in query_upper or "FAKTI DHE HISTORIKU" in query_upper:
+            target_pillar = 1
+        elif "SHTJELLA_2" in query_upper or "PJESA_2" in query_upper or "LIGJI DHE SHKELJET" in query_upper:
+            target_pillar = 2
+        elif "SHTJELLA_3" in query_upper or "PJESA_3" in query_upper or "PLANI I VEPRIMIT" in query_upper:
+            target_pillar = 3
+
+        if not case_domain:
+            case_domain = BasePillarService.detect_case_domain(
+                case_title=case_title,
+                context_str=context_str[:15000],
+                manifest_str=manifest_str or ""
+            )
+        
+        pyetja_kerkimore = query_text or (
+            f"Precedentët supremë të Gjykatës Supreme të Kosovës për lëndën: {case_title}. "
+            f"Lëmia parësore: {case_domain}. Përgjegjësia penale e personave zyrtarë dhe gjyqtarëve sipas nenit 383 të Kodit Penal, "
+            f"keqpërdorimi i detyrës zyrtare sipas nenit 414 të Kodit Penal, falsifikimi i dokumentit zyrtar sipas nenit 427 të Kodit Penal, "
+            f"cenimi i barazisë së palëve sipas nenit 193 të Kodit Penal, ushtrimi i ndikimit sipas nenit 424 të Kodit Penal, "
+            f"kompetenca e Prokurorisë Speciale, frikësimi gjatë procedurës sipas nenit 386 të Kodit Penal, "
+            f"shkelja e detyrës nga avokati sipas nenit 392 të Kodit Penal, rehabilitimi ligjor sipas nenit 93 të Kodit Penal, "
+            f"masat emergjente të mbrojtjes, Aktgjykimet PML dhe Revizionet e Gjykatës Supreme."
+        )
+        
+        baza_globale, baza_lendes = BasePillarService.get_rag_context(
+            user_id=user_id or "",
+            case_id=case_id or "",
+            query_text=pyetja_kerkimore,
+            n_results=35
+        )
+        
+        rrjedha_kohore = ""
+        if db is not None and case_id:
+            rrjedha_kohore = BasePillarService.get_timeline_context(
+                db=db,
+                case_id=case_id,
+                user_id=user_id or ""
+            )
+
+        mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)
+        toni_rolit = RoleGuardService.get_role_specific_tone(pozicioni)
+
+        # Udhëzimi Modular sipas Shtjellës
+        if target_pillar == 1:
+            struktura_e_kerkuar = f"""
+TI JE DUKE GJENERUAR EKSKLUZIVISHT:
+# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+## PJESA I: FAKTI DHE HISTORIKU (SEKSIONET 1 DHE 2)
+**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+
+---
+
+### 1. 🏛️ DIAGNOZA EKZEKUTIVE DHE GJENDJA FAKTIKE E PROVUAR
+* **Zanafilla dhe Kronologjia e Çështjes:** Rindërtimi kronologjik i plotë e i detajuar i ngjarjeve, datave reale dhe akteve të administruara në fashikull.
+* **Gjendja Reale Faktike e Provuar:** Provat materiale dhe shkencore kundrejt pretendimeve të pavërtetuara.
+* **Pozicioni Procedural dhe Interesi Juridik i Klientit ({client_name} - {pozicioni}).**
+
+### 2. 🔍 KRYQËZIMI I AKTORËVE, INSTITUCIONEVE DHE VLERËSIMI I VEPRIMEVE
+(Identifiko me emra nga dosja të gjithë aktorët: gjyqtarët, prokurorët, ekspertët, zyrtarët publikë, agjencitë, avokatët dhe palët kundërshtare. Ndaj veprimet e ligjshme nga shkeljet procedurale, arbitraritetet apo dyshimet penale).
+(Përfundo plotësisht këtë Pjesë I deri te fjala e fundit).
+"""
+        elif target_pillar == 2:
+            struktura_e_kerkuar = f"""
+TI JE DUKE GJENERUAR EKSKLUZIVISHT:
+# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+## PJESA II: LIGJI DHE SHKELJET (SEKSIONET 3, 4 DHE 5)
+**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+
+---
+
+### 3. 🔬 MATRICA E TË VËRTETËS: PRETENDIMET KUNDREJT PROVAVE REALE NË FASHIKULL
+(Tabelë shteruese me të paktën 8 pikat kryesore të konfliktit të nxjerra nga dosja):
+| Pretendimi / Akti i Kundërshtuar | Çfarë Vërtetojnë Provat Reale të Fashikullit | Vlerësimi Doktrinar dhe Forca Provuese |
+| :--- | :--- | :--- |
+
+### 4. ⚖️ KUALIFIKIMI JURIDIK DHE TABELA STATUTORE E PRECEDENTËVE TË GJYKATËS SUPREME
+(Çdo nen të citohet me formatin e plotë `Neni X i [Emri i Ligjit]`, me precedentët përkatës të Gjykatës Supreme Revizion ose PML):
+| Dispozita dhe Ligji i Zbatueshëm | Instituti Ligjor / Procedural | Analiza Doktrinare dhe Pasojat Juridike | 🏛️ Precedenti dhe Qëndrimi i Gjykatës Supreme |
+| :--- | :--- | :--- | :--- |
+
+### 5. 🚨 PËRGJEGJËSIA LIGJORE DHE KUALIFIKIMI I VEPREVE PENALE (ZERO ZBUTJE DISIPLINORE)
+* 🔴 **Përgjegjësia Penale e Gjyqtarëve dhe Personave Zyrtarë:** (Neni 383 Nxjerrja e vendimit të paligjshëm, Neni 414 Keqpërdorimi i detyrës, Neni 427 Falsifikimi i dokumentit zyrtar, Neni 193 Cenimi i barazisë së palëve — shkeljet e rehabilitimit, kontradiktat mes arsyetimit dhe dispozitivit, dëbimet arbitrare, prapadatimet).
+* ⚖️ **Veprat Penale të Zyrtarëve Publikë dhe Ndikimi Politik:** (Neni 424 Ushtrimi i ndikimit, Neni 386 Frikësimi gjatë procedurës, Neni 392 Shkelja e detyrës nga avokati).
+* 🛑 **Përgjegjësia e Palëve Kundërshtare:** (Lajmërimi i rremë Neni 387, pengimi i të drejtave Neni 197, dëshmitë e rreme).
+(Përfundo plotësisht këtë Pjesë II deri te fjala e fundit).
+"""
+        elif target_pillar == 3:
+            struktura_e_kerkuar = f"""
+TI JE DUKE GJENERUAR EKSKLUZIVISHT:
+# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+## PJESA III: STRATEGJIA DHE FITORJA (SEKSIONET 6, 7 DHE 8)
+**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+
+---
+
+### 6. 🔨 HIERARKIA E MJETEVE JURIDIKE DHE JURISDIKSIONI I DUHUR
+* 🔴 **Ndjekja Penale dhe Kompetenca e Organeve Hetuese (Prokuroria Speciale / Prokuroria e Shtetit):** Arsyetimi i kompetencës nëse ka elemente të krimit zyrtar apo ndikimit (Ligji për Prokurorinë Speciale Nr. 03/L-052).
+* 🟢 **Mjetet Parësore të Degës Kryesore (Civile / Komerciale / Administrative):** Afatet ligjore prekluzive, ankesat, masat e sigurimit, kthimi në gjendje të mëparshme.
+* 🟡 **Mjetet e Jashtëzakonshme dhe Kushtetuese:** Kërkesa për Mbrojtje të Ligjshmërisë, Revizioni në Gjykatën Supreme, Ankesa në Gjykatën Kushtetuese (Nenet 31 dhe 54 të Kushtetutës), Gjykata Evropiane për të Drejtat e Njeriut.
+
+### 7. 💡 REKOMANDIMET STRATEGJIKE TË KONSULENCËS SUPREME
+* **Analiza Kosto / Kohë / Efektivitet e rrugëve procedurale.**
+* **Strategjia e Sulmit dhe Mbrojtjes (Plani A - Kryesor kundrejt Planit B - Alternativ).**
+* **Neutralizimi i Pretendimeve të Kundërshtarit.**
+
+### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E ARDHSHËM TAKTIKË
+* 🔴 **HAPI 1 (Urgjenca brenda 24 deri në 48 Orëve):** Veprimet emergjente procedurale (masat mbrojtëse emergjente, sigurimi i provave, veprimet brenda afateve prekluzive).
+* 🟡 **HAPI 2 (Konsolidimi Provues dhe Goditja Procedurale):** Ekspertizat e pavarura, kallëzimet penale pranë organit kompetent, procedurat ankimore.
+* 🟢 **HAPI 3 (Zhdëmtimi dhe Mbrojtja Supreme / Kushtetuese):** Paditë për kompensim dëmi (Neni 162 i Ligjit për Marrëdhëniet e Detyrimeve), revizioni, ndjekja kushtetuese.
+* 📊 **Tabela Përmbledhëse e Master Planit.**
+* 🏁 **Konkluzioni Doktrinar Suprem:** Përmbyllje e plotë shteruese e të gjitha shtyllave të fitores ligjore deri në fjalën e fundit.
+"""
+        else:
+            # Përmbledhja standarde në rast kërkese integrale
+            struktura_e_kerkuar = f"""
+# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+## RAPORTI MASTER I AUTOPSISË SË THELLË DOKTRINARE DHE STRATEGJISË GJYQËSORE
+**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+
+Gjenero raportin e plotë duke përfshirë të 8 Seksionet në mënyrë të balancuar dhe shteruese deri te fjala e fundit e Seksionit 8.
 """
 
+        return f"""
+<konteksti_i_autopsise_forenzike_dhe_doktrines_supreme>
+JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
+REPUBLIKA E KOSOVËS • EKSPERTIZË DOKTRINARE E PROVAVE DHE MBROJTJE GJYQËSORE
 
-def is_valid_legal_report(text: str) -> bool:
-    """Verifikon që përgjigja është një raport i vërtetë gjyqësor dhe JO një gabim teknik."""
-    if not text or len(text.strip()) < 200:
-        return False
-    
-    lower_text = text.lower()
-    error_markers = [
-        "përkohësisht i ngarkuar",
-        "error code:",
-        "context_length_exceeded",
-        "not a valid model",
-        "no endpoints found",
-        "gabim teknik"
-    ]
-    for marker in error_markers:
-        if marker in lower_text:
-            return False
-            
-    return True
+MANDATI YT SUPREM:
+Përpara teje ndodhet fashikulli i plotë i të gjitha shkresave të çështjes **{case_title}**.
+Ti vepron si Kolegj Këshillues i Gjykatës Supreme të Kosovës.
+RREGULL I HEKURT: Përgjigju VETËM në gjuhën standarde juridike të Republikës së Kosovës. Ndalohet kategorikisht përdorimi i fjalëve apo shprehjeve në gjuhën angleze.
+Detyra jote është të përfundosh 100% strukturën e kërkuar më poshtë pa u ndërprerë kurrë në mes!
+</konteksti_i_autopsise_forenzike_dhe_doktrines_supreme>
 
+{mbrojtja_rolit}
 
-class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V257.0 me Ruajtje të Blinduar në MongoDB dhe Hapje në 0ms."""
+📋 IDENTIFIKIMI I FASHIKULLIT DHE KLIENTIT:
+TITULLI I ÇËSHTJES: **{case_title}**
+KLIENTI / PARASHTRUESI: **{client_name or 'I Identifikuar në Shkresa'}**
+CILËSIA PROCEDURALE: **{pozicioni}**
+LËMIA PARËSORE E IDENTIFIKUAR: **{case_domain}**
+DATA E AUDITIMIT DOKTRINAR: {current_date_str}
 
-    def __init__(self, db: Any):
-        self.db = db
-        self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V257.0 Initialized.")
+{toni_rolit}
 
-    def _optimize_query(self, query: str) -> str:
-        cleaned = query.strip()
-        preambles = [
-            r"^\s*më\s+trego\s+rreth\s+",
-            r"^\s*më\s+trego\s+për\s+",
-            r"^\s*a\s+mund\s+të\s+më\s+ndihmosh\s+me\s+",
-            r"^\s*ju\s+lutem\s+më\s+gjej\s+",
-            r"^\s*kërko\s+për\s+",
-            r"^\s*gjej\s+nenin\s+",
-        ]
-        for preamble in preambles:
-            cleaned = re.sub(preamble, "", cleaned, flags=re.IGNORECASE)
-        
-        abbreviations = {
-            r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
-            r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
-            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
-            r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
-            r"\bLPK\b": "Ligji për Procedurën Kontestimore",
-            r"\bLFK\b": "Ligji për Familjen i Kosovës",
-            r"\bPSRK\b": "Prokuroria Speciale e Republikës së Kosovës",
-        }
-        for abbr, expansion in abbreviations.items():
-            cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
-        
-        return cleaned.strip()
+🏛️ PRECEDENTËT SUPREMË:
+{baza_globale if baza_globale else "Zbato precedentët e konsoliduar të Gjykatës Supreme të Kosovës (Revizionet dhe PML)."}
 
-    async def chat(
-        self,
-        query: str,
-        user_id: str,
-        case_id: Optional[str] = None,
-        document_ids: Optional[List[str]] = None,
-        jurisdiction: str = 'ks',
-        history: Optional[List[Dict[str, Any]]] = None,
-        domain: Optional[str] = 'automatic'
-    ) -> AsyncGenerator[str, None]:
-        
-        current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+📅 KRONOLOGJIA:
+{rrjedha_kohore if rrjedha_kohore else "Rindërtohet kronologjikisht nga të gjitha shkresat e fashikullit."}
 
-        client_position = "PALË NË PROCEDURË"
-        client_name = "Klienti / Parashtruesi"
-        case_title = "Lënda Ligjore"
-        db_documents = []
-        case_doc = None
-        c_oid = None
+📄 SHKRESAT E LËNDËS:
+{baza_lendes if baza_lendes else "Fashikulli dokumentar i administruar."}
 
-        if case_id and self.db is not None:
-            try:
-                c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-                case_doc = self.db.cases.find_one({"_id": c_oid})
-                if case_doc:
-                    if case_doc.get("client_position") or case_doc.get("client_role"):
-                        client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
-                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
-                    case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
+📎 PASAPORTA E DOKUMENTEVE:
+{manifest_str if manifest_str else "Dokumentet e fashikullit."}
 
-                doc_filter: Dict[str, Any] = {
-                    "$or": [{"case_id": case_id}, {"case_id": c_oid}],
-                    "status": {"$ne": "DELETED"}
-                }
+{'='*60}
+FASHIKULLI I PLOTË I SHKRESAVE TË LËNDËS:
+{'='*60}
+{context_str}
+{'='*60}
 
-                if document_ids and len(document_ids) > 0:
-                    doc_oids = [ObjectId(did) for did in document_ids if ObjectId.is_valid(did)]
-                    doc_strs = [str(did) for did in document_ids]
-                    doc_filter["_id"] = {"$in": doc_oids + doc_strs}
-
-                db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("date", 1)]))
-            except Exception as ex:
-                logger.warning(f"Could not read case documents: {ex}")
-
-        single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
-
-        from app.services import vector_store_service
-        user_intent = IntentDetector.detect(query)
-        optimized_query = self._optimize_query(query)
-        query_lower = query.lower()
-
-        # 🔒 KONTROLL I BLINDUAR I INTENTIT PËR RUAJTJE TË SIGURT
-        if "analizo rastin" in query_lower or "raportin master" in query_lower or "autopsi e plotë" in query_lower:
-            user_intent = "COMPREHENSIVE_ANALYSIS"
-        elif single_doc_obj and (
-            user_intent in ["FORENSIC_AUDIT", "COMPREHENSIVE_ANALYSIS"] or
-            "direktivë forenzike" in query_lower or
-            "audit" in query_lower
-        ):
-            user_intent = "FORENSIC_AUDIT"
-
-        sample_text = ""
-        if single_doc_obj:
-            sample_text = (single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or "")[:5000]
-        elif db_documents:
-            sample_text = " ".join([(d.get("content") or d.get("extracted_text") or "")[:1500] for d in db_documents[:5]])
-
-        detected_domain = BasePillarService.detect_case_domain(
-            case_title=case_title,
-            context_str=sample_text,
-            manifest_str=""
-        )
-
-        # =========================================================================
-        # ⚡ SMART CACHE CHECK (HAPJE NË 0ms NËSE EKZISTON NË MONGODB)
-        # =========================================================================
-
-        # 1. KONTROLLI I AUDITIMIT TË DOKUMENTIT TË VETËM (0ms Instant Hit)
-        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
-            cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
-            if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
-                logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin: {single_doc_obj.get('file_name', single_doc_obj.get('_id'))}")
-                yield cached_doc_audit
-                yield MANDATORY_LEGAL_DISCLAIMER
-                return
-
-        # 2. KONTROLLI I ANALIZËS SË PLOTË TË LËNDËS (0ms Instant Hit)
-        if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
-            is_dirty = case_doc.get("analysis_dirty", False)
-            cached_analysis = case_doc.get("latest_deep_analysis") or case_doc.get("latest_comprehensive_analysis")
-
-            if not is_dirty and cached_analysis and is_valid_legal_report(cached_analysis):
-                logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_deep_analysis për lëndën {case_id}.")
-                yield cached_analysis
-                yield MANDATORY_LEGAL_DISCLAIMER
-                return
-
-        # =========================================================================
-        # 🔍 NËSE NUK KA CACHE: FILLON GJENERIMI I RI NGA AI
-        # =========================================================================
-        exec_query = optimized_query
-        system_prompt = ""
-
-        if user_intent == "FORENSIC_AUDIT":
-            doc_text = ""
-            if single_doc_obj:
-                doc_text = single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or ""
-            
-            if not doc_text and db_documents:
-                doc_text = db_documents[0].get("content") or db_documents[0].get("extracted_text") or ""
-
-            doc_name = single_doc_obj.get('file_name', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'
-            manifest_str = f"Dokumenti në Audit: {doc_name}"
-            
-            base_prompt = ForensicAuditService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                context_str=doc_text,
-                document_text=doc_text,
-                manifest_str=manifest_str,
-                case_domain=detected_domain,
-                query_text=optimized_query,
-                db=self.db,
-                user_id=user_id,
-                case_id=""
-            )
-            system_prompt = base_prompt
-            exec_query = optimized_query
-
-        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            dossier_blocks = []
-            manifest_lines = []
-
-            for idx, doc in enumerate(db_documents, 1):
-                doc_title = doc.get("file_name") or doc.get("title") or f"Dokumenti #{idx}"
-                doc_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
-                doc_date = doc.get("document_date") or doc.get("created_at") or ""
-                if hasattr(doc_date, "strftime"):
-                    doc_date = doc_date.strftime("%d.%m.%Y")
-                
-                manifest_lines.append(f"{idx}. {doc_title} (Data/Ref: {doc_date})")
-                dossier_blocks.append(
-                    f"======================================================================\n"
-                    f"SHKRESA #{idx} NË FASHIKULL: {doc_title} | DATA: {doc_date}\n"
-                    f"======================================================================\n"
-                    f"{doc_text}\n"
-                )
-
-            if dossier_blocks:
-                integral_context_str = "\n".join(dossier_blocks)
-                manifest_str = "\n".join(manifest_lines)
-            else:
-                case_docs = vector_store_service.query_case_knowledge_base(
-                    user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
-                )
-                global_docs = vector_store_service.query_global_knowledge_base(
-                    query_text=optimized_query, n_results=15
-                )
-                manifest_str, integral_context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            base_prompt = ComprehensiveAnalysisService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=integral_context_str,
-                case_domain=detected_domain,
-                db=self.db,
-                query_text=optimized_query,
-                user_id=user_id,
-                case_id=case_id
-            )
-            system_prompt = base_prompt
-            exec_query = optimized_query
-
-        elif user_intent == "DRAFTING":
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            base_prompt = LegalDraftingService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=context_str,
-                query=optimized_query,
-                case_domain=detected_domain,
-                db=self.db,
-                user_id=user_id,
-                case_id=case_id
-            )
-            system_prompt = base_prompt
-            exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
-        else:
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            system_prompt = f"""
-            Ti je "Juristi AI - Asistenti Ligjor Inteligjent dhe Eksperti Kryesor i Doktrinës Ligjore në Kosovë".
-            LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
-
-            {ANTI_HALLUCINATION_INSTRUCTION}
-
-            DOKUMENTET DHE PROVAT E FASHIKULLIT:
-            {manifest_str}
-            {context_str}
-            """
-
-        # Gjenerimi i Përgjigjes me Stream
-        full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
-            full_generated_response += content
-            yield content
-
-        # =========================================================================
-        # 💾 RUAJTJA AUTOMATIKE E BLINDUAR NË MONGODB (E RIKTHYER 100%)
-        # =========================================================================
-        if is_valid_legal_report(full_generated_response):
-            # 1. Ruajtja e Analizës së Plotë të Lëndës (Për hapje të përhershme në 0ms)
-            if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None:
-                try:
-                    self.db.cases.update_one(
-                        {"_id": c_oid},
-                        {"$set": {
-                            "latest_deep_analysis": full_generated_response.strip(),
-                            "latest_comprehensive_analysis": full_generated_response.strip(),
-                            "analysis_dirty": False,
-                            "last_analyzed_at": datetime.now(timezone.utc)
-                        }}
-                    )
-                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt me sukses latest_deep_analysis në MongoDB për lëndën {case_id}!")
-                except Exception as save_err:
-                    logger.warning(f"Could not cache case analysis: {save_err}")
-
-            # 2. Ruajtja e Auditimit të Dokumentit të Vetëm (Për hapje të përhershme në 0ms)
-            if user_intent == "FORENSIC_AUDIT" and single_doc_obj and self.db is not None:
-                try:
-                    self.db.documents.update_one(
-                        {"_id": single_doc_obj["_id"]},
-                        {"$set": {
-                            "latest_analysis": full_generated_response.strip(),
-                            "latest_forensic_audit": full_generated_response.strip(),
-                            "last_audited_at": datetime.now(timezone.utc)
-                        }}
-                    )
-                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt latest_analysis për dokumentin {single_doc_obj.get('_id')}!")
-                except Exception as save_err:
-                    logger.warning(f"Could not cache doc audit: {save_err}")
-
-        yield MANDATORY_LEGAL_DISCLAIMER
+STRUKTURA E DETYRUESHME QË DUHET TË GJENEROSH TANI:
+{struktura_e_kerkuar}
+"""
