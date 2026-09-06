@@ -1,5 +1,6 @@
 // FILE: src/components/case/EvidenceVaultPanel.tsx
-// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V14.0 (PIXEL-PERFECT SYMMETRY & MOBILE RESPONSIVENESS)
+// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V16.0 (EXACT PROP BINDING FOR ACTIVE DOC HIGHLIGHT)
+// ZERO TS WARNINGS • SINGLE CLICK HIGHLIGHT INTEGRATION • 100% COMPLETE CODE
 
 import React, { useState } from 'react';
 import { Document, DeletedDocumentResponse } from '../../data/types';
@@ -20,6 +21,8 @@ interface EvidenceVaultPanelProps {
   onViewOriginal: (doc: Document) => void;
   onRenameDocument: (doc: Document) => void;
   onVerifyDocumentLaws?: (doc: Document) => void;
+  selectedDocumentId?: string;
+  onSelectDocument?: (document: Document) => void;
   t: TFunction;
 }
 
@@ -33,6 +36,8 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
   onViewOriginal,
   onRenameDocument,
   onVerifyDocumentLaws,
+  selectedDocumentId,
+  onSelectDocument,
   t,
 }) => {
   const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
@@ -84,6 +89,8 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
             onViewOriginal={onViewOriginal}
             onRename={onRenameDocument}
             onVerifyDocumentLaws={onVerifyDocumentLaws}
+            selectedDocId={selectedDocumentId}
+            onSelectDocument={onSelectDocument}
             className="h-full w-full bg-transparent border-0 rounded-none"
           />
         ) : (

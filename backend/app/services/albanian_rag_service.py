@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V260.0 (STRICT ISOLATION OF DOC VS CASE PILLARS & PURGE CACHE)
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V261.0 (INTEGRAL 31-DOC DOSSIER INGESTION FOR CASE ANALYSIS)
 # 100% I PLOTË • ZERO TRUNCATION • GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TS/PYTHON WARNINGS
 
 import os
@@ -75,12 +75,12 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V260.0 me Izolim të Blinduar të Shtjellave të Dokumentit dhe Rastit."""
+    """Shërbimi Kryesor RAG — V261.0 me Ngarkim Integral të të Gjitha Shkresave të Lëndës."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V260.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V261.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -139,6 +139,7 @@ class AlbanianRAGService:
                     client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
 
+                # Ngarkojmë shkresat sipas kërkesës
                 doc_filter: Dict[str, Any] = {
                     "$or": [{"case_id": case_id}, {"case_id": c_oid}],
                     "status": {"$ne": "DELETED"}
@@ -153,6 +154,7 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
+        # Dokument i vetëm është VETËM nëse përdoruesi ka specifikuar 1 documentId
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
         from app.services import vector_store_service
@@ -161,12 +163,19 @@ class AlbanianRAGService:
         req_pillar = detect_requested_pillar(query_lower)
 
         # =========================================================================
-        # 🎯 PHOENIX CLASSIFIER: PRIORITET ABSOLUT PËR DOKUMENTIN KUR ËSHTË I PRANISHËM
+        # 🎯 PHOENIX CLASSIFIER: IDENTIFIKIMI I SAKTË I ANALIZËS SË RASTIT
         # =========================================================================
-        if single_doc_obj is not None or (document_ids and len(document_ids) == 1):
+        is_case_wide_request = any(kw in query_lower for kw in [
+            "analizo rastin", "analizë e rastit", "analizë standarde e rastit",
+            "pasqyra ekzekutive e lëndës", "pasqyra e lëndës", "raportin master",
+            "autopsi e plotë", "fashikull", "gjithë fashikullit"
+        ])
+
+        if single_doc_obj is not None and not is_case_wide_request:
             user_intent = "FORENSIC_AUDIT"
-        elif "analizo rastin" in query_lower or "raportin master" in query_lower or "autopsi e plotë" in query_lower:
+        elif is_case_wide_request:
             user_intent = "COMPREHENSIVE_ANALYSIS"
+            single_doc_obj = None  # Sigurojmë që të përfshihet i gjithë fashikulli me të 31 shkresat
         else:
             user_intent = IntentDetector.detect(query)
 
@@ -183,14 +192,13 @@ class AlbanianRAGService:
         )
 
         # =========================================================================
-        # ⚡ SMART CACHE CHECK (IZOLIM I PLOTË DOKUMENT vs LËNDË)
+        # ⚡ SMART CACHE CHECK (0ms VETËM NËSE KA CACHE EKZISTUES)
         # =========================================================================
 
         # 1. KONTROLLI I SHTJELLËS SË DOKUMENTIT TË VETËM
         if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
             doc_pillars = single_doc_obj.get("forensic_pillars") or {}
             
-            # Nëse kërkohet shtjellë specifike (PILLAR_1, PILLAR_2, PILLAR_3)
             if req_pillar and doc_pillars.get(req_pillar):
                 cached_text = doc_pillars[req_pillar]
                 if is_valid_legal_report(cached_text):
@@ -198,8 +206,6 @@ class AlbanianRAGService:
                     yield cached_text
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
-            
-            # Nëse nuk kërkohet shtjellë por audit i përgjithshëm
             elif not req_pillar:
                 cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
                 if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
@@ -208,11 +214,12 @@ class AlbanianRAGService:
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
 
-        # 2. KONTROLLI I SHTJELLËS SË LËNDËS (VETËM KUR NUK KA DOKUMENT TË VETËM)
+        # 2. KONTROLLI I SHTJELLËS SË LËNDËS (VETËM KUR KËRKOHET NGA ZYRA FORENZIKE)
         elif user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc and not single_doc_obj:
             is_dirty = case_doc.get("analysis_dirty", False)
             forensic_pillars = case_doc.get("forensic_pillars") or {}
 
+            # Vetëm nëse kërkohet shtjellë specifike forenzike me Sonnet
             if not is_dirty and req_pillar and forensic_pillars.get(req_pillar):
                 cached_pillar = forensic_pillars[req_pillar]
                 if is_valid_legal_report(cached_pillar):
@@ -222,7 +229,7 @@ class AlbanianRAGService:
                     return
 
         # =========================================================================
-        # 🔍 NËSE NUK KA CACHE (U FSHI ME KOSH): FILLON GJENERIMI I RI NGA AI
+        # 🔍 FILLON GJENERIMI I RI NGA AI
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
@@ -256,6 +263,7 @@ class AlbanianRAGService:
             exec_query = optimized_query
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
+            # INTEGRIMI I TË GJITHA 31 SHKRESAVE TË FASHIKULLIT
             dossier_blocks = []
             manifest_lines = []
 
@@ -353,10 +361,9 @@ class AlbanianRAGService:
             yield content
 
         # =========================================================================
-        # 💾 RUAJTJA PREÇIZE NË MONGODB PAS GJENERIMIT TË SUKSESSHËM
+        # 💾 RUAJTJA AUTOMATIKE PAS GJENERIMIT
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
-            # 1. Ruajtja e Shtjellës së Dokumentit (Vetëm te dokumenti!)
             if single_doc_obj and self.db is not None:
                 save_doc_key = req_pillar or "PILLAR_1"
                 try:
@@ -373,7 +380,6 @@ class AlbanianRAGService:
                 except Exception as save_err:
                     logger.warning(f"Could not cache doc pillar: {save_err}")
 
-            # 2. Ruajtja e Shtjellës së Lëndës (Vetëm kur nuk është dokument i veçantë!)
             elif user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None and not single_doc_obj:
                 save_case_key = req_pillar or "PILLAR_1"
                 try:

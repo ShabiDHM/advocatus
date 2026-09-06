@@ -1,18 +1,10 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V29.0 (CLEAN CLIENT LABELS: 'ANALIZO RASTIN' & 'ANALIZO DOKUMENTIN')
-// ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • DYNAMIC DOC SELECTOR • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CHAT HEADER V30.0 (PURE MINIMALIST ACTIONS • NO DROPDOWN CLUTTER)
+// ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • 100% COMPLETE CODE
 
 import React from 'react';
 import { Download, Trash2, Loader2, RefreshCw, FileText, Sparkles } from 'lucide-react';
 import { TFunction } from 'i18next';
-
-interface DocumentItem {
-  id: string;
-  name?: string;
-  title?: string;
-  page_count?: number;
-  [key: string]: any;
-}
 
 interface ChatHeaderProps {
   connectionStatus: string;
@@ -27,7 +19,7 @@ interface ChatHeaderProps {
   isAnalyzingCase?: boolean;
   isAnalysisDirty?: boolean;
   hasExistingAnalysis?: boolean;
-  documents?: DocumentItem[];
+  documents?: any[];
   selectedDocumentIds?: string[];
   onDocumentSelectionChange?: (ids: string[]) => void;
 }
@@ -41,24 +33,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   selectedDocName,
   isAnalyzingCase = false,
   isAnalysisDirty = false,
-  documents = [],
-  selectedDocumentIds = [],
-  onDocumentSelectionChange,
 }) => {
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!onDocumentSelectionChange) return;
-    const val = e.target.value;
-    if (!val) {
-      onDocumentSelectionChange([]);
-    } else {
-      onDocumentSelectionChange([val]);
-    }
-  };
-
   return (
-    <div className="flex flex-row items-center justify-between px-3 sm:px-4 py-2 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none overflow-x-hidden">
-      {/* 1. MAJTAS: Drita LED dhe Selektori Dinamik i Dokumenteve */}
-      <div className="flex items-center gap-2 min-w-0 shrink">
+    <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none">
+      {/* 1. MAJTAS: Vetëm Drita LED e Statusit (Pastërti Absolute) */}
+      <div className="flex items-center gap-2 shrink-0">
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             connectionStatus === 'CONNECTED'
@@ -67,29 +46,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           }`}
           title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive' : 'Lidhja e shkëputur'}
         />
-
-        {documents && documents.length > 0 && onDocumentSelectionChange && (
-          <div className="relative flex items-center min-w-0 max-w-[140px] sm:max-w-[180px]">
-            <FileText size={12} className="absolute left-2 text-text-muted pointer-events-none shrink-0" />
-            <select
-              value={selectedDocumentIds[0] || ''}
-              onChange={handleSelectChange}
-              className="w-full pl-6 pr-2 py-1 text-[11px] font-medium rounded-lg border border-main bg-hover text-text truncate focus:outline-none focus:border-primary-start cursor-pointer"
-              title="Përzgjidh dokumentin për analizë"
-            >
-              <option value="">I gjithë fashikulli</option>
-              {documents.map((doc) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.name || doc.title || `Dokumenti ${doc.id.slice(-4)}`}
-                  {doc.page_count ? ` (${doc.page_count} fq)` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+        {selectedDocName && (
+          <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[220px] truncate" title={`Shkresa aktive: ${selectedDocName}`}>
+            <FileText size={12} className="text-primary-start shrink-0" />
+            <span className="truncate">{selectedDocName}</span>
+          </span>
         )}
       </div>
 
-      {/* 2. DJATHAS: Butonat e Rej të Analizës dhe Veprimet e Kyçura */}
+      {/* 2. DJATHAS: Butonat e Pastër dhe të Kyçur */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
         {/* Butoni 1: Analizo Rastin */}
         {onAnalyzeCase && (
@@ -97,14 +62,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             type="button"
             onClick={onAnalyzeCase}
             disabled={isAnalyzingCase}
-            className={`h-8 px-2.5 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none cursor-pointer border ${
+            className={`h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none cursor-pointer border ${
               isAnalyzingCase
                 ? 'bg-surface text-primary-start border-primary-start/30 opacity-80'
                 : isAnalysisDirty
                 ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/30'
                 : 'bg-surface hover:bg-hover text-primary-start hover:text-primary-end border-main hover:border-primary-start/40'
             }`}
-            title="Kryej pasqyrën e shpejtë të lëndës"
+            title="Kryej pasqyrën e shpejtë të të gjithë fashikullit të lëndës"
           >
             {isAnalyzingCase ? (
               <>
@@ -130,8 +95,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <button
             type="button"
             onClick={onAnalyzeDocument}
-            className="h-8 px-2.5 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer"
-            title={selectedDocName ? `Kryej pasqyrën e shkresës: ${selectedDocName}` : 'Përzgjidhni një shkresë majtas për analizë'}
+            className="h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer"
+            title={selectedDocName ? `Kryej pasqyrën e shkresës: ${selectedDocName}` : 'Klikoni mbi një shkresë në listën majtas për ta analizuar'}
           >
             <FileText size={12} className="shrink-0 text-primary-start" />
             <span className="hidden sm:inline">Analizo Dokumentin</span>
@@ -139,7 +104,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* Butoni: Shkarko Bisedën (Pin-uar, i palëvizshëm) */}
+        {/* Butoni: Shkarko Bisedën */}
         {onExportChat && (
           <button
             type="button"
@@ -151,7 +116,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* Butoni: Pastro Bisedën / Koshi (Pin-uar, i palëvizshëm) */}
+        {/* Butoni: Pastro Bisedën (Koshi) */}
         <button
           type="button"
           onClick={onClearChat}
