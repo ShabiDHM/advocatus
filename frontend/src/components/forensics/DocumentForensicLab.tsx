@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V8.0 (TOTAL CASCADE WIPEOUT FOR ACTIVE TAB)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V10.0 (FONT RESIZER RESTORED & 0MS PERSISTENCE)
 // ZERO TS WARNINGS • TRUE $UNSET MONGODB PURGE • PRESERVES OTHER PILLARS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -43,6 +43,14 @@ interface DocumentForensicLabProps {
   caseId: string;
   onEvidenceChange?: () => void;
 }
+
+const FONT_LEVELS = [
+  { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
+  { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
+  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
+  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
+  { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
+];
 
 const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; getPrompt: (docName: string) => string }> = {
   PILLAR_1: {
@@ -107,7 +115,7 @@ RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje 
 Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin:
 - Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
 - Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
-- Seksioni 8: Master Plani i Veprimit me Hapat Taktikë 48-orësh deri te Konkluzioni Doktrinar.
+- Seksioni 8: Master Plani i Veprimit me Afate të Prera.
 RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
   }
 };
@@ -131,21 +139,15 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [isDeletingPillars, setIsDeletingPillars] = useState<boolean>(false);
 
   const [docPillars, setDocPillars] = useState<Record<PillarType, string>>({
-    PILLAR_1: '',
-    PILLAR_2: '',
-    PILLAR_3: ''
+    PILLAR_1: '', PILLAR_2: '', PILLAR_3: ''
   });
 
   const [casePillars, setCasePillars] = useState<Record<PillarType, string>>({
-    PILLAR_1: '',
-    PILLAR_2: '',
-    PILLAR_3: ''
+    PILLAR_1: '', PILLAR_2: '', PILLAR_3: ''
   });
 
   const [loadingPillars, setLoadingPillars] = useState<Record<PillarType, boolean>>({
-    PILLAR_1: false,
-    PILLAR_2: false,
-    PILLAR_3: false
+    PILLAR_1: false, PILLAR_2: false, PILLAR_3: false
   });
 
   const [copiedReport, setCopiedReport] = useState<boolean>(false);
@@ -163,6 +165,38 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const currentPillarContent = activePillarsMap[activePillar] || '';
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
+
+  const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('juristi_forensic_font_size');
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 2;
+    } catch {
+      return 2;
+    }
+  });
+
+  const activeFont = FONT_LEVELS[fontLevelIndex];
+
+  const handleDecreaseFont = () => {
+    setFontLevelIndex((prev) => {
+      const next = Math.max(0, prev - 1);
+      try { localStorage.setItem('juristi_forensic_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleIncreaseFont = () => {
+    setFontLevelIndex((prev) => {
+      const next = Math.min(FONT_LEVELS.length - 1, prev + 1);
+      try { localStorage.setItem('juristi_forensic_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleResetFont = () => {
+    setFontLevelIndex(2);
+    try { localStorage.setItem('juristi_forensic_font_size', '2'); } catch {}
+  };
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -324,7 +358,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const handleAdminPurgeSinglePillar = async () => {
     if (!caseId || !currentPillarContent) return;
     
-    const activeCfg = currentConfigs[activePillar];
+    const activeCfg = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS[activePillar] : CASE_PILLAR_CONFIGS[activePillar];
     const confirmSingleDelete = window.confirm(`A jeni i sigurt që doni të fshini nga MongoDB VETËM "${activeCfg.title}"? Shtjellat e tjera do të mbeten të paprekura!`);
     if (!confirmSingleDelete) return;
 
@@ -333,7 +367,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       if (autopsyScope === 'DOCUMENT') {
         if (!selectedDocId || !activeDoc) return;
         
-        // PHOENIX CASCADE WIPEOUT: Asgjëson me $unset në MongoDB Atlas
         await forensicService.deleteDocumentPillar(caseId, selectedDocId, activePillar);
         setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
         setDocuments(prev => prev.map(d => d.id === selectedDocId ? {
@@ -341,7 +374,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           forensic_pillars: { ...(d.forensic_pillars || {}), [activePillar]: '' }
         } : d));
       } else {
-        // PHOENIX CASCADE WIPEOUT: Asgjëson me $unset në MongoDB Atlas për lëndën
         await forensicService.deleteCasePillar(caseId, activePillar);
         setCasePillars(prev => ({ ...prev, [activePillar]: '' }));
       }
@@ -354,27 +386,23 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   };
 
   // GJENERIMI DHE RUAJTJA NË MONGODB
-  const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
+  const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
     setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
     isUserScrolledUpRef.current = false;
 
-    if (autopsyScope === 'DOCUMENT') {
-      if (!activeDoc) return;
+    if (scopeVal === 'DOCUMENT') {
+      const targetDoc = documents.find(d => d.id === docIdVal);
+      if (!targetDoc) {
+        setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
+        return;
+      }
       setDocPillars((prev) => ({ ...prev, [pillar]: '' }));
 
       try {
-        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(activeDoc.name);
-        const stream = apiService.sendChatMessageStream(
-          caseId,
-          prompt,
-          [activeDoc.id],
-          'ks',
-          'DEEP',
-          'document',
-          false
-        );
+        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.name);
+        const stream = apiService.sendChatMessageStream(caseId, prompt, [targetDoc.id], 'ks', 'DEEP', 'document', false);
 
         let accumulated = '';
         for await (const chunk of stream) {
@@ -385,8 +413,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
         if (accumulated.trim().length > 50) {
           try {
-            await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
-            setDocuments(prev => prev.map(d => d.id === activeDoc.id ? {
+            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, accumulated);
+            setDocuments(prev => prev.map(d => d.id === targetDoc.id ? {
               ...d,
               forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: accumulated }
             } : d));
@@ -405,15 +433,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
       try {
         const prompt = CASE_PILLAR_CONFIGS[pillar].prompt;
-        const stream = apiService.sendChatMessageStream(
-          caseId,
-          prompt,
-          undefined,
-          'ks',
-          'DEEP',
-          'automatic',
-          false
-        );
+        const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic', false);
 
         let accumulated = '';
         for await (const chunk of stream) {
@@ -436,14 +456,57 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
     }
-  }, [caseId, loadingPillars, autopsyScope, activeDoc]);
+  }, [caseId, loadingPillars, autopsyScope, selectedDocId, documents]);
 
-  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST
+  // TRIGGER AUTOMATIK 0MS DHE NGARKIMI
+  useEffect(() => {
+    if (!caseId) return;
+
+    const fetchAndTrigger = async () => {
+      if (autopsyScope === 'DOCUMENT') {
+        if (!selectedDocId) return;
+        try {
+          const pillars = await forensicService.getDocumentPillars(caseId, selectedDocId);
+          const p1 = pillars?.PILLAR_1 || '';
+          setDocPillars({
+            PILLAR_1: p1,
+            PILLAR_2: pillars?.PILLAR_2 || '',
+            PILLAR_3: pillars?.PILLAR_3 || ''
+          });
+          if (!p1.trim() && !loadingPillars['PILLAR_1']) {
+             handleGeneratePillar('PILLAR_1', 'DOCUMENT', selectedDocId);
+          }
+        } catch {
+           if (!loadingPillars['PILLAR_1']) handleGeneratePillar('PILLAR_1', 'DOCUMENT', selectedDocId);
+        }
+      } else {
+        try {
+          const pillars = await forensicService.getCasePillars(caseId);
+          const p1 = pillars?.PILLAR_1 || '';
+          setCasePillars({
+            PILLAR_1: p1,
+            PILLAR_2: pillars?.PILLAR_2 || '',
+            PILLAR_3: pillars?.PILLAR_3 || ''
+          });
+          if (!p1.trim() && !loadingPillars['PILLAR_1']) {
+             handleGeneratePillar('PILLAR_1', 'CASE', null);
+          }
+        } catch {
+           if (!loadingPillars['PILLAR_1']) handleGeneratePillar('PILLAR_1', 'CASE', null);
+        }
+      }
+    };
+
+    fetchAndTrigger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId, autopsyScope, selectedDocId]);
+
+  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST (1 KLIKIM)
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
     const content = activePillarsMap[pillarKey];
     if (!content?.trim() && !loadingPillars[pillarKey]) {
-      handleGeneratePillar(pillarKey);
+      handleGeneratePillar(pillarKey, autopsyScope, selectedDocId);
     }
   };
 
@@ -565,6 +628,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       onClick={() => {
                         setSelectedDocId(doc.id);
                         setAutopsyScope('DOCUMENT');
+                        setActivePillar('PILLAR_1'); // Reset the active pillar when changing doc
                       }}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected && autopsyScope === 'DOCUMENT'
@@ -620,7 +684,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0">
               <button
                 type="button"
-                onClick={() => setAutopsyScope('DOCUMENT')}
+                onClick={() => {
+                  setAutopsyScope('DOCUMENT');
+                  setActivePillar('PILLAR_1');
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   autopsyScope === 'DOCUMENT'
                     ? 'bg-primary-start text-white shadow-sm'
@@ -632,7 +699,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
               <button
                 type="button"
-                onClick={() => setAutopsyScope('CASE')}
+                onClick={() => {
+                  setAutopsyScope('CASE');
+                  setActivePillar('PILLAR_1');
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   autopsyScope === 'CASE'
                     ? 'bg-primary-start text-white shadow-sm'
@@ -645,6 +715,35 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
             {/* Butonat e Veprimit me Total Cascade Wipeout për Shtjellën Aktive */}
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
+                <button
+                  type="button"
+                  onClick={handleDecreaseFont}
+                  disabled={fontLevelIndex === 0}
+                  title="Zvogëlo madhësinë e shkrimit"
+                  className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  A−
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetFont}
+                  title="Rivendos madhësinë e shkrimit"
+                  className="min-w-9 rounded-lg px-1 text-[10px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
+                >
+                  {activeFont.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleIncreaseFont}
+                  disabled={fontLevelIndex === FONT_LEVELS.length - 1}
+                  title="Rrit madhësinë e shkrimit"
+                  className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  A+
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={handleAdminPurgeSinglePillar}
@@ -742,7 +841,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             })}
           </div>
 
-          <div className="py-1 px-1 flex items-center justify-between gap-2 text-text-muted text-[11px]">
+          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
             <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
             {currentPillarContent && !isCurrentPillarLoading && (
               <button
@@ -755,15 +854,71 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* TRUPI I AUTOPSISË */}
+          {/* TRUPI I AUTOPSISË ME AUTO-SCROLL */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
             className={`${isFullscreen ? 'h-[620px]' : 'h-[460px]'} overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col relative transition-all duration-200`}
           >
-            {isCurrentPillarLoading && !currentPillarContent ? (
+            <style>{`
+              .dynamic-forensic-report p,
+              .dynamic-forensic-report li,
+              .dynamic-forensic-report span:not(.lucide) {
+                font-size: ${activeFont.base}px !important;
+                line-height: ${activeFont.line} !important;
+              }
+              .dynamic-forensic-report td {
+                font-size: ${Math.max(11.5, activeFont.base - 1.5)}px !important;
+                line-height: 1.45 !important;
+                padding: 6px 8px !important;
+              }
+              .dynamic-forensic-report th {
+                font-size: ${Math.max(11, activeFont.base - 2)}px !important;
+                padding: 8px 8px !important;
+              }
+              .dynamic-forensic-report h1 {
+                font-size: ${activeFont.h1}px !important;
+                line-height: 1.25 !important;
+                margin-top: 1.2em !important;
+                margin-bottom: 0.5em !important;
+              }
+              .dynamic-forensic-report h2 {
+                font-size: ${activeFont.h2}px !important;
+                line-height: 1.3 !important;
+                margin-top: 1.1em !important;
+                margin-bottom: 0.4em !important;
+              }
+              .dynamic-forensic-report h3 {
+                font-size: ${activeFont.h3}px !important;
+                line-height: 1.35 !important;
+                margin-top: 0.9em !important;
+                margin-bottom: 0.3em !important;
+              }
+              .dynamic-forensic-report table {
+                display: block !important;
+                width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                margin: 1em 0 !important;
+              }
+            `}</style>
+
+            {!currentPillarContent && !isCurrentPillarLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                  {currentConfigs[activePillar].title}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => handleGeneratePillar(activePillar)}
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
+                >
+                  <span>Analizo {currentConfigs[activePillar].title}</span>
+                </button>
+              </div>
+            ) : isCurrentPillarLoading && !currentPillarContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
-                <Loader2 className="w-9 h-9 animate-spin text-primary-start mb-3" />
+                <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
                   Duke analizuar {currentConfigs[activePillar].title}...
                 </p>
@@ -772,7 +927,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="markdown-content prose prose-slate dark:prose-invert max-w-none text-xs sm:text-sm leading-relaxed text-text-primary">
+              <div className="markdown-content dynamic-forensic-report prose prose-slate dark:prose-invert max-w-none text-text-primary">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {autoLinkedContent}
                 </ReactMarkdown>

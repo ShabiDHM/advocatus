@@ -1,5 +1,6 @@
 // FILE: frontend/src/services/forensicService.ts
 // PHOENIX PROTOCOL - FORENSIC SERVICE V3.3 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLARS)
+// ZERO TS WARNINGS • TRUE $UNSET MONGODB INTEGRATION
 
 import { apiClient } from './apiClient';
 import type {
@@ -55,6 +56,7 @@ export class ForensicService {
     return response.data;
   }
 
+  // PHOENIX CASCADE WIPEOUT: Asgjëson plotësisht shtjellën nga MongoDB
   public async deleteCasePillar(caseId: string, pillar: string): Promise<any> {
     const response = await apiClient.delete(`/cases/${caseId}/pillars/${pillar}`);
     return response.data;
@@ -74,6 +76,7 @@ export class ForensicService {
     return response.data;
   }
 
+  // PHOENIX CASCADE WIPEOUT: Asgjëson plotësisht shtjellën e dokumentit nga MongoDB
   public async deleteDocumentPillar(caseId: string, documentId: string, pillar: string): Promise<any> {
     const response = await apiClient.delete(`/cases/${caseId}/documents/${documentId}/pillars/${pillar}`);
     return response.data;

@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/DocumentAuditModal.tsx
-// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V7.0 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLAR)
+// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V8.0 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLAR)
 // ZERO TS WARNINGS • ZERO TRUNCATION • ADMIN-ONLY DELETE • TRUE $UNSET MONGODB PURGE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Scale, X, Copy, Save, CheckCircle2, 
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown,
-  RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,6 +15,8 @@ import { apiService } from '../../services/api';
 import { forensicService } from '../../services/forensicService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
+
+export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
 
 interface DocumentAuditModalProps {
   isOpen: boolean;
@@ -35,14 +36,36 @@ const FONT_LEVELS = [
   { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
 ];
 
-const sanitizeAuditDocument = (rawText: string): string => {
-  if (!rawText) return '';
-  let text = rawText;
-  text = text.replace(/📋\s*Duke\s+audituar[^\n]*\n?/gi, '');
-  text = text.replace(/✅\s*Pjesa\s+\d+\/\d+\s+u\s+analizua\.?\s*/gi, '');
-  text = text.replace(/🔗\s*Duke\s+përmbledhur[^\n]*\n?/gi, '');
-  text = text.replace(/(?:\n|^)(?:#{1,4}\s*)?Sugjerime:[\s\S]*?(?=(?:---\s*)?(?:⚖️\s*)?\*?\*?KLAUZOLË|$)/gi, '\n\n');
-  return text.trim();
+const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prompt: string }> = {
+  PILLAR_1: {
+    title: '1. Ekzaminimi & Faktet',
+    subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 1 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore prekluzive).
+- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
+- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
+  },
+  PILLAR_2: {
+    title: '2. Nenet & Shkeljet',
+    subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 2 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës (Formati: Neni X i [Ligjit]) me precedentët përkatës të Gjykatës Supreme (PML / Revizion).
+- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
+  },
+  PILLAR_3: {
+    title: '3. Kundërshtimet & Plani',
+    subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
+DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 3 (MOS shkruaj asnjë seksion tjetër):
+- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
+- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
+- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
+  }
 };
 
 export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
@@ -54,8 +77,20 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
   clientName = 'Klienti',
   onDeleteAudit,
 }) => {
-  const [auditContent, setAuditContent] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
+
+  const [pillarResults, setPillarResults] = useState<Record<PillarType, string>>({
+    PILLAR_1: '',
+    PILLAR_2: '',
+    PILLAR_3: ''
+  });
+
+  const [loadingPillars, setLoadingPillars] = useState<Record<PillarType, boolean>>({
+    PILLAR_1: false,
+    PILLAR_2: false,
+    PILLAR_3: false
+  });
+
   const [copied, setCopied] = useState<boolean>(false);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
   const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
@@ -77,16 +112,16 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  const handleStartDocumentAudit = useCallback(async () => {
-    if (!caseId || !documentId || isLoading) return;
-    setIsLoading(true);
-    setAuditContent('');
+  const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
+    if (!caseId || !documentId || loadingPillars[pillar]) return;
+
+    setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
+    setPillarResults((prev) => ({ ...prev, [pillar]: '' }));
+    isUserScrolledUpRef.current = false;
 
     try {
-      const prompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]
-Kryej auditimin e thellë forenzik të dokumentit "${documentName}" sipas të 8 seksioneve doktrinare, me nxjerrjen e çdo neni në formatin "Neni X i [Emri i Ligjit]".
-DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe shkencore brenda 2,500 fjalëve, duke siguruar që nga Seksioni 1 deri te Seksioni 8 me Master Planin e Veprimit të përfundojë plotësisht pa u ndërprerë asnjë fjalë!`;
-
+      const prompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]\nDokumenti në Ekzaminim: "${documentName}"\n\n${PILLAR_CONFIGS[pillar].prompt}`;
+      
       const stream = apiService.sendChatMessageStream(
         caseId,
         prompt,
@@ -100,47 +135,59 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
       let accumulated = '';
       for await (const chunk of stream) {
         accumulated += chunk;
-        setAuditContent(accumulated);
+        const currentAcc = accumulated;
+        setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
       }
 
       if (accumulated.trim().length > 50) {
         try {
-          await forensicService.saveDocumentAnalysis(caseId, documentId, accumulated);
+          await forensicService.saveDocumentPillar(caseId, documentId, pillar, accumulated);
         } catch (saveErr) {
-          console.warn("Could not save doc audit to MongoDB:", saveErr);
+          console.warn("Could not save doc pillar to MongoDB:", saveErr);
         }
       }
     } catch (err) {
-      console.error("Single Document Audit Error:", err);
-      alert("Ndodhi një gabim gjatë auditimit të dokumentit.");
+      console.error(`Doc Pillar Analysis Error [${pillar}]:`, err);
+      alert(`Ndodhi një gabim gjatë auditimit të ${PILLAR_CONFIGS[pillar].title}.`);
     } finally {
-      setIsLoading(false);
+      setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
     }
-  }, [caseId, documentId, documentName, isLoading]);
+  }, [caseId, documentId, documentName, loadingPillars]);
 
   useEffect(() => {
     if (isOpen && caseId && documentId) {
-      setAuditContent('');
-      setIsLoading(true);
-
-      apiService.getDocument(caseId, documentId)
-        .then((doc: any) => {
-          const cached = doc?.latest_analysis || doc?.latest_forensic_audit || '';
-          if (cached && cached.trim().length > 50) {
-            setAuditContent(cached.trim());
-            setIsLoading(false);
+      forensicService.getDocumentPillars(caseId, documentId)
+        .then((savedPillars) => {
+          if (savedPillars && Object.keys(savedPillars).length > 0) {
+            setPillarResults({
+              PILLAR_1: savedPillars.PILLAR_1 || '',
+              PILLAR_2: savedPillars.PILLAR_2 || '',
+              PILLAR_3: savedPillars.PILLAR_3 || ''
+            });
+            if (!savedPillars.PILLAR_1?.trim()) {
+              handleGeneratePillar('PILLAR_1');
+            }
           } else {
-            handleStartDocumentAudit();
+            handleGeneratePillar('PILLAR_1');
           }
         })
         .catch(() => {
-          handleStartDocumentAudit();
+          handleGeneratePillar('PILLAR_1');
         });
     }
-  }, [isOpen, caseId, documentId, handleStartDocumentAudit]);
+  }, [isOpen, caseId, documentId, handleGeneratePillar]);
 
-  const pristineDocument = sanitizeAuditDocument(auditContent);
-  const autoLinkedContent = useMemo(() => autoLinkLegalCitations(pristineDocument), [pristineDocument]);
+  const handleSelectPillar = (pillarKey: PillarType) => {
+    setActivePillar(pillarKey);
+    const content = pillarResults[pillarKey];
+    if (!content?.trim() && !loadingPillars[pillarKey]) {
+      handleGeneratePillar(pillarKey);
+    }
+  };
+
+  const currentContent = pillarResults[activePillar] || '';
+  const isCurrentLoading = loadingPillars[activePillar];
+  const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentContent), [currentContent]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -150,7 +197,7 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
     if (!isUserScrolledUpRef.current) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [auditContent, isOpen]);
+  }, [currentContent, isOpen]);
 
   const handleScroll = () => {
     const container = scrollContainerRef.current;
@@ -196,22 +243,19 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
   };
 
   const handleCopy = () => {
-    if (!pristineDocument) return;
-    navigator.clipboard.writeText(pristineDocument);
+    if (!currentContent) return;
+    navigator.clipboard.writeText(currentContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleArchive = async () => {
-    if (!caseId || !pristineDocument) return;
+    if (!caseId || !currentContent) return;
     setIsArchiving(true);
     setArchiveSuccess(false);
     try {
-      await apiService.archiveForensicReport(
-        caseId,
-        `Auditimi Forenzik: ${documentName}`,
-        pristineDocument
-      );
+      const archiveTitle = `${PILLAR_CONFIGS[activePillar].title} - ${documentName}`;
+      await apiService.archiveForensicReport(caseId, archiveTitle, currentContent);
       setArchiveSuccess(true);
       setTimeout(() => setArchiveSuccess(false), 3000);
     } catch (err: any) {
@@ -221,21 +265,22 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
     }
   };
 
-  // PHOENIX FIX: Fshin auditimin e dokumentit nga MongoDB Atlas
-  const handleDeleteActiveAudit = async () => {
-    if (!caseId || !documentId) return;
-    if (!window.confirm(`A jeni i sigurt që doni të pastroni nga MongoDB auditimin e dokumentit "${documentName}"?`)) return;
+  // PHOENIX FIX: KOSHI I ADMINIT FSHIN VETËM SHTJELLËN AKTIVE NGA DOKUMENTI NË MONGODB
+  const handleDeleteActivePillar = async () => {
+    if (!caseId || !documentId || !currentContent) return;
+    const activeCfg = PILLAR_CONFIGS[activePillar];
+    const confirmDelete = window.confirm(`A jeni i sigurt që doni të fshini PËRGJITHMONË NGA SERVERI vetëm "${activeCfg.title}"? Shtjellat e tjera nuk do të preken!`);
+    if (!confirmDelete) return;
 
     setIsDeleting(true);
     try {
-      await forensicService.clearDocumentAudit(caseId, documentId);
-      setAuditContent('');
-      if (onDeleteAudit) {
-        await onDeleteAudit();
-      }
+      // Ekzekuton $unset në MongoDB Atlas
+      await forensicService.deleteDocumentPillar(caseId, documentId, activePillar);
+      // E zbraz nga ekrani
+      setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
     } catch (err: any) {
-      console.error("Failed to delete audit:", err);
-      alert("Dështoi fshirja e këtij auditimi nga baza e të dhënave.");
+      console.error("Failed to delete single doc pillar:", err);
+      alert("Dështoi fshirja e kësaj shtjelle nga baza e të dhënave.");
     } finally {
       setIsDeleting(false);
     }
@@ -255,7 +300,7 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
           } p-3 sm:p-5 md:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
           style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
         >
-          {/* Header me Stemën e Statusit Vizual */}
+          {/* Header */}
           <div className="flex items-center justify-between pb-3 sm:pb-3.5 border-b border-main shrink-0 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-start/15 text-primary-start rounded-xl sm:rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0 shadow-xs">
@@ -266,15 +311,6 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
                   <h3 className="text-xs sm:text-sm md:text-base font-black text-text-primary uppercase tracking-tight truncate leading-tight">
                     Auditimi Forenzik i Shkresës
                   </h3>
-                  {isLoading ? (
-                    <span className="px-2 py-0.5 rounded-full bg-primary-start/15 text-primary-start border border-primary-start/30 text-[10px] font-mono font-bold uppercase flex items-center gap-1 animate-pulse shrink-0">
-                      <Loader2 size={11} className="animate-spin" /> Duke audituar
-                    </span>
-                  ) : pristineDocument ? (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-mono font-bold uppercase flex items-center gap-1 shrink-0">
-                      <CheckCircle2 size={11} /> E Gatshme (0ms)
-                    </span>
-                  ) : null}
                 </div>
                 <p className="text-[10px] sm:text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
                   {documentName} <span className="opacity-60">•</span> {clientName}
@@ -284,19 +320,6 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
 
             {/* Kontrollet */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Butoni Ri-Audito */}
-              {pristineDocument && !isLoading && (
-                <button
-                  type="button"
-                  onClick={handleStartDocumentAudit}
-                  className="px-2.5 py-1 rounded-xl bg-surface hover:bg-hover text-primary-start border border-main font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all text-xs mr-1 shadow-xs"
-                  title="Ri-audito këtë shkresë"
-                >
-                  <RefreshCw size={11} />
-                  <span className="hidden sm:inline">Ri-Audito</span>
-                </button>
-              )}
-
               <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
                 <button
                   type="button"
@@ -328,14 +351,13 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
                 </button>
               </div>
 
-              {/* Koshi i Fshirjes VETËM PËR ADMIN */}
               {onDeleteAudit && (
                 <button
                   type="button"
-                  onClick={handleDeleteActiveAudit}
-                  disabled={isDeleting || !auditContent}
+                  onClick={handleDeleteActivePillar}
+                  disabled={isDeleting || !currentContent}
                   className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
-                  title="Pastro Auditimin nga Baza e të Dhënave"
+                  title={`Fshi përgjithmonë "${PILLAR_CONFIGS[activePillar].title}" nga Baza e të Dhënave`}
                 >
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 </button>
@@ -361,11 +383,70 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
             </div>
           </div>
 
+          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT */}
+          <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
+            {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
+              const cfg = PILLAR_CONFIGS[pillarKey];
+              const isSelected = activePillar === pillarKey;
+              const hasContent = Boolean(pillarResults[pillarKey]?.trim());
+              const isLoading = loadingPillars[pillarKey];
+
+              return (
+                <button
+                  key={pillarKey}
+                  type="button"
+                  onClick={() => handleSelectPillar(pillarKey)}
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
+                    isSelected
+                      ? pillarKey === 'PILLAR_1'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : pillarKey === 'PILLAR_2'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                        : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-surface hover:bg-hover text-text-muted border-main'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    {isLoading ? (
+                      <Loader2 size={12} className="animate-spin text-white shrink-0" />
+                    ) : hasContent ? (
+                      <CheckCircle2 size={12} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                    ) : null}
+                    <span className="truncate">{cfg.title}</span>
+                  </div>
+
+                  {isLoading ? (
+                    <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke audituar</span>
+                  ) : hasContent ? (
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
+                      E Gatshme
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-mono text-text-muted opacity-60">Në Pritje</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
+            <p className="truncate font-medium">{PILLAR_CONFIGS[activePillar].subtitle}</p>
+            {currentContent && !isCurrentLoading && (
+              <button
+                type="button"
+                onClick={() => handleGeneratePillar(activePillar)}
+                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0 text-xs"
+              >
+                <span>Rigjenero</span>
+              </button>
+            )}
+          </div>
+
           {/* Trupi i Raportit */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-2 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y flex flex-col"
+            className="flex-1 overflow-y-auto overflow-x-hidden custom-finance-scroll p-3 sm:p-6 md:p-8 my-1 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner select-text relative touch-pan-y flex flex-col"
           >
             <style>{`
               .doc-audit-report p,
@@ -410,11 +491,24 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
               }
             `}</style>
 
-            {isLoading && !pristineDocument ? (
+            {!currentContent && !isCurrentLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                  {PILLAR_CONFIGS[activePillar].title}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => handleGeneratePillar(activePillar)}
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
+                >
+                  <span>Audito {PILLAR_CONFIGS[activePillar].title}</span>
+                </button>
+              </div>
+            ) : isCurrentLoading && !currentContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                  Duke audituar shkresën me doktrinë supreme...
+                  Duke audituar {PILLAR_CONFIGS[activePillar].title}...
                 </p>
               </div>
             ) : (
@@ -447,7 +541,7 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
             <button
               type="button"
               onClick={handleArchive}
-              disabled={isArchiving || !pristineDocument}
+              disabled={isArchiving || !currentContent}
               className="flex-1 sm:flex-initial h-10 px-3 sm:px-5 bg-surface hover:bg-hover border border-main rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider text-primary-start flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-sm disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               {isArchiving ? (
@@ -463,11 +557,11 @@ DISIPLINA E SAKTËSISË: Audito këtë dokument në mënyrë të ngjeshur dhe sh
             <button
               type="button"
               onClick={handleCopy}
-              disabled={!pristineDocument}
+              disabled={!currentContent}
               className="flex-1 sm:flex-initial h-10 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-40 cursor-pointer min-h-[40px]"
             >
               <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
-              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Raportin'}</span>
+              <span className="truncate">{copied ? 'U Kopjua!' : 'Kopjo Shtjellën'}</span>
             </button>
           </div>
         </motion.div>
