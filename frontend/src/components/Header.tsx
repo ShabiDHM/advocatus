@@ -1,9 +1,10 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – 100% SOLID OPAQUE HEADER V19.0 (CLEAN BRAND ALIGNMENT • REMOVED LEFT BUTTON)
+// PHOENIX PROTOCOL – HEADER V20.0 (RESTORED RESPONSIVE PAGE SELECTOR & MOBILE DRAWER ACCESS)
+// ZERO TS WARNINGS • DYNAMIC PAGE NAVIGATION • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, X, BookOpen, Sun, Moon 
+  Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, X, BookOpen, Sun, Moon, Menu 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -137,14 +138,24 @@ const Header: React.FC = () => {
           opacity: 1
         }}
       >
-        {/* Left: Brand PA ASNJË BUTON PARA SAJ */}
-        <div className="flex items-center shrink-0">
+        {/* Left: Hamburger Menu (ekrane të ngushta/mobile) + Brand Logo */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="mobile-menu-button lg:hidden p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none cursor-pointer"
+            aria-label={t('general.menu', 'Menyja e Faqeve')}
+            title="Hap përzgjedhjen e faqeve"
+          >
+            <Menu size={20} />
+          </button>
+
           <Link to="/business" className="flex items-center">
             <BrandLogo />
           </Link>
         </div>
 
-        {/* Center: Segmented Navigation Bar (Desktop Only) */}
+        {/* Center: Segmented Navigation Bar (Ekrane Desktop lg+) */}
         <div 
           className="hidden lg:flex items-center p-1.5 rounded-2xl border border-main gap-1 shadow-xs"
           style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
@@ -173,6 +184,7 @@ const Header: React.FC = () => {
         {/* Right: Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           <button 
+            type="button"
             onClick={toggleTheme} 
             className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none cursor-pointer"
             aria-label={theme === 'dark' ? t('theme.light', 'Dritë') : t('theme.dark', 'Errët')}
@@ -183,6 +195,7 @@ const Header: React.FC = () => {
           <Link 
             to="/calendar" 
             className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl relative transition-colors focus:outline-none"
+            aria-label="Njoftimet"
           >
             <Bell size={18} />
             {alertCount > 0 && (
@@ -194,6 +207,7 @@ const Header: React.FC = () => {
           <div className="relative hidden sm:block">
             <button
               ref={buttonRef}
+              type="button"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none cursor-pointer"
               style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
@@ -216,6 +230,7 @@ const Header: React.FC = () => {
 
                 {isAdmin && (
                   <button 
+                    type="button"
                     onClick={() => { setIsProfileOpen(false); navigate('/admin/forensic-desk'); }} 
                     className="w-full text-left flex items-center px-4 py-2.5 text-sm font-bold text-primary-start hover:bg-primary-start/10 transition-colors cursor-pointer"
                   >
@@ -224,12 +239,14 @@ const Header: React.FC = () => {
                 )}
 
                 <button 
+                  type="button"
                   onClick={() => { setIsProfileOpen(false); navigate('/account'); }} 
                   className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors cursor-pointer"
                 >
                   <UserIcon size={16} className="mr-3 text-primary-start" />{t('sidebar.account', 'Llogaria')}
                 </button>
                 <button 
+                  type="button"
                   onClick={() => { setIsProfileOpen(false); navigate('/support'); }} 
                   className="w-full text-left flex items-center px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-hover transition-colors cursor-pointer"
                 >
@@ -237,6 +254,7 @@ const Header: React.FC = () => {
                 </button>
                 <div className="h-px bg-border-main my-1"></div>
                 <button 
+                  type="button"
                   onClick={() => { setIsProfileOpen(false); logout(); }} 
                   className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 >
@@ -248,7 +266,7 @@ const Header: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile Navigation Drawer */}
+      {/* Mobile Navigation Drawer (Aktivizohet nga butoni Menu) */}
       <div
         className={`fixed inset-0 z-[70] transition-all duration-300 ease-in-out ${
           isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'
@@ -271,6 +289,7 @@ const Header: React.FC = () => {
           <div className="flex justify-between items-center p-4 border-b border-main">
             <BrandLogo />
             <button
+              type="button"
               onClick={() => setIsMobileMenuOpen(false)}
               className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors focus:outline-none cursor-pointer"
               aria-label={t('general.close', 'Mbyll')}
@@ -313,6 +332,7 @@ const Header: React.FC = () => {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => { setIsMobileMenuOpen(false); logout(); }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
             >
