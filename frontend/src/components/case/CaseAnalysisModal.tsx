@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V20.0 (DYNAMIC STATUS BADGES & 1-CLICK PERSISTENCE)
-// ZERO TS WARNINGS • VISUAL PILLAR STATUS ENGINE (PENDING / ANALYZING / COMPLETED) • 0MS CACHE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V21.0 (GRANULAR ACTIVE TAB PURGE)
+// ZERO TS WARNINGS • SINGLE-TAB ADMIN TRASH PURGE • 0MS INSTANT CACHE • 100% COMPLETE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -118,7 +118,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Gjenerimi dhe Ruajtja Automatike në MongoDB
   const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -159,7 +158,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   }, [caseId, loadingPillars]);
 
-  // Ngarkimi në 0ms nga MongoDB ose Nisja Automatike e menjëhershme
   useEffect(() => {
     if (isOpen && caseId) {
       forensicService.getCasePillars(caseId)
@@ -170,7 +168,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               PILLAR_2: savedPillars.PILLAR_2 || '',
               PILLAR_3: savedPillars.PILLAR_3 || ''
             });
-            // Nëse Tab-i 1 nuk ka përmbajtje, nis automatikisht
             if (!savedPillars.PILLAR_1?.trim()) {
               handleGeneratePillar('PILLAR_1');
             }
@@ -184,7 +181,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   }, [isOpen, caseId, handleGeneratePillar]);
 
-  // Kalimi mes Tab-eve: Nis automatikisht nëse është bosh (PA NEVOJË PËR KLIKIM TË DYTË)
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
     if (!pillarResults[pillarKey]?.trim() && !loadingPillars[pillarKey]) {
@@ -272,18 +268,20 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   };
 
-  const handleDeleteAnalysis = async () => {
-    if (!caseId) return;
-    if (!window.confirm("A jeni i sigurt që doni të pastroni analizat nga baza e të dhënave?")) return;
+  // PHOENIX FIX: KOSHI I ADMINIT FSHIN VETËM SHTJELLËN AKTIVE NGA MONGODB
+  const handleDeleteActivePillar = async () => {
+    if (!caseId || !currentContent) return;
+    const activeCfg = PILLAR_CONFIGS[activePillar];
+    const confirmDelete = window.confirm(`A jeni i sigurt që doni të fshini nga MongoDB VETËM "${activeCfg.title}"? Shtjellat e tjera do të mbeten të paprekura!`);
+    if (!confirmDelete) return;
 
     setIsDeleting(true);
     try {
-      setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-      if (onDeleteAnalysis) {
-        await onDeleteAnalysis();
-      }
+      await forensicService.saveCasePillar(caseId, activePillar, "");
+      setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
     } catch (err: any) {
-      console.error("Failed to delete analysis:", err);
+      console.error("Failed to delete single pillar:", err);
+      alert("Dështoi fshirja e kësaj shtjelle.");
     } finally {
       setIsDeleting(false);
     }
@@ -326,7 +324,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               </div>
             </div>
 
-            {/* Kontrollet */}
+            {/* Kontrollet me Koshin Granular vetëm për Shtjellën Aktive */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <div className="flex items-center bg-surface border border-main rounded-lg sm:rounded-xl p-0.5 text-xs shadow-inner">
                 <button
@@ -362,10 +360,10 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               {onDeleteAnalysis && (
                 <button
                   type="button"
-                  onClick={handleDeleteAnalysis}
-                  disabled={isDeleting}
+                  onClick={handleDeleteActivePillar}
+                  disabled={isDeleting || !currentContent}
                   className="p-1.5 sm:p-2 text-text-muted hover:text-rose-600 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-colors cursor-pointer"
-                  title="Pastro Analizën nga Baza e të Dhënave"
+                  title={`Fshi VETËM "${PILLAR_CONFIGS[activePillar].title}" nga MongoDB`}
                 >
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 </button>
@@ -391,7 +389,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT (GATSHME / NË PROCES / NË PRITJE) */}
+          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -423,7 +421,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                     <span className="truncate">{cfg.title}</span>
                   </div>
 
-                  {/* STEMAT E STATUSIT NË CEPO */}
                   {isLoading ? (
                     <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
                   ) : hasContent ? (
@@ -446,7 +443,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
                 className="px-2 py-0.5 rounded-lg bg-surface hover:bg-hover text-primary-start border border-main font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all text-[10px]"
-                title="Ri-gjenero këtë shtjellë"
+                title="Ri-gjenero vetëm këtë shtjellë"
               >
                 <RefreshCw size={10} />
                 <span>Ri-gjenero</span>
