@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V10.0 (FONT RESIZER RESTORED & 0MS PERSISTENCE)
-// ZERO TS WARNINGS • TRUE $UNSET MONGODB PURGE • PRESERVES OTHER PILLARS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V11.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
+// ZERO TS WARNINGS • NO UNWANTED AUTO-GENERATION • ATOMIC $UNSET INTEGRATION • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
@@ -242,37 +242,44 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     if (!caseId) return;
     try {
       const pillars = await forensicService.getCasePillars(caseId);
-      if (pillars && Object.keys(pillars).length > 0) {
+      if (pillars && typeof pillars === 'object') {
         setCasePillars({
           PILLAR_1: pillars.PILLAR_1 || '',
           PILLAR_2: pillars.PILLAR_2 || '',
           PILLAR_3: pillars.PILLAR_3 || ''
         });
       }
-    } catch {}
+    } catch {
+      setCasePillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+    }
   }, [caseId]);
 
   const loadDocPillars = useCallback(async (docId: string) => {
     if (!caseId || !docId) return;
-    setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
     try {
       const pillars = await forensicService.getDocumentPillars(caseId, docId);
-      if (pillars && Object.keys(pillars).length > 0) {
+      if (pillars && typeof pillars === 'object') {
         setDocPillars({
           PILLAR_1: pillars.PILLAR_1 || '',
           PILLAR_2: pillars.PILLAR_2 || '',
           PILLAR_3: pillars.PILLAR_3 || ''
         });
+      } else {
+        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
       }
-    } catch {}
+    } catch {
+      setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+    }
   }, [caseId]);
 
   useEffect(() => {
     if (caseId) {
       loadDocuments();
-      loadCasePillars();
+      if (autopsyScope === 'CASE') {
+        loadCasePillars();
+      }
     }
-  }, [caseId, loadCasePillars]);
+  }, [caseId, autopsyScope, loadCasePillars]);
 
   useEffect(() => {
     if (selectedDocId && caseId && autopsyScope === 'DOCUMENT') {
@@ -354,7 +361,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // TOTAL CASCADE WIPEOUT NË MONGODB ATLAS DHE REDIS PËR SHTJELLËN AKTIVE
+  // TOTAL ATOMIC PURGE NË MONGODB ATLAS ($UNSET)
   const handleAdminPurgeSinglePillar = async () => {
     if (!caseId || !currentPillarContent) return;
     
@@ -368,6 +375,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         if (!selectedDocId || !activeDoc) return;
         
         await forensicService.deleteDocumentPillar(caseId, selectedDocId, activePillar);
+        
+        // Zbraz menjëherë state-in lokal dhe cache-in e dokumentit
         setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
         setDocuments(prev => prev.map(d => d.id === selectedDocId ? {
           ...d,
@@ -385,7 +394,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // GJENERIMI DHE RUAJTJA NË MONGODB
+  // GJENERIMI DHE RUAJTJA NË MONGODB ME DËSHIRË TË PËRDORUESIT
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -458,56 +467,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId, loadingPillars, autopsyScope, selectedDocId, documents]);
 
-  // TRIGGER AUTOMATIK 0MS DHE NGARKIMI
-  useEffect(() => {
-    if (!caseId) return;
-
-    const fetchAndTrigger = async () => {
-      if (autopsyScope === 'DOCUMENT') {
-        if (!selectedDocId) return;
-        try {
-          const pillars = await forensicService.getDocumentPillars(caseId, selectedDocId);
-          const p1 = pillars?.PILLAR_1 || '';
-          setDocPillars({
-            PILLAR_1: p1,
-            PILLAR_2: pillars?.PILLAR_2 || '',
-            PILLAR_3: pillars?.PILLAR_3 || ''
-          });
-          if (!p1.trim() && !loadingPillars['PILLAR_1']) {
-             handleGeneratePillar('PILLAR_1', 'DOCUMENT', selectedDocId);
-          }
-        } catch {
-           if (!loadingPillars['PILLAR_1']) handleGeneratePillar('PILLAR_1', 'DOCUMENT', selectedDocId);
-        }
-      } else {
-        try {
-          const pillars = await forensicService.getCasePillars(caseId);
-          const p1 = pillars?.PILLAR_1 || '';
-          setCasePillars({
-            PILLAR_1: p1,
-            PILLAR_2: pillars?.PILLAR_2 || '',
-            PILLAR_3: pillars?.PILLAR_3 || ''
-          });
-          if (!p1.trim() && !loadingPillars['PILLAR_1']) {
-             handleGeneratePillar('PILLAR_1', 'CASE', null);
-          }
-        } catch {
-           if (!loadingPillars['PILLAR_1']) handleGeneratePillar('PILLAR_1', 'CASE', null);
-        }
-      }
-    };
-
-    fetchAndTrigger();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId, autopsyScope, selectedDocId]);
-
-  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST (1 KLIKIM)
+  // KALIMI MES TAB-EVE: THJESHT NDRYSHON PAMJEN PA ASNJË FORCIM TË GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
-    const content = activePillarsMap[pillarKey];
-    if (!content?.trim() && !loadingPillars[pillarKey]) {
-      handleGeneratePillar(pillarKey, autopsyScope, selectedDocId);
-    }
   };
 
   const handleCopyReport = () => {
@@ -628,7 +590,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       onClick={() => {
                         setSelectedDocId(doc.id);
                         setAutopsyScope('DOCUMENT');
-                        setActivePillar('PILLAR_1'); // Reset the active pillar when changing doc
+                        setActivePillar('PILLAR_1');
                       }}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected && autopsyScope === 'DOCUMENT'
@@ -795,7 +757,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE ME AUTO-TRIGGER DHE STEMAT E STATUSIT */}
+          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
               const cfg = currentConfigs[pillarKey];
@@ -854,7 +816,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* TRUPI I AUTOPSISË ME AUTO-SCROLL */}
+          {/* TRUPI I AUTOPSISË */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -908,6 +870,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
                   {currentConfigs[activePillar].title}
                 </h4>
+                <p className="text-xs text-text-muted max-w-sm">
+                  Kjo shtjellë është e pastër. Klikoni butonin më poshtë kur të dëshironi të filloni auditimin doktrinar.
+                </p>
                 <button
                   type="button"
                   onClick={() => handleGeneratePillar(activePillar)}

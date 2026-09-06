@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V92.0 (CLEAN ZERO TS WARNINGS & STRICT TYPE INTEGRITY)
-// DUAL AUTOPSY WORKSPACE • MONGODB PERSISTENCE • 100% ERROR FREE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V93.0 (SINGLE SOURCE OF TRUTH • ZERO GHOST REHYDRATION)
+// DUAL AUTOPSY WORKSPACE • ATOMIC MONGODB PERSISTENCE • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -85,25 +85,9 @@ const CaseViewPage: React.FC = () => {
     localStorage.setItem(`chat_${caseId}`, JSON.stringify(messages));
   }, [caseId]);
 
-  const loadFromLocalStorage = useCallback((): ChatMessage[] | null => {
-    if (!caseId) return null;
-    const stored = localStorage.getItem(`chat_${caseId}`);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((m) => m && typeof m.content === 'string' && m.content.trim() !== '');
-        }
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }, [caseId]);
-
   const persistChatHistory = useCallback(async (messages: ChatMessage[]) => {
-    saveToLocalStorage(messages);
     if (!caseId) return;
+    saveToLocalStorage(messages);
     try {
       await apiService.updateChatHistory(caseId, messages);
     } catch (err) {
@@ -123,25 +107,22 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
+      // AUTORITETI SUPREM: MongoDB përcakton historikun real
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
         saveToLocalStorage(backendMessages);
       } else {
-        const localMessages = loadFromLocalStorage();
-        if (localMessages && localMessages.length > 0) {
-          setChatMessages(localMessages);
-          persistChatHistory(localMessages);
-        } else {
-          setChatMessages([]);
-        }
+        // Nëse MongoDB është i pastër (është fshirë me kosh), pastrohet edhe memoria lokale
+        setChatMessages([]);
+        localStorage.removeItem(`chat_${caseId}`);
       }
     } catch {
       setError(t('error.failedToLoadCase', 'Dështoi ngarkimi i lëndës.'));
     } finally {
       if (isInitialLoad) setIsLoading(false);
     }
-  }, [caseId, t, setLiveDocuments, loadFromLocalStorage, saveToLocalStorage, persistChatHistory]);
+  }, [caseId, t, setLiveDocuments, saveToLocalStorage]);
 
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
@@ -253,24 +234,35 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_precedent_preview', handleOpenPrecedent);
   }, []);
 
+  // PASTRIMI I KONSISTENT I BISEDËS (MONGODB + MEMORJE LOKALE)
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
+      // 1. Pastrim në Backend (FastAPI / MongoDB)
       await apiService.clearChatHistory(caseId);
+      try {
+        await apiService.updateChatHistory(caseId, []);
+      } catch {
+        // Siguron pajtueshmërinë me të dyja rrugët e mundshme të API-së
+      }
+
+      // 2. Pastrim i menjëhershëm i memories lokale dhe gjendjes (State)
+      localStorage.removeItem(`chat_${caseId}`);
       setChatMessages([]);
+      
       setCaseData((prev) => ({
         ...prev,
         details: prev.details ? ({
           ...prev.details,
+          chat_history: [],
           latest_deep_analysis: '',
           latest_comprehensive_analysis: '',
           analysis_dirty: true,
         } as any) : null,
       }));
-      await persistChatHistory([]);
-      localStorage.removeItem(`chat_${caseId}`);
-    } catch {
-      alert(t('error.generic', 'Ndodhi një gabim.'));
+    } catch (err) {
+      console.error("Dështoi pastrimi i bisedës në server:", err);
+      alert(t('error.generic', 'Ndodhi një gabim gjatë pastrimit të bisedës.'));
     }
   };
 
@@ -372,7 +364,7 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 🏛️ BUTONI 1: AUTOPSIA E RASTIT (Hap modalin me 3 Shtjellat)
+  // 🏛️ BUTONI 1: AUTOPSIA E RASTIT
   const handleOpenCaseAutopsy = useCallback(() => {
     setIsAnalysisModalOpen(true);
   }, []);
@@ -518,7 +510,7 @@ const CaseViewPage: React.FC = () => {
         onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUTOPSIA E DOKUMENTIT TË VETËM (PA AUDIT_TEXT PROP - 100% PA GABIME) */}
+      {/* MODAL 2: AUTOPSIA E DOKUMENTIT TË VETËM */}
       <DocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}

@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V23.0 (TRUE MONGODB CASCADE WIPEOUT)
-// ZERO TS WARNINGS • SINGLE-TAB ADMIN TRASH PURGE • 0MS INSTANT CACHE • 100% COMPLETE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V24.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
+// ZERO TS WARNINGS • SINGLE-TAB ADMIN TRASH PURGE • 0MS INSTANT CACHE • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -159,34 +159,28 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   }, [caseId, loadingPillars]);
 
+  // NGARKIMI I PASTËR PA ASNJË AUTO-TRIGGER TË DHUNSHËM
   useEffect(() => {
     if (isOpen && caseId) {
       forensicService.getCasePillars(caseId)
         .then((savedPillars) => {
-          if (savedPillars && Object.keys(savedPillars).length > 0) {
+          if (savedPillars && typeof savedPillars === 'object') {
             setPillarResults({
               PILLAR_1: savedPillars.PILLAR_1 || '',
               PILLAR_2: savedPillars.PILLAR_2 || '',
               PILLAR_3: savedPillars.PILLAR_3 || ''
             });
-            if (!savedPillars.PILLAR_1?.trim()) {
-              handleGeneratePillar('PILLAR_1');
-            }
-          } else {
-            handleGeneratePillar('PILLAR_1');
           }
         })
         .catch(() => {
-          handleGeneratePillar('PILLAR_1');
+          setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
         });
     }
-  }, [isOpen, caseId, handleGeneratePillar]);
+  }, [isOpen, caseId]);
 
+  // KALIMI MES TAB-EVE PA NDESHKIM TË AUTO-GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
-    if (!pillarResults[pillarKey]?.trim() && !loadingPillars[pillarKey]) {
-      handleGeneratePillar(pillarKey);
-    }
   };
 
   const currentContent = pillarResults[activePillar] || '';
@@ -269,7 +263,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   };
 
-  // PHOENIX FIX: Fshin VETËM shtjellën aktive dhe e heq nga MongoDB me CASCADE WIPEOUT
+  // PHOENIX CASCADE PURGE: Fshin VETËM shtjellën aktive dhe e heq nga MongoDB Atlas
   const handleDeleteActivePillar = async () => {
     if (!caseId || !currentContent) return;
     const activeCfg = PILLAR_CONFIGS[activePillar];
@@ -280,8 +274,14 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     try {
       // 1. Ekzekuton $unset në MongoDB Atlas
       await forensicService.deleteCasePillar(caseId, activePillar);
-      // 2. E zbraz nga ekrani
+      
+      // 2. E zbraz nga ekrani lokal
       setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
+      
+      // 3. Njofton prindin nëse ka prop për sinkronizim
+      if (onDeleteAnalysis) {
+        await onDeleteAnalysis();
+      }
     } catch (err: any) {
       console.error("Failed to delete single pillar:", err);
       alert("Dështoi fshirja e shtjellës nga baza e të dhënave.");
@@ -392,7 +392,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT */}
+          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -507,6 +507,9 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
                   {PILLAR_CONFIGS[activePillar].title}
                 </h4>
+                <p className="text-xs text-text-muted max-w-sm">
+                  Kjo shtjellë e fashikullit është e pastër. Klikoni butonin më poshtë për të nisur autopsinë forenzike.
+                </p>
                 <button
                   type="button"
                   onClick={() => handleGeneratePillar(activePillar)}

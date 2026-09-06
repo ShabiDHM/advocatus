@@ -1,12 +1,12 @@
 // FILE: frontend/src/components/case/DocumentAuditModal.tsx
-// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V8.0 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLAR)
-// ZERO TS WARNINGS • ZERO TRUNCATION • ADMIN-ONLY DELETE • TRUE $UNSET MONGODB PURGE
+// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V9.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
+// ZERO TS WARNINGS • ZERO TRUNCATION • ADMIN-ONLY DELETE • TRUE $UNSET MONGODB PURGE • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Scale, X, Copy, Save, CheckCircle2, 
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown,
+  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -154,35 +154,28 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     }
   }, [caseId, documentId, documentName, loadingPillars]);
 
+  // NGARKIMI I PASTËR PA ASNJË AUTO-TRIGGER TË DHUNSHËM
   useEffect(() => {
     if (isOpen && caseId && documentId) {
       forensicService.getDocumentPillars(caseId, documentId)
         .then((savedPillars) => {
-          if (savedPillars && Object.keys(savedPillars).length > 0) {
+          if (savedPillars && typeof savedPillars === 'object') {
             setPillarResults({
               PILLAR_1: savedPillars.PILLAR_1 || '',
               PILLAR_2: savedPillars.PILLAR_2 || '',
               PILLAR_3: savedPillars.PILLAR_3 || ''
             });
-            if (!savedPillars.PILLAR_1?.trim()) {
-              handleGeneratePillar('PILLAR_1');
-            }
-          } else {
-            handleGeneratePillar('PILLAR_1');
           }
         })
         .catch(() => {
-          handleGeneratePillar('PILLAR_1');
+          setPillarResults({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
         });
     }
-  }, [isOpen, caseId, documentId, handleGeneratePillar]);
+  }, [isOpen, caseId, documentId]);
 
+  // KALIMI MES TAB-EVE PA NDESHKIMIN E AUTO-GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
-    const content = pillarResults[pillarKey];
-    if (!content?.trim() && !loadingPillars[pillarKey]) {
-      handleGeneratePillar(pillarKey);
-    }
   };
 
   const currentContent = pillarResults[activePillar] || '';
@@ -265,7 +258,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     }
   };
 
-  // PHOENIX FIX: KOSHI I ADMINIT FSHIN VETËM SHTJELLËN AKTIVE NGA DOKUMENTI NË MONGODB
+  // PHOENIX CASCADE PURGE: Fshin VETËM shtjellën aktive nga dokumenti në MongoDB Atlas
   const handleDeleteActivePillar = async () => {
     if (!caseId || !documentId || !currentContent) return;
     const activeCfg = PILLAR_CONFIGS[activePillar];
@@ -274,10 +267,16 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
 
     setIsDeleting(true);
     try {
-      // Ekzekuton $unset në MongoDB Atlas
+      // 1. Ekzekuton $unset atomik në MongoDB nëpërmjet router-it të rregulluar
       await forensicService.deleteDocumentPillar(caseId, documentId, activePillar);
-      // E zbraz nga ekrani
+      
+      // 2. E zbraz nga gjendja lokale e modalit
       setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
+
+      // 3. Njofton prindin (CaseViewPage) për sinkronizim të listës së dokumenteve
+      if (onDeleteAudit) {
+        await onDeleteAudit();
+      }
     } catch (err: any) {
       console.error("Failed to delete single doc pillar:", err);
       alert("Dështoi fshirja e kësaj shtjelle nga baza e të dhënave.");
@@ -383,7 +382,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT */}
+          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -435,8 +434,10 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
-                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0 text-xs"
+                className="px-2 py-0.5 rounded-lg bg-surface hover:bg-hover text-primary-start border border-main font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all text-[10px]"
+                title="Ri-gjenero vetëm këtë shtjellë"
               >
+                <RefreshCw size={10} />
                 <span>Rigjenero</span>
               </button>
             )}
@@ -496,6 +497,9 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
                 <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
                   {PILLAR_CONFIGS[activePillar].title}
                 </h4>
+                <p className="text-xs text-text-muted max-w-sm">
+                  Kjo shtjellë e shkresës është e pastër. Klikoni butonin më poshtë kur të dëshironi të kryeni auditimin.
+                </p>
                 <button
                   type="button"
                   onClick={() => handleGeneratePillar(activePillar)}

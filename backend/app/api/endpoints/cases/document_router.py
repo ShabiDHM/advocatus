@@ -1,10 +1,11 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V57.0 (ADDED SINGLE DOCUMENT ENDPOINT FOR 0MS CACHE)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • 100% GJUHA SHQIPE
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V58.0 (ATOMIC FORENSIC PILLARS CRUD & $UNSET PURGE)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
 from fastapi.responses import StreamingResponse, FileResponse
+from pydantic import BaseModel, Field
 from pymongo.database import Database
 import redis
 from bson import ObjectId
@@ -31,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 # LIMITI MAKSIMAL I SKEDARIT (50 MB)
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+
+
+class DocumentPillarPayload(BaseModel):
+    pillar: str = Field(..., description="Çelësi i shtjellës: PILLAR_1, PILLAR_2, ose PILLAR_3")
+    content: str = Field(..., description="Përmbajtja tekstuale e shtjellës forenzike")
 
 
 def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
@@ -160,10 +166,8 @@ async def get_documents_for_case(
             d["file_name"] = "Dokument"
             
         try:
-            # Bypass Pydantic për të futur fushën forensic_pillars drejtpërdrejt nëse ekziston
             validated_doc = DocumentOut.model_validate(d)
             if "forensic_pillars" in d:
-                # Kthejmë dict për të ruajtur strukturën dinamike
                 v_dict = validated_doc.model_dump()
                 v_dict["forensic_pillars"] = d["forensic_pillars"]
                 validated_docs.append(v_dict)
@@ -176,7 +180,7 @@ async def get_documents_for_case(
 
 
 # =========================================================================
-# 📄 ENDPOINT-I I SHTUAR: GET 1 DOKUMENT (0ms CACHE PËR SHTJELLAT FORENZIKE)
+# 📄 GET 1 DOKUMENT (0ms CACHE)
 # =========================================================================
 @router.get("/{case_id}/documents/{doc_id}", status_code=status.HTTP_200_OK)
 async def get_single_document(
@@ -201,6 +205,107 @@ async def get_single_document(
     doc["id"] = str(doc["_id"])
     del doc["_id"]
     return doc
+
+
+# =========================================================================
+# 🏛️ SHTJELLAT FORENZIKE TË DOKUMENTIT (CRUD ME $UNSET NË MONGODB ATLAS)
+# =========================================================================
+@router.get("/{case_id}/documents/{doc_id}/pillars", status_code=status.HTTP_200_OK)
+async def get_document_pillars_endpoint(
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+
+    doc = db.documents.find_one({
+        "_id": doc_oid,
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "owner_id": current_user.id,
+        "status": {"$ne": "DELETED"}
+    })
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    return doc.get("forensic_pillars", {}) or {}
+
+
+@router.post("/{case_id}/documents/{doc_id}/pillars", status_code=status.HTTP_200_OK)
+async def save_document_pillar_endpoint(
+    case_id: str,
+    doc_id: str,
+    payload: DocumentPillarPayload,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    pillar_key = payload.pillar.strip().upper()
+
+    if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
+        raise HTTPException(status_code=400, detail="Shtjellë e pavlefshme.")
+
+    res = db.documents.update_one(
+        {
+            "_id": doc_oid,
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "owner_id": current_user.id
+        },
+        {"$set": {
+            f"forensic_pillars.{pillar_key}": payload.content,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    return {"status": "success", "pillar": pillar_key}
+
+
+@router.delete("/{case_id}/documents/{doc_id}/pillars/{pillar}", status_code=status.HTTP_200_OK)
+async def delete_single_document_pillar_endpoint(
+    case_id: str,
+    doc_id: str,
+    pillar: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_sync_redis)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    pillar_key = pillar.strip().upper()
+
+    if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
+        raise HTTPException(status_code=400, detail="Emër shtjelle i pavlefshëm.")
+
+    # PHOENIX ATOMIC $UNSET: Asgjësim i përhershëm nga MongoDB Atlas
+    res = db.documents.update_one(
+        {
+            "_id": doc_oid,
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "owner_id": current_user.id
+        },
+        {"$unset": {
+            f"forensic_pillars.{pillar_key}": ""
+        }}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    # Pastrim i Cache-it në Redis
+    try:
+        redis_client.delete(f"doc_pillar:{doc_id}:{pillar_key}")
+        redis_client.delete(f"doc:{doc_id}:pillars")
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "message": f"Shtjella {pillar_key} u asgjësua përfundimisht nga MongoDB Atlas.",
+        "pillar": pillar_key
+    }
 
 
 # =========================================================================
