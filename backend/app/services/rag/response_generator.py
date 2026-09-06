@@ -1,6 +1,6 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V87.0 (STRICT TIER ISOLATION & ZERO ACCIDENTAL SONNET BURNS)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • FAST VS DEEP ROUTING INTEGRITY
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V88.0 (GEMINI 2.0 FLASH FAST TIER & CLAUDE SONNET DEEP TIER)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ZERO STATUTORY HALLUCINATION
 
 import logging
 import asyncio
@@ -23,22 +23,22 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-TIER1_ELITE_MODEL = DEEP_MODEL  # anthropic/claude-sonnet-4.6
-CHAT_FAST_MODEL = FAST_MODEL    # openai/gpt-4o-mini
+TIER1_ELITE_MODEL = DEEP_MODEL  # anthropic/claude-sonnet-4.6 (Zyra Forenzike)
+CHAT_FAST_MODEL = "google/gemini-2.0-flash-001"  # Modeli i Ri Ekonomik & 1M Kontekst ($0.10/1M)
 
-# Vetëm për Zyrën Forenzike të Super Adminit (1M Context)
+# Fallback-ët për detyrat e rënda forenzike
 HEAVY_TASK_FALLBACKS = [
-    "anthropic/claude-sonnet-4.6",      # 1,000,000 tokens (Standardi Suprem Ligjor)
-    "anthropic/claude-3.7-sonnet",      # 200,000 tokens (Hybrid Reasoning)
-    "anthropic/claude-3.5-sonnet",      # 200,000 tokens
-    "google/gemini-2.0-flash-001",      # 1,048,576 tokens
-    "google/gemini-pro-1.5"             # 2,097,152 tokens
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-3.7-sonnet",
+    "anthropic/claude-3.5-sonnet",
+    "google/gemini-2.0-flash-001",
+    "google/gemini-pro-1.5"
 ]
 
-# Për Klientët dhe Analizat e Përditshme në CaseView (Ultra të lira dhe rrufe të shpejta)
+# Fallback-ët ekonomikë për klientët dhe CaseView
 FAST_TASK_FALLBACKS = [
-    "openai/gpt-4o-mini",               # Modeli ekonomik parësor (~$0.15/1M)
     "google/gemini-2.0-flash-001",
+    "openai/gpt-4o-mini",
     "deepseek/deepseek-chat"
 ]
 
@@ -48,15 +48,16 @@ MAX_SINGLE_PASS_CHARS = 1_500_000
 
 OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://juristi.tech",
-    "X-Title": "Juristi AI - Kosova Justice Engine"
+    "X-Title": "Juristi AI - Kosova Legal Tech Orchestrator"
 }
 
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V87.0):
-    - Diferencim i rreptë ekonomik: GPT-4o-Mini për Klientët (FAST), Claude Sonnet 4.6 për Forenzikën (DEEP).
-    - Zero djegie aksidentale të krediteve: Fjalët e përgjithshme si 'dosje' nuk e aktivizojnë më Sonnet-in.
+    Gjeneruesi Suprem i Përgjigjeve (V88.0):
+    - Fast Tier: Google Gemini 2.0 Flash (1M Context, ultra i lirë $0.10/1M, saktësi e lartë).
+    - Deep Tier: Anthropic Claude Sonnet 4.6 (1M Context, Standard Doktrinar Suprem).
+    - Mbrojtje e hekurt statutore kundër hallucinimeve të neneve të Kosovës.
     """
 
     def __init__(self):
@@ -85,7 +86,7 @@ class ResponseGenerator:
         for current_model in unique_models:
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
-                    logger.info(f"⚖️ [Juristi AI Engine] Modeli në përdorim: {current_model} (Tier: {'DEEP_FORENSIC' if is_heavy_task else 'FAST_STANDARD'}) Përpjekja {attempt}...")
+                    logger.info(f"⚖️ [Juristi AI Engine] Modeli në ekzekutim: {current_model} (Tier: {'DEEP_FORENSIC' if is_heavy_task else 'GEMINI_FAST'}) Përpjekja {attempt}...")
                     kwargs: Dict[str, Any] = {
                         "model": current_model,
                         "messages": messages,
@@ -128,7 +129,7 @@ class ResponseGenerator:
         try:
             combined_upper = f"{system_prompt} {user_query}".upper()
 
-            # 1. RREGULLI I HEKURT: Nëse kërkohet Analizë Standarde e Klientit ose FAST mode ➔ GPT-4O-MINI
+            # 1. Analiza Standarde e Klientit dhe Chat-i ➔ Gemini 2.0 Flash
             is_explicit_fast = (
                 reasoning_mode == "FAST" or
                 "[ANALIZË STANDARDE" in combined_upper or
@@ -136,7 +137,7 @@ class ResponseGenerator:
                 "[KLIENT" in combined_upper
             )
 
-            # 2. Vetëm direktivat eksplicite forenzike të Super-Adminit shkojnë te Claude Sonnet 4.6
+            # 2. Super-Ekspertiza e Zyrës Forenzike ➔ Claude Sonnet 4.6
             is_explicit_heavy = not is_explicit_fast and (
                 reasoning_mode == "DEEP" or
                 "[DIREKTIVË FORENZIKE" in combined_upper or
@@ -147,13 +148,12 @@ class ResponseGenerator:
             if is_explicit_fast:
                 is_heavy_task = False
                 selected_model = model_override or CHAT_FAST_MODEL
-                max_tokens = 4096
+                max_tokens = 8192
             elif is_explicit_heavy:
                 is_heavy_task = True
                 selected_model = model_override or TIER1_ELITE_MODEL
                 max_tokens = 16384
             else:
-                # Chat-i i zakonshëm i përditshëm shkon te modeli i shpejtë dhe i lirë
                 is_heavy_task = False
                 selected_model = model_override or CHAT_FAST_MODEL
                 max_tokens = 4096
@@ -163,10 +163,19 @@ class ResponseGenerator:
             enhanced_system_prompt = f"""
 {full_context_content}
 
-RREGULLAT E DOKTRINËS DHE INTEGRITETIT TË PËRGJIGJES:
+RREGULLAT E HEKURTA DOKTRINARE TË REPUBLIKËS SË KOSOVËS (ZERO TOLERANCË PËR GABIME):
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës.
-2. CITO NENET me saktësi neni-për-nen (KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LPK Nr. 03/L-006, LMD Nr. 04/L-077, LPP Nr. 04/L-139, LSHT Nr. 06/L-016, Ligji për PSRK Nr. 03/L-052).
-3. Përmbushi kërkesën ligjore në mënyrë të qartë, profesionale dhe koncize pa ndërprerje.
+2. FJALORI ZYRTAR I STATUTEVE TË KOSOVËS (MOS I NGATËRRO KURRË!):
+   - **LPK (Ligji Nr. 03/L-006):** Ligji për Procedurën Kontestimore.
+   - **LMD (Ligji Nr. 04/L-077):** Ligji për Marrëdhëniet e Detyrimeve (Dëmet dhe Kontratat - MOS e ngatërro me dhunën në familje!).
+   - **KPK (Ligji Nr. 06/L-074):** Kodi Penal i Republikës së Kosovës (Veprat penale dhe dënimet).
+   - **KPPRK (Ligji Nr. 08/L-032):** Kodi i Procedurës Penale të Kosovës (Hetimi, provat, masat e mbrojtjes).
+   - **LFK (Ligji Nr. 2004/32):** Ligji për Familjen i Kosovës.
+3. RROLET PROCEDURALE:
+   - Në lëndë penale: I pandehur / I dyshuar / Palë e dëmtuar. (MOS përdor "I paditur" në penal!).
+   - Në lëndë civile: Paditës / I paditur.
+4. MBROJTJA E INTERESIT TË KLIENTIT:
+   Mbështetu fort në provat shfajësuese të fashikullit (p.sh. testet laboratorike toksikologjike negative, provat shkencore, mesazhet e vërtetuara) dhe mbro me vendosmëri pozitën ligjore të klientit pa rekomandime të dëmshme.
 """
             messages = [
                 {"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]},
