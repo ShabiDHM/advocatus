@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V93.0 (SINGLE SOURCE OF TRUTH • ZERO GHOST REHYDRATION)
-// DUAL AUTOPSY WORKSPACE • ATOMIC MONGODB PERSISTENCE • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V95.0 (INTEGRATED DEDICATED FAST CLIENT MODALS)
+// ZERO TS WARNINGS • FAST MODEL (GPT-4O-MINI) • ANTI-ABUSE PROTECTED • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,8 +19,8 @@ import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelp
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
-import { CaseAnalysisModal } from '../components/case/CaseAnalysisModal';
-import { DocumentAuditModal } from '../components/case/DocumentAuditModal';
+import { StandardCaseAnalysisModal } from '../components/case/StandardCaseAnalysisModal';
+import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
 import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 
 type CaseData = { details: Case | null };
@@ -42,17 +42,10 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Kontrolli Admin
-  const isAdmin = useMemo(() => {
-    if (!user) return false;
-    const role = (user.role || (user as any).user_role || '').toUpperCase();
-    return role === 'ADMIN' || role === 'SUPERADMIN';
-  }, [user]);
-
-  // 1. Dritarja Modale e Autopsisë së Rastit (3 Shtjellat)
+  // 1. Dritarja Modale e Re: Analizo Rastin (E Shpejtë • GPT-4o-Mini • Anti-Abuzim)
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. Dritarja Modale e Autopsisë së Dokumentit
+  // 2. Dritarja Modale e Re: Analizo Dokumentin (E Shpejtë • GPT-4o-Mini)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -107,13 +100,11 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
 
-      // AUTORITETI SUPREM: MongoDB përcakton historikun real
       const backendMessages = extractAndNormalizeHistory(details);
       if (backendMessages.length > 0) {
         setChatMessages(backendMessages);
         saveToLocalStorage(backendMessages);
       } else {
-        // Nëse MongoDB është i pastër (është fshirë me kosh), pastrohet edhe memoria lokale
         setChatMessages([]);
         localStorage.removeItem(`chat_${caseId}`);
       }
@@ -197,56 +188,15 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
 
-  useEffect(() => {
-    const handleOpenPrecedent = async (e: any) => {
-      const { caseNumber } = e.detail || {};
-      if (!caseNumber) return;
-
-      try {
-        const cleanCaseNo = caseNumber.trim();
-        const res = await apiService.axiosInstance.get('/laws/case-page', {
-          params: { law_title: cleanCaseNo }
-        });
-
-        const targetPage = (res.data && res.data.page) ? Number(res.data.page) : 1;
-        const rawLawTitle = (res.data && res.data.law_title) ? res.data.law_title : cleanCaseNo;
-        const pdfFileName = rawLawTitle.toLowerCase().endsWith('.pdf') ? rawLawTitle : `${rawLawTitle}.pdf`;
-        const encoded = encodeURIComponent(pdfFileName);
-
-        const url = `${API_V1_URL}/laws/caselaw/pdf/${encoded}`;
-
-        setViewingInitialPage(targetPage);
-        setViewingUrl(url);
-        setViewingDocument({
-          id: cleanCaseNo,
-          file_name: pdfFileName,
-          mime_type: 'application/pdf',
-          status: 'READY',
-          created_at: new Date().toISOString()
-        } as any);
-        setMinimizedDocument(null);
-      } catch (err) {
-        console.error("Failed to open supreme precedent preview directly:", err);
-      }
-    };
-
-    window.addEventListener('open_precedent_preview', handleOpenPrecedent);
-    return () => window.removeEventListener('open_precedent_preview', handleOpenPrecedent);
-  }, []);
-
-  // PASTRIMI I KONSISTENT I BISEDËS (MONGODB + MEMORJE LOKALE)
+  // PASTRIMI I KONSISTENT I BISEDËS (VETËM DHE EKSKLUZIVISHT CHAT-I)
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
-      // 1. Pastrim në Backend (FastAPI / MongoDB)
       await apiService.clearChatHistory(caseId);
       try {
         await apiService.updateChatHistory(caseId, []);
-      } catch {
-        // Siguron pajtueshmërinë me të dyja rrugët e mundshme të API-së
-      }
+      } catch {}
 
-      // 2. Pastrim i menjëhershëm i memories lokale dhe gjendjes (State)
       localStorage.removeItem(`chat_${caseId}`);
       setChatMessages([]);
       
@@ -255,9 +205,6 @@ const CaseViewPage: React.FC = () => {
         details: prev.details ? ({
           ...prev.details,
           chat_history: [],
-          latest_deep_analysis: '',
-          latest_comprehensive_analysis: '',
-          analysis_dirty: true,
         } as any) : null,
       }));
     } catch (err) {
@@ -265,37 +212,6 @@ const CaseViewPage: React.FC = () => {
       alert(t('error.generic', 'Ndodhi një gabim gjatë pastrimit të bisedës.'));
     }
   };
-
-  const handleDeleteAnalysisFromModal = useCallback(() => {
-    setCaseData((prev) => ({
-      ...prev,
-      details: prev.details ? ({
-        ...prev.details,
-        latest_deep_analysis: '',
-        latest_comprehensive_analysis: '',
-        analysis_dirty: true,
-      } as any) : null,
-    }));
-  }, []);
-
-  const handleDeleteDocAuditFromModal = useCallback(async () => {
-    if (!currentAuditedDoc || !caseId) return;
-    const targetId = String(currentAuditedDoc.id);
-
-    setLiveDocuments((prev) => prev.map((d) => String(d.id) === targetId ? {
-      ...d,
-      latest_analysis: '',
-      latest_forensic_audit: '',
-      last_audited_at: null
-    } as any : d));
-
-    try {
-      await apiService.clearDocumentAudit(caseId, targetId);
-    } catch (err) {
-      console.error("Failed to clear document audit on MongoDB:", err);
-      alert("Dështoi fshirja e auditimit nga baza e të dhënave.");
-    }
-  }, [caseId, currentAuditedDoc, setLiveDocuments]);
 
   // BISEDA E ZAKONSHME E CHAT-IT
   const handleChatSubmit = useCallback(async (
@@ -364,12 +280,12 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 🏛️ BUTONI 1: AUTOPSIA E RASTIT
-  const handleOpenCaseAutopsy = useCallback(() => {
+  // 🏛️ BUTONI: ANALIZO RASTIN
+  const handleOpenCaseAnalysis = useCallback(() => {
     setIsAnalysisModalOpen(true);
   }, []);
 
-  // ⚖️ BUTONI 2: AUTOPSIA E DOKUMENTIT
+  // ⚖️ BUTONI: ANALIZO DOKUMENTIN
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     if (!caseId) return;
     setCurrentAuditedDoc(doc);
@@ -442,7 +358,7 @@ const CaseViewPage: React.FC = () => {
           </button>
         </div>
 
-        {/* GRID-I ME SIMETRI TË PËRKYER */}
+        {/* GRID-I KRYESOR */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
@@ -474,7 +390,7 @@ const CaseViewPage: React.FC = () => {
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onOpenCaseAnalysis={handleOpenCaseAutopsy}
+              onOpenCaseAnalysis={handleOpenCaseAnalysis}
               onAnalyzeDocument={handleTriggerSelectedDocAudit}
               selectedDocName={selectedDocObj?.file_name}
               isAnalysisDirty={isAnalysisDirty}
@@ -499,29 +415,27 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* MODAL 1: AUTOPSIA E RASTIT (3 SHTJELLAT MODULARE ME RUAJTJE NË MONGODB) */}
-      <CaseAnalysisModal
+      {/* 1. MODAL I RI: ANALIZO RASTIN (E Shpejtë • GPT-4o-Mini • Mbrojtje Anti-Abuzim) */}
+      <StandardCaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
         caseId={currentCaseId}
         caseTitle={caseTitle}
         clientName={clientName}
         isAnalysisDirty={isAnalysisDirty}
-        onDeleteAnalysis={isAdmin ? handleDeleteAnalysisFromModal : undefined}
       />
 
-      {/* MODAL 2: AUTOPSIA E DOKUMENTIT TË VETËM */}
-      <DocumentAuditModal
+      {/* 2. MODAL I RI: ANALIZO DOKUMENTIN (E Shpejtë • GPT-4o-Mini) */}
+      <StandardDocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
         caseId={currentCaseId}
         documentId={String(currentAuditedDoc?.id || '')}
         documentName={currentAuditedDoc?.file_name || 'Dokument'}
         clientName={clientName}
-        onDeleteAudit={isAdmin ? handleDeleteDocAuditFromModal : undefined}
       />
 
-      {/* MODAL 3: DITARI I HETUESIT (3 ROLET) */}
+      {/* 3. DITARI I HETUESIT */}
       {caseId && (
         <InvestigatorLogDrawer
           isOpen={showInvestigatorDrawer}

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT & FORENSIC PILLARS ROUTER V58.0 (PERSISTENT 3-PILLAR VAULT & TOTAL CASCADE WIPEOUT)
+# PHOENIX PROTOCOL - CHAT ROUTER V59.0 (STRICT CHAT ISOLATION & ZERO COLLATERAL DAMAGE)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • REDIS FLUSH
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -131,7 +131,7 @@ def save_document_forensic_pillar(
 
 
 # =========================================================================
-# 🧹 TOTAL CERTIFIED CASCADE WIPEOUT (MONGO ATLAS, REDIS & DOCUMENT CACHE)
+# 🧹 PASTRIMI I IZOLUAR I BISEDËS (ZERO PREKJE TË AUTOPSIVE APO DOKUMENTEVE)
 # =========================================================================
 @router.delete("/case/{case_id}/history", status_code=status.HTTP_200_OK)
 def clear_chat_history(
@@ -140,64 +140,35 @@ def clear_chat_history(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
+    """Pastrohet VETËM biseda e chat-it pa prekur asnjë autopsi të dokumenteve apo lëndës."""
     try:
         c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         
-        # 1. Pastrim Total në MongoDB (Case Record)
+        # 1. Pastron VETËM chat_history në lëndë (Pa prekur forensic_pillars apo analysis_dirty!)
         db.cases.update_one(
             {"_id": c_oid, "owner_id": current_user.id},
             {
                 "$set": {
                     "chat_history": [],
-                    "analysis_dirty": True,
                     "updated_at": datetime.now(timezone.utc)
-                },
-                "$unset": {
-                    "forensic_pillars": "",
-                    "latest_deep_analysis": "",
-                    "latest_comprehensive_analysis": "",
-                    "latest_analysis": "",
-                    "latest_forensic_audit": "",
-                    "summary": "",
-                    "case_summary": ""
                 }
             }
         )
 
-        # 2. Pastrim Total në të gjitha Dokumentet e kësaj Lënde
-        db.documents.update_many(
-            {"$or": [{"case_id": case_id}, {"case_id": c_oid}]},
-            {
-                "$unset": {
-                    "forensic_pillars": "",
-                    "latest_analysis": "",
-                    "latest_forensic_audit": "",
-                    "last_audited_at": ""
-                }
-            }
-        )
-
-        # 3. Pastrim Total në REDIS CLOUD
+        # 2. Pastron vetëm çelësin e chat-it në Redis (nëse ekziston)
         if redis_client:
             try:
-                redis_keys = [
-                    f"case:{case_id}:analysis",
-                    f"case:{case_id}:summary",
-                    f"case:{case_id}:chat",
-                    f"rag:{case_id}:context"
-                ]
-                for rk in redis_keys:
-                    redis_client.delete(rk)
-                logger.info(f"✅ [Redis Flush] U fshinë çelësat e memories për lëndën {case_id}.")
+                redis_client.delete(f"case:{case_id}:chat")
+                logger.info(f"✅ [Redis Flush] U fshi cache i bisedës për lëndën {case_id}.")
             except Exception as r_err:
-                logger.warning(f"Redis cache delete warning: {r_err}")
+                logger.warning(f"Redis chat delete warning: {r_err}")
 
-        logger.info(f"🧹 [TOTAL CERTIFIED CASCADE WIPEOUT] Çdo gjurmë e vjetër u asgjësua për lëndën {case_id}.")
-        return {"status": "success", "message": "Fshirja me kaskadë u ekzekutua 100% në të gjitha nivelet e sistemit."}
+        logger.info(f"🧹 [Chat Purged Cleanly] U pastruan mesazhet e bisedës për lëndën {case_id} pa prekur asnjë autopsi.")
+        return {"status": "success", "message": "Biseda u pastrua me sukses."}
         
     except Exception as e:
-        logger.error(f"Failed to clear history with cascade wipeout: {e}")
-        raise HTTPException(status_code=500, detail="Dështoi pastrimi me kaskadë.")
+        logger.error(f"Failed to clear chat history: {e}")
+        raise HTTPException(status_code=500, detail="Dështoi pastrimi i bisedës.")
 
 
 @router.post("/case/{case_id}/feedback")

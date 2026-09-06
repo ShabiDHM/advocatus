@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V28.0 (RESPONSIVE ACTION PINNING & UNIVERSAL PAGE/DOC SELECTOR)
-// ZERO TS WARNINGS • VISIBLE TRASH & ACTIONS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CHAT HEADER V29.0 (CLEAN CLIENT LABELS: 'ANALIZO RASTIN' & 'ANALIZO DOKUMENTIN')
+// ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • DYNAMIC DOC SELECTOR • 100% COMPLETE CODE
 
 import React from 'react';
 import { Download, Trash2, Loader2, RefreshCw, FileText, Sparkles } from 'lucide-react';
@@ -57,7 +57,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-4 py-2 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none overflow-x-hidden">
-      {/* 1. MAJTAS: Drita LED dhe Selektori Dinamik i Dokumentit/Faqes (nëse ekzistojnë dokumente) */}
+      {/* 1. MAJTAS: Drita LED dhe Selektori Dinamik i Dokumenteve */}
       <div className="flex items-center gap-2 min-w-0 shrink">
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -75,7 +75,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               value={selectedDocumentIds[0] || ''}
               onChange={handleSelectChange}
               className="w-full pl-6 pr-2 py-1 text-[11px] font-medium rounded-lg border border-main bg-hover text-text truncate focus:outline-none focus:border-primary-start cursor-pointer"
-              title="Përzgjidh dokumentin/faqen për analizë"
+              title="Përzgjidh dokumentin për analizë"
             >
               <option value="">I gjithë fashikulli</option>
               {documents.map((doc) => (
@@ -89,22 +89,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
 
-      {/* 2. DJATHAS: Butonat e Autopsisë (elastikë) dhe Veprimet Kryesore (Koshi & Shkarkimi të palëvizshëm) */}
+      {/* 2. DJATHAS: Butonat e Rej të Analizës dhe Veprimet e Kyçura */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
-        {/* Butoni 1: Autopsia e Rastit */}
+        {/* Butoni 1: Analizo Rastin */}
         {onAnalyzeCase && (
           <button
             type="button"
             onClick={onAnalyzeCase}
             disabled={isAnalyzingCase}
-            className={`h-8 px-2 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1 transition-all whitespace-nowrap focus:outline-none cursor-pointer border ${
+            className={`h-8 px-2.5 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none cursor-pointer border ${
               isAnalyzingCase
                 ? 'bg-surface text-primary-start border-primary-start/30 opacity-80'
                 : isAnalysisDirty
-                ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/30 animate-pulse'
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/30'
                 : 'bg-surface hover:bg-hover text-primary-start hover:text-primary-end border-main hover:border-primary-start/40'
             }`}
-            title="Kryej autopsinë e thellë forenzike për të gjithë fashikullin e lëndës"
+            title="Kryej pasqyrën e shpejtë të lëndës"
           >
             {isAnalyzingCase ? (
               <>
@@ -113,33 +113,33 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </>
             ) : isAnalysisDirty ? (
               <>
-                <RefreshCw size={12} className="animate-spin shrink-0 text-amber-500" />
-                <span>Përditëso</span>
+                <RefreshCw size={12} className="shrink-0 text-amber-500" />
+                <span>Përditëso Rastin</span>
               </>
             ) : (
               <>
-                <Sparkles size={12} className="shrink-0 hidden xs:inline" />
-                <span>Autopsia e Rastit</span>
+                <Sparkles size={12} className="shrink-0 text-primary-start" />
+                <span>Analizo Rastin</span>
               </>
             )}
           </button>
         )}
 
-        {/* Butoni 2: Autopsia e Dokumentit */}
+        {/* Butoni 2: Analizo Dokumentin */}
         {onAnalyzeDocument && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
-            className="h-8 px-2 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer"
-            title={selectedDocName ? `Kryej autopsinë e shkresës: ${selectedDocName}` : 'Përzgjidhni një shkresë majtas për autopsi'}
+            className="h-8 px-2.5 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer"
+            title={selectedDocName ? `Kryej pasqyrën e shkresës: ${selectedDocName}` : 'Përzgjidhni një shkresë majtas për analizë'}
           >
-            <FileText size={12} className="shrink-0 hidden xs:inline" />
-            <span className="hidden sm:inline">Autopsia e Dokumentit</span>
+            <FileText size={12} className="shrink-0 text-primary-start" />
+            <span className="hidden sm:inline">Analizo Dokumentin</span>
             <span className="sm:hidden">Dokumenti</span>
           </button>
         )}
 
-        {/* Butoni: Shkarko Bisedën (Pin-uar, nuk shtyhet kurrë jashtë) */}
+        {/* Butoni: Shkarko Bisedën (Pin-uar, i palëvizshëm) */}
         {onExportChat && (
           <button
             type="button"
@@ -151,7 +151,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* Butoni: Pastro Bisedën / Koshi (Pin-uar me prioritet të lartë) */}
+        {/* Butoni: Pastro Bisedën / Koshi (Pin-uar, i palëvizshëm) */}
         <button
           type="button"
           onClick={onClearChat}
