@@ -1,5 +1,6 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V29.0 (STRICT CHAT ISOLATION & OPTIONAL PERSISTENCE)
+# PHOENIX PROTOCOL - CHAT SERVICE V30.0 (CIRCULAR IMPORT RESOLVED • LAZY RAG INGESTION)
+# PRODUCTION STABILITY • ZERO CRASHES ON STARTUP • STRICT CHAT ISOLATION
 
 from __future__ import annotations
 import logging
@@ -10,8 +11,6 @@ from bson import ObjectId
 from datetime import datetime, timezone
 from pymongo.database import Database
 from app.models.case import ChatMessage
-from app.services.albanian_rag_service import AlbanianRAGService
-from app.services import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
@@ -31,6 +30,9 @@ async def stream_chat_response(
     - If save_history is False: streams directly to the caller without polluting chat history.
     """
     try:
+        # PHOENIX FIX: Lazy import për të shmangur bllokimin ciklik në nisje të Uvicorn
+        from app.services.albanian_rag_service import AlbanianRAGService
+
         oid, user_oid = ObjectId(case_id), ObjectId(user_id)
         case = db.cases.find_one({"_id": oid, "owner_id": user_oid})
         if not case:
@@ -52,7 +54,7 @@ async def stream_chat_response(
         yield " "  # Keep-alive
 
         chat_history = case.get("chat_history", [])
-        recent_history = chat_history[-10:] if save_history else []  # Mos ngarko historikun nëse është thirrje e izoluar
+        recent_history = chat_history[-10:] if save_history else []
 
         agent_service = AlbanianRAGService(db=db)
         async for token in agent_service.chat(
