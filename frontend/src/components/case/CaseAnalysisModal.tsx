@@ -1,8 +1,8 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V17.0 (REAL MONGODB PERSISTENCE & 0MS CACHING)
-// ZERO TS WARNINGS • ZERO TRUNCATION • BULLETPROOF STATE SYNC
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V20.0 (DYNAMIC STATUS BADGES & 1-CLICK PERSISTENCE)
+// ZERO TS WARNINGS • VISUAL PILLAR STATUS ENGINE (PENDING / ANALYZING / COMPLETED) • 0MS CACHE
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileSearch, X, Copy, Save, CheckCircle2, 
@@ -118,39 +118,8 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Ngarkimi i vërtetë në 0ms nga MongoDB sapo hapet dritarja
-  useEffect(() => {
-    if (isOpen && caseId) {
-      forensicService.getCasePillars(caseId)
-        .then((savedPillars) => {
-          if (savedPillars && Object.keys(savedPillars).length > 0) {
-            setPillarResults({
-              PILLAR_1: savedPillars.PILLAR_1 || '',
-              PILLAR_2: savedPillars.PILLAR_2 || '',
-              PILLAR_3: savedPillars.PILLAR_3 || ''
-            });
-          }
-        })
-        .catch(() => {
-          apiService.getCaseDetails(caseId).then((details: any) => {
-            if (details?.forensic_pillars) {
-              setPillarResults({
-                PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
-                PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
-                PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
-              });
-            }
-          }).catch(() => {});
-        });
-    }
-  }, [isOpen, caseId]);
-
-  const currentContent = pillarResults[activePillar] || '';
-  const isCurrentLoading = loadingPillars[activePillar];
-  const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentContent), [currentContent]);
-
-  // Gjenerimi dhe Ruajtja e Vërtetë në MongoDB
-  const handleGeneratePillar = async (pillar: PillarType) => {
+  // Gjenerimi dhe Ruajtja Automatike në MongoDB
+  const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
     setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
@@ -165,7 +134,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         'ks',
         'DEEP',
         'automatic',
-        false // Izolim i plotë: nuk shkruan kurrë në chat!
+        false
       );
 
       let accumulated = '';
@@ -175,7 +144,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
         setPillarResults((prev) => ({ ...prev, [pillar]: currentAcc }));
       }
 
-      // RUAJTJA E VËRTETË NË MONGODB ME ENDPOINT-IN E RI
       if (accumulated.trim().length > 50) {
         try {
           await forensicService.saveCasePillar(caseId, pillar, accumulated);
@@ -189,7 +157,44 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     } finally {
       setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
     }
+  }, [caseId, loadingPillars]);
+
+  // Ngarkimi në 0ms nga MongoDB ose Nisja Automatike e menjëhershme
+  useEffect(() => {
+    if (isOpen && caseId) {
+      forensicService.getCasePillars(caseId)
+        .then((savedPillars) => {
+          if (savedPillars && Object.keys(savedPillars).length > 0) {
+            setPillarResults({
+              PILLAR_1: savedPillars.PILLAR_1 || '',
+              PILLAR_2: savedPillars.PILLAR_2 || '',
+              PILLAR_3: savedPillars.PILLAR_3 || ''
+            });
+            // Nëse Tab-i 1 nuk ka përmbajtje, nis automatikisht
+            if (!savedPillars.PILLAR_1?.trim()) {
+              handleGeneratePillar('PILLAR_1');
+            }
+          } else {
+            handleGeneratePillar('PILLAR_1');
+          }
+        })
+        .catch(() => {
+          handleGeneratePillar('PILLAR_1');
+        });
+    }
+  }, [isOpen, caseId, handleGeneratePillar]);
+
+  // Kalimi mes Tab-eve: Nis automatikisht nëse është bosh (PA NEVOJË PËR KLIKIM TË DYTË)
+  const handleSelectPillar = (pillarKey: PillarType) => {
+    setActivePillar(pillarKey);
+    if (!pillarResults[pillarKey]?.trim() && !loadingPillars[pillarKey]) {
+      handleGeneratePillar(pillarKey);
+    }
   };
+
+  const currentContent = pillarResults[activePillar] || '';
+  const isCurrentLoading = loadingPillars[activePillar];
+  const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentContent), [currentContent]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -386,7 +391,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* VETËM 3 SHTJELLAT (PA EMOJI) ME TREGUES TË MONGODB */}
+          {/* SHIRITI I 3 SHTJELLAVE ME STEMAT VIZUALE TË STATUSIT (GATSHME / NË PROCES / NË PRITJE) */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -398,8 +403,8 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 <button
                   key={pillarKey}
                   type="button"
-                  onClick={() => setActivePillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  onClick={() => handleSelectPillar(pillarKey)}
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -409,12 +414,24 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                       : 'bg-surface hover:bg-hover text-text-muted border-main'
                   }`}
                 >
+                  <div className="flex items-center gap-1.5 truncate">
+                    {isLoading ? (
+                      <Loader2 size={13} className="animate-spin text-white shrink-0" />
+                    ) : hasContent ? (
+                      <CheckCircle2 size={13} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                    ) : null}
+                    <span className="truncate">{cfg.title}</span>
+                  </div>
+
+                  {/* STEMAT E STATUSIT NË CEPO */}
                   {isLoading ? (
-                    <Loader2 size={13} className="animate-spin text-white" />
-                  ) : null}
-                  <span className="truncate">{cfg.title}</span>
-                  {hasContent && !isLoading && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} title="E ruajtur në MongoDB" />
+                    <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
+                  ) : hasContent ? (
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
+                      E Gatshme
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-mono text-text-muted opacity-60">Në Pritje</span>
                   )}
                 </button>
               );
@@ -424,14 +441,15 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
           {/* Shiriti Nën-Titull */}
           <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
             <p className="truncate font-medium">{PILLAR_CONFIGS[activePillar].subtitle}</p>
-            {currentContent && !isCurrentLoading && isAnalysisDirty && (
+            {currentContent && !isCurrentLoading && (
               <button
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
-                className="px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all"
+                className="px-2 py-0.5 rounded-lg bg-surface hover:bg-hover text-primary-start border border-main font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all text-[10px]"
+                title="Ri-gjenero këtë shtjellë"
               >
-                <RefreshCw size={11} className="animate-spin" />
-                <span>Përditëso Shtjellën</span>
+                <RefreshCw size={10} />
+                <span>Ri-gjenero</span>
               </button>
             )}
           </div>
@@ -485,20 +503,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               }
             `}</style>
 
-            {!currentContent && !isCurrentLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
-                  {PILLAR_CONFIGS[activePillar].title}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
-                >
-                  <span>Analizo {PILLAR_CONFIGS[activePillar].title}</span>
-                </button>
-              </div>
-            ) : isCurrentLoading && !currentContent ? (
+            {isCurrentLoading && !currentContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
@@ -510,12 +515,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {autoLinkedContent}
                 </ReactMarkdown>
-                {isCurrentLoading && (
-                  <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 text-xs font-bold">
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Duke gjeneruar rrjedhën doktrinare...</span>
-                  </div>
-                )}
               </div>
             )}
           </div>

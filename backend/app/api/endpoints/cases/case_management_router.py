@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V12.0 (DUAL MONGODB PERSISTENCE: CASE PILLARS & DOC AUDITS)
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V13.0 (DUAL 3-PILLAR MONGODB PERSISTENCE: CASE & DOC)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
@@ -20,13 +20,12 @@ from app.api.endpoints.cases.cases_helpers import validate_object_id, ChatHistor
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Modeli Pydantic për Ruajtjen e Shtjellave Forenzike të Lëndës
 class SavePillarRequest(BaseModel):
     pillar: str
     content: str
 
-# Modeli Pydantic për Ruajtjen e Auditimit të Dokumentit të Vetëm
-class SaveDocAnalysisRequest(BaseModel):
+class SaveDocPillarRequest(BaseModel):
+    pillar: str
     content: str
 
 # --- PUBLIC CLIENT PORTAL ENDPOINTS ---
@@ -205,7 +204,7 @@ async def update_case_chat_history(
     return {"status": "success", "message": "Chat history saved"}
 
 # =========================================================================
-# 🏛️ 1. RUAJTJA DHE LEXIMI I 3 SHTJELLAVE TË LËNDËS NË MONGODB
+# 🏛️ 1. RUAJTJA DHE LEXIMI I SHTJELLAVE TË LËNDËS NË MONGODB
 # =========================================================================
 
 @router.post("/{case_id}/pillars", status_code=status.HTTP_200_OK)
@@ -220,7 +219,7 @@ async def save_case_pillar_endpoint(
     
     case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
     if not case:
-        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni akses.")
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
     
     pillar_key = payload.pillar.strip()
     content_clean = payload.content.strip()
@@ -237,7 +236,7 @@ async def save_case_pillar_endpoint(
             }
         }
     )
-    logger.info(f"💾 [MongoDB Case Pillar Saved] U ruajt me sukses {pillar_key} për lëndën {case_id}!")
+    logger.info(f"💾 [MongoDB Case Pillar Saved] U ruajt {pillar_key} për lëndën {case_id}!")
     return {"status": "success", "pillar": pillar_key}
 
 @router.get("/{case_id}/pillars", status_code=status.HTTP_200_OK)
@@ -256,14 +255,14 @@ async def get_case_pillars_endpoint(
     return case.get("forensic_pillars") or {}
 
 # =========================================================================
-# ⚖️ 2. RUAJTJA DHE LEXIMI I AUTOPSISË SË DOKUMENTIT TË VETËM NË MONGODB
+# ⚖️ 2. RUAJTJA DHE LEXIMI I SHTJELLAVE TË DOKUMENTIT TË VETËM NË MONGODB
 # =========================================================================
 
-@router.post("/{case_id}/documents/{document_id}/analysis", status_code=status.HTTP_200_OK)
-async def save_document_analysis_endpoint(
+@router.post("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
+async def save_document_pillar_endpoint(
     case_id: str,
     document_id: str,
-    payload: SaveDocAnalysisRequest,
+    payload: SaveDocPillarRequest,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
@@ -275,6 +274,7 @@ async def save_document_analysis_endpoint(
     if not case:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
 
+    pillar_key = payload.pillar.strip()
     content_clean = payload.content.strip()
 
     await asyncio.to_thread(
@@ -282,14 +282,36 @@ async def save_document_analysis_endpoint(
         {"_id": doc_oid, "$or": [{"case_id": case_id}, {"case_id": case_oid}]},
         {
             "$set": {
+                f"forensic_pillars.{pillar_key}": content_clean,
                 "latest_analysis": content_clean,
                 "latest_forensic_audit": content_clean,
                 "last_audited_at": datetime.now(timezone.utc)
             }
         }
     )
-    logger.info(f"💾 [MongoDB Doc Audit Saved] U ruajt me sukses latest_analysis për dokumentin {document_id}!")
-    return {"status": "success", "document_id": document_id}
+    logger.info(f"💾 [MongoDB Doc Pillar Saved] U ruajt {pillar_key} për dokumentin {document_id}!")
+    return {"status": "success", "document_id": document_id, "pillar": pillar_key}
+
+@router.get("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
+async def get_document_pillars_endpoint(
+    case_id: str,
+    document_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(document_id)
+    user_oid = ObjectId(current_user.id) if ObjectId.is_valid(current_user.id) else current_user.id
+    
+    case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
+
+    doc = db.documents.find_one({"_id": doc_oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    return doc.get("forensic_pillars") or {}
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(

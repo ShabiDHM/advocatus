@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V3.1 (FULL MONGODB PERSISTENCE: PILLARS & DOC AUDITS)
+// PHOENIX PROTOCOL - FORENSIC SERVICE V3.2 (FULL 3-PILLAR MONGODB PERSISTENCE: CASE & DOC)
 
 import { apiClient } from './apiClient';
 import type {
@@ -42,7 +42,7 @@ export interface MediaEvidenceItem {
 
 export class ForensicService {
   // =========================================================================
-  // 🏛️ 1. ANALIZA E PLOTË E LËNDËS DHE 3 SHTJELLAT NË MONGODB
+  // 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB
   // =========================================================================
 
   public async saveCasePillar(caseId: string, pillar: string, content: string): Promise<{ status: string; pillar: string }> {
@@ -56,11 +56,21 @@ export class ForensicService {
   }
 
   // =========================================================================
-  // ⚖️ 2. AUDITIMI I DOKUMENTIT TË VETËM DHE RUAJTJA NË MONGODB
+  // ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM NË MONGODB
   // =========================================================================
 
+  public async saveDocumentPillar(caseId: string, documentId: string, pillar: string, content: string): Promise<{ status: string; pillar: string }> {
+    const response = await apiClient.post<{ status: string; pillar: string }>(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar, content });
+    return response.data;
+  }
+
+  public async getDocumentPillars(caseId: string, documentId: string): Promise<Record<string, string>> {
+    const response = await apiClient.get<Record<string, string>>(`/cases/${caseId}/documents/${documentId}/pillars`);
+    return response.data;
+  }
+
   public async saveDocumentAnalysis(caseId: string, documentId: string, content: string): Promise<{ status: string; document_id: string }> {
-    const response = await apiClient.post<{ status: string; document_id: string }>(`/cases/${caseId}/documents/${documentId}/analysis`, { content });
+    const response = await apiClient.post<{ status: string; document_id: string }>(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
     return response.data;
   }
 

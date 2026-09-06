@@ -1,8 +1,8 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V5.0 (ADMIN TRASH PURGE & INSTANT MONGO SYNC)
-// ZERO TS WARNINGS • ADMIN TRASH PURGE • 0MS INSTANT LOAD • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V6.0 (1-CLICK AUTO-TRIGGER & MONGODB PILLAR PERSISTENCE)
+// ZERO TS WARNINGS • ZERO DOUBLE-CLICKS • REAL MONGODB PERSISTENCE • 0MS INSTANT LOAD
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   FileText,
   UploadCloud,
@@ -54,7 +54,7 @@ DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 1 (MOS shkruaj asnjë seksion tjetër)
 - Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore prekluzive).
 - Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
 - Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
-NDALOHET GJENERIMI I NENEVE APO PLANEVE NË KËTË SHTJELLË.`
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
@@ -64,7 +64,7 @@ Dokumenti: "${docName}"
 DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 2 (MOS shkruaj asnjë seksion tjetër):
 - Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës (Formati: Neni X i [Ligjit]) me precedentët përkatës të Gjykatës Supreme (PML / Revizion).
 - Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit.
-NDALOHET GJENERIMI I PJESËVE TË TJERA NË KËTË SHTJELLË.`
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
@@ -75,7 +75,7 @@ DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 3 (MOS shkruaj asnjë seksion tjetër)
 - Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
 - Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
 - Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.
-PËRQENDROHU VETËM TE PLANI DHE KUNDËRSHTIMET.`
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
   }
 };
 
@@ -83,31 +83,32 @@ const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string;
   PILLAR_1: {
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1 E RASTIT: FAKTI DHE HISTORIKU]
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
 Gjenero EKSKLUZIVISHT Seksionet 1 dhe 2 për të gjithë fashikullin:
 - Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.
-- Seksioni 2: Kronologjia Tabulare e Ngjarjeve dhe Kryqëzimi i Palëve.
-MOS gjenero seksionet 3, 4, 5, 6, 7, 8.`
+- Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2 E RASTIT: SHKELJET DHE NENET]
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
 Gjenero EKSKLUZIVISHT Seksionet 3, 4 dhe 5 për të gjithë fashikullin:
-- Seksioni 3: Matrica e Provave Materiale.
+- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
 - Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).
-- Seksioni 5: Përgjegjësia Penale dhe Shkeljet Thelbësore (Neni 182 LPK).
-MOS gjenero seksionet e tjera.`
+- Seksioni 5: Përgjegjësia Penale (Nenet 383, 414, 427 KPK) dhe Shkeljet Thelbësore (Neni 182 LPK).
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3 E RASTIT: PLANI I VEPRIMIT]
+    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
 Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin:
-- Seksioni 6: Përgatitja e Mjeteve Juridike.
-- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.
-- Seksioni 8: Master Plani i Veprimit me Afate të Prera.
-MOS gjenero seksionet e para.`
+- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
+- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
+- Seksioni 8: Master Plani i Veprimit me Hapat Taktikë 48-orësh deri te Konkluzioni Doktrinar.
+RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
   }
 };
 
@@ -163,7 +164,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
 
-  // AUTO-SCROLL GJATË STREAM-IT
+  // Auto-scroll gjatë stream-it
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -204,44 +205,49 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     return 'PDF e Indeksuar';
   };
 
+  // Ngarkimi i shtjellave të rastit nga MongoDB
+  const loadCasePillars = useCallback(async () => {
+    if (!caseId) return;
+    try {
+      const pillars = await forensicService.getCasePillars(caseId);
+      if (pillars && Object.keys(pillars).length > 0) {
+        setCasePillars({
+          PILLAR_1: pillars.PILLAR_1 || '',
+          PILLAR_2: pillars.PILLAR_2 || '',
+          PILLAR_3: pillars.PILLAR_3 || ''
+        });
+      }
+    } catch {}
+  }, [caseId]);
+
+  // Ngarkimi i shtjellave të dokumentit nga MongoDB
+  const loadDocPillars = useCallback(async (docId: string) => {
+    if (!caseId || !docId) return;
+    setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+    try {
+      const pillars = await forensicService.getDocumentPillars(caseId, docId);
+      if (pillars && Object.keys(pillars).length > 0) {
+        setDocPillars({
+          PILLAR_1: pillars.PILLAR_1 || '',
+          PILLAR_2: pillars.PILLAR_2 || '',
+          PILLAR_3: pillars.PILLAR_3 || ''
+        });
+      }
+    } catch {}
+  }, [caseId]);
+
   useEffect(() => {
     if (caseId) {
       loadDocuments();
       loadCasePillars();
     }
-  }, [caseId]);
+  }, [caseId, loadCasePillars]);
 
-  // Ngarkimi i shtjellave të rastit nga MongoDB
-  const loadCasePillars = async () => {
-    if (!caseId) return;
-    try {
-      const details: any = await apiService.getCaseDetails(caseId);
-      if (details?.forensic_pillars) {
-        setCasePillars({
-          PILLAR_1: details.forensic_pillars.PILLAR_1 || '',
-          PILLAR_2: details.forensic_pillars.PILLAR_2 || '',
-          PILLAR_3: details.forensic_pillars.PILLAR_3 || ''
-        });
-      }
-    } catch {}
-  };
-
-  // Ngarkimi i shtjellave të dokumentit nga MongoDB sapo klikohet shkresa
   useEffect(() => {
-    if (selectedDocId && caseId) {
-      setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-      apiService.getDocument(caseId, selectedDocId).then((doc: any) => {
-        const pillars = doc?.forensic_pillars || (activeDoc as any)?.forensic_pillars;
-        if (pillars) {
-          setDocPillars({
-            PILLAR_1: pillars.PILLAR_1 || pillars.DOC_PILLAR_1 || '',
-            PILLAR_2: pillars.PILLAR_2 || pillars.DOC_PILLAR_2 || '',
-            PILLAR_3: pillars.PILLAR_3 || pillars.DOC_PILLAR_3 || ''
-          });
-        }
-      }).catch(() => {});
+    if (selectedDocId && caseId && autopsyScope === 'DOCUMENT') {
+      loadDocPillars(selectedDocId);
     }
-  }, [selectedDocId, caseId, activeDoc]);
+  }, [selectedDocId, caseId, autopsyScope, loadDocPillars]);
 
   const loadDocuments = async () => {
     if (!caseId) return;
@@ -264,13 +270,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
       if (mapped.length > 0 && !selectedDocId) {
         setSelectedDocId(mapped[0].id);
-        if (mapped[0].forensic_pillars) {
-          setDocPillars({
-            PILLAR_1: mapped[0].forensic_pillars.PILLAR_1 || '',
-            PILLAR_2: mapped[0].forensic_pillars.PILLAR_2 || '',
-            PILLAR_3: mapped[0].forensic_pillars.PILLAR_3 || ''
-          });
-        }
       }
     } catch (err) {
       console.error("Dështoi ngarkimi i dokumenteve:", err);
@@ -324,7 +323,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // KOSHI I FSHIRJES SË SHTJELLAVE NGA ADMINI (PURGE PILLARS)
   const handleAdminPurgePillars = async () => {
     if (!caseId) return;
     
@@ -357,7 +355,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  const handleGeneratePillar = async (pillar: PillarType) => {
+  // GJENERIMI DHE RUAJTJA E VËRTETË NË MONGODB
+  const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
     setLoadingPillars((prev) => ({ ...prev, [pillar]: true }));
@@ -386,16 +385,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setDocPillars((prev) => ({ ...prev, [pillar]: currentAcc }));
         }
 
+        // RUAJTJA E VËRTETË E SHTJELLËS SË DOKUMENTIT NË MONGODB
         if (accumulated.trim().length > 50) {
-          await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
-          setDocuments(prev => prev.map(d => d.id === activeDoc.id ? {
-            ...d,
-            forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: accumulated }
-          } : d));
+          try {
+            await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
+            setDocuments(prev => prev.map(d => d.id === activeDoc.id ? {
+              ...d,
+              forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: accumulated }
+            } : d));
+          } catch (saveErr) {
+            console.warn("Could not save doc pillar to MongoDB:", saveErr);
+          }
         }
       } catch (err) {
         console.error(`Doc Pillar Error [${pillar}]:`, err);
-        alert(`Ndodhi një gabim gjatë auditimit.`);
+        alert(`Ndodhi një gabim gjatë auditimit të ${DOC_PILLAR_CONFIGS[pillar].title}.`);
       } finally {
         setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
@@ -421,8 +425,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setCasePillars((prev) => ({ ...prev, [pillar]: currentAcc }));
         }
 
+        // RUAJTJA E VËRTETË E SHTJELLËS SË RASTIT NË MONGODB
         if (accumulated.trim().length > 50) {
-          await forensicService.saveCasePillar(caseId, pillar, accumulated);
+          try {
+            await forensicService.saveCasePillar(caseId, pillar, accumulated);
+          } catch (saveErr) {
+            console.warn("Could not save case pillar to MongoDB:", saveErr);
+          }
         }
       } catch (err) {
         console.error(`Case Pillar Error [${pillar}]:`, err);
@@ -430,6 +439,15 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       } finally {
         setLoadingPillars((prev) => ({ ...prev, [pillar]: false }));
       }
+    }
+  }, [caseId, loadingPillars, autopsyScope, activeDoc]);
+
+  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST (1 KLIKIM)
+  const handleSelectPillar = (pillarKey: PillarType) => {
+    setActivePillar(pillarKey);
+    const content = activePillarsMap[pillarKey];
+    if (!content?.trim() && !loadingPillars[pillarKey]) {
+      handleGeneratePillar(pillarKey);
     }
   };
 
@@ -467,7 +485,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
   return (
-    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300`}>
+    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none`}>
       {/* KOLONA E MAJTË */}
       {!isFullscreen && (
         <div className="lg:col-span-5 space-y-4">
@@ -598,7 +616,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       )}
 
-      {/* KOLONA E DJATHTË ME KOSHIN E ADMINIT DHE AUTO-SCROLL */}
+      {/* KOLONA E DJATHTË */}
       <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
           {/* Header Bar */}
@@ -629,7 +647,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat e Veprimit me Koshin e Adminit */}
+            {/* Butonat e Veprimit */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -682,7 +700,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* 3 SHTJELLAT */}
+          {/* SHIRITI I 3 SHTJELLAVE ME AUTO-TRIGGER DHE STEMAT E STATUSIT */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
               const cfg = currentConfigs[pillarKey];
@@ -694,8 +712,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 <button
                   key={pillarKey}
                   type="button"
-                  onClick={() => setActivePillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                  onClick={() => handleSelectPillar(pillarKey)}
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -705,12 +723,23 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       : 'bg-surface hover:bg-hover text-text-muted border-main'
                   }`}
                 >
+                  <div className="flex items-center gap-1.5 truncate">
+                    {isLoading ? (
+                      <Loader2 size={12} className="animate-spin text-white shrink-0" />
+                    ) : hasContent ? (
+                      <CheckCircle2 size={12} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                    ) : null}
+                    <span className="truncate">{cfg.title}</span>
+                  </div>
+
                   {isLoading ? (
-                    <Loader2 size={12} className="animate-spin text-white" />
-                  ) : null}
-                  <span className="truncate">{cfg.title}</span>
-                  {hasContent && !isLoading && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-status-success'}`} title="E ruajtur në MongoDB" />
+                    <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
+                  ) : hasContent ? (
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
+                      E Gatshme
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-mono text-text-muted opacity-60">Në Pritje</span>
                   )}
                 </button>
               );
@@ -723,39 +752,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               <button
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
-                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0"
+                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0 text-xs"
               >
                 <span>Rigjenero</span>
               </button>
             )}
           </div>
 
-          {/* TRUPI I AUTOPSISË ME AUTO-SCROLL */}
+          {/* TRUPI I AUTOPSISË */}
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
             className={`${isFullscreen ? 'h-[620px]' : 'h-[460px]'} overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col relative transition-all duration-200`}
           >
-            {!currentPillarContent && !isCurrentPillarLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto">
-                <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary mb-1">
-                  {currentConfigs[activePillar].title}
-                </h4>
-                <p className="text-[11px] text-text-muted max-w-sm mb-5 leading-relaxed">
-                  {autopsyScope === 'DOCUMENT'
-                    ? (activeDoc ? `Klikoni më poshtë për të kryer autopsinë e shkresës "${activeDoc.name}".` : 'Përzgjidhni një shkresë në të majtë.')
-                    : 'Klikoni më poshtë për të kryer analizën e thellë për të gjithë fashikullin.'}
-                </p>
-                <button
-                  type="button"
-                  disabled={autopsyScope === 'DOCUMENT' && !selectedDocId}
-                  onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-5 py-2.5 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md shadow-primary-start/20 cursor-pointer transition-all disabled:opacity-40"
-                >
-                  <span>Analizo {currentConfigs[activePillar].title}</span>
-                </button>
-              </div>
-            ) : isCurrentPillarLoading && !currentPillarContent ? (
+            {isCurrentPillarLoading && !currentPillarContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-9 h-9 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
@@ -770,12 +780,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {autoLinkedContent}
                 </ReactMarkdown>
-                {isCurrentPillarLoading && (
-                  <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 rounded-lg bg-primary-start/10 text-primary-start border border-primary-start/20 text-xs font-bold">
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Duke gjeneruar rrjedhën doktrinare...</span>
-                  </div>
-                )}
               </div>
             )}
 

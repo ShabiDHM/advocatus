@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V258.0 (BLINDIR ME AUTO-CACHE NË MONGODB DHE 0MS HIT)
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V259.0 (RUAJTJA E DREJTPËRDREJTË E 3 SHTJELLAVE NË MONGODB)
 # 100% I PLOTË • ZERO TRUNCATION • GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TS/PYTHON WARNINGS
 
 import os
@@ -44,7 +44,7 @@ RREGULLAT E HEKURTA TË DOKTRINËS DHE HARTIMIT:
 
 def is_valid_legal_report(text: str) -> bool:
     """Verifikon që përgjigja është një raport i vërtetë gjyqësor dhe JO një gabim teknik."""
-    if not text or len(text.strip()) < 200:
+    if not text or len(text.strip()) < 150:
         return False
     
     lower_text = text.lower()
@@ -64,12 +64,12 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V258.0 me Ruajtje të Blinduar në MongoDB dhe Hapje në 0ms."""
+    """Shërbimi Kryesor RAG — V259.0 me Ruajtje të Saktë të 3 Shtjellave në MongoDB."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V258.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V259.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -175,7 +175,7 @@ class AlbanianRAGService:
         # ⚡ SMART CACHE CHECK (HAPJE NË 0ms NËSE EKZISTON NË MONGODB)
         # =========================================================================
 
-        # 1. KONTROLLI I AUDITIMIT TË DOKUMENTIT TË VETËM (0ms Instant Hit)
+        # 1. Kontrolli i Auditimit të Dokumentit të Vetëm (0ms Hit)
         if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
             cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
             if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
@@ -184,16 +184,27 @@ class AlbanianRAGService:
                 yield MANDATORY_LEGAL_DISCLAIMER
                 return
 
-        # 2. KONTROLLI I ANALIZËS SË PLOTË TË LËNDËS (0ms Instant Hit)
+        # 2. Kontrolli i Shtjellave të Lëndës (0ms Hit)
         if user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc:
             is_dirty = case_doc.get("analysis_dirty", False)
-            cached_analysis = case_doc.get("latest_deep_analysis") or case_doc.get("latest_comprehensive_analysis")
+            forensic_pillars = case_doc.get("forensic_pillars") or {}
 
-            if not is_dirty and cached_analysis and is_valid_legal_report(cached_analysis):
-                logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_deep_analysis për lëndën {case_id}.")
-                yield cached_analysis
-                yield MANDATORY_LEGAL_DISCLAIMER
-                return
+            # Përcaktojmë cila shtjellë po kërkohet
+            req_pillar_key = None
+            if "shtjella 1" in query_lower or "shtjella_1" in query_lower or "fakti" in query_lower:
+                req_pillar_key = "PILLAR_1"
+            elif "shtjella 2" in query_lower or "shtjella_2" in query_lower or "nenet" in query_lower:
+                req_pillar_key = "PILLAR_2"
+            elif "shtjella 3" in query_lower or "shtjella_3" in query_lower or "plani" in query_lower:
+                req_pillar_key = "PILLAR_3"
+
+            if not is_dirty and req_pillar_key and forensic_pillars.get(req_pillar_key):
+                cached_pillar = forensic_pillars[req_pillar_key]
+                if is_valid_legal_report(cached_pillar):
+                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar_key} për lëndën {case_id}.")
+                    yield cached_pillar
+                    yield MANDATORY_LEGAL_DISCLAIMER
+                    return
 
         # =========================================================================
         # 🔍 NËSE NUK KA CACHE: FILLON GJENERIMI I RI NGA AI
@@ -327,26 +338,32 @@ class AlbanianRAGService:
             yield content
 
         # =========================================================================
-        # 💾 RUAJTJA AUTOMATIKE E BLINDUAR NË MONGODB
+        # 💾 RUAJTJA AUTOMATIKE E SHTJELLAVE NË MONGODB
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
-            # 1. Ruajtja e Analizës së Plotë të Lëndës (Për hapje të përhershme në 0ms)
+            # 1. Ruajtja e Shtjellës Specifike të Lëndës në MongoDB
             if user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None:
+                pillar_tag = "PILLAR_1"
+                if "shtjella 2" in query_lower or "shtjella_2" in query_lower or "nenet" in query_lower or "shkeljet" in query_lower:
+                    pillar_tag = "PILLAR_2"
+                elif "shtjella 3" in query_lower or "shtjella_3" in query_lower or "plani" in query_lower or "strategjia" in query_lower:
+                    pillar_tag = "PILLAR_3"
+
                 try:
                     self.db.cases.update_one(
                         {"_id": c_oid},
                         {"$set": {
+                            f"forensic_pillars.{pillar_tag}": full_generated_response.strip(),
                             "latest_deep_analysis": full_generated_response.strip(),
-                            "latest_comprehensive_analysis": full_generated_response.strip(),
                             "analysis_dirty": False,
                             "last_analyzed_at": datetime.now(timezone.utc)
                         }}
                     )
-                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt me sukses latest_deep_analysis në MongoDB për lëndën {case_id}!")
+                    logger.info(f"💾 [Auto-Cache SUCCESS] U ruajt forensic_pillars.{pillar_tag} në MongoDB për lëndën {case_id}!")
                 except Exception as save_err:
-                    logger.warning(f"Could not cache case analysis: {save_err}")
+                    logger.warning(f"Could not cache case pillar: {save_err}")
 
-            # 2. Ruajtja e Auditimit të Dokumentit të Vetëm (Për hapje të përhershme në 0ms)
+            # 2. Ruajtja e Auditimit të Dokumentit të Vetëm në MongoDB
             if user_intent == "FORENSIC_AUDIT" and single_doc_obj and self.db is not None:
                 try:
                     self.db.documents.update_one(
