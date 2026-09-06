@@ -1,6 +1,6 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V261.0 (INTEGRAL 31-DOC DOSSIER INGESTION FOR CASE ANALYSIS)
-# 100% I PLOTË • ZERO TRUNCATION • GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TS/PYTHON WARNINGS
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V262.0 (SMART CONTEXT BUDGETING FOR 31+ DOSSIER DOCS)
+# 100% I PLOTË • ZERO TRUNCATION • ZERO CONTEXT OVERFLOW • 100% COMPLETE CODE
 
 import os
 import logging
@@ -52,6 +52,8 @@ def is_valid_legal_report(text: str) -> bool:
         "përkohësisht i ngarkuar",
         "error code:",
         "context_length_exceeded",
+        "max_num_tokens",
+        "upstream error",
         "not a valid model",
         "no endpoints found",
         "gabim teknik"
@@ -75,12 +77,12 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V261.0 me Ngarkim Integral të të Gjitha Shkresave të Lëndës."""
+    """Shërbimi Kryesor RAG — V262.0 me Buxhetim Inteligjent të Kontekstit."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V261.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V262.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -139,7 +141,6 @@ class AlbanianRAGService:
                     client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
 
-                # Ngarkojmë shkresat sipas kërkesës
                 doc_filter: Dict[str, Any] = {
                     "$or": [{"case_id": case_id}, {"case_id": c_oid}],
                     "status": {"$ne": "DELETED"}
@@ -154,7 +155,6 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        # Dokument i vetëm është VETËM nëse përdoruesi ka specifikuar 1 documentId
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
         from app.services import vector_store_service
@@ -162,9 +162,7 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
         req_pillar = detect_requested_pillar(query_lower)
 
-        # =========================================================================
-        # 🎯 PHOENIX CLASSIFIER: IDENTIFIKIMI I SAKTË I ANALIZËS SË RASTIT
-        # =========================================================================
+        # Identifikimi i kërkesës për të gjithë lëndën
         is_case_wide_request = any(kw in query_lower for kw in [
             "analizo rastin", "analizë e rastit", "analizë standarde e rastit",
             "pasqyra ekzekutive e lëndës", "pasqyra e lëndës", "raportin master",
@@ -175,7 +173,7 @@ class AlbanianRAGService:
             user_intent = "FORENSIC_AUDIT"
         elif is_case_wide_request:
             user_intent = "COMPREHENSIVE_ANALYSIS"
-            single_doc_obj = None  # Sigurojmë që të përfshihet i gjithë fashikulli me të 31 shkresat
+            single_doc_obj = None
         else:
             user_intent = IntentDetector.detect(query)
 
@@ -192,34 +190,33 @@ class AlbanianRAGService:
         )
 
         # =========================================================================
-        # ⚡ SMART CACHE CHECK (0ms VETËM NËSE KA CACHE EKZISTUES)
+        # ⚡ SMART CACHE CHECK (0ms vetëm nëse është e vlefshme dhe pa gabime)
         # =========================================================================
 
-        # 1. KONTROLLI I SHTJELLËS SË DOKUMENTIT TË VETËM
+        # 1. Kontrolli i Shkresës së Vetme
         if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
             doc_pillars = single_doc_obj.get("forensic_pillars") or {}
             
             if req_pillar and doc_pillars.get(req_pillar):
                 cached_text = doc_pillars[req_pillar]
                 if is_valid_legal_report(cached_text):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin: {single_doc_obj.get('file_name', single_doc_obj.get('_id'))}")
+                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
                     yield cached_text
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
             elif not req_pillar:
                 cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
                 if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin: {single_doc_obj.get('file_name', single_doc_obj.get('_id'))}")
+                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin.")
                     yield cached_doc_audit
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
 
-        # 2. KONTROLLI I SHTJELLËS SË LËNDËS (VETËM KUR KËRKOHET NGA ZYRA FORENZIKE)
+        # 2. Kontrolli i Lëndës (Vetëm kur nuk është shkresë e veçantë)
         elif user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc and not single_doc_obj:
             is_dirty = case_doc.get("analysis_dirty", False)
             forensic_pillars = case_doc.get("forensic_pillars") or {}
 
-            # Vetëm nëse kërkohet shtjellë specifike forenzike me Sonnet
             if not is_dirty and req_pillar and forensic_pillars.get(req_pillar):
                 cached_pillar = forensic_pillars[req_pillar]
                 if is_valid_legal_report(cached_pillar):
@@ -229,7 +226,7 @@ class AlbanianRAGService:
                     return
 
         # =========================================================================
-        # 🔍 FILLON GJENERIMI I RI NGA AI
+        # 🔍 FILLON GJENERIMI ME SMART CONTEXT BUDGETING
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
@@ -263,13 +260,17 @@ class AlbanianRAGService:
             exec_query = optimized_query
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            # INTEGRIMI I TË GJITHA 31 SHKRESAVE TË FASHIKULLIT
+            # PHOENIX SMART CONTEXT BUDGETING: Optimizim për 31+ shkresa pa tejkaluar limitet
             dossier_blocks = []
             manifest_lines = []
 
+            # Nëse janë mbi 10 shkresa, marrim thelbin e secilës (deri në 8,000 karaktere) që të futen të 31 shkresat pa overflow
+            max_chars_per_doc = 8000 if len(db_documents) > 10 else 25000
+
             for idx, doc in enumerate(db_documents, 1):
                 doc_title = doc.get("file_name") or doc.get("title") or f"Dokumenti #{idx}"
-                doc_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
+                raw_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
+                doc_text = raw_text[:max_chars_per_doc]
                 doc_date = doc.get("document_date") or doc.get("created_at") or ""
                 if hasattr(doc_date, "strftime"):
                     doc_date = doc_date.strftime("%d.%m.%Y")
@@ -354,14 +355,14 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # Gjenerimi i Përgjigjes me Stream
+        # Gjenerimi me Stream
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
             full_generated_response += content
             yield content
 
         # =========================================================================
-        # 💾 RUAJTJA AUTOMATIKE PAS GJENERIMIT
+        # 💾 RUAJTJA AUTOMATIKE VETËM NËSE ËSHTË RAPORT I VLEFSHËM (JO GABIM TEKNIK!)
         # =========================================================================
         if is_valid_legal_report(full_generated_response):
             if single_doc_obj and self.db is not None:

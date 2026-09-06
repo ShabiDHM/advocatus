@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/StandardCaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - UNIFIED FAST CASE ANALYSIS MODAL V5.0 (TRUE ATOMIC MONGODB CASCADE WIPEOUT)
-// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • TOTAL PURGE SYNC • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - UNIFIED FAST CASE ANALYSIS MODAL V6.0 (ERROR RECOVERY & CASCADE WIPEOUT)
+// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • SMART RETRY LOCK • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,13 +53,32 @@ export const StandardCaseAnalysisModal: React.FC<StandardCaseAnalysisModalProps>
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Ngarkimi i pasqyrës ekzistuese të lëndës (0ms Cache)
+  // Kontrolli nëse përgjigja aktuale është gabim teknik
+  const isErrorResponse = useMemo(() => {
+    if (!reportContent) return false;
+    const lower = reportContent.toLowerCase();
+    return (
+      lower.includes('përkohësisht i ngarkuar') ||
+      lower.includes('upstream error') ||
+      lower.includes('max_num_tokens') ||
+      lower.includes('error code:') ||
+      lower.includes('gabim teknik')
+    );
+  }, [reportContent]);
+
+  // Ngarkimi i pasqyrës ekzistuese të lëndës (0ms Cache, injoron gabimet)
   useEffect(() => {
     if (isOpen && caseId) {
       apiService.getCaseDetails(caseId)
         .then((details: any) => {
           const savedSummary = details?.latest_deep_analysis || details?.latest_analysis || details?.standard_summary || '';
-          if (savedSummary && typeof savedSummary === 'string' && savedSummary.trim().length > 50) {
+          if (
+            savedSummary && 
+            typeof savedSummary === 'string' && 
+            savedSummary.trim().length > 50 &&
+            !savedSummary.includes('përkohësisht i ngarkuar') &&
+            !savedSummary.includes('max_num_tokens')
+          ) {
             setReportContent(savedSummary);
           } else {
             setReportContent('');
@@ -99,7 +118,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
       const stream = apiService.sendChatMessageStream(
         caseId,
         fastPrompt,
-        undefined,
+        undefined, // I gjithë fashikulli (Të 31 shkresat)
         'ks',
         'FAST',
         'automatic',
@@ -113,13 +132,13 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
       }
     } catch (err: any) {
       console.error("Standard Case Analysis Error:", err);
-      alert("Ndodhi një gabim gjatë pasqyrës së lëndës.");
+      setReportContent("[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri duke shtypur butonin më poshtë.]");
     } finally {
       setIsLoading(false);
     }
   }, [caseId, caseTitle, clientName, isLoading, isPurging]);
 
-  // TOTAL CASCADE WIPEOUT: Asgjësim i përhershëm në MongoDB Atlas
+  // TOTAL CASCADE WIPEOUT NË MONGODB ATLAS
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
     const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht pasqyrën e lëndës nga serveri (Total Cascade Wipeout)?");
@@ -138,7 +157,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
   };
 
   const handleCopy = () => {
-    if (!reportContent) return;
+    if (!reportContent || isErrorResponse) return;
     navigator.clipboard.writeText(reportContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -159,8 +178,8 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
 
   if (!isOpen) return null;
 
-  // Mbrojtja Anti-Abuzim: Zhbllokohet vetëm nëse është bosh ose nëse fashikulli ka ndryshuar
-  const isActionAllowed = !reportContent || isAnalysisDirty;
+  // Rregulli: Lejohet nëse nuk ka raport, nëse fashikulli ka ndryshuar, OSE nëse përgjigja ishte gabim teknik
+  const isActionAllowed = !reportContent || isAnalysisDirty || isErrorResponse;
 
   return (
     <AnimatePresence>
@@ -189,7 +208,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono uppercase">
                     E Shpejtë • GPT-4o
                   </span>
-                  {isAnalysisDirty && reportContent && (
+                  {isAnalysisDirty && reportContent && !isErrorResponse && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase flex items-center gap-1">
                       <AlertCircle size={10} /> Fashikull i Përditësuar
                     </span>
@@ -228,7 +247,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
                 </button>
               </div>
 
-              {/* Trash: TOTAL CASCADE WIPEOUT NË MONGODB */}
+              {/* Trash */}
               {reportContent && (
                 <button
                   type="button"
@@ -309,6 +328,26 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
                   Duke analizuar fashikullin e lëndës me shpejtësi...
                 </p>
               </div>
+            ) : isErrorResponse ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-10 my-auto space-y-4 max-w-lg mx-auto">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-500/30">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-text-primary uppercase tracking-wider">Kërkohet Riprovo</h4>
+                  <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                    Optimizimi i ri i kontekstit është gati. Shtypni butonin më poshtë për të rifilluar analizën e shpejtë të fashikullit.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateAnalysis}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift"
+                >
+                  <RefreshCw size={13} />
+                  <span>Riprovo Analizën Tani</span>
+                </button>
+              </div>
             ) : (
               <div className="markdown-content fast-case-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -318,7 +357,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
             )}
 
             {/* Butoni Lundrues për lëvizje në fund të raportit */}
-            {showScrollBottomBtn && (
+            {showScrollBottomBtn && !isErrorResponse && (
               <button
                 type="button"
                 onClick={scrollToBottom}
@@ -330,9 +369,9 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
             )}
           </div>
 
-          {/* Bottom Actions me Mbrojtje Anti-Abuzim */}
+          {/* Bottom Actions me Mbrojtje Anti-Abuzim dhe Riprovo */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
-            {reportContent && !isLoading && (
+            {reportContent && !isLoading && !isErrorResponse && (
               <div className="flex items-center gap-2">
                 {isActionAllowed ? (
                   <button
@@ -358,7 +397,7 @@ Rregull: Përgjigju qartë, në mënyrë të unifikuar për të gjithë lëndën
               <button
                 type="button"
                 onClick={handleCopy}
-                disabled={!reportContent}
+                disabled={!reportContent || isErrorResponse}
                 className="h-9 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
               >
                 {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
