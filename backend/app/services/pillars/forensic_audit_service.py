@@ -1,6 +1,6 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V272.0 (HIGH-DENSITY BALANCED ENGINE)
-# GJUHË E PAZTËR JURIDIKE SHQIPE (ZERO ANGLISHT) • 100% DINAMIK • ZERO HARDCODING • ZERO TOKEN TRUNCATION
+# PROTOKOLLI PHOENIX - KRYE-AUDITORI SUPREM I AUTOPSISË SË DOKUMENTIT V273.0 (BALANCED HIGH-DENSITY PILLAR 3)
+# GJUHË E PAZTËR JURIDIKE SHQIPE • ZERO TRUNCATION ACROSS ALL 3 PILLARS • SAKTËSI DOKTRINARE 100%
 
 import logging
 import re
@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V272.0):
-    - 100% Modular: Balancim i përkryer i densitetit për Shtjellën 1, 2 dhe 3.
-    - ZERO HARDCODING: Ekstraktim ekskluzivisht nga teksti real i shkresës së administruar.
-    - Zero Token Truncation: Të gjitha seksionet përfundojnë të plota deri në pikën e fundit.
-    - Saktësi Absolute: Citohen të gjitha nenet dhe precedentët supremë me formatim neni-për-nen.
+    KRYE-AUDITORI DOKTRINAR I GJYKATËS SUPREME PËR NJË SHKRESË TË VETME (V273.0):
+    - 100% I Balancuar në të 3 Shtjellat: Zero ndërprerje edhe për shkresa voluminoze 30+ faqesh.
+    - Shtjella 1: Pasaporta, Palët dhe Baza Provuese (Seksionet 1, 2 dhe 3 të plota).
+    - Shtjella 2: Nenet dhe Detektori i Lapsuseve (Seksionet 4 dhe 5 të plota).
+    - Shtjella 3: Auditimi, Diagnoza dhe Master Plani (Seksionet 6, 7 dhe 8 të plota).
+    - Saktësi Absolute: Formatim neni-për-nen dhe precedentë supremë PML/Revizion.
     """
 
     @staticmethod
@@ -98,7 +99,7 @@ class ForensicAuditService:
         lista_ligjeve = "\n".join([f"- {ligji}" for ligji in BasePillarService.get_domain_laws(case_domain)])
 
         # =========================================================================
-        # 🎯 PËRCAKTIMI MODULAR ME DENSITET TË BALANCUAR DOKTRINAR
+        # 🎯 PËRCAKTIMI MODULAR ME DENSITET TË BALANCUAR NË TË 3 SHTJELLAT
         # =========================================================================
         query_lower = (query_text or "").lower()
 
@@ -147,6 +148,8 @@ Përfundo plotësisht këtë Shtjellë 2 deri te fjala e fundit e Seksionit 5 pa
             struktura_seksioneve = """
 STRUKTURA E DETYRUESHME E SHTJELLËS 3 (GJENERO VETËM SEKSIONET 6, 7 DHE 8):
 
+RREGULL I DENSITETIT: Ji i saktë, i prerë dhe kirurgjikal në formulim në mënyrë që Master Plani i Seksionit 8 të përfundojë 100% i plotë!
+
 ### 6. 🔬 AUDITIMI I KËRKESËS DHE EKZEKUTUESHMËRISË
 * **Vlerësimi i Qartësisë së Kërkesës apo Dispozitivit:** A është kërkesa e saktë, e ekzekutueshme dhe e mbështetur në normë?
 * **Rreziqet Procedurale:** Pengesat që çojnë në rrëzimin, hedhjen apo prishjen e aktit në instancat më të larta ankimore.
@@ -155,16 +158,18 @@ STRUKTURA E DETYRUESHME E SHTJELLËS 3 (GJENERO VETËM SEKSIONET 6, 7 DHE 8):
 ### 7. 💡 DIAGNOZA KORRIGJUESE DHE REKOMANDIMET E DREJTPËRDREJTA PËR SHKRESËN
 * **Vlerësimi i Qëndrueshmërisë Ligjore:** Pikat e forta dhe dobësitë fatale të kësaj shkrese.
 * **Këshilla Taktike mbi Korrigjimin apo Goditjen:** Çfarë argumentesh duhen goditur dhe si neutralizohet efekti i dëmshëm.
-* **Rekomandimi i Hapit Taktik:** Ankesë, Prapësim, Padi për Anulim, Kërkesë për Masë Sigurimi, apo Kundërshtim Ekspertize.
+* **Rekomandimi i Hapit Taktik:** (Ankesë, Prapësim, Padi për Anulim, Kërkesë për Masë Sigurimi, apo Kundërshtim Ekspertize).
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E ARDHSHËM PROCEDURALË
 * 🔴 **HAPI 1 (Urgjenca / Veprimi brenda Afatit Prekluziv):** Veprimi i parë i detyrueshëm procedural para skadimit të afatit.
 * 🟡 **HAPI 2 (Plotësimi Provues dhe Kundër-Goditja):** Masat për sigurimin e provave, kundër-ekspertizat apo parashtresat plotësuese.
 * 🟢 **HAPI 3 (Mbrojtja në Organin Kompetent):** Linja përfundimtare e mbrojtjes për fitoren e plotë ligjore.
+* 🏁 **Konkluzioni Përfundimtar Taktik për Shkresën:** Vlerësimi përmbyllës i forcës ligjore të aktit.
 
-Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Seksionit 8!
+Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Konkluzionit Taktik!
 """
         else:
+            # Nëse është thirrje e përgjithshme monolitike
             struktura_seksioneve = """
 STRUKTURA E PLOTË (8 SEKSIONET):
 ### 1. 🔍 PASAPORTA PROCEDURALE DHE DIAGNOZA JURIDIKE E SHKRESËS
@@ -186,6 +191,7 @@ MANDATI YT SUPREM:
 Përpara teje ndodhet një dokument specifik gjyqësor, administrativ apo procedural për auditim të thellë doktrinar.
 Detyra jote absolute është AUTOPSIA FORENZIKE E KËSAJ SHKRESE DHE DHËNIA E KËSHILLËS STRATEGJIKE.
 PËRGJIGJU VETËM PËR SEKSIONET E KËRKUARA NË KËTË SHTJELLË. MOS E KALOFSH TEMËN DHE MOS GJENERO SEKSIONE TË PANEVOJSHME.
+Detyra jote është të përfundosh 100% strukturën e kërkuar më poshtë pa u ndërprerë kurrë në mes!
 </konteksti_i_autopsise_forenzike_se_shkreses>
 
 {protokolli_suprem}

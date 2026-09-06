@@ -1,6 +1,6 @@
 # FILE: backend/app/services/pillars/comprehensive_analysis_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA MODULARE V233.0
-# ZERO TRUNCATION • HIGH-DENSITY BALANCED MATRICES • SAKTËSI DOKTRINARE SUPREME (CLAUDE SONNET 4.6)
+# PROTOKOLLI PHOENIX - SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA MODULARE V234.0
+# ZERO TRUNCATION ACROSS ALL 3 PILLARS • HIGH-DENSITY BALANCED MATRICES • SAKTËSI DOKTRINARE SUPREME
 
 import logging
 import re
@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 class ComprehensiveAnalysisService:
     """
-    SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA TË PAVARURA (V233.0):
-    - 100% I Balancuar: Çdo shtjellë gjenerohet brenda buxhetit optimal të tokenëve pa asnjë ndërprerje.
+    SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA TË PAVARURA (V234.0):
+    - 100% I Balancuar në të 3 Shtjellat: Tab 1, Tab 2 dhe Tab 3 përfundojnë 100% të plota pa u ndërprerë.
     - Shtjella 1: Fakti dhe Historiku (Seksionet 1 dhe 2 të plota).
     - Shtjella 2: Ligji dhe Shkeljet (Seksionet 3, 4 dhe Seksioni 5 i plotë 5.1 deri 5.6).
-    - Shtjella 3: Strategjia dhe Plani i Veprimit (Seksionet 6, 7 dhe 8 me afate 48-orëshe).
+    - Shtjella 3: Strategjia dhe Plani i Veprimit (Seksionet 6, 7 dhe 8 me Konkluzionin Suprem).
     - Saktësia: Zero humbje e neneve, shkeljeve procedurale dhe precedentëve supremë.
     """
 
@@ -44,7 +44,7 @@ class ComprehensiveAnalysisService:
             target_pillar = 1
         elif "SHTJELLA_2" in query_upper or "PJESA_2" in query_upper or "LIGJI DHE SHKELJET" in query_upper or "SHKELJET & NENET" in query_upper:
             target_pillar = 2
-        elif "SHTJELLA_3" in query_upper or "PJESA_3" in query_upper or "PLANI I VEPRIMIT" in query_upper or "KUNDËRSHTIMET & PLANI" in query_upper:
+        elif "SHTJELLA_3" in query_upper or "PJESA_3" in query_upper or "PLANI I VEPRIMIT" in query_upper or "KUNDËRSHTIMET & PLANI" in query_upper or "KUNDËRSHTIMET, RREZIQET" in query_upper:
             target_pillar = 3
 
         if not case_domain:
@@ -82,7 +82,7 @@ class ComprehensiveAnalysisService:
         mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)
         toni_rolit = RoleGuardService.get_role_specific_tone(pozicioni)
 
-        # Udhëzimi Modular me Balancim të Hekurt të Densitetit
+        # Udhëzimi Modular me Balancim të Hekurt të Densitetit në të 3 Shtjellat
         if target_pillar == 1:
             struktura_e_kerkuar = f"""
 TI JE DUKE GJENERUAR EKSKLUZIVISHT:
@@ -143,24 +143,26 @@ TI JE DUKE GJENERUAR EKSKLUZIVISHT:
 
 ---
 
+RREGULL I DENSITETIT: Ji i saktë, i prerë dhe i drejtpërdrejtë në arsyetim në mënyrë që Master Plani dhe Konkluzioni i Seksionit 8 të përfundojnë 100% të plota!
+
 ### 6. 🔨 HIERARKIA E MJETEVE JURIDIKE DHE JURISDIKSIONI I DUHUR
-* 🔴 **Ndjekja Penale dhe Kompetenca e Organeve Hetuese (Prokuroria Speciale sipas Ligjit Nr. 08/L-168 / Prokuroria Themelore).**
-* 🟢 **Mjetet Parësore të Degës Kryesore (Civile / Familjare):** Ankesa ndaj Aktgjykimit C.nr.5906/25, masa e sigurimit për pasaportën.
-* 🟡 **Mjetet e Jashtëzakonshme dhe Kushtetuese:** Kërkesa për Mbrojtje të Ligjshmërisë, Revizioni në Gjykatën Supreme, Gjykata Kushtetuese (Nenet 31 dhe 54).
+* 🔴 **Ndjekja Penale dhe Kompetenca e Organeve Hetuese:** (Arsyetimi i kompetencës ekskluzive të Prokurorisë Speciale sipas Neneve 9, 10, 13 të Ligjit Nr. 08/L-168 dhe papërshtatshmëria e Prokurorisë Themelore).
+* 🟢 **Mjetet Parësore Civile / Familjare:** (Ankesa ndaj Aktgjykimit C.nr.5906/25 brenda afatit 15-ditor; Kërkesa emergjente për Masë Sigurimi sipas Nenit 221 LPK për bllokimin e pasaportës).
+* 🟡 **Mjetet e Jashtëzakonshme dhe Kushtetuese:** (Kërkesa për Mbrojtje të Ligjshmërisë sipas Nenit 432 KPPRK; Revizioni në Gjykatën Supreme; Ankesa Kushtetuese për cenim të Nenit 31 dhe 54 të Kushtetutës; KEDNJ Neni 6).
 
 ### 7. 💡 REKOMANDIMET STRATEGJIKE TË KONSULENCËS SUPREME
 * **Analiza Kosto / Kohë / Efektivitet e rrugëve procedurale.**
-* **Strategjia e Sulmit dhe Mbrojtjes (Plani A - Kryesor vs Plani B - Alternativ).**
-* **Neutralizimi i Pretendimeve të Palës Kundërshtare.**
+* **Strategjia e Sulmit dhe Mbrojtjes:** (Plani A - Sulmi penal dhe pezullimi i ekzekutimit vs Plani B - Mbrojtja civile dhe zgjerimi i kontaktit sipas Nenit 145 LFK).
+* **Neutralizimi i Pretendimeve të Palës Kundërshtare:** (Strategjia e rrëzimit të raporteve të njëanshme dhe diskreditimi i dëshmive të rreme me provat shkencore).
 
 ### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E ARDHSHËM TAKTIKË
-* 🔴 **HAPI 1 (Urgjenca brenda 24 deri në 48 Orëve):** Veprimet emergjente procedurale.
-* 🟡 **HAPI 2 (Konsolidimi Provues dhe Goditja Procedurale):** Ekspertizat e pavarura dhe kallëzimet penale.
-* 🟢 **HAPI 3 (Zhdëmtimi dhe Mbrojtja Supreme / Kushtetuese):** Paditë për kompensim dëmi (Neni 162 LMD), revizioni.
-* 📊 **Tabela Përmbledhëse e Master Planit me Afate Konkrete.**
-* 🏁 **Konkluzioni Doktrinar Suprem dhe Vlerësimi Final i Perspektivës Procedurale.**
+* 🔴 **HAPI 1 (Urgjenca brenda 24 deri në 48 Orëve):** (Paraqitja e masës emergjente për pasaportën dhe verifikimi i afatit të ankesës).
+* 🟡 **HAPI 2 (Konsolidimi Provues dhe Goditja Penale):** (Depozitimi i Kallëzimit Penal të Unifikuar në PSRK me të 22 të dyshuarit dhe kërkesa për super-ekspertizë).
+* 🟢 **HAPI 3 (Zhdëmtimi dhe Mbrojtja Supreme):** (Kërkesa pasurore-juridike sipas Nenit 462 KPPRK dhe padia për kompensim dëmi Neni 162 LMD).
+* 📊 **Tabela Përmbledhëse e Master Planit:** (Veprimi | Organi | Afati Ligjor | Qëllimi Procedural).
+* 🏁 **Konkluzioni Doktrinar Suprem:** Vlerësimi përfundimtar i perspektivës së fitores ligjore të klientit {client_name}.
 
-Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit!
+Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Konkluzionit Suprem!
 """
         else:
             struktura_e_kerkuar = f"""
