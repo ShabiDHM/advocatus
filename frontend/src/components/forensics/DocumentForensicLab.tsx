@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V6.0 (1-CLICK AUTO-TRIGGER & MONGODB PILLAR PERSISTENCE)
-// ZERO TS WARNINGS • ZERO DOUBLE-CLICKS • REAL MONGODB PERSISTENCE • 0MS INSTANT LOAD
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V8.0 (TOTAL CASCADE WIPEOUT FOR ACTIVE TAB)
+// ZERO TS WARNINGS • TRUE $UNSET MONGODB PURGE • PRESERVES OTHER PILLARS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
@@ -164,7 +164,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const isCurrentPillarLoading = loadingPillars[activePillar];
   const autoLinkedContent = useMemo(() => autoLinkLegalCitations(currentPillarContent), [currentPillarContent]);
 
-  // Auto-scroll gjatë stream-it
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -205,7 +204,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     return 'PDF e Indeksuar';
   };
 
-  // Ngarkimi i shtjellave të rastit nga MongoDB
   const loadCasePillars = useCallback(async () => {
     if (!caseId) return;
     try {
@@ -220,7 +218,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     } catch {}
   }, [caseId]);
 
-  // Ngarkimi i shtjellave të dokumentit nga MongoDB
   const loadDocPillars = useCallback(async (docId: string) => {
     if (!caseId || !docId) return;
     setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
@@ -323,39 +320,40 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  const handleAdminPurgePillars = async () => {
-    if (!caseId) return;
+  // TOTAL CASCADE WIPEOUT NË MONGODB ATLAS DHE REDIS PËR SHTJELLËN AKTIVE
+  const handleAdminPurgeSinglePillar = async () => {
+    if (!caseId || !currentPillarContent) return;
     
-    if (autopsyScope === 'DOCUMENT') {
-      if (!selectedDocId || !activeDoc) return;
-      if (!window.confirm(`A jeni i sigurt që doni të fshini të gjitha shtjellat e autopsisë për shkresën "${activeDoc.name}" nga MongoDB?`)) return;
+    const activeCfg = currentConfigs[activePillar];
+    const confirmSingleDelete = window.confirm(`A jeni i sigurt që doni të fshini nga MongoDB VETËM "${activeCfg.title}"? Shtjellat e tjera do të mbeten të paprekura!`);
+    if (!confirmSingleDelete) return;
 
-      setIsDeletingPillars(true);
-      try {
-        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-        await forensicService.clearDocumentAudit(caseId, selectedDocId);
-        setDocuments(prev => prev.map(d => d.id === selectedDocId ? { ...d, forensic_pillars: {} } : d));
-      } catch (err) {
-        console.error("Failed to purge doc pillars:", err);
-      } finally {
-        setIsDeletingPillars(false);
+    setIsDeletingPillars(true);
+    try {
+      if (autopsyScope === 'DOCUMENT') {
+        if (!selectedDocId || !activeDoc) return;
+        
+        // PHOENIX CASCADE WIPEOUT: Asgjëson me $unset në MongoDB Atlas
+        await forensicService.deleteDocumentPillar(caseId, selectedDocId, activePillar);
+        setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
+        setDocuments(prev => prev.map(d => d.id === selectedDocId ? {
+          ...d,
+          forensic_pillars: { ...(d.forensic_pillars || {}), [activePillar]: '' }
+        } : d));
+      } else {
+        // PHOENIX CASCADE WIPEOUT: Asgjëson me $unset në MongoDB Atlas për lëndën
+        await forensicService.deleteCasePillar(caseId, activePillar);
+        setCasePillars(prev => ({ ...prev, [activePillar]: '' }));
       }
-    } else {
-      if (!window.confirm("A jeni i sigurt që doni të fshini analizat e të gjitha shtjellave të këtij rasti nga MongoDB?")) return;
-
-      setIsDeletingPillars(true);
-      try {
-        setCasePillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-        await forensicService.clearCaseAnalysis(caseId);
-      } catch (err) {
-        console.error("Failed to purge case pillars:", err);
-      } finally {
-        setIsDeletingPillars(false);
-      }
+    } catch (err) {
+      console.error("Failed to purge single pillar:", err);
+      alert("Dështoi pastrimi i kësaj shtjelle.");
+    } finally {
+      setIsDeletingPillars(false);
     }
   };
 
-  // GJENERIMI DHE RUAJTJA E VËRTETË NË MONGODB
+  // GJENERIMI DHE RUAJTJA NË MONGODB
   const handleGeneratePillar = useCallback(async (pillar: PillarType) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -385,7 +383,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setDocPillars((prev) => ({ ...prev, [pillar]: currentAcc }));
         }
 
-        // RUAJTJA E VËRTETË E SHTJELLËS SË DOKUMENTIT NË MONGODB
         if (accumulated.trim().length > 50) {
           try {
             await forensicService.saveDocumentPillar(caseId, activeDoc.id, pillar, accumulated);
@@ -425,7 +422,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setCasePillars((prev) => ({ ...prev, [pillar]: currentAcc }));
         }
 
-        // RUAJTJA E VËRTETË E SHTJELLËS SË RASTIT NË MONGODB
         if (accumulated.trim().length > 50) {
           try {
             await forensicService.saveCasePillar(caseId, pillar, accumulated);
@@ -442,7 +438,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId, loadingPillars, autopsyScope, activeDoc]);
 
-  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST (1 KLIKIM)
+  // KALIMI MES TAB-EVE ME AUTO-TRIGGER NË ÇAST
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
     const content = activePillarsMap[pillarKey];
@@ -647,14 +643,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat e Veprimit */}
+            {/* Butonat e Veprimit me Total Cascade Wipeout për Shtjellën Aktive */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleAdminPurgePillars}
+                onClick={handleAdminPurgeSinglePillar}
                 disabled={isDeletingPillars || !currentPillarContent}
                 className="h-8 w-8 bg-surface hover:bg-rose-500/10 border border-main hover:border-rose-500/30 text-text-muted hover:text-rose-500 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer shadow-sm"
-                title={autopsyScope === 'DOCUMENT' ? "Fshi shtjellat e këtij dokumenti nga MongoDB" : "Fshi shtjellat e rastit nga MongoDB"}
+                title={`Fshi VETËM "${currentConfigs[activePillar].title}" nga MongoDB`}
               >
                 {isDeletingPillars ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
               </button>

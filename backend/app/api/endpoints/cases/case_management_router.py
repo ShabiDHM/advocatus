@@ -1,5 +1,5 @@
 # FILE: app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V13.0 (DUAL 3-PILLAR MONGODB PERSISTENCE: CASE & DOC)
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V14.0 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLARS)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
@@ -204,7 +204,7 @@ async def update_case_chat_history(
     return {"status": "success", "message": "Chat history saved"}
 
 # =========================================================================
-# 🏛️ 1. RUAJTJA DHE LEXIMI I SHTJELLAVE TË LËNDËS NË MONGODB
+# 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB (ME TOTAL CASCADE WIPEOUT PËR 1 SHTJELLË)
 # =========================================================================
 
 @router.post("/{case_id}/pillars", status_code=status.HTTP_200_OK)
@@ -254,8 +254,37 @@ async def get_case_pillars_endpoint(
     
     return case.get("forensic_pillars") or {}
 
+@router.delete("/{case_id}/pillars/{pillar_name}", status_code=status.HTTP_200_OK)
+async def delete_single_case_pillar_endpoint(
+    case_id: str,
+    pillar_name: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Fshin me $unset vetëm shtjellën e caktuar dhe pastron memorien e vjetëruar."""
+    case_oid = validate_object_id(case_id)
+    pillar_key = pillar_name.strip()
+
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {
+            "$unset": {
+                f"forensic_pillars.{pillar_key}": "",
+                "latest_deep_analysis": "",
+                "latest_comprehensive_analysis": ""
+            },
+            "$set": {
+                "analysis_dirty": True,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] U fshi plotësisht shtjella {pillar_key} për lëndën {case_id}!")
+    return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
+
 # =========================================================================
-# ⚖️ 2. RUAJTJA DHE LEXIMI I SHTJELLAVE TË DOKUMENTIT TË VETËM NË MONGODB
+# ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM (ME TOTAL CASCADE WIPEOUT PËR 1 SHTJELLË)
 # =========================================================================
 
 @router.post("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
@@ -268,12 +297,6 @@ async def save_document_pillar_endpoint(
 ):
     case_oid = validate_object_id(case_id)
     doc_oid = validate_object_id(document_id)
-    user_oid = ObjectId(current_user.id) if ObjectId.is_valid(current_user.id) else current_user.id
-    
-    case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
-
     pillar_key = payload.pillar.strip()
     content_clean = payload.content.strip()
 
@@ -299,19 +322,39 @@ async def get_document_pillars_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    case_oid = validate_object_id(case_id)
     doc_oid = validate_object_id(document_id)
-    user_oid = ObjectId(current_user.id) if ObjectId.is_valid(current_user.id) else current_user.id
-    
-    case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
-
     doc = db.documents.find_one({"_id": doc_oid})
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
 
     return doc.get("forensic_pillars") or {}
+
+@router.delete("/{case_id}/documents/{document_id}/pillars/{pillar_name}", status_code=status.HTTP_200_OK)
+async def delete_single_document_pillar_endpoint(
+    case_id: str,
+    document_id: str,
+    pillar_name: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Fshin me $unset vetëm shtjellën e caktuar të dokumentit nga MongoDB Atlas."""
+    doc_oid = validate_object_id(document_id)
+    case_oid = validate_object_id(case_id)
+    pillar_key = pillar_name.strip()
+
+    await asyncio.to_thread(
+        db.documents.update_one,
+        {"_id": doc_oid, "$or": [{"case_id": case_id}, {"case_id": case_oid}]},
+        {
+            "$unset": {
+                f"forensic_pillars.{pillar_key}": "",
+                "latest_analysis": "",
+                "latest_forensic_audit": ""
+            }
+        }
+    )
+    logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] U asgjësua {pillar_key} për dokumentin {document_id} nga MongoDB!")
+    return {"status": "success", "message": f"Shtjella {pillar_key} u fshi plotësisht nga dokumenti."}
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(

@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V3.2 (FULL 3-PILLAR MONGODB PERSISTENCE: CASE & DOC)
+// PHOENIX PROTOCOL - FORENSIC SERVICE V3.3 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLARS)
 
 import { apiClient } from './apiClient';
 import type {
@@ -55,6 +55,11 @@ export class ForensicService {
     return response.data;
   }
 
+  public async deleteCasePillar(caseId: string, pillar: string): Promise<any> {
+    const response = await apiClient.delete(`/cases/${caseId}/pillars/${pillar}`);
+    return response.data;
+  }
+
   // =========================================================================
   // ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM NË MONGODB
   // =========================================================================
@@ -66,6 +71,11 @@ export class ForensicService {
 
   public async getDocumentPillars(caseId: string, documentId: string): Promise<Record<string, string>> {
     const response = await apiClient.get<Record<string, string>>(`/cases/${caseId}/documents/${documentId}/pillars`);
+    return response.data;
+  }
+
+  public async deleteDocumentPillar(caseId: string, documentId: string, pillar: string): Promise<any> {
+    const response = await apiClient.delete(`/cases/${caseId}/documents/${documentId}/pillars/${pillar}`);
     return response.data;
   }
 

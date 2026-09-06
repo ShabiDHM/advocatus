@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V21.0 (GRANULAR ACTIVE TAB PURGE)
-// ZERO TS WARNINGS • SINGLE-TAB ADMIN TRASH PURGE • 0MS INSTANT CACHE • 100% COMPLETE
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V22.0 (TOTAL CASCADE WIPEOUT FOR ACTIVE TAB)
+// ZERO TS WARNINGS • TRUE $UNSET MONGODB PURGE • PRESERVES OTHER PILLARS • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -277,11 +277,12 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
     setIsDeleting(true);
     try {
-      await forensicService.saveCasePillar(caseId, activePillar, "");
+      // Thirrje direkte e metodës kaskadë në MongoDB
+      await forensicService.deleteCasePillar(caseId, activePillar);
       setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
     } catch (err: any) {
       console.error("Failed to delete single pillar:", err);
-      alert("Dështoi fshirja e kësaj shtjelle.");
+      alert("Dështoi fshirja e kësaj shtjelle nga baza e të dhënave.");
     } finally {
       setIsDeleting(false);
     }
@@ -402,7 +403,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                   key={pillarKey}
                   type="button"
                   onClick={() => handleSelectPillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -414,9 +415,9 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     {isLoading ? (
-                      <Loader2 size={13} className="animate-spin text-white shrink-0" />
+                      <Loader2 size={12} className="animate-spin text-white shrink-0" />
                     ) : hasContent ? (
-                      <CheckCircle2 size={13} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                      <CheckCircle2 size={12} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
                     ) : null}
                     <span className="truncate">{cfg.title}</span>
                   </div>
@@ -443,7 +444,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
                 type="button"
                 onClick={() => handleGeneratePillar(activePillar)}
                 className="px-2 py-0.5 rounded-lg bg-surface hover:bg-hover text-primary-start border border-main font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-all text-[10px]"
-                title="Ri-gjenero vetëm këtë shtjellë"
+                title="Ri-gjenero këtë shtjellë"
               >
                 <RefreshCw size={10} />
                 <span>Ri-gjenero</span>
@@ -500,7 +501,20 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
               }
             `}</style>
 
-            {isCurrentLoading && !currentContent ? (
+            {!currentContent && !isCurrentLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                  {PILLAR_CONFIGS[activePillar].title}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => handleGeneratePillar(activePillar)}
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
+                >
+                  <span>Analizo {PILLAR_CONFIGS[activePillar].title}</span>
+                </button>
+              </div>
+            ) : isCurrentLoading && !currentContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
