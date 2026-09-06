@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V26.0 (MINIMALIST EXECUTIVE DUAL AUTOPSY PAIR)
-// ZERO TS WARNINGS • MATCHED SUBTLE OUTLINE STYLES • PURE INSTITUTIONAL DESIGN • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CHAT HEADER V27.0 (PURE MINIMALIST LED STATUS & SYMMETRICAL AUTOPSY PAIR)
+// ZERO TS WARNINGS • NO TEXT ON LEFT • SUBTLE OUTLINED BUTTONS • 100% COMPLETE CODE
 
 import React from 'react';
 import { Download, Trash2, Loader2, RefreshCw } from 'lucide-react';
@@ -28,7 +28,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   connectionStatus,
   onClearChat,
   onExportChat,
-  t,
   onAnalyzeCase,
   onAnalyzeDocument,
   selectedDocName,
@@ -37,25 +36,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   return (
     <div className="flex flex-row items-center justify-between px-3.5 sm:px-5 py-2.5 border-b border-main bg-surface z-50 shrink-0 h-13 min-h-[52px] select-none">
-      {/* Left: Titulli i Asistentit dhe LED Statusi */}
-      <div className="flex items-center gap-2 min-w-0">
-        <h2 className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wide leading-none truncate">
-          {t('chatPanel.title', 'Asistenti Sokratik')}
-        </h2>
-        <div className="flex items-center justify-center ml-0.5 shrink-0">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              connectionStatus === 'CONNECTED'
-                ? 'bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
-                : 'bg-danger-start animate-pulse'
-            }`}
-          />
-        </div>
+      {/* Left: Vetëm Drita LED e Statusit në të Majtë (Pa Tekst) */}
+      <div className="flex items-center justify-center shrink-0">
+        <span
+          className={`w-2.5 h-2.5 rounded-full ${
+            connectionStatus === 'CONNECTED'
+              ? 'bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
+              : 'bg-danger-start animate-pulse'
+          }`}
+          title={connectionStatus === 'CONNECTED' ? 'I lidhur' : 'Shkëputur'}
+        />
       </div>
 
-      {/* Right: Dy Butonat Minimalë e Elegantë (Të Dy me Stil të Njëjtë) */}
+      {/* Right: Dy Butonat Minimalë e Elegantë */}
       <div className="flex items-center justify-end gap-2 shrink-0">
-        {/* BUTONI 1: AUTOPSIA E RASTIT (ME STILIN E QETË TË DOKUMENTIT) */}
+        {/* BUTONI 1: AUTOPSIA E RASTIT */}
         {onAnalyzeCase && (
           <button
             type="button"
