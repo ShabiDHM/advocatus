@@ -6,7 +6,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
-import { forensicService } from '../services/forensicService';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import DockedPDFViewer from '../components/DockedPDFViewer';
