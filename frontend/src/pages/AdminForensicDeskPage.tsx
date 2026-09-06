@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - FORENSIC AUTOPSY LAB: MASTER DESK V4.0 (CLEAN INSTITUTIONAL DESIGN)
-// ZERO JARGON • 5 AUTONOMOUS LABS • SENTINEL INVESTIGATOR LOG • ZERO TS WARNINGS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - FORENSIC AUTOPSY LAB: MASTER DESK V4.1 (PURE ALBANIAN COURT INTEGRITY)
+// ZERO JARGON • ZERO ENGLISH STRINGS • 5 AUTONOMOUS LABS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -208,10 +208,10 @@ export const AdminForensicDeskPage: React.FC = () => {
                   type="button"
                   onClick={handleCopyHash}
                   className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-mono text-[10px] font-bold flex items-center gap-1.5 hover:bg-emerald-500/25 transition-colors cursor-pointer"
-                  title="Kopjo Chain of Custody Hash (SHA-256)"
+                  title="Kopjo Vulën Digjitale të Integritetit të Dosjes për Gjykatë"
                 >
                   <Hash size={11} />
-                  <span>{activeDossier.chainOfCustodyHash}</span>
+                  <span>Vula: {activeDossier.chainOfCustodyHash}</span>
                   {copiedHash ? <CheckCircle2 size={11} className="text-emerald-500" /> : <Copy size={11} />}
                 </button>
               )}
