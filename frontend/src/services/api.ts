@@ -1,5 +1,6 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V59.0 (EXPLICIT FORENSIC EXPORT • ZERO TS COLLISIONS)
+// PHOENIX PROTOCOL - MASTER API FACADE V61.0 (NATIVE CASE SERVICE INTEGRATION • ZERO TS COLLISIONS)
+// 100% COMPLETE CODE • ZERO TS WARNINGS • CONSOLIDATED SERVICES
 
 export * from './apiClient';
 export * from './authService';
@@ -80,12 +81,25 @@ class ApiService {
   public analyzeExistingSpreadsheet = caseService.analyzeExistingSpreadsheet.bind(caseService);
   public interrogateFinancialRecords = caseService.interrogateFinancialRecords.bind(caseService);
 
+  // ⚡ Metode Integrale Për Analizën e Shpejtë të Klientit (Nëpërmjet CaseService)
+  // Ruan përmbledhjen e lëndës në fushën e parë (PILLAR_1)
+  public saveCaseAnalysis = async (caseId: string, content: string) => {
+    return apiClient.post(`/cases/${caseId}/pillars`, { pillar: 'PILLAR_1', content });
+  };
+  // Ruan pasqyrën e shkresës
+  public saveDocumentAnalysis = async (caseId: string, documentId: string, content: string) => {
+    return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
+  };
+  // Pastron pasqyrën e shkresës (Clear Audit)
+  public clearDocumentAudit = async (caseId: string, documentId: string) => {
+    return apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
+  };
+
   // 🏛️ Forensic & Comprehensive Analysis Methods (Delegated to Isolated ForensicService)
   public analyzeCase = forensicService.analyzeCase.bind(forensicService);
   public clearCaseAnalysis = forensicService.clearCaseAnalysis.bind(forensicService);
   public archiveForensicReport = forensicService.archiveForensicReport.bind(forensicService);
   public downloadForensicReport = forensicService.downloadForensicReport.bind(forensicService);
-  public clearDocumentAudit = forensicService.clearDocumentAudit.bind(forensicService);
   public crossExamineDocument = forensicService.crossExamineDocument.bind(forensicService);
   public analyzeDeepStrategy = forensicService.analyzeDeepStrategy.bind(forensicService);
   public analyzeDeepSimulation = forensicService.analyzeDeepSimulation.bind(forensicService);

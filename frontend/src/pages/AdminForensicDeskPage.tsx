@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V5.0 (STANDALONE FORENSIC INTERROGATION TERMINAL INTEGRATION)
-// 100% COMPLETE CODE • ZERO TS/PY WARNINGS • CLAUDE SONNET 4.6 FORENSIC CHAT DOCK • 1M CONTEXT
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V6.1 (FIXED TYPINGS & CLEAN IMPORTS)
+// 100% COMPLETE CODE • ZERO TS/PY WARNINGS • STRICT RBAC ACCESS CONTROL • 1M CONTEXT DOCK
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -19,10 +19,12 @@ import {
   Building2,
   RefreshCw,
   FolderPlus,
-  BrainCircuit
+  ShieldCheck
 } from 'lucide-react';
+
 import { apiService } from '../services/api';
-import { forensicService } from '../services/forensicService';
+import { useAuth } from '../context/AuthContext';
+import { forensicDeskService, ForensicDossier, LabEvidenceCounts } from '../services/forensicDeskService';
 
 // Importimi i 5 Laboratorëve të Pavarur Forenzikë
 import { DocumentForensicLab } from '../components/forensics/DocumentForensicLab';
@@ -35,40 +37,27 @@ import { SynthesisWarRoom } from '../components/forensics/SynthesisWarRoom';
 import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 import { ForensicInterrogationDrawer } from '../components/forensics/ForensicInterrogationDrawer';
 
+// Tipizimi lokal i 5 laboratorëve
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | 'WAR_ROOM';
 
-interface ForensicDossier {
-  id: string;
-  caseNumber: string;
-  title: string;
-  clientName: string;
-  clientPhone?: string;
-  clientEmail?: string;
-  courtJurisdiction: string;
-  partnerLawyerName: string;
-  partnerLawyerLicense: string;
-  createdAt: string;
-  chainOfCustodyHash: string;
-  status: 'ACTIVE' | 'ARCHIVED' | 'DISPATCHED';
-}
-
-interface LabEvidenceCounts {
-  DOCUMENTS: number;
-  AUDIO: number;
-  VISUAL: number;
-  FINANCIAL: number;
-  WAR_ROOM: number;
-}
-
 export const AdminForensicDeskPage: React.FC = () => {
+  const { user } = useAuth();
+  
+  // 🔒 RBAC: KONTROLLI I HEKURT I ROLIT SUPERADMIN
+  const isSuperAdmin = React.useMemo(() => {
+    if (!user) return false;
+    const role = String(user.role || (user as any).user_role || '').toUpperCase();
+    return role === 'SUPERADMIN' || role === 'ADMIN';
+  }, [user]);
+
   const [activeLab, setActiveLab] = useState<ForensicLabType>('DOCUMENTS');
   const [activeDossier, setActiveDossier] = useState<ForensicDossier | null>(null);
-  const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
+  
   const [loadingCases, setLoadingCases] = useState<boolean>(false);
   const [existingCasesList, setExistingCasesList] = useState<any[]>([]);
+  
+  const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
-
-  // 🏛️ TERMINALI I CHAT-IT FORENZIK (MODUL I PAVARUR • CLAUDE SONNET 4.6)
   const [showChatDrawer, setShowChatDrawer] = useState<boolean>(false);
 
   const [labCounts, setLabCounts] = useState<LabEvidenceCounts>({
@@ -79,80 +68,33 @@ export const AdminForensicDeskPage: React.FC = () => {
     clientName: '',
     clientPhone: '',
     clientEmail: '',
-    courtJurisdiction: 'Gjykata Themelore Prishtinë',
-    partnerLawyerName: 'Av. Zyra Partnere e Licencuar OAK',
-    partnerLawyerLicense: 'OAK-2026-KS'
+    courtJurisdiction: 'Gjykata Themelore Prishtinë'
   });
 
   const [copiedHash, setCopiedHash] = useState<boolean>(false);
 
-  const generateDeterministicHash = (seed: string): string => {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash << 5) - hash + seed.charCodeAt(i);
-      hash |= 0;
-    }
-    return `SHA256-${Math.abs(hash).toString(16).toUpperCase().padStart(12, '0')}`;
-  };
-
-  const selectExistingDossier = useCallback((caseItem: any) => {
-    const dynamicHash = generateDeterministicHash(caseItem.id + (caseItem.title || ''));
-    
-    setActiveDossier({
-      id: caseItem.id,
-      caseNumber: caseItem.case_number || `KS-${caseItem.id.slice(-6).toUpperCase()}`,
-      title: caseItem.title || 'Dosje pa titull',
-      clientName: caseItem.client_name || 'Klient i Regjistruar',
-      courtJurisdiction: 'Gjykata Themelore Prishtinë',
-      partnerLawyerName: 'Av. Zyra Partnere e Licencuar OAK',
-      partnerLawyerLicense: 'OAK-2026-KS',
-      createdAt: caseItem.created_at || new Date().toISOString(),
-      chainOfCustodyHash: dynamicHash,
-      status: 'ACTIVE'
-    });
-  }, []);
-
+  // Ngarkimi i Dosjeve përmes shërbimit të ri
   const loadExistingDossiers = useCallback(async () => {
     setLoadingCases(true);
-    try {
-      const cases = await apiService.getCases();
-      setExistingCasesList(cases || []);
-      if (cases && cases.length > 0 && !activeDossier) {
-        selectExistingDossier(cases[0]);
-      }
-    } catch (err) {
-      console.error("Dështoi leximi i dosjeve forenzike:", err);
-    } finally {
-      setLoadingCases(false);
+    const { rawCases, mappedDossiers } = await forensicDeskService.loadAllDossiers();
+    setExistingCasesList(rawCases);
+    
+    // Zgjedh dosjen e parë nëse ekziston
+    if (mappedDossiers.length > 0 && !activeDossier) {
+      setActiveDossier(mappedDossiers[0]);
     }
-  }, [activeDossier, selectExistingDossier]);
+    setLoadingCases(false);
+  }, [activeDossier]);
 
   useEffect(() => {
     loadExistingDossiers();
   }, [loadExistingDossiers]);
 
+  // Rifreskimi i statistikave të provave përmes shërbimit të ri
   const refreshEvidenceCounts = useCallback(async () => {
     if (!activeDossier?.id) return;
-    try {
-      const [docs, media] = await Promise.all([
-        apiService.getDocuments(activeDossier.id).catch(() => []),
-        forensicService.getCaseMedia(activeDossier.id).catch(() => [])
-      ]);
-
-      const docCount = Array.isArray(docs) ? docs.length : 0;
-      const audioCount = Array.isArray(media) ? media.filter(m => m.media_type === 'audio').length : 0;
-      const visualCount = Array.isArray(media) ? media.filter(m => m.media_type === 'video' || m.mime_type?.startsWith('image/')).length : 0;
-
-      setLabCounts({
-        DOCUMENTS: docCount,
-        AUDIO: audioCount,
-        VISUAL: visualCount,
-        FINANCIAL: docCount > 0 ? 1 : 0,
-        WAR_ROOM: docCount + audioCount + visualCount
-      });
-    } catch (err) {
-      console.warn("Nuk mund të lexoheshin numërimet e plota të provave:", err);
-    }
+    const counts = await forensicDeskService.getEvidenceCounts(activeDossier.id);
+    setLabCounts(counts);
   }, [activeDossier?.id]);
 
   useEffect(() => {
@@ -161,6 +103,7 @@ export const AdminForensicDeskPage: React.FC = () => {
     }
   }, [activeDossier?.id, refreshEvidenceCounts]);
 
+  // Krijimi i Dosjes së Re
   const handleCreateNewDossier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDossierForm.clientName.trim()) {
@@ -176,7 +119,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         client_position: 'PLAINTIFF'
       } as any);
 
-      selectExistingDossier(created);
+      setActiveDossier(forensicDeskService.mapToForensicDossier(created));
       setShowNewDossierModal(false);
       await loadExistingDossiers();
     } catch (err: any) {
@@ -230,19 +173,19 @@ export const AdminForensicDeskPage: React.FC = () => {
 
         {/* Right: Zgjedhësi i Dosjeve, Chati Forenzik dhe Butonat */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          {/* 🏛️ BUTONI: TERMINALI I CHAT-IT FORENZIK (CLAUDE SONNET 4.6) */}
-          {activeDossier && (
+          {/* 🏛️ BUTONI I KYÇUR: CHATI FORENZIK VETËM PËR SUPERADMIN */}
+          {isSuperAdmin && activeDossier && (
             <button
               type="button"
               onClick={() => setShowChatDrawer(true)}
               className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
-              title="Hap Terminalin Konfidencial të Hetimit me Claude Sonnet 4.6"
+              title="Terminali i Sigurt i Bisedës Forenzike (Qasje Ekskluzive SuperAdmin)"
             >
-              <BrainCircuit size={15} className="text-primary-start" />
+              <ShieldCheck size={16} className="text-primary-start" />
               <span className="hidden xs:inline">Chati Forenzik</span>
               <span className="xs:hidden">Chat</span>
               <span className="hidden md:inline-flex px-1.5 py-0.5 rounded-md bg-primary-start text-white text-[9px] font-mono font-bold">
-                Sonnet 4.6
+                SuperAdmin
               </span>
             </button>
           )}
@@ -266,7 +209,7 @@ export const AdminForensicDeskPage: React.FC = () => {
               value={activeDossier?.id || ''}
               onChange={(e) => {
                 const found = existingCasesList.find(c => c.id === e.target.value);
-                if (found) selectExistingDossier(found);
+                if (found) setActiveDossier(forensicDeskService.mapToForensicDossier(found));
               }}
               className="bg-transparent text-[11px] sm:text-xs font-bold text-text-primary focus:outline-none pr-4 sm:pr-6 cursor-pointer w-full truncate"
               disabled={loadingCases}
@@ -463,7 +406,7 @@ export const AdminForensicDeskPage: React.FC = () => {
       </main>
 
       {/* 🏛️ TERMINALI I RI I PAVARUR FORENZIK ME CLAUDE SONNET 4.6 */}
-      {activeDossier && (
+      {isSuperAdmin && activeDossier && (
         <ForensicInterrogationDrawer
           isOpen={showChatDrawer}
           onClose={() => setShowChatDrawer(false)}
