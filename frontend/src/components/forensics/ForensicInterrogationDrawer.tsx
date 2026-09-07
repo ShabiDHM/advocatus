@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V1.1 (SUPERADMIN EXCLUSIVE CONSOLE)
-// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 (DEEP) • 100% ISOLATED PRIVILEGED CHAT • 100% COMPLETE
+// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V2.0 (MONGODB ATLAS & MULTI-DEVICE SYNC)
+// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • ATOMIC $UNSET PURGE • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,37 +65,40 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const [messages, setMessages] = useState<ForensicMessage[]>([]);
   const [input, setInput] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // 1. Ngarkimi i bisedës së izoluar të Zyrës Forenzike (Memory Storage)
+  // 1. Ngarkimi nga MongoDB Atlas në hapje (Multi-Device Sync)
   useEffect(() => {
-    if (!caseId) {
-      setMessages([]);
-      return;
+    if (isOpen && caseId) {
+      apiService.axiosInstance.get<ForensicMessage[]>(`/cases/${caseId}/forensic-chat`)
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            setMessages(res.data);
+          } else {
+            setMessages([]);
+          }
+        })
+        .catch(() => {
+          setMessages([]);
+        });
     }
-    try {
-      const saved = localStorage.getItem(`juristi_forensic_console_${caseId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setMessages(parsed);
-          return;
-        }
-      }
-    } catch {}
-    setMessages([]);
-  }, [caseId]);
+  }, [isOpen, caseId]);
 
-  // Ruajtja në memorien e izoluar të Zyrës Forenzike
-  const persistForensicMessages = useCallback((newMessages: ForensicMessage[]) => {
+  // 2. Ruajtja automatike në MongoDB Atlas pas çdo përgjigjeje
+  const persistForensicMessages = useCallback(async (newMessages: ForensicMessage[]) => {
     if (!caseId) return;
     try {
-      localStorage.setItem(`juristi_forensic_console_${caseId}`, JSON.stringify(newMessages));
-    } catch {}
+      await apiService.axiosInstance.put(`/cases/${caseId}/forensic-chat`, {
+        forensic_chat_history: newMessages
+      });
+    } catch (err) {
+      console.error("Failed to persist forensic chat to MongoDB:", err);
+    }
   }, [caseId]);
 
   // Auto-scroll kur mbërrin mesazhi
@@ -114,7 +117,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   // Dërgimi i pyetjes te Claude Sonnet 4.6 me modalitetin DEEP
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
-    if (!cleanText || isStreaming || !caseId) return;
+    if (!cleanText || isStreaming || !caseId || isPurging) return;
 
     const userMsg: ForensicMessage = {
       id: `usr_${Date.now()}`,
@@ -192,13 +195,21 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  const handleClearConsole = () => {
-    if (messages.length === 0) return;
-    if (window.confirm("A dëshironi ta pastroni këtë bisedë hetimore konfidenciale?")) {
+  // 3. TOTAL CASCADE WIPEOUT NË MONGODB ATLAS
+  const handleClearConsole = async () => {
+    if (messages.length === 0 || !caseId || isPurging) return;
+    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht bisedën forenzike nga Baza e të Dhënave (Total Cascade Wipeout)?");
+    if (!confirmWipe) return;
+
+    setIsPurging(true);
+    try {
+      await apiService.axiosInstance.delete(`/cases/${caseId}/forensic-chat`);
       setMessages([]);
-      if (caseId) {
-        localStorage.removeItem(`juristi_forensic_console_${caseId}`);
-      }
+    } catch (err) {
+      console.error("Could not wipe forensic chat on MongoDB:", err);
+      alert("Dështoi asgjësimi i bisedës forenzike në server.");
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -257,11 +268,11 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   <button
                     type="button"
                     onClick={handleClearConsole}
-                    disabled={isStreaming}
+                    disabled={isStreaming || isPurging}
                     className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer disabled:opacity-30"
-                    title="Pastro bisedën hetimore"
+                    title="Asgjëso bisedën nga MongoDB Atlas (Total Wipeout)"
                   >
-                    <Trash2 size={16} />
+                    {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                   </button>
                 )}
                 <button
@@ -287,7 +298,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                       Console Hetimore e SuperAdminit
                     </h4>
                     <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                      Merrni në pyetje inteligjencën doktrinare mbi të gjitha shkresat e fashikullit. Kjo bisedë është **100% konfidenciale** dhe e izoluar nga klienti.
+                      Merrni në pyetje inteligjencën doktrinare mbi të gjitha shkresat e fashikullit. Biseda sinkronizohet automatikisht në të gjitha pajisjet tuaja nëpërmjet **MongoDB Atlas**.
                     </p>
                   </div>
 
@@ -402,7 +413,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isStreaming}
+                  disabled={!input.trim() || isStreaming || isPurging}
                   className="h-9 w-9 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer"
                   title="Dërgo pyetjen hetimore"
                 >
@@ -410,7 +421,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 </button>
               </form>
               <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-text-muted">
-                <span>Terminal Konfidencial i SuperAdminit • Zero State Bleed</span>
+                <span>Sinkronizuar në MongoDB Atlas • Multi-Device Sync</span>
                 <span className="font-mono">Modeli: anthropic/claude-sonnet-4.6</span>
               </div>
             </div>

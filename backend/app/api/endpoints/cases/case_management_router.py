@@ -1,6 +1,6 @@
 # FILE: app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V15.0 (ATOMIC ANALYSIS PURGE & TOTAL CASCADE WIPEOUT)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS $UNSET SYNC
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V16.0 (DEDICATED FORENSIC CHAT PERSISTENCE & $UNSET WIPEOUT)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE FORENSIC CHAT SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
@@ -28,6 +28,9 @@ class SavePillarRequest(BaseModel):
 class SaveDocPillarRequest(BaseModel):
     pillar: str
     content: str
+
+class ForensicChatUpdate(BaseModel):
+    forensic_chat_history: List[Dict[str, Any]]
 
 # --- PUBLIC CLIENT PORTAL ENDPOINTS ---
 
@@ -205,6 +208,67 @@ async def update_case_chat_history(
     return {"status": "success", "message": "Chat history saved"}
 
 # =========================================================================
+# 🧠 CHATI FORENZIK I SUPERADMINIT (PERSISTENCË NË MONGODB & MULTI-DEVICE)
+# =========================================================================
+
+@router.get("/{case_id}/forensic-chat", status_code=status.HTTP_200_OK)
+async def get_forensic_chat_history_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Merr bisedën konfidenciale të Zyrës Forenzike nga MongoDB Atlas."""
+    case_oid = validate_object_id(case_id)
+    case = db.cases.find_one({"_id": case_oid})
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
+    return case.get("forensic_chat_history") or []
+
+@router.put("/{case_id}/forensic-chat", status_code=status.HTTP_200_OK)
+async def update_forensic_chat_history_endpoint(
+    case_id: str,
+    payload: ForensicChatUpdate,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Ruan bisedën konfidenciale të Zyrës Forenzike në MongoDB Atlas."""
+    case_oid = validate_object_id(case_id)
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {
+            "$set": {
+                "forensic_chat_history": payload.forensic_chat_history,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    return {"status": "success", "message": "Biseda forenzike u ruajt në MongoDB."}
+
+@router.delete("/{case_id}/forensic-chat", status_code=status.HTTP_200_OK)
+async def delete_forensic_chat_history_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Asgjëson me $unset bisedën konfidenciale forenzike nga MongoDB Atlas (Total Wipeout)."""
+    case_oid = validate_object_id(case_id)
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {
+            "$unset": {
+                "forensic_chat_history": ""
+            },
+            "$set": {
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
+    )
+    logger.info(f"🧹 [FORENSIC CHAT PURGED] U asgjësua biseda forenzike për lëndën {case_id} nga MongoDB!")
+    return {"status": "success", "message": "Biseda forenzike u asgjësua plotësisht nga MongoDB (Total Wipeout)."}
+
+# =========================================================================
 # 🧹 PHOENIX TOTAL PURGE: ASGJËSIMI I PLOTË I ANALIZËS SË RASTIT NGA MONGODB
 # =========================================================================
 @router.post("/{case_id}/analysis/clear", status_code=status.HTTP_200_OK)
@@ -214,9 +278,7 @@ async def clear_full_case_analysis_endpoint(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Asgjëson me $unset çdo analizë të vjetër të lëndës nga MongoDB Atlas."""
     case_oid = validate_object_id(case_id)
-    
     await asyncio.to_thread(
         db.cases.update_one,
         {"_id": case_oid},
@@ -238,7 +300,7 @@ async def clear_full_case_analysis_endpoint(
     return {"status": "success", "message": "Analiza e lëndës u asgjësua plotësisht nga MongoDB."}
 
 # =========================================================================
-# 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB
+# 🏛️ SHTJELLAT E LËNDËS NË MONGODB
 # =========================================================================
 
 @router.post("/{case_id}/pillars", status_code=status.HTTP_200_OK)
@@ -317,7 +379,7 @@ async def delete_single_case_pillar_endpoint(
     return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
 
 # =========================================================================
-# ⚖️ 2. SHTJELLAT E DOKUMENTIT TË VETËM
+# ⚖️ SHTJELLAT E DOKUMENTIT TË VETËM
 # =========================================================================
 
 @router.post("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
