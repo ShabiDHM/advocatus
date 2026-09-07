@@ -1,12 +1,12 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V2.0 (MONGODB ATLAS & MULTI-DEVICE SYNC)
+// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V3.0 (EXPANDABLE FULLSCREEN DOCK)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • ATOMIC $UNSET PURGE • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BrainCircuit, X, Send, Trash2, Copy, CheckCircle2, 
-  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert
+  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -67,6 +67,9 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  
+  // 🏛️ PHOENIX UX: Opsioni i Fullscreen (Zgjerimi i Terminalit)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -232,13 +235,17 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             className="absolute inset-0 bg-black/75 backdrop-blur-sm"
           />
 
-          {/* Slide-over Drawer Panel */}
+          {/* Slide-over Drawer Panel (Me Gjerësi Dinamike për Fullscreen) */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 240 }}
-            className="absolute top-0 right-0 bottom-0 w-full sm:w-[580px] md:w-[680px] lg:w-[760px] max-w-[96vw] border-l border-main shadow-2xl flex flex-col bg-card"
+            className={`absolute top-0 right-0 bottom-0 ${
+              isFullscreen 
+                ? 'w-full max-w-full' 
+                : 'w-full sm:w-[580px] md:w-[680px] lg:w-[760px] max-w-[96vw]'
+            } border-l border-main shadow-2xl flex flex-col bg-card transition-all duration-300 ease-in-out`}
             style={{ backgroundColor: 'var(--bg-card, #020617)' }}
           >
             {/* Top Header */}
@@ -264,6 +271,17 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
+                {/* 🏛️ Expand / Fullscreen Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="hidden sm:flex p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
+                  title={isFullscreen ? "Zvogëlo Terminalin" : "Zgjero Terminalin në Fullscreen"}
+                >
+                  {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+
+                {/* Trash Button */}
                 {messages.length > 0 && (
                   <button
                     type="button"
@@ -275,6 +293,8 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                     {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                   </button>
                 )}
+
+                {/* Close Button */}
                 <button
                   type="button"
                   onClick={onClose}
@@ -287,7 +307,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             </div>
 
             {/* Message Stream Area */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-finance-scroll space-y-4 bg-canvas/30 select-text">
+            <div className={`flex-1 overflow-y-auto p-4 sm:p-6 custom-finance-scroll space-y-4 bg-canvas/30 select-text ${isFullscreen ? 'px-8 md:px-24 lg:px-48' : ''}`}>
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-8 my-auto space-y-5">
                   <div className="w-16 h-16 rounded-3xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner">
@@ -394,7 +414,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             </div>
 
             {/* Input Terminal Bar */}
-            <div className="p-3 sm:p-4 bg-surface border-t border-main shrink-0">
+            <div className={`p-3 sm:p-4 bg-surface border-t border-main shrink-0 ${isFullscreen ? 'px-8 md:px-24 lg:px-48' : ''}`}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
