@@ -1,6 +1,6 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V264.0 (UNIVERSAL ADAPTIVE SOCRATIC LEGAL ADVISOR)
-# 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • ADAPTIM INTELIGJENT NDAJ ÇDO SITUATE
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V265.0 (HISTORY CONTEXT FORWARDING)
+# 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • MULTI-TURN REASONING
 
 import os
 import logging
@@ -45,7 +45,6 @@ RREGULLAT E HEKURTA TË DOKTRINËS DHE KONSULENCËS:
 
 
 def is_valid_legal_report(text: str) -> bool:
-    """Verifikon që përgjigja është një raport i vërtetë dhe JO një gabim teknik."""
     if not text or len(text.strip()) < 150:
         return False
     
@@ -68,7 +67,6 @@ def is_valid_legal_report(text: str) -> bool:
 
 
 def detect_requested_pillar(query_lower: str) -> Optional[str]:
-    """Identifikon saktë cilën shtjellë po kërkon përdoruesi nga prompt-i."""
     if "shtjella 1" in query_lower or "shtjella_1" in query_lower or "ekzaminimi" in query_lower or "fakti" in query_lower:
         return "PILLAR_1"
     if "shtjella 2" in query_lower or "shtjella_2" in query_lower or "nenet" in query_lower or "shkeljet" in query_lower:
@@ -79,12 +77,12 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V264.0 me Inteligjencë Universale Sokratike dhe Module të Izoluara."""
+    """Shërbimi Kryesor RAG — V265.0 me Përcjellje të Historikut për Bashkë-Avokati Interaktive."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V264.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V265.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -171,7 +169,7 @@ class AlbanianRAGService:
             "autopsi e plotë", "fashikull", "gjithë fashikullit"
         ])
 
-        # 2. Zbulimi i kërkesës për verifikim direkt statutor të neneve
+        # 2. Zbulimi i kërkesës për verifikim direkt statutor
         is_statutory_verification = any(kw in query_lower for kw in [
             "verifiko nenet", "a janë të sakta nenet", "referencat ligjore", 
             "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
@@ -200,7 +198,7 @@ class AlbanianRAGService:
         )
 
         # =========================================================================
-        # ⚡ SMART CACHE CHECK
+        # ⚡ SMART CACHE CHECK (0ms)
         # =========================================================================
         if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
             doc_pillars = single_doc_obj.get("forensic_pillars") or {}
@@ -231,7 +229,7 @@ class AlbanianRAGService:
                     return
 
         # =========================================================================
-        # 🔍 FILLON GJENERIMI I PËRSHTATUR SIPAS MODULIT
+        # 🔍 FILLON GJENERIMI I PËRSHTATUR ME MEMORIE HISTORIKE
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
@@ -313,7 +311,6 @@ class AlbanianRAGService:
             exec_query = optimized_query
 
         elif user_intent == "STATUTORY_VERIFICATION":
-            # 🏛️ MODULI I PAVARUR: VERIFIKIMI STATUTOR
             dossier_blocks = []
             for idx, doc in enumerate(db_documents[:15], 1):
                 doc_title = doc.get("file_name") or f"Dokumenti #{idx}"
@@ -362,7 +359,7 @@ class AlbanianRAGService:
             system_prompt = base_prompt
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
-            # 🧠 BISEDA E ZAKONSHME E CHAT-IT: KËSHILLTARI UNIVERSAL SOCRATIK DHE STRATEGJIK
+            # 🧠 CHAT UNIVERSAL DHE ADAPTUAR NDAJ ÇDO PYETJEJE
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
             )
@@ -381,16 +378,16 @@ class AlbanianRAGService:
             - Nëse pyetja kërkon strategji apo hapa ➔ Jep hapat e saktë proceduralë dhe taktikat e fitores.
             - Nëse pyetja kërkon nene apo ligje ➔ Cito nenet neni-për-nen sipas legjislacionit pozitiv të Kosovës dhe precedentëve supremë.
             - Nëse pyetja kërkon analizë provash apo faktesh ➔ Krahaso shkresat e fashikullit dhe zbulo të vërtetën.
-            - Nëse pyetja është e përgjithshme ligjore ➔ Përgjigju me autoritet doktrinar, qartësi dhe zgjidhje direkte.
+            - Nëse pyetja kërkon përmirësim apo riformulim të një rreshti apo fjalie ➔ Analizo historikun e bisedës dhe jep menjëherë formulimin e saktë profesional!
 
             DOKUMENTET DHE PROVAT E FASHIKULLIT:
             {manifest_str}
             {context_str}
             """
 
-        # Gjenerimi me Stream
+        # Gjenerimi me Stream duke përcjellë historikun e plotë
         full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context=""):
+        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
             full_generated_response += content
             yield content
 
