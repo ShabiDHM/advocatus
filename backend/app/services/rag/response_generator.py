@@ -1,426 +1,199 @@
-# FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V265.0 (HISTORY CONTEXT FORWARDING)
-# 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • MULTI-TURN REASONING
+# FILE: backend/app/services/rag/response_generator.py
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V92.0 (CLEAN IMPORTS & ZERO CIRCULAR LOCKS)
+# 100% COMPLETE CODE • ZERO IMPORT ERRORS • CLAUDE SONNET 4.6 & GEMINI 2.0 FLASH
 
-import os
 import logging
+import asyncio
+import os
 import re
-from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
-from datetime import datetime, timezone
-from bson import ObjectId
-
+from typing import Optional, List, Dict, Any, AsyncGenerator
+from openai import AsyncOpenAI
 from app.core.config import settings
 
-# Modulet RAG
-from app.services.rag.intent_detector import IntentDetector
-from app.services.rag.context_builder import ContextBuilder
-from app.services.rag.response_generator import ResponseGenerator
-from app.services.pillars.base_pillar_service import BasePillarService
-
-# Importimi i 4 Shtyllave Kryesore të Pavarura
-from app.services.pillars.forensic_audit_service import ForensicAuditService
-from app.services.pillars.legal_drafting_service import LegalDraftingService
-from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
-from app.services.pillars.statutory_verification_service import StatutoryVerificationService
+from app.services.llm.llm_client import (
+    _get_api_key,
+    _get_async_client,
+    PRIMARY_MODEL,
+    FAST_MODEL,
+    DEEP_MODEL,
+    FALLBACK_MODELS
+)
 
 logger = logging.getLogger(__name__)
 
-MANDATORY_LEGAL_DISCLAIMER = (
-    "\n\n---\n"
-    "⚖️ **KLAUZOLË E PËRGJEGJËSISË LIGJORE:**\n"
-    "*Kjo analizë dhe këto sugjerime procedurale janë gjeneruar nga Juristi AI për qëllime informative, "
-    "kërkimore dhe mbështetjeje profesionale. Ato nuk zëvendësojnë përfaqësimin e autorizuar nga një Avokat i licencuar i "
-    "Odës së Avokatëve të Kosovës (OAK). Të gjitha nenet, afatet procedurale dhe aktet duhet të verifikohen me legjislacionin "
-    "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
-)
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-ANTI_HALLUCINATION_INSTRUCTION = """
-RREGULLAT E HEKURTA TË DOKTRINËS DHE KONSULENCËS:
-1. PËRGJIGJU DREJTPËRDREJT DHE ME PËRMBAJTJE SUBSTICIALE: Cito nenet me saktësi neni-për-nen duke u mbështetur në shkresat e fashikullit dhe ligjet e Kosovës.
-2. NDALOHET KATEGORIKISHT TË JAPËSH PËRGJIGJE EVAZIVE SI "VIZITONI FAQEN E KUVENDIT", "KËRKONI NË GOOGLE" APO "KONSULTONI NJË AVOKAT".
-   TI JE ASISTENTI LIGJOR DHE EKSPERTI DOKTRINAR QË E KRYEN PUNËN TANI: Zgjidhe pyetjen e përdoruesit në mënyrë konkrete, analitike dhe strategjike!
-3. MBROJTJA E INTERESIT TË KLIENTIT: Përshtatu me besnikëri ndaj pozitës procedurale të klientit dhe shfrytëzo të gjitha provat e administruara në dosje.
-4. Përdor ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016, Ligji për Gjykatën Komerciale Nr. 08/L-015, Ligji për PSRK Nr. 03/L-052.
-"""
+# 🏛️ ZYRA FORENZIKE: Modeli Suprem Doktrinar (Claude Sonnet 4.6)
+TIER1_ELITE_MODEL = "anthropic/claude-sonnet-4.6"  
 
+# ⚡ CASEVIEW & CHAT: Modeli i Shpejtë Ekonomik ($0.10/1M)
+CHAT_FAST_MODEL = "google/gemini-2.0-flash-001"  
 
-def is_valid_legal_report(text: str) -> bool:
-    if not text or len(text.strip()) < 150:
-        return False
-    
-    lower_text = text.lower()
-    error_markers = [
-        "përkohësisht i ngarkuar",
-        "error code:",
-        "context_length_exceeded",
-        "max_num_tokens",
-        "upstream error",
-        "not a valid model",
-        "no endpoints found",
-        "gabim teknik"
-    ]
-    for marker in error_markers:
-        if marker in lower_text:
-            return False
-            
-    return True
+HEAVY_TASK_FALLBACKS = [
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-3.7-sonnet",
+    "google/gemini-2.0-flash-001",
+    "google/gemini-pro-1.5"
+]
+
+FAST_TASK_FALLBACKS = [
+    "google/gemini-2.0-flash-001",
+    "openai/gpt-4o-mini",
+    "deepseek/deepseek-chat"
+]
+
+LLM_TIMEOUT = 300
+MAX_RETRIES = 2
+MAX_SINGLE_PASS_CHARS = 1_500_000
+
+OPENROUTER_HEADERS = {
+    "HTTP-Referer": "https://juristi.tech",
+    "X-Title": "Juristi AI - Kosova Legal Tech Orchestrator"
+}
 
 
-def detect_requested_pillar(query_lower: str) -> Optional[str]:
-    if "shtjella 1" in query_lower or "shtjella_1" in query_lower or "ekzaminimi" in query_lower or "fakti" in query_lower:
-        return "PILLAR_1"
-    if "shtjella 2" in query_lower or "shtjella_2" in query_lower or "nenet" in query_lower or "shkeljet" in query_lower:
-        return "PILLAR_2"
-    if "shtjella 3" in query_lower or "shtjella_3" in query_lower or "kundërshtimet" in query_lower or "plani" in query_lower:
-        return "PILLAR_3"
-    return None
+class ResponseGenerator:
+    """
+    Gjeneruesi Suprem i Përgjigjeve (V92.0):
+    - Multi-Turn Conversational Memory me pastrim total të importeve rrethore.
+    - Dual Engine: Gemini 2.0 Flash (Fast) dhe Claude Sonnet 4.6 (Deep).
+    """
 
+    def __init__(self):
+        self.api_key = _get_api_key()
+        self.client = _get_async_client()
 
-class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V265.0 me Përcjellje të Historikut për Bashkë-Avokati Interaktive."""
-
-    def __init__(self, db: Any):
-        self.db = db
-        self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V265.0 Initialized.")
-
-    def _optimize_query(self, query: str) -> str:
-        cleaned = query.strip()
-        preambles = [
-            r"^\s*më\s+trego\s+rreth\s+",
-            r"^\s*më\s+trego\s+për\s+",
-            r"^\s*a\s+mund\s+të\s+më\s+ndihmosh\s+me\s+",
-            r"^\s*ju\s+lutem\s+më\s+gjej\s+",
-            r"^\s*kërko\s+për\s+",
-            r"^\s*gjej\s+nenin\s+",
-        ]
-        for preamble in preambles:
-            cleaned = re.sub(preamble, "", cleaned, flags=re.IGNORECASE)
+    async def _call_with_retry(
+        self, 
+        messages: List[Dict[str, str]], 
+        stream: bool = True, 
+        max_tokens: int = 16384,
+        model: Optional[str] = None,
+        is_heavy_task: bool = False
+    ):
+        last_error = None
+        base_list = HEAVY_TASK_FALLBACKS if is_heavy_task else FAST_TASK_FALLBACKS
         
-        abbreviations = {
-            r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
-            r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
-            r"\bKPRK\b": "Kodi Penal i Republikës së Kosovës (Nr. 06/L-074)",
-            r"\bKPPRK\b": "Kodi i Procedurës Penale të Kosovës",
-            r"\bLPK\b": "Ligji për Procedurën Kontestimore",
-            r"\bLFK\b": "Ligji për Familjen i Kosovës",
-            r"\bPSRK\b": "Prokuroria Speciale e Republikës së Kosovës",
-        }
-        for abbr, expansion in abbreviations.items():
-            cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
+        target_model = model or (TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL)
+        models_to_try = [target_model] + [m for m in base_list if m != target_model]
         
-        return cleaned.strip()
+        unique_models: List[str] = []
+        for m in models_to_try:
+            if m and m not in unique_models:
+                unique_models.append(m)
 
-    async def chat(
+        for current_model in unique_models:
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    logger.info(f"⚖️ [Juristi AI Engine] Modeli në ekzekutim: {current_model} (Tier: {'CLAUDE_SONNET_DEEP' if is_heavy_task else 'GEMINI_FAST'}, MaxTokens: {max_tokens}) Përpjekja {attempt}...")
+                    kwargs: Dict[str, Any] = {
+                        "model": current_model,
+                        "messages": messages,
+                        "temperature": 0.0,
+                        "stream": stream,
+                        "max_tokens": max_tokens
+                    }
+                    
+                    if "deepseek" in current_model.lower():
+                        kwargs["extra_body"] = {
+                            "provider": {
+                                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
+                                "allow_fallbacks": True
+                            }
+                        }
+
+                    response = await self.client.chat.completions.create(**kwargs)
+                    return response
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate limit" in err_str:
+                        logger.warning(f"⚠️ [Rate Limit] në {current_model}: {e}. Po pres {attempt * 2}s...")
+                        await asyncio.sleep(attempt * 2.0)
+                        continue
+                    else:
+                        logger.warning(f"⚠️ Dështoi modeli {current_model}: {e}. Po kaloj te fallback-u tjetër...")
+                        break
+        
+        raise last_error if last_error else Exception("Dështoi komunikimi me të gjithë ofruesit e LLM.")
+
+    async def generate_stream(
         self,
-        query: str,
-        user_id: str,
-        case_id: Optional[str] = None,
-        document_ids: Optional[List[str]] = None,
-        jurisdiction: str = 'ks',
-        history: Optional[List[Dict[str, Any]]] = None,
-        domain: Optional[str] = 'automatic'
+        system_prompt: str,
+        user_query: str,
+        context: str = "",
+        model_override: Optional[str] = None,
+        reasoning_mode: Optional[str] = None,
+        history: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
-        
-        current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+        try:
+            combined_upper = f"{system_prompt} {user_query}".upper()
 
-        client_position = "PALË NË PROCEDURË"
-        client_name = "Klienti / Parashtruesi"
-        case_title = "Lënda Ligjore"
-        db_documents = []
-        case_doc = None
-        c_oid = None
-
-        if case_id and self.db is not None:
-            try:
-                c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-                case_doc = self.db.cases.find_one({"_id": c_oid})
-                if case_doc:
-                    if case_doc.get("client_position") or case_doc.get("client_role"):
-                        client_position = str(case_doc.get("client_position") or case_doc.get("client_role")).upper()
-                    client_name = case_doc.get("client_name") or case_doc.get("client", {}).get("name") or client_name
-                    case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
-
-                doc_filter: Dict[str, Any] = {
-                    "$or": [{"case_id": case_id}, {"case_id": c_oid}],
-                    "status": {"$ne": "DELETED"}
-                }
-
-                if document_ids and len(document_ids) > 0:
-                    doc_oids = [ObjectId(did) for did in document_ids if ObjectId.is_valid(did)]
-                    doc_strs = [str(did) for did in document_ids]
-                    doc_filter["_id"] = {"$in": doc_oids + doc_strs}
-
-                db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("date", 1)]))
-            except Exception as ex:
-                logger.warning(f"Could not read case documents: {ex}")
-
-        single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
-
-        from app.services import vector_store_service
-        query_lower = query.lower()
-        optimized_query = self._optimize_query(query)
-        req_pillar = detect_requested_pillar(query_lower)
-
-        # 1. Zbulimi i kërkesës për të gjithë lëndën
-        is_case_wide_request = any(kw in query_lower for kw in [
-            "analizo rastin", "analizë e rastit", "analizë standarde e rastit",
-            "pasqyra ekzekutive e lëndës", "pasqyra e lëndës", "raportin master",
-            "autopsi e plotë", "fashikull", "gjithë fashikullit"
-        ])
-
-        # 2. Zbulimi i kërkesës për verifikim direkt statutor
-        is_statutory_verification = any(kw in query_lower for kw in [
-            "verifiko nenet", "a janë të sakta nenet", "referencat ligjore", 
-            "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
-        ])
-
-        if single_doc_obj is not None and not is_case_wide_request and not is_statutory_verification:
-            user_intent = "FORENSIC_AUDIT"
-        elif is_case_wide_request:
-            user_intent = "COMPREHENSIVE_ANALYSIS"
-            single_doc_obj = None
-        elif is_statutory_verification:
-            user_intent = "STATUTORY_VERIFICATION"
-        else:
-            user_intent = IntentDetector.detect(query)
-
-        sample_text = ""
-        if single_doc_obj:
-            sample_text = (single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or "")[:5000]
-        elif db_documents:
-            sample_text = " ".join([(d.get("content") or d.get("extracted_text") or "")[:1500] for d in db_documents[:5]])
-
-        detected_domain = BasePillarService.detect_case_domain(
-            case_title=case_title,
-            context_str=sample_text,
-            manifest_str=""
-        )
-
-        # =========================================================================
-        # ⚡ SMART CACHE CHECK (0ms)
-        # =========================================================================
-        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
-            doc_pillars = single_doc_obj.get("forensic_pillars") or {}
-            if req_pillar and doc_pillars.get(req_pillar):
-                cached_text = doc_pillars[req_pillar]
-                if is_valid_legal_report(cached_text):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
-                    yield cached_text
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-            elif not req_pillar:
-                cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
-                if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin.")
-                    yield cached_doc_audit
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-
-        elif user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc and not single_doc_obj:
-            is_dirty = case_doc.get("analysis_dirty", False)
-            forensic_pillars = case_doc.get("forensic_pillars") or {}
-            if not is_dirty and req_pillar and forensic_pillars.get(req_pillar):
-                cached_pillar = forensic_pillars[req_pillar]
-                if is_valid_legal_report(cached_pillar):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për lëndën {case_id}.")
-                    yield cached_pillar
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-
-        # =========================================================================
-        # 🔍 FILLON GJENERIMI I PËRSHTATUR ME MEMORIE HISTORIKE
-        # =========================================================================
-        exec_query = optimized_query
-        system_prompt = ""
-
-        if user_intent == "FORENSIC_AUDIT":
-            doc_text = ""
-            if single_doc_obj:
-                doc_text = single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or ""
-            if not doc_text and db_documents:
-                doc_text = db_documents[0].get("content") or db_documents[0].get("extracted_text") or ""
-
-            doc_name = single_doc_obj.get('file_name', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'
-            manifest_str = f"Dokumenti në Audit: {doc_name}"
-            
-            base_prompt = ForensicAuditService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                context_str=doc_text,
-                document_text=doc_text,
-                manifest_str=manifest_str,
-                case_domain=detected_domain,
-                query_text=optimized_query,
-                db=self.db,
-                user_id=user_id,
-                case_id=""
+            # 1. Zgjedhja e Modelit
+            is_explicit_fast = (
+                reasoning_mode == "FAST" or
+                "[ANALIZË STANDARDE" in combined_upper or
+                "[PËRMBLEDHJE EKZEKUTIVE" in combined_upper or
+                "[AUDITIM STANDART" in combined_upper
             )
-            system_prompt = base_prompt
-            exec_query = optimized_query
 
-        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            dossier_blocks = []
-            manifest_lines = []
-            max_chars_per_doc = 8000 if len(db_documents) > 10 else 25000
+            is_explicit_heavy = not is_explicit_fast and (
+                reasoning_mode == "DEEP" or
+                "[DIREKTIVË FORENZIKE" in combined_upper or
+                "SHTJELLA" in combined_upper or
+                "FORENZIKE" in combined_upper or
+                "[RAPORT MASTER" in combined_upper
+            )
 
-            for idx, doc in enumerate(db_documents, 1):
-                doc_title = doc.get("file_name") or doc.get("title") or f"Dokumenti #{idx}"
-                raw_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
-                doc_text = raw_text[:max_chars_per_doc]
-                doc_date = doc.get("document_date") or doc.get("created_at") or ""
-                if hasattr(doc_date, "strftime"):
-                    doc_date = doc_date.strftime("%d.%m.%Y")
-                
-                manifest_lines.append(f"{idx}. {doc_title} (Data/Ref: {doc_date})")
-                dossier_blocks.append(
-                    f"======================================================================\n"
-                    f"SHKRESA #{idx} NË FASHIKULL: {doc_title} | DATA: {doc_date}\n"
-                    f"======================================================================\n"
-                    f"{doc_text}\n"
-                )
-
-            if dossier_blocks:
-                integral_context_str = "\n".join(dossier_blocks)
-                manifest_str = "\n".join(manifest_lines)
+            if is_explicit_fast:
+                is_heavy_task = False
+                selected_model = model_override or CHAT_FAST_MODEL
+                max_tokens = 8192
+            elif is_explicit_heavy:
+                is_heavy_task = True
+                selected_model = model_override or TIER1_ELITE_MODEL
+                max_tokens = 16384
             else:
-                case_docs = vector_store_service.query_case_knowledge_base(
-                    user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
-                )
-                global_docs = vector_store_service.query_global_knowledge_base(
-                    query_text=optimized_query, n_results=15
-                )
-                manifest_str, integral_context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+                is_heavy_task = False
+                selected_model = model_override or CHAT_FAST_MODEL
+                max_tokens = 4096
 
-            base_prompt = ComprehensiveAnalysisService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=integral_context_str,
-                case_domain=detected_domain,
-                db=self.db,
-                query_text=optimized_query,
-                user_id=user_id,
-                case_id=case_id
+            full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
+            
+            enhanced_system_prompt = f"""
+{full_context_content}
+
+RREGULLAT E HEKURTA DOKTRINARE TË REPUBLIKËS SË KOSOVËS:
+1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës.
+2. DIALOGU INTERAKTIV DHE RIFORMULIMI:
+   Kur përdoruesi kërkon përmirësim, rishikim apo riformulim të një fjalie, rreshti apo seksioni të mëparshëm, analizoni menjëherë tekstin e mëparshëm në bisedë dhe ofroni formulën e përsosur solemne gjyqësore, duke shpjeguar arsyen doktrinare.
+3. NDALOHEN PËRGJIGJET EVAZIVE: Zgjidhe kërkesën ligjore drejtpërdrejt dhe me saktësi neni-për-nen!
+"""
+            messages = [{"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]}]
+            
+            if history and isinstance(history, list):
+                for h in history[-8:]:
+                    r = "assistant" if h.get("role") in ["ai", "assistant"] else "user"
+                    c = h.get("content") or h.get("text") or ""
+                    if c and not c.startswith("[Gabim Teknik"):
+                        messages.append({"role": r, "content": c})
+
+            messages.append({"role": "user", "content": user_query})
+            
+            response = await self._call_with_retry(
+                messages, 
+                stream=True, 
+                max_tokens=max_tokens,
+                model=selected_model,
+                is_heavy_task=is_heavy_task
             )
-            system_prompt = base_prompt
-            exec_query = optimized_query
-
-        elif user_intent == "STATUTORY_VERIFICATION":
-            dossier_blocks = []
-            for idx, doc in enumerate(db_documents[:15], 1):
-                doc_title = doc.get("file_name") or f"Dokumenti #{idx}"
-                raw_text = (doc.get("content") or doc.get("extracted_text") or "")[:8000]
-                dossier_blocks.append(f"SHKRESA #{idx}: {doc_title}\n{raw_text}\n")
-
-            context_docs = "\n".join(dossier_blocks)
-            base_prompt = StatutoryVerificationService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                context_str=context_docs,
-                manifest_str="",
-                case_domain=detected_domain,
-                query_text=optimized_query,
-                user_id=user_id,
-                case_id=case_id,
-                db=self.db
-            )
-            system_prompt = base_prompt
-            exec_query = optimized_query
-
-        elif user_intent == "DRAFTING":
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            base_prompt = LegalDraftingService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=context_str,
-                query=optimized_query,
-                case_domain=detected_domain,
-                db=self.db,
-                user_id=user_id,
-                case_id=case_id
-            )
-            system_prompt = base_prompt
-            exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
-        else:
-            # 🧠 CHAT UNIVERSAL DHE ADAPTUAR NDAJ ÇDO PYETJEJE
-            case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
-            )
-            global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
-            )
-            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            system_prompt = f"""
-            Ti je "Juristi AI - Asistenti Ligjor Inteligjent dhe Eksperti Kryesor i Doktrinës Ligjore në Kosovë".
-            LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
-
-            {ANTI_HALLUCINATION_INSTRUCTION}
-
-            MANDATI YT ADAPTOHET SIPAS PYETJES SË PËRDORUESIT:
-            - Nëse pyetja kërkon strategji apo hapa ➔ Jep hapat e saktë proceduralë dhe taktikat e fitores.
-            - Nëse pyetja kërkon nene apo ligje ➔ Cito nenet neni-për-nen sipas legjislacionit pozitiv të Kosovës dhe precedentëve supremë.
-            - Nëse pyetja kërkon analizë provash apo faktesh ➔ Krahaso shkresat e fashikullit dhe zbulo të vërtetën.
-            - Nëse pyetja kërkon përmirësim apo riformulim të një rreshti apo fjalie ➔ Analizo historikun e bisedës dhe jep menjëherë formulimin e saktë profesional!
-
-            DOKUMENTET DHE PROVAT E FASHIKULLIT:
-            {manifest_str}
-            {context_str}
-            """
-
-        # Gjenerimi me Stream duke përcjellë historikun e plotë
-        full_generated_response = ""
-        async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
-            full_generated_response += content
-            yield content
-
-        # Ruajtja automatike nëse është raport i vlefshëm
-        if is_valid_legal_report(full_generated_response):
-            if single_doc_obj and self.db is not None:
-                save_doc_key = req_pillar or "PILLAR_1"
-                try:
-                    self.db.documents.update_one(
-                        {"_id": single_doc_obj["_id"]},
-                        {"$set": {
-                            f"forensic_pillars.{save_doc_key}": full_generated_response.strip(),
-                            "latest_analysis": full_generated_response.strip(),
-                            "latest_forensic_audit": full_generated_response.strip(),
-                            "last_audited_at": datetime.now(timezone.utc)
-                        }}
-                    )
-                except Exception as save_err:
-                    logger.warning(f"Could not cache doc pillar: {save_err}")
-
-            elif user_intent == "COMPREHENSIVE_ANALYSIS" and c_oid and self.db is not None and not single_doc_obj:
-                save_case_key = req_pillar or "PILLAR_1"
-                try:
-                    self.db.cases.update_one(
-                        {"_id": c_oid},
-                        {"$set": {
-                            f"forensic_pillars.{save_case_key}": full_generated_response.strip(),
-                            "latest_deep_analysis": full_generated_response.strip(),
-                            "analysis_dirty": False,
-                            "last_analyzed_at": datetime.now(timezone.utc)
-                        }}
-                    )
-                except Exception as save_err:
-                    logger.warning(f"Could not cache case pillar: {save_err}")
-
-        yield MANDATORY_LEGAL_DISCLAIMER
+            
+            async for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0:
+                    choice = chunk.choices[0]
+                    if choice.delta and choice.delta.content:
+                        yield choice.delta.content
+                    
+        except Exception as e:
+            logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve: {e}")
+            yield f"\n\n[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri: {str(e)}]"
