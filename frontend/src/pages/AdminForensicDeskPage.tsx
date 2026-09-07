@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - LEGAL PALANTIR KOSOVA: MASTER FORENSIC STUDIO SHELL V3.2
-// 100% MOBILE RESPONSIVE HEADER • NO HORIZONTAL SCROLLBARS • CLEAN FLEX WRAPPING
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V5.0 (STANDALONE FORENSIC INTERROGATION TERMINAL INTEGRATION)
+// 100% COMPLETE CODE • ZERO TS/PY WARNINGS • CLAUDE SONNET 4.6 FORENSIC CHAT DOCK • 1M CONTEXT
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,7 +18,8 @@ import {
   UserCheck,
   Building2,
   RefreshCw,
-  FolderPlus
+  FolderPlus,
+  BrainCircuit
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { forensicService } from '../services/forensicService';
@@ -30,8 +31,9 @@ import { VisualForensicLab } from '../components/forensics/VisualForensicLab';
 import { FinancialForensicLab } from '../components/forensics/FinancialForensicLab';
 import { SynthesisWarRoom } from '../components/forensics/SynthesisWarRoom';
 
-// Importimi i Ditarit të Hetuesit Autonom
+// Importimi i Ditarit të Hetuesit dhe Terminalit të Bisedës Forenzike
 import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
+import { ForensicInterrogationDrawer } from '../components/forensics/ForensicInterrogationDrawer';
 
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | 'WAR_ROOM';
 
@@ -65,6 +67,9 @@ export const AdminForensicDeskPage: React.FC = () => {
   const [loadingCases, setLoadingCases] = useState<boolean>(false);
   const [existingCasesList, setExistingCasesList] = useState<any[]>([]);
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
+
+  // 🏛️ TERMINALI I CHAT-IT FORENZIK (MODUL I PAVARUR • CLAUDE SONNET 4.6)
+  const [showChatDrawer, setShowChatDrawer] = useState<boolean>(false);
 
   const [labCounts, setLabCounts] = useState<LabEvidenceCounts>({
     DOCUMENTS: 0, AUDIO: 0, VISUAL: 0, FINANCIAL: 0, WAR_ROOM: 0
@@ -191,7 +196,7 @@ export const AdminForensicDeskPage: React.FC = () => {
       
       {/* KOKA SUPREME: IDENTITETI DHE STATUSI I DOSJES FORENZIKE */}
       <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 sm:gap-5 pb-5 border-b border-main">
-        {/* Left: Titulli dhe Emblema (Përshtatje për Mobile) */}
+        {/* Left: Titulli dhe Emblema */}
         <div className="flex items-start sm:items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-rose-600 via-indigo-700 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/20 shrink-0 mt-1 sm:mt-0">
             <ShieldAlert size={22} className="sm:w-[26px] sm:h-[26px]" />
@@ -223,8 +228,25 @@ export const AdminForensicDeskPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Zgjedhësi i Dosjeve & Butonat (Kompakt në Mobile) */}
+        {/* Right: Zgjedhësi i Dosjeve, Chati Forenzik dhe Butonat */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          {/* 🏛️ BUTONI: TERMINALI I CHAT-IT FORENZIK (CLAUDE SONNET 4.6) */}
+          {activeDossier && (
+            <button
+              type="button"
+              onClick={() => setShowChatDrawer(true)}
+              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
+              title="Hap Terminalin Konfidencial të Hetimit me Claude Sonnet 4.6"
+            >
+              <BrainCircuit size={15} className="text-primary-start" />
+              <span className="hidden xs:inline">Chati Forenzik</span>
+              <span className="xs:hidden">Chat</span>
+              <span className="hidden md:inline-flex px-1.5 py-0.5 rounded-md bg-primary-start text-white text-[9px] font-mono font-bold">
+                Sonnet 4.6
+              </span>
+            </button>
+          )}
+
           {/* Butoni i Ditarit të Hetuesit */}
           <button
             type="button"
@@ -281,7 +303,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         </div>
       </header>
 
-      {/* SHIRITI I NAVIGIMIT MES 5 LABORATORËVE (NO HORIZONTAL SCROLLBAR IN MOBILE) */}
+      {/* SHIRITI I NAVIGIMIT MES 5 LABORATORËVE */}
       <nav className="my-4 sm:my-5 w-full">
         <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1.5 shadow-inner gap-1.5 overflow-x-auto custom-finance-scroll snap-x">
           
@@ -371,7 +393,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Informacion i Dosjes Aktive (Shfaqet vetëm në Desktop) */}
+        {/* Informacion i Dosjes Aktive */}
         {activeDossier && (
           <div className="hidden lg:flex items-center gap-3 bg-surface border border-main px-4 py-2 rounded-2xl text-xs mt-3 w-fit">
             <UserCheck size={14} className="text-primary-start" />
@@ -439,6 +461,18 @@ export const AdminForensicDeskPage: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* 🏛️ TERMINALI I RI I PAVARUR FORENZIK ME CLAUDE SONNET 4.6 */}
+      {activeDossier && (
+        <ForensicInterrogationDrawer
+          isOpen={showChatDrawer}
+          onClose={() => setShowChatDrawer(false)}
+          caseId={activeDossier.id}
+          caseNumber={activeDossier.caseNumber}
+          clientName={activeDossier.clientName}
+          chainOfCustodyHash={activeDossier.chainOfCustodyHash}
+        />
+      )}
 
       {/* PANELI ANËSOR: DITARI I HETUESIT */}
       {activeDossier && (
