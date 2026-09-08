@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.4 (ARCHIVED DOCS REMAIN VISIBLE)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.6 (ADDED /preview WITH PDF CONVERSION)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -7,15 +7,14 @@ import io
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
-from fastapi.responses import StreamingResponse, FileResponse
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.responses import StreamingResponse
 from pymongo.database import Database
 from bson import ObjectId
 from pydantic import BaseModel, Field
 
 from app.core.db import get_db
-from app.core.config import settings
 from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
 from app.services import storage_service
@@ -23,6 +22,7 @@ from app.services.text_extraction_service import text_extraction_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_llm_service import call_forensic_llm
+from app.services.pdf_service import pdf_service  # <-- PËRDORIMI I PDF_SERVICE
 
 router = APIRouter(prefix="/documents", tags=["Forensic Documents"])
 logger = logging.getLogger(__name__)
@@ -134,14 +134,12 @@ def list_forensic_documents(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    # Return all documents except those explicitly deleted
     cursor = db[FORENSIC_DOCS_COLLECTION].find({
         "case_id": str(case_id),
-        "status": {"$ne": "DELETED"}   # keep ARCHIVED and READY
+        "status": {"$ne": "DELETED"}
     }).sort("created_at", -1)
     items = [_serialize_doc(d) for d in cursor]
 
-    # Also include legacy documents if any (but exclude DELETED)
     try:
         case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         legacy_cursor = db.documents.find({
@@ -258,7 +256,7 @@ def delete_forensic_doc_pillar(
     return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
 
 # ==========================================================
-# 4. FSHIRJA, RIEMËRTIMI DHE ARKIVIMI (ARKIVIMI NUK FSHIN)
+# 4. FSHIRJA, RIEMËRTIMI DHE ARKIVIMI
 # ==========================================================
 @router.delete("/{case_id}/{doc_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_document(
@@ -326,7 +324,6 @@ def archive_forensic_document(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """Arkivon dokumentin (status -> ARCHIVED) por e lë në listë."""
     if not ObjectId.is_valid(doc_id):
         raise HTTPException(status_code=400, detail="ID e dokumentit e pavlefshme.")
 
@@ -358,7 +355,7 @@ def archive_forensic_document(
     return {"status": "success", "message": "Dokumenti u arkivua (mbetet në listë)."}
 
 # ==========================================================
-# 5. SHKARKIMI I SKEDARIT (BLOB)
+# 5. SHKARKIMI I SKEDARIT ORIGJINAL (DOWNLOAD)
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/download")
 async def download_forensic_document(
@@ -367,7 +364,7 @@ async def download_forensic_document(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """Serve the raw forensic document file from storage."""
+    """Kthen skedarin origjinal (pa konvertim)."""
     doc = None
     if ObjectId.is_valid(doc_id):
         doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
@@ -393,3 +390,72 @@ async def download_forensic_document(
     except Exception as e:
         logger.error(f"File download error: {e}")
         raise HTTPException(status_code=500, detail="Dështoi shkarkimi i skedarit.")
+
+# ==========================================================
+# 6. PREVIEW - KONVERTIM NË PDF (SI CASE VIEW)
+# ==========================================================
+@router.get("/{case_id}/{doc_id}/preview")
+async def preview_forensic_document(
+    case_id: str,
+    doc_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Preview dokumenti: nëse nuk është PDF, konvertohet në PDF duke përdorur
+    të njëjtën logjikë si Case View (pdf_service).
+    """
+    doc = None
+    if ObjectId.is_valid(doc_id):
+        doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
+        if not doc:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    storage_key = doc.get("storage_key")
+    if not storage_key:
+        raise HTTPException(status_code=404, detail="Skedari nuk gjendet në ruajtje.")
+
+    # Shkarko bytes nga storage
+    try:
+        file_bytes = await asyncio.to_thread(storage_service.download_file_as_bytes, storage_key)
+    except Exception as e:
+        logger.error(f"Preview download error: {e}")
+        raise HTTPException(status_code=500, detail="Dështoi shkarkimi i skedarit.")
+
+    filename = doc.get("file_name", "dokument.pdf")
+    mime_type = doc.get("mime_type", "application/pdf")
+
+    # Nëse tashmë është PDF, ktheje direkt
+    if filename.lower().endswith('.pdf') or mime_type == 'application/pdf':
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
+
+    # Konverto në PDF duke përdorur pdf_service
+    try:
+        pdf_bytes, new_filename = await asyncio.to_thread(
+            pdf_service.convert_bytes_to_pdf,
+            file_bytes,
+            filename
+        )
+        # Nëse konvertimi dështon dhe kthen të njëjtat bytes, kthejmë origjinalin me content-type të duhur
+        if pdf_bytes == file_bytes:
+            # Konvertimi nuk ndodhi, ktheje origjinalin
+            return StreamingResponse(
+                io.BytesIO(file_bytes),
+                media_type=mime_type or 'application/octet-stream',
+                headers={"Content-Disposition": f"inline; filename={filename}"}
+            )
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={new_filename}"}
+        )
+    except Exception as e:
+        logger.error(f"Preview conversion error: {e}")
+        raise HTTPException(status_code=500, detail="Dështoi konvertimi i dokumentit në PDF.")

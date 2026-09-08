@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.8 (ARCHIVE DOES NOT REMOVE DOCUMENT)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.3 (USES /preview ENDPOINT)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -331,11 +331,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document View Handler (DIRECT URL – STREAMING, MATCHES CASE VIEW) ---
+  // --- Document View Handler (NOW USES /preview ENDPOINT) ---
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
-    const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/download`;
+    // Use the preview endpoint which converts non-PDFs to PDF (same as Case View)
+    const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/preview`;
     setViewingUrl(url);
     setViewingDoc(doc);
   };
@@ -517,7 +518,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
-  // Cleanup – just clear state, no blob URL to revoke
+  // Cleanup – just clear state
   const handleCloseViewer = () => {
     setViewingDoc(null);
     setViewingUrl(null);
@@ -685,7 +686,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       )}
 
-      {/* KOLONA E DJATHTË (unchanged) - same as previous version */}
+      {/* KOLONA E DJATHTË */}
       <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
