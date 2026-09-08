@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.3 (FIXED IMPORTS & T FUNCTION)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.4 (FIXED FORENSIC PREVIEW URL)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -29,6 +29,7 @@ import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 import PDFViewerModal from '../FileViewerModal';
 import { RenameDocumentModal } from '../case/RenameDocumentModal';
 import { apiService, API_V1_URL } from '../../services/api';
+import { authService } from '../../services/authService';
 
 export type AutopsyScope = 'DOCUMENT' | 'CASE';
 export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
@@ -330,12 +331,17 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document View Handler ---
+  // --- Document View Handler (FIXED: use forensic preview endpoint) ---
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
-    // Use the main case document preview endpoint
-    const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`;
+    const token = authService.getToken();
+    if (!token) {
+      alert("Ju nuk jeni të autentikuar.");
+      return;
+    }
+    // Use the forensic-specific preview endpoint
+    const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/preview?token=${encodeURIComponent(token)}`;
     setViewingUrl(url);
     setViewingDoc(doc);
   };
