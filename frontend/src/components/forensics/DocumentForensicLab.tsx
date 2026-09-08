@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.4 (FIXED FORENSIC PREVIEW URL)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.8 (ARCHIVE DOES NOT REMOVE DOCUMENT)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -28,8 +28,8 @@ import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 import PDFViewerModal from '../FileViewerModal';
 import { RenameDocumentModal } from '../case/RenameDocumentModal';
-import { apiService, API_V1_URL } from '../../services/api';
-import { authService } from '../../services/authService';
+import { API_V1_URL } from '../../services/api';
+import { apiClient } from '../../services/apiClient';
 
 export type AutopsyScope = 'DOCUMENT' | 'CASE';
 export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
@@ -331,17 +331,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document View Handler (FIXED: use forensic preview endpoint) ---
+  // --- Document View Handler (DIRECT URL – STREAMING, MATCHES CASE VIEW) ---
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
-    const token = authService.getToken();
-    if (!token) {
-      alert("Ju nuk jeni të autentikuar.");
-      return;
-    }
-    // Use the forensic-specific preview endpoint
-    const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/preview?token=${encodeURIComponent(token)}`;
+    const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/download`;
     setViewingUrl(url);
     setViewingDoc(doc);
   };
@@ -369,7 +363,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document Archive Handler ---
+  // --- Document Archive Handler (does NOT remove from list) ---
   const handleArchiveDocument = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -378,12 +372,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
     setArchivingDocId(doc.id);
     try {
-      await apiService.archiveCaseDocument(caseId, doc.id);
-      setDocuments(prev => prev.filter(d => d.id !== doc.id));
-      if (selectedDocId === doc.id) {
-        setSelectedDocId(null);
-        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-      }
+      await apiClient.post(`/forensic/documents/${caseId}/${doc.id}/archive`);
+      // Update local status to "ARCHIVED" (optional, but we keep it in the list)
+      setDocuments(prev =>
+        prev.map(d =>
+          d.id === doc.id ? { ...d, status: 'ARCHIVED' } : d
+        )
+      );
       if (onEvidenceChange) onEvidenceChange();
     } catch (err) {
       console.error("Dështoi arkivimi:", err);
@@ -522,6 +517,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
+  // Cleanup – just clear state, no blob URL to revoke
+  const handleCloseViewer = () => {
+    setViewingDoc(null);
+    setViewingUrl(null);
+  };
+
   return (
     <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none`}>
       {/* KOLONA E MAJTË */}
@@ -601,6 +602,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   const isSelected = doc.id === selectedDocId;
                   const isDeleting = doc.id === deletingDocId;
                   const isArchiving = doc.id === archivingDocId;
+                  const isArchived = doc.status === 'ARCHIVED';
 
                   return (
                     <div
@@ -614,14 +616,17 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                         isSelected && autopsyScope === 'DOCUMENT'
                           ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
                           : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
-                      }`}
+                      } ${isArchived ? 'opacity-60' : ''}`}
                     >
                       <div className="flex items-center gap-2.5 truncate">
                         <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
                           <FileText size={16} />
                         </div>
                         <div className="truncate text-xs">
-                          <p className="font-bold truncate text-text-primary">{doc.file_name}</p>
+                          <p className="font-bold truncate text-text-primary">
+                            {doc.file_name}
+                            {isArchived && <span className="ml-2 text-[10px] text-text-muted">(Arkivuar)</span>}
+                          </p>
                           <p className="text-[10px] font-mono text-text-muted">Statusi: {doc.status}</p>
                         </div>
                       </div>
@@ -653,8 +658,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                         <button
                           type="button"
                           onClick={(e) => handleArchiveDocument(doc, e)}
-                          disabled={isArchiving}
-                          title="Arkivo"
+                          disabled={isArchiving || isArchived}
+                          title={isArchived ? "Tashmë i arkivuar" : "Arkivo"}
                           className="p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
                           {isArchiving ? <Loader2 size={13} className="animate-spin text-purple-500" /> : <Archive size={13} />}
@@ -680,7 +685,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       )}
 
-      {/* KOLONA E DJATHTË */}
+      {/* KOLONA E DJATHTË (unchanged) - same as previous version */}
       <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
@@ -965,7 +970,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         <PDFViewerModal
           documentData={viewingDoc as any}
           caseId={caseId}
-          onClose={() => { setViewingDoc(null); setViewingUrl(null); }}
+          onClose={handleCloseViewer}
           onMinimize={() => {}}
           t={t}
           directUrl={viewingUrl}

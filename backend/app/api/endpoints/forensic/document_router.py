@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED DOCUMENT ROUTER V1.1 (INSTANT CUSTODY SEAL & CLAUDE SONNET 4.6 PILLARS)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.4 (ARCHIVED DOCS REMAIN VISIBLE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -126,7 +126,7 @@ async def upload_forensic_document(
     return _serialize_doc(doc)
 
 # ==========================================================
-# 2. LISTIMI I SHKRESAVE TË LËNDËS
+# 2. LISTIMI I SHKRESAVE (PËRFSHIN EDHE TË ARKIVUARA)
 # ==========================================================
 @router.get("/{case_id}/list")
 def list_forensic_documents(
@@ -134,20 +134,24 @@ def list_forensic_documents(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    cursor = db[FORENSIC_DOCS_COLLECTION].find({"case_id": str(case_id)}).sort("created_at", -1)
+    # Return all documents except those explicitly deleted
+    cursor = db[FORENSIC_DOCS_COLLECTION].find({
+        "case_id": str(case_id),
+        "status": {"$ne": "DELETED"}   # keep ARCHIVED and READY
+    }).sort("created_at", -1)
     items = [_serialize_doc(d) for d in cursor]
 
-    if len(items) == 0:
-        try:
-            case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
-            legacy_cursor = db.documents.find({
-                "$or": [{"case_id": case_oid}, {"case_id": str(case_id)}],
-                "status": {"$ne": "DELETED"}
-            }).sort("created_at", -1)
-            for leg in legacy_cursor:
-                items.append(_serialize_doc(leg))
-        except Exception:
-            pass
+    # Also include legacy documents if any (but exclude DELETED)
+    try:
+        case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        legacy_cursor = db.documents.find({
+            "$or": [{"case_id": case_oid}, {"case_id": str(case_id)}],
+            "status": {"$ne": "DELETED"}
+        }).sort("created_at", -1)
+        for leg in legacy_cursor:
+            items.append(_serialize_doc(leg))
+    except Exception:
+        pass
 
     return items
 
@@ -254,7 +258,7 @@ def delete_forensic_doc_pillar(
     return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
 
 # ==========================================================
-# 4. FSHIRJA DHE RIEMËRTIMI I SHKRESËS
+# 4. FSHIRJA, RIEMËRTIMI DHE ARKIVIMI (ARKIVIMI NUK FSHIN)
 # ==========================================================
 @router.delete("/{case_id}/{doc_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_document(
@@ -314,3 +318,78 @@ def rename_forensic_document(
         )
 
     return {"status": "success", "new_name": new_name}
+
+@router.post("/{case_id}/{doc_id}/archive", status_code=status.HTTP_200_OK)
+def archive_forensic_document(
+    case_id: str,
+    doc_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """Arkivon dokumentin (status -> ARCHIVED) por e lë në listë."""
+    if not ObjectId.is_valid(doc_id):
+        raise HTTPException(status_code=400, detail="ID e dokumentit e pavlefshme.")
+
+    doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
+    if not doc:
+        doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    now = datetime.now(timezone.utc)
+    db[FORENSIC_DOCS_COLLECTION].update_one(
+        {"_id": ObjectId(doc_id)},
+        {"$set": {"status": "ARCHIVED", "archived_at": now, "updated_at": now}}
+    )
+    db.documents.update_one(
+        {"_id": ObjectId(doc_id)},
+        {"$set": {"status": "ARCHIVED", "archived_at": now, "updated_at": now}}
+    )
+
+    log_forensic_action(
+        db=db,
+        user_id=str(current_user.id),
+        case_id=case_id,
+        action="DOCUMENT_ARCHIVED",
+        details={"doc_id": doc_id, "file_name": doc.get("file_name", "")}
+    )
+
+    return {"status": "success", "message": "Dokumenti u arkivua (mbetet në listë)."}
+
+# ==========================================================
+# 5. SHKARKIMI I SKEDARIT (BLOB)
+# ==========================================================
+@router.get("/{case_id}/{doc_id}/download")
+async def download_forensic_document(
+    case_id: str,
+    doc_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """Serve the raw forensic document file from storage."""
+    doc = None
+    if ObjectId.is_valid(doc_id):
+        doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
+        if not doc:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    storage_key = doc.get("storage_key")
+    if not storage_key:
+        raise HTTPException(status_code=404, detail="Skedari nuk gjendet në ruajtje.")
+
+    try:
+        file_bytes = await asyncio.to_thread(storage_service.download_file_as_bytes, storage_key)
+        filename = doc.get("file_name", "dokument.pdf")
+        mime_type = doc.get("mime_type", "application/pdf")
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type=mime_type,
+            headers={"Content-Disposition": f"inline; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"File download error: {e}")
+        raise HTTPException(status_code=500, detail="Dështoi shkarkimi i skedarit.")
