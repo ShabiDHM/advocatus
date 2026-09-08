@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V99.0 (CLEAN CLIENT WORKSPACE • ZERO INVESTIGATOR)
-// ZERO TS WARNINGS • SINGLE-CLICK TOGGLE (SELECT/DESELECT) • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V100.0 (PIXEL-PERFECT PANEL HEIGHT SYMMETRY)
+// ZERO TS WARNINGS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -331,32 +331,36 @@ const CaseViewPage: React.FC = () => {
   }
 
   return (
-    <motion.div className="w-full min-h-screen pb-6 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-3 sm:space-y-4">
+    <motion.div className="w-full min-h-screen pb-6 bg-canvas text-text-primary flex flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-3 sm:space-y-4 flex-1 flex flex-col">
         
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
         />
 
-        {/* GRID-I KRYESOR: I PASTËR PA SHIRITIN E KUQ TË HETUESIT */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch pt-2">
-          <EvidenceVaultPanel
-            caseId={caseData.details.id}
-            documents={liveDocuments}
-            connectionStatus={connectionStatus}
-            reconnect={reconnect}
-            onDocumentUploaded={handleDocumentUploaded}
-            onDocumentDeleted={handleDocumentDeleted}
-            onViewOriginal={handleViewOriginal}
-            onRenameDocument={setDocumentToRename}
-            onVerifyDocumentLaws={handleVerifyDocumentLaws}
-            selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
-            onSelectDocument={handleSelectDocument}
-            t={t}
-          />
+        {/* PHOENIX FIX: Barazimi i lartësisë së dy paneleve me Grid dhe Flex-1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 flex-1 min-h-[520px]">
+          {/* PANELI I MAJTË (DOKUMENTET) */}
+          <div className="lg:col-span-5 h-full flex flex-col">
+            <EvidenceVaultPanel
+              caseId={caseData.details.id}
+              documents={liveDocuments}
+              connectionStatus={connectionStatus}
+              reconnect={reconnect}
+              onDocumentUploaded={handleDocumentUploaded}
+              onDocumentDeleted={handleDocumentDeleted}
+              onViewOriginal={handleViewOriginal}
+              onRenameDocument={setDocumentToRename}
+              onVerifyDocumentLaws={handleVerifyDocumentLaws}
+              selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
+              onSelectDocument={handleSelectDocument}
+              t={t}
+            />
+          </div>
 
-          <div className="lg:col-span-7 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-200px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          {/* PANELI I DJATHTË (CHAT) */}
+          <div className="lg:col-span-7 flex flex-col bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative h-full">
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -365,7 +369,7 @@ const CaseViewPage: React.FC = () => {
               isSendingMessage={isSendingMessage}
               onClearChat={handleClearChat}
               t={t}
-              className="h-full w-full bg-transparent border-0 rounded-none"
+              className="h-full w-full bg-transparent border-0 rounded-none flex-1"
               activeContextId={currentCaseId}
               isPro={isPro}
               documents={liveDocuments}

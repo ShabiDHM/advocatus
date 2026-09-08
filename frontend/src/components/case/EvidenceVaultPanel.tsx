@@ -1,6 +1,6 @@
 // FILE: src/components/case/EvidenceVaultPanel.tsx
-// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V16.0 (EXACT PROP BINDING FOR ACTIVE DOC HIGHLIGHT)
-// ZERO TS WARNINGS • SINGLE CLICK HIGHLIGHT INTEGRATION • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - EVIDENCE VAULT PANEL V17.0 (FLEXIBLE HEIGHT SYMMETRY)
+// ZERO TS WARNINGS • FULL HEIGHT FILL • 100% COMPLETE CODE
 
 import React, { useState } from 'react';
 import { Document, DeletedDocumentResponse } from '../../data/types';
@@ -43,7 +43,7 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
   const [evidenceTab, setEvidenceTab] = useState<EvidenceSubTab>('documents');
 
   return (
-    <div className="lg:col-span-5 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-255px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full w-full bg-surface border border-main rounded-2xl overflow-hidden shadow-sm flex-1">
       {/* Top Segmented Sub-Tab Switcher */}
       <div className="p-2 sm:p-2.5 bg-canvas border-b border-main flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1 bg-surface p-1 rounded-xl border border-main w-full">
@@ -76,7 +76,7 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-hidden relative flex flex-col h-full">
         {evidenceTab === 'documents' ? (
           <DocumentsPanel
             caseId={caseId}
@@ -91,10 +91,10 @@ export const EvidenceVaultPanel: React.FC<EvidenceVaultPanelProps> = ({
             onVerifyDocumentLaws={onVerifyDocumentLaws}
             selectedDocId={selectedDocumentId}
             onSelectDocument={onSelectDocument}
-            className="h-full w-full bg-transparent border-0 rounded-none"
+            className="h-full w-full flex-1 bg-transparent border-0 rounded-none"
           />
         ) : (
-          <div className="h-full overflow-y-auto p-3 sm:p-4 custom-finance-scroll">
+          <div className="h-full w-full flex-1 overflow-y-auto p-3 sm:p-4 custom-finance-scroll">
             <MediaEvidencePanel caseId={caseId} t={t} />
           </div>
         )}

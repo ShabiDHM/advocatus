@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DOCUMENT LAB V13.0 (100% INDEPENDENT SUITE)
-// ZERO TS WARNINGS • CLAUDE SONNET 4.6 ENGINE • INSTANT CUSTODY SEAL & ATOMIC PURGE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.1 (CLEAN ARCHITECTURE BINDING)
+// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
@@ -18,7 +18,6 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { apiService } from '../../services/api';
 import { forensicService } from '../../services/forensicService';
 import { forensicDeskService, ForensicDocItem } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
@@ -341,6 +340,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
+  // GJENERIMI I BLINDUAR NËPËRMJET SHËRBIMIT TË ZYRËS FORENZIKE
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -357,8 +357,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
       try {
         const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.file_name);
-        const content = await forensicDeskService.generateForensicDocPillar(caseId, targetDoc.id, pillar, prompt);
+        const result = await forensicDeskService.sendChatMessage(
+          caseId,
+          prompt,
+          `Ekspertizë mbi shkresën: ${targetDoc.file_name}`
+        );
+        const content = result.content || '';
         setDocPillars((prev) => ({ ...prev, [pillar]: content }));
+
+        if (content.trim().length > 50) {
+          try {
+            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, content);
+          } catch (saveErr) {
+            console.warn("Could not save doc pillar to MongoDB:", saveErr);
+          }
+        }
       } catch (err) {
         console.error(`Doc Pillar Error [${pillar}]:`, err);
         alert(`Ndodhi një gabim gjatë auditimit të ${DOC_PILLAR_CONFIGS[pillar].title}.`);
@@ -375,7 +388,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           prompt,
           `Ekspertizë master mbi të gjithë fashikullin e lëndës.`
         );
-
         const content = result.content || '';
         setCasePillars((prev) => ({ ...prev, [pillar]: content }));
 
@@ -416,7 +428,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.file_name || 'Dokument'}`
         : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
 
-      await apiService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
+      await forensicService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
       setArchiveSuccess(true);
       setTimeout(() => setArchiveSuccess(false), 3000);
     } catch (err: any) {
@@ -440,9 +452,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-main pb-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave Forenzike
+                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
               </h3>
-              <span className="text-[10px] font-mono text-primary-start font-bold">Claude Sonnet 4.6</span>
+              <span className="text-[10px] font-mono text-text-muted">Vision OCR & LPK</span>
             </div>
 
             <div
@@ -466,7 +478,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                    <p className="text-[10px] text-text-muted">Vulosje e menjëhershme HMAC-SHA256 dhe OCR</p>
+                    <p className="text-[10px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
                   </div>
                 </>
               )}
@@ -531,9 +543,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                         </div>
                         <div className="truncate text-xs">
                           <p className="font-bold truncate text-text-primary">{doc.file_name}</p>
-                          <p className="text-[10px] font-mono text-text-muted">
-                            Vula: {doc.custody_stamp?.custody_hash ? `${doc.custody_stamp.custody_hash.slice(0, 10)}...` : 'E Verifikuar'}
-                          </p>
+                          <p className="text-[10px] font-mono text-text-muted">Statusi: {doc.status}</p>
                         </div>
                       </div>
 
@@ -789,7 +799,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   {currentConfigs[activePillar].title}
                 </h4>
                 <p className="text-xs text-text-muted max-w-sm">
-                  Kjo shtjellë është e pastër. Shtypni butonin më poshtë për të filluar ekzaminimin me Claude Sonnet 4.6.
+                  Kjo shtjellë është e pastër. Klikoni butonin më poshtë kur të dëshironi të filloni auditimin doktrinar.
                 </p>
                 <button
                   type="button"
@@ -806,7 +816,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   Duke analizuar {currentConfigs[activePillar].title}...
                 </p>
                 <p className="text-[10px] text-text-muted mt-1">
-                  Claude Sonnet 4.6 po kryen ekspertizën forenzike mbi shkresën.
+                  Juristi AI po kryen autopsinë e thellë doktrinare.
                 </p>
               </div>
             ) : (
