@@ -1,6 +1,6 @@
 # FILE: backend/app/services/pillars/comprehensive_analysis_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA MODULARE V234.0
-# ZERO TRUNCATION ACROSS ALL 3 PILLARS • HIGH-DENSITY BALANCED MATRICES • SAKTËSI DOKTRINARE SUPREME
+# PHOENIX PROTOCOL - COMPREHENSIVE FORENSIC AUTOPSY ENGINE V235.0 (STREAM-OPTIMIZED & ZERO HARDCODING)
+# GJUHË E PASTËR JURIDIKE SHQIPE • DINAMIKE PËR ÇDO LËNDË • ZERO TRUNCATION
 
 import logging
 import re
@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 class ComprehensiveAnalysisService:
     """
-    SHËRBIMI I AUTOPSISË FORENZIKE ME 3 SHTJELLA TË PAVARURA (V234.0):
-    - 100% I Balancuar në të 3 Shtjellat: Tab 1, Tab 2 dhe Tab 3 përfundojnë 100% të plota pa u ndërprerë.
-    - Shtjella 1: Fakti dhe Historiku (Seksionet 1 dhe 2 të plota).
-    - Shtjella 2: Ligji dhe Shkeljet (Seksionet 3, 4 dhe Seksioni 5 i plotë 5.1 deri 5.6).
-    - Shtjella 3: Strategjia dhe Plani i Veprimit (Seksionet 6, 7 dhe 8 me Konkluzionin Suprem).
-    - Saktësia: Zero humbje e neneve, shkeljeve procedurale dhe precedentëve supremë.
+    MOTORI I AUTOPSISË FORENZIKE ME 3 SHTJELLA TË PAVARURA (V235.0):
+    - I Optimizuar për Streaming: Pa ndërprerje, pa timeout, dhe pa tejkalim token-ash.
+    - Zero Hardcoding: Nxjerr emrat, gjyqtarët, provat dhe nenet EKSKLUZIVISHT nga fashikulli real.
+    - Shtjella 1: Fakti dhe Rindërtimi Kronologjik i Ngjarjeve (Seksionet 1 dhe 2).
+    - Shtjella 2: Analiza Provuese, Tabela e Neneve dhe Shkeljet Procedurale (Seksionet 3, 4 dhe 5).
+    - Shtjella 3: Mjetet Juridike, Strategjia e Seancës dhe Plani i Veprimit (Seksionet 6, 7 dhe 8).
     """
 
     @staticmethod
@@ -38,182 +38,149 @@ class ComprehensiveAnalysisService:
         pozicioni = (client_position or "PALË NË PROCEDURË").strip().upper()
         query_upper = (query_text or "").upper()
         
-        # Zbulimi i Shtjellës së Kërkuar nga Query
+        # Përcaktimi i Shtjellës së Synuar
         target_pillar = 0
-        if "SHTJELLA_1" in query_upper or "PJESA_1" in query_upper or "FAKTI DHE HISTORIKU" in query_upper or "FAKTI & HISTORIKU" in query_upper:
+        if any(term in query_upper for term in ["SHTJELLA_1", "PJESA_1", "FAKTI DHE HISTORIKU", "FAKTI & HISTORIKU"]):
             target_pillar = 1
-        elif "SHTJELLA_2" in query_upper or "PJESA_2" in query_upper or "LIGJI DHE SHKELJET" in query_upper or "SHKELJET & NENET" in query_upper:
+        elif any(term in query_upper for term in ["SHTJELLA_2", "PJESA_2", "LIGJI DHE SHKELJET", "SHKELJET & NENET"]):
             target_pillar = 2
-        elif "SHTJELLA_3" in query_upper or "PJESA_3" in query_upper or "PLANI I VEPRIMIT" in query_upper or "KUNDËRSHTIMET & PLANI" in query_upper or "KUNDËRSHTIMET, RREZIQET" in query_upper:
+        elif any(term in query_upper for term in ["SHTJELLA_3", "PJESA_3", "PLANI I VEPRIMIT", "KUNDËRSHTIMET & PLANI", "KUNDËRSHTIMET, RREZIQET"]):
             target_pillar = 3
 
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
                 case_title=case_title,
-                context_str=context_str[:15000],
+                context_str=context_str[:8000],
                 manifest_str=manifest_str or ""
             )
+
+        # Kërkim preciz në RAG (10 rezultate kyçe në vend të 35 për të parandaluar ndërprerjen)
+        pyetja_kerkimore = query_text or f"Precedentët supremë të Gjykatës Supreme të Kosovës (Revizionet dhe PML) për lëndën {case_domain}: {case_title}."
         
-        pyetja_kerkimore = query_text or (
-            f"Precedentët supremë të Gjykatës Supreme të Kosovës për lëndën: {case_title}. "
-            f"Lëmia parësore: {case_domain}. Përgjegjësia penale e personave zyrtarë dhe gjyqtarëve sipas nenit 383 të Kodit Penal, "
-            f"keqpërdorimi i detyrës zyrtare sipas nenit 414 të Kodit Penal, falsifikimi i dokumentit zyrtar sipas nenit 427 të Kodit Penal, "
-            f"cenimi i barazisë së palëve sipas nenit 193 të Kodit Penal, ushtrimi i ndikimit sipas nenit 424 të Kodit Penal, "
-            f"kompetenca e Prokurorisë Speciale, frikësimi gjatë procedurës sipas nenit 386 të Kodit Penal, "
-            f"shkelja e detyrës nga avokati sipas nenit 392 të Kodit Penal, rehabilitimi ligjor sipas nenit 93 të Kodit Penal, "
-            f"masat emergjente të mbrojtjes, Aktgjykimet PML dhe Revizionet e Gjykatës Supreme."
-        )
-        
-        baza_globale, baza_lendes = BasePillarService.get_rag_context(
-            user_id=user_id or "",
-            case_id=case_id or "",
-            query_text=pyetja_kerkimore,
-            n_results=35
-        )
-        
+        baza_globale = ""
+        try:
+            baza_globale, _ = BasePillarService.get_rag_context(
+                user_id=user_id or "",
+                case_id=case_id or "",
+                query_text=pyetja_kerkimore,
+                n_results=10
+            )
+        except Exception as rag_err:
+            logger.warning(f"RAG lookup warning: {rag_err}")
+
         rrjedha_kohore = ""
         if db is not None and case_id:
-            rrjedha_kohore = BasePillarService.get_timeline_context(
-                db=db,
-                case_id=case_id,
-                user_id=user_id or ""
-            )
+            try:
+                rrjedha_kohore = BasePillarService.get_timeline_context(
+                    db=db,
+                    case_id=case_id,
+                    user_id=user_id or ""
+                )
+            except Exception:
+                pass
 
         mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)
         toni_rolit = RoleGuardService.get_role_specific_tone(pozicioni)
 
-        # Udhëzimi Modular me Balancim të Hekurt të Densitetit në të 3 Shtjellat
+        # =========================================================================
+        # STRUKTURAT E QARTA DHE TË BALANCUARA PËR SECILËN SHTJELLË
+        # =========================================================================
         if target_pillar == 1:
             struktura_e_kerkuar = f"""
-TI JE DUKE GJENERUAR EKSKLUZIVISHT:
-# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
-## SHTJELLA 1: FAKTI DHE HISTORIKU (SEKSIONET 1 DHE 2)
-**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+SHTJELLA 1: FAKTI DHE HISTORIKU I PROVUAR (SEKSIONET 1 DHE 2)
+Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
 
----
+Udhëzim: Bazo arsyetimin rreptësisht në provat konkrete të fashikullit. Përgjigju në mënyrë të përmbledhur e profesionale.
 
-### 1. 🏛️ DIAGNOZA EKZEKUTIVE DHE GJENDJA FAKTIKE E PROVUAR
-* **1.1 Sinteza Ekzekutive e Fashikullit:** Ndarja e 5 vijave procedurale (Tabela: Vija Procedurale | Nr. i Lëndës | Gjykata/Organi | Statusi Aktual).
-* **1.2 Kronologjia e Datave dhe Ngjarjeve Reale:** Rindërtimi kronologjik i datave vendimtare (Tabela e dendur: Data | Ngjarja/Akti | Burimi në Fashikull | Vlerësimi Forenzik).
-* **1.3 Gjendja Reale Faktike e Provuar:** Provat materiale shkencore të pakundërshtueshme (Testi negativ i drogës Koslabor, regjistri i komunikimeve babë-bir, ekstraktet zyrtare).
+### 1. DIAGNOZA PROCEDURALE DHE GJENDJA FAKTIKE
+* **1.1 Pasqyra e Ecurisë Procedurale:** Paraqit në formë tabele vijat procedurale, numrat e lëndëve, organet shqyrtuese dhe statusin aktual.
+* **1.2 Kronologjia e Ngjarjeve Vendimtare:** Rindërto renditjen kohore të fakteve kryesore bazuar në datat e dokumenteve dhe shkresave të administruara.
+* **1.3 Faktet e Vërtetuara nga Shkresat:** Përmbledh faktet materiale dhe dëshmitë shkresore që janë provuar pa dyshim.
 
-### 2. 🔍 KRYQËZIMI I AKTORËVE, INSTITUCIONEVE DHE VLERËSIMI I VEPRIMEVE
-(Strukturo me emra nga dosja të 5 grupet e aktorëve: Grupi I Gjyqtarët, Grupi II Prokurorët/Policia, Grupi III Mjekët e QKUK, Grupi IV QPS & ZMV, Grupi V Pala Kundërshtare & Avokatët. Për secilin grup jep funksionin, veprat e dyshuara dhe rolin strukturor).
-
-Përfundo plotësisht këtë Shtjellë 1 deri te fjala e fundit e Seksionit 2!
+### 2. KRYQËZIMI I AKTORËVE DHE VEPRIMEVE PROCEDURALE
+* Identifiko dhe grupo të gjithë aktorët e përfshirë në këtë çështje (Gjyqtarët, Prokurorët, Ekspertët, Dëshmitarët dhe Palët Kundërshtare).
+* Për secilin aktor të evidentuar në dosje, vlerëso veprimet procedurale, ligjshmërinë e vendimmarrjes dhe konfliktin e mundshëm të interesit.
 """
         elif target_pillar == 2:
             struktura_e_kerkuar = f"""
-TI JE DUKE GJENERUAR EKSKLUZIVISHT:
-# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
-## SHTJELLA 2: LIGJI DHE SHKELJET (SEKSIONET 3, 4 DHE 5)
-**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+SHTJELLA 2: LIGJI, DISPOZITAT DHE SHKELJET PROCEDURALE (SEKSIONET 3, 4 DHE 5)
+Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
 
----
+Udhëzim: Qëndro i saktë dhe konciz në qelitë e tabelave (2–3 fjali për qeli) për të garantuar rrjedhje të plotë pa u ndërprerë.
 
-RREGULL I HEKURT I DENSITETIT: Në qelitë e tabelave ji i saktë, i prerë dhe i ngjeshur (2–3 fjali për qeli). Ndalohen hyrjet e përsëritura. Kjo garanton që Seksioni 5 të shkruhet i plotë deri në fund!
-
-### 3. 🔬 MATRICA E TË VËRTETËS: PRETENDIMET KUNDREJT PROVAVE REALE NË FASHIKULL
-(Tabelë me 8–10 pikat kryesore të konfliktit të nxjerra nga dosja):
-| Pretendimi / Akti i Kundërshtuar | Çfarë Vërtetojnë Provat Reale të Fashikullit | Vlerësimi Doktrinar dhe Forca Provuese |
+### 3. MATRICA E PËRPLASJES SË PRETENDIMEVE ME PROVAT REALE
+Ndërto tabelën krahasuese midis pretendimeve të palës kundërshtare dhe asaj që vërtetojnë provat materiale:
+| Pretendimi / Akti i Kundërshtuar | Çfarë Vërtetojnë Provat e Fashikullit | Forca Provuese dhe Vlerësimi Doktrinar |
 | :--- | :--- | :--- |
 
-### 4. ⚖️ KUALIFIKIMI JURIDIK DHE TABELA STATUTORE E PRECEDENTËVE TË GJYKATËS SUPREME
-(Tabela me 8–10 nenet kryesore të Kosovës dhe precedentët supremë PML dhe Revizion):
-| Dispozita dhe Ligji i Zbatueshëm | Instituti Ligjor / Procedural | Analiza Doktrinare dhe Shkelja | 🏛️ Precedenti i Gjykatës Supreme |
+### 4. TABELA E NENEVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
+Nxirr të gjitha nenet e aplikueshme të legjislacionit pozitiv të Kosovës dhe precedentët përkatës:
+| Neni dhe Ligji i Zbatueshëm | Instituti Procedural / Material | Shkelja e Identifikuar | 🏛️ Precedenti i Gjykatës Supreme (PML / Rev) |
 | :--- | :--- | :--- | :--- |
 
-### 5. 🚨 PËRGJEGJËSIA LIGJORE DHE KUALIFIKIMI I VEPREVE PENALE (ZERO ZBUTJE DISIPLINORE)
-(Shkruaj të gjitha nën-seksionet e plota me konkluzione të prera):
-* 🔴 **5.1 Gjyqtari Bujar Dobërdolani:** (Nenet 383, 414, 427, 382 të Kodit Penal — prapadatimet, shkelja e Nenit 93 të rehabilitimit, refuzimi i testit toksikologjik).
-* 🔴 **5.2 Gjyqtarja Shpresa Veselaj:** (Nenet 383, 414, 382 të Kodit Penal — dëbimi arbitrar nga salla, aktgjykimi vetë-kontradiktor).
-* 🔴 **5.3 Gjyqtari Sabit Sadikaj:** (Nenet 383, 414 të Kodit Penal — mbajtja e aktakuzës së manipuluar).
-* 🔴 **5.4 Kolegji i Gjykatës së Apelit (Sallauka, Ajvazi, Bllaca Dula):** (Neni 383 i Kodit Penal — vërtetimi i aktvendimit duke shpërfillur provat shkencore dhe Nenin 93 KPK).
-* ⚖️ **5.5 Zyrtarët Publikë, Ekspertët dhe Ndikimi Politik:** (Nazlie Bala Nenet 414/424, Bekim Dugolli Nenet 386/414, Dr. Samire Braina Nenet 387/427, Jehona Misini Nenet 250/382/414, Ibadete Rexha-Aliu, Emi Zeqiri, Myrvete Hashani-Jashari Neni 392).
-* 🛑 **5.6 Pala Kundërshtare Sanije Bala:** (Kallëzimi i rremë Neni 398, Pengimi i të drejtave Neni 197, Dhuna në familje Nenet 248/250 KPK).
-
-Përfundo plotësisht këtë Shtjellë 2 deri te fjala e fundit e Seksionit 5.6 pa u ndërprerë kurrë!
+### 5. SHKELJET THELBËSORE DHE PËRGJEGJËSIA LIGJORE
+* **Shkeljet Thelbësore të Procedurës:** Analizo shkeljet sipas Nenit 182 të LPK-së ose Kodit të Procedurës Penale (mungesa e arsyetimit, kundërthëniet, shkelja e barazisë së armëve).
+* **Veprimet e Kundërligjshme të Subjekteve:** Analizo përgjegjësinë ligjore të personave që kanë nxjerrë akte në kundërshtim me provat materiale apo kompetencën ligjore.
 """
         elif target_pillar == 3:
             struktura_e_kerkuar = f"""
-TI JE DUKE GJENERUAR EKSKLUZIVISHT:
-# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
-## SHTJELLA 3: KUNDËRSHTIMET, RREZIQET DHE PLANI I VEPRIMIT (SEKSIONET 6, 7 DHE 8)
-**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+SHTJELLA 3: MJETET JURIDIKE, STRATEGJIA DHE MASTER PLANI I VEPRIMIT (SEKSIONET 6, 7 DHE 8)
+Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
 
----
+Udhëzim: Jep këshilla taktike të zbatueshme drejtpërdrejt në procedurë gjyqësore, me afate dhe nene konkrete.
 
-RREGULL I DENSITETIT: Ji i saktë, i prerë dhe i drejtpërdrejtë në arsyetim në mënyrë që Master Plani dhe Konkluzioni i Seksionit 8 të përfundojnë 100% të plota!
+### 6. HIERARKIA E MJETEVE JURIDIKE DHE JURISDIKSIONI
+* **Mjetet Parësore Procedurale:** Parashtresat, ankesat ose kundërshtimet brenda afateve ligjore prekluzive.
+* **Masat e Sigurisë dhe Mbrojtjes Emergjente:** Arsyetimi i masave të sigurimit ose pezullimit të ekzekutimit të aktit.
+* **Mjetet e Jashtëzakonshme:** Kërkesa për mbrojtje të ligjshmërisë, revizioni apo ankesa kushtetuese.
 
-### 6. 🔨 HIERARKIA E MJETEVE JURIDIKE DHE JURISDIKSIONI I DUHUR
-* 🔴 **Ndjekja Penale dhe Kompetenca e Organeve Hetuese:** (Arsyetimi i kompetencës ekskluzive të Prokurorisë Speciale sipas Neneve 9, 10, 13 të Ligjit Nr. 08/L-168 dhe papërshtatshmëria e Prokurorisë Themelore).
-* 🟢 **Mjetet Parësore Civile / Familjare:** (Ankesa ndaj Aktgjykimit C.nr.5906/25 brenda afatit 15-ditor; Kërkesa emergjente për Masë Sigurimi sipas Nenit 221 LPK për bllokimin e pasaportës).
-* 🟡 **Mjetet e Jashtëzakonshme dhe Kushtetuese:** (Kërkesa për Mbrojtje të Ligjshmërisë sipas Nenit 432 KPPRK; Revizioni në Gjykatën Supreme; Ankesa Kushtetuese për cenim të Nenit 31 dhe 54 të Kushtetutës; KEDNJ Neni 6).
+### 7. STRATEGJIA E BALLAFAQIMIT DHE PYETJET TËRTHORE
+* **Taktika e Çmontimit të Akteve të Kundërshtarit:** Si neutralizohen pikat më agresive të palës përballë.
+* **Pyetësori Taktik për Seancë:** 5 pyetje tërthore kryesore për të ekspozuar mospërputhjet në seancë dëgjimore.
 
-### 7. 💡 REKOMANDIMET STRATEGJIKE TË KONSULENCËS SUPREME
-* **Analiza Kosto / Kohë / Efektivitet e rrugëve procedurale.**
-* **Strategjia e Sulmit dhe Mbrojtjes:** (Plani A - Sulmi penal dhe pezullimi i ekzekutimit vs Plani B - Mbrojtja civile dhe zgjerimi i kontaktit sipas Nenit 145 LFK).
-* **Neutralizimi i Pretendimeve të Palës Kundërshtare:** (Strategjia e rrëzimit të raporteve të njëanshme dhe diskreditimi i dëshmive të rreme me provat shkencore).
-
-### 8. 🎯 MASTER PLANI I VEPRIMIT: HAPAT E ARDHSHËM TAKTIKË
-* 🔴 **HAPI 1 (Urgjenca brenda 24 deri në 48 Orëve):** (Paraqitja e masës emergjente për pasaportën dhe verifikimi i afatit të ankesës).
-* 🟡 **HAPI 2 (Konsolidimi Provues dhe Goditja Penale):** (Depozitimi i Kallëzimit Penal të Unifikuar në PSRK me të 22 të dyshuarit dhe kërkesa për super-ekspertizë).
-* 🟢 **HAPI 3 (Zhdëmtimi dhe Mbrojtja Supreme):** (Kërkesa pasurore-juridike sipas Nenit 462 KPPRK dhe padia për kompensim dëmi Neni 162 LMD).
-* 📊 **Tabela Përmbledhëse e Master Planit:** (Veprimi | Organi | Afati Ligjor | Qëllimi Procedural).
-* 🏁 **Konkluzioni Doktrinar Suprem:** Vlerësimi përfundimtar i perspektivës së fitores ligjore të klientit {client_name}.
-
-Përfundo plotësisht këtë Shtjellë 3 deri te fjala e fundit e Konkluzionit Suprem!
+### 8. MASTER PLANI I VEPRIMIT DHE KONKLUZIONI
+* **Veprimet me Afat të Menjëhershëm (24–72 Orë):** Veprimet emergjente procedurale.
+* **Konsolidimi i Mbrojtjes:** Masat plotësuese provuese, ekspertizat dhe parashtresat kryesore.
+* **Tabela e Hapave Taktikë:** (Veprimi | Organi Kompetent | Afati Ligjor | Qëllimi).
+* **Konkluzioni Përfundimtar:** Vlerësimi përmbyllës i shanseve reale të suksesit ligjor për klientin {client_name}.
 """
         else:
             struktura_e_kerkuar = f"""
-# JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
-## RAPORTI MASTER I AUTOPSISË SË THELLË DOKTRINARE DHE STRATEGJISË GJYQËSORE
-**LËNDA:** {case_title} | **KLIENTI:** {client_name} ({pozicioni}) | **DATA:** {current_date_str}
+RAPORTI EKZEKUTIV I AUTOPSISË FORENZIKE
+Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
 
-Gjenero raportin e plotë duke përfshirë të 8 Seksionet në mënyrë të balancuar dhe shteruese deri te fjala e fundit e Seksionit 8.
+Përgatit autopsinë e plotë në mënyrë të qartë, të balancuar dhe profesionale, duke trajtuar faktet, bazën ligjore dhe planin e veprimit.
 """
 
-        return f"""
-<konteksti_i_autopsise_forenzike_dhe_doktrines_supreme>
-JURISTI AI • PLATFORMA E AUTOPSISË FORENZIKE DHE STRATEGJISË LIGJORE
-REPUBLIKA E KOSOVËS • EKSPERTIZË DOKTRINARE E PROVAVE DHE MBROJTJE GJYQËSORE
-
-MANDATI YT SUPREM:
-Përpara teje ndodhet fashikulli i plotë i çështjes **{case_title}**.
-Ti vepron si Kolegj Këshillues i Gjykatës Supreme të Kosovës.
-RREGULL I HEKURT: Përgjigju VETËM në gjuhën standarde juridike të Republikës së Kosovës. Ndalohet kategorikisht përdorimi i fjalëve apo shprehjeve në gjuhën angleze.
-Detyra jote është të përfundosh 100% strukturën e kërkuar më poshtë pa u ndërprerë kurrë në mes!
-</konteksti_i_autopsise_forenzike_dhe_doktrines_supreme>
+        return f"""[DIREKTIVË E EKSPERTIZËS FORENZIKE • JURISTI AI]
+Ju jeni Konsulenca Supreme e Ekspertizës Forenzike dhe Procedurale për Republikën e Kosovës.
+RREGULLAT E PËRGJIGJES:
+1. Përdorni gjuhë standarde juridike të Kosovës (pa fjalë të huaja të panevojshme).
+2. Mbështetuni EKSKLUZIVISHT në provat, emrat dhe të dhënat reale që gjenden në fashikullin e kësaj lënde.
+3. Ndalohet përmendja e personave apo fakteve nga lëndë të tjera që nuk figurojnë në tekstin e mëposhtëm.
+4. Përgjigjuni me arsyetim të prerë, të dendur dhe të strukturuar bukur me tituj dhe pika.
 
 {mbrojtja_rolit}
 
-📋 IDENTIFIKIMI I FASHIKULLIT DHE KLIENTIT:
-TITULLI I ÇËSHTJES: **{case_title}**
-KLIENTI / PARASHTRUESI: **{client_name or 'I Identifikuar në Shkresa'}**
-CILËSIA PROCEDURALE: **{pozicioni}**
-LËMIA PARËSORE E IDENTIFIKUAR: **{case_domain}**
-DATA E AUDITIMIT DOKTRINAR: {current_date_str}
+TË DHËNAT E ÇËSHTJES:
+- Titulli: {case_title}
+- Klienti: {client_name or 'I papërcaktuar'}
+- Pozicioni: {pozicioni}
+- Lëmia: {case_domain}
+- Data e Analizës: {current_date_str}
 
 {toni_rolit}
 
-🏛️ PRECEDENTËT SUPREMË:
-{baza_globale if baza_globale else "Zbato precedentët e konsoliduar të Gjykatës Supreme të Kosovës (Revizionet dhe PML)."}
+BURIMI I PRECEDENTËVE DHE DOKUMENTET:
+{baza_globale if baza_globale else 'Zbato precedentët e konsoliduar të Gjykatës Supreme të Kosovës.'}
 
-📅 KRONOLOGJIA:
-{rrjedha_kohore if rrjedha_kohore else "Rindërtohet kronologjikisht nga të gjitha shkresat e fashikullit."}
+{rrjedha_kohore if rrjedha_kohore else ''}
 
-📄 SHKRESAT E LËNDËS:
-{baza_lendes if baza_lendes else "Fashikulli dokumentar i administruar."}
+{'='*50}
+PËRMBAJTJA E FASHIKULLIT TË LËNDËS:
+{'='*50}
+{context_str[:35000]}
+{'='*50}
 
-📎 PASAPORTA E DOKUMENTEVE:
-{manifest_str if manifest_str else "Dokumentet e fashikullit."}
-
-{'='*60}
-FASHIKULLI I PLOTË I SHKRESAVE TË LËNDËS:
-{'='*60}
-{context_str}
-{'='*60}
-
-STRUKTURA E DETYRUESHME QË DUHET TË GJENEROSH TANI:
-{struktura_e_kerkuar}
-"""
+STRUKTURA QË DUHET TË GJENERONI:
+{struktura_e_kerkuar}"""

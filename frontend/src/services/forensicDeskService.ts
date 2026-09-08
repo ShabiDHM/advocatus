@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V2.0 (STRICT ISOLATION & SERVER-SIDE CUSTODY)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V2.1 (STRICT CHAT PERSISTENCE & CONTROLLED PURGE)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import { apiClient } from './apiClient';
@@ -315,7 +315,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 6. TERMINALI FORENZIK INTERAKTIV (CLAUDE SONNET 4.6)
+  // 6. TERMINALI FORENZIK INTERAKTIV (PERSISTENCË NË MONGO ATLAS)
   // ==========================================================
   public async sendChatMessage(caseId: string, message: string, caseContext: string = ''): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/chat`, {
@@ -329,6 +329,10 @@ export class ForensicDeskService {
   public async getChatHistory(caseId: string): Promise<any[]> {
     const response = await apiClient.get<{ messages: any[] }>(`${this.baseUrl}/chat/${caseId}/history`);
     return response.data.messages || [];
+  }
+
+  public async clearChatHistory(caseId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/chat/${caseId}`);
   }
 
   // ==========================================================

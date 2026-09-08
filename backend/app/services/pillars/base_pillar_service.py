@@ -1,5 +1,6 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V130.0 (AUTONOMOUS MULTI-DOMAIN HYBRID ENGINE • ZERO HARDCODING)
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V131.0 (STREAM-OPTIMIZED • DYNAMIC KOSOVO JURISPRUDENCE • ZERO HARDCODING)
+# 100% COMPLETE CODE • BALANCED RAG DENSITY • FAST TOKEN PIPELINE
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -7,7 +8,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# Spirancat Institucionale për zbulim autonom të lëmisë nga shkresat
+# Spirancat Institucionale për zbulim autonom të lëmisë dhe departamentit nga shkresat
 INSTITUTIONAL_ANCHORS = {
     "KOMERCIALE": [
         "gjykata komerciale", "gjykatës komerciale", "dhomat e shkallës së parë", 
@@ -17,7 +18,8 @@ INSTITUTIONAL_ANCHORS = {
     ],
     "PENALE": [
         "prokuroria speciale", "prokurorisë speciale", "prokuroria themelore", 
-        "kallëzim penal", "kallzim penal", "aktakuzë", "aktakuze", "vepër penale", 
+        "departamenti i krimeve të rënda", "departamenti special", "departamenti i përgjithshëm penal",
+        "kallëzim penal", "aktakuzë", "aktakuze", "vepër penale", 
         "paraburgim", "kpprk", "kprk", "kodi penal", "psrk", "shqyrtim fillestar"
     ],
     "ADMINISTRATIVE": [
@@ -30,23 +32,23 @@ INSTITUTIONAL_ANCHORS = {
     ],
     "FAMILJARE": [
         "shkurorëzim", "divorc", "kujdestaria e fëmijës", "alimentacion", 
-        "qendra për punë sociale", "qps", "dhunë në familje", "urdhër mbrojtje", "urdher mbrojtes"
+        "qendra për punë sociale", "qps", "dhunë në familje", "urdhër mbrojtje", "urdher mbrojtes",
+        "divizioni familjar", "besimi i fëmijëve"
     ],
     "PRONËSORE": [
         "pengim posedimi", "vërtetim pronësie", "kadastër", "kadaster", "uzurpim", 
-        "e drejta sendore", "lpts", "bashkëpronësi", "servitut", "paluajtshmëri"
+        "e drejta sendore", "lpts", "bashkëpronësi", "servitut", "paluajtshmëri", "pjesëtim fizik"
     ],
     "KUSHTETUESE": [
         "gjykata kushtetuese", "kërkesë kushtetuese", "neni 31 i kushtetutës", 
-        "neni 54 i kushtetutës", "kednj", "liri themelore"
+        "neni 54 i kushtetutës", "kednj", "liri themelore", "shkelje e të drejtave të njeriut"
     ],
     "CIVILE": [
         "kërkesëpadi", "padi civile", "dëmshpërblim", "lmd", "lpk", 
-        "procedurë kontestimore", "borxh", "përmbarim", "përmbarues"
+        "procedurë kontestimore", "borxh", "përmbarim", "përmbarues", "divizioni civil"
     ]
 }
 
-# Fjalë kyçe dytësore
 DOMAIN_KEYWORDS = {
     "KOMERCIALE": ["tregtar", "biznes", "ortakëri", "aksione", "furnizim", "transaksion komercial"],
     "PENALE": ["mashtrim", "vjedhje", "kanosje", "kërcënim", "falsifikim", "keqpërdorim i detyrës", "korrupsion", "hetime"],
@@ -58,7 +60,6 @@ DOMAIN_KEYWORDS = {
     "CIVILE": ["detyrim", "kompensim", "dëm material", "dëm jomaterial", "masë e përkohshme", "kamata ligjore"]
 }
 
-# Paketa e ligjeve pozitive për çdo lëmi
 STATUTORY_CORPUS = {
     "KOMERCIALE": [
         "Ligji për Gjykatën Komerciale (Nr. 08/L-015)",
@@ -110,31 +111,28 @@ STATUTORY_CORPUS = {
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V130.0 me Zbulim Autonom Hibrid dhe Integrim RAG."""
+    """Shërbimi Bazë Universal — V131.0 me Zbulim Autonom Hibrid dhe RAG të Optimizuar."""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
         """
-        Zbulon autonomisht lëminë kryesore ose lëmitë hibride nga shkresat reale të fashikullit.
-        Zero hardcoding: Nuk paragjykon kurrë nga titulli por llogarit peshat reale të provave.
+        Zbulon autonomisht lëminë kryesore nga përmbajtja reale e shkresave të fashikullit.
+        Zero hardcoding: Llogarit peshat reale institucionale pa paragjykuar.
         """
-        combined_text = f"{case_title} {manifest_str[:5000]} {context_str[:25000]}".lower()
+        combined_text = f"{case_title} {manifest_str[:3000]} {context_str[:15000]}".lower()
 
         scores: Dict[str, int] = {d: 0 for d in INSTITUTIONAL_ANCHORS}
 
-        # 1. Peshat e forta institucionale (3 pikë për çdo term të gjetur)
         for domain, anchors in INSTITUTIONAL_ANCHORS.items():
             for anchor in anchors:
                 if anchor in combined_text:
                     scores[domain] += 3
 
-        # 2. Peshat dytësore të fjalëve kyçe (1 pikë)
         for domain, keywords in DOMAIN_KEYWORDS.items():
             for kw in keywords:
                 if kw in combined_text:
                     scores[domain] += 1
 
-        # Renditja e lëmive sipas peshës
         sorted_domains = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         top_domain, top_score = sorted_domains[0]
         second_domain, second_score = sorted_domains[1]
@@ -142,7 +140,7 @@ class BasePillarService:
         if top_score == 0:
             return "CIVILE"
 
-        # Zbulimi Hibrid: Nëse lëmia e dytë ka peshë të konsiderueshme (mbi 6 pikë ose >45% e kryesores)
+        # Zbulim hibrid nëse lëmia e dytë është e rëndësishme (p.sh. Penale / Civile)
         if second_score >= 6 and (second_score / top_score) >= 0.45:
             return f"{top_domain} / {second_domain}"
 
@@ -150,7 +148,6 @@ class BasePillarService:
 
     @staticmethod
     def get_domain_laws(case_domain: str) -> List[str]:
-        """Kthen pakon e plotë të ligjeve për lëminë e zbuluar (përfshirë ato hibride)."""
         collected_laws: List[str] = []
         domain_upper = (case_domain or "CIVILE").upper()
 
@@ -160,7 +157,6 @@ class BasePillarService:
                     if law not in collected_laws:
                         collected_laws.append(law)
 
-        # Çdo çështje gjyqësore në Kosovë ka garanci themelore nga LPK dhe Kushtetuta
         if not collected_laws:
             collected_laws = STATUTORY_CORPUS["CIVILE"]
 
@@ -168,19 +164,17 @@ class BasePillarService:
 
     @staticmethod
     def build_supreme_jurisprudence_directive(case_domain: str) -> str:
-        return f"""
-🏛️ PROTOKOLLI DOKTRINAR I GJYKATËS SUPREME PËR LËMINË **{case_domain}**:
-1. ZBATO VENDIMET PARIMORE TË LËMISË: Shfrytëzo precedentët e Gjykatës Supreme të Kosovës për lëminë **{case_domain}** të nxjerra nga Baza Globale e Diturisë.
-2. INTERPRETIMI I DISPOZITAVE: Zbërthe saktësisht se si praktika e konsoliduar gjyqësore e interpreton normën materiale dhe procedurale për këtë lloj kontesti.
-3. GODITJA E SHKELJEVE PROCEDURALE: Nëse aktet e kontestuara bien ndesh me ligjin pozitiv dhe qëndrimet e Gjykatës Supreme, theksoje me argumentim të hekurt ligjor.
-"""
+        return f"""UDHËZUES I JURISPRUDENCËS SUPREME ({case_domain}):
+1. Zbatoni precedentët e konsoliduar të Gjykatës Supreme të Kosovës (Aktgjykimet PML dhe Revizionet).
+2. Arsyetoni saktë normat procedurale dhe materiale të lëmisë.
+3. Identifikoni shkeljet e ligjit dhe kontradiktat në aktet e administruara."""
 
     @staticmethod
     def get_rag_context(
         user_id: str = "",
         case_id: str = "",
         query_text: str = "",
-        n_results: int = 35
+        n_results: int = 8  # Optimizuar nga 35 në 8 për streaming të shpejtë pa ndërprerje
     ) -> Tuple[str, str]:
         global_rag_context = ""
         case_rag_context = ""
@@ -196,10 +190,11 @@ class BasePillarService:
                 if global_results:
                     global_parts = []
                     for res in global_results:
-                        source = res.get("source", "Baza Ligjore e Kosovës")
+                        source = res.get("source", "Precedent Suprem")
                         text = res.get("text", "").strip()
                         if text:
-                            global_parts.append(f"📌 [{source}]:\n{text}")
+                            # Kufizohet gjatësia për të mos bllokuar memorjen e transmetimit
+                            global_parts.append(f"[{source}]: {text[:800]}")
                     global_rag_context = "\n\n".join(global_parts)
             
             if user_id and case_id and query_text:
@@ -224,13 +219,13 @@ class BasePillarService:
                         source = res.get("source", "Dokument i Lëndës")
                         text = res.get("text", "").strip()
                         if text:
-                            case_parts.append(f"📄 [{source}]:\n{text}")
+                            case_parts.append(f"[{source}]: {text[:800]}")
                     case_rag_context = "\n\n".join(case_parts)
                     
         except ImportError as e:
-            logger.warning(f"⚠️ [RAG] Vector store nuk u importua: {e}")
+            logger.warning(f"[RAG] Vector store import error: {e}")
         except Exception as e:
-            logger.error(f"❌ [RAG] Gabim gjatë kërkimit të vektorëve: {e}")
+            logger.error(f"[RAG] Vector query error: {e}")
         
         return global_rag_context, case_rag_context
 
@@ -243,7 +238,7 @@ class BasePillarService:
         except ImportError:
             return ""
         except Exception as e:
-            logger.error(f"❌ [Timeline] Gabim gjatë krijimit të kronologjisë: {e}")
+            logger.error(f"[Timeline] Error: {e}")
             return ""
 
     @staticmethod
