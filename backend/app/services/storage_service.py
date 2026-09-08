@@ -1,5 +1,6 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE V50.0 (CLEAN IMPORTS & TOTAL WIPEOUT)
+# PHOENIX PROTOCOL - STORAGE SERVICE V51.0 (ADDED download_file_as_bytes)
+# 100% COMPLETE CODE • CLEAN IMPORTS • TOTAL WIPEOUT
 
 import os
 import re
@@ -320,3 +321,18 @@ def copy_s3_object(source_key: str, dest_folder: str) -> str:
     except Exception as e:
         logger.error(f"!!! ERROR: S3 Copy failed: {e}")
         raise HTTPException(status_code=500, detail="Storage copy failed.")
+
+# ==========================================================
+# NEW METHOD: download_file_as_bytes
+# ==========================================================
+def download_file_as_bytes(storage_key: str) -> bytes:
+    """
+    Retrieve the entire file content as bytes from storage.
+    Raises HTTPException if the file is not found or on error.
+    """
+    stream = get_file_stream(storage_key)
+    try:
+        return stream.read()
+    except Exception as e:
+        logger.error(f"Failed to read bytes from stream for {storage_key}: {e}")
+        raise HTTPException(status_code=500, detail="Could not read file from storage.")
