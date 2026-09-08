@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V4.0 (PURGED DEPRECATED FORENSIC DUPLICATIONS • CLEAN MEDIA & PILLARS)
+// PHOENIX PROTOCOL - FORENSIC SERVICE V4.1 (RESTORED FINANCIAL FORENSIC METHODS)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • ATOMIC $UNSET INTEGRATION
 
 import { apiClient } from './apiClient';
@@ -7,6 +7,14 @@ import type {
   CaseAnalysisResult,
   DeepAnalysisResult
 } from '../data/types';
+
+// Ose eksporto tipet e reja nëse mungojnë (mund të zëvendësohen sipas atyre që keni te caseService.ts)
+export interface ForensicSpreadsheetAnalysisResult {
+  [key: string]: any;
+}
+export interface ForensicInterrogationResponse {
+  [key: string]: any;
+}
 
 export interface MediaEvidenceItem {
   id: string;
@@ -155,7 +163,26 @@ export class ForensicService {
   }
 
   // =========================================================================
-  // 🎙️ & 🎬 4. MEDIA EVIDENCE (AUDIO, VIDEO CCTV, STREAMING)
+  // 💶 4. FORENZIKA FINANCIARE (RIKTHYER NGA PASTRIMI I GABUAR)
+  // =========================================================================
+
+  public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('analyst_id', 'frontend_user');
+    formData.append('acquisition_method', 'WEB_UPLOAD');
+    formData.append('lang', lang);
+    const response = await apiClient.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } });
+    return response.data;
+  }
+
+  public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
+    const response = await apiClient.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
+    return response.data;
+  }
+
+  // =========================================================================
+  // 🎙️ & 🎬 5. MEDIA EVIDENCE (AUDIO, VIDEO CCTV, STREAMING)
   // =========================================================================
 
   public async getCaseMedia(caseId: string): Promise<MediaEvidenceItem[]> {

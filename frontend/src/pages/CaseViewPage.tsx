@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V99.0 (CLEAN CLIENT WORKSPACE • INVESTIGATOR DRAWER PURGED)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V99.0 (CLEAN CLIENT WORKSPACE • ZERO INVESTIGATOR)
 // ZERO TS WARNINGS • SINGLE-CLICK TOGGLE (SELECT/DESELECT) • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -41,10 +41,10 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // 1. Dritarja Modale: Analizo Rastin (Pasqyra e Rastit)
+  // 1. Dritarja Modale: Analizo Rastin
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
 
-  // 2. Dritarja Modale: Analizo Dokumentin (Pasqyra e Shkresës)
+  // 2. Dritarja Modale: Analizo Dokumentin
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -62,7 +62,6 @@ const CaseViewPage: React.FC = () => {
     return Boolean((caseData.details as any)?.analysis_dirty);
   }, [caseData.details]);
 
-  // Shkresa aktive e përzgjedhur (Kthehet NULL nëse përdoruesi e ka diselektuar!)
   const selectedDocObj = useMemo(() => {
     if (selectedDocumentIds.length > 0) {
       return liveDocuments.find(d => selectedDocumentIds.includes(String(d.id))) || null;
@@ -70,7 +69,6 @@ const CaseViewPage: React.FC = () => {
     return null;
   }, [selectedDocumentIds, liveDocuments]);
 
-  // FUNKSIONI TOGGLE: Kliko një herë ➔ Selekto; Kliko sërish mbi të njëjtën shkresë ➔ Diselekto!
   const handleSelectDocument = useCallback((doc: Document) => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds((prev) => {
@@ -197,7 +195,6 @@ const CaseViewPage: React.FC = () => {
     return () => window.removeEventListener('open_document_preview', handleOpenDocPreview);
   }, [liveDocuments, handleViewOriginal]);
 
-  // PASTRIMI I KONSISTENT I BISEDËS (VETËM DHE EKSKLUZIVISHT CHAT-I)
   const handleClearChat = async () => {
     if (!caseId) return;
     try {
@@ -222,7 +219,6 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  // BISEDA E ZAKONSHME E CHAT-IT
   const handleChatSubmit = useCallback(async (
     text: string, 
     mode: ChatMode, 
@@ -289,12 +285,10 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  // 🏛️ BUTONI: ANALIZO RASTIN (Hap VETËM modalin e lëndës: Pasqyra e Rastit)
   const handleOpenCaseAnalysis = useCallback(() => {
     setIsAnalysisModalOpen(true);
   }, []);
 
-  // ⚖️ BUTONI: ANALIZO DOKUMENTIN (Hap modalin e dokumentit vetëm nëse ka shkresë të zgjedhur)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     if (!caseId) return;
     setCurrentAuditedDoc(doc);
@@ -345,8 +339,8 @@ const CaseViewPage: React.FC = () => {
           documents={liveDocuments}
         />
 
-        {/* GRID-I KRYESOR: I PASTËR PA SHIRITIN E DITARIT TË HETUESIT */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch pt-1">
+        {/* GRID-I KRYESOR: I PASTËR PA SHIRITIN E KUQ TË HETUESIT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch pt-2">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
             documents={liveDocuments}
@@ -404,7 +398,6 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* 1. MODAL: ANALIZO RASTIN */}
       <StandardCaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -414,7 +407,6 @@ const CaseViewPage: React.FC = () => {
         isAnalysisDirty={isAnalysisDirty}
       />
 
-      {/* 2. MODAL: ANALIZO DOKUMENTIN */}
       <StandardDocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
