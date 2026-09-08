@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.1 (CLEAN ARCHITECTURE BINDING)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V13.3 (FIXED IMPORTS & T FUNCTION)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -13,15 +13,22 @@ import {
   Search,
   Maximize2,
   Minimize2,
-  ArrowDown
+  ArrowDown,
+  Eye,
+  Pencil,
+  Archive
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 
 import { forensicService } from '../../services/forensicService';
 import { forensicDeskService, ForensicDocItem } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
+import PDFViewerModal from '../FileViewerModal';
+import { RenameDocumentModal } from '../case/RenameDocumentModal';
+import { apiService, API_V1_URL } from '../../services/api';
 
 export type AutopsyScope = 'DOCUMENT' | 'CASE';
 export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
@@ -107,6 +114,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   caseId,
   onEvidenceChange
 }) => {
+  const { t } = useTranslation();
   const [documents, setDocuments] = useState<ForensicDocItem[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
@@ -134,8 +142,15 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   });
 
   const [copiedReport, setCopiedReport] = useState<boolean>(false);
-  const [isArchiving, setIsArchiving] = useState<boolean>(false);
-  const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
+  const [isArchivingReport, setIsArchivingReport] = useState<boolean>(false);
+  const [archiveReportSuccess, setArchiveReportSuccess] = useState<boolean>(false);
+
+  // States for document actions
+  const [viewingDoc, setViewingDoc] = useState<ForensicDocItem | null>(null);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [renameDocId, setRenameDocId] = useState<string | null>(null);
+  const [renameDocName, setRenameDocName] = useState<string>('');
+  const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -315,6 +330,63 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
+  // --- Document View Handler ---
+  const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!caseId) return;
+    // Use the main case document preview endpoint
+    const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`;
+    setViewingUrl(url);
+    setViewingDoc(doc);
+  };
+
+  // --- Document Rename Handlers ---
+  const handleRenameDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenameDocId(doc.id);
+    setRenameDocName(doc.file_name);
+  };
+
+  const handleConfirmRename = async (newName: string) => {
+    if (!caseId || !renameDocId) return;
+    try {
+      await forensicDeskService.renameForensicDocument(caseId, renameDocId, newName);
+      setDocuments(prev =>
+        prev.map(d => d.id === renameDocId ? { ...d, file_name: newName } : d)
+      );
+    } catch (err) {
+      console.error("Dështoi riemërtimi:", err);
+      alert("Dështoi riemërtimi i dokumentit.");
+    } finally {
+      setRenameDocId(null);
+      setRenameDocName('');
+    }
+  };
+
+  // --- Document Archive Handler ---
+  const handleArchiveDocument = async (doc: ForensicDocItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!caseId) return;
+    const confirmArchive = window.confirm(`A dëshironi ta arkivoni shkresën "${doc.file_name}"?`);
+    if (!confirmArchive) return;
+
+    setArchivingDocId(doc.id);
+    try {
+      await apiService.archiveCaseDocument(caseId, doc.id);
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+      if (selectedDocId === doc.id) {
+        setSelectedDocId(null);
+        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
+      }
+      if (onEvidenceChange) onEvidenceChange();
+    } catch (err) {
+      console.error("Dështoi arkivimi:", err);
+      alert("Dështoi arkivimi i dokumentit.");
+    } finally {
+      setArchivingDocId(null);
+    }
+  };
+
   const handleAdminPurgeSinglePillar = async () => {
     if (!caseId || !currentPillarContent) return;
     
@@ -418,10 +490,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setTimeout(() => setCopiedReport(false), 2500);
   };
 
-  const handleArchivePillar = async () => {
+  const handleArchiveReport = async () => {
     if (!caseId || !currentPillarContent) return;
-    setIsArchiving(true);
-    setArchiveSuccess(false);
+    setIsArchivingReport(true);
+    setArchiveReportSuccess(false);
 
     try {
       const activeTitle = autopsyScope === 'DOCUMENT'
@@ -429,12 +501,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
 
       await forensicService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
-      setArchiveSuccess(true);
-      setTimeout(() => setArchiveSuccess(false), 3000);
+      setArchiveReportSuccess(true);
+      setTimeout(() => setArchiveReportSuccess(false), 3000);
     } catch (err: any) {
       alert(err.response?.data?.detail || "Dështoi ruajtja në arkiv.");
     } finally {
-      setIsArchiving(false);
+      setIsArchivingReport(false);
     }
   };
 
@@ -522,6 +594,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 filteredDocs.map((doc) => {
                   const isSelected = doc.id === selectedDocId;
                   const isDeleting = doc.id === deletingDocId;
+                  const isArchiving = doc.id === archivingDocId;
 
                   return (
                     <div
@@ -549,12 +622,45 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
                       <div className="flex items-center gap-1 shrink-0">
                         {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
+                        
+                        {/* Eye - View */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleViewDocument(doc, e)}
+                          title="Shiko dokumentin"
+                          className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                        >
+                          <Eye size={13} />
+                        </button>
+
+                        {/* Pencil - Rename */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleRenameDocument(doc, e)}
+                          title="Riemërto"
+                          className="p-1.5 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
+                        >
+                          <Pencil size={13} />
+                        </button>
+
+                        {/* Archive */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleArchiveDocument(doc, e)}
+                          disabled={isArchiving}
+                          title="Arkivo"
+                          className="p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                        >
+                          {isArchiving ? <Loader2 size={13} className="animate-spin text-purple-500" /> : <Archive size={13} />}
+                        </button>
+
+                        {/* Delete - already present */}
                         <button
                           type="button"
                           onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
                           disabled={isDeleting}
                           title="Hiq nga dosja forenzike"
-                          className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
                           {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
                         </button>
@@ -664,11 +770,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
               <button
                 type="button"
-                onClick={handleArchivePillar}
-                disabled={isArchiving || !currentPillarContent}
+                onClick={handleArchiveReport}
+                disabled={isArchivingReport || !currentPillarContent}
                 className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
               >
-                {isArchiving ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
+                {isArchivingReport ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveReportSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
               </button>
             </div>
           </div>
@@ -847,6 +953,28 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1:1 Dedicated Architecture)</span>
         </div>
       </div>
+
+      {/* Modals for Document Actions */}
+      {viewingDoc && (
+        <PDFViewerModal
+          documentData={viewingDoc as any}
+          caseId={caseId}
+          onClose={() => { setViewingDoc(null); setViewingUrl(null); }}
+          onMinimize={() => {}}
+          t={t}
+          directUrl={viewingUrl}
+          isAuth={true}
+          initialPage={1}
+        />
+      )}
+
+      <RenameDocumentModal
+        isOpen={!!renameDocId}
+        onClose={() => { setRenameDocId(null); setRenameDocName(''); }}
+        onRename={handleConfirmRename}
+        currentName={renameDocName}
+        t={t}
+      />
     </div>
   );
 };
