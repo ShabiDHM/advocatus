@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V16.0 (PURGED DEPRECATED DOMAINS • PRODUCTION STABILITY)
+# PHOENIX PROTOCOL - MAIN APPLICATION V17.0 (FORENSIC DESK INTEGRATION & ISOLATION)
 
 import os
 import logging
@@ -30,6 +30,14 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.laws import router as laws_router
 
+# Forensic Desk Dedicated Routers
+from .api.endpoints.forensic import (
+    forensic_dossier_router,
+    forensic_lab_router,
+    forensic_chat_router,
+    forensic_investigator_router
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -38,7 +46,7 @@ app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 # --- MIDDLEWARE ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
-# --- CORS CONFIGURATION (PURGED DEPRECATED HAVERI DOMAINS) ---
+# --- CORS CONFIGURATION ---
 origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
@@ -62,6 +70,8 @@ app.add_middleware(
         "Origin",
         "Accept-Language",
         "Accept-Encoding",
+        "X-Forensic-Key",
+        "X-Forensic"
     ],
     expose_headers=["*"],
 )
@@ -86,11 +96,21 @@ api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"]
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 
+# --- FORENSIC DESK DEDICATED SUITE ASSEMBLY ---
+forensic_suite_router = APIRouter(prefix="/forensic", tags=["Forensic Desk"])
+forensic_suite_router.include_router(forensic_dossier_router)
+forensic_suite_router.include_router(forensic_lab_router)
+forensic_suite_router.include_router(forensic_chat_router)
+forensic_suite_router.include_router(forensic_investigator_router)
+
+api_v1_router.include_router(forensic_suite_router)
+
+# Mount all under API v1
 app.include_router(api_v1_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.5.0"}
+    return {"status": "ok", "version": "1.6.0", "forensic_engine": "Claude Sonnet 4.6 Active"}
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")

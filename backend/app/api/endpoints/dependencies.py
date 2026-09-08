@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - DEPENDENCIES V4.0 (CLEAN GENERATOR & RESILIENT REDIS INJECTION)
+# PHOENIX PROTOCOL - DEPENDENCIES V5.0 (CLEAN GENERATOR & FORENSIC RBAC ENFORCEMENT)
 
-from fastapi import Depends, HTTPException, status, WebSocket, Cookie
+from fastapi import Depends, HTTPException, status, WebSocket, Cookie, Header
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator
 from pymongo.database import Database
@@ -112,7 +112,7 @@ def get_current_active_user(
     user_role = str(getattr(current_user, 'role', '')).upper()
     
     # 1. System administrators are immune to expiration locks
-    if user_role == 'ADMIN':
+    if user_role in ['ADMIN', 'SUPERADMIN']:
         return current_user
 
     # 2. Check manual account status flags
@@ -146,11 +146,39 @@ def get_current_admin_user(
 ) -> UserInDB:
     user_role = str(getattr(current_user, 'role', '')).upper()
     
-    if user_role != 'ADMIN':
+    if user_role not in ['ADMIN', 'SUPERADMIN']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The user does not have sufficient privileges."
         )
+    return current_user
+
+
+def get_current_forensic_user(
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    x_forensic_key: Annotated[Optional[str], Header(alias="X-Forensic-Key")] = None
+) -> UserInDB:
+    """
+    PHOENIX PROTOCOL - FORENSIC ACCESS GUARD:
+    Izolon Zyrën Forenzike:
+    1. Kërkon rol të lartë ('ADMIN', 'SUPERADMIN').
+    2. Nëse FORENSIC_API_KEY është konfiguruar në server, verifikon header-in X-Forensic-Key.
+    """
+    user_role = str(getattr(current_user, 'role', '')).upper()
+    if user_role not in ['ADMIN', 'SUPERADMIN']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Aksesi në Zyrën Forenzike është i kufizuar rreptësisht për administratorët hetues."
+        )
+
+    configured_key = getattr(settings, "FORENSIC_API_KEY", "").strip()
+    if configured_key:
+        if not x_forensic_key or x_forensic_key.strip() != configured_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Vula e autorizimit forenzik (X-Forensic-Key) është e pavlefshme ose mungon."
+            )
+
     return current_user
 
 

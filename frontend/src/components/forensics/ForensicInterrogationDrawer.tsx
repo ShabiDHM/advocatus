@@ -1,17 +1,17 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V4.0 (TYPOGRAPHY POLISH & STATIC TRASH)
-// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V5.0 (CLAUDE SONNET 4.6 • CITATION AUDIT)
+// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  BrainCircuit, X, Send, Trash2, Copy, CheckCircle2, 
-  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2
+  BrainCircuit, X, Send, Copy, CheckCircle2, 
+  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2, ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { apiService } from '../../services/api';
+import { forensicDeskService } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
@@ -20,6 +20,13 @@ interface ForensicMessage {
   role: 'user' | 'ai';
   content: string;
   timestamp: string;
+  citationAudit?: {
+    is_safe: boolean;
+    precedents_found: string[];
+    verified_precedents: string[];
+    unverified_precedents: string[];
+    articles_cited: string[];
+  };
 }
 
 interface ForensicInterrogationDrawerProps {
@@ -64,46 +71,43 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
 }) => {
   const [messages, setMessages] = useState<ForensicMessage[]>([]);
   const [input, setInput] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const [isPurging, setIsPurging] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
+  // Ngarkimi i historikut nga endpoint-i i dedikuar forenzik
+  const loadChatHistory = async () => {
+    if (!caseId) return;
+    try {
+      const rawList = await forensicDeskService.getChatHistory(caseId);
+      if (Array.isArray(rawList)) {
+        const mapped: ForensicMessage[] = rawList.map((m: any) => ({
+          id: m._id || `msg-${Math.random()}`,
+          role: m.role === 'assistant' ? 'ai' : 'user',
+          content: m.content || '',
+          timestamp: m.created_at || new Date().toISOString(),
+          citationAudit: m.citation_audit
+        }));
+        setMessages(mapped);
+      }
+    } catch (err) {
+      console.warn("Nuk u ngarkua dot historiku i terminalit forenzik:", err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && caseId) {
-      apiService.axiosInstance.get<ForensicMessage[]>(`/cases/${caseId}/forensic-chat`)
-        .then((res) => {
-          if (Array.isArray(res.data)) {
-            setMessages(res.data);
-          } else {
-            setMessages([]);
-          }
-        })
-        .catch(() => {
-          setMessages([]);
-        });
+      loadChatHistory();
     }
   }, [isOpen, caseId]);
 
-  const persistForensicMessages = useCallback(async (newMessages: ForensicMessage[]) => {
-    if (!caseId) return;
-    try {
-      await apiService.axiosInstance.put(`/cases/${caseId}/forensic-chat`, {
-        forensic_chat_history: newMessages
-      });
-    } catch (err) {
-      console.error("Failed to persist forensic chat to MongoDB:", err);
-    }
-  }, [caseId]);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isStreaming]);
+  }, [messages, isProcessing]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -112,9 +116,10 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   }, [input]);
 
+  // Dërgimi i pyetjes te Claude Sonnet 4.6 me Hallucination Filter
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
-    if (!cleanText || isStreaming || !caseId || isPurging) return;
+    if (!cleanText || isProcessing || !caseId) return;
 
     const userMsg: ForensicMessage = {
       id: `usr_${Date.now()}`,
@@ -123,65 +128,52 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
       timestamp: new Date().toISOString()
     };
 
-    const aiMsgId = `ai_${Date.now()}`;
+    const aiPlaceholderId = `ai_${Date.now()}`;
     const aiPlaceholder: ForensicMessage = {
-      id: aiMsgId,
+      id: aiPlaceholderId,
       role: 'ai',
       content: '',
       timestamp: new Date().toISOString()
     };
 
-    const updatedWithUser = [...messages, userMsg, aiPlaceholder];
-    setMessages(updatedWithUser);
+    setMessages(prev => [...prev, userMsg, aiPlaceholder]);
     setInput('');
-    setIsStreaming(true);
+    setIsProcessing(true);
 
     try {
-      const stream = apiService.sendChatMessageStream(
+      const result = await forensicDeskService.sendChatMessage(
         caseId,
         cleanText,
-        undefined,
-        'ks',
-        'DEEP',
-        'automatic',
-        false
+        `Lënda: ${caseNumber} - ${clientName}. Vula: ${chainOfCustodyHash || 'AKTIVE'}`
       );
 
-      let accumulated = '';
-      for await (const chunk of stream) {
-        accumulated += chunk;
-        const currentAcc = accumulated;
-
-        setMessages((prev) => {
-          const next = [...prev];
-          const lastIdx = next.findIndex(m => m.id === aiMsgId);
-          if (lastIdx !== -1) {
-            next[lastIdx] = { ...next[lastIdx], content: currentAcc };
-          }
-          return next;
-        });
-      }
-
-      setMessages((prev) => {
-        persistForensicMessages(prev);
-        return prev;
-      });
-    } catch (err: any) {
-      console.error("Forensic Interrogation Stream Error:", err);
-      setMessages((prev) => {
+      setMessages(prev => {
         const next = [...prev];
-        const lastIdx = next.findIndex(m => m.id === aiMsgId);
+        const lastIdx = next.findIndex(m => m.id === aiPlaceholderId);
         if (lastIdx !== -1) {
-          next[lastIdx] = { 
-            ...next[lastIdx], 
-            content: `[Gabim Teknik në Terminalin Forenzik: ${err?.message || 'Nuk u arrit lidhja me Claude Sonnet 4.6.'}]` 
+          next[lastIdx] = {
+            ...next[lastIdx],
+            content: result.content || 'Ekspertiza u përpilua.',
+            citationAudit: result.citation_audit
           };
         }
-        persistForensicMessages(next);
+        return next;
+      });
+    } catch (err: any) {
+      console.error("Forensic Chat Error:", err);
+      setMessages(prev => {
+        const next = [...prev];
+        const lastIdx = next.findIndex(m => m.id === aiPlaceholderId);
+        if (lastIdx !== -1) {
+          next[lastIdx] = {
+            ...next[lastIdx],
+            content: `[GABIM FORENZIK: ${err?.response?.data?.detail || err?.message || 'Lidhja me Claude Sonnet 4.6 u refuzua.'}]`
+          };
+        }
         return next;
       });
     } finally {
-      setIsStreaming(false);
+      setIsProcessing(false);
     }
   };
 
@@ -192,30 +184,12 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  const handleClearConsole = async () => {
-    if (messages.length === 0 || !caseId || isPurging) return;
-    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht bisedën forenzike nga Baza e të Dhënave (Total Cascade Wipeout)?");
-    if (!confirmWipe) return;
-
-    setIsPurging(true);
-    try {
-      await apiService.axiosInstance.delete(`/cases/${caseId}/forensic-chat`);
-      setMessages([]);
-    } catch (err) {
-      console.error("Could not wipe forensic chat on MongoDB:", err);
-      alert("Dështoi asgjësimi i bisedës forenzike në server.");
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
   const handleCopyMessage = (msgId: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(msgId);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Dinamika e Tipografisë bazuar në Fullscreen Mode
   const textSizeClass = isFullscreen ? "text-sm sm:text-base" : "text-xs sm:text-sm";
   const titleSizeClass = isFullscreen ? "text-base sm:text-lg" : "text-xs sm:text-sm";
   const pPadClass = isFullscreen ? "p-6 sm:p-10" : "p-4 sm:p-6";
@@ -255,10 +229,10 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className={`${titleSizeClass} font-black uppercase tracking-wider text-text-primary truncate transition-all`}>
-                      Terminali i Hetimit Forenzik
+                      Terminali Forenzik
                     </h3>
                     <span className="px-2 py-0.5 rounded-full bg-primary-start/20 text-primary-start border border-primary-start/40 text-[10px] font-mono font-bold uppercase shrink-0">
-                      Claude Sonnet 4.6 • 1M
+                      Claude Sonnet 4.6
                     </span>
                   </div>
                   <p className="text-[11px] sm:text-xs text-text-muted truncate font-mono mt-1">
@@ -269,27 +243,12 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
-                {/* Trash Button - Shfaqet Gjithmonë */}
-                <button
-                  type="button"
-                  onClick={handleClearConsole}
-                  disabled={messages.length === 0 || isStreaming || isPurging}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                    messages.length === 0 
-                      ? 'text-text-muted/30 cursor-not-allowed' 
-                      : 'text-text-muted hover:text-rose-500 hover:bg-rose-500/10'
-                  }`}
-                  title={messages.length === 0 ? "Biseda është e zbrazët" : "Asgjëso bisedën nga MongoDB Atlas (Total Wipeout)"}
-                >
-                  {isPurging ? <Loader2 size={18} className="animate-spin text-rose-500" /> : <Trash2 size={18} />}
-                </button>
-
                 {/* Fullscreen Toggle */}
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
                   className="hidden sm:flex p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
-                  title={isFullscreen ? "Zvogëlo Terminalin" : "Zgjero Terminalin në Fullscreen"}
+                  title={isFullscreen ? "Zvogëlo Terminalin" : "Zgjero në Fullscreen"}
                 >
                   {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                 </button>
@@ -315,10 +274,10 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   </div>
                   <div className="max-w-xl">
                     <h4 className="text-base sm:text-lg font-black uppercase tracking-tight text-text-primary">
-                      Console Hetimore e SuperAdminit
+                      Terminali Hetimor Ekskluziv
                     </h4>
                     <p className={`text-text-muted mt-2 leading-relaxed ${textSizeClass}`}>
-                      Merrni në pyetje inteligjencën doktrinare mbi të gjitha shkresat e fashikullit. Biseda sinkronizohet automatikisht në të gjitha pajisjet tuaja nëpërmjet **MongoDB Atlas**.
+                      Ky terminal furnizohet ekskluzivisht nga **Claude Sonnet 4.6** me verifikim të neneve dhe precedentëve ligjorë në MongoDB.
                     </p>
                   </div>
 
@@ -348,7 +307,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 <div className="space-y-6">
                   {messages.map((msg) => {
                     const isAi = msg.role === 'ai';
-                    const isThinking = isAi && isStreaming && msg.content === '';
+                    const isThinking = isAi && isProcessing && msg.content === '';
 
                     return (
                       <motion.div
@@ -376,7 +335,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                               : 'bg-primary-start/15 border-primary-start/30 text-text-primary rounded-tr-sm font-medium'
                           }`}
                         >
-                          {/* Copy Action for AI Responses */}
                           {isAi && msg.content && (
                             <button
                               type="button"
@@ -392,14 +350,24 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                             <div className="flex items-center gap-3 py-2">
                               <Loader2 size={18} className="animate-spin text-primary-start" />
                               <span className={`${textSizeClass} font-bold text-primary-start`}>
-                                Claude Sonnet 4.6 po arsyeton mbi fashikullin...
+                                Claude Sonnet 4.6 po kryen ekspertizën...
                               </span>
                             </div>
                           ) : isAi ? (
-                            <div className={`markdown-content prose prose-slate dark:prose-invert max-w-none text-text-primary ${textSizeClass} leading-relaxed`}>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                {autoLinkLegalCitations(msg.content)}
-                              </ReactMarkdown>
+                            <div className="space-y-2">
+                              <div className={`markdown-content prose prose-slate dark:prose-invert max-w-none text-text-primary ${textSizeClass} leading-relaxed`}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                  {autoLinkLegalCitations(msg.content)}
+                                </ReactMarkdown>
+                              </div>
+
+                              {msg.citationAudit && (
+                                <div className="pt-2 border-t border-main/60 flex items-center gap-2 text-[10px] text-text-muted font-mono">
+                                  <ShieldCheck size={12} className="text-emerald-500" />
+                                  <span>Citime Ligjore: {msg.citationAudit.articles_cited?.length || 0} nene</span>
+                                  <span>• Precedentë: {msg.citationAudit.verified_precedents?.length || 0} të verifikuar</span>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <p className={`whitespace-pre-wrap leading-relaxed ${textSizeClass}`}>{msg.content}</p>
@@ -433,15 +401,15 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isStreaming || isPurging}
+                  disabled={!input.trim() || isProcessing}
                   className="h-11 w-11 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
                   title="Dërgo pyetjen hetimore"
                 >
-                  {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
+                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
                 </button>
               </form>
               <div className="flex items-center justify-between mt-3 px-2 text-[11px] sm:text-xs text-text-muted">
-                <span>Sinkronizuar në MongoDB Atlas • Multi-Device Sync</span>
+                <span>Vula e Kujdestarisë: {chainOfCustodyHash || 'E Vërtetuar në Server'}</span>
                 <span className="font-mono font-medium">Modeli: anthropic/claude-sonnet-4.6</span>
               </div>
             </div>

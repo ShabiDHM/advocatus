@@ -1,17 +1,12 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V3.3 (TOTAL CASCADE WIPEOUT FOR SINGLE PILLARS)
-// ZERO TS WARNINGS • TRUE $UNSET MONGODB INTEGRATION
+// PHOENIX PROTOCOL - FORENSIC SERVICE V4.0 (PURGED DEPRECATED FORENSIC DUPLICATIONS • CLEAN MEDIA & PILLARS)
+// 100% COMPLETE CODE • ZERO TS WARNINGS • ATOMIC $UNSET INTEGRATION
 
 import { apiClient } from './apiClient';
 import type {
   CaseAnalysisResult,
   DeepAnalysisResult
 } from '../data/types';
-
-import type {
-  ForensicSpreadsheetAnalysisResult,
-  ForensicInterrogationResponse
-} from './caseService';
 
 export interface MediaEvidenceItem {
   id: string;
@@ -56,7 +51,6 @@ export class ForensicService {
     return response.data;
   }
 
-  // PHOENIX CASCADE WIPEOUT: Asgjëson plotësisht shtjellën nga MongoDB
   public async deleteCasePillar(caseId: string, pillar: string): Promise<any> {
     const response = await apiClient.delete(`/cases/${caseId}/pillars/${pillar}`);
     return response.data;
@@ -76,7 +70,6 @@ export class ForensicService {
     return response.data;
   }
 
-  // PHOENIX CASCADE WIPEOUT: Asgjëson plotësisht shtjellën e dokumentit nga MongoDB
   public async deleteDocumentPillar(caseId: string, documentId: string, pillar: string): Promise<any> {
     const response = await apiClient.delete(`/cases/${caseId}/documents/${documentId}/pillars/${pillar}`);
     return response.data;
@@ -98,7 +91,7 @@ export class ForensicService {
   }
 
   // =========================================================================
-  // 🔬 3. STRATEGJIA E THELLË & SIMULIMI DOKTRINAR
+  // 🔬 3. STRATEGJIA E THELLË DHE RAPORTET
   // =========================================================================
 
   public async analyzeCase(
@@ -162,26 +155,7 @@ export class ForensicService {
   }
 
   // =========================================================================
-  // 💶 4. FORENZIKA FINANCIARE & INTERROGIMI I PROVAVE
-  // =========================================================================
-
-  public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('analyst_id', 'frontend_user');
-    formData.append('acquisition_method', 'WEB_UPLOAD');
-    formData.append('lang', lang);
-    const response = await apiClient.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } });
-    return response.data;
-  }
-
-  public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
-    const response = await apiClient.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
-    return response.data;
-  }
-
-  // =========================================================================
-  // 🎙️ & 🎬 5. MEDIA FORENSICS (AUDIO WHISPER, VIDEO CCTV, EXIF/GPS)
+  // 🎙️ & 🎬 4. MEDIA EVIDENCE (AUDIO, VIDEO CCTV, STREAMING)
   // =========================================================================
 
   public async getCaseMedia(caseId: string): Promise<MediaEvidenceItem[]> {

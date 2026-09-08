@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V6.1 (FIXED TYPINGS & CLEAN IMPORTS)
-// 100% COMPLETE CODE • ZERO TS/PY WARNINGS • STRICT RBAC ACCESS CONTROL • 1M CONTEXT DOCK
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.0 (STRICT FORENSIC BACKEND & ZERO TS WARNINGS)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • SERVER-SIDE CUSTODY INTEGRATION
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -22,9 +22,12 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
-import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { forensicDeskService, ForensicDossier, LabEvidenceCounts } from '../services/forensicDeskService';
+import {
+  forensicDeskService,
+  ForensicDossier,
+  LabEvidenceCounts
+} from '../services/forensicDeskService';
 
 // Importimi i 5 Laboratorëve të Pavarur Forenzikë
 import { DocumentForensicLab } from '../components/forensics/DocumentForensicLab';
@@ -43,7 +46,7 @@ export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | '
 export const AdminForensicDeskPage: React.FC = () => {
   const { user } = useAuth();
   
-  // 🔒 RBAC: KONTROLLI I HEKURT I ROLIT SUPERADMIN
+  // 🔒 RBAC: KONTROLLI I HEKURT I ROLIT SUPERADMIN / ADMIN
   const isSuperAdmin = React.useMemo(() => {
     if (!user) return false;
     const role = String(user.role || (user as any).user_role || '').toUpperCase();
@@ -54,7 +57,7 @@ export const AdminForensicDeskPage: React.FC = () => {
   const [activeDossier, setActiveDossier] = useState<ForensicDossier | null>(null);
   
   const [loadingCases, setLoadingCases] = useState<boolean>(false);
-  const [existingCasesList, setExistingCasesList] = useState<any[]>([]);
+  const [dossiersList, setDossiersList] = useState<ForensicDossier[]>([]);
   
   const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
   const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
@@ -73,24 +76,26 @@ export const AdminForensicDeskPage: React.FC = () => {
 
   const [copiedHash, setCopiedHash] = useState<boolean>(false);
 
-  // Ngarkimi i Dosjeve përmes shërbimit të ri
+  // Ngarkimi i Dosjeve përmes shërbimit të ri të Zyrës Forenzike
   const loadExistingDossiers = useCallback(async () => {
     setLoadingCases(true);
-    const { rawCases, mappedDossiers } = await forensicDeskService.loadAllDossiers();
-    setExistingCasesList(rawCases);
+    const { mappedDossiers } = await forensicDeskService.loadAllDossiers();
+    setDossiersList(mappedDossiers);
     
-    // Zgjedh dosjen e parë nëse ekziston
-    if (mappedDossiers.length > 0 && !activeDossier) {
-      setActiveDossier(mappedDossiers[0]);
+    // Zgjedh dosjen e parë nëse ekziston dhe s'kemi dosje aktive
+    if (mappedDossiers.length > 0) {
+      setActiveDossier(prev => prev ? (mappedDossiers.find(d => d.id === prev.id) || mappedDossiers[0]) : mappedDossiers[0]);
+    } else {
+      setActiveDossier(null);
     }
     setLoadingCases(false);
-  }, [activeDossier]);
+  }, []);
 
   useEffect(() => {
     loadExistingDossiers();
   }, [loadExistingDossiers]);
 
-  // Rifreskimi i statistikave të provave përmes shërbimit të ri
+  // Rifreskimi i statistikave të provave për dosjen aktive
   const refreshEvidenceCounts = useCallback(async () => {
     if (!activeDossier?.id) return;
     const counts = await forensicDeskService.getEvidenceCounts(activeDossier.id);
@@ -103,7 +108,7 @@ export const AdminForensicDeskPage: React.FC = () => {
     }
   }, [activeDossier?.id, refreshEvidenceCounts]);
 
-  // Krijimi i Dosjes së Re
+  // Krijimi i Dosjes së Re me Vulosje të Serverit
   const handleCreateNewDossier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDossierForm.clientName.trim()) {
@@ -112,23 +117,27 @@ export const AdminForensicDeskPage: React.FC = () => {
     }
 
     try {
-      const created = await apiService.createCase({
-        title: `DOSJA FORENZIKE: ${newDossierForm.clientName}`,
-        client_name: newDossierForm.clientName,
-        case_number: `FOR-${Date.now().toString().slice(-6)}`,
-        client_position: 'PLAINTIFF'
-      } as any);
+      const created = await forensicDeskService.createDossier({
+        clientName: newDossierForm.clientName,
+        courtJurisdiction: newDossierForm.courtJurisdiction
+      });
 
-      setActiveDossier(forensicDeskService.mapToForensicDossier(created));
+      setActiveDossier(created);
       setShowNewDossierModal(false);
+      setNewDossierForm({
+        clientName: '',
+        clientPhone: '',
+        clientEmail: '',
+        courtJurisdiction: 'Gjykata Themelore Prishtinë'
+      });
       await loadExistingDossiers();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || "Dështoi krijimi i dosjes zyrtare.");
+      alert(err?.response?.data?.detail || "Dështoi krijimi i dosjes zyrtare forenzike.");
     }
   };
 
   const handleCopyHash = () => {
-    if (!activeDossier) return;
+    if (!activeDossier?.chainOfCustodyHash) return;
     navigator.clipboard.writeText(activeDossier.chainOfCustodyHash);
     setCopiedHash(true);
     setTimeout(() => setCopiedHash(false), 2500);
@@ -147,17 +156,17 @@ export const AdminForensicDeskPage: React.FC = () => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight text-text-primary leading-tight">
-                Laboratori i Autopsisë
+                Laboratori Forenzik
               </h1>
               <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-primary-start/15 text-primary-start border border-primary-start/30 font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
-                V3.2
+                Claude Sonnet 4.6
               </span>
               {activeDossier && (
                 <button
                   type="button"
                   onClick={handleCopyHash}
                   className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-mono text-[9px] sm:text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-500/25 transition-colors cursor-pointer mt-1 sm:mt-0"
-                  title="Kopjo Chain of Custody Hash (SHA-256)"
+                  title="Kopjo Chain of Custody Hash (HMAC-SHA256)"
                 >
                   <Hash size={10} className="sm:w-[11px] sm:h-[11px]" />
                   <span className="truncate max-w-[140px] sm:max-w-none">Vula: {activeDossier.chainOfCustodyHash}</span>
@@ -173,53 +182,55 @@ export const AdminForensicDeskPage: React.FC = () => {
 
         {/* Right: Zgjedhësi i Dosjeve, Chati Forenzik dhe Butonat */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          {/* 🏛️ BUTONI I KYÇUR: CHATI FORENZIK VETËM PËR SUPERADMIN */}
+          {/* 🏛️ BUTONI I KYÇUR: CHATI FORENZIK VETËM PËR SUPERADMIN / ADMIN */}
           {isSuperAdmin && activeDossier && (
             <button
               type="button"
               onClick={() => setShowChatDrawer(true)}
               className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
-              title="Terminali i Sigurt i Bisedës Forenzike (Qasje Ekskluzive SuperAdmin)"
+              title="Terminali i Sigurt i Bisedës Forenzike (Qasje Ekskluzive)"
             >
               <ShieldCheck size={16} className="text-primary-start" />
-              <span className="hidden xs:inline">Chati Forenzik</span>
+              <span className="hidden xs:inline">Terminali Forenzik</span>
               <span className="xs:hidden">Chat</span>
               <span className="hidden md:inline-flex px-1.5 py-0.5 rounded-md bg-primary-start text-white text-[9px] font-mono font-bold">
-                SuperAdmin
+                Sonnet 4.6
               </span>
             </button>
           )}
 
           {/* Butoni i Ditarit të Hetuesit */}
-          <button
-            type="button"
-            onClick={() => setShowInvestigatorDrawer(true)}
-            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
-            title="Hap Ditarin e Hetuesit Autonom"
-          >
-            <span className="text-sm">🕵️</span>
-            <span className="hidden xs:inline">Ditari i Hetuesit</span>
-            <span className="xs:hidden">Hetuesi</span>
-          </button>
+          {activeDossier && (
+            <button
+              type="button"
+              onClick={() => setShowInvestigatorDrawer(true)}
+              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
+              title="Hap Ditarin e Hetuesit Autonom (3 Role)"
+            >
+              <span className="text-sm">🕵️</span>
+              <span className="hidden xs:inline">Ditari i Hetuesit</span>
+              <span className="xs:hidden">Hetuesi</span>
+            </button>
+          )}
 
-          {/* Menuja e Dosjeve */}
+          {/* Menuja e Dosjeve Forenzike */}
           <div className="relative flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-sm min-w-[140px] flex-1 sm:flex-initial">
             <FolderOpen size={14} className="text-primary-start mr-1.5 sm:mr-2 shrink-0" />
             <select
               value={activeDossier?.id || ''}
               onChange={(e) => {
-                const found = existingCasesList.find(c => c.id === e.target.value);
-                if (found) setActiveDossier(forensicDeskService.mapToForensicDossier(found));
+                const found = dossiersList.find(d => d.id === e.target.value);
+                if (found) setActiveDossier(found);
               }}
               className="bg-transparent text-[11px] sm:text-xs font-bold text-text-primary focus:outline-none pr-4 sm:pr-6 cursor-pointer w-full truncate"
               disabled={loadingCases}
             >
-              {existingCasesList.length === 0 ? (
-                <option value="">Nuk ka dosje</option>
+              {dossiersList.length === 0 ? (
+                <option value="">Nuk ka dosje forenzike</option>
               ) : (
-                existingCasesList.map(c => (
-                  <option key={c.id} value={c.id} className="bg-card text-text-primary">
-                    {c.case_number || 'Lëndë'}: {c.client_name || c.title}
+                dossiersList.map(d => (
+                  <option key={d.id} value={d.id} className="bg-card text-text-primary">
+                    {d.caseNumber}: {d.clientName}
                   </option>
                 ))
               )}
@@ -278,7 +289,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             }`}
           >
             <Mic size={14} className="shrink-0" />
-            <span className="whitespace-nowrap">2. Audio</span>
+            <span className="whitespace-nowrap">2. Audio (Diarizim)</span>
             <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/10 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[20px]">
               {labCounts.AUDIO}
             </span>
@@ -405,7 +416,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         )}
       </main>
 
-      {/* 🏛️ TERMINALI I RI I PAVARUR FORENZIK ME CLAUDE SONNET 4.6 */}
+      {/* 🏛️ TERMINALI FORENZIK ME CLAUDE SONNET 4.6 */}
       {isSuperAdmin && activeDossier && (
         <ForensicInterrogationDrawer
           isOpen={showChatDrawer}
@@ -428,13 +439,13 @@ export const AdminForensicDeskPage: React.FC = () => {
         />
       )}
 
-      {/* MODALI I DOSJES SË RE */}
+      {/* MODALI I DOSJES SË RE ME CHAIN OF CUSTODY */}
       {showNewDossierModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-card border border-main rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-lg w-full shadow-2xl space-y-4 sm:space-y-5 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-main pb-3">
               <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FolderOpen size={16} className="text-primary-start sm:w-[18px] sm:h-[18px]" /> Regjistrimi i Dosjes
+                <FolderOpen size={16} className="text-primary-start sm:w-[18px] sm:h-[18px]" /> Regjistrimi i Dosjes Forenzike
               </h3>
               <button
                 type="button"
@@ -503,7 +514,7 @@ export const AdminForensicDeskPage: React.FC = () => {
                   type="submit"
                   className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer transition-all hover-lift"
                 >
-                  Hap Dosjen Zyrtare
+                  Hap Dosjen Zyrtare Forenzike
                 </button>
               </div>
             </form>

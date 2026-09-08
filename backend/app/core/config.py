@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V10.0 (B2 REGION SUPPORT & ENTERPRISE VALIDATION)
+# PHOENIX PROTOCOL - CONFIG V11.0 (FORENSIC DESK ISOLATION & ADVANCED INTEGRATIONS)
 
 import os
 from pathlib import Path
@@ -37,6 +37,23 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
+
+    # --- FORENSIC SUITE CONFIGURATION ---
+    # Model ekskluziv për Zyrën Forenzike pa fallback
+    FORENSIC_LLM_MODEL: str = "anthropic/claude-sonnet-4.6"
+    # Çelës sigurie i dedikuar për akses laboratorik/superadmin
+    FORENSIC_API_KEY: str = ""
+
+    # Audio Forensics (AssemblyAI: Diarization & Speech Sentiment/Stress)
+    ASSEMBLYAI_API_KEY: str = ""
+
+    # Visual Forensics (Google Vision API)
+    GOOGLE_VISION_API_KEY: str = ""
+
+    # Interactive War Room GraphRAG (Neo4j Aura)
+    NEO4J_URI: str = ""
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = ""
 
     # B2 Storage Configuration
     B2_KEY_ID: str = ""

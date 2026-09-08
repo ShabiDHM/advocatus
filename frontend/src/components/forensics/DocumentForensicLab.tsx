@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V11.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
-// ZERO TS WARNINGS • NO UNWANTED AUTO-GENERATION • ATOMIC $UNSET INTEGRATION • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V12.0 (STRICT CLAUDE SONNET 4.6 • ATOMIC PURGE)
+// 100% COMPLETE CODE • ZERO TS WARNINGS • CITATION AUDIT INTEGRATION
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
@@ -21,6 +21,7 @@ import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../../services/api';
 import { forensicService } from '../../services/forensicService';
+import { forensicDeskService } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
@@ -58,32 +59,31 @@ const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; 
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
 Dokumenti: "${docName}"
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 1 (MOS shkruaj asnjë seksion tjetër):
-- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore prekluzive).
+DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 1:
+- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore).
 - Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
 - Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
+RREGULL: Përfundo të gjithë SHTJELLËN 1 me saktësi shkencore dhe nene të sakta të Kosovës!`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
     subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
 Dokumenti: "${docName}"
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 2 (MOS shkruaj asnjë seksion tjetër):
-- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës (Formati: Neni X i [Ligjit]) me precedentët përkatës të Gjykatës Supreme (PML / Revizion).
-- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
+DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 2:
+- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).
+- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive me Tabelën e Zëvendësimit.
+RREGULL: Cito vetëm nene dhe precedentë që zbatohen realisht në Kosovë!`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
 Dokumenti: "${docName}"
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 3 (MOS shkruaj asnjë seksion tjetër):
+DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 3:
 - Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
 - Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
-- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.`
   }
 };
 
@@ -91,32 +91,29 @@ const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string;
   PILLAR_1: {
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
-Gjenero EKSKLUZIVISHT Seksionet 1 dhe 2 për të gjithë fashikullin:
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 1: FAKTI & HISTORIKU]
+Gjenero EKSKLUZIVISHT Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:
 - Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.
 - Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
-- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
-Gjenero EKSKLUZIVISHT Seksionet 3, 4 dhe 5 për të gjithë fashikullin:
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 2: SHKELJET & NENET]
+Gjenero EKSKLUZIVISHT Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:
 - Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
 - Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).
-- Seksioni 5: Përgjegjësia Penale (Nenet 383, 414, 427 KPK) dhe Shkeljet Thelbësore (Neni 182 LPK).
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Seksioni 5: Përgjegjësia Penale dhe Shkeljet Thelbësore (Neni 182 LPK).`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
-    prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
-Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin:
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 3: PLANI I VEPRIMIT]
+Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:
 - Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
-- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
-- Seksioni 8: Master Plani i Veprimit me Afate të Prera.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.
+- Seksioni 8: Master Plani i Veprimit me Afate të Prera.`
   }
 };
 
@@ -376,7 +373,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         
         await forensicService.deleteDocumentPillar(caseId, selectedDocId, activePillar);
         
-        // Zbraz menjëherë state-in lokal dhe cache-in e dokumentit
         setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
         setDocuments(prev => prev.map(d => d.id === selectedDocId ? {
           ...d,
@@ -394,7 +390,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // GJENERIMI DHE RUAJTJA NË MONGODB ME DËSHIRË TË PËRDORUESIT
+  // GJENERIMI I SHTJELLËS EKSKLUZIVISHT ME CLAUDE SONNET 4.6 DHE VERIFIKIM NË DB
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -411,21 +407,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
       try {
         const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.name);
-        const stream = apiService.sendChatMessageStream(caseId, prompt, [targetDoc.id], 'ks', 'DEEP', 'document', false);
+        const result = await forensicDeskService.sendChatMessage(
+          caseId,
+          prompt,
+          `Dokumenti i zgjedhur: ${targetDoc.name}. Përmbajtja e shkurtër: ${(targetDoc.extracted_text || '').slice(0, 3000)}`
+        );
 
-        let accumulated = '';
-        for await (const chunk of stream) {
-          accumulated += chunk;
-          const currentAcc = accumulated;
-          setDocPillars((prev) => ({ ...prev, [pillar]: currentAcc }));
-        }
+        const content = result.content || '';
+        setDocPillars((prev) => ({ ...prev, [pillar]: content }));
 
-        if (accumulated.trim().length > 50) {
+        if (content.trim().length > 50) {
           try {
-            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, accumulated);
+            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, content);
             setDocuments(prev => prev.map(d => d.id === targetDoc.id ? {
               ...d,
-              forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: accumulated }
+              forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: content }
             } : d));
           } catch (saveErr) {
             console.warn("Could not save doc pillar to MongoDB:", saveErr);
@@ -442,18 +438,18 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
       try {
         const prompt = CASE_PILLAR_CONFIGS[pillar].prompt;
-        const stream = apiService.sendChatMessageStream(caseId, prompt, undefined, 'ks', 'DEEP', 'automatic', false);
+        const result = await forensicDeskService.sendChatMessage(
+          caseId,
+          prompt,
+          `Ekspertizë master mbi të gjithë fashikullin e lëndës.`
+        );
 
-        let accumulated = '';
-        for await (const chunk of stream) {
-          accumulated += chunk;
-          const currentAcc = accumulated;
-          setCasePillars((prev) => ({ ...prev, [pillar]: currentAcc }));
-        }
+        const content = result.content || '';
+        setCasePillars((prev) => ({ ...prev, [pillar]: content }));
 
-        if (accumulated.trim().length > 50) {
+        if (content.trim().length > 50) {
           try {
-            await forensicService.saveCasePillar(caseId, pillar, accumulated);
+            await forensicService.saveCasePillar(caseId, pillar, content);
           } catch (saveErr) {
             console.warn("Could not save case pillar to MongoDB:", saveErr);
           }
@@ -467,7 +463,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId, loadingPillars, autopsyScope, selectedDocId, documents]);
 
-  // KALIMI MES TAB-EVE: THJESHT NDRYSHON PAMJEN PA ASNJË FORCIM TË GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
   };
@@ -515,7 +510,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                 <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
               </h3>
-              <span className="text-[10px] font-mono text-text-muted">Vision OCR & LPK</span>
+              <span className="text-[10px] font-mono text-primary-start font-bold">Claude Sonnet 4.6</span>
             </div>
 
             <div
@@ -539,7 +534,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                    <p className="text-[10px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
+                    <p className="text-[10px] text-text-muted">Ekzaminim me saktësi shkencore dhe nene të Kosovës</p>
                   </div>
                 </>
               )}
@@ -675,7 +670,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat e Veprimit me Total Cascade Wipeout për Shtjellën Aktive */}
+            {/* Butonat e Veprimit me Font Size dhe Purge */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
                 <button
@@ -757,7 +752,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
+          {/* SHIRITI I 3 SHTJELLAVE */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
               const cfg = currentConfigs[pillarKey];
@@ -871,7 +866,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   {currentConfigs[activePillar].title}
                 </h4>
                 <p className="text-xs text-text-muted max-w-sm">
-                  Kjo shtjellë është e pastër. Klikoni butonin më poshtë kur të dëshironi të filloni auditimin doktrinar.
+                  Kjo shtjellë është e pastër. Shtypni butonin më poshtë për të filluar ekzaminimin me Claude Sonnet 4.6.
                 </p>
                 <button
                   type="button"
@@ -888,7 +883,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   Duke analizuar {currentConfigs[activePillar].title}...
                 </p>
                 <p className="text-[10px] text-text-muted mt-1">
-                  Juristi AI po kryen autopsinë e thellë doktrinare.
+                  Claude Sonnet 4.6 po kryen ekspertizën forenzike mbi shkresën.
                 </p>
               </div>
             ) : (
@@ -916,7 +911,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <span className="font-medium">
             Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
           </span>
-          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1M Context)</span>
+          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (Ekskluziv)</span>
         </div>
       </div>
     </div>
