@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V17.0 (FORENSIC DESK INTEGRATION & ISOLATION)
+# PHOENIX PROTOCOL - MAIN APPLICATION V18.0 (1:1 DEDICATED FORENSIC ROUTERS SUITE)
 
 import os
 import logging
@@ -11,7 +11,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .core.lifespan import lifespan
 from .core.config import settings
 
-# Router Imports
+# Router Imports - Klienti Normal (Të Paprekur)
 from .api.endpoints.auth import router as auth_router
 from .api.endpoints.auth_reset import router as auth_reset_router
 from .api.endpoints.users import router as users_router
@@ -30,10 +30,14 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.laws import router as laws_router
 
-# Forensic Desk Dedicated Routers
+# Router Imports - Zyra Forenzike e Pavarur (1:1 Dedicated Suite)
 from .api.endpoints.forensic import (
     forensic_dossier_router,
-    forensic_lab_router,
+    forensic_audio_router,
+    forensic_visual_router,
+    forensic_finance_router,
+    forensic_document_router,
+    forensic_war_room_router,
     forensic_chat_router,
     forensic_investigator_router
 )
@@ -76,8 +80,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# --- ROUTER ASSEMBLY ---
+# --- ROUTER ASSEMBLY (API V1) ---
 api_v1_router = APIRouter(prefix="/api/v1")
+
+# 1. Rrugët e Klientit Normal
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
@@ -96,21 +102,29 @@ api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"]
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 
-# --- FORENSIC DESK DEDICATED SUITE ASSEMBLY ---
+# 2. Rrugët e Zyrës Forenzike (Fortesë e Pavarur 1:1)
 forensic_suite_router = APIRouter(prefix="/forensic", tags=["Forensic Desk"])
 forensic_suite_router.include_router(forensic_dossier_router)
-forensic_suite_router.include_router(forensic_lab_router)
+forensic_suite_router.include_router(forensic_audio_router)
+forensic_suite_router.include_router(forensic_visual_router)
+forensic_suite_router.include_router(forensic_finance_router)
+forensic_suite_router.include_router(forensic_document_router)
+forensic_suite_router.include_router(forensic_war_room_router)
 forensic_suite_router.include_router(forensic_chat_router)
 forensic_suite_router.include_router(forensic_investigator_router)
 
 api_v1_router.include_router(forensic_suite_router)
 
-# Mount all under API v1
+# Montimi i plotë në API
 app.include_router(api_v1_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.6.0", "forensic_engine": "Claude Sonnet 4.6 Active"}
+    return {
+        "status": "ok", 
+        "version": "1.8.0", 
+        "forensic_engine": "Claude Sonnet 4.6 (1:1 Dedicated Architecture Active)"
+    }
 
 # Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")

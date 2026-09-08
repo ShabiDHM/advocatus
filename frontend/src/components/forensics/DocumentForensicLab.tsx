@@ -1,13 +1,12 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V12.0 (STRICT CLAUDE SONNET 4.6 • ATOMIC PURGE)
-// 100% COMPLETE CODE • ZERO TS WARNINGS • CITATION AUDIT INTEGRATION
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DOCUMENT LAB V13.0 (100% INDEPENDENT SUITE)
+// ZERO TS WARNINGS • CLAUDE SONNET 4.6 ENGINE • INSTANT CUSTODY SEAL & ATOMIC PURGE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   FileText,
   UploadCloud,
   CheckCircle2,
-  AlertCircle,
   Trash2,
   Loader2,
   RefreshCw,
@@ -21,24 +20,12 @@ import remarkGfm from 'remark-gfm';
 
 import { apiService } from '../../services/api';
 import { forensicService } from '../../services/forensicService';
-import { forensicDeskService } from '../../services/forensicDeskService';
+import { forensicDeskService, ForensicDocItem } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
 export type AutopsyScope = 'DOCUMENT' | 'CASE';
 export type PillarType = 'PILLAR_1' | 'PILLAR_2' | 'PILLAR_3';
-
-interface DocumentItem {
-  id: string;
-  name: string;
-  sizeFormatted: string;
-  content_type?: string;
-  created_at?: string;
-  extracted_text?: string;
-  status?: string;
-  has_violation?: boolean;
-  forensic_pillars?: Record<string, string>;
-}
 
 interface DocumentForensicLabProps {
   caseId: string;
@@ -59,28 +46,28 @@ const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; 
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
 Dokumenti: "${docName}"
-DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 1:
+DETYRË: Gjenero SHTJELLËN 1 me Claude Sonnet 4.6:
 - Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore).
 - Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
 - Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
-RREGULL: Përfundo të gjithë SHTJELLËN 1 me saktësi shkencore dhe nene të sakta të Kosovës!`
+Përgjigju me përpikmëri shkencore dhe nene të sakta të Kosovës.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
-    subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
+    subtitle: 'Tabela e Neneve të Kosovës & Shkeljet Procedurale',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
 Dokumenti: "${docName}"
-DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 2:
-- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).
-- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive me Tabelën e Zëvendësimit.
-RREGULL: Cito vetëm nene dhe precedentë që zbatohen realisht në Kosovë!`
+DETYRË: Gjenero SHTJELLËN 2 me Claude Sonnet 4.6:
+- Seksioni 4: Tabela e Neneve të Shkelura sipas Legjislacionit të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).
+- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive.
+Bazo arsyetimin në legjislacionin pozitiv të Kosovës.`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
 Dokumenti: "${docName}"
-DETYRË ME CLAUDE SONNET 4.6: Gjenero EKSKLUZIVISHT SHTJELLËN 3:
+DETYRË: Gjenero SHTJELLËN 3 me Claude Sonnet 4.6:
 - Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
 - Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
 - Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.`
@@ -92,26 +79,26 @@ const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string;
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 1: FAKTI & HISTORIKU]
-Gjenero EKSKLUZIVISHT Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:
+Gjenero Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:
 - Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.
 - Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
-- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.`
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve nga provat reale.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 2: SHKELJET & NENET]
-Gjenero EKSKLUZIVISHT Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:
+Gjenero Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:
 - Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
 - Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).
-- Seksioni 5: Përgjegjësia Penale dhe Shkeljet Thelbësore (Neni 182 LPK).`
+- Seksioni 5: Përgjegjësia Ligjore dhe Shkeljet Thelbësore (Neni 182 LPK / KPP).`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 3: PLANI I VEPRIMIT]
-Gjenero EKSKLUZIVISHT Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:
-- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
+Gjenero Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:
+- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Masë Sigurimi).
 - Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.
 - Seksioni 8: Master Plani i Veprimit me Afate të Prera.`
   }
@@ -121,7 +108,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   caseId,
   onEvidenceChange
 }) => {
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [documents, setDocuments] = useState<ForensicDocItem[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -222,19 +209,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setShowScrollBottomBtn(false);
   };
 
-  const extractFileSize = (d: any): string => {
-    const rawBytes = d.size ?? d.file_size ?? d.bytes ?? d.file_size_bytes ?? d.length ?? d.metadata?.file_size ?? d.metadata?.size;
-    if (rawBytes !== undefined && rawBytes !== null) {
-      const num = typeof rawBytes === 'string' ? parseFloat(rawBytes) : Number(rawBytes);
-      if (!isNaN(num) && num > 0) {
-        if (num < 1024) return `${num} B`;
-        if (num < 1024 * 1024) return `${(num / 1024).toFixed(0)} KB`;
-        return `${(num / (1024 * 1024)).toFixed(1)} MB`;
-      }
-    }
-    return 'PDF e Indeksuar';
-  };
-
   const loadCasePillars = useCallback(async () => {
     if (!caseId) return;
     try {
@@ -254,20 +228,33 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const loadDocPillars = useCallback(async (docId: string) => {
     if (!caseId || !docId) return;
     try {
-      const pillars = await forensicService.getDocumentPillars(caseId, docId);
-      if (pillars && typeof pillars === 'object') {
-        setDocPillars({
-          PILLAR_1: pillars.PILLAR_1 || '',
-          PILLAR_2: pillars.PILLAR_2 || '',
-          PILLAR_3: pillars.PILLAR_3 || ''
-        });
-      } else {
-        setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
-      }
+      const pillars = await forensicDeskService.getForensicDocPillars(caseId, docId);
+      setDocPillars({
+        PILLAR_1: pillars.PILLAR_1 || '',
+        PILLAR_2: pillars.PILLAR_2 || '',
+        PILLAR_3: pillars.PILLAR_3 || ''
+      });
     } catch {
       setDocPillars({ PILLAR_1: '', PILLAR_2: '', PILLAR_3: '' });
     }
   }, [caseId]);
+
+  const loadDocuments = useCallback(async () => {
+    if (!caseId) return;
+    setLoadingDocs(true);
+    try {
+      const docs = await forensicDeskService.listForensicDocuments(caseId);
+      setDocuments(docs);
+
+      if (docs.length > 0 && !selectedDocId) {
+        setSelectedDocId(docs[0].id);
+      }
+    } catch (err) {
+      console.error("Dështoi ngarkimi i dokumenteve forenzike:", err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  }, [caseId, selectedDocId]);
 
   useEffect(() => {
     if (caseId) {
@@ -276,42 +263,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         loadCasePillars();
       }
     }
-  }, [caseId, autopsyScope, loadCasePillars]);
+  }, [caseId, autopsyScope, loadDocuments, loadCasePillars]);
 
   useEffect(() => {
     if (selectedDocId && caseId && autopsyScope === 'DOCUMENT') {
       loadDocPillars(selectedDocId);
     }
   }, [selectedDocId, caseId, autopsyScope, loadDocPillars]);
-
-  const loadDocuments = async () => {
-    if (!caseId) return;
-    setLoadingDocs(true);
-    try {
-      const docs = await apiService.getDocuments(caseId);
-      const mapped: DocumentItem[] = (docs || []).map((d: any) => ({
-        id: d.id || d._id,
-        name: d.name || d.file_name || 'Dokument pa titull',
-        sizeFormatted: extractFileSize(d),
-        content_type: d.content_type || 'application/pdf',
-        created_at: d.created_at || d.uploaded_at || new Date().toISOString(),
-        extracted_text: d.extracted_text || d.text || '',
-        status: d.status || 'READY',
-        has_violation: Boolean(d.has_violation || (d.audit_result && (d.audit_result.includes('SHKELJE') || d.audit_result.includes('Neni 182')))),
-        forensic_pillars: d.forensic_pillars || {}
-      }));
-
-      setDocuments(mapped);
-
-      if (mapped.length > 0 && !selectedDocId) {
-        setSelectedDocId(mapped[0].id);
-      }
-    } catch (err) {
-      console.error("Dështoi ngarkimi i dokumenteve:", err);
-    } finally {
-      setLoadingDocs(false);
-    }
-  };
 
   const handleUploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0 || !caseId) return;
@@ -320,10 +278,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setUploadProgressText(`Duke indeksuar me OCR: ${file.name} (${i + 1}/${files.length})...`);
-        await apiService.uploadDocument(caseId, file);
+        setUploadProgressText(`Duke ngarkuar me vulë të kujdestarisë: ${file.name}...`);
+        await forensicDeskService.uploadForensicDocument(caseId, file);
       }
-      setUploadProgressText("Dokumentet u indeksuan me sukses!");
+      setUploadProgressText("Shkresat u ngarkuan dhe u vulosën.");
       await loadDocuments();
       if (onEvidenceChange) onEvidenceChange();
     } catch (err: any) {
@@ -343,7 +301,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
     setDeletingDocId(docId);
     try {
-      await apiService.deleteDocument(caseId, docId);
+      await forensicDeskService.deleteForensicDocument(caseId, docId);
       setDocuments(prev => prev.filter(d => d.id !== docId));
       if (selectedDocId === docId) {
         setSelectedDocId(null);
@@ -358,7 +316,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // TOTAL ATOMIC PURGE NË MONGODB ATLAS ($UNSET)
   const handleAdminPurgeSinglePillar = async () => {
     if (!caseId || !currentPillarContent) return;
     
@@ -369,15 +326,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setIsDeletingPillars(true);
     try {
       if (autopsyScope === 'DOCUMENT') {
-        if (!selectedDocId || !activeDoc) return;
-        
-        await forensicService.deleteDocumentPillar(caseId, selectedDocId, activePillar);
-        
+        if (!selectedDocId) return;
+        await forensicDeskService.deleteForensicDocPillar(caseId, selectedDocId, activePillar);
         setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
-        setDocuments(prev => prev.map(d => d.id === selectedDocId ? {
-          ...d,
-          forensic_pillars: { ...(d.forensic_pillars || {}), [activePillar]: '' }
-        } : d));
       } else {
         await forensicService.deleteCasePillar(caseId, activePillar);
         setCasePillars(prev => ({ ...prev, [activePillar]: '' }));
@@ -390,7 +341,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // GJENERIMI I SHTJELLËS EKSKLUZIVISHT ME CLAUDE SONNET 4.6 DHE VERIFIKIM NË DB
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -406,27 +356,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       setDocPillars((prev) => ({ ...prev, [pillar]: '' }));
 
       try {
-        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.name);
-        const result = await forensicDeskService.sendChatMessage(
-          caseId,
-          prompt,
-          `Dokumenti i zgjedhur: ${targetDoc.name}. Përmbajtja e shkurtër: ${(targetDoc.extracted_text || '').slice(0, 3000)}`
-        );
-
-        const content = result.content || '';
+        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.file_name);
+        const content = await forensicDeskService.generateForensicDocPillar(caseId, targetDoc.id, pillar, prompt);
         setDocPillars((prev) => ({ ...prev, [pillar]: content }));
-
-        if (content.trim().length > 50) {
-          try {
-            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, content);
-            setDocuments(prev => prev.map(d => d.id === targetDoc.id ? {
-              ...d,
-              forensic_pillars: { ...(d.forensic_pillars || {}), [pillar]: content }
-            } : d));
-          } catch (saveErr) {
-            console.warn("Could not save doc pillar to MongoDB:", saveErr);
-          }
-        }
       } catch (err) {
         console.error(`Doc Pillar Error [${pillar}]:`, err);
         alert(`Ndodhi një gabim gjatë auditimit të ${DOC_PILLAR_CONFIGS[pillar].title}.`);
@@ -481,7 +413,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
     try {
       const activeTitle = autopsyScope === 'DOCUMENT'
-        ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.name || 'Dokument'}`
+        ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.file_name || 'Dokument'}`
         : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
 
       await apiService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
@@ -495,7 +427,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   };
 
   const filteredDocs = documents.filter(d =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (d.file_name || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
@@ -508,7 +440,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-main pb-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
+                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave Forenzike
               </h3>
               <span className="text-[10px] font-mono text-primary-start font-bold">Claude Sonnet 4.6</span>
             </div>
@@ -534,7 +466,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   </div>
                   <div>
                     <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                    <p className="text-[10px] text-text-muted">Ekzaminim me saktësi shkencore dhe nene të Kosovës</p>
+                    <p className="text-[10px] text-text-muted">Vulosje e menjëhershme HMAC-SHA256 dhe OCR</p>
                   </div>
                 </>
               )}
@@ -598,16 +530,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           <FileText size={16} />
                         </div>
                         <div className="truncate text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-bold truncate text-text-primary">{doc.name}</p>
-                            {doc.has_violation && (
-                              <span title="Shkelje procedurale e zbuluar!" className="text-rose-500 shrink-0">
-                                <AlertCircle size={13} />
-                              </span>
-                            )}
-                          </div>
+                          <p className="font-bold truncate text-text-primary">{doc.file_name}</p>
                           <p className="text-[10px] font-mono text-text-muted">
-                            {doc.sizeFormatted} • Statusi: {doc.status}
+                            Vula: {doc.custody_stamp?.custody_hash ? `${doc.custody_stamp.custody_hash.slice(0, 10)}...` : 'E Verifikuar'}
                           </p>
                         </div>
                       </div>
@@ -616,7 +541,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                         {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteDocument(doc.id, doc.name, e)}
+                          onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
                           disabled={isDeleting}
                           title="Hiq nga dosja forenzike"
                           className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
@@ -636,7 +561,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       {/* KOLONA E DJATHTË */}
       <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
         <div className="space-y-3">
-          {/* Header Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
             <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0">
               <button
@@ -670,7 +594,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </button>
             </div>
 
-            {/* Butonat e Veprimit me Font Size dhe Purge */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
                 <button
@@ -743,7 +666,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <div className="text-xs text-text-muted">
             {autopsyScope === 'DOCUMENT' ? (
               <p>
-                Dokumenti në Ekzaminim: <span className="font-bold text-text-primary">{activeDoc?.name || 'Asnjë i përzgjedhur'}</span>
+                Dokumenti në Ekzaminim: <span className="font-bold text-text-primary">{activeDoc?.file_name || 'Asnjë i përzgjedhur'}</span>
               </p>
             ) : (
               <p>
@@ -911,7 +834,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           <span className="font-medium">
             Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
           </span>
-          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (Ekskluziv)</span>
+          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1:1 Dedicated Architecture)</span>
         </div>
       </div>
     </div>

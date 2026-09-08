@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/VisualForensicLab.tsx
-// PHOENIX PROTOCOL - FORENSIC VISUAL LAB V2.0 (EXIF/GPS • ELA TAMPER DETECTION • GOOGLE VISION • CLAUDE SONNET 4.6)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV LAB V3.1 (ZERO TS WARNINGS)
+// 100% COMPLETE CODE • ZERO CLIENT INTERFERENCE • KEYFRAMES & CLAUDE SONNET 4.6
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -24,10 +24,15 @@ import {
   ExternalLink,
   Tag,
   Crosshair,
-  FileCheck
+  FileCheck,
+  Film
 } from 'lucide-react';
-import { forensicService, MediaEvidenceItem } from '../../services/forensicService';
-import { forensicDeskService, VisualAnalysisResponse } from '../../services/forensicDeskService';
+import {
+  forensicDeskService,
+  ForensicMediaItem,
+  VisualAnalysisResponse,
+  CCTVVideoAnalysisResponse
+} from '../../services/forensicDeskService';
 
 interface VisualForensicLabProps {
   caseId: string;
@@ -38,7 +43,7 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
   caseId,
   onEvidenceChange
 }) => {
-  const [visualList, setVisualList] = useState<MediaEvidenceItem[]>([]);
+  const [visualList, setVisualList] = useState<ForensicMediaItem[]>([]);
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null);
   const [loadingMedia, setLoadingMedia] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -49,16 +54,15 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Gjendjet e Analizës Forenzike Vizuale
+  // Gjendjet e Ekspertizës Forenzike (Foto ose Video CCTV)
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [forensicResult, setForensicResult] = useState<VisualAnalysisResponse | null>(null);
+  const [imageAnalysis, setImageAnalysis] = useState<VisualAnalysisResponse | null>(null);
+  const [cctvAnalysis, setCctvAnalysis] = useState<CCTVVideoAnalysisResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedReport, setCopiedReport] = useState<boolean>(false);
 
-  // Cache lokal i skedarëve të sapongarkuar
   const localFilesRef = useRef<Map<string, File>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const authToken = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
 
   useEffect(() => {
@@ -78,12 +82,7 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
     if (!caseId) return;
     setLoadingMedia(true);
     try {
-      const mediaItems = await forensicService.getCaseMedia(caseId);
-      const visuals = (mediaItems || []).filter(item =>
-        item.media_type === 'video' ||
-        item.mime_type.startsWith('video/') ||
-        item.mime_type.startsWith('image/')
-      );
+      const visuals = await forensicDeskService.listForensicVisual(caseId);
       setVisualList(visuals);
 
       if (visuals.length > 0 && !selectedVisualId) {
@@ -103,13 +102,13 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setUploadProgressText(`Duke ngarkuar në laborator: ${file.name}...`);
-        const uploaded = await forensicService.uploadCaseMedia(caseId, file);
+        setUploadProgressText(`Duke ngarkuar me vulë të kujdestarisë: ${file.name}...`);
+        const uploaded = await forensicDeskService.uploadForensicVisual(caseId, file);
         if (uploaded?.id) {
           localFilesRef.current.set(uploaded.id, file);
         }
       }
-      setUploadProgressText("Skedarët u ngarkuan me sukses.");
+      setUploadProgressText("Provat vizuale u ngarkuan dhe u vulosën.");
       await loadVisualEvidence();
       if (onEvidenceChange) onEvidenceChange();
     } catch (err) {
@@ -129,12 +128,13 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
 
     setDeletingMediaId(mediaId);
     try {
-      await forensicService.deleteCaseMedia(caseId, mediaId);
+      await forensicDeskService.deleteForensicVisual(caseId, mediaId);
       setVisualList(prev => prev.filter(v => v.id !== mediaId));
       localFilesRef.current.delete(mediaId);
       if (selectedVisualId === mediaId) {
         setSelectedVisualId(null);
-        setForensicResult(null);
+        setImageAnalysis(null);
+        setCctvAnalysis(null);
       }
       if (onEvidenceChange) onEvidenceChange();
     } catch (err) {
@@ -145,9 +145,10 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
     }
   };
 
-  // EKSPERTIZA E THELLË FORENZIKE (EXIF, ELA DHE CLAUDE SONNET 4.6)
+  const activeVisual = visualList.find(v => v.id === selectedVisualId);
+  const isVideo = activeVisual?.media_type === 'video' || (activeVisual?.mime_type || '').startsWith('video/');
+
   const handleRunVisualForensics = async () => {
-    const activeVisual = visualList.find(v => v.id === selectedVisualId);
     if (!activeVisual || !caseId || isAnalyzing) return;
 
     let targetFile = localFilesRef.current.get(activeVisual.id);
@@ -155,33 +156,44 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
     if (!targetFile) {
       try {
         setIsAnalyzing(true);
-        setUploadProgressText("Duke shkarkuar skedarin për ekspertizë të thellë...");
-        const streamUrl = forensicService.getMediaStreamUrl(caseId, activeVisual.id, authToken);
+        setUploadProgressText("Duke shkarkuar provën nga serveri...");
+        const streamUrl = forensicDeskService.getForensicVisualStreamUrl(caseId, activeVisual.id, authToken);
         const res = await fetch(streamUrl);
         const blob = await res.blob();
         targetFile = new File([blob], activeVisual.file_name, { type: activeVisual.mime_type || 'image/jpeg' });
       } catch (e) {
-        console.error("Nuk mund të shkarkohej prova nga storage:", e);
+        console.error("Nuk mund të lexohej skedari nga storage:", e);
       }
     }
 
     if (!targetFile) {
-      alert("Skedari vizual nuk u gjet për procesim direkt. Ju lutem ngarkojeni përsëri.");
+      alert("Skedari nuk u gjet për procesim direkt.");
       setIsAnalyzing(false);
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      const result = await forensicDeskService.analyzeVisualLab(
-        caseId,
-        targetFile,
-        `Ekspertizë forenzike mbi provën ${activeVisual.file_name}`
-      );
-      setForensicResult(result);
+      if (isVideo) {
+        const cctvRes = await forensicDeskService.analyzeForensicVideo(
+          caseId,
+          targetFile,
+          `Ekspertizë CCTV mbi regjistrimin ${activeVisual.file_name}`
+        );
+        setCctvAnalysis(cctvRes);
+        setImageAnalysis(null);
+      } else {
+        const imgRes = await forensicDeskService.analyzeVisualLab(
+          caseId,
+          targetFile,
+          `Ekspertizë forenzike mbi fotografinë ${activeVisual.file_name}`
+        );
+        setImageAnalysis(imgRes);
+        setCctvAnalysis(null);
+      }
     } catch (err: any) {
       console.error("Visual analysis error:", err);
-      alert(err?.response?.data?.detail || "Dështoi analiza forenzike e provës vizuale.");
+      alert(err?.response?.data?.detail || "Dështoi analiza e thellë forenzike.");
     } finally {
       setIsAnalyzing(false);
       setUploadProgressText('');
@@ -199,38 +211,37 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
     }
   };
 
-  const handleCopyReport = () => {
-    if (!forensicResult?.forensic_opinion?.expert_statement) return;
-    navigator.clipboard.writeText(forensicResult.forensic_opinion.expert_statement);
+  const handleCopyReport = (text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     setCopiedReport(true);
     setTimeout(() => setCopiedReport(false), 2500);
   };
 
-  const activeVisual = visualList.find(v => v.id === selectedVisualId);
   const filteredVisuals = visualList.filter(v =>
     v.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const streamUrl = (activeVisual && caseId && authToken)
-    ? forensicService.getMediaStreamUrl(caseId, activeVisual.id, authToken)
+    ? forensicDeskService.getForensicVisualStreamUrl(caseId, activeVisual.id, authToken)
     : '';
 
-  const exifData = forensicResult?.exif_metadata;
-  const elaData = forensicResult?.tamper_analysis;
-  const visionData = forensicResult?.vision_detection;
-  const opinion = forensicResult?.forensic_opinion;
+  const exifData = imageAnalysis?.exif_metadata;
+  const elaData = imageAnalysis?.tamper_analysis;
+  const visionData = imageAnalysis?.vision_detection;
+  const imageOpinion = imageAnalysis?.forensic_opinion;
+  const cctvReport = cctvAnalysis?.forensic_report;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* KOLONA E MAJTË: NGARKIMI & REGJISTRI I VIDEOS/FOTOVE */}
+      {/* KOLONA E MAJTË */}
       <div className="lg:col-span-5 space-y-4">
-        {/* Dropzone për Skedarë Vizualë */}
         <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
           <div className="flex items-center justify-between border-b border-main pb-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
               <Video size={15} className="text-primary-start" /> Pamjet CCTV & Foto me EXIF
             </h3>
-            <span className="text-[10px] font-mono text-primary-start font-bold">ELA & Google Vision</span>
+            <span className="text-[10px] font-mono text-primary-start font-bold">FFmpeg + ELA + Sonnet 4.6</span>
           </div>
 
           <div
@@ -253,8 +264,8 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                   <UploadCloud size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq video / foto (MP4, MOV, JPG, PNG)</p>
-                  <p className="text-[10px] text-text-muted">Nxjerrje e GPS, orës origjinale dhe zbulim i montazhit</p>
+                  <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq video CCTV apo foto (MP4, MOV, JPG, PNG)</p>
+                  <p className="text-[10px] text-text-muted">Vulosje e menjëhershme HMAC-SHA256 dhe nxjerrje e kornizave</p>
                 </div>
               </>
             )}
@@ -269,7 +280,6 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
           />
         </div>
 
-        {/* Paneli i Kërkimit dhe Përzgjedhjes së Provës Vizuale */}
         <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="relative flex-1 mr-2">
@@ -300,7 +310,7 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
               filteredVisuals.map((visual) => {
                 const isSelected = visual.id === selectedVisualId;
                 const isDeleting = visual.id === deletingMediaId;
-                const isVideo = visual.media_type === 'video' || visual.mime_type.startsWith('video/');
+                const itemIsVideo = visual.media_type === 'video' || (visual.mime_type || '').startsWith('video/');
 
                 return (
                   <div
@@ -314,24 +324,19 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                   >
                     <div className="flex items-center gap-2.5 truncate">
                       <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                        {isVideo ? <Video size={16} /> : <Camera size={16} />}
+                        {itemIsVideo ? <Video size={16} /> : <Camera size={16} />}
                       </div>
                       <div className="truncate text-xs">
                         <p className="font-bold truncate text-text-primary">{visual.file_name}</p>
                         <p className="text-[10px] font-mono text-text-muted flex items-center gap-1">
                           <Clock size={10} />
                           {visual.created_at ? new Date(visual.created_at).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' }) : '00:00'}
-                          <span>• Statusi: {visual.status}</span>
+                          <span>• {itemIsVideo ? 'CCTV Video' : 'Foto EXIF'}</span>
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      {visual.status === 'PROCESSING' && (
-                        <span title="Analiza në progres">
-                          <Loader2 size={13} className="animate-spin text-primary-start" />
-                        </span>
-                      )}
                       {isSelected && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                       <button
                         type="button"
@@ -351,9 +356,8 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
         </div>
       </div>
 
-      {/* KOLONA E DJATHTË: PLAYER, EXIF/GPS, ELA TAMPER & EKSPERTIZA E THELLË */}
+      {/* KOLONA E DJATHTË */}
       <div className="lg:col-span-7 space-y-4">
-        {/* PLAYER I PROVËS VIZUALE */}
         {activeVisual && streamUrl && (
           <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
             <div className="flex items-center justify-between">
@@ -362,12 +366,12 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                 <span className="text-xs font-bold truncate max-w-xs text-text-primary">{activeVisual.file_name}</span>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-surface border border-main text-text-muted">
-                {activeVisual.mime_type}
+                {isVideo ? 'Video Regjistrim' : 'Fotografi'}
               </span>
             </div>
 
             <div className="relative rounded-2xl overflow-hidden bg-black flex items-center justify-center max-h-[280px]">
-              {activeVisual.mime_type.startsWith('video/') || activeVisual.media_type === 'video' ? (
+              {isVideo ? (
                 <video
                   ref={videoRef}
                   src={streamUrl}
@@ -385,7 +389,7 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
               )}
             </div>
 
-            {(activeVisual.mime_type.startsWith('video/') || activeVisual.media_type === 'video') && (
+            {isVideo && (
               <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
@@ -395,18 +399,16 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                   {isPlaying ? <Pause size={14} /> : <Play size={14} />}
                   <span>{isPlaying ? 'Pauzë' : 'Luaj Videon'}</span>
                 </button>
-                <span className="text-[10px] font-mono text-text-muted flex items-center gap-1">
-                  <Clock size={11} /> Korniza me Vlerë Gjyqësore
+                <span className="text-[10px] font-mono text-primary-start font-bold flex items-center gap-1">
+                  <Film size={12} /> Nxjerrje Automatike e Kornizave Kyçe
                 </span>
               </div>
             )}
           </div>
         )}
 
-        {/* METADATA EXIF & GPS + RREZIKU ELA */}
-        {activeVisual && (
+        {!isVideo && activeVisual && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Paneli i Vendndodhjes GPS */}
             <div className="glass-panel p-4 rounded-2xl border border-main bg-card text-xs space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-text-muted flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
@@ -434,7 +436,6 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
               )}
             </div>
 
-            {/* Paneli i Integritetit EXIF & ELA Tamper */}
             <div className="glass-panel p-4 rounded-2xl border border-main bg-card text-xs space-y-1.5">
               <span className="font-bold text-text-muted flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
                 <Camera size={13} className="text-primary-start" /> Integriteti i Pikselave (ELA):
@@ -450,37 +451,38 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                   <p className={`text-[10px] font-bold ${elaData.is_suspicious ? 'text-rose-500' : 'text-emerald-500'}`}>
                     {elaData.verdict}
                   </p>
-                  {exifData?.software_used && (
-                    <p className="text-[10px] text-amber-500 truncate">Softueri: {exifData.software_used}</p>
-                  )}
                 </div>
               ) : (
-                <p className="text-[11px] text-text-muted italic">Kamera & Verifikimi ELA do të llogariten nga serveri.</p>
+                <p className="text-[11px] text-text-muted italic">Verifikimi ELA do të llogaritet pas shtypjes së Ekspertizës.</p>
               )}
             </div>
           </div>
         )}
 
-        {/* EKSPERTIZA E THELLË FORENZIKE ME CLAUDE SONNET 4.6 */}
+        {/* HAPËSIRA E RAPORTIT */}
         <div className="glass-panel p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-4">
             <div>
               <div className="flex items-center gap-2">
                 <ShieldAlert size={18} className="text-primary-start" />
                 <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary">
-                  Autopsia Forenzike Vizuale
+                  {isVideo ? 'Autopsia Forenzike e Videos CCTV' : 'Autopsia Forenzike e Fotografisë'}
                 </h3>
               </div>
               <p className="text-xs text-text-muted mt-0.5">
-                Vlerësimi i vlefshmërisë së provës, alibisë dhe objekteve me Claude Sonnet 4.6
+                {isVideo
+                  ? 'Kronologjia me korniza, zbulimi i montazhit dhe alibia sipas KPPRK'
+                  : 'Vlerësimi i pikselave, EXIF/GPS dhe autenticitetit ligjor'}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              {opinion?.expert_statement && (
+              {(cctvAnalysis || imageAnalysis) && (
                 <button
                   type="button"
-                  onClick={handleCopyReport}
+                  onClick={() => handleCopyReport(
+                    cctvReport?.expert_summary || imageOpinion?.expert_statement || ''
+                  )}
                   className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   {copiedReport ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
@@ -495,32 +497,66 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                 className="h-9 px-4 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all disabled:opacity-40 cursor-pointer"
               >
                 {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                <span>{forensicResult ? 'Ri-Eksperto Pamjen' : 'Fillo Ekspertizën Vizuale'}</span>
+                <span>{cctvAnalysis || imageAnalysis ? 'Ri-Eksperto' : 'Fillo Ekspertizën'}</span>
               </button>
             </div>
           </div>
 
-          {/* Hapësira e Raportit dhe Objekteve të Zbuluara */}
-          <div className="min-h-[240px] max-h-[380px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-xs leading-relaxed text-text-primary select-text space-y-3">
-            {forensicResult ? (
+          <div className="min-h-[260px] max-h-[420px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-xs leading-relaxed text-text-primary select-text space-y-3">
+            {cctvAnalysis ? (
               <div className="space-y-3">
-                {/* Statusi i Besueshmërisë */}
                 <div className="flex items-center justify-between p-3 bg-surface rounded-xl border border-main">
-                  <span className="font-bold">Statusi i Autenticitetit:</span>
+                  <span className="font-bold">Integriteti i Regjistrimit CCTV:</span>
                   <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[11px] ${
-                    opinion?.authenticity_assessment === 'E MANIPULUAR' || opinion?.authenticity_assessment === 'E DYSHUAR'
-                      ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
-                      : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
+                    cctvAnalysis.is_manipulated ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'
                   }`}>
-                    {opinion?.authenticity_assessment || 'I VERIFIKUAR'}
+                    {cctvReport?.tamper_verdict || (cctvAnalysis.is_manipulated ? 'I DYSHUAR' : 'E PACËNUAR')}
                   </span>
                 </div>
 
-                {/* Objektet e Zbuluara nga Google Vision */}
+                {cctvReport?.cctv_chronology && cctvReport.cctv_chronology.length > 0 && (
+                  <div className="p-3 bg-surface rounded-xl border border-main space-y-2">
+                    <h4 className="font-bold text-text-primary flex items-center gap-1.5 uppercase text-[11px]">
+                      <Clock size={13} className="text-primary-start" /> Kronologjia Skenë-pas-Skene (Kornizat Kyçe):
+                    </h4>
+                    <div className="space-y-1.5 font-mono text-[11px]">
+                      {cctvReport.cctv_chronology.map((sc, i) => (
+                        <div key={i} className="p-2 bg-card rounded-lg border border-main/40 flex items-start gap-2">
+                          <span className="font-bold text-primary-start shrink-0">{sc.timestamp}</span>
+                          <span className="text-text-primary">{sc.description}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {cctvReport?.court_admissibility_statement && (
+                  <div className="p-3 bg-primary-start/10 rounded-xl border border-primary-start/20 space-y-1">
+                    <h4 className="font-bold text-primary-start flex items-center gap-1.5 text-[11px] uppercase">
+                      <FileCheck size={13} /> Vlefshmëria si Provë Materiale në Gjyq:
+                    </h4>
+                    <p className="text-text-primary">{cctvReport.court_admissibility_statement}</p>
+                  </div>
+                )}
+
+                <div className="p-3 bg-card rounded-xl border border-main space-y-1">
+                  <h4 className="font-bold text-text-primary text-[11px] uppercase">Përmbledhja e Ekspertit:</h4>
+                  <p className="text-text-muted whitespace-pre-wrap">{cctvReport?.expert_summary}</p>
+                </div>
+              </div>
+            ) : imageAnalysis ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-surface rounded-xl border border-main">
+                  <span className="font-bold">Autenticiteti i Fotos:</span>
+                  <span className="px-2.5 py-0.5 rounded-full font-bold uppercase text-[11px] bg-emerald-500/20 text-emerald-500">
+                    {imageOpinion?.authenticity_assessment || 'I VERIFIKUAR'}
+                  </span>
+                </div>
+
                 {visionData?.objects && visionData.objects.length > 0 && (
                   <div className="p-3 bg-surface rounded-xl border border-main space-y-1.5">
                     <h4 className="font-bold text-text-primary flex items-center gap-1.5 text-[11px] uppercase">
-                      <Crosshair size={13} className="text-primary-start" /> Objektet e Zbuluara në Skenë:
+                      <Crosshair size={13} className="text-primary-start" /> Objektet e Zbuluara:
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
                       {visionData.objects.map((obj, i) => (
@@ -532,29 +568,16 @@ export const VisualForensicLab: React.FC<VisualForensicLabProps> = ({
                   </div>
                 )}
 
-                {/* Këshilla Taktike për Gjykatën */}
-                {opinion?.court_defense_strategy && (
-                  <div className="p-3 bg-primary-start/10 rounded-xl border border-primary-start/20 space-y-1">
-                    <h4 className="font-bold text-primary-start flex items-center gap-1.5 text-[11px] uppercase">
-                      <FileCheck size={13} /> Strategjia e Përdorimit në Gjykatë:
-                    </h4>
-                    <p className="text-text-primary">{opinion.court_defense_strategy}</p>
-                  </div>
-                )}
-
-                {/* Deklarata Zyrtare e Ekspertit */}
                 <div className="p-3 bg-card rounded-xl border border-main space-y-1">
-                  <h4 className="font-bold text-text-primary text-[11px] uppercase">
-                    Konkluzioni i Ekspertit:
-                  </h4>
-                  <p className="text-text-muted whitespace-pre-wrap">{opinion?.expert_statement}</p>
+                  <h4 className="font-bold text-text-primary text-[11px] uppercase">Konkluzioni Formal:</h4>
+                  <p className="text-text-muted whitespace-pre-wrap">{imageOpinion?.expert_statement}</p>
                 </div>
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-2 py-8">
                 <AlertTriangle size={32} className="opacity-30 text-primary-start" />
                 <p className="text-xs max-w-sm">
-                  Përzgjidhni një video ose foto dhe shtypni <span className="font-bold text-text-primary">"Fillo Ekspertizën Vizuale"</span> për të analizuar EXIF/GPS, rrezikun ELA të manipulimit dhe objektet me Claude Sonnet 4.6.
+                  Përzgjidhni një provë vizuale majtas dhe shtypni <span className="font-bold text-text-primary">"Fillo Ekspertizën"</span> për autopsinë e plotë me Claude Sonnet 4.6.
                 </p>
               </div>
             )}

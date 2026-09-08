@@ -1,4 +1,6 @@
 # FILE: app/api/endpoints/cases/cases_helpers.py
+# PHOENIX PROTOCOL - CASE HELPERS V2.0 (PURGED DEAD FORENSIC MODELS)
+
 from fastapi import HTTPException, Depends
 from typing import List, Annotated, Dict, Any, Optional
 from pydantic import BaseModel
@@ -28,6 +30,7 @@ def json_serializable(data):
     return data
 
 def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
+    # Placebo function për të ardhmen nëse aktivizohet tiers
     return
 
 class DeletedDocumentResponse(BaseModel):
@@ -40,13 +43,6 @@ class BulkDeleteDocumentsRequest(BaseModel):
 
 class RenameDocumentRequest(BaseModel):
     new_name: str
-
-class FinanceInterrogationRequest(BaseModel):
-    question: str
-
-class ArchiveStrategyRequest(BaseModel):
-    legal_data: Dict[str, Any]
-    deep_data: Dict[str, Any]
 
 class ChatHistoryUpdate(BaseModel):
     chat_history: List[ChatMessage]

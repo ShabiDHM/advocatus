@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V61.0 (NATIVE CASE SERVICE INTEGRATION • ZERO TS COLLISIONS)
+// PHOENIX PROTOCOL - MASTER API FACADE V62.0 (PURGED DEAD FORENSIC METHODS • ZERO TS WARNINGS)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • CONSOLIDATED SERVICES
 
 export * from './apiClient';
@@ -82,20 +82,17 @@ class ApiService {
   public interrogateFinancialRecords = caseService.interrogateFinancialRecords.bind(caseService);
 
   // ⚡ Metode Integrale Për Analizën e Shpejtë të Klientit (Nëpërmjet CaseService)
-  // Ruan përmbledhjen e lëndës në fushën e parë (PILLAR_1)
   public saveCaseAnalysis = async (caseId: string, content: string) => {
     return apiClient.post(`/cases/${caseId}/pillars`, { pillar: 'PILLAR_1', content });
   };
-  // Ruan pasqyrën e shkresës
   public saveDocumentAnalysis = async (caseId: string, documentId: string, content: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
   };
-  // Pastron pasqyrën e shkresës (Clear Audit)
   public clearDocumentAudit = async (caseId: string, documentId: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
   };
 
-  // 🏛️ Forensic & Comprehensive Analysis Methods (Delegated to Isolated ForensicService)
+  // 🏛️ Forensic & Comprehensive Analysis Methods (Delegated to ForensicService)
   public analyzeCase = forensicService.analyzeCase.bind(forensicService);
   public clearCaseAnalysis = forensicService.clearCaseAnalysis.bind(forensicService);
   public archiveForensicReport = forensicService.archiveForensicReport.bind(forensicService);
@@ -106,8 +103,6 @@ class ApiService {
   public analyzeDeepChronology = forensicService.analyzeDeepChronology.bind(forensicService);
   public analyzeDeepContradictions = forensicService.analyzeDeepContradictions.bind(forensicService);
   public archiveStrategyReport = forensicService.archiveStrategyReport.bind(forensicService);
-  public forensicAnalyzeSpreadsheet = forensicService.forensicAnalyzeSpreadsheet.bind(forensicService);
-  public forensicInterrogateEvidence = forensicService.forensicInterrogateEvidence.bind(forensicService);
 
   // Finance Methods
   public getInvoices = financeService.getInvoices.bind(financeService);

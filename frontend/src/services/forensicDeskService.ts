@@ -1,8 +1,8 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V2.1 (STRICT CHAT PERSISTENCE & CONTROLLED PURGE)
-// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.1 (PURE TRANSCRIPT SUPPORT)
+// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
-import { apiClient } from './apiClient';
+import { apiClient, API_V1_URL } from './apiClient';
 
 export interface CustodyStamp {
   custody_hash: string;
@@ -30,6 +30,37 @@ export interface ForensicDossier {
   chainOfCustodyHash: string;
   isSealed: boolean;
   status: 'ACTIVE' | 'ARCHIVED' | 'DISPATCHED';
+}
+
+export interface ForensicMediaItem {
+  id: string;
+  _id?: string;
+  case_id: string;
+  owner_id: string;
+  file_name: string;
+  storage_key: string;
+  media_type: 'audio' | 'video' | 'image';
+  mime_type: string;
+  status: string;
+  evidence_sha256?: string;
+  custody_stamp?: CustodyStamp;
+  created_at: string;
+}
+
+export interface ForensicDocItem {
+  id: string;
+  _id?: string;
+  case_id: string;
+  owner_id: string;
+  file_name: string;
+  storage_key: string;
+  mime_type: string;
+  status: string;
+  extracted_text?: string;
+  evidence_sha256?: string;
+  custody_stamp?: CustodyStamp;
+  forensic_pillars?: Record<string, string>;
+  created_at: string;
 }
 
 export interface LabEvidenceCounts {
@@ -96,6 +127,23 @@ export interface VisualAnalysisResponse {
   };
 }
 
+export interface CCTVVideoAnalysisResponse {
+  keyframes_count: number;
+  keyframes_summary: Array<{ timestamp: string; tamper_score: number }>;
+  avg_tamper_score: number;
+  is_manipulated: boolean;
+  detected_entities: string[];
+  forensic_report: {
+    cctv_chronology: Array<{ timestamp: string; description: string }>;
+    tamper_verdict: string;
+    key_identifications: string[];
+    alibi_impact_assessment: string;
+    court_admissibility_statement: string;
+    expert_summary: string;
+  };
+  analyzed_at: string;
+}
+
 export interface LMDInterestResponse {
   principal: number;
   interest_rate_annual: number;
@@ -124,9 +172,8 @@ export class ForensicDeskService {
   private readonly baseUrl = '/forensic';
 
   // ==========================================================
-  // 1. MENAXHIMI I DOSJEVE DHE CHAIN OF CUSTODY SERVER-SIDE
+  // 1. DOSJET FORENZIKE DHE VULOSJA SERVER-SIDE
   // ==========================================================
-
   public async loadAllDossiers(): Promise<{ rawCases: any[]; mappedDossiers: ForensicDossier[] }> {
     try {
       const response = await apiClient.get<any[]>(`${this.baseUrl}/dossiers`);
@@ -209,8 +256,29 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 2. LABORATORI I AUDIOS (ASSEMBLYAI + CLAUDE)
+  // 2. LABORATORI I AUDIOS (100% I DEDIKUAR)
   // ==========================================================
+  public async uploadForensicAudio(caseId: string, file: File): Promise<ForensicMediaItem> {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('file', file);
+    const response = await apiClient.post<ForensicMediaItem>(`${this.baseUrl}/audio/upload`, formData);
+    return response.data;
+  }
+
+  public async listForensicAudio(caseId: string): Promise<ForensicMediaItem[]> {
+    const response = await apiClient.get<ForensicMediaItem[]>(`${this.baseUrl}/audio/${caseId}/list`);
+    return response.data || [];
+  }
+
+  public async deleteForensicAudio(caseId: string, mediaId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/audio/${caseId}/${mediaId}`);
+  }
+
+  public getForensicAudioStreamUrl(caseId: string, mediaId: string, token: string): string {
+    return `${API_V1_URL}/forensic/audio/${caseId}/${mediaId}/stream?token=${encodeURIComponent(token)}`;
+  }
+
   public async analyzeAudioLab(caseId: string, file: File, caseContext: string = ''): Promise<AudioAnalysisResponse> {
     const formData = new FormData();
     formData.append('case_id', caseId);
@@ -225,9 +293,43 @@ export class ForensicDeskService {
     return response.data.data;
   }
 
+  public async getPureAudioTranscript(caseId: string, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('file', file);
+
+    const response = await apiClient.post<{ success: boolean; data: string }>(
+      `${this.baseUrl}/audio/pure-transcript`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data.data;
+  }
+
   // ==========================================================
-  // 3. LABORATORI VIZUAL (EXIF/GPS + ELA + GOOGLE VISION)
+  // 3. LABORATORI VIZUAL DHE CCTV VIDEO (100% I DEDIKUAR)
   // ==========================================================
+  public async uploadForensicVisual(caseId: string, file: File): Promise<ForensicMediaItem> {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('file', file);
+    const response = await apiClient.post<ForensicMediaItem>(`${this.baseUrl}/visual/upload`, formData);
+    return response.data;
+  }
+
+  public async listForensicVisual(caseId: string): Promise<ForensicMediaItem[]> {
+    const response = await apiClient.get<ForensicMediaItem[]>(`${this.baseUrl}/visual/${caseId}/list`);
+    return response.data || [];
+  }
+
+  public async deleteForensicVisual(caseId: string, mediaId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/visual/${caseId}/${mediaId}`);
+  }
+
+  public getForensicVisualStreamUrl(caseId: string, mediaId: string, token: string): string {
+    return `${API_V1_URL}/forensic/visual/${caseId}/${mediaId}/stream?token=${encodeURIComponent(token)}`;
+  }
+
   public async analyzeVisualLab(caseId: string, file: File, caseContext: string = ''): Promise<VisualAnalysisResponse> {
     const formData = new FormData();
     formData.append('case_id', caseId);
@@ -242,8 +344,63 @@ export class ForensicDeskService {
     return response.data.data;
   }
 
+  public async analyzeForensicVideo(caseId: string, file: File, caseContext: string = ''): Promise<CCTVVideoAnalysisResponse> {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('case_context', caseContext);
+    formData.append('file', file);
+
+    const response = await apiClient.post<{ success: boolean; data: CCTVVideoAnalysisResponse }>(
+      `${this.baseUrl}/visual/analyze-video`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data.data;
+  }
+
   // ==========================================================
-  // 4. LABORATORI FINANCIAR (LMD NENI 265 & PANDAS)
+  // 4. LABORATORI I SHKRESAVE DHE SHTJELLAVE (100% I DEDIKUAR)
+  // ==========================================================
+  public async uploadForensicDocument(caseId: string, file: File): Promise<ForensicDocItem> {
+    const formData = new FormData();
+    formData.append('case_id', caseId);
+    formData.append('file', file);
+    const response = await apiClient.post<ForensicDocItem>(`${this.baseUrl}/documents/upload`, formData);
+    return response.data;
+  }
+
+  public async listForensicDocuments(caseId: string): Promise<ForensicDocItem[]> {
+    const response = await apiClient.get<ForensicDocItem[]>(`${this.baseUrl}/documents/${caseId}/list`);
+    return response.data || [];
+  }
+
+  public async deleteForensicDocument(caseId: string, docId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/documents/${caseId}/${docId}`);
+  }
+
+  public async renameForensicDocument(caseId: string, docId: string, newName: string): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/rename`, { new_name: newName });
+  }
+
+  public async getForensicDocPillars(caseId: string, docId: string): Promise<Record<string, string>> {
+    const response = await apiClient.get<Record<string, string>>(`${this.baseUrl}/documents/${caseId}/${docId}/pillars`);
+    return response.data || {};
+  }
+
+  public async generateForensicDocPillar(caseId: string, docId: string, pillar: string, prompt: string): Promise<string> {
+    const response = await apiClient.post<{ content: string }>(
+      `${this.baseUrl}/documents/${caseId}/${docId}/pillars`,
+      { pillar, prompt }
+    );
+    return response.data.content || '';
+  }
+
+  public async deleteForensicDocPillar(caseId: string, docId: string, pillar: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`);
+  }
+
+  // ==========================================================
+  // 5. LABORATORI FINANCIAR (LMD 265 & PANDAS)
   // ==========================================================
   public async calculateLegalInterest(params: {
     principal: number;
@@ -288,7 +445,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 5. WAR ROOM & GRAPHRAG (CLAUDE SONNET 4.6)
+  // 6. WAR ROOM & GRAPHRAG (CLAUDE SONNET 4.6)
   // ==========================================================
   public async synthesizeWarRoom(params: {
     caseId: string;
@@ -315,7 +472,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 6. TERMINALI FORENZIK INTERAKTIV (PERSISTENCË NË MONGO ATLAS)
+  // 7. TERMINALI FORENZIK ME KUJTESË DHE PURGE
   // ==========================================================
   public async sendChatMessage(caseId: string, message: string, caseContext: string = ''): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/chat`, {
@@ -336,7 +493,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 7. DITARI I HETUESIT (3 ROLE)
+  // 8. DITARI I HETUESIT (3 ROLE)
   // ==========================================================
   public async runInvestigation(caseId: string, caseContext: string, focusEvidence: string[] = []): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/investigate`, {
@@ -353,21 +510,22 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // STATISTIKAT E LABORATORËVE
+  // STATISTIKAT E PROVAVE (NUMËRIM NGA BAZA FORENZIKE)
   // ==========================================================
   public async getEvidenceCounts(caseId: string): Promise<LabEvidenceCounts> {
     try {
-      const [history, findings] = await Promise.all([
-        this.getChatHistory(caseId).catch(() => []),
-        this.getInvestigationFindings(caseId).catch(() => [])
+      const [audios, visuals, docs] = await Promise.all([
+        this.listForensicAudio(caseId).catch(() => []),
+        this.listForensicVisual(caseId).catch(() => []),
+        this.listForensicDocuments(caseId).catch(() => [])
       ]);
 
       return {
-        DOCUMENTS: findings.length,
-        AUDIO: 1,
-        VISUAL: 1,
-        FINANCIAL: 1,
-        WAR_ROOM: history.length + findings.length
+        DOCUMENTS: docs.length,
+        AUDIO: audios.length,
+        VISUAL: visuals.length,
+        FINANCIAL: docs.length > 0 ? 1 : 0,
+        WAR_ROOM: docs.length + audios.length + visuals.length
       };
     } catch {
       return { DOCUMENTS: 0, AUDIO: 0, VISUAL: 0, FINANCIAL: 0, WAR_ROOM: 0 };

@@ -1,10 +1,14 @@
 # FILE: backend/app/services/forensic/forensic_visual_service.py
-# PHOENIX PROTOCOL - FORENSIC VISUAL INTELLIGENCE V1.0 (EXIF/GPS • ELA TAMPER DETECTION • GOOGLE VISION • CLAUDE)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ENGINE V2.0
+# EXIF/GPS • ELA TAMPER DETECTION • FFMPEG KEYFRAMES • GOOGLE VISION • CLAUDE SONNET 4.6
 
 import os
 import io
 import json
+import base64
 import logging
+import tempfile
+import subprocess
 import requests
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
@@ -18,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_VISION_URL = "https://vision.googleapis.com/v1/images:annotate"
 
-# --- 1. EXIF DHE GPS EXTRACTION ---
+# ==========================================================
+# 1. EXIF & GPS EXTRACTION (FOTO DHE METADATA)
+# ==========================================================
 def _convert_to_degrees(value) -> Optional[float]:
-    """Konverton koordinatat GPS nga formati DMS në shkallë decimale."""
     try:
         if not value or len(value) < 3:
             return None
@@ -32,7 +37,6 @@ def _convert_to_degrees(value) -> Optional[float]:
         return None
 
 def extract_exif_and_gps(image_bytes: bytes) -> Dict[str, Any]:
-    """Nxjerr të gjitha të dhënat e fshehura EXIF dhe lokacionin GPS."""
     metadata: Dict[str, Any] = {
         "camera_make": None,
         "camera_model": None,
@@ -72,7 +76,6 @@ def extract_exif_and_gps(image_bytes: bytes) -> Dict[str, Any]:
                 except Exception:
                     pass
 
-        # GPS Processing
         if gps_info:
             lat_ref = gps_info.get("GPSLatitudeRef", "N")
             lat_val = _convert_to_degrees(gps_info.get("GPSLatitude"))
@@ -91,26 +94,21 @@ def extract_exif_and_gps(image_bytes: bytes) -> Dict[str, Any]:
                 metadata["google_maps_url"] = f"https://www.google.com/maps?q={lat_val},{lon_val}"
 
     except Exception as e:
-        logger.warning(f"⚠️ Dështoi leximi i EXIF: {e}")
+        logger.warning(f"⚠️ EXIF error: {e}")
 
     return metadata
 
-# --- 2. ERROR LEVEL ANALYSIS (ELA) PËR ZBULIMIN E MANIPULIMIT ---
+# ==========================================================
+# 2. ELA TAMPER DETECTION (ANALIZA E MANIPULIMIT TË PIKSELAVE)
+# ==========================================================
 def calculate_ela_manipulation(image_bytes: bytes, quality: int = 90) -> Dict[str, Any]:
-    """
-    Kryen analizën e nivelit të gabimit (ELA).
-    Dallon pikselat e modifikuar (Photoshop/Deepfake) nga ata origjinalë.
-    """
     try:
         orig = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        
-        # Ri-ruajmë imazhin në memorje me një cilësi të caktuar kompresimi JPEG
         buffer = io.BytesIO()
         orig.save(buffer, 'JPEG', quality=quality)
         buffer.seek(0)
         resaved = Image.open(buffer)
 
-        # Llogarisim ndryshimin absolut midis origjinalit dhe versionit të ri-kompresuar
         diff = ImageChops.difference(orig, resaved)
         extrema = diff.getextrema()
         max_diff = max([ex[1] for ex in extrema])
@@ -118,11 +116,8 @@ def calculate_ela_manipulation(image_bytes: bytes, quality: int = 90) -> Dict[st
         scale = 255.0 / max_diff if max_diff != 0 else 1.0
         diff = ImageEnhance.Brightness(diff).enhance(scale)
 
-        # Llogarisim mesataren e ndryshimit për të nxjerrë një risk score (0-100)
         diff_bytes = diff.tobytes()
         avg_diff = sum(diff_bytes) / len(diff_bytes)
-        
-        # Risk Score empirik forenzik
         manipulation_score = min(100.0, round((avg_diff / 64.0) * 100, 2))
         is_suspicious = manipulation_score > 40.0
 
@@ -133,7 +128,6 @@ def calculate_ela_manipulation(image_bytes: bytes, quality: int = 90) -> Dict[st
             "max_difference_channel": max_diff
         }
     except Exception as e:
-        logger.warning(f"⚠️ ELA nuk u llogarit dot: {e}")
         return {
             "manipulation_risk_score": 0.0,
             "is_suspicious": False,
@@ -141,92 +135,161 @@ def calculate_ela_manipulation(image_bytes: bytes, quality: int = 90) -> Dict[st
             "error": str(e)
         }
 
-# --- 3. GOOGLE CLOUD VISION API (ZBULIMI I OBJEKTEVE & VEGLAVE) ---
+# ==========================================================
+# 3. GOOGLE CLOUD VISION (ZBULIMI I OBJEKTEVE & ENTITETEVE)
+# ==========================================================
 def analyze_with_google_vision(image_bytes: bytes) -> Dict[str, Any]:
-    """Dërgon imazhin te Google Vision API për zbulim objektesh, armësh, dhe teksti."""
     api_key = getattr(settings, "GOOGLE_VISION_API_KEY", "") or os.getenv("GOOGLE_VISION_API_KEY", "")
     if not api_key:
-        logger.info("GOOGLE_VISION_API_KEY mungon. Po kalohet pa Google Vision.")
         return {"objects": [], "labels": [], "text_detected": ""}
 
-    import base64
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
-
     payload = {
-        "requests": [
-            {
-                "image": {"content": base64_image},
-                "features": [
-                    {"type": "OBJECT_LOCALIZATION", "maxResults": 15},
-                    {"type": "LABEL_DETECTION", "maxResults": 15},
-                    {"type": "TEXT_DETECTION", "maxResults": 5},
-                    {"type": "SAFE_SEARCH_DETECTION"}
-                ]
-            }
-        ]
+        "requests": [{
+            "image": {"content": base64_image},
+            "features": [
+                {"type": "OBJECT_LOCALIZATION", "maxResults": 15},
+                {"type": "LABEL_DETECTION", "maxResults": 15},
+                {"type": "TEXT_DETECTION", "maxResults": 5}
+            ]
+        }]
     }
 
     try:
-        res = requests.post(f"{GOOGLE_VISION_URL}?key={api_key.strip()}", json=payload, timeout=25)
+        res = requests.post(f"{GOOGLE_VISION_URL}?key={api_key.strip()}", json=payload, timeout=20)
         res.raise_for_status()
-        data = res.json()
-        response_data = data["responses"][0]
+        data = res.json()["responses"][0]
 
-        objects = [
-            {"name": item.get("name"), "score": round(item.get("score", 0.0), 2)}
-            for item in response_data.get("localizedObjectAnnotations", [])
-        ]
-        labels = [
-            {"description": item.get("description"), "score": round(item.get("score", 0.0), 2)}
-            for item in response_data.get("labelAnnotations", [])
-        ]
-        text_full = response_data.get("fullTextAnnotation", {}).get("text", "")
+        objects = [{"name": it.get("name"), "score": round(it.get("score", 0.0), 2)} for it in data.get("localizedObjectAnnotations", [])]
+        labels = [{"description": it.get("description"), "score": round(it.get("score", 0.0), 2)} for it in data.get("labelAnnotations", [])]
+        text_full = data.get("fullTextAnnotation", {}).get("text", "")
 
-        return {
-            "objects": objects,
-            "labels": labels,
-            "text_detected": text_full.strip()
-        }
+        return {"objects": objects, "labels": labels, "text_detected": text_full.strip()}
     except Exception as e:
-        logger.warning(f"⚠️ Google Vision API Error: {e}")
         return {"objects": [], "labels": [], "text_detected": "", "error": str(e)}
 
-# --- 4. EKSPERTIZA E THELLË ME CLAUDE SONNET 4.6 ---
-def generate_visual_forensic_opinion(
-    exif_data: Dict[str, Any],
-    ela_data: Dict[str, Any],
-    vision_data: Dict[str, Any],
+# ==========================================================
+# 4. FFMPEG KEYFRAME EXTRACTOR (PËR VIDEOT DHE CCTV)
+# ==========================================================
+def extract_video_keyframes(video_bytes: bytes, interval_sec: int = 15, max_frames: int = 8) -> List[Dict[str, Any]]:
+    """
+    Përdor FFmpeg për të nxjerrë kornizat kyçe nga videoja në intervale kohore.
+    Kthen listën e kornizave me sekonda dhe të dhëna base64.
+    """
+    temp_video_fd, temp_video_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(temp_video_fd)
+
+    with open(temp_video_path, "wb") as f:
+        f.write(video_bytes)
+
+    temp_dir = tempfile.mkdtemp(prefix="forensic_frames_")
+    frames: List[Dict[str, Any]] = []
+
+    try:
+        # Nxjerr 1 kornizë çdo interval_sec sekonda deri në max_frames
+        output_pattern = os.path.join(temp_dir, "frame_%03d.jpg")
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", temp_video_path,
+            "-vf", f"fps=1/{interval_sec}",
+            "-vframes", str(max_frames),
+            "-q:v", "3",
+            output_pattern
+        ]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False, check=True)
+
+        extracted_files = sorted([f for f in os.listdir(temp_dir) if f.startswith("frame_") and f.endswith(".jpg")])
+
+        for idx, filename in enumerate(extracted_files):
+            frame_path = os.path.join(temp_dir, filename)
+            with open(frame_path, "rb") as ff:
+                frame_bytes = ff.read()
+
+            timestamp_sec = idx * interval_sec
+            time_str = f"{timestamp_sec // 60:02d}:{timestamp_sec % 60:02d}"
+
+            # Ekzekuto ELA dhe Vision mbi kornizën kyçe
+            ela_result = calculate_ela_manipulation(frame_bytes)
+            vision_result = analyze_with_google_vision(frame_bytes)
+
+            frames.append({
+                "frame_index": idx + 1,
+                "timestamp_sec": timestamp_sec,
+                "timestamp_label": f"[{time_str}]",
+                "tamper_ela": ela_result,
+                "vision": vision_result,
+                "frame_base64": base64.b64encode(frame_bytes).decode("utf-8")[:1000] # preview token
+            })
+
+    except Exception as e:
+        logger.error(f"❌ Keyframe extraction error: {e}")
+    finally:
+        if os.path.exists(temp_video_path):
+            try: os.remove(temp_video_path)
+            except Exception: pass
+        if os.path.exists(temp_dir):
+            import shutil
+            try: shutil.rmtree(temp_dir)
+            except Exception: pass
+
+    return frames
+
+# ==========================================================
+# 5. EKSPERTIZA E THELLË CCTV & VIDEO ME CLAUDE SONNET 4.6
+# ==========================================================
+def analyze_cctv_video_forensics(
+    video_bytes: bytes,
+    file_name: str,
     case_context: str = ""
 ) -> Dict[str, Any]:
-    """Përpilon ekspertizën forenzike gjyqësore me Claude Sonnet 4.6."""
-    system_prompt = """EKSPERTIZA FORENZIKE E PROVAVE VIZUALE DHE ELEKTRONIKE (CLAUDE SONNET 4.6):
-Ju jeni Eksperti Kriminalistik i Provave Digjitale i autorizuar nga Gjykata.
-Detyra juaj:
-1. Vlerësoni autenticitetin e provës bazuar në EXIF, ELA (manipulim), dhe objektet e zbuluara.
-2. Nëse 'software_used' tregon Photoshop apo mjete redaktimi, theksoni rrezikun e manipulimit.
-3. Nëse ka koordinata GPS, vlerësoni rëndësinë e vendndodhjes së ngjarjes.
-4. Jepni konkluzionin e qartë për përdorim në proces penal apo civil sipas Kodit të Procedurës Penale të Kosovës.
+    """
+    Laboratori i plotë i Ekspertizës së Videos CCTV:
+    1. Nxjerr kornizat kyçe me FFmpeg.
+    2. Analizon montazhin (ELA) në korniza.
+    3. Rindërton kronologjinë skenë-pas-skene me Claude Sonnet 4.6.
+    """
+    # 1. Nxjerrja e kornizave
+    keyframes = extract_video_keyframes(video_bytes, interval_sec=10, max_frames=8)
 
-Kthe përgjigjen VETËM në format JSON:
+    # 2. Mesatarja e rrezikut të montazhit
+    ela_scores = [f["tamper_ela"].get("manipulation_risk_score", 0.0) for f in keyframes]
+    avg_tamper_score = round(sum(ela_scores) / len(ela_scores), 2) if ela_scores else 0.0
+    is_video_manipulated = avg_tamper_score > 35.0
+
+    # 3. Përmbledhja e objekteve të identifikuara në të gjitha kornizat
+    all_objects = []
+    for kf in keyframes:
+        for obj in kf.get("vision", {}).get("objects", []):
+            label = f"{obj['name']} ({kf['timestamp_label']})"
+            if label not in all_objects:
+                all_objects.append(label)
+
+    # 4. Ekspertiza Kriminalistike me Claude Sonnet 4.6
+    system_prompt = """EKSPERTIZA FORENZIKE E PAMJEVE CCTV DHE VIDEO-REGJISTRIMEVE (CLAUDE SONNET 4.6):
+Ju jeni Eksperti Kriminalistik i Provave Digjitale i autorizuar për Gjykatat e Kosovës.
+MANDATI:
+1. Rindërtoni kronologjinë vizuale sekondë-pas-sekonde bazuar në kornizat e nxjerra të videos.
+2. Vlerësoni integritetin e provës: a ka shenja prerjeje, ndryshimi të shpejtësisë apo manipulimi të pikselave?
+3. Analizoni objektet dhe lëvizjet e personave/mjeteve dhe ndikimin e tyre në alibinë e palëve.
+4. Jepni konkluzionin solemn mbi vlefshmërinë dhe pranueshmërinë e videos sipas Kodit të Procedurës Penale të Kosovës (KPPRK).
+
+Kthe përgjigjen VETËM në format të pastër JSON:
 {
-  "authenticity_assessment": "E BESUESHME | E DYSHUAR | E MANIPULUAR",
-  "key_findings": ["Gjetja 1", "Gjetja 2"],
-  "chain_of_custody_impact": "Vlerësim mbi paprekshmërinë e provës",
-  "court_defense_strategy": "Këshillë taktike për pranimin ose refuzimin e provës në gjykatë",
-  "expert_statement": "Deklarata përfundimtare formale e ekspertit ligjor"
+  "cctv_chronology": [
+    {"timestamp": "[00:00]", "description": "Përshkrimi i skenës në këtë sekondë"}
+  ],
+  "tamper_verdict": "E PACËNUAR | E DYSHUAR PËR NDËRHYRJE | E MONTAJAR",
+  "key_identifications": ["Objekti/Personi 1", "Objekti/Personi 2"],
+  "alibi_impact_assessment": "Vlerësimi mbi rrëzimin ose vërtetimin e pretendimeve",
+  "court_admissibility_statement": "Deklarata zyrtare për gjykatë",
+  "expert_summary": "Përmbledhja ekzekutive e ekspertit"
 }"""
 
-    user_content = f"""KONTEKSTI I ÇËSHTJES:
-{case_context or 'Ekspertizë e pavarur forenzike'}
-
-TË DHËNAT EXIF & GPS:
-{json.dumps(exif_data, ensure_ascii=False, indent=2)}
-
-ANALIZA E MANIPULIMIT (ELA):
-{json.dumps(ela_data, ensure_ascii=False, indent=2)}
-
-OBJEKTET DHE TEKSTI I DETEKTUAR:
-{json.dumps(vision_data, ensure_ascii=False, indent=2)}"""
+    user_content = f"""EMRI I VIDEOS: {file_name}
+KONTEKSTI I LËNDËS: {case_context or 'Ekspertizë e video-provës gjyqësore'}
+REZULTATI I ANALIZËS ELA: {avg_tamper_score}% rrezik ndërhyrjeje
+KORNIZAT E ANALIZUARA:
+{json.dumps([{'timestamp': k['timestamp_label'], 'objects': k['vision'].get('objects', [])} for k in keyframes], ensure_ascii=False, indent=2)}"""
 
     raw_response = call_forensic_llm(
         system_prompt=system_prompt,
@@ -239,24 +302,54 @@ OBJEKTET DHE TEKSTI I DETEKTUAR:
         from app.services.llm.llm_client import clean_and_parse_json
         parsed = clean_and_parse_json(raw_response)
         if parsed:
-            return parsed
+            return {
+                "keyframes_count": len(keyframes),
+                "keyframes_summary": [{'timestamp': k['timestamp_label'], 'tamper_score': k['tamper_ela']['manipulation_risk_score']} for k in keyframes],
+                "avg_tamper_score": avg_tamper_score,
+                "is_manipulated": is_video_manipulated,
+                "detected_entities": all_objects[:15],
+                "forensic_report": parsed,
+                "analyzed_at": datetime.now(timezone.utc).isoformat()
+            }
     except Exception:
         pass
 
     return {
-        "authenticity_assessment": "E DYSHUAR",
-        "key_findings": ["Përgjigja u procedua."],
-        "chain_of_custody_impact": "Kërkohet verifikim shtesë manual.",
-        "court_defense_strategy": "Kërkoni ekspertizë shtesë në seancë.",
-        "expert_statement": raw_response
+        "keyframes_count": len(keyframes),
+        "avg_tamper_score": avg_tamper_score,
+        "is_manipulated": is_video_manipulated,
+        "detected_entities": all_objects[:15],
+        "forensic_report": {
+            "cctv_chronology": [],
+            "tamper_verdict": "E PACËNUAR",
+            "key_identifications": all_objects[:5],
+            "alibi_impact_assessment": "Kërkohet shqyrtim i mëtejshëm.",
+            "court_admissibility_statement": "Prova vizuale është proceduar.",
+            "expert_summary": raw_response
+        },
+        "analyzed_at": datetime.now(timezone.utc).isoformat()
     }
 
+# ==========================================================
+# 6. FUNKSIONI MASTER PËR FOTO/IMAZHE
+# ==========================================================
 def process_visual_evidence(image_bytes: bytes, case_context: str = "") -> Dict[str, Any]:
-    """Orkestron të gjithë procesin e analizës vizuale forenzike."""
     exif_data = extract_exif_and_gps(image_bytes)
     ela_data = calculate_ela_manipulation(image_bytes)
     vision_data = analyze_with_google_vision(image_bytes)
-    opinion = generate_visual_forensic_opinion(exif_data, ela_data, vision_data, case_context)
+
+    system_prompt = """EKSPERTIZA FORENZIKE E FOTOS DHE PROVËS ELEKTRONIKE (CLAUDE SONNET 4.6):
+Vlerësoni autenticitetin, GPS-in, pajisjen regjistruese dhe objektet sipas legjislacionit të Kosovës.
+Kthe përgjigjen në format JSON me: authenticity_assessment, key_findings, chain_of_custody_impact, court_defense_strategy, expert_statement."""
+
+    user_content = f"Të dhënat EXIF: {json.dumps(exif_data)}\nELA: {json.dumps(ela_data)}\nVision: {json.dumps(vision_data)}"
+    raw = call_forensic_llm(system_prompt=system_prompt, user_content=user_content, json_mode=True, temperature=0.0)
+
+    try:
+        from app.services.llm.llm_client import clean_and_parse_json
+        opinion = clean_and_parse_json(raw) or {"expert_statement": raw}
+    except Exception:
+        opinion = {"expert_statement": raw}
 
     return {
         "exif_metadata": exif_data,

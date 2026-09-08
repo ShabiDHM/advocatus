@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V14.0 (BYPASS MISSING COMPRESSION METHOD & ZERO 500 CRASH)
+# PHOENIX PROTOCOL - MEDIA ROUTER V15.0 (B2 FREE TIER COMPRESSION & CLEAN CLIENT ISOLATION)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • SAFE CLOUD STORAGE UPLOAD
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
@@ -21,9 +21,9 @@ import json
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
 from app.services import storage_service
-from app.services.pillars.media_forensics_service import MediaForensicsService
+from app.services.video_service import compress_video_for_storage, video_service
 from app.services.pillars.role_guard_service import RoleGuardService
-from app.services.vector_store_service import delete_document_embeddings
+from app.services.vector_store_service import delete_document_embeddings, create_and_store_embeddings_from_chunks
 from app.core.config import settings
 
 router = APIRouter(tags=["Media Evidence"])
@@ -71,22 +71,68 @@ def orchestrate_media_analysis(
     case_domain: Optional[str] = None
 ):
     """
-    PHOENIX PROTOCOL - ROLE GUARD INTEGRATED:
-    Përdor db_client direkt dhe kalo case_domain për indeksim specifik.
+    Ekzekuton transkriptimin e thjeshtë (Whisper) dhe e indekson në RAG për klientin.
     """
+    media_oid = ObjectId(media_id_str)
     try:
-        MediaForensicsService.process_and_index_media(
-            db=db_client,
-            media_id_str=media_id_str,
-            file_path=file_path,
-            user_id_str=user_id_str,
-            case_id_str=case_id_str,
-            file_name=file_name,
-            is_video=is_video,
-            case_domain=case_domain
+        logger.info(f"🎙️ [Media Transcription] Duke përpunuar: {file_name}")
+        role = RoleGuardService.get_role_from_case(case_id_str, db_client)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Përdor video_service.py që thjesht nxjerr zërin dhe e transkripton
+        transcript_result = loop.run_until_complete(
+            video_service.analyze_video_evidence_async(file_path, file_name)
+        )
+        loop.close()
+
+        transcript = transcript_result.get("transcription", "[Nuk u detektua zë i kuptueshëm]")
+
+        # Ruaj transkriptin
+        db_client.media_evidence.update_one(
+            {"_id": media_oid},
+            {"$set": {
+                "transcript": transcript,
+                "status": "READY",
+                "role": role,
+                "updated_at": datetime.now(timezone.utc)
+            }}
+        )
+
+        # Indeksim në RAG
+        media_type_label = "VIDEO" if is_video else "AUDIO"
+        combined_rag_text = (
+            f"PROVË MATERIALE ({media_type_label}): {file_name}\n"
+            f"Roli: {role}\n"
+            f"TRANSKRIPTI:\n{transcript}\n"
+        )
+
+        create_and_store_embeddings_from_chunks(
+            user_id=user_id_str,
+            document_id=media_id_str,
+            case_id=case_id_str,
+            file_name=f"Media: {file_name}",
+            chunks=[combined_rag_text],
+            metadatas=[{
+                'file_name': f"Media: {file_name}",
+                'category': 'media',
+                'case_domain': case_domain or 'UNKNOWN',
+                'role': role
+            }]
         )
     except Exception as e:
-        logger.error(f"Media Forensics Processing failed: {e}")
+        logger.error(f"❌ Media processing failed: {e}")
+        db_client.media_evidence.update_one(
+            {"_id": media_oid},
+            {"$set": {"status": "FAILED", "transcript": f"Dështoi transkriptimi: {str(e)}"}}
+        )
+    finally:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
 
 @router.get("/{case_id}/media", response_model=List[Dict[str, Any]])
@@ -131,15 +177,13 @@ async def upload_case_media(
     
     role = RoleGuardService.get_role_from_case(case_id, db)
     case_domain = case.get("case_domain") or case.get("domain") or None
-    
-    logger.info(f"📌 [Media Upload] Roli: {role} | Domeni: {case_domain or 'E pazbuluar'}")
 
-    filename = file.filename or "recording.mp3"
+    filename = file.filename or "media.mp4"
     ext = os.path.splitext(filename)[1].lower()
     is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
     content_type = file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
 
-    # 1. Ruajtja fillestare e skedarit në diskun e përkohshëm
+    # Ruajtja e përkohshme
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
     os.close(temp_fd)
 
@@ -154,34 +198,39 @@ async def upload_case_media(
                 buffer.write(chunk)
     except Exception as e:
         if os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass
-        raise HTTPException(status_code=500, detail=f"Dështoi ruajtja lokale e skedarit: {e}")
+            try: os.remove(temp_path)
+            except Exception: pass
+        raise HTTPException(status_code=500, detail=f"Dështoi ruajtja lokale: {e}")
 
-    # PHOENIX FIX: Bypass metoda e ngjeshjes për të mos shkaktuar 500 Error
-    # Audio-t tani ngarkohen direkte ashtu siç janë, ashtu si videot
-    upload_file_path = temp_path
+    final_upload_path = temp_path
 
-    # 3. Ngarkimi në Backblaze B2 Storage
+    # --- KOMPRESIMI PËR VIDEOT (Mbrojtja e B2 Storage) ---
+    if is_video:
+        compressed_path = temp_path.replace(ext, f"_compressed{ext}")
+        logger.info(f"🎞️ Duke kompresuar videon '{filename}' për klientin...")
+        success = await compress_video_for_storage(temp_path, compressed_path)
+        if success and os.path.exists(compressed_path):
+            final_upload_path = compressed_path
+            # Fshijmë menjëherë atë të rëndën
+            try: os.remove(temp_path)
+            except Exception: pass
+
+    # Ngarkimi në Backblaze B2 Storage
     try:
         storage_key = await asyncio.to_thread(
             storage_service.upload_file_from_path,
-            upload_file_path,
+            final_upload_path,
             filename,
             str(current_user.id),
             case_id,
             content_type
         )
     except Exception as storage_err:
-        if os.path.exists(upload_file_path):
-            try:
-                os.remove(upload_file_path)
-            except Exception:
-                pass
+        if os.path.exists(final_upload_path):
+            try: os.remove(final_upload_path)
+            except Exception: pass
         logger.error(f"❌ Storage Upload Error: {storage_err}")
-        raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi në serverin e ruajtjes: {storage_err}")
+        raise HTTPException(status_code=500, detail=f"Dështoi ngarkimi në ruajtje: {storage_err}")
 
     now = datetime.now(timezone.utc)
     media_doc = {
@@ -203,12 +252,12 @@ async def upload_case_media(
     result = db.media_evidence.insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # 4. Transkriptimi dhe Indeksimi Forenzik në Background
+    # Dërgo në prapavijë për transkriptim të thjeshtë
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
         media_id_str,
-        upload_file_path,
+        final_upload_path,
         str(current_user.id),
         case_id,
         filename,
@@ -246,14 +295,7 @@ async def stream_case_media(
                 raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
             
             user_oid = ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else None
-            if not user_oid:
-                raise HTTPException(status_code=401, detail="Token i pavlefshëm.")
-                
-        except JWTError as e:
-            logger.warning(f"Token decode failed for media stream: {e}")
-            raise HTTPException(status_code=401, detail="I paautorizuar.")
-        except Exception as e:
-            logger.warning(f"Token validation error for media stream: {e}")
+        except Exception:
             raise HTTPException(status_code=401, detail="I paautorizuar.")
     else:
         raise HTTPException(status_code=401, detail="Kërkohet token për qasje në media.")
@@ -320,16 +362,13 @@ async def delete_case_media(
 
     file_name = media_item.get("file_name", "")
 
-    # Fshirja nga Backblaze B2
     storage_key = media_item.get("storage_key")
     if storage_key:
         try:
             await asyncio.to_thread(storage_service.delete_file, storage_key)
-            logger.info(f"🗑️ Purged B2 storage file: {storage_key}")
         except Exception as e:
             logger.warning(f"Failed to purge B2 storage file {storage_key}: {e}")
 
-    # Fshirja e embeddings nga Vector Store
     try:
         delete_document_embeddings(user_id=str(current_user.id), document_id=media_id)
         db.user_vectors.delete_many({
@@ -342,12 +381,6 @@ async def delete_case_media(
         })
     except Exception as e:
         logger.error(f"Failed to purge vector embeddings: {e}")
-
-    # Fshirja e raporteve të lidhura në Arkivë
-    try:
-        db.archives.delete_many({"case_id": case_id, "file_name": f"Transkript: {file_name}"})
-    except Exception as a_err:
-        logger.warning(f"Archive cascade cleanup bypass: {a_err}")
 
     db.media_evidence.delete_one({"_id": media_oid})
     background_tasks.add_task(publish_media_deletion_async, str(current_user.id), media_id)
