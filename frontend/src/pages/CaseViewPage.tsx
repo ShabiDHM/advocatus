@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V100.1 (PANEL MAX-HEIGHT + SCROLL FIX)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V100.2 (FIXED 700px HEIGHT, SYMMETRIC PANELS)
 // ZERO TS WARNINGS • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -339,10 +339,10 @@ const CaseViewPage: React.FC = () => {
           documents={liveDocuments}
         />
 
-        {/* PHOENIX FIX: Barazimi i lartësisë së dy paneleve me Grid dhe Flex-1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 flex-1 min-h-[520px]">
-          {/* PANELI I MAJTË (DOKUMENTET) - MAX HEIGHT 600 + SCROLL */}
-          <div className="lg:col-span-5 h-full max-h-[600px] overflow-y-auto flex flex-col">
+        {/* FIXED HEIGHT 700px FOR SYMMETRIC PANELS */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 h-[700px]">
+          {/* PANELI I MAJTË (DOKUMENTET) */}
+          <div className="lg:col-span-5 h-full overflow-y-auto flex flex-col">
             <EvidenceVaultPanel
               caseId={caseData.details.id}
               documents={liveDocuments}
