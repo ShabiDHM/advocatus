@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V58.0 (ATOMIC FORENSIC PILLARS CRUD & $UNSET PURGE)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V59.0 (ATOMIC CASCADE RENAME & $UNSET PURGE)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -37,6 +37,10 @@ MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 class DocumentPillarPayload(BaseModel):
     pillar: str = Field(..., description="Çelësi i shtjellës: PILLAR_1, PILLAR_2, ose PILLAR_3")
     content: str = Field(..., description="Përmbajtja tekstuale e shtjellës forenzike")
+
+# Model i ri për kërkesën e Riemërtimit (Rename)
+class RenameDocumentRequest(BaseModel):
+    new_name: str = Field(..., min_length=1, description="Emri i ri i dokumentit")
 
 
 def _safe_decode_token(token_str: str) -> Optional[Dict[str, Any]]:
@@ -179,9 +183,6 @@ async def get_documents_for_case(
     return validated_docs
 
 
-# =========================================================================
-# 📄 GET 1 DOKUMENT (0ms CACHE)
-# =========================================================================
 @router.get("/{case_id}/documents/{doc_id}", status_code=status.HTTP_200_OK)
 async def get_single_document(
     case_id: str,
@@ -205,6 +206,65 @@ async def get_single_document(
     doc["id"] = str(doc["_id"])
     del doc["_id"]
     return doc
+
+
+# =========================================================================
+# 📝 CASCADE RENAME (TOTAL SYNC NË MONGODB DHE RAG)
+# =========================================================================
+@router.put("/{case_id}/documents/{doc_id}/rename", status_code=status.HTTP_200_OK)
+async def rename_document_endpoint(
+    case_id: str,
+    doc_id: str,
+    payload: RenameDocumentRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    new_name = payload.new_name.strip()
+    user_id_str = str(current_user.id)
+
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Emri i dokumentit nuk mund të jetë i zbrazët.")
+
+    # Ruajmë prapashtesën origjinale nëse ekziston
+    doc = db.documents.find_one({
+        "_id": doc_oid,
+        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+        "owner_id": current_user.id
+    })
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    old_name = doc.get("file_name", "")
+    ext = os.path.splitext(old_name)[1]
+    if not new_name.lower().endswith(ext.lower()):
+        new_name += ext
+
+    now = datetime.now(timezone.utc)
+
+    # 1. Azhurnimi në db.documents
+    db.documents.update_one(
+        {"_id": doc_oid},
+        {"$set": {"file_name": new_name, "updated_at": now}}
+    )
+
+    # 2. Azhurnimi kaskadë në Koleksionin e Vektorëve (RAG)
+    db.user_vectors.update_many(
+        {"document_id": doc_id},
+        {"$set": {"file_name": new_name}}
+    )
+
+    # 3. Informo lëndën që fashikulli është modifikuar
+    db.cases.update_one(
+        {"$or": [{"_id": case_oid}, {"_id": case_id}]},
+        {"$set": {"analysis_dirty": True, "updated_at": now}}
+    )
+
+    logger.info(f"📝 [CASCADE RENAME] Dokumenti {doc_id} u riemërtua kaskadë: '{old_name}' -> '{new_name}'")
+
+    return {"status": "success", "message": "Dokumenti u riemërtua me sukses.", "new_name": new_name}
 
 
 # =========================================================================
@@ -280,7 +340,6 @@ async def delete_single_document_pillar_endpoint(
     if pillar_key not in ["PILLAR_1", "PILLAR_2", "PILLAR_3"]:
         raise HTTPException(status_code=400, detail="Emër shtjelle i pavlefshëm.")
 
-    # PHOENIX ATOMIC $UNSET: Asgjësim i përhershëm nga MongoDB Atlas
     res = db.documents.update_one(
         {
             "_id": doc_oid,
@@ -294,7 +353,6 @@ async def delete_single_document_pillar_endpoint(
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
 
-    # Pastrim i Cache-it në Redis
     try:
         redis_client.delete(f"doc_pillar:{doc_id}:{pillar_key}")
         redis_client.delete(f"doc:{doc_id}:pillars")
@@ -309,7 +367,7 @@ async def delete_single_document_pillar_endpoint(
 
 
 # =========================================================================
-# 🔒 UPLOAD ME MBROJTJE PARAPRAKE DHE NJOFTIM NË GJUHËN SHQIPE
+# 🔒 UPLOAD DHE PASTARI I PLOTË I MBETJEVE
 # =========================================================================
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_for_case(
@@ -408,9 +466,6 @@ async def upload_document_for_case(
     return DocumentOut.model_validate(new_doc)
 
 
-# =========================================================================
-# 🧹 PHOENIX TOTAL WIPEOUT: FSHIRJA E PLOTË E AUDITIMIT TË NJË DOKUMENTI
-# =========================================================================
 @router.post("/{case_id}/documents/{doc_id}/clear-audit")
 @router.delete("/{case_id}/documents/{doc_id}/clear-audit")
 async def clear_document_audit_endpoint(
