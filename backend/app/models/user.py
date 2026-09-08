@@ -1,9 +1,13 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V9.1 (MEMBER DEFAULT RBAC ROLE)
+# PHOENIX PROTOCOL - USER MODEL V10.0 (GDPR COMPLIANT)
+# 1. ADDED: Soft delete fields (`is_deleted`, `deleted_at`) to support "right to be forgotten".
+# 2. ADDED: Consent fields (`consent_to_process`, `consent_date`) for explicit GDPR consent.
+# 3. CHANGED: UTC timestamps now use timezone-aware `datetime.now(timezone.utc)`.
+# 4. PRESERVED: All existing fields, enums, and configuration.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from .common import PyObjectId
 
@@ -45,6 +49,10 @@ class UserBase(BaseModel):
     organization_name: Optional[str] = None
     logo: Optional[str] = None 
 
+    # GDPR Consent Fields
+    consent_to_process: bool = False
+    consent_date: Optional[datetime] = None
+
 # Model for creating a new user
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
@@ -69,17 +77,25 @@ class UserUpdate(BaseModel):
     
     organization_name: Optional[str] = None
     logo: Optional[str] = None
+    
+    # GDPR Consent Fields
+    consent_to_process: Optional[bool] = None
+    consent_date: Optional[datetime] = None
 
 # Model stored in DB
 class UserInDB(UserBase):
     id: PyObjectId = Field(alias="_id", default=None)
     hashed_password: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login: Optional[datetime] = None
     
     invitation_token: Optional[str] = None
     invitation_token_expiry: Optional[datetime] = None
+    
+    # Soft delete fields for GDPR compliance
+    is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
     
     model_config = ConfigDict(
         populate_by_name=True,

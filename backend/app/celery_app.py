@@ -1,9 +1,11 @@
 # FILE: backend/app/celery_app.py
-# PHOENIX PROTOCOL - CELERY ROBUSTNESS V2.0 (DRAFTING EXCISED)
-# 1. FIX: Used conf.update() instead of direct assignment to satisfy Pylance.
-# 2. STATUS: Type-safe and decoupled configuration.
+# PHOENIX PROTOCOL - CELERY ROBUSTNESS V3.0 (GDPR SCHEDULER READY)
+# 1. ENHANCED: Added beat schedule for GDPR archive deletion task.
+# 2. ENHANCED: Autodiscovers archive_tasks module.
+# 3. STATUS: Type-safe, decoupled configuration, production-ready.
 
 from celery import Celery
+from celery.schedules import crontab
 import logging
 import os
 
@@ -35,16 +37,22 @@ def configure_celery_app():
     # Load any additional task-related configuration from celery_config.py
     celery_app.config_from_object('app.celery_config')
 
+    # --- GDPR: Schedule for automatic deletion of expired archive items ---
+    celery_app.conf.beat_schedule = {
+        'delete-expired-archive-every-day': {
+            'task': 'app.tasks.archive_tasks.delete_expired_archive_items',
+            'schedule': crontab(hour=0, minute=0),  # Every day at 00:00 UTC
+        },
+    }
+
     # Define the modules where tasks are located.
-    # PHOENIX FIX: 'app.tasks.drafting_tasks' u hoq
     celery_app.autodiscover_tasks([
         'app.tasks.document_processing',
         'app.tasks.deadline_extraction',
         'app.tasks.findings_extraction',
         'app.tasks.chat_tasks',
+        'app.tasks.archive_tasks',   # Added for GDPR retention policy
     ])
     
-    logging.getLogger(__name__).info("--- [Celery App] Celery application fully configured for worker. ---")
+    logging.getLogger(__name__).info("--- [Celery App] Celery application fully configured for worker (GDPR compliant). ---")
 
-# The configuration is NOT called automatically here.
-# It is the responsibility of worker.py to call it.

@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V97.0 (TRUE MOUSE TOGGLE SELECTION/DESELECTION & MODAL INTEGRITY)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V99.0 (CLEAN CLIENT WORKSPACE • INVESTIGATOR DRAWER PURGED)
 // ZERO TS WARNINGS • SINGLE-CLICK TOGGLE (SELECT/DESELECT) • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,7 +21,6 @@ import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { StandardCaseAnalysisModal } from '../components/case/StandardCaseAnalysisModal';
 import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
-import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
 
 type CaseData = { details: Case | null };
 
@@ -48,9 +47,6 @@ const CaseViewPage: React.FC = () => {
   // 2. Dritarja Modale: Analizo Dokumentin (Pasqyra e Shkresës)
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
-
-  // 3. Ditari i Hetuesit
-  const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -79,10 +75,8 @@ const CaseViewPage: React.FC = () => {
     const docIdStr = String(doc.id);
     setSelectedDocumentIds((prev) => {
       if (prev.includes(docIdStr)) {
-        // Diselektim (Toggle Off)
         return [];
       } else {
-        // Selektim i ri (Toggle On)
         return [docIdStr];
       }
     });
@@ -351,30 +345,8 @@ const CaseViewPage: React.FC = () => {
           documents={liveDocuments}
         />
 
-        {/* SHIRITI I PËRGATITJES SË SEANCËS: DITARI I HETUESIT */}
-        <div className="flex items-center justify-between gap-3 bg-surface border border-main px-4 py-2.5 rounded-2xl shadow-sm">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-base sm:text-lg shrink-0">🕵️</span>
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-wider text-text-primary truncate">
-                Ditari i Hetuesit — Përgatitja e Seancës (3 Rolet)
-              </p>
-              <p className="text-[10px] sm:text-[11px] text-text-muted truncate">
-                Zbulimi i alibive të rreme, shkeljeve të LPK-së dhe pyetjeve kurth para gjyqit
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowInvestigatorDrawer(true)}
-            className="h-8 px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-          >
-            <span>Hap Ditarin</span>
-          </button>
-        </div>
-
-        {/* GRID-I KRYESOR: ME SELEKTIMIN/DISELEKTIMIN ME MIU */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch">
+        {/* GRID-I KRYESOR: I PASTËR PA SHIRITIN E DITARIT TË HETUESIT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 items-stretch pt-1">
           <EvidenceVaultPanel
             caseId={caseData.details.id}
             documents={liveDocuments}
@@ -390,7 +362,7 @@ const CaseViewPage: React.FC = () => {
             t={t}
           />
 
-          <div className="lg:col-span-7 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-255px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
+          <div className="lg:col-span-7 flex flex-col h-[520px] sm:h-[620px] lg:h-[calc(100vh-200px)] min-h-[580px] bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative">
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
@@ -432,7 +404,7 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* 1. MODAL: ANALIZO RASTIN -> HAP VETËM PASQYRËN E RASTIT */}
+      {/* 1. MODAL: ANALIZO RASTIN */}
       <StandardCaseAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
@@ -442,7 +414,7 @@ const CaseViewPage: React.FC = () => {
         isAnalysisDirty={isAnalysisDirty}
       />
 
-      {/* 2. MODAL: ANALIZO DOKUMENTIN -> HAP PASQYRËN E SHKRESËS SË ZGJEDHUR */}
+      {/* 2. MODAL: ANALIZO DOKUMENTIN */}
       <StandardDocumentAuditModal
         isOpen={isDocAuditModalOpen}
         onClose={() => setIsDocAuditModalOpen(false)}
@@ -451,17 +423,6 @@ const CaseViewPage: React.FC = () => {
         documentName={selectedDocObj?.file_name || currentAuditedDoc?.file_name || 'Dokument'}
         clientName={clientName}
       />
-
-      {/* 3. DITARI I HETUESIT */}
-      {caseId && (
-        <InvestigatorLogDrawer
-          isOpen={showInvestigatorDrawer}
-          onClose={() => setShowInvestigatorDrawer(false)}
-          caseId={currentCaseId}
-          clientName={clientName}
-          chainOfCustodyHash={`SHA256-${currentCaseId.slice(-8).toUpperCase()}`}
-        />
-      )}
     </motion.div>
   );
 };

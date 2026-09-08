@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V5.0 (3-ROLE FORENSIC COLLEGIATE • CLAUDE SONNET 4.6)
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V6.0 (CLEAN RELATIVE IMPORTS & ZERO TS ERRORS)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect } from 'react';
@@ -21,6 +21,8 @@ import {
   Briefcase,
   Shield
 } from 'lucide-react';
+
+// Importimi i saktë i shërbimit nga folderi services
 import { forensicDeskService } from '../../services/forensicDeskService';
 
 export type FindingSeverity = 'CRITICAL' | 'SUSPICIOUS' | 'SMOKING_GUN';
@@ -144,7 +146,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     }
   }, [isOpen, caseId]);
 
-  // Ekzekutimi i Skanimit të Pavarur me Claude Sonnet 4.6
+  // Ekzekutimi i Skanimit me Claude Sonnet 4.6
   const handleRunAutonomousInvestigation = async () => {
     if (!caseId || isScanning) return;
     setIsScanning(true);
@@ -193,7 +195,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
           isWidescreen ? 'w-full lg:w-[90%]' : 'w-full sm:w-[94%] md:w-[80%] lg:w-[55%]'
         }`}
       >
-        {/* Header me Kontrollues Vetëm-Ikonë */}
+        {/* Header */}
         <header className="h-16 px-6 border-b border-main flex items-center justify-between gap-4 bg-surface shadow-md shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 via-amber-600 to-primary-start text-white flex items-center justify-center shadow-lg shadow-rose-600/30 shrink-0">
@@ -235,7 +237,7 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
           </div>
         </header>
 
-        {/* Tab-et e Pastra (VETËM TEKST DHE NUMRA) */}
+        {/* Tab-et e Filtrimit */}
         <div className="px-6 py-3.5 border-b border-main bg-surface/50 space-y-3 shrink-0">
           <div className="flex items-center gap-2 overflow-x-auto custom-finance-scroll pb-1">
             <button

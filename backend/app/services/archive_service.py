@@ -1,11 +1,15 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE SERVICE V9.0 (STRICT PDF HANDLING & CLEAN PREVIEW)
+# PHOENIX PROTOCOL - ARCHIVE SERVICE V10.0 (GDPR COMPLIANT)
+# 1. ADDED: Retention policy with automatic expiration (default 5 years).
+# 2. ADDED: Audit logging for all deletions (archive_audit collection).
+# 3. ADDED: Encryption of sensitive metadata (title, description) using encryption_service.
+# 4. PRESERVED: All existing functionality and API compatibility.
 
 import os
 import logging
 import urllib.parse
 from typing import List, Optional, Tuple, Any, Dict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo.database import Database
@@ -14,9 +18,12 @@ from fastapi.exceptions import HTTPException
 
 from ..models.archive import ArchiveItemInDB
 from .storage_service import get_s3_client, transfer_config
-from .pdf_service import pdf_service 
+from .pdf_service import pdf_service
+from .encryption_service import encryption_service
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_RETENTION_DAYS = 1825  # 5 years
 
 class ArchiveService:
     def __init__(self, db: Database):
@@ -33,20 +40,55 @@ class ArchiveService:
         except (InvalidId, TypeError):
             raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
 
+    def _encrypt_text(self, text: str) -> str:
+        """Encrypt sensitive text if encryption service is active, else return as-is."""
+        if encryption_service.is_active():
+            return encryption_service.encrypt(text)
+        return text
+
+    def _decrypt_text(self, text: str) -> str:
+        """Decrypt sensitive text if encryption service is active, else return as-is."""
+        if encryption_service.is_active():
+            return encryption_service.decrypt(text)
+        return text
+
+    def _get_retention_expiry(self, retention_days: Optional[int]) -> datetime:
+        if retention_days is None:
+            retention_days = DEFAULT_RETENTION_DAYS
+        return datetime.now(timezone.utc) + timedelta(days=retention_days)
+
+    def _log_audit(self, action: str, user_id: Any, item_id: Optional[Any] = None, details: Optional[Dict] = None):
+        """Record audit trail for sensitive operations."""
+        audit_entry = {
+            "action": action,
+            "user_id": user_id,
+            "item_id": item_id,
+            "timestamp": datetime.now(timezone.utc),
+            "details": details or {}
+        }
+        try:
+            self.db.archive_audit.insert_one(audit_entry)
+        except Exception as e:
+            logger.error(f"Failed to write audit log: {e}")
+
     def create_folder(self, user_id: str, title: str, parent_id: Optional[str] = None, case_id: Optional[str] = None) -> ArchiveItemInDB:
         user_oid = self._to_oid(user_id)
+        # Encrypt title
+        encrypted_title = self._encrypt_text(title)
         folder_data: Dict[str, Any] = {
             "user_id": user_oid, 
             "owner_id": user_oid,
-            "title": title, 
+            "title": encrypted_title, 
             "item_type": "FOLDER", 
             "file_type": "FOLDER", 
             "category": "FOLDER",
-            "created_at": datetime.now(timezone.utc), 
+            "created_at": datetime.now(timezone.utc),
             "storage_key": None, 
             "file_size": 0, 
             "description": "", 
-            "is_shared": False 
+            "is_shared": False,
+            "retention_days": DEFAULT_RETENTION_DAYS,
+            "expires_at": self._get_retention_expiry(DEFAULT_RETENTION_DAYS)
         }
         if parent_id and parent_id.strip() and parent_id != "null":
             folder_data["parent_id"] = self._to_oid(parent_id)
@@ -55,6 +97,8 @@ class ArchiveService:
             
         result = self.db.archives.insert_one(folder_data)
         folder_data["id"] = result.inserted_id
+        # Decrypt title for response
+        folder_data["title"] = self._decrypt_text(folder_data["title"])
         return ArchiveItemInDB.model_validate(folder_data)
 
     async def add_file_to_archive(self, user_id: str, file: UploadFile, category: str, title: str, case_id: Optional[str] = None, parent_id: Optional[str] = None) -> ArchiveItemInDB:
@@ -83,24 +127,31 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
         user_oid = self._to_oid(user_id)
+        encrypted_title = self._encrypt_text(title or final_filename)
+        encrypted_description = self._encrypt_text("")
         doc_data: Dict[str, Any] = {
             "user_id": user_oid, 
             "owner_id": user_oid,
-            "title": title or final_filename, 
+            "title": encrypted_title, 
             "item_type": "FILE", 
             "file_type": file_ext,
             "category": category, 
             "storage_key": storage_key, 
             "file_size": file_size, 
             "created_at": datetime.now(timezone.utc),
-            "description": "", 
-            "is_shared": False
+            "description": encrypted_description, 
+            "is_shared": False,
+            "retention_days": DEFAULT_RETENTION_DAYS,
+            "expires_at": self._get_retention_expiry(DEFAULT_RETENTION_DAYS)
         }
         if case_id and case_id.strip() and case_id != "null": doc_data["case_id"] = self._to_oid(case_id)
         if parent_id and parent_id.strip() and parent_id != "null": doc_data["parent_id"] = self._to_oid(parent_id)
         
         result = self.db.archives.insert_one(doc_data)
         doc_data["id"] = result.inserted_id
+        # Decrypt for response
+        doc_data["title"] = self._decrypt_text(doc_data["title"])
+        doc_data["description"] = self._decrypt_text(doc_data["description"])
         return ArchiveItemInDB.model_validate(doc_data)
 
     def archive_document(self, db: Database, case_id: str, doc_id: str, owner: Any) -> Optional[ArchiveItemInDB]:
@@ -129,23 +180,30 @@ class ArchiveService:
                     logger.warning(f"S3 Copy fallback: {err}")
                     dest_key = storage_key
 
+            encrypted_title = self._encrypt_text(filename)
+            encrypted_description = self._encrypt_text("Archived from Case Documents")
             doc_data: Dict[str, Any] = {
                 "user_id": user_oid,
                 "owner_id": user_oid,
                 "case_id": case_oid,
-                "title": filename,
+                "title": encrypted_title,
                 "item_type": "FILE",
                 "file_type": "PDF",
                 "category": "CASE_FILE",
                 "storage_key": dest_key,
                 "file_size": doc.get("file_size", 0),
                 "created_at": datetime.now(timezone.utc),
-                "description": "Archived from Case Documents",
-                "is_shared": False
+                "description": encrypted_description,
+                "is_shared": False,
+                "retention_days": DEFAULT_RETENTION_DAYS,
+                "expires_at": self._get_retention_expiry(DEFAULT_RETENTION_DAYS)
             }
 
             res = self.db.archives.insert_one(doc_data)
             doc_data["id"] = res.inserted_id
+            # Decrypt for response
+            doc_data["title"] = self._decrypt_text(doc_data["title"])
+            doc_data["description"] = self._decrypt_text(doc_data["description"])
             return ArchiveItemInDB.model_validate(doc_data)
         except Exception as e:
             logger.error(f"❌ Error in archive_document: {e}")
@@ -193,6 +251,12 @@ class ArchiveService:
             if doc.get("parent_id") and isinstance(doc["parent_id"], str) and ObjectId.is_valid(doc["parent_id"]):
                 doc["parent_id"] = ObjectId(doc["parent_id"])
 
+            # Decrypt title and description
+            if "title" in doc:
+                doc["title"] = self._decrypt_text(doc["title"])
+            if "description" in doc:
+                doc["description"] = self._decrypt_text(doc["description"])
+
             items.append(ArchiveItemInDB.model_validate(doc))
         return items
 
@@ -208,11 +272,14 @@ class ArchiveService:
             try: get_s3_client().delete_object(Bucket=self.bucket, Key=item["storage_key"])
             except Exception: pass
         self.db.archives.delete_one({"_id": oid_item})
+        # Audit log
+        self._log_audit("DELETE", user_id, item_id, {"title": self._decrypt_text(item.get("title", "")), "storage_key": item.get("storage_key")})
 
     def rename_item(self, user_id: str, item_id: str, new_title: str) -> None:
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
-        self.db.archives.update_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]}, {"$set": {"title": new_title}})
+        encrypted_title = self._encrypt_text(new_title)
+        self.db.archives.update_one({"_id": oid_item, "$or": [{"user_id": oid_user}, {"owner_id": oid_user}]}, {"$set": {"title": encrypted_title}})
 
     def share_item(self, user_id: str, item_id: str, is_shared: bool) -> ArchiveItemInDB:
         oid_user = self._to_oid(user_id)
@@ -227,6 +294,11 @@ class ArchiveService:
              raise HTTPException(status_code=404, detail="Item not found")
         
         result["id"] = result["_id"]
+        # Decrypt title/description for response
+        if "title" in result:
+            result["title"] = self._decrypt_text(result["title"])
+        if "description" in result:
+            result["description"] = self._decrypt_text(result["description"])
         return ArchiveItemInDB.model_validate(result)
 
     def share_case_items(self, user_id: str, case_id: str, is_shared: bool) -> int:
@@ -246,7 +318,6 @@ class ArchiveService:
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
         
-        # Sigurohemi që emri i skedarit mbaron me .pdf
         final_filename = filename if filename.lower().endswith('.pdf') else f"{filename}.pdf"
         storage_key = f"archive/{user_id}/{timestamp}_{final_filename}"
         
@@ -262,25 +333,32 @@ class ArchiveService:
             
         user_oid = self._to_oid(user_id)
         clean_title = title if title.lower().endswith('.pdf') else f"{title}.pdf"
+        encrypted_title = self._encrypt_text(clean_title)
+        encrypted_description = self._encrypt_text("Raport Ekzekutiv i Gjeneruar nga Sistemi")
         
         doc_data: Dict[str, Any] = {
             "user_id": user_oid,
             "owner_id": user_oid,
-            "title": clean_title,
+            "title": encrypted_title,
             "item_type": "FILE",
             "file_type": "PDF",
             "category": category,
             "storage_key": storage_key,
             "file_size": len(content),
             "created_at": datetime.now(timezone.utc),
-            "description": "Raport Ekzekutiv i Gjeneruar nga Sistemi",
-            "is_shared": False
+            "description": encrypted_description,
+            "is_shared": False,
+            "retention_days": DEFAULT_RETENTION_DAYS,
+            "expires_at": self._get_retention_expiry(DEFAULT_RETENTION_DAYS)
         }
         if case_id and case_id.strip() and case_id != "null":
             doc_data["case_id"] = self._to_oid(case_id)
         
         result = self.db.archives.insert_one(doc_data)
         doc_data["id"] = result.inserted_id
+        # Decrypt for response
+        doc_data["title"] = self._decrypt_text(doc_data["title"])
+        doc_data["description"] = self._decrypt_text(doc_data["description"])
         return ArchiveItemInDB.model_validate(doc_data)
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str, int]:
@@ -304,11 +382,40 @@ class ArchiveService:
             response = s3_client.get_object(Bucket=self.bucket, Key=storage_key)
             file_size = response.get('ContentLength', item.get("file_size", 0))
             
-            # Kthejmë gjithmonë titullin me .pdf
             raw_title = item.get("title", "raport.pdf")
+            # Decrypt title
+            raw_title = self._decrypt_text(raw_title)
             final_title = raw_title if raw_title.lower().endswith('.pdf') else f"{raw_title}.pdf"
             
             return response['Body'], final_title, file_size
         except Exception as e:
             logger.error(f"S3 Download Error for {storage_key}: {e}")
             raise HTTPException(status_code=500, detail="Dështoi leximi i përmbajtjes nga hapësira ruajtëse.")
+
+    # --- New GDPR Compliance Methods ---
+
+    def delete_expired_items(self) -> int:
+        """
+        Deletes all archive items that have passed their expiration date.
+        Should be called periodically (e.g., daily via Celery/cron).
+        Returns number of items deleted.
+        """
+        now = datetime.now(timezone.utc)
+        expired_items = self.db.archives.find({"expires_at": {"$lt": now}})
+        count = 0
+        for item in expired_items:
+            try:
+                # Delete from S3 if file
+                if item.get("storage_key"):
+                    try:
+                        get_s3_client().delete_object(Bucket=self.bucket, Key=item["storage_key"])
+                    except Exception as e:
+                        logger.error(f"Failed to delete S3 object {item['storage_key']}: {e}")
+                # Delete from MongoDB
+                self.db.archives.delete_one({"_id": item["_id"]})
+                # Audit
+                self._log_audit("RETENTION_DELETE", item.get("user_id"), item["_id"], {"reason": "Expired retention policy"})
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to delete expired item {item.get('_id')}: {e}")
+        return count
