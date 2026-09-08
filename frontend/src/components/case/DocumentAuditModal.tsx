@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/DocumentAuditModal.tsx
-// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V9.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
+// PHOENIX PROTOCOL - DEDICATED SINGLE-DOCUMENT FORENSIC AUDIT MODAL V10.0 (STREAM-OPTIMIZED & CLEAN LEGAL PROSE)
 // ZERO TS WARNINGS • ZERO TRUNCATION • ADMIN-ONLY DELETE • TRUE $UNSET MONGODB PURGE • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -41,30 +41,30 @@ const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prom
     title: '1. Ekzaminimi & Faktet',
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 1 (MOS shkruaj asnjë seksion tjetër):
-- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore prekluzive).
+Kryej ekzaminimin e shkresës për SHTJELLËN 1:
+- Seksioni 1: Pasaporta Procedurale dhe Diagnoza e Aktit (Lloji, Organi nxjerrës, Numri, Afatet ligjore).
 - Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
-- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Seksioni 3: Kryqëzimi i Fakteve dhe Baza Provuese e Administruar.
+Përgjigju qartë dhe me përpikmëri profesionale.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
-    subtitle: 'Tabela Shteruese e Neneve të Kosovës & Detektori i Shkeljeve/Lapsuseve',
+    subtitle: 'Tabela e Neneve të Kosovës & Shkeljet Procedurale',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 2 (MOS shkruaj asnjë seksion tjetër):
-- Seksioni 4: Tabela Shteruese e Neneve të Shkelura të Kosovës (Formati: Neni X i [Ligjit]) me precedentët përkatës të Gjykatës Supreme (PML / Revizion).
-- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive/Lapsuseve me Tabelën e Zëvendësimit.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 brenda kësaj përgjigjeje pa u ndërprerë!`
+Kryej ekzaminimin e shkresës për SHTJELLËN 2:
+- Seksioni 4: Tabela e Neneve të Zbatueshme sipas Legjislacionit të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).
+- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Tabela e Pasaktësive.
+Përgjigju me arsyetim të prerë e doktrinar.`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
-DETYRË: Gjenero EKSKLUZIVISHT SHTJELLËN 3 (MOS shkruaj asnjë seksion tjetër):
+Kryej ekzaminimin e shkresës për SHTJELLËN 3:
 - Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
-- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
-- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 brenda kësaj përgjigjeje pa u ndërprerë!`
+- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Aktit.
+- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet Ligjore.
+Përgjigju me këshilla konkrete të zbatueshme në gjykatë.`
   }
 };
 
@@ -120,7 +120,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     isUserScrolledUpRef.current = false;
 
     try {
-      const prompt = `[DIREKTIVË FORENZIKE E GJYKATËS SUPREME TË KOSOVËS]\nDokumenti në Ekzaminim: "${documentName}"\n\n${PILLAR_CONFIGS[pillar].prompt}`;
+      const prompt = `[DIREKTIVË FORENZIKE E SHKRESËS]\nDokumenti në Ekzaminim: "${documentName}"\n\n${PILLAR_CONFIGS[pillar].prompt}`;
       
       const stream = apiService.sendChatMessageStream(
         caseId,
@@ -154,7 +154,6 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     }
   }, [caseId, documentId, documentName, loadingPillars]);
 
-  // NGARKIMI I PASTËR PA ASNJË AUTO-TRIGGER TË DHUNSHËM
   useEffect(() => {
     if (isOpen && caseId && documentId) {
       forensicService.getDocumentPillars(caseId, documentId)
@@ -173,7 +172,6 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     }
   }, [isOpen, caseId, documentId]);
 
-  // KALIMI MES TAB-EVE PA NDESHKIMIN E AUTO-GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
   };
@@ -258,7 +256,6 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
     }
   };
 
-  // PHOENIX CASCADE PURGE: Fshin VETËM shtjellën aktive nga dokumenti në MongoDB Atlas
   const handleDeleteActivePillar = async () => {
     if (!caseId || !documentId || !currentContent) return;
     const activeCfg = PILLAR_CONFIGS[activePillar];
@@ -267,13 +264,9 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
 
     setIsDeleting(true);
     try {
-      // 1. Ekzekuton $unset atomik në MongoDB nëpërmjet router-it të rregulluar
       await forensicService.deleteDocumentPillar(caseId, documentId, activePillar);
-      
-      // 2. E zbraz nga gjendja lokale e modalit
       setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
 
-      // 3. Njofton prindin (CaseViewPage) për sinkronizim të listës së dokumenteve
       if (onDeleteAudit) {
         await onDeleteAudit();
       }
@@ -382,7 +375,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
+          {/* SHIRITI I 3 SHTJELLAVE */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
@@ -395,7 +388,7 @@ export const DocumentAuditModal: React.FC<DocumentAuditModalProps> = ({
                   key={pillarKey}
                   type="button"
                   onClick={() => handleSelectPillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'

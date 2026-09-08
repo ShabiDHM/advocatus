@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/CaseAnalysisModal.tsx
-// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V24.0 (CONTROLLED TRIGGER & PURGE PERSISTENCE)
+// PHOENIX PROTOCOL - 3-PILLAR MASTER FORENSIC REPORT MODAL V25.0 (STREAM-OPTIMIZED & DYNAMIC JURISPRUDENCE)
 // ZERO TS WARNINGS • SINGLE-TAB ADMIN TRASH PURGE • 0MS INSTANT CACHE • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -44,31 +44,31 @@ const PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prom
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 1: FAKTI & HISTORIKU]
-Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 1:
+Kryej autopsinë forenzike të fashikullit për SHTJELLËN 1:
 - Seksioni 1: Diagnoza e Rregullt Procedurale dhe Gjendja Faktike e Dosjes.
 - Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
-- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 1 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
+- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve nga shkresat reale.
+Përgjigju në mënyrë të saktë e të plotë me gjuhë standarde juridike të Kosovës.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
-    subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
+    subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Shkeljet Procedurale',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 2: SHKELJET & NENET]
-Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 2:
-- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore (Tabelë me deri në 8 rreshta kryesorë).
-- Seksioni 4: Tabela e Nxjerrjes së Neneve të Shkelura sipas Legjislacionit të Kosovës (LPK, KPK, KPPRK, LMD) me formatin e saktë "Neni X i [Emri i Ligjit]".
-- Seksioni 5: Përgjegjësia Penale (Nenet 383, 414, 427 të Kodit Penal) dhe Shkeljet Thelbësore të Procedurës (Neni 182 i LPK-së).
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 2 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
+Kryej autopsinë forenzike të fashikullit për SHTJELLËN 2:
+- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore (Tabela me pikat kryesore të konfliktit).
+- Seksioni 4: Tabela e Dispozitave dhe Precedentëve të Gjykatës Supreme sipas Legjislacionit të Kosovës me formatin "Neni X i [Emri i Ligjit]".
+- Seksioni 5: Shkeljet Thelbësore të Procedurës (Neni 182 i LPK-së / KPP) dhe Përgjegjësia Ligjore sipas natyrës së lëndës.
+Përgjigju me arsyetim të prerë e doktrinar.`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
     prompt: `[DIREKTIVË FORENZIKE — SHTJELLA 3: PLANI I VEPRIMIT]
-Kryej autopsinë forenzike të fashikullit EKSKLUZIVISHT për SHTJELLËN 3:
-- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Kallëzime Penale).
-- Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me Pyetje Kurth për Palën Kundërshtare dhe Ekspertët.
-- Seksioni 8: Master Plani i Veprimit me Hapat Taktikë 48-orësh deri te Konkluzioni Doktrinar.
-RREGULL I HEKURT: Përfundo të gjithë SHTJELLËN 3 me gjuhë standarde juridike shqipe brenda kësaj përgjigjeje pa u ndërprerë!`
+Kryej autopsinë forenzike të fashikullit për SHTJELLËN 3:
+- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Masë Sigurimi).
+- Seksioni 7: Pyetësori Taktik për Seancë Gjyqësore me pyetje tërthore për palën kundërshtare dhe ekspertët.
+- Seksioni 8: Master Plani i Veprimit me Hapat Taktikë deri te Konkluzioni Doktrinar.
+Përgjigju qartë dhe me këshilla konkrete procedurale.`
   }
 };
 
@@ -159,7 +159,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   }, [caseId, loadingPillars]);
 
-  // NGARKIMI I PASTËR PA ASNJË AUTO-TRIGGER TË DHUNSHËM
   useEffect(() => {
     if (isOpen && caseId) {
       forensicService.getCasePillars(caseId)
@@ -178,7 +177,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   }, [isOpen, caseId]);
 
-  // KALIMI MES TAB-EVE PA NDESHKIM TË AUTO-GJENERIMIT
   const handleSelectPillar = (pillarKey: PillarType) => {
     setActivePillar(pillarKey);
   };
@@ -263,7 +261,6 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
     }
   };
 
-  // PHOENIX CASCADE PURGE: Fshin VETËM shtjellën aktive dhe e heq nga MongoDB Atlas
   const handleDeleteActivePillar = async () => {
     if (!caseId || !currentContent) return;
     const activeCfg = PILLAR_CONFIGS[activePillar];
@@ -272,13 +269,8 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
 
     setIsDeleting(true);
     try {
-      // 1. Ekzekuton $unset në MongoDB Atlas
       await forensicService.deleteCasePillar(caseId, activePillar);
-      
-      // 2. E zbraz nga ekrani lokal
       setPillarResults(prev => ({ ...prev, [activePillar]: '' }));
-      
-      // 3. Njofton prindin nëse ka prop për sinkronizim
       if (onDeleteAnalysis) {
         await onDeleteAnalysis();
       }
@@ -392,7 +384,7 @@ export const CaseAnalysisModal: React.FC<CaseAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* SHIRITI I 3 SHTJELLAVE (STATUS REAL, ZERO AUTO-TRIGGER) */}
+          {/* SHIRITI I 3 SHTJELLAVE */}
           <div className="pt-2.5 pb-1 grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
             {(Object.keys(PILLAR_CONFIGS) as PillarType[]).map((pillarKey) => {
               const cfg = PILLAR_CONFIGS[pillarKey];
