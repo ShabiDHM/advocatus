@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V6.0 (CLEAN RELATIVE IMPORTS & ZERO TS ERRORS)
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V6.1 (STREAMING & RAG)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect } from 'react';
@@ -146,21 +146,92 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     }
   }, [isOpen, caseId]);
 
-  // Ekzekutimi i Skanimit me Claude Sonnet 4.6
+  // Ekzekutimi i Skanimit me Claude Sonnet 4.6 (STREAMING + RAG)
   const handleRunAutonomousInvestigation = async () => {
     if (!caseId || isScanning) return;
     setIsScanning(true);
 
     try {
-      await forensicDeskService.runInvestigation(
+      // HAPI 1: Merr stream nga backend
+      const stream = await forensicDeskService.streamInvestigation(
         caseId,
         `Lënda e Klientit: ${clientName}. Vula e Kujdestarisë: ${chainOfCustodyHash}. Kërkohet ekspertizë kolegjiale me 3 këndvështrime sipas KPPRK dhe KPRK.`,
         ['Dëshmitë Shkresore', 'Regjistrimet Audio', 'Provat Vizuale', 'Bilancet Financiare']
       );
-      await loadStoredFindings();
+
+      const reader = stream.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulatedJson = '';
+
+      // HAPI 2: Lexo stream dhe grumbullo tekstin
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulatedJson += decoder.decode(value, { stream: true });
+      }
+
+      // HAPI 3: Parse JSON nga përgjigja e grumbulluar
+      let parsed: any;
+      try {
+        parsed = JSON.parse(accumulatedJson.trim());
+      } catch (parseErr) {
+        console.error("Përgjigja nuk është JSON i vlefshëm:", parseErr);
+        alert("Përgjigja nga serveri nuk u analizua si duhet. Provoni përsëri.");
+        return;
+      }
+
+      // HAPI 4: Map findings nga JSON
+      const mapped: ForensicFindingItem[] = [];
+
+      if (parsed.police_perspective) {
+        mapped.push({
+          id: 'police-1',
+          role: 'POLICE',
+          jurisdictionSubtype: 'CRIMINAL_KPPRK',
+          level: 'CRITICAL',
+          title: 'Zbrazëtirat Faktike & Sigurimi i Provave',
+          sourceA: 'Provat Materiale në Vendin e Ngjarjes',
+          sourceB: 'Procesverbali i Sekuestrimit',
+          contradictionDetails: (parsed.police_perspective.factual_gaps || []).join('; ') || parsed.police_perspective.evidence_chain_integrity,
+          legalArticles: 'Neni 81, 82 KPPRK (Kujdestaria e Provës)',
+          tacticalAdvice: (parsed.police_perspective.recommended_actions || []).join(', ') || 'Kërkoni ballafaqim në seancë.'
+        });
+      }
+
+      if (parsed.prosecutor_perspective) {
+        mapped.push({
+          id: 'prosecutor-1',
+          role: 'PROSECUTOR',
+          jurisdictionSubtype: 'THEMELORE',
+          level: 'SMOKING_GUN',
+          title: 'Pikat e Cenueshmërisë së Aktakuzës',
+          sourceA: 'Pretendimi i Trupit Gjykues / Prokurorisë',
+          sourceB: 'Corpus Delicti Mungues',
+          contradictionDetails: parsed.prosecutor_perspective.indictment_vulnerability || (parsed.prosecutor_perspective.missing_corpus_delicti || []).join('; '),
+          legalArticles: (parsed.prosecutor_perspective.elements_of_offense_met || []).join(', ') || 'Kodi Penal i Kosovës',
+          tacticalAdvice: parsed.tactical_masterstroke || 'Paraqitni kërkesë për hudhje të aktakuzës.'
+        });
+      }
+
+      if (parsed.judge_perspective) {
+        mapped.push({
+          id: 'judge-1',
+          role: 'SUPREME_JUDGE',
+          jurisdictionSubtype: 'CRIMINAL_KPPRK',
+          level: 'CRITICAL',
+          title: 'Shkeljet Procedurale & In Dubio Pro Reo',
+          sourceA: 'Standardi i Provueshmërisë Ligjore',
+          sourceB: 'Vendimi Procedural i Ankimuar',
+          contradictionDetails: parsed.judge_perspective.in_dubio_pro_reo_assessment || (parsed.judge_perspective.procedural_violations || []).join('; '),
+          legalArticles: 'Neni 257 KPPRK (Papranueshmëria e Provave)',
+          tacticalAdvice: parsed.judge_perspective.admissibility_verdict || 'Provat e paligjshme duhet të veçohen nga fashikulli.'
+        });
+      }
+
+      setFindings(mapped);
     } catch (err: any) {
       console.error("Autonomous investigator error:", err);
-      alert(err?.response?.data?.detail || "Dështoi skanimi i kolegjiumit hetimor.");
+      alert(err?.message || "Dështoi skanimi i kolegjiumit hetimor.");
     } finally {
       setIsScanning(false);
     }

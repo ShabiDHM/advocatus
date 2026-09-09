@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.2 (STREAMING SUPPORT)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.3 (DUAL STREAMING: CHAT + INVESTIGATION)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -529,7 +529,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 8. DITARI I HETUESIT (3 ROLE)
+  // 8. DITARI I HETUESIT (3 ROLE) + STREAMING
   // ==========================================================
   public async runInvestigation(caseId: string, caseContext: string, focusEvidence: string[] = []): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/investigate`, {
@@ -538,6 +538,42 @@ export class ForensicDeskService {
       focus_evidence: focusEvidence
     });
     return response.data;
+  }
+
+  // NEW: Streaming method for investigator analysis
+  public async streamInvestigation(
+    caseId: string,
+    caseContext: string,
+    focusEvidence: string[] = []
+  ): Promise<ReadableStream<Uint8Array>> {
+    const token = tokenManager.get();
+    if (!token) {
+      throw new Error('Token mungon. Ju lutemi kyçuni përsëri.');
+    }
+
+    const response = await fetch(`${API_V1_URL}/forensic/investigate/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        case_id: caseId,
+        case_context: caseContext,
+        focus_evidence: focusEvidence
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || 'Dështoi lidhja me serverin për streaming.');
+    }
+
+    if (!response.body) {
+      throw new Error('Streaming nuk u ofrua nga serveri.');
+    }
+
+    return response.body;
   }
 
   public async getInvestigationFindings(caseId: string): Promise<any[]> {
