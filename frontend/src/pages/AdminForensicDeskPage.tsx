@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.4 (MINIMALIST UI HEADER CLEANUP)
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.5 (CLEAN DOSSIER LABEL FORMAT)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • SERVER-SIDE CUSTODY INTEGRATION
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -202,7 +202,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          {/* Butoni Chat (vetëm Chat) */}
+          {/* Butoni Chat */}
           {isSuperAdmin && activeDossier && (
             <button
               type="button"
@@ -215,7 +215,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             </button>
           )}
 
-          {/* Butoni Hetuesi (vetëm Ikona) */}
+          {/* Butoni Hetuesi */}
           {activeDossier && (
             <button
               type="button"
@@ -227,7 +227,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             </button>
           )}
 
-          {/* Zgjedhësi i Dosjeve */}
+          {/* Zgjedhësi i Dosjeve (FORMAT I PASTER: FOR: Shaban Bala) */}
           <div className="relative flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-sm min-w-[140px] flex-1 sm:flex-initial">
             <FolderOpen size={14} className="text-primary-start mr-1.5 sm:mr-2 shrink-0" />
             <select
@@ -243,8 +243,13 @@ export const AdminForensicDeskPage: React.FC = () => {
                 <option value="">Nuk ka dosje forenzike</option>
               ) : (
                 dossiersList.map(d => (
-                  <option key={d.id} value={d.id} className="bg-card text-text-primary">
-                    {d.caseNumber}: {d.clientName}
+                  <option 
+                    key={d.id} 
+                    value={d.id} 
+                    className="bg-card text-text-primary"
+                    title={`Numri Zyrtar: ${d.caseNumber}`}
+                  >
+                    FOR: {d.clientName}
                   </option>
                 ))
               )}

@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.10 (MEDIA-AWARE & FULLY PERSISTENT)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.12 (ZERO TS WARNINGS & DEDICATED TEXT VIEWER)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -18,7 +18,11 @@ import {
   Play,
   Pencil,
   Archive,
-  FileSearch
+  FileSearch,
+  Copy,
+  Check,
+  X,
+  Sparkles
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -99,6 +103,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Njoftimi i suksesit (Toast) kur përfundon procesimi
+  const [statusNotification, setStatusNotification] = useState<string | null>(null);
+
   const [autopsyScope, setAutopsyScope] = useState<AutopsyScope>('DOCUMENT');
   const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -121,11 +128,18 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [isArchivingReport, setIsArchivingReport] = useState<boolean>(false);
   const [archiveReportSuccess, setArchiveReportSuccess] = useState<boolean>(false);
 
+  // Shikuesi i dokumenteve PDF
   const [viewingDoc, setViewingDoc] = useState<ForensicDocItem | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
-  const [viewingTextDoc, setViewingTextDoc] = useState<any | null>(null);
-  const [viewingTextUrl, setViewingTextUrl] = useState<string | null>(null);
+
+  // MODAL I DEDIKUAR PËR TEKSTIN E EKSTRAKTUAR
+  const [extractedModalData, setExtractedModalData] = useState<{
+    docName: string;
+    text: string;
+  } | null>(null);
   const [loadingTextDocId, setLoadingTextDocId] = useState<string | null>(null);
+  const [copiedExtractedText, setCopiedExtractedText] = useState<boolean>(false);
+
   const [renameDocId, setRenameDocId] = useState<string | null>(null);
   const [renameDocName, setRenameDocName] = useState<string>('');
   const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
@@ -231,12 +245,25 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId]);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (silent: boolean = false) => {
     if (!caseId) return;
-    setLoadingDocs(true);
+    if (!silent) setLoadingDocs(true);
     try {
       const docs = await forensicDeskService.listForensicDocuments(caseId);
-      setDocuments(docs);
+
+      // Verifiko nëse ndonjë dokument që ishte 'PROCESSING' tani ka përfunduar
+      setDocuments(prevDocs => {
+        prevDocs.forEach(oldDoc => {
+          if (oldDoc.status === 'PROCESSING') {
+            const updated = docs.find(d => d.id === oldDoc.id);
+            if (updated && updated.status !== 'PROCESSING') {
+              setStatusNotification(`Dokumenti "${updated.file_name}" u procesua dhe u indeksua me sukses.`);
+              setTimeout(() => setStatusNotification(null), 5000);
+            }
+          }
+        });
+        return docs;
+      });
 
       if (docs.length > 0 && !selectedDocId) {
         setSelectedDocId(docs[0].id);
@@ -244,9 +271,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     } catch (err) {
       console.error("Dështoi ngarkimi i dokumenteve forenzike:", err);
     } finally {
-      setLoadingDocs(false);
+      if (!silent) setLoadingDocs(false);
     }
   }, [caseId, selectedDocId]);
+
+  // AUTO-POLLING NËSE KA DOKUMENTE NË 'PROCESSING'
+  useEffect(() => {
+    const hasProcessing = documents.some(d => d.status === 'PROCESSING' || d.status === 'UPLOADING');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      loadDocuments(true);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [documents, loadDocuments]);
 
   useEffect(() => {
     if (caseId) {
@@ -273,7 +312,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         setUploadProgressText(`Duke ngarkuar me vulë të kujdestarisë: ${file.name}...`);
         await forensicDeskService.uploadForensicDocument(caseId, file);
       }
-      setUploadProgressText("Shkresat u ngarkuan dhe u vulosën.");
+      setUploadProgressText("Shkresat u ngarkuan. Po fillon procesimi...");
       await loadDocuments();
       if (onEvidenceChange) onEvidenceChange();
     } catch (err: any) {
@@ -317,7 +356,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingDoc(doc);
   };
 
-  // --- NEW: View Media Document (audio/video/foto) ---
+  // --- View Media Document (audio/video/foto) ---
   const handleViewMediaDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId || !doc.media_id || !doc.media_type) return;
@@ -342,7 +381,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- View Extracted/Processed Text ---
+  // --- View Extracted/Processed Text (MODAL I DEDIKUAR & I PASTËR) ---
   const handleViewExtractedText = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId || !doc.id) return;
@@ -354,26 +393,29 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         { responseType: 'text' }
       );
       const text = response.data || '';
-      if (!text) {
-        alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.");
+      if (!text || !text.trim()) {
+        alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument (mund të jetë ende në procesim).");
         return;
       }
 
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const blobUrl = URL.createObjectURL(blob);
-
-      setViewingTextUrl(blobUrl);
-      setViewingTextDoc({
-        file_name: `${doc.file_name}.txt`,
-        mime_type: 'text/plain',
-        title: `Teksti i Ekstraktuar - ${doc.file_name}`
+      setExtractedModalData({
+        docName: doc.file_name,
+        text: text
       });
+      setCopiedExtractedText(false);
     } catch (err) {
       console.error("Dështoi ngarkimi i tekstit të ekstraktuar:", err);
       alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.");
     } finally {
       setLoadingTextDocId(null);
     }
+  };
+
+  const handleCopyExtractedModalText = () => {
+    if (!extractedModalData?.text) return;
+    navigator.clipboard.writeText(extractedModalData.text);
+    setCopiedExtractedText(true);
+    setTimeout(() => setCopiedExtractedText(false), 2000);
   };
 
   // --- Document Rename Handlers ---
@@ -548,7 +590,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setTimeout(() => setCopiedReport(false), 2500);
   };
 
-  // ✅ Arkivimi tani përdor sealCustody
   const handleArchiveReport = async () => {
     if (!caseId || !currentPillarContent) return;
     setIsArchivingReport(true);
@@ -581,16 +622,30 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingUrl(null);
   };
 
-  const handleCloseTextViewer = () => {
-    if (viewingTextUrl) {
-      URL.revokeObjectURL(viewingTextUrl);
-    }
-    setViewingTextDoc(null);
-    setViewingTextUrl(null);
-  };
+  const wordCount = useMemo(() => {
+    if (!extractedModalData?.text) return 0;
+    return extractedModalData.text.trim().split(/\s+/).filter(Boolean).length;
+  }, [extractedModalData?.text]);
+
+  const charCount = extractedModalData?.text?.length || 0;
 
   return (
-    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none`}>
+    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none relative`}>
+      
+      {/* NJOFTIMI TOAST KUR PROCESIMI PËRFUNDON */}
+      {statusNotification && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border border-emerald-500 animate-in slide-in-from-top duration-300">
+          <Sparkles size={18} className="shrink-0 animate-spin" />
+          <span className="text-xs sm:text-sm font-bold">{statusNotification}</span>
+          <button
+            onClick={() => setStatusNotification(null)}
+            className="ml-2 p-1 hover:bg-emerald-700 rounded-lg cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* KOLONA E MAJTË */}
       {!isFullscreen && (
         <div className="lg:col-span-5 space-y-4">
@@ -650,7 +705,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 />
               </div>
               <button
-                onClick={loadDocuments}
+                onClick={() => loadDocuments(false)}
                 title="Rifresko listën"
                 className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
               >
@@ -670,6 +725,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   const isArchiving = doc.id === archivingDocId;
                   const isArchived = doc.status === 'ARCHIVED';
                   const isTextLoading = doc.id === loadingTextDocId;
+                  const isProcessing = doc.status === 'PROCESSING' || doc.status === 'UPLOADING';
                   const isMedia = doc.media_type === 'audio' || doc.media_type === 'video' || doc.media_type === 'image';
 
                   return (
@@ -695,7 +751,17 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                             {doc.file_name}
                             {isArchived && <span className="ml-2 text-[11px] text-text-muted">(Arkivuar)</span>}
                           </p>
-                          <p className="text-[11px] font-mono text-text-muted">Statusi: {doc.status}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {isProcessing ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-500 text-[10px] font-mono font-bold animate-pulse">
+                                <Loader2 size={10} className="animate-spin" /> Procesim...
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-mono text-emerald-500 dark:text-emerald-400 font-semibold">
+                                ✓ E Procesuar
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -722,15 +788,24 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           </button>
                         )}
 
+                        {/* Butoni i Shfaqjes së Tekstit të Procesuar */}
                         {!isMedia && (
                           <button
                             type="button"
                             onClick={(e) => handleViewExtractedText(doc, e)}
                             disabled={isTextLoading}
                             title="Shiko tekstin e ekstraktuar/procesuar"
-                            className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40 ${
+                              isProcessing 
+                                ? 'text-amber-500 hover:bg-amber-500/10' 
+                                : 'text-text-muted hover:text-emerald-500 hover:bg-emerald-500/10'
+                            }`}
                           >
-                            {isTextLoading ? <Loader2 size={15} className="animate-spin text-emerald-500" /> : <FileSearch size={15} />}
+                            {isTextLoading ? (
+                              <Loader2 size={15} className="animate-spin text-emerald-500" />
+                            ) : (
+                              <FileSearch size={15} />
+                            )}
                           </button>
                         )}
 
@@ -1052,6 +1127,74 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       </div>
 
+      {/* MODAL I DEDIKUAR PËR SHFAQJEN E TEKSTIT TË EKSTRAKTUAR (THEME-AWARE & PASTËR) */}
+      {extractedModalData && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 my-auto">
+            
+            {/* Header i Modalit */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                  <FileText size={18} />
+                </div>
+                <div className="truncate">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-2">
+                    <span>{extractedModalData.docName}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                      Tekst i Indeksuar
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                    {wordCount.toLocaleString()} fjalë • {charCount.toLocaleString()} karaktere
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCopyExtractedModalText}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                  title="Kopjo krejt tekstin në clipboard"
+                >
+                  {copiedExtractedText ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                  <span>{copiedExtractedText ? 'U Kopjua!' : 'Kopjo Tekstin'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExtractedModalData(null)}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Mbyll"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Trupi i Leximit të Tekstit */}
+            <div className="p-6 sm:p-8 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
+              <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm leading-relaxed text-slate-800 dark:text-slate-200 select-text font-medium">
+                {extractedModalData.text}
+              </pre>
+            </div>
+
+            {/* Footer me shënim ligjor */}
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Korpus ligjor i ekstraktuar me Optical/Docx Engine për vektorizim semantik</span>
+              <button
+                type="button"
+                onClick={() => setExtractedModalData(null)}
+                className="font-bold text-slate-700 dark:text-slate-300 hover:underline cursor-pointer"
+              >
+                Mbyll Dritaren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modals for Document Actions */}
       {viewingDoc && (
         <PDFViewerModal
@@ -1062,19 +1205,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           t={t}
           directUrl={viewingUrl}
           isAuth={true}
-          initialPage={1}
-        />
-      )}
-
-      {viewingTextDoc && (
-        <PDFViewerModal
-          documentData={viewingTextDoc as any}
-          caseId={caseId}
-          onClose={handleCloseTextViewer}
-          onMinimize={() => {}}
-          t={t}
-          directUrl={viewingTextUrl}
-          isAuth={false}
           initialPage={1}
         />
       )}
