@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V61.0 (FIXED PDF MAGIC DETECTION IN PREVIEW)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V62.0 (FORCE ORIGINAL FILE PREVIEW)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -673,48 +673,72 @@ async def get_document_preview(
 
     user = UserInDB.model_validate(user_doc)
 
-    cached_path, stream, doc, content_length = await asyncio.to_thread(
-        document_service.get_preview_file_path_or_stream,
-        db,
-        doc_id,
-        user
-    )
-    filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "dokument.pdf"
-    doc_mime = getattr(doc, 'mime_type', None)
+    # Fetch the document metadata
+    try:
+        doc_oid = ObjectId(doc_id)
+    except:
+        raise HTTPException(status_code=400, detail="ID e dokumentit e pavlefshme.")
+
+    doc = db.documents.find_one({
+        "_id": doc_oid,
+        "$or": [{"case_id": case_id}, {"case_id": ObjectId(case_id)}],
+        "owner_id": user.id,
+        "status": {"$ne": "DELETED"}
+    })
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    filename = doc.get("file_name", "dokument.pdf")
+    doc_mime = doc.get("mime_type")
     resolved_media_type = _resolve_media_type(filename, doc_mime)
 
-    # ============================================================
-    # 🔥 FIX: Check actual content magic to avoid wrong conversion.
-    # ============================================================
+    # ALWAYS use original storage_key, ignore preview_storage_key to show original file
+    original_storage_key = doc.get("storage_key")
+    if not original_storage_key:
+        raise HTTPException(status_code=404, detail="Skedari origjinal nuk u gjet në ruajtje.")
+
+    # Try to get local cached file first
+    cache_file_name = original_storage_key.replace('/', '_')
+    cached_path = os.path.join(document_service.CACHE_DIR, cache_file_name)
+    
+    if os.path.exists(cached_path) and os.path.getsize(cached_path) > 0:
+        with open(cached_path, "rb") as f:
+            file_bytes = f.read()
+    else:
+        # Download from storage
+        try:
+            file_bytes = await asyncio.to_thread(
+                storage_service.download_file_as_bytes,
+                original_storage_key
+            )
+            # Cache it for future
+            try:
+                with open(cached_path, "wb") as f:
+                    f.write(file_bytes)
+            except Exception as e:
+                logger.warning(f"Could not cache original file: {e}")
+        except Exception as e:
+            logger.error(f"Failed to download original file: {e}")
+            raise HTTPException(status_code=500, detail="Dështoi shkarkimi i skedarit origjinal.")
+
+    # Now decide whether to convert to PDF for preview
     viewable_exts = (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".txt", ".csv", ".json")
     need_conversion = not any(filename.lower().endswith(ext) for ext in viewable_exts)
 
     if need_conversion:
+        # If actual bytes are PDF, serve directly
+        if file_bytes.startswith(b'%PDF'):
+            return StreamingResponse(
+                io.BytesIO(file_bytes),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                    "Cache-Control": "public, max-age=3600",
+                    "Accept-Ranges": "bytes"
+                }
+            )
+        # Attempt conversion
         try:
-            # Read the file bytes from cache or stream
-            if cached_path and os.path.exists(cached_path):
-                with open(cached_path, "rb") as f:
-                    file_bytes = f.read()
-            elif stream is not None:
-                file_bytes = stream.read()
-            else:
-                raise FileNotFoundError("Preview content not available.")
-
-            # If the actual bytes are PDF, serve directly, regardless of filename
-            if file_bytes.startswith(b'%PDF'):
-                resolved_media_type = "application/pdf"
-                # Use the bytes we already have
-                return StreamingResponse(
-                    io.BytesIO(file_bytes),
-                    media_type="application/pdf",
-                    headers={
-                        "Content-Disposition": f'inline; filename="{filename}"',
-                        "Cache-Control": "public, max-age=3600",
-                        "Accept-Ranges": "bytes"
-                    }
-                )
-
-            # Otherwise, attempt conversion
             pdf_bytes, new_filename = await asyncio.to_thread(
                 pdf_service.convert_bytes_to_pdf,
                 file_bytes,
@@ -731,58 +755,19 @@ async def get_document_preview(
                     }
                 )
             else:
+                # Conversion failed, fallback to original with correct media type
                 resolved_media_type = "application/octet-stream"
         except Exception as e:
             logger.error(f"Preview conversion failed: {e}")
-            # Fallback to original file bytes below (we already have file_bytes)
-            pass
+            resolved_media_type = "application/octet-stream"
 
-    # If we reach here, either conversion not needed, or conversion failed, or file was already read.
-    # Serve cached file if available, else stream from original source.
-    if cached_path and os.path.exists(cached_path):
-        return FileResponse(
-            path=cached_path,
-            media_type=resolved_media_type,
-            filename=filename,
-            headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
-                "Cache-Control": "public, max-age=86400",
-                "Accept-Ranges": "bytes"
-            }
-        )
-
-    # If stream is still available (not consumed), use it
-    if stream is not None and not hasattr(stream, 'closed'):
-        try:
-            # Try to seek back if possible
-            stream.seek(0)
-        except Exception:
-            pass
-        headers = {
+    # Serve original file bytes (or converted bytes if already returned)
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=resolved_media_type,
+        headers={
             "Content-Disposition": f'inline; filename="{filename}"',
             "Cache-Control": "public, max-age=3600",
             "Accept-Ranges": "bytes"
         }
-        if content_length > 0:
-            headers["Content-Length"] = str(content_length)
-
-        return StreamingResponse(
-            stream,
-            media_type=resolved_media_type,
-            headers=headers
-        )
-
-    # Fallback: if we already read file_bytes but didn't return, return them
-    if 'file_bytes' in locals():
-        return StreamingResponse(
-            io.BytesIO(file_bytes),
-            media_type=resolved_media_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
-                "Cache-Control": "public, max-age=3600",
-                "Accept-Ranges": "bytes"
-            }
-        )
-
-    # Last resort
-    raise HTTPException(status_code=500, detail="Nuk mund të ngarkohej pamja e dokumentit.")
+    )

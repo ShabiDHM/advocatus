@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.3 (USES /preview ENDPOINT)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.4 (ADDED EXTRACTED TEXT VIEW ICON)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -16,7 +16,8 @@ import {
   ArrowDown,
   Eye,
   Pencil,
-  Archive
+  Archive,
+  FileSearch
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -149,6 +150,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   // States for document actions
   const [viewingDoc, setViewingDoc] = useState<ForensicDocItem | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [viewingTextDoc, setViewingTextDoc] = useState<any | null>(null);
+  const [viewingTextUrl, setViewingTextUrl] = useState<string | null>(null);
   const [renameDocId, setRenameDocId] = useState<string | null>(null);
   const [renameDocName, setRenameDocName] = useState<string>('');
   const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
@@ -335,10 +338,28 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
-    // Use the preview endpoint which converts non-PDFs to PDF (same as Case View)
     const url = `${API_V1_URL}/forensic/documents/${caseId}/${doc.id}/preview`;
     setViewingUrl(url);
     setViewingDoc(doc);
+  };
+
+  // --- NEW: View Extracted/Processed Text ---
+  const handleViewExtractedText = (doc: ForensicDocItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!doc.extracted_text) {
+      alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.");
+      return;
+    }
+
+    const blob = new Blob([doc.extracted_text], { type: 'text/plain;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    setViewingTextUrl(blobUrl);
+    setViewingTextDoc({
+      file_name: `${doc.file_name}.txt`,
+      mime_type: 'text/plain',
+      title: `Teksti i Ekstraktuar - ${doc.file_name}`
+    });
   };
 
   // --- Document Rename Handlers ---
@@ -374,7 +395,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setArchivingDocId(doc.id);
     try {
       await apiClient.post(`/forensic/documents/${caseId}/${doc.id}/archive`);
-      // Update local status to "ARCHIVED" (optional, but we keep it in the list)
       setDocuments(prev =>
         prev.map(d =>
           d.id === doc.id ? { ...d, status: 'ARCHIVED' } : d
@@ -524,6 +544,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingUrl(null);
   };
 
+  const handleCloseTextViewer = () => {
+    if (viewingTextUrl) {
+      URL.revokeObjectURL(viewingTextUrl);
+    }
+    setViewingTextDoc(null);
+    setViewingTextUrl(null);
+  };
+
   return (
     <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none`}>
       {/* KOLONA E MAJTË */}
@@ -635,14 +663,24 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       <div className="flex items-center gap-1 shrink-0">
                         {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                         
-                        {/* Eye - View */}
+                        {/* Eye - View Original */}
                         <button
                           type="button"
                           onClick={(e) => handleViewDocument(doc, e)}
-                          title="Shiko dokumentin"
+                          title="Shiko dokumentin origjinal"
                           className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
                         >
                           <Eye size={13} />
+                        </button>
+
+                        {/* FileSearch - View Extracted Text */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleViewExtractedText(doc, e)}
+                          title="Shiko tekstin e ekstraktuar/procesuar"
+                          className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                        >
+                          <FileSearch size={13} />
                         </button>
 
                         {/* Pencil - Rename */}
@@ -666,7 +704,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           {isArchiving ? <Loader2 size={13} className="animate-spin text-purple-500" /> : <Archive size={13} />}
                         </button>
 
-                        {/* Delete - already present */}
+                        {/* Delete */}
                         <button
                           type="button"
                           onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
@@ -976,6 +1014,19 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           t={t}
           directUrl={viewingUrl}
           isAuth={true}
+          initialPage={1}
+        />
+      )}
+
+      {viewingTextDoc && (
+        <PDFViewerModal
+          documentData={viewingTextDoc as any}
+          caseId={caseId}
+          onClose={handleCloseTextViewer}
+          onMinimize={() => {}}
+          t={t}
+          directUrl={viewingTextUrl}
+          isAuth={false}
           initialPage={1}
         />
       )}
