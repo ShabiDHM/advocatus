@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.13 (EXPANDED WIDESCREEN TEXT VIEWER)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.14 (MASTER MOBILE & TABLET RESPONSIVE)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -22,7 +22,8 @@ import {
   Copy,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  Scale
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -45,47 +46,51 @@ interface DocumentForensicLabProps {
 }
 
 const FONT_LEVELS = [
-  { label: '90%',   base: 15,   h1: 21,   h2: 18,   h3: 16,   line: 1.6 },
-  { label: '100%',  base: 17,   h1: 23,   h2: 20,   h3: 18,   line: 1.7 },
-  { label: '115%',  base: 19,   h1: 26,   h2: 22,   h3: 20,   line: 1.75 },
-  { label: '130%',  base: 21,   h1: 29,   h2: 24,   h3: 22,   line: 1.8 },
-  { label: '150%',  base: 24,   h1: 33,   h2: 28,   h3: 25,   line: 1.85 },
-  { label: '175%',  base: 28,   h1: 38,   h2: 32,   h3: 28,   line: 1.9 },
-  { label: '200%',  base: 32,   h1: 44,   h2: 36,   h3: 32,   line: 2.0 }
+  { label: '90%',   base: 14,   h1: 20,   h2: 17,   h3: 15,   line: 1.55 },
+  { label: '100%',  base: 16,   h1: 22,   h2: 19,   h3: 17,   line: 1.65 },
+  { label: '115%',  base: 18,   h1: 25,   h2: 21,   h3: 19,   line: 1.7 },
+  { label: '130%',  base: 20,   h1: 28,   h2: 23,   h3: 21,   line: 1.75 },
+  { label: '150%',  base: 23,   h1: 32,   h2: 27,   h3: 24,   line: 1.8 }
 ];
 
-const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; getPrompt: (docName: string) => string }> = {
+const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; shortTitle: string; subtitle: string; getPrompt: (docName: string) => string }> = {
   PILLAR_1: {
     title: '1. Ekzaminimi & Faktet',
-    subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
+    shortTitle: '1. Faktet',
+    subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 1 me Claude Sonnet 4.6:\n- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore).\n- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.\n- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.\nPërgjigju me përpikmëri shkencore dhe nene të sakta të Kosovës.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
+    shortTitle: '2. Nenet',
     subtitle: 'Tabela e Neneve të Kosovës & Shkeljet Procedurale',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 2 me Claude Sonnet 4.6:\n- Seksioni 4: Tabela e Neneve të Shkelura sipas Legjislacionit të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).\n- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive.\nBazo arsyetimin në legjislacionin pozitiv të Kosovës.`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
-    subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
+    shortTitle: '3. Plani',
+    subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani',
     getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 3 me Claude Sonnet 4.6:\n- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.\n- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.\n- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.`
   }
 };
 
-const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; prompt: string }> = {
+const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; shortTitle: string; subtitle: string; prompt: string }> = {
   PILLAR_1: {
     title: '1. Fakti & Historiku',
-    subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
+    shortTitle: '1. Historiku',
+    subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 1: FAKTI & HISTORIKU]\nGjenero Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:\n- Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.\n- Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.\n- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve nga provat reale.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
-    subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
+    shortTitle: '2. Shkeljet',
+    subtitle: 'Matrica e Provave & Tabela e Neneve të Gjykatës Supreme',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 2: SHKELJET & NENET]\nGjenero Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:\n- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.\n- Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).\n- Seksioni 5: Përgjegjësia Ligjore dhe Shkeljet Thelbësore (Neni 182 LPK / KPP).`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
-    subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
+    shortTitle: '3. Plani',
+    subtitle: 'Mjetet Juridike, Prapësimet & Master Strategjia e Seancës',
     prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 3: PLANI I VEPRIMIT]\nGjenero Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:\n- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Masë Sigurimi).\n- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.\n- Seksioni 8: Master Plani i Veprimit me Afate të Prera.`
   }
 };
@@ -102,6 +107,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [uploadProgressText, setUploadProgressText] = useState<string>('');
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Ndërrimi i skedës në Mobile/Tablet (< lg)
+  const [mobileActiveTab, setMobileActiveTab] = useState<'DOCS' | 'AUTOPSY'>('DOCS');
 
   // Njoftimi i suksesit (Toast) kur përfundon procesimi
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
@@ -251,7 +259,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     try {
       const docs = await forensicDeskService.listForensicDocuments(caseId);
 
-      // Verifiko nëse ndonjë dokument që ishte 'PROCESSING' tani ka përfunduar
       setDocuments(prevDocs => {
         prevDocs.forEach(oldDoc => {
           if (oldDoc.status === 'PROCESSING') {
@@ -309,7 +316,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        setUploadProgressText(`Duke ngarkuar me vulë të kujdestarisë: ${file.name}...`);
+        setUploadProgressText(`Duke ngarkuar: ${file.name}...`);
         await forensicDeskService.uploadForensicDocument(caseId, file);
       }
       setUploadProgressText("Shkresat u ngarkuan. Po fillon procesimi...");
@@ -347,7 +354,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document View Handler (PDF/preview endpoint) ---
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -356,7 +362,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingDoc(doc);
   };
 
-  // --- View Media Document (audio/video/foto) ---
   const handleViewMediaDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId || !doc.media_id || !doc.media_type) return;
@@ -381,7 +386,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- View Extracted/Processed Text (MODAL I DEDIKUAR & I PASTËR) ---
   const handleViewExtractedText = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId || !doc.id) return;
@@ -418,7 +422,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setTimeout(() => setCopiedExtractedText(false), 2000);
   };
 
-  // --- Document Rename Handlers ---
   const handleRenameDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     setRenameDocId(doc.id);
@@ -441,7 +444,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document Archive Handler ---
   const handleArchiveDocument = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -469,7 +471,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     if (!caseId || !currentPillarContent) return;
     
     const activeCfg = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS[activePillar] : CASE_PILLAR_CONFIGS[activePillar];
-    const confirmSingleDelete = window.confirm(`A jeni i sigurt që doni të fshini nga MongoDB VETËM "${activeCfg.title}"? Shtjellat e tjera do të mbeten të paprekura!`);
+    const confirmSingleDelete = window.confirm(`A jeni i sigurt që doni të fshini nga MongoDB VETËM "${activeCfg.title}"?`);
     if (!confirmSingleDelete) return;
 
     setIsDeletingPillars(true);
@@ -529,7 +531,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         if (accumulated.trim().length > 50) {
           try {
             await forensicDeskService.saveForensicDocPillarContent(caseId, targetDoc.id, pillar, accumulated);
-            console.log("✅ Document pillar saved successfully.");
           } catch (saveErr) {
             console.warn("Could not save doc pillar:", saveErr);
           }
@@ -565,7 +566,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         if (accumulated.trim().length > 50) {
           try {
             await forensicDeskService.saveForensicCasePillarContent(caseId, pillar, accumulated);
-            console.log("✅ Case pillar saved successfully.");
           } catch (saveErr) {
             console.warn("Could not save case pillar:", saveErr);
           }
@@ -630,563 +630,585 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const charCount = extractedModalData?.text?.length || 0;
 
   return (
-    <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-6 transition-all duration-300 select-none relative`}>
+    <div className="space-y-4 select-none relative">
       
+      {/* SHIRITI I KALIMIT NË MOBILE & TABLET (< lg) */}
+      <div className="flex lg:hidden items-center bg-surface border border-main rounded-2xl p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setMobileActiveTab('DOCS')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            mobileActiveTab === 'DOCS'
+              ? 'bg-primary-start text-white shadow-sm'
+              : 'text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <FileText size={14} />
+          <span>Shkresat ({documents.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileActiveTab('AUTOPSY')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            mobileActiveTab === 'AUTOPSY'
+              ? 'bg-primary-start text-white shadow-sm'
+              : 'text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <Scale size={14} />
+          <span>Autopsia & Shtjellat</span>
+        </button>
+      </div>
+
       {/* NJOFTIMI TOAST KUR PROCESIMI PËRFUNDON */}
       {statusNotification && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border border-emerald-500 animate-in slide-in-from-top duration-300">
-          <Sparkles size={18} className="shrink-0 animate-spin" />
-          <span className="text-xs sm:text-sm font-bold">{statusNotification}</span>
+        <div className="fixed top-4 sm:top-6 right-4 sm:right-6 z-50 flex items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border border-emerald-500 animate-in slide-in-from-top duration-300 max-w-[90vw] sm:max-w-md">
+          <Sparkles size={16} className="shrink-0 animate-spin" />
+          <span className="text-xs sm:text-sm font-bold truncate">{statusNotification}</span>
           <button
             onClick={() => setStatusNotification(null)}
-            className="ml-2 p-1 hover:bg-emerald-700 rounded-lg cursor-pointer"
+            className="ml-auto p-1 hover:bg-emerald-700 rounded-lg cursor-pointer shrink-0"
           >
             <X size={14} />
           </button>
         </div>
       )}
 
-      {/* KOLONA E MAJTË */}
-      {!isFullscreen && (
-        <div className="lg:col-span-5 space-y-4">
-          <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-main pb-2.5">
-              <h3 className="text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
-              </h3>
-              <span className="text-[11px] font-mono text-text-muted">Vision OCR & LPK</span>
-            </div>
-
-            <div
-              onClick={() => !isUploading && fileInputRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (!isUploading) handleUploadFiles(e.dataTransfer.files);
-              }}
-              className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-2xl p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
-            >
-              {isUploading ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-2">
-                  <Loader2 size={22} className="animate-spin text-primary-start" />
-                  <span className="text-sm font-bold text-primary-start">{uploadProgressText}</span>
-                </div>
-              ) : (
-                <>
-                  <div className="w-10 h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
-                    <UploadCloud size={20} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                    <p className="text-[11px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
-                  </div>
-                </>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => handleUploadFiles(e.target.files)}
-            />
-          </div>
-
-          <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="relative flex-1 mr-2">
-                <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filtro shkresat..."
-                  className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-primary-start"
-                />
+      {/* RRJETI KRYESOR (GRID) */}
+      <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-4 sm:gap-6 transition-all duration-300`}>
+        
+        {/* KOLONA E MAJTË: SHKRESAT */}
+        {(!isFullscreen && (mobileActiveTab === 'DOCS' || window.innerWidth >= 1024)) && (
+          <div className="lg:col-span-5 space-y-3 sm:space-y-4">
+            
+            {/* Zona e Ngarkimit */}
+            <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-2.5 sm:space-y-3">
+              <div className="flex items-center justify-between border-b border-main pb-2">
+                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                  <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
+                </h3>
+                <span className="text-[10px] sm:text-[11px] font-mono text-text-muted">Vision OCR</span>
               </div>
-              <button
-                onClick={() => loadDocuments(false)}
-                title="Rifresko listën"
-                className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+
+              <div
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!isUploading) handleUploadFiles(e.dataTransfer.files);
+                }}
+                className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-1.5"
               >
-                <RefreshCw size={14} className={loadingDocs ? 'animate-spin' : ''} />
-              </button>
+                {isUploading ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-1">
+                    <Loader2 size={20} className="animate-spin text-primary-start" />
+                    <span className="text-xs sm:text-sm font-bold text-primary-start">{uploadProgressText}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
+                      <UploadCloud size={18} className="sm:w-5 sm:h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-text-primary">Kliko ose tërhiq shkresat</p>
+                      <p className="text-[10px] sm:text-[11px] text-text-muted">PDF, DOCX, Skanime të zbardhura me AI</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleUploadFiles(e.target.files)}
+              />
             </div>
 
-            <div className="space-y-2 max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
-              {filteredDocs.length === 0 ? (
-                <div className="text-center py-8 text-sm text-text-muted">
-                  {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë në dosje.'}
+            {/* Lista e Dokumenteve */}
+            <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="relative flex-1">
+                  <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filtro shkresat..."
+                    className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs sm:text-sm text-text-primary focus:outline-none focus:border-primary-start"
+                  />
                 </div>
-              ) : (
-                filteredDocs.map((doc) => {
-                  const isSelected = doc.id === selectedDocId;
-                  const isDeleting = doc.id === deletingDocId;
-                  const isArchiving = doc.id === archivingDocId;
-                  const isArchived = doc.status === 'ARCHIVED';
-                  const isTextLoading = doc.id === loadingTextDocId;
-                  const isProcessing = doc.status === 'PROCESSING' || doc.status === 'UPLOADING';
-                  const isMedia = doc.media_type === 'audio' || doc.media_type === 'video' || doc.media_type === 'image';
+                <button
+                  onClick={() => loadDocuments(false)}
+                  title="Rifresko listën"
+                  className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
+                >
+                  <RefreshCw size={13} className={loadingDocs ? 'animate-spin' : ''} />
+                </button>
+              </div>
 
-                  return (
-                    <div
-                      key={doc.id}
-                      onClick={() => {
-                        setSelectedDocId(doc.id);
-                        setAutopsyScope('DOCUMENT');
-                        setActivePillar('PILLAR_1');
-                      }}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isSelected && autopsyScope === 'DOCUMENT'
-                          ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
-                          : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
-                      } ${isArchived ? 'opacity-60' : ''}`}
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                          {isMedia ? <Play size={16} /> : <FileText size={16} />}
-                        </div>
-                        <div className="truncate text-sm">
-                          <p className="font-bold truncate text-text-primary">
-                            {doc.file_name}
-                            {isArchived && <span className="ml-2 text-[11px] text-text-muted">(Arkivuar)</span>}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {isProcessing ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-500 text-[10px] font-mono font-bold animate-pulse">
-                                <Loader2 size={10} className="animate-spin" /> Procesim...
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-mono text-emerald-500 dark:text-emerald-400 font-semibold">
-                                ✓ E Procesuar
-                              </span>
-                            )}
+              <div className="space-y-2 max-h-[360px] sm:max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
+                {filteredDocs.length === 0 ? (
+                  <div className="text-center py-8 text-xs sm:text-sm text-text-muted">
+                    {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë.'}
+                  </div>
+                ) : (
+                  filteredDocs.map((doc) => {
+                    const isSelected = doc.id === selectedDocId;
+                    const isDeleting = doc.id === deletingDocId;
+                    const isArchiving = doc.id === archivingDocId;
+                    const isArchived = doc.status === 'ARCHIVED';
+                    const isTextLoading = doc.id === loadingTextDocId;
+                    const isProcessing = doc.status === 'PROCESSING' || doc.status === 'UPLOADING';
+                    const isMedia = doc.media_type === 'audio' || doc.media_type === 'video' || doc.media_type === 'image';
+
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={() => {
+                          setSelectedDocId(doc.id);
+                          setAutopsyScope('DOCUMENT');
+                          setActivePillar('PILLAR_1');
+                          // Në mobile kalo automatikisht te pamja e autopsisë
+                          if (window.innerWidth < 1024) {
+                            setMobileActiveTab('AUTOPSY');
+                          }
+                        }}
+                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 sm:gap-3 ${
+                          isSelected && autopsyScope === 'DOCUMENT'
+                            ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
+                            : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
+                        } ${isArchived ? 'opacity-60' : ''}`}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                          <div className={`p-1.5 sm:p-2 rounded-xl shrink-0 ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
+                            {isMedia ? <Play size={15} /> : <FileText size={15} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold truncate text-xs sm:text-sm text-text-primary">
+                              {doc.file_name}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {isProcessing ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-500 text-[9px] font-mono font-bold animate-pulse">
+                                  <Loader2 size={9} className="animate-spin" /> Procesim...
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono text-emerald-500 font-semibold">
+                                  ✓ E Procesuar
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                          {isMedia ? (
+                            <button
+                              type="button"
+                              onClick={(e) => handleViewMediaDocument(doc, e)}
+                              title="Luaj"
+                              className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                            >
+                              <Play size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => handleViewDocument(doc, e)}
+                              title="Shiko origjinalin"
+                              className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          )}
+
+                          {!isMedia && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleViewExtractedText(doc, e)}
+                              disabled={isTextLoading}
+                              title="Shiko tekstin"
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40 ${
+                                isProcessing 
+                                  ? 'text-amber-500 hover:bg-amber-500/10' 
+                                  : 'text-text-muted hover:text-emerald-500 hover:bg-emerald-500/10'
+                              }`}
+                            >
+                              {isTextLoading ? <Loader2 size={14} className="animate-spin text-emerald-500" /> : <FileSearch size={14} />}
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleRenameDocument(doc, e)}
+                            title="Riemërto"
+                            className="hidden sm:inline-flex p-1.5 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
+                          >
+                            <Pencil size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleArchiveDocument(doc, e)}
+                            disabled={isArchiving || isArchived}
+                            title="Arkivo"
+                            className="hidden sm:inline-flex p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                          >
+                            {isArchiving ? <Loader2 size={14} className="animate-spin text-purple-500" /> : <Archive size={14} />}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
+                            disabled={isDeleting}
+                            title="Fshi"
+                            className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                          >
+                            {isDeleting ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
-                        
-                        {isMedia ? (
-                          <button
-                            type="button"
-                            onClick={(e) => handleViewMediaDocument(doc, e)}
-                            title={doc.media_type === 'audio' ? 'Luaj audio' : doc.media_type === 'video' ? 'Luaj video' : 'Shiko foto'}
-                            className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
-                          >
-                            <Play size={15} />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => handleViewDocument(doc, e)}
-                            title="Shiko dokumentin origjinal"
-                            className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
-                          >
-                            <Eye size={15} />
-                          </button>
-                        )}
-
-                        {/* Butoni i Shfaqjes së Tekstit të Procesuar */}
-                        {!isMedia && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleViewExtractedText(doc, e)}
-                            disabled={isTextLoading}
-                            title="Shiko tekstin e ekstraktuar/procesuar"
-                            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40 ${
-                              isProcessing 
-                                ? 'text-amber-500 hover:bg-amber-500/10' 
-                                : 'text-text-muted hover:text-emerald-500 hover:bg-emerald-500/10'
-                            }`}
-                          >
-                            {isTextLoading ? (
-                              <Loader2 size={15} className="animate-spin text-emerald-500" />
-                            ) : (
-                              <FileSearch size={15} />
-                            )}
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleRenameDocument(doc, e)}
-                          title="Riemërto"
-                          className="p-1.5 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
-                        >
-                          <Pencil size={15} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleArchiveDocument(doc, e)}
-                          disabled={isArchiving || isArchived}
-                          title={isArchived ? "Tashmë i arkivuar" : "Arkivo"}
-                          className="p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
-                        >
-                          {isArchiving ? <Loader2 size={15} className="animate-spin text-purple-500" /> : <Archive size={15} />}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
-                          disabled={isDeleting}
-                          title="Hiq nga dosja forenzike"
-                          className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
-                        >
-                          {isDeleting ? <Loader2 size={15} className="animate-spin text-rose-500" /> : <Trash2 size={15} />}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* KOLONA E DJATHTË */}
-      <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-5 sm:p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
-            <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setAutopsyScope('DOCUMENT');
-                  setActivePillar('PILLAR_1');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  autopsyScope === 'DOCUMENT'
-                    ? 'bg-primary-start text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                Autopsia e Dokumentit
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAutopsyScope('CASE');
-                  setActivePillar('PILLAR_1');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  autopsyScope === 'CASE'
-                    ? 'bg-primary-start text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-primary'
-                }`}
-              >
-                Autopsia e Rastit
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
-                <button
-                  type="button"
-                  onClick={handleDecreaseFont}
-                  disabled={fontLevelIndex === 0}
-                  title="Zvogëlo madhësinë e shkrimit"
-                  className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  A−
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetFont}
-                  title="Rivendos madhësinë e shkrimit"
-                  className="min-w-9 rounded-lg px-1 text-[11px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
-                >
-                  {activeFont.label}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleIncreaseFont}
-                  disabled={fontLevelIndex === FONT_LEVELS.length - 1}
-                  title="Rrit madhësinë e shkrimit"
-                  className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  A+
-                </button>
+                    );
+                  })
+                )}
               </div>
-
-              <button
-                type="button"
-                onClick={handleAdminPurgeSinglePillar}
-                disabled={isDeletingPillars || !currentPillarContent}
-                className="h-8 w-8 bg-surface hover:bg-rose-500/10 border border-main hover:border-rose-500/30 text-text-muted hover:text-rose-500 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer shadow-sm"
-                title={`Fshi VETËM "${currentConfigs[activePillar].title}" nga MongoDB`}
-              >
-                {isDeletingPillars ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="h-8 w-8 bg-surface hover:bg-hover border border-main rounded-xl text-text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm"
-                title={isFullscreen ? "Zvogëlo pamjen" : "Zgjero në ekran të plotë"}
-              >
-                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopyReport}
-                disabled={!currentPillarContent}
-                className="h-8 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
-              >
-                <span>{copiedReport ? 'U Kopjua' : 'Kopjo'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleArchiveReport}
-                disabled={isArchivingReport || !currentPillarContent}
-                className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-sm font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
-              >
-                {isArchivingReport ? <Loader2 size={14} className="animate-spin" /> : <span>{archiveReportSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
-              </button>
             </div>
           </div>
+        )}
 
-          <div className="text-sm text-text-muted">
-            {autopsyScope === 'DOCUMENT' ? (
-              <p>
-                Dokumenti në Ekzaminim: <span className="font-bold text-text-primary">{activeDoc?.file_name || 'Asnjë i përzgjedhur'}</span>
-              </p>
-            ) : (
-              <p>
-                Fashikulli i Plotë: <span className="font-bold text-text-primary">Ekspertizë Master për të Gjithë Dosjen</span>
-              </p>
-            )}
-          </div>
+        {/* KOLONA E DJATHTË: AUTOPSIA */}
+        {(!isFullscreen && (mobileActiveTab === 'AUTOPSY' || window.innerWidth >= 1024)) && (
+          <div className={`${isFullscreen ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3 sm:space-y-4 flex flex-col justify-between transition-all duration-300 relative`}>
+            <div className="space-y-3">
+              
+              {/* Shirit i Veprimeve të Autopsisë */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-main pb-3">
+                
+                {/* Zgjedhja e Shtrirjes (Dokument vs Rast) */}
+                <div className="flex items-center bg-surface border border-main rounded-xl p-1 shrink-0 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAutopsyScope('DOCUMENT');
+                      setActivePillar('PILLAR_1');
+                    }}
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      autopsyScope === 'DOCUMENT'
+                        ? 'bg-primary-start text-white shadow-sm'
+                        : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    Dokument
+                  </button>
 
-          {/* SHIRITI I 3 SHTJELLAVE */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-            {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
-              const cfg = currentConfigs[pillarKey];
-              const isSelected = activePillar === pillarKey;
-              const hasContent = Boolean(activePillarsMap[pillarKey]?.trim());
-              const isLoading = loadingPillars[pillarKey];
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAutopsyScope('CASE');
+                      setActivePillar('PILLAR_1');
+                    }}
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      autopsyScope === 'CASE'
+                        ? 'bg-primary-start text-white shadow-sm'
+                        : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    Rast i Plotë
+                  </button>
+                </div>
 
-              return (
-                <button
-                  key={pillarKey}
-                  type="button"
-                  onClick={() => handleSelectPillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
-                    isSelected
-                      ? pillarKey === 'PILLAR_1'
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : pillarKey === 'PILLAR_2'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                        : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-surface hover:bg-hover text-text-muted border-main'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    {isLoading ? (
-                      <Loader2 size={13} className="animate-spin text-white shrink-0" />
-                    ) : hasContent ? (
-                      <CheckCircle2 size={13} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
-                    ) : null}
-                    <span className="truncate">{cfg.title}</span>
+                {/* Butonat e Madhësisë dhe Veprimeve */}
+                <div className="flex items-center justify-between sm:justify-end gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-1">
+                    <button
+                      type="button"
+                      onClick={handleDecreaseFont}
+                      disabled={fontLevelIndex === 0}
+                      className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30"
+                    >
+                      A−
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetFont}
+                      className="min-w-8 rounded-lg px-1 text-[10px] font-bold text-text-muted hover:bg-hover"
+                    >
+                      {activeFont.label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleIncreaseFont}
+                      disabled={fontLevelIndex === FONT_LEVELS.length - 1}
+                      className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30"
+                    >
+                      A+
+                    </button>
                   </div>
 
-                  {isLoading ? (
-                    <span className="text-[10px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
-                  ) : hasContent ? (
-                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
-                      E Gatshme
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono text-text-muted opacity-60">Në Pritje</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  <button
+                    type="button"
+                    onClick={handleAdminPurgeSinglePillar}
+                    disabled={isDeletingPillars || !currentPillarContent}
+                    className="h-8 w-8 bg-surface hover:bg-rose-500/10 border border-main text-text-muted hover:text-rose-500 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer"
+                    title="Fshi këtë shtjellë"
+                  >
+                    {isDeletingPillars ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
+                  </button>
 
-          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-xs">
-            <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
-            {currentPillarContent && !isCurrentPillarLoading && (
-              <button
-                type="button"
-                onClick={() => handleGeneratePillar(activePillar)}
-                className="text-primary-start hover:text-primary-end font-bold hover:underline cursor-pointer shrink-0 text-xs"
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="hidden sm:flex h-8 w-8 bg-surface hover:bg-hover border border-main rounded-xl text-text-primary items-center justify-center transition-all cursor-pointer"
+                    title="Fullscreen"
+                  >
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyReport}
+                    disabled={!currentPillarContent}
+                    className="h-8 px-2.5 sm:px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer"
+                  >
+                    <span>{copiedReport ? 'U Kopjua' : 'Kopjo'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleArchiveReport}
+                    disabled={isArchivingReport || !currentPillarContent}
+                    className="h-8 px-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer"
+                  >
+                    {isArchivingReport ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveReportSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Informacioni i Dokumentit Aktiv */}
+              <div className="text-xs sm:text-sm text-text-muted truncate">
+                {autopsyScope === 'DOCUMENT' ? (
+                  <p className="truncate">
+                    Dokumenti: <span className="font-bold text-text-primary">{activeDoc?.file_name || 'Asnjë i përzgjedhur'}</span>
+                  </p>
+                ) : (
+                  <p className="truncate">
+                    Fashikulli: <span className="font-bold text-text-primary">Ekspertizë Master mbi Lëndën</span>
+                  </p>
+                )}
+              </div>
+
+              {/* SHIRITI I 3 SHTJELLAVE (RESPONSIVE ME EMRA TË SHKURTËR NË MOBILE) */}
+              <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
+                  const cfg = currentConfigs[pillarKey];
+                  const isSelected = activePillar === pillarKey;
+                  const hasContent = Boolean(activePillarsMap[pillarKey]?.trim());
+                  const isLoading = loadingPillars[pillarKey];
+
+                  return (
+                    <button
+                      key={pillarKey}
+                      type="button"
+                      onClick={() => handleSelectPillar(pillarKey)}
+                      className={`px-2 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center sm:justify-between gap-1 transition-all cursor-pointer border ${
+                        isSelected
+                          ? pillarKey === 'PILLAR_1'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : pillarKey === 'PILLAR_2'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-surface hover:bg-hover text-text-muted border-main'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 truncate">
+                        {isLoading ? (
+                          <Loader2 size={11} className="animate-spin text-white shrink-0" />
+                        ) : hasContent ? (
+                          <CheckCircle2 size={11} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                        ) : null}
+                        <span className="truncate sm:hidden">{cfg.shortTitle}</span>
+                        <span className="truncate hidden sm:inline">{cfg.title}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Nëntitulli i Shtjellës dhe Butoni Rigjenero */}
+              <div className="py-0.5 flex items-center justify-between gap-2 text-text-muted text-[11px] sm:text-xs">
+                <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
+                {currentPillarContent && !isCurrentPillarLoading && (
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePillar(activePillar)}
+                    className="text-primary-start font-bold hover:underline cursor-pointer shrink-0"
+                  >
+                    Rigjenero
+                  </button>
+                )}
+              </div>
+
+              {/* TRUPI I TEKSTIT TË AUTOPSISË */}
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className={`${isFullscreen ? 'h-[620px]' : 'h-[380px] sm:h-[460px]'} overflow-y-auto custom-finance-scroll p-3.5 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col relative transition-all duration-200`}
               >
-                <span>Rigjenero</span>
-              </button>
-            )}
+                <style>{`
+                  .dynamic-forensic-report p,
+                  .dynamic-forensic-report li,
+                  .dynamic-forensic-report span:not(.lucide) {
+                    font-size: ${activeFont.base}px !important;
+                    line-height: ${activeFont.line} !important;
+                  }
+                  .dynamic-forensic-report td {
+                    font-size: ${Math.max(11, activeFont.base - 2)}px !important;
+                    line-height: 1.4 !important;
+                    padding: 4px 6px !important;
+                  }
+                  .dynamic-forensic-report th {
+                    font-size: ${Math.max(11, activeFont.base - 2)}px !important;
+                    padding: 6px 6px !important;
+                  }
+                  .dynamic-forensic-report h1 {
+                    font-size: ${activeFont.h1}px !important;
+                    line-height: 1.25 !important;
+                    margin-top: 1em !important;
+                    margin-bottom: 0.4em !important;
+                  }
+                  .dynamic-forensic-report h2 {
+                    font-size: ${activeFont.h2}px !important;
+                    line-height: 1.3 !important;
+                    margin-top: 0.9em !important;
+                    margin-bottom: 0.3em !important;
+                  }
+                  .dynamic-forensic-report h3 {
+                    font-size: ${activeFont.h3}px !important;
+                    line-height: 1.35 !important;
+                    margin-top: 0.8em !important;
+                    margin-bottom: 0.25em !important;
+                  }
+                  .dynamic-forensic-report table {
+                    display: block !important;
+                    width: 100% !important;
+                    overflow-x: auto !important;
+                    -webkit-overflow-scrolling: touch !important;
+                    margin: 0.8em 0 !important;
+                  }
+                `}</style>
+
+                {!currentPillarContent && !isCurrentPillarLoading ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-4 sm:p-8 my-auto space-y-3">
+                    <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                      {currentConfigs[activePillar].title}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-text-muted max-w-xs sm:max-w-sm">
+                      Kjo shtjellë është gati për ekzaminim doktrinar.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleGeneratePillar(activePillar)}
+                      className="px-5 py-2.5 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider shadow-md flex items-center justify-center cursor-pointer transition-all hover-lift"
+                    >
+                      <span>Analizo {currentConfigs[activePillar].shortTitle}</span>
+                    </button>
+                  </div>
+                ) : isCurrentPillarLoading && !currentPillarContent ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 my-auto">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary-start mb-2" />
+                    <p className="text-xs sm:text-sm font-bold text-text-primary uppercase tracking-wider">
+                      Duke analizuar {currentConfigs[activePillar].title}...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="markdown-content dynamic-forensic-report prose prose-slate dark:prose-invert max-w-none text-text-primary">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {autoLinkedContent}
+                    </ReactMarkdown>
+                  </div>
+                )}
+
+                {showScrollBottomBtn && (
+                  <button
+                    type="button"
+                    onClick={scrollToBottom}
+                    className="sticky bottom-2 right-2 ml-auto z-20 px-2.5 py-1 bg-slate-900 text-white text-xs font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Poshtë</span>
+                    <ArrowDown size={12} className="animate-bounce" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2.5 border-t border-main flex items-center justify-between text-[10px] sm:text-xs text-text-muted">
+              <span className="font-medium truncate">
+                Pajtueshëm me Gjykatën Supreme të Kosovës
+              </span>
+              <span className="font-mono text-[10px] shrink-0">Claude Sonnet 4.6</span>
+            </div>
           </div>
-
-          {/* TRUPI I AUTOPSISË */}
-          <div 
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className={`${isFullscreen ? 'h-[620px]' : 'h-[460px]'} overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/50 rounded-2xl border border-main text-text-primary select-text flex flex-col relative transition-all duration-200`}
-          >
-            <style>{`
-              .dynamic-forensic-report p,
-              .dynamic-forensic-report li,
-              .dynamic-forensic-report span:not(.lucide) {
-                font-size: ${activeFont.base}px !important;
-                line-height: ${activeFont.line} !important;
-              }
-              .dynamic-forensic-report td {
-                font-size: ${Math.max(12, activeFont.base - 1.5)}px !important;
-                line-height: 1.45 !important;
-                padding: 6px 8px !important;
-              }
-              .dynamic-forensic-report th {
-                font-size: ${Math.max(12, activeFont.base - 2)}px !important;
-                padding: 8px 8px !important;
-              }
-              .dynamic-forensic-report h1 {
-                font-size: ${activeFont.h1}px !important;
-                line-height: 1.25 !important;
-                margin-top: 1.2em !important;
-                margin-bottom: 0.5em !important;
-              }
-              .dynamic-forensic-report h2 {
-                font-size: ${activeFont.h2}px !important;
-                line-height: 1.3 !important;
-                margin-top: 1.1em !important;
-                margin-bottom: 0.4em !important;
-              }
-              .dynamic-forensic-report h3 {
-                font-size: ${activeFont.h3}px !important;
-                line-height: 1.35 !important;
-                margin-top: 0.9em !important;
-                margin-bottom: 0.3em !important;
-              }
-              .dynamic-forensic-report table {
-                display: block !important;
-                width: 100% !important;
-                overflow-x: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-                margin: 1em 0 !important;
-              }
-            `}</style>
-
-            {!currentPillarContent && !isCurrentPillarLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <h4 className="text-base sm:text-lg font-black uppercase tracking-tight text-text-primary">
-                  {currentConfigs[activePillar].title}
-                </h4>
-                <p className="text-sm text-text-muted max-w-sm">
-                  Kjo shtjellë është e pastër. Klikoni butonin më poshtë kur të dëshironi të filloni auditimin doktrinar.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
-                >
-                  <span>Analizo {currentConfigs[activePillar].title}</span>
-                </button>
-              </div>
-            ) : isCurrentPillarLoading && !currentPillarContent ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
-                <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
-                <p className="text-sm font-bold text-text-primary uppercase tracking-wider">
-                  Duke analizuar {currentConfigs[activePillar].title}...
-                </p>
-                <p className="text-xs text-text-muted mt-1">
-                  Juristi AI po kryen autopsinë e thellë doktrinare.
-                </p>
-              </div>
-            ) : (
-              <div className="markdown-content dynamic-forensic-report prose prose-slate dark:prose-invert max-w-none text-text-primary">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {autoLinkedContent}
-                </ReactMarkdown>
-              </div>
-            )}
-
-            {showScrollBottomBtn && (
-              <button
-                type="button"
-                onClick={scrollToBottom}
-                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-slate-900 text-white text-sm font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
-              >
-                <span>Te Fundi</span>
-                <ArrowDown size={14} className="animate-bounce" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-main flex items-center justify-between text-xs text-text-muted">
-          <span className="font-medium">
-            Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
-          </span>
-          <span className="font-mono text-[11px]">Modeli: Claude Sonnet 4.6</span>
-        </div>
+        )}
       </div>
 
-      {/* MODAL I DEDIKUAR PËR SHFAQJEN E TEKSTIT TË EKSTRAKTUAR (WIDESCREEN & PERFECTLY CENTERED) */}
+      {/* MODAL I TEKSTIT TË EKSTRAKTUAR (RESPONSIVE NË MOBILE DHE WIDESCREEN) */}
       {extractedModalData && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 md:p-8">
-          <div className="relative w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[88vh] max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-6 md:p-8">
+          <div className="relative w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[90vh] sm:h-[88vh] animate-in fade-in zoom-in-95 duration-200">
             
             {/* Header i Modalit */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 sm:px-8 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 gap-3 shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                  <FileText size={20} />
+            <div className="flex items-center justify-between px-4 sm:px-8 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 gap-2 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                  <FileText size={18} className="sm:w-5 sm:h-5" />
                 </div>
                 <div className="truncate">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-2">
-                    <span className="truncate">{extractedModalData.docName}</span>
-                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
-                      Tekst i Indeksuar
-                    </span>
+                  <h3 className="text-xs sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate">
+                    {extractedModalData.docName}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-mono">
                     {wordCount.toLocaleString()} fjalë • {charCount.toLocaleString()} karaktere
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={handleCopyExtractedModalText}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shadow-sm"
-                  title="Kopjo krejt tekstin në clipboard"
+                  className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                 >
-                  {copiedExtractedText ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
-                  <span>{copiedExtractedText ? 'U Kopjua!' : 'Kopjo Tekstin'}</span>
+                  {copiedExtractedText ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                  <span className="hidden xs:inline">{copiedExtractedText ? 'U Kopjua!' : 'Kopjo'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setExtractedModalData(null)}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
                   title="Mbyll"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Trupi i Leximit të Tekstit me Gjerësi të Plotë dhe Margjina të Pastra */}
-            <div className="p-6 sm:p-8 md:p-10 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
-              <pre className="whitespace-pre-wrap font-sans text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 select-text font-normal max-w-none">
+            {/* Trupi i Leximit të Tekstit */}
+            <div className="p-4 sm:p-8 md:p-10 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
+              <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm md:text-base leading-relaxed text-slate-800 dark:text-slate-200 select-text font-normal max-w-none">
                 {extractedModalData.text}
               </pre>
             </div>
 
-            {/* Footer me shënim ligjor */}
-            <div className="px-6 sm:px-8 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-xs text-slate-500 shrink-0">
-              <span className="hidden sm:inline">Korpus ligjor i ekstraktuar me Optical/Docx Engine për vektorizim semantik</span>
+            {/* Footer */}
+            <div className="px-4 sm:px-8 py-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
+              <span className="hidden sm:inline">Korpus ligjor i indeksuar me AI</span>
               <button
                 type="button"
                 onClick={() => setExtractedModalData(null)}
-                className="font-bold text-slate-700 dark:text-slate-300 hover:underline cursor-pointer ml-auto sm:ml-0"
+                className="font-bold text-slate-700 dark:text-slate-300 hover:underline cursor-pointer ml-auto"
               >
                 Mbyll Dritaren
               </button>
