@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.1 (RICH-TEXT WORD COMPATIBLE COPY)
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.2 (WORD NATIVE RICH-TABLE ENGINE)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -70,28 +70,183 @@ const FONT_LEVELS = [
   { label: '150%',  base: 21,   line: 1.8 }
 ];
 
-const markdownToHtml = (markdown: string): string => {
-  const escapeHtml = (value: string) => value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+/**
+ * Konvertues i plotë semantik Markdown në HTML të pasur për Microsoft Word
+ * Mbështet: Tabela me vija dhe ngjyra, Tituj, Lista, Kuotime, Vija ndarëse dhe Bold/Italic
+ */
+const markdownToWordHtml = (markdown: string): string => {
+  const lines = markdown.split(/\r?\n/);
+  const htmlOutput: string[] = [];
 
-  return escapeHtml(markdown)
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/__(.+?)__/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/_(.+?)_/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\n{2,}/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-    .replace(/^(.+)$/s, '<p>$1</p>');
+  let inTable = false;
+  let tableRows: string[][] = [];
+  let inList: 'ul' | 'ol' | null = null;
+  let inBlockquote = false;
+  let blockquoteLines: string[] = [];
+
+  const formatInline = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 4px; font-family: Consolas, monospace; font-size: 10pt;">$1</code>');
+  };
+
+  const flushTable = () => {
+    if (tableRows.length === 0) return;
+    
+    let tableHtml = '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 14px 0; font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; border: 1px solid #94a3b8;">';
+    const isSeparator = (row: string[]) => row.every(cell => /^:?-+:?$/.test(cell.trim()));
+
+    let startIdx = 0;
+    if (tableRows.length > 1 && isSeparator(tableRows[1])) {
+      tableHtml += '<thead><tr style="background-color: #f1f5f9;">';
+      for (const cell of tableRows[0]) {
+        tableHtml += `<th style="border: 1px solid #94a3b8; padding: 8px 12px; text-align: left; font-weight: bold; color: #0f172a; background-color: #f1f5f9;">${formatInline(cell)}</th>`;
+      }
+      tableHtml += '</tr></thead><tbody>';
+      startIdx = 2;
+    } else {
+      tableHtml += '<tbody>';
+    }
+
+    for (let i = startIdx; i < tableRows.length; i++) {
+      if (isSeparator(tableRows[i])) continue;
+      const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
+      tableHtml += `<tr style="background-color: ${bg};">`;
+      for (const cell of tableRows[i]) {
+        tableHtml += `<td style="border: 1px solid #cbd5e1; padding: 7px 12px; color: #1e293b; vertical-align: top;">${formatInline(cell)}</td>`;
+      }
+      tableHtml += '</tr>';
+    }
+
+    tableHtml += '</tbody></table>';
+    htmlOutput.push(tableHtml);
+    tableRows = [];
+    inTable = false;
+  };
+
+  const flushList = () => {
+    if (inList) {
+      htmlOutput.push(inList === 'ul' ? '</ul>' : '</ol>');
+      inList = null;
+    }
+  };
+
+  const flushBlockquote = () => {
+    if (inBlockquote) {
+      htmlOutput.push(`<blockquote style="border-left: 4px solid #2563eb; margin: 10px 0; padding: 8px 16px; background-color: #f8fafc; color: #334155; font-style: italic; font-family: Calibri, Arial, sans-serif;">${blockquoteLines.map(formatInline).join('<br>')}</blockquote>`);
+      blockquoteLines = [];
+      inBlockquote = false;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    // Detektimi i rreshtave të Tabelës (| Kolona 1 | Kolona 2 |)
+    if (line.startsWith('|') && line.endsWith('|')) {
+      flushList();
+      flushBlockquote();
+      inTable = true;
+      const cells = line.slice(1, -1).split('|').map(c => c.trim());
+      tableRows.push(cells);
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
+
+    // Vija ndarëse (--- ose *** ose ___)
+    if (/^(---|---|\*\*\*|___)$/.test(line)) {
+      flushList();
+      flushBlockquote();
+      htmlOutput.push('<hr style="border: 0; border-top: 1px solid #cbd5e1; margin: 16px 0;" />');
+      continue;
+    }
+
+    // Titujt (#, ##, ###)
+    const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (hMatch) {
+      flushList();
+      flushBlockquote();
+      const level = hMatch[1].length;
+      const text = formatInline(hMatch[2]);
+      const fontSize = level === 1 ? '16pt' : level === 2 ? '14pt' : '12pt';
+      htmlOutput.push(`<h${level} style="font-size: ${fontSize}; font-family: Calibri, Arial, sans-serif; font-weight: bold; color: #0f172a; margin-top: 14px; margin-bottom: 6px;">${text}</h${level}>`);
+      continue;
+    }
+
+    // Kuotimet gjyqësore (> Teksti)
+    if (line.startsWith('>')) {
+      flushList();
+      inBlockquote = true;
+      blockquoteLines.push(line.replace(/^>\s?/, ''));
+      continue;
+    } else if (inBlockquote) {
+      flushBlockquote();
+    }
+
+    // Listat me pika (•, -, *)
+    const bulletMatch = line.match(/^([•\-\*])\s+(.+)$/);
+    if (bulletMatch) {
+      if (inList !== 'ul') {
+        flushList();
+        htmlOutput.push('<ul style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
+        inList = 'ul';
+      }
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(bulletMatch[2])}</li>`);
+      continue;
+    }
+
+    // Listat me numra (1., 2.)
+    const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      if (inList !== 'ol') {
+        flushList();
+        htmlOutput.push('<ol style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
+        inList = 'ol';
+      }
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
+      continue;
+    }
+
+    // Tekst i rregullt
+    flushList();
+    if (line.length === 0) {
+      continue;
+    }
+
+    htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b;">${formatInline(line)}</p>`);
+  }
+
+  flushTable();
+  flushList();
+  flushBlockquote();
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Eksport Forenzik</title>
+      <style>
+        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; }
+        table { border-collapse: collapse; width: 100%; border: 1px solid #94a3b8; }
+        th, td { border: 1px solid #cbd5e1; padding: 7px 12px; }
+        th { background-color: #f1f5f9; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      ${htmlOutput.join('\n')}
+    </body>
+    </html>
+  `.trim();
 };
 
 export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerProps> = ({
@@ -277,27 +432,43 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  // KOPJIMI I PASTËR DHE I FORNATUAR PËR MICROSOFT WORD (RICH TEXT)
+  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD (RICH TEXT + PLAIN TEXT)
   const handleCopyMessage = async (msgId: string, text: string) => {
+    const htmlContent = markdownToWordHtml(text);
+
     try {
-      // Përpunon Markdown në format HTML
-      const htmlContent = markdownToHtml(text);
-      
-      // Krijon një objekt ClipboardItem me HTML dhe Tekst të thjeshtë
-      const clipboardItem = new ClipboardItem({
-        'text/html': new Blob([htmlContent], { type: 'text/html' }),
-        'text/plain': new Blob([text], { type: 'text/plain' }),
-      });
-      
-      await navigator.clipboard.write([clipboardItem]);
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          'text/html': new Blob([htmlContent], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        throw new Error('ClipboardItem nuk mbështetet nga ky mjedis.');
+      }
       setCopiedId(msgId);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      // Nëse API-ja ClipboardItem dështon (p.sh. shfletues i vjetër), kthehet te kopjimi klasik
-      console.warn('Clipboard API nuk mundi të ruajë HTML, po përdorim vetëm tekst.', err);
-      navigator.clipboard.writeText(text);
-      setCopiedId(msgId);
-      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // Fallback i besueshëm me event listener për shfletuesit me kufizime sigurie
+      try {
+        const copyHandler = (e: ClipboardEvent) => {
+          e.preventDefault();
+          if (e.clipboardData) {
+            e.clipboardData.setData('text/html', htmlContent);
+            e.clipboardData.setData('text/plain', text);
+          }
+        };
+        document.addEventListener('copy', copyHandler);
+        document.execCommand('copy');
+        document.removeEventListener('copy', copyHandler);
+        setCopiedId(msgId);
+        setTimeout(() => setCopiedId(null), 2000);
+      } catch {
+        // Fallback final: vetëm tekst të thjeshtë
+        await navigator.clipboard.writeText(text);
+        setCopiedId(msgId);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
     }
   };
 
@@ -314,7 +485,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             className="absolute inset-0 bg-black/75 backdrop-blur-sm"
           />
 
-          {/* Slide-over Drawer Panel (100dvh për Mobile Keyboard Friendly) */}
+          {/* Slide-over Drawer Panel */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
@@ -349,7 +520,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* KONTROLLI I ZMADHIMIT TË SHKRIMIT */}
+                {/* Kontrolli i zmadhimit të shkrimit */}
                 <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
                   <button
                     type="button"
@@ -379,7 +550,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   </button>
                 </div>
 
-                {/* Butoni i Koshit të Plehrave */}
+                {/* Butoni i pastrimit të bisedës */}
                 <button
                   type="button"
                   onClick={handleClearConsole}
@@ -394,7 +565,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
 
-                {/* Fullscreen Toggle në Tablet/Desktop */}
+                {/* Fullscreen Toggle */}
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
@@ -404,7 +575,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
 
-                {/* Close */}
+                {/* Butoni Mbyll */}
                 <button
                   type="button"
                   onClick={onClose}
@@ -416,7 +587,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
             </div>
 
-            {/* STILI DINAMIK PËR MARKDOWN BAZUAR NË FONT CONTROL */}
+            {/* Stili dinamik i fontit */}
             <style>{`
               .forensic-chat-markdown p,
               .forensic-chat-markdown li,
@@ -509,7 +680,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                               type="button"
                               onClick={() => handleCopyMessage(msg.id, msg.content)}
                               className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
-                              title="Kopjo përgjigjen për Microsoft Word"
+                              title="Kopjo përgjigjen për Microsoft Word (Formatuar me Tabela)"
                             >
                               {copiedId === msg.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
                             </button>
@@ -540,7 +711,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                               )}
                             </div>
                           ) : (
-                            /* PËRGJIGJA E PËRDORUESIT (TEXT NORMAL DINAMIK) */
                             <p className="whitespace-pre-wrap font-medium" style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}>
                               {msg.content}
                             </p>
@@ -554,7 +724,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               )}
             </div>
 
-            {/* Input Terminal Bar (Optimizuar për Tastierën Mobile) */}
+            {/* Input Terminal Bar */}
             <div className={`p-3 sm:p-5 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
               <form
                 onSubmit={(e) => {
@@ -569,7 +739,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Pyet mbi provat, alibitë apo shkeljet ligjore..."
-                  // E RËNDËSISHME: font-size mbajtur në minimum 16px për mobile për të ndaluar auto-zoom në iPhone
                   className="flex-1 p-1.5 sm:p-2 bg-transparent text-base text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[160px] border-0 outline-none"
                   rows={1}
                 />
