@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.6 (STREAMING FOR AUTOPSY)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.7 (STREAMING + PROFESSIONAL TYPOGRAPHY)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -40,12 +40,15 @@ interface DocumentForensicLabProps {
   onEvidenceChange?: () => void;
 }
 
+// ✅ Përmirësuar: Madhësi më të mëdha dhe deri në 200%
 const FONT_LEVELS = [
-  { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
-  { label: '100%', base: 15, h1: 21, h2: 18, h3: 16, line: 1.65 },
-  { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
-  { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 },
-  { label: '150%', base: 21, h1: 29, h2: 24, h3: 21, line: 1.85 }
+  { label: '90%',   base: 15,   h1: 21,   h2: 18,   h3: 16,   line: 1.6 },
+  { label: '100%',  base: 17,   h1: 23,   h2: 20,   h3: 18,   line: 1.7 },
+  { label: '115%',  base: 19,   h1: 26,   h2: 22,   h3: 20,   line: 1.75 },
+  { label: '130%',  base: 21,   h1: 29,   h2: 24,   h3: 22,   line: 1.8 },
+  { label: '150%',  base: 24,   h1: 33,   h2: 28,   h3: 25,   line: 1.85 },
+  { label: '175%',  base: 28,   h1: 38,   h2: 32,   h3: 28,   line: 1.9 },
+  { label: '200%',  base: 32,   h1: 44,   h2: 36,   h3: 32,   line: 2.0 }
 ];
 
 const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; getPrompt: (docName: string) => string }> = {
@@ -172,9 +175,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_forensic_font_size');
-      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 2;
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1; // default 100%
     } catch {
-      return 2;
+      return 1;
     }
   });
 
@@ -197,8 +200,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   };
 
   const handleResetFont = () => {
-    setFontLevelIndex(2);
-    try { localStorage.setItem('juristi_forensic_font_size', '2'); } catch {}
+    setFontLevelIndex(1);
+    try { localStorage.setItem('juristi_forensic_font_size', '1'); } catch {}
   };
 
   useEffect(() => {
@@ -597,10 +600,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         <div className="lg:col-span-5 space-y-4">
           <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-main pb-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+              <h3 className="text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                 <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
               </h3>
-              <span className="text-[10px] font-mono text-text-muted">Vision OCR & LPK</span>
+              <span className="text-[11px] font-mono text-text-muted">Vision OCR & LPK</span>
             </div>
 
             <div
@@ -615,7 +618,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               {isUploading ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-2">
                   <Loader2 size={22} className="animate-spin text-primary-start" />
-                  <span className="text-xs font-bold text-primary-start">{uploadProgressText}</span>
+                  <span className="text-sm font-bold text-primary-start">{uploadProgressText}</span>
                 </div>
               ) : (
                 <>
@@ -623,8 +626,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     <UploadCloud size={20} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
-                    <p className="text-[10px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
+                    <p className="text-sm font-bold text-text-primary">Kliko ose tërhiq shkresat (PDF, DOCX, Skanime)</p>
+                    <p className="text-[11px] text-text-muted">Optimizuar me OCR për shkrimet gjyqësore në shqip</p>
                   </div>
                 </>
               )}
@@ -647,7 +650,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filtro shkresat..."
-                  className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
+                  className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-primary-start"
                 />
               </div>
               <button
@@ -655,13 +658,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 title="Rifresko listën"
                 className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
               >
-                <RefreshCw size={13} className={loadingDocs ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={loadingDocs ? 'animate-spin' : ''} />
               </button>
             </div>
 
             <div className="space-y-2 max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
               {filteredDocs.length === 0 ? (
-                <div className="text-center py-8 text-xs text-text-muted">
+                <div className="text-center py-8 text-sm text-text-muted">
                   {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë në dosje.'}
                 </div>
               ) : (
@@ -690,29 +693,27 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                         <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
                           <FileText size={16} />
                         </div>
-                        <div className="truncate text-xs">
+                        <div className="truncate text-sm">
                           <p className="font-bold truncate text-text-primary">
                             {doc.file_name}
-                            {isArchived && <span className="ml-2 text-[10px] text-text-muted">(Arkivuar)</span>}
+                            {isArchived && <span className="ml-2 text-[11px] text-text-muted">(Arkivuar)</span>}
                           </p>
-                          <p className="text-[10px] font-mono text-text-muted">Statusi: {doc.status}</p>
+                          <p className="text-[11px] font-mono text-text-muted">Statusi: {doc.status}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
                         {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                         
-                        {/* Eye - View Original */}
                         <button
                           type="button"
                           onClick={(e) => handleViewDocument(doc, e)}
                           title="Shiko dokumentin origjinal"
                           className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
                         >
-                          <Eye size={13} />
+                          <Eye size={15} />
                         </button>
 
-                        {/* FileSearch - View Extracted Text */}
                         <button
                           type="button"
                           onClick={(e) => handleViewExtractedText(doc, e)}
@@ -720,20 +721,18 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           title="Shiko tekstin e ekstraktuar/procesuar"
                           className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
-                          {isTextLoading ? <Loader2 size={13} className="animate-spin text-emerald-500" /> : <FileSearch size={13} />}
+                          {isTextLoading ? <Loader2 size={15} className="animate-spin text-emerald-500" /> : <FileSearch size={15} />}
                         </button>
 
-                        {/* Pencil - Rename */}
                         <button
                           type="button"
                           onClick={(e) => handleRenameDocument(doc, e)}
                           title="Riemërto"
                           className="p-1.5 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
                         >
-                          <Pencil size={13} />
+                          <Pencil size={15} />
                         </button>
 
-                        {/* Archive */}
                         <button
                           type="button"
                           onClick={(e) => handleArchiveDocument(doc, e)}
@@ -741,10 +740,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           title={isArchived ? "Tashmë i arkivuar" : "Arkivo"}
                           className="p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
-                          {isArchiving ? <Loader2 size={13} className="animate-spin text-purple-500" /> : <Archive size={13} />}
+                          {isArchiving ? <Loader2 size={15} className="animate-spin text-purple-500" /> : <Archive size={15} />}
                         </button>
 
-                        {/* Delete */}
                         <button
                           type="button"
                           onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
@@ -752,7 +750,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           title="Hiq nga dosja forenzike"
                           className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
-                          {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
+                          {isDeleting ? <Loader2 size={15} className="animate-spin text-rose-500" /> : <Trash2 size={15} />}
                         </button>
                       </div>
                     </div>
@@ -775,7 +773,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   setAutopsyScope('DOCUMENT');
                   setActivePillar('PILLAR_1');
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   autopsyScope === 'DOCUMENT'
                     ? 'bg-primary-start text-white shadow-sm'
                     : 'text-text-muted hover:text-text-primary'
@@ -790,7 +788,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   setAutopsyScope('CASE');
                   setActivePillar('PILLAR_1');
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   autopsyScope === 'CASE'
                     ? 'bg-primary-start text-white shadow-sm'
                     : 'text-text-muted hover:text-text-primary'
@@ -815,7 +813,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   type="button"
                   onClick={handleResetFont}
                   title="Rivendos madhësinë e shkrimit"
-                  className="min-w-9 rounded-lg px-1 text-[10px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
+                  className="min-w-9 rounded-lg px-1 text-[11px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
                 >
                   {activeFont.label}
                 </button>
@@ -837,7 +835,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 className="h-8 w-8 bg-surface hover:bg-rose-500/10 border border-main hover:border-rose-500/30 text-text-muted hover:text-rose-500 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 cursor-pointer shadow-sm"
                 title={`Fshi VETËM "${currentConfigs[activePillar].title}" nga MongoDB`}
               >
-                {isDeletingPillars ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
+                {isDeletingPillars ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
               </button>
 
               <button
@@ -846,14 +844,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 className="h-8 w-8 bg-surface hover:bg-hover border border-main rounded-xl text-text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm"
                 title={isFullscreen ? "Zvogëlo pamjen" : "Zgjero në ekran të plotë"}
               >
-                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </button>
 
               <button
                 type="button"
                 onClick={handleCopyReport}
                 disabled={!currentPillarContent}
-                className="h-8 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+                className="h-8 px-3.5 bg-surface hover:bg-hover border border-main rounded-xl text-sm font-bold text-text-primary flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
               >
                 <span>{copiedReport ? 'U Kopjua' : 'Kopjo'}</span>
               </button>
@@ -862,14 +860,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 type="button"
                 onClick={handleArchiveReport}
                 disabled={isArchivingReport || !currentPillarContent}
-                className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+                className="h-8 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-sm font-bold uppercase tracking-wider flex items-center justify-center transition-all disabled:opacity-40 cursor-pointer shadow-sm"
               >
-                {isArchivingReport ? <Loader2 size={13} className="animate-spin" /> : <span>{archiveReportSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
+                {isArchivingReport ? <Loader2 size={14} className="animate-spin" /> : <span>{archiveReportSuccess ? 'U Ruajt!' : 'Arkivo'}</span>}
               </button>
             </div>
           </div>
 
-          <div className="text-xs text-text-muted">
+          <div className="text-sm text-text-muted">
             {autopsyScope === 'DOCUMENT' ? (
               <p>
                 Dokumenti në Ekzaminim: <span className="font-bold text-text-primary">{activeDoc?.file_name || 'Asnjë i përzgjedhur'}</span>
@@ -894,7 +892,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   key={pillarKey}
                   type="button"
                   onClick={() => handleSelectPillar(pillarKey)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
+                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center justify-between gap-1.5 transition-all cursor-pointer border ${
                     isSelected
                       ? pillarKey === 'PILLAR_1'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -906,28 +904,28 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     {isLoading ? (
-                      <Loader2 size={12} className="animate-spin text-white shrink-0" />
+                      <Loader2 size={13} className="animate-spin text-white shrink-0" />
                     ) : hasContent ? (
-                      <CheckCircle2 size={12} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
+                      <CheckCircle2 size={13} className={isSelected ? 'text-white shrink-0' : 'text-emerald-500 shrink-0'} />
                     ) : null}
                     <span className="truncate">{cfg.title}</span>
                   </div>
 
                   {isLoading ? (
-                    <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
+                    <span className="text-[10px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-full animate-pulse">Duke gjeneruar</span>
                   ) : hasContent ? (
-                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'}`}>
                       E Gatshme
                     </span>
                   ) : (
-                    <span className="text-[9px] font-mono text-text-muted opacity-60">Në Pritje</span>
+                    <span className="text-[10px] font-mono text-text-muted opacity-60">Në Pritje</span>
                   )}
                 </button>
               );
             })}
           </div>
 
-          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-[11px]">
+          <div className="py-1 px-1 flex items-center justify-between gap-2 shrink-0 text-text-muted text-xs">
             <p className="truncate font-medium">{currentConfigs[activePillar].subtitle}</p>
             {currentPillarContent && !isCurrentPillarLoading && (
               <button
@@ -954,12 +952,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 line-height: ${activeFont.line} !important;
               }
               .dynamic-forensic-report td {
-                font-size: ${Math.max(11.5, activeFont.base - 1.5)}px !important;
+                font-size: ${Math.max(12, activeFont.base - 1.5)}px !important;
                 line-height: 1.45 !important;
                 padding: 6px 8px !important;
               }
               .dynamic-forensic-report th {
-                font-size: ${Math.max(11, activeFont.base - 2)}px !important;
+                font-size: ${Math.max(12, activeFont.base - 2)}px !important;
                 padding: 8px 8px !important;
               }
               .dynamic-forensic-report h1 {
@@ -991,16 +989,16 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
             {!currentPillarContent && !isCurrentPillarLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
-                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                <h4 className="text-base sm:text-lg font-black uppercase tracking-tight text-text-primary">
                   {currentConfigs[activePillar].title}
                 </h4>
-                <p className="text-xs text-text-muted max-w-sm">
+                <p className="text-sm text-text-muted max-w-sm">
                   Kjo shtjellë është e pastër. Klikoni butonin më poshtë kur të dëshironi të filloni auditimin doktrinar.
                 </p>
                 <button
                   type="button"
                   onClick={() => handleGeneratePillar(activePillar)}
-                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
+                  className="px-6 py-3 bg-primary-start hover:brightness-110 text-white rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-primary-start/20 flex items-center justify-center cursor-pointer transition-all hover-lift"
                 >
                   <span>Analizo {currentConfigs[activePillar].title}</span>
                 </button>
@@ -1008,10 +1006,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             ) : isCurrentPillarLoading && !currentPillarContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto">
                 <Loader2 className="w-10 h-10 animate-spin text-primary-start mb-3" />
-                <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
+                <p className="text-sm font-bold text-text-primary uppercase tracking-wider">
                   Duke analizuar {currentConfigs[activePillar].title}...
                 </p>
-                <p className="text-[10px] text-text-muted mt-1">
+                <p className="text-xs text-text-muted mt-1">
                   Juristi AI po kryen autopsinë e thellë doktrinare.
                 </p>
               </div>
@@ -1027,20 +1025,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               <button
                 type="button"
                 onClick={scrollToBottom}
-                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-slate-900 text-white text-sm font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
               >
                 <span>Te Fundi</span>
-                <ArrowDown size={12} className="animate-bounce" />
+                <ArrowDown size={14} className="animate-bounce" />
               </button>
             )}
           </div>
         </div>
 
-        <div className="pt-3 border-t border-main flex items-center justify-between text-[11px] text-text-muted">
+        <div className="pt-3 border-t border-main flex items-center justify-between text-xs text-text-muted">
           <span className="font-medium">
             Standard i Pajtueshëm me Gjykatën Supreme të Kosovës & OAK
           </span>
-          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (1:1 Dedicated Architecture)</span>
+          <span className="font-mono text-[11px]">Modeli: Claude Sonnet 4.6</span>
         </div>
       </div>
 

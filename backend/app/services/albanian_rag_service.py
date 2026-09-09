@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V265.0 (HISTORY CONTEXT FORWARDING)
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V266.0 (MULTI-DEVICE CHAT HISTORY + REPORT CACHE)
 # 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • MULTI-TURN REASONING
 
 import os
@@ -24,6 +24,9 @@ from app.services.pillars.comprehensive_analysis_service import ComprehensiveAna
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
 logger = logging.getLogger(__name__)
+
+# Koleksioni i ri për historikun e bisedës në lëndë
+CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
 
 MANDATORY_LEGAL_DISCLAIMER = (
     "\n\n---\n"
@@ -77,12 +80,12 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V265.0 me Përcjellje të Historikut për Bashkë-Avokati Interaktive."""
+    """Shërbimi Kryesor RAG — V266.0 me Historik Multi‑Device dhe Raporte të Ruajtura."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V265.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V266.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -155,6 +158,23 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
+        # ✅ NGARKIMI I HISTORIKUT NGA DB NËSE NUK JEPET
+        if history is None and self.db is not None and case_id and user_id:
+            try:
+                past_cursor = self.db[CASE_CHAT_HISTORY_COLLECTION].find({
+                    "user_id": str(user_id),
+                    "case_id": str(case_id)
+                }).sort("created_at", 1).limit(50)
+                history = []
+                for h in past_cursor:
+                    history.append({
+                        "role": h.get("role", "user"),
+                        "content": h.get("content", "")
+                    })
+            except Exception as e:
+                logger.warning(f"Could not load case chat history: {e}")
+                history = []
+
         single_doc_obj = db_documents[0] if (document_ids and len(document_ids) == 1 and db_documents) else None
 
         from app.services import vector_store_service
@@ -206,6 +226,9 @@ class AlbanianRAGService:
                 cached_text = doc_pillars[req_pillar]
                 if is_valid_legal_report(cached_text):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
+                    # Ruaj mesazhin e përdoruesit dhe përgjigjen
+                    self._save_chat_message(user_id, case_id, "user", query)
+                    self._save_chat_message(user_id, case_id, "assistant", cached_text)
                     yield cached_text
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
@@ -213,6 +236,8 @@ class AlbanianRAGService:
                 cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
                 if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin.")
+                    self._save_chat_message(user_id, case_id, "user", query)
+                    self._save_chat_message(user_id, case_id, "assistant", cached_doc_audit)
                     yield cached_doc_audit
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
@@ -224,6 +249,8 @@ class AlbanianRAGService:
                 cached_pillar = forensic_pillars[req_pillar]
                 if is_valid_legal_report(cached_pillar):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për lëndën {case_id}.")
+                    self._save_chat_message(user_id, case_id, "user", query)
+                    self._save_chat_message(user_id, case_id, "assistant", cached_pillar)
                     yield cached_pillar
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
@@ -385,11 +412,37 @@ class AlbanianRAGService:
             {context_str}
             """
 
+        # Ruaj mesazhin e përdoruesit në historik
+        if self.db is not None and case_id and user_id:
+            try:
+                self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
+                    "user_id": str(user_id),
+                    "case_id": str(case_id),
+                    "role": "user",
+                    "content": query,
+                    "created_at": datetime.now(timezone.utc)
+                })
+            except Exception as e:
+                logger.warning(f"Could not save user chat message: {e}")
+
         # Gjenerimi me Stream duke përcjellë historikun e plotë
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
             full_generated_response += content
             yield content
+
+        # Ruaj përgjigjen në historik
+        if self.db is not None and case_id and user_id:
+            try:
+                self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
+                    "user_id": str(user_id),
+                    "case_id": str(case_id),
+                    "role": "assistant",
+                    "content": full_generated_response.strip(),
+                    "created_at": datetime.now(timezone.utc)
+                })
+            except Exception as e:
+                logger.warning(f"Could not save assistant chat message: {e}")
 
         # Ruajtja automatike nëse është raport i vlefshëm
         if is_valid_legal_report(full_generated_response):

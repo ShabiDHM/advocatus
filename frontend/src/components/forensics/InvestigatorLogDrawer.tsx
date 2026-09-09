@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/InvestigatorLogDrawer.tsx
-// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V6.1 (STREAMING & RAG)
+// PHOENIX PROTOCOL - THE INVESTIGATOR'S LOG V6.2 (STREAMING + PROFESSIONAL TYPOGRAPHY)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect } from 'react';
@@ -13,16 +13,12 @@ import {
   FileText,
   RefreshCw,
   Loader2,
-  Filter,
-  ArrowRight,
   Search,
-  Flame,
   Scale,
   Briefcase,
   Shield
 } from 'lucide-react';
 
-// Importimi i saktë i shërbimit nga folderi services
 import { forensicDeskService } from '../../services/forensicDeskService';
 
 export type FindingSeverity = 'CRITICAL' | 'SUSPICIOUS' | 'SMOKING_GUN';
@@ -49,6 +45,17 @@ interface InvestigatorLogDrawerProps {
   chainOfCustodyHash?: string;
 }
 
+// ✅ Përmirësuar: Nivele të madhësisë së shkrimit
+const FONT_LEVELS = [
+  { label: '90%',  base: 15 },
+  { label: '100%', base: 17 },
+  { label: '115%', base: 19 },
+  { label: '130%', base: 21 },
+  { label: '150%', base: 24 },
+  { label: '175%', base: 28 },
+  { label: '200%', base: 32 }
+];
+
 export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   isOpen,
   onClose,
@@ -60,9 +67,19 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [findings, setFindings] = useState<ForensicFindingItem[]>([]);
   const [activeRoleFilter, setActiveRoleFilter] = useState<ForensicRolePerspective>('ALL');
-  const [activeSeverityFilter, setActiveSeverityFilter] = useState<'ALL' | FindingSeverity>('ALL');
+  const [activeSeverityFilter] = useState<'ALL' | FindingSeverity>('ALL');
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('juristi_investigator_font_size');
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  const activeFont = FONT_LEVELS[fontLevelIndex];
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,7 +91,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Ngarkimi i gjetjeve nga MongoDB sapo hapet dritarja
   const loadStoredFindings = async () => {
     if (!caseId) return;
     try {
@@ -84,7 +100,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
         if (latest) {
           const mapped: ForensicFindingItem[] = [];
 
-          // 1. Hetuesi Policor
           if (latest.police_perspective) {
             mapped.push({
               id: 'police-1',
@@ -100,7 +115,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
             });
           }
 
-          // 2. Prokurori i Shtetit
           if (latest.prosecutor_perspective) {
             mapped.push({
               id: 'prosecutor-1',
@@ -116,7 +130,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
             });
           }
 
-          // 3. Gjyqtari Suprem
           if (latest.judge_perspective) {
             mapped.push({
               id: 'judge-1',
@@ -146,13 +159,11 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     }
   }, [isOpen, caseId]);
 
-  // Ekzekutimi i Skanimit me Claude Sonnet 4.6 (STREAMING + RAG)
   const handleRunAutonomousInvestigation = async () => {
     if (!caseId || isScanning) return;
     setIsScanning(true);
 
     try {
-      // HAPI 1: Merr stream nga backend
       const stream = await forensicDeskService.streamInvestigation(
         caseId,
         `Lënda e Klientit: ${clientName}. Vula e Kujdestarisë: ${chainOfCustodyHash}. Kërkohet ekspertizë kolegjiale me 3 këndvështrime sipas KPPRK dhe KPRK.`,
@@ -163,14 +174,12 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
       const decoder = new TextDecoder('utf-8');
       let accumulatedJson = '';
 
-      // HAPI 2: Lexo stream dhe grumbullo tekstin
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         accumulatedJson += decoder.decode(value, { stream: true });
       }
 
-      // HAPI 3: Parse JSON nga përgjigja e grumbulluar
       let parsed: any;
       try {
         parsed = JSON.parse(accumulatedJson.trim());
@@ -180,7 +189,6 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
         return;
       }
 
-      // HAPI 4: Map findings nga JSON
       const mapped: ForensicFindingItem[] = [];
 
       if (parsed.police_perspective) {
@@ -244,6 +252,14 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  const handleFontChange = (delta: number) => {
+    setFontLevelIndex(prev => {
+      const next = Math.min(Math.max(0, prev + delta), FONT_LEVELS.length - 1);
+      try { localStorage.setItem('juristi_investigator_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
   if (!isOpen) return null;
 
   const filteredFindings = findings.filter(f => {
@@ -274,264 +290,105 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                <h2 className="text-lg font-black uppercase tracking-tight text-text-primary">
                   Ditari i Hetuesit
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-rose-600/15 text-rose-500 border border-rose-600/30 text-[10px] font-mono font-bold uppercase">
-                  Claude Sonnet 4.6 (3 Role)
+                <span className="px-2 py-0.5 rounded-full bg-rose-600/15 text-rose-500 border border-rose-600/30 text-xs font-mono font-bold uppercase">
+                  Claude Sonnet 4.6
                 </span>
               </div>
-              <p className="text-[11px] text-text-muted truncate max-w-xs sm:max-w-md">
+              <p className="text-sm text-text-muted truncate max-w-xs sm:max-w-md">
                 Hetues Policor • Prokuror Shteti & PSRK • Gjyqtar Suprem
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsWidescreen(!isWidescreen)}
-              className="w-10 h-10 rounded-xl bg-canvas hover:bg-hover border border-main text-text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm"
-              title={isWidescreen ? 'Kthe në 55%' : 'Zgjero në 90%'}
-            >
-              {isWidescreen ? <Minimize2 size={16} className="text-primary-start" /> : <Maximize2 size={16} className="text-primary-start" />}
+            <div className="flex items-center gap-1 bg-surface border border-main rounded-lg p-1">
+              <button onClick={() => handleFontChange(-1)} className="p-1 rounded hover:bg-hover text-text-muted" title="Zvogëlo">A−</button>
+              <span className="text-xs font-bold text-text-muted">{activeFont.label}</span>
+              <button onClick={() => handleFontChange(1)} className="p-1 rounded hover:bg-hover text-text-muted" title="Zmadhо">A+</button>
+            </div>
+            <button onClick={() => setIsWidescreen(!isWidescreen)} className="w-10 h-10 rounded-xl bg-canvas hover:bg-hover border border-main text-text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm" title="Zgjero">
+              {isWidescreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-10 h-10 rounded-xl bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 flex items-center justify-center transition-all cursor-pointer shadow-sm"
-              title="Mbyll"
-            >
-              <X size={18} />
+            <button onClick={onClose} className="w-10 h-10 rounded-xl bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/30 flex items-center justify-center transition-all cursor-pointer shadow-sm" title="Mbyll">
+              <X size={20} />
             </button>
           </div>
         </header>
 
-        {/* Tab-et e Filtrimit */}
+        {/* Filtri */}
         <div className="px-6 py-3.5 border-b border-main bg-surface/50 space-y-3 shrink-0">
           <div className="flex items-center gap-2 overflow-x-auto custom-finance-scroll pb-1">
-            <button
-              type="button"
-              onClick={() => setActiveRoleFilter('ALL')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
-                activeRoleFilter === 'ALL'
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border-main'
-              }`}
-            >
+            <button onClick={() => setActiveRoleFilter('ALL')} className={`px-3.5 py-1.5 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${activeRoleFilter === 'ALL' ? 'bg-rose-600 text-white border-rose-600' : 'bg-surface hover:bg-hover text-text-muted border-main'}`}>
               <span>Kolegjiumi i Plotë</span>
-              <span className="font-mono text-[10px] bg-black/20 px-1.5 py-0.5 rounded-full">{findings.length}</span>
+              <span className="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded-full">{findings.length}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveRoleFilter('POLICE')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
-                activeRoleFilter === 'POLICE'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border-main'
-              }`}
-            >
-              <Shield size={12} />
-              <span>Hetuesi Policor</span>
-              <span className="font-mono text-[10px] bg-black/20 px-1.5 py-0.5 rounded-full">{policeCount}</span>
+            <button onClick={() => setActiveRoleFilter('POLICE')} className={`px-3.5 py-1.5 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${activeRoleFilter === 'POLICE' ? 'bg-blue-600 text-white border-blue-600' : 'bg-surface hover:bg-hover text-text-muted border-main'}`}>
+              <Shield size={14} /> Hetuesi Policor <span className="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded-full">{policeCount}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveRoleFilter('PROSECUTOR')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
-                activeRoleFilter === 'PROSECUTOR'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border-main'
-              }`}
-            >
-              <Briefcase size={12} />
-              <span>Prokurori i Shtetit & PSRK</span>
-              <span className="font-mono text-[10px] bg-black/20 px-1.5 py-0.5 rounded-full">{prosecutorCount}</span>
+            <button onClick={() => setActiveRoleFilter('PROSECUTOR')} className={`px-3.5 py-1.5 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${activeRoleFilter === 'PROSECUTOR' ? 'bg-amber-600 text-white border-amber-600' : 'bg-surface hover:bg-hover text-text-muted border-main'}`}>
+              <Briefcase size={14} /> Prokurori i Shtetit <span className="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded-full">{prosecutorCount}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveRoleFilter('SUPREME_JUDGE')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${
-                activeRoleFilter === 'SUPREME_JUDGE'
-                  ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                  : 'bg-surface hover:bg-hover text-text-muted border-main'
-              }`}
-            >
-              <Scale size={12} />
-              <span>Gjykata Supreme</span>
-              <span className="font-mono text-[10px] bg-black/20 px-1.5 py-0.5 rounded-full">{judgeCount}</span>
+            <button onClick={() => setActiveRoleFilter('SUPREME_JUDGE')} className={`px-3.5 py-1.5 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border ${activeRoleFilter === 'SUPREME_JUDGE' ? 'bg-purple-600 text-white border-purple-600' : 'bg-surface hover:bg-hover text-text-muted border-main'}`}>
+              <Scale size={14} /> Gjykata Supreme <span className="font-mono text-xs bg-black/20 px-1.5 py-0.5 rounded-full">{judgeCount}</span>
             </button>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
             <div className="relative flex-1">
-              <Search size={13} className="absolute left-3.5 top-2.5 text-text-muted" />
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filtro sipas neneve, orës ose personave..."
-                className="w-full bg-surface border border-main rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
-              />
+              <Search size={16} className="absolute left-3.5 top-2.5 text-text-muted" />
+              <input type="text" value={searchFilter} onChange={(e) => setSearchFilter(e.target.value)} placeholder="Filtro..." className="w-full bg-surface border border-main rounded-xl pl-9 pr-3.5 py-1.5 text-sm text-text-primary focus:outline-none focus:border-primary-start" />
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => setActiveSeverityFilter('ALL')}
-                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'ALL' ? 'bg-canvas text-text-primary shadow-sm' : 'text-text-muted'}`}
-                >
-                  Të gjitha
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSeverityFilter('CRITICAL')}
-                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'CRITICAL' ? 'bg-rose-500 text-white shadow-sm' : 'text-rose-500'}`}
-                >
-                  Kritike
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSeverityFilter('SUSPICIOUS')}
-                  className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer ${activeSeverityFilter === 'SUSPICIOUS' ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-500'}`}
-                >
-                  Dyshime
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRunAutonomousInvestigation}
-                disabled={isScanning}
-                className="h-9 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all bg-rose-600 hover:bg-rose-700 text-white cursor-pointer disabled:opacity-40"
-              >
-                {isScanning ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    <span>Duke hetuar me Sonnet 4.6...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw size={13} />
-                    <span>Fillo Hetimin Kolegjial</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button onClick={handleRunAutonomousInvestigation} disabled={isScanning} className="h-10 px-4 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all bg-rose-600 hover:bg-rose-700 text-white cursor-pointer disabled:opacity-40">
+              {isScanning ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Fillo Hetimin
+            </button>
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto custom-finance-scroll p-6 space-y-4 bg-canvas">
+        {/* Përmbajtja */}
+        <main className="flex-1 overflow-y-auto custom-finance-scroll p-6 space-y-4 bg-canvas" style={{ fontSize: `${activeFont.base}px` }}>
           {filteredFindings.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-text-muted text-center p-8 gap-3">
-              <Scale size={48} className="opacity-25 text-primary-start" />
-              <div className="max-w-md space-y-1">
-                <p className="text-sm font-bold text-text-primary">
-                  {isScanning ? 'Kolegjiumi po analizon fashikullin e lëndës...' : 'Nuk u gjet asnjë gjetje hetimore'}
-                </p>
-                <p className="text-xs">
-                  Shtypni <span className="font-bold text-text-primary">"Fillo Hetimin Kolegjial"</span> për të aktivizuar Hetuesin Policor, Prokurorin e Shtetit dhe Gjyqtarin Suprem me Claude Sonnet 4.6.
-                </p>
-              </div>
+              <Scale size={64} className="opacity-25 text-primary-start" />
+              <p className="text-lg font-bold text-text-primary">{isScanning ? 'Duke analizuar...' : 'Nuk ka gjetje'}</p>
+              <p className="text-base">Shtypni "Fillo Hetimin" për të aktivizuar kolegjiumin.</p>
             </div>
           ) : (
             <div className={`grid gap-4 ${isWidescreen ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
               {filteredFindings.map((item) => {
                 const isCritical = item.level === 'CRITICAL';
                 const isSmoking = item.level === 'SMOKING_GUN';
-
                 const roleBadge = item.role === 'POLICE'
                   ? { label: 'Hetuesi Policor', color: 'bg-blue-500/15 text-blue-500 border-blue-500/30' }
                   : item.role === 'PROSECUTOR'
-                  ? { label: item.jurisdictionSubtype === 'PSRK' ? 'Prokuroria Speciale PSRK' : 'Prokuroria Themelore', color: 'bg-amber-500/15 text-amber-500 border-amber-500/30' }
+                  ? { label: 'Prokuroria', color: 'bg-amber-500/15 text-amber-500 border-amber-500/30' }
                   : { label: 'Gjykata Supreme', color: 'bg-purple-500/15 text-purple-500 border-purple-500/30' };
 
                 return (
-                  <article
-                    key={item.id}
-                    className={`p-5 rounded-2xl border transition-all space-y-3 bg-surface shadow-sm ${
-                      isCritical
-                        ? 'border-rose-500/40 hover:border-rose-500 shadow-rose-500/5'
-                        : isSmoking
-                        ? 'border-emerald-500/40 hover:border-emerald-500'
-                        : 'border-amber-500/40 hover:border-amber-500'
-                    }`}
-                  >
+                  <article key={item.id} className={`p-5 rounded-2xl border transition-all space-y-3 bg-surface shadow-sm ${isCritical ? 'border-rose-500/40' : isSmoking ? 'border-emerald-500/40' : 'border-amber-500/40'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${roleBadge.color}`}>
-                            {roleBadge.label}
-                          </span>
-
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
-                              isCritical
-                                ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
-                                : isSmoking
-                                ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                                : 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-                            }`}
-                          >
-                            {isCritical ? 'Kontradiktë Fatale' : isSmoking ? 'Smoking Gun' : 'Dyshim Procedural'}
-                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold uppercase border ${roleBadge.color}`}>{roleBadge.label}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-mono font-bold uppercase ${isCritical ? 'bg-rose-500/15 text-rose-500' : isSmoking ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>{item.level}</span>
                         </div>
-                        <h4 className="text-sm font-bold text-text-primary leading-snug">{item.title}</h4>
+                        <h4 className="text-lg font-bold text-text-primary leading-snug">{item.title}</h4>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleCopyFinding(item)}
-                        title="Kopjo incidentin"
-                        className="p-1.5 rounded-lg bg-canvas hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
-                      >
-                        {copiedId === item.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                      <button onClick={() => handleCopyFinding(item)} className="p-2 rounded-lg hover:bg-hover text-text-muted" title="Kopjo">
+                        {copiedId === item.id ? <CheckCircle2 size={18} className="text-emerald-500" /> : <Copy size={18} />}
                       </button>
                     </div>
-
-                    <div className="p-3 rounded-xl bg-canvas border border-main text-xs space-y-1.5 font-mono">
-                      <div className="flex items-center gap-2 text-text-muted truncate">
-                        <FileText size={13} className="text-primary-start shrink-0" />
-                        <span className="font-bold text-text-primary shrink-0">Prova A:</span>
-                        <span className="truncate">{item.sourceA}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-rose-500 font-bold text-[10px] uppercase">
-                        <ArrowRight size={12} className="rotate-90 sm:rotate-0 shrink-0" />
-                        <span>Bie ndesh me:</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-text-muted truncate">
-                        <FileText size={13} className="text-rose-500 shrink-0" />
-                        <span className="font-bold text-text-primary shrink-0">Prova B:</span>
-                        <span className="truncate">{item.sourceB}</span>
-                      </div>
+                    <div className="p-3 rounded-xl bg-canvas border border-main text-base space-y-1.5 font-mono">
+                      <div className="flex items-center gap-2"><FileText size={16} className="text-primary-start" /><span className="font-bold">Prova A:</span> {item.sourceA}</div>
+                      <div className="text-rose-500 font-bold">Bie ndesh me:</div>
+                      <div className="flex items-center gap-2"><FileText size={16} className="text-rose-500" /><span className="font-bold">Prova B:</span> {item.sourceB}</div>
                     </div>
-
-                    <div className="text-xs text-text-primary leading-relaxed select-text font-sans">
-                      <p className="font-bold text-text-muted uppercase text-[10px] tracking-wider mb-0.5">
-                        Zbardhja e Kolegjiumit:
-                      </p>
-                      <p className="whitespace-pre-wrap">{item.contradictionDetails}</p>
-                    </div>
-
-                    <div className="pt-2 border-t border-main grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-canvas border border-main space-y-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
-                          <Filter size={11} /> Nenet e Zbatuara:
-                        </span>
-                        <p className="font-mono font-bold text-primary-start truncate">{item.legalArticles}</p>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-primary-start/5 border border-primary-start/20 space-y-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-start flex items-center gap-1">
-                          <Flame size={11} /> Veprimi Taktik:
-                        </span>
-                        <p className="text-text-primary text-[11px] truncate">{item.tacticalAdvice}</p>
-                      </div>
+                    <p className="text-base text-text-primary whitespace-pre-wrap">{item.contradictionDetails}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-base">
+                      <div className="p-2.5 rounded-xl bg-canvas border border-main"><span className="font-bold text-xs uppercase">Nenet:</span> {item.legalArticles}</div>
+                      <div className="p-2.5 rounded-xl bg-primary-start/5 border border-primary-start/20"><span className="font-bold text-xs uppercase">Veprimi Taktik:</span> {item.tacticalAdvice}</div>
                     </div>
                   </article>
                 );
@@ -540,12 +397,9 @@ export const InvestigatorLogDrawer: React.FC<InvestigatorLogDrawerProps> = ({
           )}
         </main>
 
-        <footer className="h-12 px-6 border-t border-main bg-surface flex items-center justify-between text-xs text-text-muted shrink-0">
-          <span className="flex items-center gap-1.5 font-medium">
-            <RefreshCw size={12} className={isScanning ? 'animate-spin text-primary-start' : ''} />
-            {isScanning ? 'Kolegjiumi po analizon...' : `${findings.length} gjetje nga të 3 rolet`}
-          </span>
-          <span className="font-mono text-[10px]">Modeli: Claude Sonnet 4.6 (Ekskluziv)</span>
+        <footer className="h-12 px-6 border-t border-main bg-surface flex items-center justify-between text-sm text-text-muted shrink-0">
+          <span>{isScanning ? 'Duke analizuar...' : `${findings.length} gjetje`}</span>
+          <span className="font-mono text-xs">Claude Sonnet 4.6</span>
         </footer>
       </aside>
     </div>
