@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.2 (WORD NATIVE RICH-TABLE ENGINE)
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.4 (SYNCHRONIZED SINGLE-ZOOM FOR CHAT & TEXTAREA)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -61,7 +61,7 @@ const QUICK_FORENSIC_COMMANDS = [
   }
 ];
 
-// Nivelet e madhësisë së fontit për Chat-in
+// Nivelet e madhësisë së fontit: aplikohen NJËKOHËSISHT në Chat dhe në Textarea
 const FONT_LEVELS = [
   { label: '90%',   base: 13,   line: 1.55 },
   { label: '100%',  base: 15,   line: 1.65 },
@@ -150,7 +150,6 @@ const markdownToWordHtml = (markdown: string): string => {
     const rawLine = lines[i];
     const line = rawLine.trim();
 
-    // Detektimi i rreshtave të Tabelës (| Kolona 1 | Kolona 2 |)
     if (line.startsWith('|') && line.endsWith('|')) {
       flushList();
       flushBlockquote();
@@ -162,7 +161,6 @@ const markdownToWordHtml = (markdown: string): string => {
       flushTable();
     }
 
-    // Vija ndarëse (--- ose *** ose ___)
     if (/^(---|---|\*\*\*|___)$/.test(line)) {
       flushList();
       flushBlockquote();
@@ -170,7 +168,6 @@ const markdownToWordHtml = (markdown: string): string => {
       continue;
     }
 
-    // Titujt (#, ##, ###)
     const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
     if (hMatch) {
       flushList();
@@ -182,7 +179,6 @@ const markdownToWordHtml = (markdown: string): string => {
       continue;
     }
 
-    // Kuotimet gjyqësore (> Teksti)
     if (line.startsWith('>')) {
       flushList();
       inBlockquote = true;
@@ -192,7 +188,6 @@ const markdownToWordHtml = (markdown: string): string => {
       flushBlockquote();
     }
 
-    // Listat me pika (•, -, *)
     const bulletMatch = line.match(/^([•\-\*])\s+(.+)$/);
     if (bulletMatch) {
       if (inList !== 'ul') {
@@ -204,7 +199,6 @@ const markdownToWordHtml = (markdown: string): string => {
       continue;
     }
 
-    // Listat me numra (1., 2.)
     const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
     if (numMatch) {
       if (inList !== 'ol') {
@@ -216,7 +210,6 @@ const markdownToWordHtml = (markdown: string): string => {
       continue;
     }
 
-    // Tekst i rregullt
     flushList();
     if (line.length === 0) {
       continue;
@@ -268,7 +261,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Kontrolli i Zmadhimit të Shkrimit
+  // Kontrolli Qendror i Zmadhimit të Shkrimit (Shared Zoom State)
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_chat_font_size');
@@ -329,12 +322,13 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
+  // Rillogaritja automatike e lartësisë së fushës së shkrimit sa herë që shkruhet tekst OSE ndryshohet madhësia e shkrimit
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 140)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
-  }, [input]);
+  }, [input, fontLevelIndex]);
 
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
@@ -432,7 +426,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD (RICH TEXT + PLAIN TEXT)
+  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD
   const handleCopyMessage = async (msgId: string, text: string) => {
     const htmlContent = markdownToWordHtml(text);
 
@@ -444,12 +438,11 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
         });
         await navigator.clipboard.write([clipboardItem]);
       } else {
-        throw new Error('ClipboardItem nuk mbështetet nga ky mjedis.');
+        throw new Error('ClipboardItem nuk mbështetet.');
       }
       setCopiedId(msgId);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      // Fallback i besueshëm me event listener për shfletuesit me kufizime sigurie
       try {
         const copyHandler = (e: ClipboardEvent) => {
           e.preventDefault();
@@ -464,7 +457,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
         setCopiedId(msgId);
         setTimeout(() => setCopiedId(null), 2000);
       } catch {
-        // Fallback final: vetëm tekst të thjeshtë
         await navigator.clipboard.writeText(text);
         setCopiedId(msgId);
         setTimeout(() => setCopiedId(null), 2000);
@@ -475,27 +467,29 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[200] select-none pointer-events-auto overflow-hidden">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-          />
+        <div className="fixed inset-0 z-[200] pointer-events-none overflow-hidden">
+          {/* Backdrop shfaqet VETËM në Fullscreen për të mos bllokuar workspace-in */}
+          {isFullscreen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm pointer-events-auto"
+            />
+          )}
 
-          {/* Slide-over Drawer Panel */}
+          {/* Slide-over Drawer Panel me pointer-events-auto */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 240 }}
-            className={`absolute top-0 right-0 h-[100dvh] max-h-[100dvh] ${
+            className={`pointer-events-auto absolute top-0 right-0 h-[100dvh] max-h-[100dvh] ${
               isFullscreen 
                 ? 'w-full max-w-full' 
-                : 'w-full sm:w-[600px] md:w-[700px] lg:w-[800px] max-w-full'
-            } border-l border-main shadow-2xl flex flex-col bg-card transition-all duration-300 ease-in-out`}
+                : 'w-full sm:w-[580px] md:w-[680px] lg:w-[780px] max-w-full shadow-[-12px_0_40px_rgba(0,0,0,0.6)]'
+            } border-l border-main flex flex-col bg-card transition-all duration-300 ease-in-out`}
             style={{ backgroundColor: 'var(--bg-card, #020617)' }}
           >
             {/* Top Header */}
@@ -520,14 +514,14 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Kontrolli i zmadhimit të shkrimit */}
+                {/* Butonat Qendrorë të Zmadhimit të Shkrimit (Kontrollojnë njëkohësisht Chat-in dhe Textarea) */}
                 <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
                   <button
                     type="button"
                     onClick={handleDecreaseFont}
                     disabled={fontLevelIndex === 0}
                     className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
-                    title="Zvogëlo shkrimin"
+                    title="Zvogëlo shkrimin (Chat & Fushën e Shkrimit)"
                   >
                     A−
                   </button>
@@ -544,7 +538,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                     onClick={handleIncreaseFont}
                     disabled={fontLevelIndex === FONT_LEVELS.length - 1}
                     className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
-                    title="Zmadho shkrimin"
+                    title="Zmadho shkrimin (Chat & Fushën e Shkrimit)"
                   >
                     A+
                   </button>
@@ -570,7 +564,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
                   className="hidden md:flex p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
-                  title={isFullscreen ? "Zvogëlo" : "Fullscreen"}
+                  title={isFullscreen ? "Kthe në krah (Sidebar)" : "Fullscreen"}
                 >
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
@@ -587,7 +581,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
             </div>
 
-            {/* Stili dinamik i fontit */}
+            {/* STILIZIMI DINAMIK I NJËHUR (APLIKOHET NJËKOHËSISHT MBI MESAZHET DHE MBI TEXTAREA) */}
             <style>{`
               .forensic-chat-markdown p,
               .forensic-chat-markdown li,
@@ -602,6 +596,12 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 line-height: 1.4 !important;
                 margin-top: 1em !important;
                 margin-bottom: 0.5em !important;
+              }
+              /* RREGULLA E DETYRUESHME ME !IMPORTANT PËR FUSHËN E SHKRIMIT (TEXTAREA) */
+              .forensic-interrogation-textarea,
+              .forensic-interrogation-textarea::placeholder {
+                font-size: ${activeFont.base}px !important;
+                line-height: ${activeFont.line} !important;
               }
             `}</style>
 
@@ -695,7 +695,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                             </div>
                           ) : isAi ? (
                             <div className="space-y-2">
-                              {/* RENDERUESI I FONTIT DINAMIK PËR AI */}
+                              {/* Renderimi i Markdown për AI */}
                               <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                                   {autoLinkLegalCitations(msg.content)}
@@ -733,13 +733,14 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 }}
                 className="flex items-end gap-2 sm:gap-3 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 sm:p-2.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
+                {/* TEXTAREA ME KLASËN E SINKRONIZUAR TË ZMADHIMIT (.forensic-interrogation-textarea) */}
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Pyet mbi provat, alibitë apo shkeljet ligjore..."
-                  className="flex-1 p-1.5 sm:p-2 bg-transparent text-base text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[160px] border-0 outline-none"
+                  className="forensic-interrogation-textarea flex-1 p-1.5 sm:p-2 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[200px] border-0 outline-none"
                   rows={1}
                 />
                 <button
