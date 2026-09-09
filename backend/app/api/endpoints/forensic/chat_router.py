@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.4 (CLEAN PROFESSIONAL STREAMING)
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.5 (DUAL ENDPOINT: STREAM + NON-STREAM)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -34,6 +34,59 @@ def _build_case_query(case_id: str) -> Dict[str, Any]:
     if ObjectId.is_valid(case_id):
         conditions.append({"case_id": ObjectId(case_id)})
     return {"$or": conditions}
+
+def _build_system_prompt_with_rag(
+    case_id_str: str,
+    user_id: str,
+    payload: ForensicChatMessage,
+    case_context: str
+) -> str:
+    """Ndërton system prompt profesional me RAG (Case Base + Knowledge Base)."""
+    # RAG Case Base
+    case_chunks = []
+    try:
+        case_chunks = query_case_knowledge_base(
+            user_id=user_id,
+            query_text=payload.message,
+            n_results=6,
+            case_id=case_id_str
+        )
+    except Exception as e:
+        logger.warning(f"Case base retrieval failed: {e}")
+
+    # RAG Knowledge Base
+    knowledge_chunks = []
+    try:
+        knowledge_chunks = query_global_knowledge_base(
+            query_text=payload.message,
+            n_results=8
+        )
+    except Exception as e:
+        logger.warning(f"Knowledge base retrieval failed: {e}")
+
+    case_context_text = "\n".join([
+        f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}): {c.get('text','')}"
+        for c in case_chunks if c.get("text")
+    ]) if case_chunks else "Nuk ka pjesë relevante nga dokumentet e lëndës."
+
+    knowledge_context_text = "\n".join([
+        f"{c.get('source','Ligj')}: {c.get('text','')}"
+        for c in knowledge_chunks if c.get("text")
+    ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
+
+    return f"""Ju jeni një ekspert ligjor i specializuar për legjislacionin e Republikës së Kosovës.
+Detyra juaj është të jepni përgjigje të sakta, profesionale dhe koncize, pa zhargon të panevojshëm, pa fraza marketingu, pa emoji dhe pa formatim të tepruar.
+
+Përdorni vetëm gjuhë zyrtare juridike. Mos përfshini emra të tillë si "Terminali Forenzik Hetimor Suprem", "VULA FORENZIKE", etj. Përgjigjuni drejtpërdrejt pyetjes.
+
+KONTEKSTI I LËNDËS:
+{payload.case_context or 'Çështje hetimore forenzike'}
+
+PJESËT RELEVANTE NGA DOKUMENTET E LËNDËS (CASE BASE):
+{case_context_text}
+
+REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
+{knowledge_context_text}"""
 
 # ==========================================================
 # 1. LEXIMI I HISTORIKUT (MULTI-DEVICE UNIFIED RESOLVER)
@@ -76,7 +129,118 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2. DËRGIMI I PYETJES ME STREAMING (RAG + KUJTESË)
+# 2a. DËRGIMI I PYETJES JO-STREAMING (PËR AUTOPSINË E DOKUMENTIT ETJ.)
+# ==========================================================
+@router.post("/chat")
+def send_forensic_chat_message_nonstream(
+    payload: ForensicChatMessage,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Endpoint jo-streaming për përputhshmëri me komponentët ekzistues (p.sh. autopsia e dokumentit).
+    Kryen të njëjtën logjikë RAG dhe kthen përgjigjen e plotë.
+    """
+    user_id = str(current_user.id)
+    case_id_str = str(payload.case_id)
+    now_utc = datetime.now(timezone.utc)
+
+    # Mbledh historikun
+    query = _build_case_query(case_id_str)
+    past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
+    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
+
+    if len(conversation_turns) == 0:
+        try:
+            case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
+            case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id_str}]})
+            legacy_history = (case_doc or {}).get("forensic_chat_history") or []
+            for legacy_m in legacy_history[-30:]:
+                conversation_turns.append({"role": legacy_m.get("role", "user"), "content": legacy_m.get("content", "")})
+        except Exception:
+            pass
+
+    conversation_turns.append({"role": "user", "content": payload.message})
+
+    # Ruaj pyetjen
+    db[FORENSIC_CHAT_COLLECTION].insert_one({
+        "case_id": case_id_str,
+        "user_id": user_id,
+        "role": "user",
+        "content": payload.message,
+        "created_at": now_utc
+    })
+
+    # Ndërto system prompt me RAG
+    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context)
+
+    # Thirr LLM (jo-streaming)
+    raw_response = call_forensic_llm_chat(
+        conversation_turns=conversation_turns,
+        system_prompt=system_prompt,
+        temperature=0.0
+    )
+
+    # Verifiko citimet
+    try:
+        verified_text, audit_result = purge_and_regenerate_if_hallucinated(
+            response_text=raw_response,
+            db=db,
+            original_prompt=payload.message
+        )
+    except Exception:
+        verified_text, audit_result = raw_response, None
+
+    # Ruaj përgjigjen
+    assistant_msg_doc = {
+        "case_id": case_id_str,
+        "user_id": user_id,
+        "role": "assistant",
+        "content": verified_text,
+        "citation_audit": audit_result,
+        "created_at": datetime.now(timezone.utc)
+    }
+    db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
+
+    # Sinkronizim multi-device
+    try:
+        case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
+        db.cases.update_one(
+            {"$or": [{"_id": case_oid}, {"_id": case_id_str}]},
+            {
+                "$push": {
+                    "forensic_chat_history": {
+                        "$each": [
+                            {"role": "user", "content": payload.message, "timestamp": now_utc.isoformat()},
+                            {"role": "assistant", "content": verified_text, "timestamp": assistant_msg_doc["created_at"].isoformat()}
+                        ]
+                    }
+                },
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+        )
+    except Exception as sync_err:
+        logger.warning(f"Multi-device sync warning: {sync_err}")
+
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id_str,
+        action="FORENSIC_INTERROGATION_QUERY",
+        details={"query_preview": payload.message[:100], "streaming": False}
+    )
+
+    return {
+        "_id": str(assistant_msg_doc.get("_id")),
+        "case_id": case_id_str,
+        "role": "assistant",
+        "content": verified_text,
+        "citation_audit": audit_result,
+        "created_at": assistant_msg_doc["created_at"].isoformat()
+    }
+
+# ==========================================================
+# 2b. DËRGIMI I PYETJES ME STREAMING (PËR TERMINALIN E CHAT-IT)
 # ==========================================================
 @router.post("/chat/stream")
 async def stream_forensic_chat_message(
@@ -92,60 +256,24 @@ async def stream_forensic_chat_message(
     case_id_str = str(payload.case_id)
     now_utc = datetime.now(timezone.utc)
 
-    # 1. Mbledh historikun e kaluar
+    # Mbledh historikun
     query = _build_case_query(case_id_str)
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
+    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
 
-    conversation_turns: List[Dict[str, str]] = []
-    for m in past_cursor:
-        conversation_turns.append({
-            "role": m.get("role", "user"),
-            "content": m.get("content", "")
-        })
-
-    # Legacy fallback
     if len(conversation_turns) == 0:
         try:
             case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
             case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id_str}]})
             legacy_history = (case_doc or {}).get("forensic_chat_history") or []
             for legacy_m in legacy_history[-30:]:
-                conversation_turns.append({
-                    "role": legacy_m.get("role", "user"),
-                    "content": legacy_m.get("content", "")
-                })
+                conversation_turns.append({"role": legacy_m.get("role", "user"), "content": legacy_m.get("content", "")})
         except Exception:
             pass
 
-    # Shto pyetjen aktuale
-    conversation_turns.append({
-        "role": "user",
-        "content": payload.message
-    })
+    conversation_turns.append({"role": "user", "content": payload.message})
 
-    # 2. RAG CASE BASE
-    case_chunks = []
-    try:
-        case_chunks = query_case_knowledge_base(
-            user_id=user_id,
-            query_text=payload.message,
-            n_results=6,
-            case_id=case_id_str
-        )
-    except Exception as e:
-        logger.warning(f"Case base retrieval failed: {e}")
-
-    # 3. RAG KNOWLEDGE BASE
-    knowledge_chunks = []
-    try:
-        knowledge_chunks = query_global_knowledge_base(
-            query_text=payload.message,
-            n_results=8
-        )
-    except Exception as e:
-        logger.warning(f"Knowledge base retrieval failed: {e}")
-
-    # 4. Ruaj pyetjen e përdoruesit
+    # Ruaj pyetjen
     db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
@@ -154,32 +282,9 @@ async def stream_forensic_chat_message(
         "created_at": now_utc
     })
 
-    # 5. Ndërto system prompt TË PASTËR PROFESIONAL
-    case_context_text = "\n".join([
-        f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}): {c.get('text','')}"
-        for c in case_chunks if c.get("text")
-    ]) if case_chunks else "Nuk ka pjesë relevante nga dokumentet e lëndës."
+    # Ndërto system prompt me RAG
+    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context)
 
-    knowledge_context_text = "\n".join([
-        f"{c.get('source','Ligj')}: {c.get('text','')}"
-        for c in knowledge_chunks if c.get("text")
-    ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
-
-    system_prompt = f"""Ju jeni një ekspert ligjor i specializuar për legjislacionin e Republikës së Kosovës.
-Detyra juaj është të jepni përgjigje të sakta, profesionale dhe koncize, pa zhargon të panevojshëm, pa fraza marketingu, pa emoji dhe pa formatim të tepruar.
-
-Përdorni vetëm gjuhë zyrtare juridike. Mos përfshini emra të tillë si "Terminali Forenzik Hetimor Suprem", "VULA FORENZIKE", etj. Përgjigjuni drejtpërdrejt pyetjes.
-
-KONTEKSTI I LËNDËS:
-{payload.case_context or 'Çështje hetimore forenzike'}
-
-PJESËT RELEVANTE NGA DOKUMENTET E LËNDËS (CASE BASE):
-{case_context_text}
-
-REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
-{knowledge_context_text}"""
-
-    # 6. Funksioni gjenerator për StreamingResponse
     async def generate():
         full_response = ""
         try:
@@ -194,9 +299,7 @@ REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
             logger.error(f"Streaming error: {e}")
             yield f"\n\n[GABIM: {str(e)}]"
         finally:
-            # Pas përfundimit, ruaj përgjigjen
             if full_response:
-                # Verifikimi i citimeve
                 try:
                     verified_text, audit_result = purge_and_regenerate_if_hallucinated(
                         response_text=full_response,
@@ -218,7 +321,6 @@ REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
                 }
                 db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
 
-                # Sinkronizim për multi-device
                 try:
                     case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
                     db.cases.update_one(

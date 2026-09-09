@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.5 (EXTRACTED TEXT ENDPOINT INTEGRATION)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.6 (STREAMING FOR AUTOPSY)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -351,7 +351,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
     setLoadingTextDocId(doc.id);
     try {
-      // Fetch the extracted text from the dedicated endpoint
       const response = await apiClient.get<string>(
         `/forensic/documents/${caseId}/${doc.id}/extracted-text`,
         { responseType: 'text' }
@@ -451,7 +450,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // GJENERIMI I BLINDUAR NËPËRMJET SHËRBIMIT TË ZYRËS FORENZIKE
+  // ============================================================
+  // GJENERIMI I BLINDUAR ME STREAMING
+  // ============================================================
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -466,19 +467,29 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       }
       setDocPillars((prev) => ({ ...prev, [pillar]: '' }));
 
+      const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.file_name);
       try {
-        const prompt = DOC_PILLAR_CONFIGS[pillar].getPrompt(targetDoc.file_name);
-        const result = await forensicDeskService.sendChatMessage(
+        const stream = await forensicDeskService.streamForensicChat(
           caseId,
           prompt,
           `Ekspertizë mbi shkresën: ${targetDoc.file_name}`
         );
-        const content = result.content || '';
-        setDocPillars((prev) => ({ ...prev, [pillar]: content }));
+        const reader = stream.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulated = '';
 
-        if (content.trim().length > 50) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          accumulated += chunk;
+          setDocPillars(prev => ({ ...prev, [pillar]: accumulated }));
+        }
+
+        // Pas përfundimit, ruaj në DB
+        if (accumulated.trim().length > 50) {
           try {
-            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, content);
+            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, accumulated);
           } catch (saveErr) {
             console.warn("Could not save doc pillar to MongoDB:", saveErr);
           }
@@ -492,19 +503,29 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     } else {
       setCasePillars((prev) => ({ ...prev, [pillar]: '' }));
 
+      const prompt = CASE_PILLAR_CONFIGS[pillar].prompt;
       try {
-        const prompt = CASE_PILLAR_CONFIGS[pillar].prompt;
-        const result = await forensicDeskService.sendChatMessage(
+        const stream = await forensicDeskService.streamForensicChat(
           caseId,
           prompt,
           `Ekspertizë master mbi të gjithë fashikullin e lëndës.`
         );
-        const content = result.content || '';
-        setCasePillars((prev) => ({ ...prev, [pillar]: content }));
+        const reader = stream.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulated = '';
 
-        if (content.trim().length > 50) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          accumulated += chunk;
+          setCasePillars(prev => ({ ...prev, [pillar]: accumulated }));
+        }
+
+        // Pas përfundimit, ruaj në DB
+        if (accumulated.trim().length > 50) {
           try {
-            await forensicService.saveCasePillar(caseId, pillar, content);
+            await forensicService.saveCasePillar(caseId, pillar, accumulated);
           } catch (saveErr) {
             console.warn("Could not save case pillar to MongoDB:", saveErr);
           }
@@ -691,7 +712,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           <Eye size={13} />
                         </button>
 
-                        {/* FileSearch - View Extracted Text (fetch on demand) */}
+                        {/* FileSearch - View Extracted Text */}
                         <button
                           type="button"
                           onClick={(e) => handleViewExtractedText(doc, e)}
