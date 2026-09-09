@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.12 (ZERO TS WARNINGS & DEDICATED TEXT VIEWER)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.13 (EXPANDED WIDESCREEN TEXT VIEWER)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -1127,21 +1127,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </div>
       </div>
 
-      {/* MODAL I DEDIKUAR PËR SHFAQJEN E TEKSTIT TË EKSTRAKTUAR (THEME-AWARE & PASTËR) */}
+      {/* MODAL I DEDIKUAR PËR SHFAQJEN E TEKSTIT TË EKSTRAKTUAR (WIDESCREEN & PERFECTLY CENTERED) */}
       {extractedModalData && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 my-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 md:p-8">
+          <div className="relative w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[88vh] max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
             
             {/* Header i Modalit */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                  <FileText size={18} />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 sm:px-8 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 gap-3 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                  <FileText size={20} />
                 </div>
                 <div className="truncate">
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-2">
-                    <span>{extractedModalData.docName}</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-2">
+                    <span className="truncate">{extractedModalData.docName}</span>
+                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
                       Tekst i Indeksuar
                     </span>
                   </h3>
@@ -1151,42 +1151,42 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={handleCopyExtractedModalText}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 shadow-sm"
                   title="Kopjo krejt tekstin në clipboard"
                 >
-                  {copiedExtractedText ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                  {copiedExtractedText ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
                   <span>{copiedExtractedText ? 'U Kopjua!' : 'Kopjo Tekstin'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setExtractedModalData(null)}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   title="Mbyll"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
             </div>
 
-            {/* Trupi i Leximit të Tekstit */}
-            <div className="p-6 sm:p-8 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
-              <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm leading-relaxed text-slate-800 dark:text-slate-200 select-text font-medium">
+            {/* Trupi i Leximit të Tekstit me Gjerësi të Plotë dhe Margjina të Pastra */}
+            <div className="p-6 sm:p-8 md:p-10 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
+              <pre className="whitespace-pre-wrap font-sans text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 select-text font-normal max-w-none">
                 {extractedModalData.text}
               </pre>
             </div>
 
             {/* Footer me shënim ligjor */}
-            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Korpus ligjor i ekstraktuar me Optical/Docx Engine për vektorizim semantik</span>
+            <div className="px-6 sm:px-8 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-xs text-slate-500 shrink-0">
+              <span className="hidden sm:inline">Korpus ligjor i ekstraktuar me Optical/Docx Engine për vektorizim semantik</span>
               <button
                 type="button"
                 onClick={() => setExtractedModalData(null)}
-                className="font-bold text-slate-700 dark:text-slate-300 hover:underline cursor-pointer"
+                className="font-bold text-slate-700 dark:text-slate-300 hover:underline cursor-pointer ml-auto sm:ml-0"
               >
                 Mbyll Dritaren
               </button>
