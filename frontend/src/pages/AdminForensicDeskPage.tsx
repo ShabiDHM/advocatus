@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.1 (DELETE DOSSIER CASCADE WIPEOUT)
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.3 (REMOVED SONNET BRANDING BADGE)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • SERVER-SIDE CUSTODY INTEGRATION
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -21,7 +21,12 @@ import {
   FolderPlus,
   ShieldCheck,
   Trash2,
-  Loader2
+  Loader2,
+  X,
+  User,
+  Phone,
+  Mail,
+  Scale
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -175,9 +180,6 @@ export const AdminForensicDeskPage: React.FC = () => {
               <h1 className="text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight text-text-primary leading-tight">
                 Laboratori Forenzik
               </h1>
-              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-primary-start/15 text-primary-start border border-primary-start/30 font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
-                Claude Sonnet 4.6
-              </span>
               {activeDossier && (
                 <button
                   type="button"
@@ -288,7 +290,6 @@ export const AdminForensicDeskPage: React.FC = () => {
       {/* SHIRITI I NAVIGIMIT MES 5 LABORATORËVE */}
       <nav className="my-4 sm:my-5 w-full">
         <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1.5 shadow-inner gap-1.5 overflow-x-auto custom-finance-scroll snap-x">
-          {/* Butonat e laboratorëve (të njëjtë si më parë) */}
           <button
             type="button"
             onClick={() => setActiveLab('DOCUMENTS')}
@@ -438,7 +439,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         )}
       </main>
 
-      {/* 🏛️ TERMINALI FORENZIK ME CLAUDE SONNET 4.6 */}
+      {/* 🏛️ TERMINALI FORENZIK */}
       {isSuperAdmin && activeDossier && (
         <ForensicInterrogationDrawer
           isOpen={showChatDrawer}
@@ -461,80 +462,108 @@ export const AdminForensicDeskPage: React.FC = () => {
         />
       )}
 
-      {/* MODALI I DOSJES SË RE ME CHAIN OF CUSTODY */}
+      {/* MODALI I DOSJES SË RE ME CHAIN OF CUSTODY (THEME-AWARE DHE SOLID) */}
       {showNewDossierModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-card border border-main rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-lg w-full shadow-2xl space-y-4 sm:space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-main pb-3">
-              <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <FolderOpen size={16} className="text-primary-start sm:w-[18px] sm:h-[18px]" /> Regjistrimi i Dosjes Forenzike
-              </h3>
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto">
+            
+            {/* Header i Modalit */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary-start/10 dark:bg-primary-start/20 text-primary-start flex items-center justify-center">
+                  <FolderOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    Regjistrimi i Dosjes Forenzike
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Hapja zyrtare e dëshmisë me vërtetim hash dhe zinxhir ruajtjeje
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowNewDossierModal(false)}
-                className="text-text-muted hover:text-rose-500 text-sm font-bold cursor-pointer transition-colors p-1"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Mbyll"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewDossier} className="space-y-3 sm:space-y-3.5 text-[11px] sm:text-xs">
+            {/* Trupi i Formularit */}
+            <form onSubmit={handleCreateNewDossier} className="p-6 sm:p-8 space-y-5">
               <div>
-                <label className="block text-text-muted font-bold mb-1">Emri i Plotë i Klientit / Palës *</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                  <User size={14} className="text-primary-start" />
+                  Emri i Plotë i Klientit / Palës <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={newDossierForm.clientName}
                   onChange={(e) => setNewDossierForm({ ...newDossierForm, clientName: e.target.value })}
                   placeholder="p.sh. Agim Krasniqi"
-                  className="w-full bg-surface border border-main rounded-xl px-3 sm:px-3.5 py-2 sm:py-2.5 text-text-primary focus:outline-none focus:border-primary-start transition-colors"
+                  className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-300 dark:border-slate-800 focus:border-primary-start rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all font-medium"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-text-muted font-bold mb-1">Telefoni / WhatsApp</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                    <Phone size={14} className="text-primary-start" />
+                    Telefoni / WhatsApp
+                  </label>
                   <input
                     type="text"
                     value={newDossierForm.clientPhone}
                     onChange={(e) => setNewDossierForm({ ...newDossierForm, clientPhone: e.target.value })}
-                    placeholder="+383 44 ..."
-                    className="w-full bg-surface border border-main rounded-xl px-2.5 sm:px-3 py-2 text-text-primary focus:outline-none focus:border-primary-start transition-colors"
+                    placeholder="+383 44 123 456"
+                    className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-300 dark:border-slate-800 focus:border-primary-start rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-text-muted font-bold mb-1">Email</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                    <Mail size={14} className="text-primary-start" />
+                    Adresa e Email-it
+                  </label>
                   <input
                     type="email"
                     value={newDossierForm.clientEmail}
                     onChange={(e) => setNewDossierForm({ ...newDossierForm, clientEmail: e.target.value })}
-                    placeholder="email@shembull.ks"
-                    className="w-full bg-surface border border-main rounded-xl px-2.5 sm:px-3 py-2 text-text-primary focus:outline-none focus:border-primary-start transition-colors"
+                    placeholder="klienti@shembull.ks"
+                    className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-300 dark:border-slate-800 focus:border-primary-start rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all font-medium"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-text-muted font-bold mb-1">Gjykata / Prokuroria Kompetente</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                  <Scale size={14} className="text-primary-start" />
+                  Gjykata / Prokuroria Kompetente
+                </label>
                 <input
                   type="text"
                   value={newDossierForm.courtJurisdiction}
                   onChange={(e) => setNewDossierForm({ ...newDossierForm, courtJurisdiction: e.target.value })}
-                  className="w-full bg-surface border border-main rounded-xl px-3 sm:px-3.5 py-2 sm:py-2.5 text-text-primary focus:outline-none focus:border-primary-start transition-colors"
+                  placeholder="Gjykata Themelore Prishtinë"
+                  className="w-full bg-slate-50 dark:bg-slate-950/70 border border-slate-300 dark:border-slate-800 focus:border-primary-start rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all font-medium"
                 />
               </div>
 
-              <div className="pt-2 sm:pt-3 flex items-center justify-end gap-2">
+              {/* Veprimet / Butonat */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowNewDossierModal(false)}
-                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold text-text-muted hover:bg-hover cursor-pointer transition-colors"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                 >
                   Anulo
                 </button>
                 <button
                   type="submit"
-                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer transition-all hover-lift"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary-start/20 cursor-pointer transition-all hover-lift"
                 >
                   Hap Dosjen Zyrtare Forenzike
                 </button>
