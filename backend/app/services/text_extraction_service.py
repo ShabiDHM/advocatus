@@ -1,5 +1,5 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V16.0 (EXPOSES SERVICE INSTANCE & SEQUENTIAL RECONSTRUCTION)
+# PHOENIX PROTOCOL - OCR ENGINE V16.1 (FIXED PATH HANDLING FOR BYTES/STR)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
 
 import fitz
@@ -9,7 +9,7 @@ import tempfile
 import re
 import io
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 try:
     import docx
@@ -135,36 +135,61 @@ def _extract_text_from_pdf(file_path: str) -> str:
         return ""
 
 
-def extract_text(file_path: str, mime_type: str = "") -> str:
-    m = (mime_type or "").lower()
-    fn = (file_path or "").lower()
+# ==========================================================
+# FIX: KONVERSION I SIGURT I FILE_PATH NË STRING
+# ==========================================================
+def _ensure_string_path(file_path: Union[str, bytes, os.PathLike]) -> str:
+    """Konverton file_path në string në mënyrë të sigurt."""
+    if isinstance(file_path, bytes):
+        return file_path.decode('utf-8', errors='ignore')
+    if isinstance(file_path, os.PathLike):
+        return str(file_path)
+    return str(file_path)
 
-    if "pdf" in m or fn.endswith(".pdf"): 
-        return _extract_text_from_pdf(file_path)
+
+def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "") -> str:
+    """
+    Nxjerr tekstin nga një skedar.
+    Argumenti file_path mund të jetë string, bytes, ose PathLike.
+    """
+    # Konverto file_path në string të sigurt
+    path_str = _ensure_string_path(file_path)
+    file_name_lower = path_str.lower()
+    mime_lower = (mime_type or "").lower()
+
+    # PDF
+    if "pdf" in mime_lower or file_name_lower.endswith(".pdf"):
+        return _extract_text_from_pdf(path_str)
 
     # WORD DOCUMENTS (.docx & legacy .doc)
-    if "word" in m or "officedocument" in m or fn.endswith(".docx") or fn.endswith(".doc") or m == "application/msword":
-        return _extract_docx_text(file_path)
+    if ("word" in mime_lower or 
+        "officedocument" in mime_lower or 
+        file_name_lower.endswith(".docx") or 
+        file_name_lower.endswith(".doc") or 
+        mime_lower == "application/msword"):
+        return _extract_docx_text(path_str)
 
     # DIRECT IMAGE OCR SUPPORT (.jpg, .jpeg, .png, .webp)
-    if any(m.startswith(img_t) for img_t in ["image/jpeg", "image/png", "image/webp", "image/jpg"]) or any(fn.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+    if (any(mime_lower.startswith(img_t) for img_t in ["image/jpeg", "image/png", "image/webp", "image/jpg"]) or 
+        any(file_name_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"])):
         if advanced_bytes_ocr:
             try:
-                with open(file_path, "rb") as img_f:
+                with open(path_str, "rb") as img_f:
                     img_bytes = img_f.read()
                 return _sanitize_text(advanced_bytes_ocr(img_bytes))
             except Exception as img_err:
                 logger.error(f"❌ Direct Image OCR Error: {img_err}")
         return ""
 
-    if "excel" in m or "spreadsheet" in m or fn.endswith(".xlsx") or fn.endswith(".xls"):
+    # EXCEL
+    if "excel" in mime_lower or "spreadsheet" in mime_lower or file_name_lower.endswith(".xlsx") or file_name_lower.endswith(".xls"):
         try:
             import pandas as pd
-            return _sanitize_text("\n".join(df.to_string() for _, df in pd.read_excel(file_path, sheet_name=None).items()))
+            return _sanitize_text("\n".join(df.to_string() for _, df in pd.read_excel(path_str, sheet_name=None).items()))
         except Exception:
             return ""
 
-    return "" 
+    return ""
 
 
 def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
@@ -188,14 +213,14 @@ class TextExtractionService:
     """Shërbimi qendror i nxjerrjes së tekstit dhe OCR-it."""
     
     @staticmethod
-    def extract_text(file_path: str, mime_type: str = "") -> str:
+    def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "") -> str:
         return extract_text(file_path, mime_type)
 
     @staticmethod
     def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
         return extract_text_from_file(file_obj, file_type)
 
-    def __call__(self, file_path: str, mime_type: str = "") -> str:
+    def __call__(self, file_path: Union[str, bytes, os.PathLike], mime_type: str = "") -> str:
         return extract_text(file_path, mime_type)
 
 
