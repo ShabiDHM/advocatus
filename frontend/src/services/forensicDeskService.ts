@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.8 (CLEAN - REMOVED INVESTIGATOR METHODS)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.9 (WAR ROOM TOTAL WIPEOUT CLIENT)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -513,6 +513,11 @@ export class ForensicDeskService {
       `${this.baseUrl}/war-room/${caseId}/latest`
     );
     return response.data.has_record ? response.data.data : null;
+  }
+
+  // NEW: Total Wipeout i War Room nga MongoDB
+  public async deleteWarRoomSynthesis(caseId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/war-room/${caseId}`);
   }
 
   // ==========================================================

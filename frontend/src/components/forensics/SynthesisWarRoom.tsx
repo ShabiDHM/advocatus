@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/SynthesisWarRoom.tsx
-// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V3.1 (ZERO TS WARNINGS & PURE CROSS-EXAMINATION)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • STREAMLINED
+// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V3.2 (WITH TOTAL WIPEOUT TRASH ACTION)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • MOBILE-READY
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,7 +14,8 @@ import {
   Award,
   ShieldCheck,
   Copy,
-  CheckCircle2
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 import {
   forensicDeskService,
@@ -45,6 +46,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
   onEvidenceChange
 }) => {
   const [isCrossAnalyzing, setIsCrossAnalyzing] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [synthesisData, setSynthesisData] = useState<WarRoomSynthesisResponse | null>(null);
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
 
@@ -80,7 +82,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     try { localStorage.setItem('juristi_war_room_font_size', '1'); } catch {}
   };
 
-  // Ngarkon sintezën më të fundit nga serveri në montim
+  // Ngarkon sintezën më të fundit nga MongoDB në montim
   useEffect(() => {
     const loadLatestSynthesis = async () => {
       if (!caseId) return;
@@ -117,6 +119,27 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     }
   };
 
+  // TOTAL CASCADE WIPEOUT I WAR ROOM NGA MONGODB
+  const handleDeleteSynthesis = async () => {
+    if (!caseId || isDeleting) return;
+    const confirmDelete = window.confirm(
+      "A jeni i sigurt që dëshironi të asgjësoni plotësisht matricën e kryqëzimit të provave nga MongoDB (Total Cascade Wipeout)?"
+    );
+    if (!confirmDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await forensicDeskService.deleteWarRoomSynthesis(caseId);
+      setSynthesisData(null);
+      if (onEvidenceChange) onEvidenceChange();
+    } catch (err: any) {
+      console.error("Dështoi fshirja e War Room:", err);
+      alert(err?.response?.data?.detail || "Dështoi fshirja totale e War Room.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleCopyFullSynthesis = () => {
     if (!synthesisData) return;
     const text = `=== KRYQËZIMI I PROVAVE FORENZIKE (WAR ROOM) ===\nLënda: ${clientName}\nOrgani: ${courtJurisdiction}\n\n1. TEORIA KRYESORE E RASTIT:\n${synthesisData.winning_theory_of_the_case}\n\n2. KONTRADIKTAT NDËRPROVUESE:\n${synthesisData.critical_cross_contradictions?.join('\n- ')}\n\n3. PYETJET TËRTHORE PËR SEANCË:\n${synthesisData.cross_examination_traps?.map((t, idx) => `#${idx + 1} [Target: ${t.witness_or_target}]: "${t.question}" (Qëllimi: ${t.trap_explanation})`).join('\n\n')}\n\n4. DYSHIMI I ARSYESHËM (IN DUBIO PRO REO):\n${synthesisData.in_dubio_pro_reo_vectors?.join('\n- ')}`;
@@ -129,7 +152,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
   return (
     <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-rose-500/30 bg-card shadow-xl space-y-4 sm:space-y-6">
       
-      {/* KOKA E THJESHTËZUAR DHE PROFESIONALE */}
+      {/* KOKA E WAR ROOM ME KONTROLLET DHE KOSHIN */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-rose-600/10 text-rose-500 flex items-center justify-center shrink-0">
@@ -144,7 +167,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
                 type="button"
                 onClick={() => {
                   if (onEvidenceChange) onEvidenceChange();
-                  alert("Provat u rifreskuan.");
+                  alert("Provat u rifreskuan nga serveri.");
                 }}
                 title="Rifresko të dhënat"
                 className="p-1 text-text-muted hover:text-text-primary rounded-lg hover:bg-hover transition-colors cursor-pointer"
@@ -158,8 +181,8 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
           </div>
         </div>
 
-        {/* Kontrolli i Fontit + Butonat e Veprimit */}
-        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+        {/* Kontrolli i Fontit + Kopjo + Koshi + Butoni Kryqëzo */}
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
           {/* Madhësia e Fontit */}
           <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
             <button
@@ -194,7 +217,20 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
               className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               {copiedAll ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
-              <span>{copiedAll ? 'U Kopjua' : 'Kopjo Analizën'}</span>
+              <span>{copiedAll ? 'U Kopjua' : 'Kopjo'}</span>
+            </button>
+          )}
+
+          {/* BUTONI I KOSHIT (TOTAL CASCADE WIPEOUT NGA MONGODB) */}
+          {synthesisData && (
+            <button
+              type="button"
+              onClick={handleDeleteSynthesis}
+              disabled={isDeleting}
+              className="h-9 w-9 bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-xs disabled:opacity-40"
+              title="Fshi plotësisht analizën nga MongoDB (Total Wipeout)"
+            >
+              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />}
             </button>
           )}
 

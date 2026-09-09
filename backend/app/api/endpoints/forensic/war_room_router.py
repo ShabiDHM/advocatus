@@ -1,12 +1,13 @@
 # FILE: backend/app/api/endpoints/forensic/war_room_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED WAR ROOM ROUTER V1.0 (GRAPHRAG & CROSS-EXAMINATION ENGINE)
-# 100% COMPLETE CODE • ZERO CLIENT INTERFERENCE • RBAC PROTECTED
+# PHOENIX PROTOCOL - FORENSIC DEDICATED WAR ROOM ROUTER V1.1 (TOTAL WIPEOUT INTEGRATION)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pymongo.database import Database
+from bson import ObjectId
 from pydantic import BaseModel, Field
 
 from app.core.db import get_db
@@ -36,7 +37,7 @@ class GraphQueryRequest(BaseModel):
     term: str = Field(..., min_length=2)
 
 # ==========================================================
-# 1. KRYQËZIMI MULTIMODAL DHE PYETJET TËRTHORE (CLAUDE 4.6)
+# 1. KRYQËZIMI MULTIMODAL DHE RUAJTJA NË MONGODB
 # ==========================================================
 @router.post("/synthesize")
 def synthesize_war_room_endpoint(
@@ -83,7 +84,7 @@ def synthesize_war_room_endpoint(
     return {"success": True, "data": synthesis}
 
 # ==========================================================
-# 2. GRAPHRAG (PYETJA E RRJETIT GRAFIK NEO4J)
+# 2. GRAPHRAG (PYETJA E RRJETIT GRAFIK)
 # ==========================================================
 @router.post("/graph-query")
 def graph_query_endpoint(
@@ -114,3 +115,39 @@ def get_latest_war_room_synthesis(
         record["created_at"] = record["created_at"].isoformat()
 
     return {"has_record": True, "data": record.get("synthesis"), "created_at": record.get("created_at")}
+
+# ==========================================================
+# 4. TOTAL CASCADE WIPEOUT I WAR ROOM NGA MONGODB
+# ==========================================================
+@router.delete("/{case_id}", status_code=status.HTTP_200_OK)
+def delete_war_room_records(
+    case_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """Fshin plotësisht të gjitha regjistrat e War Room për këtë lëndë nga MongoDB."""
+    user_id = str(current_user.id)
+    case_id_str = str(case_id)
+
+    filter_query = {
+        "$or": [
+            {"case_id": case_id_str},
+            {"case_id": ObjectId(case_id_str)} if ObjectId.is_valid(case_id_str) else {"case_id": case_id_str}
+        ]
+    }
+
+    result = db[FORENSIC_WAR_ROOM_COLLECTION].delete_many(filter_query)
+
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id_str,
+        action="WAR_ROOM_TOTAL_CASCADE_WIPEOUT",
+        details={"deleted_count": result.deleted_count}
+    )
+
+    return {
+        "status": "success",
+        "message": "Të gjitha regjistrat e War Room u fshinë plotësisht nga MongoDB (Total Wipeout).",
+        "deleted_count": result.deleted_count
+    }
