@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/dossier_router.py
-# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V1.4 (FIXED LOGGER + TOTAL CASCADE WIPEOUT)
+# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V1.5 (ROOT-CAUSE DELETION FIX)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import logging
@@ -302,15 +302,17 @@ def delete_forensic_dossier(
     """
     Fshin plotësisht një dosje forenzike së bashku me të gjitha provat,
     dokumentet, audiot, videot, financat, war room, chat, hetuesin dhe
-    regjistrat e tjerë të lidhur (Total Cascade Wipeout).
+    vetë dokumentin mëmë të dosjes (Total Cascade Wipeout).
     """
     user_id = str(current_user.id)
 
-    # Kontrollo nëse dosja ekziston në koleksionin forenzik ose rastet standarde
-    query = {"_id": ObjectId(case_id)} if ObjectId.is_valid(case_id) else {"_id": case_id}
-    dossier = db[FORENSIC_DOSSIERS_COLLECTION].find_one(query)
+    # Përgatit filtrin kryesor me ObjectId ose string
+    query_id = {"_id": ObjectId(case_id)} if ObjectId.is_valid(case_id) else {"_id": case_id}
+    
+    # Kontrollo ekzistencën e dosjes
+    dossier = db[FORENSIC_DOSSIERS_COLLECTION].find_one(query_id)
     if not dossier:
-        dossier = db["cases"].find_one(query)
+        dossier = db["cases"].find_one(query_id)
     if not dossier:
         raise HTTPException(status_code=404, detail="Dosja nuk u gjet.")
 
@@ -334,36 +336,50 @@ def delete_forensic_dossier(
         if fin.get("storage_key"):
             storage_keys_to_delete.add(fin["storage_key"])
 
-    # Fshij skedarët nga storage
+    # Fshij skedarët fizikë nga Cloud Storage
     for storage_key in storage_keys_to_delete:
         try:
             storage_service.delete_file(storage_key=storage_key)
         except Exception as e:
             logger.warning(f"Failed to delete storage key {storage_key}: {e}")
 
-    # Fshij nga të gjitha koleksionet e lidhura
-    collections_to_wipe = [
+    # 1. Fshij provat nga koleksionet fëmijë (ku indeksohen me 'case_id')
+    child_collections = [
         "forensic_documents",
         "forensic_media",
         "forensic_financial_records",
         "forensic_war_room_records",
         "forensic_chat_history",
-        "forensic_investigator_findings",
-        "forensic_dossiers"
+        "forensic_investigator_findings"
     ]
 
-    for coll in collections_to_wipe:
+    for coll in child_collections:
         db[coll].delete_many({"case_id": str(case_id)})
         if ObjectId.is_valid(case_id):
             db[coll].delete_many({"case_id": ObjectId(case_id)})
 
-    # Fshij vektorët e lidhur
+    # Fshij vektorët
     try:
         db["user_vectors"].delete_many({"case_id": str(case_id)})
         if ObjectId.is_valid(case_id):
             db["user_vectors"].delete_many({"case_id": ObjectId(case_id)})
     except Exception:
         pass
+
+    # 2. FSHIRJA RRËNJËSORE E VETË DOSJES MËMË (sipas _id dhe case_id)
+    db[FORENSIC_DOSSIERS_COLLECTION].delete_many({
+        "$or": [
+            query_id,
+            {"_id": str(case_id)},
+            {"case_id": str(case_id)}
+        ]
+    })
+    db["cases"].delete_many({
+        "$or": [
+            query_id,
+            {"_id": str(case_id)}
+        ]
+    })
 
     # Shëno veprimin në audit trail
     log_forensic_action(
