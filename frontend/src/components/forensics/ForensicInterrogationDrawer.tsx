@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V5.1 (PERSISTENCE & CONTROLLED TRASH PURGE)
+// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V5.2 (STREAMING)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -117,7 +117,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   }, [input]);
 
-  // Dërgimi i pyetjes te Claude Sonnet 4.6 (Ruhet automatikisht në MongoDB)
+  // Dërgimi i pyetjes me streaming
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
     if (!cleanText || isProcessing || !caseId || isPurging) return;
@@ -142,34 +142,43 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     setIsProcessing(true);
 
     try {
-      const result = await forensicDeskService.sendChatMessage(
+      const stream = await forensicDeskService.streamForensicChat(
         caseId,
         cleanText,
         `Lënda: ${caseNumber} - ${clientName}. Vula: ${chainOfCustodyHash || 'AKTIVE'}`
       );
 
-      setMessages(prev => {
-        const next = [...prev];
-        const lastIdx = next.findIndex(m => m.id === aiPlaceholderId);
-        if (lastIdx !== -1) {
-          next[lastIdx] = {
-            ...next[lastIdx],
-            id: result._id || next[lastIdx].id,
-            content: result.content || 'Ekspertiza u krye me sukses.',
-            citationAudit: result.citation_audit
-          };
-        }
-        return next;
-      });
+      const reader = stream.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
+
+        setMessages(prev => {
+          const next = [...prev];
+          const idx = next.findIndex(m => m.id === aiPlaceholderId);
+          if (idx !== -1) {
+            next[idx] = {
+              ...next[idx],
+              content: accumulated,
+            };
+          }
+          return next;
+        });
+      }
     } catch (err: any) {
       console.error("Forensic Chat Error:", err);
       setMessages(prev => {
         const next = [...prev];
-        const lastIdx = next.findIndex(m => m.id === aiPlaceholderId);
-        if (lastIdx !== -1) {
-          next[lastIdx] = {
-            ...next[lastIdx],
-            content: `[GABIM FORENZIK: ${err?.response?.data?.detail || err?.message || 'Lidhja me Claude Sonnet 4.6 dështoi.'}]`
+        const idx = next.findIndex(m => m.id === aiPlaceholderId);
+        if (idx !== -1) {
+          next[idx] = {
+            ...next[idx],
+            content: `[GABIM FORENZIK: ${err?.message || 'Lidhja me Claude Sonnet 4.6 dështoi.'}]`
           };
         }
         return next;
