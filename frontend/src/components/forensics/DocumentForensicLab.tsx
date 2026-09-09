@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.4 (ADDED EXTRACTED TEXT VIEW ICON)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.5 (EXTRACTED TEXT ENDPOINT INTEGRATION)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -152,6 +152,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   const [viewingTextDoc, setViewingTextDoc] = useState<any | null>(null);
   const [viewingTextUrl, setViewingTextUrl] = useState<string | null>(null);
+  const [loadingTextDocId, setLoadingTextDocId] = useState<string | null>(null);
   const [renameDocId, setRenameDocId] = useState<string | null>(null);
   const [renameDocName, setRenameDocName] = useState<string>('');
   const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
@@ -343,23 +344,39 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingDoc(doc);
   };
 
-  // --- NEW: View Extracted/Processed Text ---
-  const handleViewExtractedText = (doc: ForensicDocItem, e: React.MouseEvent) => {
+  // --- NEW: View Extracted/Processed Text (fetches from dedicated endpoint) ---
+  const handleViewExtractedText = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!doc.extracted_text) {
+    if (!caseId || !doc.id) return;
+
+    setLoadingTextDocId(doc.id);
+    try {
+      // Fetch the extracted text from the dedicated endpoint
+      const response = await apiClient.get<string>(
+        `/forensic/documents/${caseId}/${doc.id}/extracted-text`,
+        { responseType: 'text' }
+      );
+      const text = response.data || '';
+      if (!text) {
+        alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.");
+        return;
+      }
+
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      setViewingTextUrl(blobUrl);
+      setViewingTextDoc({
+        file_name: `${doc.file_name}.txt`,
+        mime_type: 'text/plain',
+        title: `Teksti i Ekstraktuar - ${doc.file_name}`
+      });
+    } catch (err) {
+      console.error("Dështoi ngarkimi i tekstit të ekstraktuar:", err);
       alert("Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.");
-      return;
+    } finally {
+      setLoadingTextDocId(null);
     }
-
-    const blob = new Blob([doc.extracted_text], { type: 'text/plain;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    setViewingTextUrl(blobUrl);
-    setViewingTextDoc({
-      file_name: `${doc.file_name}.txt`,
-      mime_type: 'text/plain',
-      title: `Teksti i Ekstraktuar - ${doc.file_name}`
-    });
   };
 
   // --- Document Rename Handlers ---
@@ -632,6 +649,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   const isDeleting = doc.id === deletingDocId;
                   const isArchiving = doc.id === archivingDocId;
                   const isArchived = doc.status === 'ARCHIVED';
+                  const isTextLoading = doc.id === loadingTextDocId;
 
                   return (
                     <div
@@ -673,14 +691,15 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           <Eye size={13} />
                         </button>
 
-                        {/* FileSearch - View Extracted Text */}
+                        {/* FileSearch - View Extracted Text (fetch on demand) */}
                         <button
                           type="button"
                           onClick={(e) => handleViewExtractedText(doc, e)}
+                          disabled={isTextLoading}
                           title="Shiko tekstin e ekstraktuar/procesuar"
-                          className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                          className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40"
                         >
-                          <FileSearch size={13} />
+                          {isTextLoading ? <Loader2 size={13} className="animate-spin text-emerald-500" /> : <FileSearch size={13} />}
                         </button>
 
                         {/* Pencil - Rename */}

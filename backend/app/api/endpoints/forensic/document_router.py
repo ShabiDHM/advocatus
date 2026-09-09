@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.6 (ADDED /preview WITH PDF CONVERSION)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.7 (ADDED EXTRACTED TEXT ENDPOINT)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, PlainTextResponse
 from pymongo.database import Database
 from bson import ObjectId
 from pydantic import BaseModel, Field
@@ -22,7 +22,7 @@ from app.services.text_extraction_service import text_extraction_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_llm_service import call_forensic_llm
-from app.services.pdf_service import pdf_service  # <-- PËRDORIMI I PDF_SERVICE
+from app.services.pdf_service import pdf_service
 
 router = APIRouter(prefix="/documents", tags=["Forensic Documents"])
 logger = logging.getLogger(__name__)
@@ -443,9 +443,7 @@ async def preview_forensic_document(
             file_bytes,
             filename
         )
-        # Nëse konvertimi dështon dhe kthen të njëjtat bytes, kthejmë origjinalin me content-type të duhur
         if pdf_bytes == file_bytes:
-            # Konvertimi nuk ndodhi, ktheje origjinalin
             return StreamingResponse(
                 io.BytesIO(file_bytes),
                 media_type=mime_type or 'application/octet-stream',
@@ -459,3 +457,32 @@ async def preview_forensic_document(
     except Exception as e:
         logger.error(f"Preview conversion error: {e}")
         raise HTTPException(status_code=500, detail="Dështoi konvertimi i dokumentit në PDF.")
+
+# ==========================================================
+# 7. NEW: GET EXTRACTED TEXT
+# ==========================================================
+@router.get("/{case_id}/{doc_id}/extracted-text", response_class=PlainTextResponse)
+async def get_extracted_text(
+    case_id: str,
+    doc_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Kthen tekstin e ekstraktuar/procesuar për dokumentin e dhënë,
+    i cili përdoret për embeddings dhe analiza.
+    """
+    doc = None
+    if ObjectId.is_valid(doc_id):
+        doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
+        if not doc:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    extracted_text = doc.get("extracted_text") or ""
+    if not extracted_text:
+        raise HTTPException(status_code=404, detail="Teksti i ekstraktuar nuk është i disponueshëm për këtë dokument.")
+
+    return extracted_text

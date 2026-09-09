@@ -1,15 +1,16 @@
-# PHOENIX PROTOCOL - PRODUCTION CLOUD INFRASTRUCTURE V5.0
+# PHOENIX PROTOCOL - PRODUCTION CLOUD INFRASTRUCTURE V5.1
 # Optimized for: Render Free Tier (512MB RAM)
 # Target: Python 3.13 / FastAPI
 
 FROM python:3.13-slim
 
-# 1. Install critical system dependencies (Lightweight)
+# 1. Install critical system dependencies (Lightweight) + LibreOffice for DOCX conversion
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-sqi \
-    curl && \
+    curl \
+    libreoffice-writer && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. Set working environment
