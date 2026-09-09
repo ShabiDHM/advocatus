@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.3 (DUAL STREAMING: CHAT + INVESTIGATION)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.5 (COMPLETE CASE PILLARS)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -169,6 +169,7 @@ export interface WarRoomSynthesisResponse {
 }
 
 export class ForensicDeskService {
+  // Ky shërbim përdoret VETËM në laboratorin forenzik (endpoint /forensic/...)
   private readonly baseUrl = '/forensic';
 
   // ==========================================================
@@ -399,6 +400,36 @@ export class ForensicDeskService {
     await apiClient.delete(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`);
   }
 
+  // NEW: Save already generated pillar content
+  public async saveForensicDocPillarContent(
+    caseId: string,
+    docId: string,
+    pillar: string,
+    content: string
+  ): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`, { content });
+  }
+
+  // NEW: Get case pillars
+  public async getForensicCasePillars(caseId: string): Promise<Record<string, string>> {
+    const response = await apiClient.get<Record<string, string>>(`${this.baseUrl}/dossiers/${caseId}/pillars`);
+    return response.data || {};
+  }
+
+  // NEW: Save case pillar content
+  public async saveForensicCasePillarContent(
+    caseId: string,
+    pillar: string,
+    content: string
+  ): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`, { content });
+  }
+
+  // NEW: Delete case pillar
+  public async deleteForensicCasePillar(caseId: string, pillar: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`);
+  }
+
   // ==========================================================
   // 5. LABORATORI FINANCIAR (LMD 265 & PANDAS)
   // ==========================================================
@@ -483,7 +514,6 @@ export class ForensicDeskService {
     return response.data;
   }
 
-  // NEW: Streaming method for forensic chat
   public async streamForensicChat(
     caseId: string,
     message: string,
@@ -540,7 +570,6 @@ export class ForensicDeskService {
     return response.data;
   }
 
-  // NEW: Streaming method for investigator analysis
   public async streamInvestigation(
     caseId: string,
     caseContext: string,

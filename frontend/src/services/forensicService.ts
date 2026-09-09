@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V4.1 (RESTORED FINANCIAL FORENSIC METHODS)
+// PHOENIX PROTOCOL - FORENSIC SERVICE V4.2 (CLEAN STANDARD CASE FORENSICS)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • ATOMIC $UNSET INTEGRATION
 
 import { apiClient } from './apiClient';
@@ -8,7 +8,6 @@ import type {
   DeepAnalysisResult
 } from '../data/types';
 
-// Ose eksporto tipet e reja nëse mungojnë (mund të zëvendësohen sipas atyre që keni te caseService.ts)
 export interface ForensicSpreadsheetAnalysisResult {
   [key: string]: any;
 }
@@ -45,6 +44,9 @@ export interface MediaEvidenceItem {
 }
 
 export class ForensicService {
+  // Ky shërbim përdoret VETËM për analiza brenda lëndës standarde (endpoint /cases/...)
+  // Asnjë metodë nuk duhet të përdorë endpoint /forensic/...
+
   // =========================================================================
   // 🏛️ 1. SHTJELLAT E LËNDËS NË MONGODB
   // =========================================================================

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V2.0 (BACKGROUND PROCESSING PIPELINE)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V2.1 (PERSISTENT PILLAR SAVE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -8,7 +8,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks, Body
 from fastapi.responses import StreamingResponse, PlainTextResponse
 from pymongo.database import Database
 from bson import ObjectId
@@ -236,6 +236,55 @@ TEKSTI I SHKRESËS:
 
     return {"status": "success", "pillar": pillar_key, "content": content}
 
+# NEW ENDPOINT: SAVE CONTENT ONLY
+@router.put("/{case_id}/{doc_id}/pillars/{pillar}")
+def save_forensic_doc_pillar_content(
+    case_id: str,
+    doc_id: str,
+    pillar: str,
+    payload: Dict[str, Any] = Body(...),
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Ruan përmbajtjen e një shtylle të gjeneruar tashmë (p.sh. nga streaming)
+    pa e ri-gjeneruar me LLM.
+    """
+    user_id = str(current_user.id)
+    pillar_key = pillar.strip().upper()
+    content = payload.get("content", "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Përmbajtja nuk mund të jetë e zbrazët.")
+
+    doc = None
+    target_coll = FORENSIC_DOCS_COLLECTION
+    if ObjectId.is_valid(doc_id):
+        doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
+        if not doc:
+            doc = db.documents.find_one({"_id": ObjectId(doc_id)})
+            target_coll = "documents"
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
+
+    db[target_coll].update_one(
+        {"_id": doc["_id"]},
+        {"$set": {
+            f"forensic_pillars.{pillar_key}": content,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id,
+        action="DOCUMENT_PILLAR_SAVED",
+        details={"doc_name": doc.get("file_name"), "pillar": pillar_key}
+    )
+
+    return {"status": "success", "pillar": pillar_key}
+
 @router.delete("/{case_id}/{doc_id}/pillars/{pillar}", status_code=status.HTTP_200_OK)
 def delete_forensic_doc_pillar(
     case_id: str,
@@ -416,12 +465,10 @@ async def preview_forensic_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
 
-    # Prefer the preview_storage_key if exists (generated PDF)
     storage_key = doc.get("preview_storage_key") or doc.get("storage_key")
     if not storage_key:
         raise HTTPException(status_code=404, detail="Skedari nuk gjendet në ruajtje.")
 
-    # Shkarko bytes nga storage
     try:
         file_bytes = await asyncio.to_thread(storage_service.download_file_as_bytes, storage_key)
     except Exception as e:
@@ -431,7 +478,6 @@ async def preview_forensic_document(
     filename = doc.get("file_name", "dokument.pdf")
     mime_type = doc.get("mime_type", "application/pdf")
 
-    # Nëse është PDF, ktheje direkt
     if file_bytes.startswith(b'%PDF'):
         return StreamingResponse(
             io.BytesIO(file_bytes),
@@ -439,7 +485,6 @@ async def preview_forensic_document(
             headers={"Content-Disposition": f"inline; filename={filename}"}
         )
 
-    # Konverto në PDF duke përdorur pdf_service
     try:
         pdf_bytes, new_filename = await asyncio.to_thread(
             pdf_service.convert_bytes_to_pdf,

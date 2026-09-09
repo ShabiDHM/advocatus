@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.7 (STREAMING + PROFESSIONAL TYPOGRAPHY)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.9 (FIXED SERVICE MAPPING • PERSISTENT SAVE)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -23,7 +23,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 
-import { forensicService } from '../../services/forensicService';
+// ✅ Shërbimi i dedikuar i laboratorit forenzik
 import { forensicDeskService, ForensicDocItem } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
@@ -231,10 +231,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setShowScrollBottomBtn(false);
   };
 
+  // ✅ Load case pillars from forensic desk
   const loadCasePillars = useCallback(async () => {
     if (!caseId) return;
     try {
-      const pillars = await forensicService.getCasePillars(caseId);
+      const pillars = await forensicDeskService.getForensicCasePillars(caseId);
       if (pillars && typeof pillars === 'object') {
         setCasePillars({
           PILLAR_1: pillars.PILLAR_1 || '',
@@ -442,7 +443,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         await forensicDeskService.deleteForensicDocPillar(caseId, selectedDocId, activePillar);
         setDocPillars(prev => ({ ...prev, [activePillar]: '' }));
       } else {
-        await forensicService.deleteCasePillar(caseId, activePillar);
+        await forensicDeskService.deleteForensicCasePillar(caseId, activePillar);
         setCasePillars(prev => ({ ...prev, [activePillar]: '' }));
       }
     } catch (err) {
@@ -454,7 +455,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   };
 
   // ============================================================
-  // GJENERIMI I BLINDUAR ME STREAMING
+  // GJENERIMI I BLINDUAR ME STREAMING + RUAJTJE PERSISTENTE
   // ============================================================
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
@@ -489,12 +490,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setDocPillars(prev => ({ ...prev, [pillar]: accumulated }));
         }
 
-        // Pas përfundimit, ruaj në DB
+        // RUAJTJA E SAKTË NË FORENSIC_DOCUMENTS
         if (accumulated.trim().length > 50) {
           try {
-            await forensicService.saveDocumentPillar(caseId, targetDoc.id, pillar, accumulated);
+            await forensicDeskService.saveForensicDocPillarContent(caseId, targetDoc.id, pillar, accumulated);
+            console.log("✅ Document pillar saved successfully.");
           } catch (saveErr) {
-            console.warn("Could not save doc pillar to MongoDB:", saveErr);
+            console.warn("Could not save doc pillar:", saveErr);
           }
         }
       } catch (err) {
@@ -525,12 +527,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setCasePillars(prev => ({ ...prev, [pillar]: accumulated }));
         }
 
-        // Pas përfundimit, ruaj në DB
+        // RUAJTJA E SAKTË NË FORENSIC_DOSSIERS
         if (accumulated.trim().length > 50) {
           try {
-            await forensicService.saveCasePillar(caseId, pillar, accumulated);
+            await forensicDeskService.saveForensicCasePillarContent(caseId, pillar, accumulated);
+            console.log("✅ Case pillar saved successfully.");
           } catch (saveErr) {
-            console.warn("Could not save case pillar to MongoDB:", saveErr);
+            console.warn("Could not save case pillar:", saveErr);
           }
         }
       } catch (err) {
@@ -553,6 +556,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setTimeout(() => setCopiedReport(false), 2500);
   };
 
+  // ✅ Arkivimi tani përdor sealCustody nga forensicDeskService
   const handleArchiveReport = async () => {
     if (!caseId || !currentPillarContent) return;
     setIsArchivingReport(true);
@@ -563,11 +567,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.file_name || 'Dokument'}`
         : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
 
-      await forensicService.archiveForensicReport(caseId, activeTitle, currentPillarContent);
+      // Vulos në server si provë e ruajtjes
+      await forensicDeskService.sealCustody(caseId, `Arkivim i analizës: ${activeTitle}`, []);
       setArchiveReportSuccess(true);
       setTimeout(() => setArchiveReportSuccess(false), 3000);
+      if (onEvidenceChange) onEvidenceChange();
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Dështoi ruajtja në arkiv.");
+      alert(err?.response?.data?.detail || "Dështoi arkivimi i raportit.");
     } finally {
       setIsArchivingReport(false);
     }
