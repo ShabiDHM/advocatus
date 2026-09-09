@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/audio_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.3 (AUTO PROCESSING & VECTORIZATION)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.4 (APPEAR AS DOCUMENT + CASCADE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -27,6 +27,7 @@ router = APIRouter(prefix="/audio", tags=["Forensic Audio"])
 logger = logging.getLogger(__name__)
 
 FORENSIC_MEDIA_COLLECTION = "forensic_media"
+FORENSIC_DOCS_COLLECTION = "forensic_documents"
 
 def _serialize_media(doc: Dict[str, Any]) -> Dict[str, Any]:
     doc["id"] = str(doc["_id"])
@@ -75,7 +76,7 @@ async def upload_forensic_audio(
     )
 
     now = datetime.now(timezone.utc)
-    doc = {
+    media_doc = {
         "case_id": case_id,
         "owner_id": user_id,
         "file_name": filename,
@@ -91,11 +92,29 @@ async def upload_forensic_audio(
         "progress_message": "Në pritje të përpunimit..."
     }
 
-    result = db[FORENSIC_MEDIA_COLLECTION].insert_one(doc)
-    doc["_id"] = result.inserted_id
+    result = db[FORENSIC_MEDIA_COLLECTION].insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # Trigger background processing (transcription + analysis + embeddings)
+    # ✅ KRIJO HYRJE NË DOKUMENTET FORENZIKE
+    doc_entry = {
+        "case_id": str(case_id),
+        "owner_id": user_id,
+        "file_name": filename,
+        "storage_key": storage_key,
+        "mime_type": content_type,
+        "status": "READY",
+        "evidence_sha256": evidence_sha256,
+        "custody_stamp": custody_stamp,
+        "media_type": "audio",
+        "media_id": media_id_str,
+        "extracted_text": "",
+        "forensic_pillars": {},
+        "created_at": now,
+        "updated_at": now
+    }
+    db[FORENSIC_DOCS_COLLECTION].insert_one(doc_entry)
+
+    # Trigger background processing
     background_tasks.add_task(process_audio_media_background, db, media_id_str)
 
     log_forensic_action(
@@ -110,7 +129,8 @@ async def upload_forensic_audio(
         }
     )
 
-    return _serialize_media(doc)
+    media_doc["_id"] = result.inserted_id
+    return _serialize_media(media_doc)
 
 # ==========================================================
 # 2. LISTIMI I PROVAVE AUDIO TË LËNDËS
@@ -140,7 +160,7 @@ def list_forensic_audio(
     return items
 
 # ==========================================================
-# 3. AUDIO STREAMING (ME MBROJTJE TOKEN-I)
+# 3. AUDIO STREAMING
 # ==========================================================
 @router.get("/{case_id}/{media_id}/stream")
 def stream_forensic_audio(
@@ -182,7 +202,7 @@ def stream_forensic_audio(
     )
 
 # ==========================================================
-# 4. FSHIRJA E AUDIOS ME AUDIT TRAIL
+# 4. FSHIRJA E AUDIOS ME AUDIT TRAIL DHE CASCADE
 # ==========================================================
 @router.delete("/{case_id}/{media_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_audio(
@@ -212,6 +232,9 @@ def delete_forensic_audio(
         except Exception:
             pass
 
+    # ✅ Fshij edhe nga forensic_documents
+    db[FORENSIC_DOCS_COLLECTION].delete_many({"media_id": media_id, "case_id": str(case_id)})
+
     log_forensic_action(
         db=db,
         user_id=user_id,
@@ -223,7 +246,7 @@ def delete_forensic_audio(
     return {"status": "success", "message": "Prova audio u asgjësua nga laboratori forenzik."}
 
 # ==========================================================
-# 5. ANALIZA E DIARIZIMIT DHE STRESIT (ASSEMBLYAI & CLAUDE)
+# 5. ANALIZA E DIARIZIMIT DHE STRESIT
 # ==========================================================
 @router.post("/analyze")
 async def analyze_audio_forensics(
@@ -257,7 +280,7 @@ async def analyze_audio_forensics(
     return {"success": True, "file_name": file.filename, "data": result}
 
 # ==========================================================
-# 6. VETËM TRANSKRIPTI I PASTËR (VERBATIM, PA ANALIZË LLM)
+# 6. VETËM TRANSKRIPTI I PASTËR
 # ==========================================================
 @router.post("/pure-transcript")
 async def get_pure_audio_transcript(
@@ -280,7 +303,6 @@ async def get_pure_audio_transcript(
     temp_path = temp_in.name
 
     try:
-        # Përdorim motorin e thjeshtë të Whisper (pa diarizim dhe pa Claude)
         result = await video_service.analyze_video_evidence_async(temp_path, file.filename or "audio")
         pure_text = result.get("transcription", "[Zëri nuk mund të transkriptohej.]")
         

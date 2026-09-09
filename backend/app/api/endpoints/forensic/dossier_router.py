@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/forensic/dossier_router.py
-# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V1.2 (FULL CASE PILLARS)
+# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V1.4 (FIXED LOGGER + TOTAL CASCADE WIPEOUT)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from pymongo.database import Database
 from bson import ObjectId
@@ -12,10 +13,12 @@ from pydantic import BaseModel, Field
 from app.core.db import get_db
 from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
+from app.services import storage_service
 from app.services.forensic.forensic_chain_of_custody import create_custody_stamp
 from app.services.forensic.forensic_audit_service import log_forensic_action, get_case_audit_trail
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 FORENSIC_DOSSIERS_COLLECTION = "forensic_dossiers"
 
@@ -186,7 +189,7 @@ def get_case_audit(
     trail = get_case_audit_trail(db, case_id)
     return {"case_id": case_id, "total_records": len(trail), "trail": trail}
 
-# --- NEW ENDPOINTS FOR CASE PILLARS ---
+# --- CASE PILLARS ---
 
 @router.get("/dossiers/{case_id}/pillars")
 def get_forensic_case_pillars(
@@ -287,3 +290,92 @@ def delete_forensic_case_pillar(
     )
 
     return {"status": "success", "pillar": pillar_key}
+
+# --- DELETE DOSSIER (TOTAL CASCADE WIPEOUT) ---
+
+@router.delete("/dossiers/{case_id}", status_code=status.HTTP_200_OK)
+def delete_forensic_dossier(
+    case_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Fshin plotësisht një dosje forenzike së bashku me të gjitha provat,
+    dokumentet, audiot, videot, financat, war room, chat, hetuesin dhe
+    regjistrat e tjerë të lidhur (Total Cascade Wipeout).
+    """
+    user_id = str(current_user.id)
+
+    # Kontrollo nëse dosja ekziston në koleksionin forenzik ose rastet standarde
+    query = {"_id": ObjectId(case_id)} if ObjectId.is_valid(case_id) else {"_id": case_id}
+    dossier = db[FORENSIC_DOSSIERS_COLLECTION].find_one(query)
+    if not dossier:
+        dossier = db["cases"].find_one(query)
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Dosja nuk u gjet.")
+
+    # Mblidh të gjithë çelësat e ruajtjes (storage keys) për t'i fshirë nga Backblaze
+    storage_keys_to_delete = set()
+
+    # Dokumentet forenzike
+    for doc in db["forensic_documents"].find({"case_id": str(case_id)}):
+        if doc.get("storage_key"):
+            storage_keys_to_delete.add(doc["storage_key"])
+        if doc.get("preview_storage_key"):
+            storage_keys_to_delete.add(doc["preview_storage_key"])
+
+    # Mediat forenzike (audio/video/imazh)
+    for media in db["forensic_media"].find({"case_id": str(case_id)}):
+        if media.get("storage_key"):
+            storage_keys_to_delete.add(media["storage_key"])
+
+    # Regjistrat financiarë (spreadsheet)
+    for fin in db["forensic_financial_records"].find({"case_id": str(case_id)}):
+        if fin.get("storage_key"):
+            storage_keys_to_delete.add(fin["storage_key"])
+
+    # Fshij skedarët nga storage
+    for storage_key in storage_keys_to_delete:
+        try:
+            storage_service.delete_file(storage_key=storage_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete storage key {storage_key}: {e}")
+
+    # Fshij nga të gjitha koleksionet e lidhura
+    collections_to_wipe = [
+        "forensic_documents",
+        "forensic_media",
+        "forensic_financial_records",
+        "forensic_war_room_records",
+        "forensic_chat_history",
+        "forensic_investigator_findings",
+        "forensic_dossiers"
+    ]
+
+    for coll in collections_to_wipe:
+        db[coll].delete_many({"case_id": str(case_id)})
+        if ObjectId.is_valid(case_id):
+            db[coll].delete_many({"case_id": ObjectId(case_id)})
+
+    # Fshij vektorët e lidhur
+    try:
+        db["user_vectors"].delete_many({"case_id": str(case_id)})
+        if ObjectId.is_valid(case_id):
+            db["user_vectors"].delete_many({"case_id": ObjectId(case_id)})
+    except Exception:
+        pass
+
+    # Shëno veprimin në audit trail
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id,
+        action="DOSSIER_TOTAL_CASCADE_WIPEOUT",
+        details={"case_id": case_id}
+    )
+
+    return {
+        "status": "success",
+        "message": "Dosja u fshi plotësisht bashkë me të gjitha provat dhe regjistrat e lidhur.",
+        "deleted_case_id": case_id
+    }

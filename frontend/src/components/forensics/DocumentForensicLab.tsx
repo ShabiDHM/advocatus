@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.9 (FIXED SERVICE MAPPING • PERSISTENT SAVE)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.10 (MEDIA-AWARE & FULLY PERSISTENT)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -15,6 +15,7 @@ import {
   Minimize2,
   ArrowDown,
   Eye,
+  Play,
   Pencil,
   Archive,
   FileSearch
@@ -23,7 +24,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 
-// ✅ Shërbimi i dedikuar i laboratorit forenzik
 import { forensicDeskService, ForensicDocItem } from '../../services/forensicDeskService';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
@@ -40,7 +40,6 @@ interface DocumentForensicLabProps {
   onEvidenceChange?: () => void;
 }
 
-// ✅ Përmirësuar: Madhësi më të mëdha dhe deri në 200%
 const FONT_LEVELS = [
   { label: '90%',   base: 15,   h1: 21,   h2: 18,   h3: 16,   line: 1.6 },
   { label: '100%',  base: 17,   h1: 23,   h2: 20,   h3: 18,   line: 1.7 },
@@ -55,33 +54,17 @@ const DOC_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string; 
   PILLAR_1: {
     title: '1. Ekzaminimi & Faktet',
     subtitle: 'Pasaporta Procedurale, Struktura e Palëve & Baza Provuese e Administruar',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]
-Dokumenti: "${docName}"
-DETYRË: Gjenero SHTJELLËN 1 me Claude Sonnet 4.6:
-- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore).
-- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.
-- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.
-Përgjigju me përpikmëri shkencore dhe nene të sakta të Kosovës.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 1: EKZAMINIMI DHE FAKTET]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 1 me Claude Sonnet 4.6:\n- Seksioni 1: Pasaporta Procedurale dhe Diagnoza Juridike (Lloji i aktit, Organi nxjerrës, Numri, Afatet ligjore).\n- Seksioni 2: Struktura e Palëve dhe Legjitimiteti Procedural.\n- Seksioni 3: Kryqëzimi Forenzik i Fakteve dhe Baza Provuese e Administruar.\nPërgjigju me përpikmëri shkencore dhe nene të sakta të Kosovës.`
   },
   PILLAR_2: {
     title: '2. Nenet & Shkeljet',
     subtitle: 'Tabela e Neneve të Kosovës & Shkeljet Procedurale',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]
-Dokumenti: "${docName}"
-DETYRË: Gjenero SHTJELLËN 2 me Claude Sonnet 4.6:
-- Seksioni 4: Tabela e Neneve të Shkelura sipas Legjislacionit të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).
-- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive.
-Bazo arsyetimin në legjislacionin pozitiv të Kosovës.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 2: NENET DHE SHKELJET]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 2 me Claude Sonnet 4.6:\n- Seksioni 4: Tabela e Neneve të Shkelura sipas Legjislacionit të Kosovës me precedentët e Gjykatës Supreme (PML / Revizion).\n- Seksioni 5: Gjetjet Kritike, Shkeljet Thelbësore të Procedurës (Neni 182 LPK / KPK) dhe Detektori i Pasaktësive.\nBazo arsyetimin në legjislacionin pozitiv të Kosovës.`
   },
   PILLAR_3: {
     title: '3. Kundërshtimet & Plani',
     subtitle: 'Auditimi i Kërkesës, Diagnoza Korrigjuese & Master Plani i Veprimit',
-    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]
-Dokumenti: "${docName}"
-DETYRË: Gjenero SHTJELLËN 3 me Claude Sonnet 4.6:
-- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.
-- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.
-- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.`
+    getPrompt: (docName: string) => `[DIREKTIVË FORENZIKE — SHTJELLA 3: KUNDËRSHTIMET DHE PLANI]\nDokumenti: "${docName}"\nDETYRË: Gjenero SHTJELLËN 3 me Claude Sonnet 4.6:\n- Seksioni 6: Auditimi i Kërkesës, Vlerësimi i Rreziqeve Procedurale dhe Forca Ekzekutive.\n- Seksioni 7: Diagnoza Korrigjuese dhe Rekomandimet Taktike mbi Goditjen e Shkresës.\n- Seksioni 8: Master Plani i Veprimit me Hapat Proceduralë dhe Afatet e Prera Ligjore.`
   }
 };
 
@@ -89,29 +72,17 @@ const CASE_PILLAR_CONFIGS: Record<PillarType, { title: string; subtitle: string;
   PILLAR_1: {
     title: '1. Fakti & Historiku',
     subtitle: 'Diagnoza Fillestare, Kronologjia e Ngjarjeve & Kryqëzimi i Palëve/Dëshmitarëve',
-    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 1: FAKTI & HISTORIKU]
-Gjenero Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:
-- Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.
-- Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.
-- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve nga provat reale.`
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 1: FAKTI & HISTORIKU]\nGjenero Seksionet 1 dhe 2 për të gjithë fashikullin e lëndës me Claude Sonnet 4.6:\n- Seksioni 1: Diagnoza Procedurale dhe Gjendja Faktike e Dosjes.\n- Seksioni 2: Rindërtimi Kronologjik i Datave dhe Veprimeve Vendimtare Procedurale.\n- Kryqëzimi i Dëshmive, Palëve, Gjyqtarëve dhe Ekspertëve nga provat reale.`
   },
   PILLAR_2: {
     title: '2. Shkeljet & Nenet',
     subtitle: 'Matrica e Provave, Tabela e Neneve të Gjykatës Supreme & Përgjegjësia Penale/Civile',
-    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 2: SHKELJET & NENET]
-Gjenero Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:
-- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.
-- Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).
-- Seksioni 5: Përgjegjësia Ligjore dhe Shkeljet Thelbësore (Neni 182 LPK / KPP).`
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 2: SHKELJET & NENET]\nGjenero Seksionet 3, 4 dhe 5 për të gjithë fashikullin me Claude Sonnet 4.6:\n- Seksioni 3: Matrica e Provave Materiale dhe Provat Kontradiktore.\n- Seksioni 4: Tabela e Nxjerrjes së Neneve të Kosovës (Neni X i [Ligjit]).\n- Seksioni 5: Përgjegjësia Ligjore dhe Shkeljet Thelbësore (Neni 182 LPK / KPP).`
   },
   PILLAR_3: {
     title: '3. Plani i Veprimit',
     subtitle: 'Mjetet Juridike, Prapësimet, Kundërshtimet & Master Strategjia e Seancës',
-    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 3: PLANI I VEPRIMIT]
-Gjenero Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:
-- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Masë Sigurimi).
-- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.
-- Seksioni 8: Master Plani i Veprimit me Afate të Prera.`
+    prompt: `[DIREKTIVË FORENZIKE MASTER — SHTJELLA 3: PLANI I VEPRIMIT]\nGjenero Seksionet 6, 7 dhe 8 për të gjithë fashikullin me Claude Sonnet 4.6:\n- Seksioni 6: Përgatitja e Mjeteve Juridike (Ankesa, Prapësime, Padi, Masë Sigurimi).\n- Seksioni 7: Pyetësori Taktik për Seancë me Pyetje Kurth.\n- Seksioni 8: Master Plani i Veprimit me Afate të Prera.`
   }
 };
 
@@ -150,7 +121,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [isArchivingReport, setIsArchivingReport] = useState<boolean>(false);
   const [archiveReportSuccess, setArchiveReportSuccess] = useState<boolean>(false);
 
-  // States for document actions
   const [viewingDoc, setViewingDoc] = useState<ForensicDocItem | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   const [viewingTextDoc, setViewingTextDoc] = useState<any | null>(null);
@@ -175,7 +145,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_forensic_font_size');
-      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1; // default 100%
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
     } catch {
       return 1;
     }
@@ -231,7 +201,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setShowScrollBottomBtn(false);
   };
 
-  // ✅ Load case pillars from forensic desk
   const loadCasePillars = useCallback(async () => {
     if (!caseId) return;
     try {
@@ -339,7 +308,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document View Handler (NOW USES /preview ENDPOINT) ---
+  // --- Document View Handler (PDF/preview endpoint) ---
   const handleViewDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -348,7 +317,32 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setViewingDoc(doc);
   };
 
-  // --- NEW: View Extracted/Processed Text (fetches from dedicated endpoint) ---
+  // --- NEW: View Media Document (audio/video/foto) ---
+  const handleViewMediaDocument = (doc: ForensicDocItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!caseId || !doc.media_id || !doc.media_type) return;
+
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+    if (!token) {
+      alert('Token mungon. Ju lutemi kyçuni përsëri.');
+      return;
+    }
+
+    let streamUrl = '';
+    if (doc.media_type === 'audio') {
+      streamUrl = forensicDeskService.getForensicAudioStreamUrl(caseId, doc.media_id, token);
+    } else if (doc.media_type === 'video') {
+      streamUrl = forensicDeskService.getForensicVisualStreamUrl(caseId, doc.media_id, token);
+    } else if (doc.media_type === 'image') {
+      streamUrl = forensicDeskService.getForensicVisualStreamUrl(caseId, doc.media_id, token);
+    }
+
+    if (streamUrl) {
+      window.open(streamUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // --- View Extracted/Processed Text ---
   const handleViewExtractedText = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId || !doc.id) return;
@@ -405,7 +399,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // --- Document Archive Handler (does NOT remove from list) ---
+  // --- Document Archive Handler ---
   const handleArchiveDocument = async (doc: ForensicDocItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
@@ -490,7 +484,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setDocPillars(prev => ({ ...prev, [pillar]: accumulated }));
         }
 
-        // RUAJTJA E SAKTË NË FORENSIC_DOCUMENTS
         if (accumulated.trim().length > 50) {
           try {
             await forensicDeskService.saveForensicDocPillarContent(caseId, targetDoc.id, pillar, accumulated);
@@ -527,7 +520,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           setCasePillars(prev => ({ ...prev, [pillar]: accumulated }));
         }
 
-        // RUAJTJA E SAKTË NË FORENSIC_DOSSIERS
         if (accumulated.trim().length > 50) {
           try {
             await forensicDeskService.saveForensicCasePillarContent(caseId, pillar, accumulated);
@@ -556,7 +548,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     setTimeout(() => setCopiedReport(false), 2500);
   };
 
-  // ✅ Arkivimi tani përdor sealCustody nga forensicDeskService
+  // ✅ Arkivimi tani përdor sealCustody
   const handleArchiveReport = async () => {
     if (!caseId || !currentPillarContent) return;
     setIsArchivingReport(true);
@@ -567,7 +559,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         ? `${DOC_PILLAR_CONFIGS[activePillar].title} - ${activeDoc?.file_name || 'Dokument'}`
         : `${CASE_PILLAR_CONFIGS[activePillar].title} - Fashikulli i Plotë`;
 
-      // Vulos në server si provë e ruajtjes
       await forensicDeskService.sealCustody(caseId, `Arkivim i analizës: ${activeTitle}`, []);
       setArchiveReportSuccess(true);
       setTimeout(() => setArchiveReportSuccess(false), 3000);
@@ -585,7 +576,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   const currentConfigs = autopsyScope === 'DOCUMENT' ? DOC_PILLAR_CONFIGS : CASE_PILLAR_CONFIGS;
 
-  // Cleanup – just clear state
   const handleCloseViewer = () => {
     setViewingDoc(null);
     setViewingUrl(null);
@@ -680,6 +670,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   const isArchiving = doc.id === archivingDocId;
                   const isArchived = doc.status === 'ARCHIVED';
                   const isTextLoading = doc.id === loadingTextDocId;
+                  const isMedia = doc.media_type === 'audio' || doc.media_type === 'video' || doc.media_type === 'image';
 
                   return (
                     <div
@@ -697,7 +688,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     >
                       <div className="flex items-center gap-2.5 truncate">
                         <div className={`p-2 rounded-xl ${isSelected && autopsyScope === 'DOCUMENT' ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                          <FileText size={16} />
+                          {isMedia ? <Play size={16} /> : <FileText size={16} />}
                         </div>
                         <div className="truncate text-sm">
                           <p className="font-bold truncate text-text-primary">
@@ -711,24 +702,37 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       <div className="flex items-center gap-1 shrink-0">
                         {isSelected && autopsyScope === 'DOCUMENT' && <CheckCircle2 size={15} className="text-primary-start mr-1" />}
                         
-                        <button
-                          type="button"
-                          onClick={(e) => handleViewDocument(doc, e)}
-                          title="Shiko dokumentin origjinal"
-                          className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
-                        >
-                          <Eye size={15} />
-                        </button>
+                        {isMedia ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleViewMediaDocument(doc, e)}
+                            title={doc.media_type === 'audio' ? 'Luaj audio' : doc.media_type === 'video' ? 'Luaj video' : 'Shiko foto'}
+                            className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                          >
+                            <Play size={15} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleViewDocument(doc, e)}
+                            title="Shiko dokumentin origjinal"
+                            className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                          >
+                            <Eye size={15} />
+                          </button>
+                        )}
 
-                        <button
-                          type="button"
-                          onClick={(e) => handleViewExtractedText(doc, e)}
-                          disabled={isTextLoading}
-                          title="Shiko tekstin e ekstraktuar/procesuar"
-                          className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40"
-                        >
-                          {isTextLoading ? <Loader2 size={15} className="animate-spin text-emerald-500" /> : <FileSearch size={15} />}
-                        </button>
+                        {!isMedia && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleViewExtractedText(doc, e)}
+                            disabled={isTextLoading}
+                            title="Shiko tekstin e ekstraktuar/procesuar"
+                            className="p-1.5 text-text-muted hover:text-emerald-500 rounded-lg hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                          >
+                            {isTextLoading ? <Loader2 size={15} className="animate-spin text-emerald-500" /> : <FileSearch size={15} />}
+                          </button>
+                        )}
 
                         <button
                           type="button"

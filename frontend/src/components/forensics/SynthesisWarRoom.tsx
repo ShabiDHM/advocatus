@@ -1,8 +1,8 @@
 // FILE: frontend/src/components/forensics/SynthesisWarRoom.tsx
-// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V2.1 (CROSS-EXAMINATION ENGINE • CLAUDE SONNET 4.6 • SERVER CUSTODY SEAL)
+// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V2.2 (PERSISTENT LOAD ON MOUNT)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Swords,
   ShieldCheck,
@@ -21,7 +21,8 @@ import {
   FileCheck,
   Target,
   HelpCircle,
-  Award} from 'lucide-react';
+  Award
+} from 'lucide-react';
 import {
   forensicDeskService,
   WarRoomSynthesisResponse
@@ -111,6 +112,22 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     setFontLevelIndex(1);
     try { localStorage.setItem('juristi_war_room_font_size', '1'); } catch {}
   };
+
+  // ✅ Ngarkon sintezën më të fundit nga serveri në montim
+  useEffect(() => {
+    const loadLatestSynthesis = async () => {
+      if (!caseId) return;
+      try {
+        const latest = await forensicDeskService.getLatestWarRoomSynthesis(caseId);
+        if (latest) {
+          setSynthesisData(latest);
+        }
+      } catch (err) {
+        console.warn("Nuk u ngarkua sinteza e fundit e War Room:", err);
+      }
+    };
+    loadLatestSynthesis();
+  }, [caseId]);
 
   // 1. EKZEKUTIMI I KRYQËZIMIT MADHOR TË PROVAVE ME CLAUDE SONNET 4.6
   const handleRunMultimodalSynthesis = async () => {

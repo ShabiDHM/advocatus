@@ -1,8 +1,10 @@
 # FILE: backend/app/api/endpoints/forensic/finance_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED FINANCE ROUTER V1.0 (LMD ARTICLE 265 & PANDAS ENGINE)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED FINANCE ROUTER V1.1 (PERSISTENT LMD & DOCUMENT STORAGE)
 # 100% COMPLETE CODE • ZERO CLIENT INTERFERENCE • RBAC PROTECTED
 
 import io
+import os
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
@@ -13,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.core.db import get_db
 from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
+from app.services import storage_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_finance_service import (
@@ -25,6 +28,7 @@ router = APIRouter(prefix="/finance", tags=["Forensic Finance"])
 logger = logging.getLogger(__name__)
 
 FORENSIC_FINANCE_COLLECTION = "forensic_financial_records"
+FORENSIC_DOCS_COLLECTION = "forensic_documents"
 
 class LegalInterestRequest(BaseModel):
     principal: float = Field(..., gt=0, description="Kryegjëja e borxhit kryesor")
@@ -50,6 +54,22 @@ def calculate_interest_endpoint(
             end_date_str=payload.end_date,
             rate_percent=payload.rate_percent or 8.0
         )
+
+        # ✅ RUAJ REZULTATIN NË HISTORIK (për t'u ngarkuar pas refresh)
+        record_doc = {
+            "case_id": str(payload.case_id) if payload.case_id else "",
+            "owner_id": user_id,
+            "record_type": "LMD_CALCULATION",
+            "payload": {
+                "principal": payload.principal,
+                "start_date": payload.start_date,
+                "end_date": payload.end_date,
+                "rate_percent": payload.rate_percent or 8.0
+            },
+            "result": interest_res,
+            "created_at": datetime.now(timezone.utc)
+        }
+        db[FORENSIC_FINANCE_COLLECTION].insert_one(record_doc)
 
         if payload.case_id:
             log_forensic_action(
@@ -86,19 +106,31 @@ async def analyze_spreadsheet_endpoint(
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Skedari tabelor është i zbrazët.")
 
+    filename = storage_service.sanitize_filename(file.filename or "financial_spreadsheet.xlsx")
     evidence_hash = generate_evidence_hash(raw_bytes)
+
+    # ✅ Ngarko skedarin në storage si dokument forenzik
+    storage_key = await asyncio.to_thread(
+        storage_service.upload_bytes_as_file,
+        io.BytesIO(raw_bytes),
+        filename,
+        user_id,
+        case_id,
+        file.content_type or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     custody_stamp = create_custody_stamp(
         user_id=user_id,
         case_id=case_id,
         action="FINANCIAL_SPREADSHEET_SECURED",
         evidence_ids=[evidence_hash],
-        metadata={"filename": file.filename}
+        metadata={"filename": filename, "file_size_bytes": len(raw_bytes)}
     )
 
     try:
         spreadsheet_analysis = analyze_financial_spreadsheet(
             file_bytes=raw_bytes,
-            file_name=file.filename,
+            file_name=filename,
             claimed_amount=claimed_amount
         )
 
@@ -107,18 +139,40 @@ async def analyze_spreadsheet_endpoint(
             case_context=case_context
         )
 
-        # Ruaj të dhënat në koleksionin e dedikuar
+        now = datetime.now(timezone.utc)
+
+        # Ruaj rekordin financiar
         record_doc = {
             "case_id": str(case_id),
             "owner_id": user_id,
-            "filename": file.filename,
+            "record_type": "SPREADSHEET_ANALYSIS",
+            "filename": filename,
+            "storage_key": storage_key,
             "evidence_hash": evidence_hash,
             "custody_stamp": custody_stamp,
             "spreadsheet_analysis": spreadsheet_analysis,
             "forensic_opinion": opinion,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": now
         }
         db[FORENSIC_FINANCE_COLLECTION].insert_one(record_doc)
+
+        # ✅ KRIJO HYRJE NË DOKUMENTET FORENZIKE (që të shfaqet në panelin e dokumenteve)
+        doc_entry = {
+            "case_id": str(case_id),
+            "owner_id": user_id,
+            "file_name": filename,
+            "storage_key": storage_key,
+            "mime_type": file.content_type or "application/octet-stream",
+            "status": "READY",
+            "evidence_sha256": evidence_hash,
+            "custody_stamp": custody_stamp,
+            "extracted_text": "",
+            "forensic_pillars": {},
+            "created_at": now,
+            "updated_at": now,
+            "financial_record_id": str(record_doc["_id"])
+        }
+        db[FORENSIC_DOCS_COLLECTION].insert_one(doc_entry)
 
         log_forensic_action(
             db=db,
@@ -126,7 +180,7 @@ async def analyze_spreadsheet_endpoint(
             case_id=case_id,
             action="FINANCIAL_FORENSIC_AUDIT_COMPLETED",
             details={
-                "filename": file.filename,
+                "filename": filename,
                 "total_documented": spreadsheet_analysis.get("total_documented_amount", 0.0),
                 "custody_hash": custody_stamp["custody_hash"]
             }

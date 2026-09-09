@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.5 (COMPLETE CASE PILLARS)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.7 (COMPLETE)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -60,6 +60,8 @@ export interface ForensicDocItem {
   evidence_sha256?: string;
   custody_stamp?: CustodyStamp;
   forensic_pillars?: Record<string, string>;
+  media_type?: 'audio' | 'video' | 'image';   // ✅ added for media files
+  media_id?: string;                           // ✅ added for media reference
   created_at: string;
 }
 
@@ -254,6 +256,11 @@ export class ForensicDeskService {
   public async getAuditTrail(caseId: string): Promise<any[]> {
     const response = await apiClient.get<{ trail: any[] }>(`${this.baseUrl}/dossiers/${caseId}/audit-trail`);
     return response.data.trail || [];
+  }
+
+  // NEW: Delete dossier (total cascade wipeout)
+  public async deleteDossier(caseId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}`);
   }
 
   // ==========================================================
@@ -453,6 +460,12 @@ export class ForensicDeskService {
     return response.data.data;
   }
 
+  // NEW: Get financial records (LMD calculations & spreadsheet audits)
+  public async getFinancialRecords(caseId: string): Promise<any[]> {
+    const response = await apiClient.get<{ records: any[] }>(`${this.baseUrl}/finance/${caseId}/records`);
+    return response.data.records || [];
+  }
+
   public async analyzeSpreadsheet(
     caseId: string,
     file: File,
@@ -500,6 +513,14 @@ export class ForensicDeskService {
       }
     );
     return response.data.data;
+  }
+
+  // NEW: Get latest War Room synthesis
+  public async getLatestWarRoomSynthesis(caseId: string): Promise<WarRoomSynthesisResponse | null> {
+    const response = await apiClient.get<{ has_record: boolean; data: WarRoomSynthesisResponse | null }>(
+      `${this.baseUrl}/war-room/${caseId}/latest`
+    );
+    return response.data.has_record ? response.data.data : null;
   }
 
   // ==========================================================

@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/FinancialForensicLab.tsx
-// PHOENIX PROTOCOL - FORENSIC FINANCIAL LAB V2.1 (LMD ARTICLE 265 • PANDAS SPREADSHEET ENGINE • CLAUDE SONNET 4.6)
+// PHOENIX PROTOCOL - FORENSIC FINANCIAL LAB V2.2 (PERSISTENT LMD & SPREADSHEET)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   Send,
   Scale,
-  AlertTriangle} from 'lucide-react';
+  AlertTriangle
+} from 'lucide-react';
 import {
   forensicDeskService,
   LMDInterestResponse
@@ -70,7 +71,7 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_financial_forensic_font_size');
-      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1; // default 100%
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
     } catch {
       return 1;
     }
@@ -98,6 +99,34 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
     try { localStorage.setItem('juristi_financial_forensic_font_size', '1'); } catch {}
   };
 
+  // ✅ Ngarkon rezultatin e fundit LMD dhe analizën e fundit të spreadsheet-it
+  useEffect(() => {
+    const loadPersistedData = async () => {
+      if (!caseId) return;
+      try {
+        const records = await forensicDeskService.getFinancialRecords(caseId);
+        if (Array.isArray(records) && records.length > 0) {
+          // Gjej rekordin më të fundit LMD
+          const latestLmd = records.find(r => r.record_type === 'LMD_CALCULATION');
+          if (latestLmd?.result) {
+            setLmdResult(latestLmd.result);
+          }
+
+          // Gjej rekordin më të fundit spreadsheet
+          const latestSpreadsheet = records.find(r => r.record_type === 'SPREADSHEET_ANALYSIS');
+          if (latestSpreadsheet) {
+            setSpreadsheetData(latestSpreadsheet);
+            setUploadedFileName(latestSpreadsheet.filename || '');
+          }
+        }
+      } catch (err) {
+        console.warn("Nuk u ngarkuan të dhënat e ruajtura financiare:", err);
+      }
+    };
+
+    loadPersistedData();
+  }, [caseId]);
+
   // LLOGARITJA E KAMATËS ME BACKEND-IN E IZOLUAR FORENZIK
   const handleCalculateLmdInterest = async () => {
     const principal = parseFloat(principalAmount);
@@ -124,10 +153,6 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
       setIsCalculatingLmd(false);
     }
   };
-
-  useEffect(() => {
-    handleCalculateLmdInterest();
-  }, [caseId]);
 
   // Ngarkimi dhe Auditimi i Pasqyrës me Pandas & Claude Sonnet 4.6
   const handleUploadSpreadsheet = async (files: FileList | null) => {

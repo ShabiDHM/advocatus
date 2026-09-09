@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/visual_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ROUTER V1.4 (AUTO PROCESSING & VECTORIZATION)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ROUTER V1.5 (APPEAR AS DOCUMENT + CASCADE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -32,6 +32,7 @@ router = APIRouter(prefix="/visual", tags=["Forensic Visual"])
 logger = logging.getLogger(__name__)
 
 FORENSIC_MEDIA_COLLECTION = "forensic_media"
+FORENSIC_DOCS_COLLECTION = "forensic_documents"
 
 def _serialize_media(doc: Dict[str, Any]) -> Dict[str, Any]:
     doc["id"] = str(doc["_id"])
@@ -65,7 +66,6 @@ async def upload_forensic_visual(
 
     final_bytes_for_upload = raw_bytes
 
-    # --- KOMPRESIMI I VIDEOS PËR TË MBROJTUR BACKBLAZE B2 FREE TIER ---
     if is_video:
         temp_in = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
         temp_in.write(raw_bytes)
@@ -80,17 +80,14 @@ async def upload_forensic_visual(
             with open(temp_out_path, "rb") as f:
                 final_bytes_for_upload = f.read()
                 
-        # Pastrimi i skedarëve të përkohshëm
         try:
             if os.path.exists(temp_in_path): os.remove(temp_in_path)
             if os.path.exists(temp_out_path): os.remove(temp_out_path)
         except Exception:
             pass
 
-    # 1. Llogarit SHA-256 të provës (pas kompresimit për përputhje)
     evidence_sha256 = generate_evidence_hash(final_bytes_for_upload)
 
-    # 2. Ngarko në Storage B2
     storage_key = await asyncio.to_thread(
         storage_service.upload_bytes_as_file,
         io.BytesIO(final_bytes_for_upload),
@@ -100,7 +97,6 @@ async def upload_forensic_visual(
         content_type
     )
 
-    # 3. Krijon Vulën Kriptografike Server-Side (Chain of Custody)
     custody_stamp = create_custody_stamp(
         user_id=user_id,
         case_id=case_id,
@@ -115,7 +111,7 @@ async def upload_forensic_visual(
     )
 
     now = datetime.now(timezone.utc)
-    doc = {
+    media_doc = {
         "case_id": case_id,
         "owner_id": user_id,
         "file_name": filename,
@@ -131,11 +127,29 @@ async def upload_forensic_visual(
         "progress_message": "Në pritje të përpunimit..."
     }
 
-    result = db[FORENSIC_MEDIA_COLLECTION].insert_one(doc)
-    doc["_id"] = result.inserted_id
+    result = db[FORENSIC_MEDIA_COLLECTION].insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # Trigger background processing (analysis + embeddings)
+    # ✅ KRIJO HYRJE NË DOKUMENTET FORENZIKE
+    doc_entry = {
+        "case_id": str(case_id),
+        "owner_id": user_id,
+        "file_name": filename,
+        "storage_key": storage_key,
+        "mime_type": content_type,
+        "status": "READY",
+        "evidence_sha256": evidence_sha256,
+        "custody_stamp": custody_stamp,
+        "media_type": "video" if is_video else "image",
+        "media_id": media_id_str,
+        "extracted_text": "",
+        "forensic_pillars": {},
+        "created_at": now,
+        "updated_at": now
+    }
+    db[FORENSIC_DOCS_COLLECTION].insert_one(doc_entry)
+
+    # Trigger background processing
     background_tasks.add_task(process_visual_media_background, db, media_id_str)
 
     log_forensic_action(
@@ -152,10 +166,11 @@ async def upload_forensic_visual(
         }
     )
 
-    return _serialize_media(doc)
+    media_doc["_id"] = result.inserted_id
+    return _serialize_media(media_doc)
 
 # ==========================================================
-# 2. LISTIMI I PROVAVE VIZUALE TË LËNDËS
+# 2. LISTIMI I PROVAVE VIZUALE
 # ==========================================================
 @router.get("/{case_id}/list")
 def list_forensic_visual(
@@ -225,7 +240,7 @@ def stream_forensic_visual(
     )
 
 # ==========================================================
-# 4. FSHIRJA E PROVËS VIZUALE ME AUDIT TRAIL
+# 4. FSHIRJA E PROVËS VIZUALE ME AUDIT TRAIL DHE CASCADE
 # ==========================================================
 @router.delete("/{case_id}/{media_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_visual(
@@ -255,6 +270,9 @@ def delete_forensic_visual(
         except Exception:
             pass
 
+    # ✅ Fshij edhe nga forensic_documents
+    db[FORENSIC_DOCS_COLLECTION].delete_many({"media_id": media_id, "case_id": str(case_id)})
+
     log_forensic_action(
         db=db,
         user_id=user_id,
@@ -266,7 +284,7 @@ def delete_forensic_visual(
     return {"status": "success", "message": "Prova vizuale u asgjësua nga laboratori forenzik."}
 
 # ==========================================================
-# 5. EKSPERTIZA E FOTOS (EXIF, ELA DHE GOOGLE VISION)
+# 5. EKSPERTIZA E FOTOS
 # ==========================================================
 @router.post("/analyze")
 async def analyze_visual_forensics(
@@ -301,7 +319,7 @@ async def analyze_visual_forensics(
     return {"success": True, "file_name": file.filename, "data": result}
 
 # ==========================================================
-# 6. EKSPERTIZA E PLOTË E VIDEOS CCTV (KEYFRAMES, ELA & CLAUDE 4.6)
+# 6. EKSPERTIZA E PLOTË E VIDEOS CCTV
 # ==========================================================
 @router.post("/analyze-video")
 async def analyze_video_cctv_forensics(
