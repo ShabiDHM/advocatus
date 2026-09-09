@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.6 (FULL MOBILE & TABLET RESPONSIVE)
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.7 (TOTAL WIPEOUT OF INVESTIGATOR MODULE)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • SERVER-SIDE CUSTODY INTEGRATION
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -43,8 +43,7 @@ import { VisualForensicLab } from '../components/forensics/VisualForensicLab';
 import { FinancialForensicLab } from '../components/forensics/FinancialForensicLab';
 import { SynthesisWarRoom } from '../components/forensics/SynthesisWarRoom';
 
-// Importimi i Ditarit të Hetuesit dhe Terminalit të Bisedës Forenzike
-import { InvestigatorLogDrawer } from '../components/forensics/InvestigatorLogDrawer';
+// Importimi i Terminalit të Bisedës Forenzike
 import { ForensicInterrogationDrawer } from '../components/forensics/ForensicInterrogationDrawer';
 
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL' | 'WAR_ROOM';
@@ -65,7 +64,6 @@ export const AdminForensicDeskPage: React.FC = () => {
   const [dossiersList, setDossiersList] = useState<ForensicDossier[]>([]);
   
   const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
-  const [showInvestigatorDrawer, setShowInvestigatorDrawer] = useState<boolean>(false);
   const [showChatDrawer, setShowChatDrawer] = useState<boolean>(false);
   const [deletingDossierId, setDeletingDossierId] = useState<string | null>(null);
 
@@ -141,7 +139,7 @@ export const AdminForensicDeskPage: React.FC = () => {
   const handleDeleteDossier = async (caseId: string, clientName: string) => {
     if (!caseId) return;
     const confirmDelete = window.confirm(
-      `A jeni absolutisht i sigurt që dëshironi të fshini dosjen "${clientName}" dhe TË GJITHA provat, dokumentet, audiot, videot, financat, war room, chat dhe hetuesin e lidhur? Ky veprim është i pakthyeshëm.`
+      `A jeni absolutisht i sigurt që dëshironi të fshini dosjen "${clientName}" dhe TË GJITHA provat, dokumentet, audiot, videot, financat, war room dhe bisedat e lidhura? Ky veprim është i pakthyeshëm.`
     );
     if (!confirmDelete) return;
 
@@ -169,9 +167,9 @@ export const AdminForensicDeskPage: React.FC = () => {
   return (
     <div className="w-full min-h-screen bg-canvas text-text-primary p-2.5 sm:p-5 lg:p-8 max-w-[1750px] mx-auto transition-colors select-none">
       
-      {/* KOKA SUPREME: RESPONSIVE PËR MOBILE, TABLET DHE DESKTOP */}
+      {/* KOKA SUPREME: IDENTITETI DHE KONTROLLI I DOSJES FORENZIKE */}
       <header className="flex flex-col gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-main">
-        {/* RRESHTI 1: Titulli, Ikona dhe Vula */}
+        {/* Rreshti 1: Titulli dhe Vula */}
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-rose-600 via-indigo-700 to-primary-start text-white flex items-center justify-center shadow-md shrink-0">
@@ -204,7 +202,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           </div>
         </div>
 
-        {/* RRESHTI 2: Paneli i Kontrollit në Mobile dhe Tablet (Zgjedhësi i Dosjes + Butonat) */}
+        {/* Rreshti 2: Paneli i Kontrollit (Zgjedhësi + Chat + Fshirja + Shto) */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Zgjedhësi i Dosjeve */}
           <div className="relative flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm flex-1 min-w-[150px] max-w-full sm:max-w-xs">
@@ -242,7 +240,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Veprimet e Shpejta: Chat, Hetuesi, Fshirja, Dosje e Re */}
+          {/* Veprimet Kryesore: Chat, Fshirja, Dosje e Re */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {isSuperAdmin && activeDossier && (
               <button
@@ -253,17 +251,6 @@ export const AdminForensicDeskPage: React.FC = () => {
               >
                 <ShieldCheck size={15} className="text-primary-start" />
                 <span className="hidden xs:inline">Chat</span>
-              </button>
-            )}
-
-            {activeDossier && (
-              <button
-                type="button"
-                onClick={() => setShowInvestigatorDrawer(true)}
-                className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
-                title="Ditari i Hetuesit Autonom"
-              >
-                <span className="text-base select-none">🕵️</span>
               </button>
             )}
 
@@ -291,7 +278,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         </div>
       </header>
 
-      {/* SHIRITI I NAVIGIMIT MES 5 LABORATORËVE (TOUCH-FRIENDLY & RESPONSIVE SCROLL) */}
+      {/* SHIRITI I NAVIGIMIT MES 5 LABORATORËVE */}
       <nav className="my-3 sm:my-5 w-full">
         <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-inner gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x [-webkit-overflow-scrolling:touch]">
           <button
@@ -439,8 +426,6 @@ export const AdminForensicDeskPage: React.FC = () => {
                 clientName={activeDossier.clientName}
                 chainOfCustodyHash={activeDossier.chainOfCustodyHash}
                 courtJurisdiction={activeDossier.courtJurisdiction}
-                partnerLawyerName={activeDossier.partnerLawyerName}
-                partnerLawyerLicense={activeDossier.partnerLawyerLicense}
                 onEvidenceChange={refreshEvidenceCounts}
               />
             )}
@@ -460,18 +445,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         />
       )}
 
-      {/* PANELI ANËSOR: DITARI I HETUESIT */}
-      {activeDossier && (
-        <InvestigatorLogDrawer
-          isOpen={showInvestigatorDrawer}
-          onClose={() => setShowInvestigatorDrawer(false)}
-          caseId={activeDossier.id}
-          clientName={activeDossier.clientName}
-          chainOfCustodyHash={activeDossier.chainOfCustodyHash}
-        />
-      )}
-
-      {/* MODALI I DOSJES SË RE (RESPONSIVE PËR ÇDO MADHËSI EKRANI) */}
+      {/* MODALI I DOSJES SË RE */}
       {showNewDossierModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
           <div className="relative w-full max-w-lg sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[92vh] flex flex-col">
@@ -501,7 +475,7 @@ export const AdminForensicDeskPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Trupi i Formularit me Scroll të sigurt në Mobile */}
+            {/* Trupi i Formularit */}
             <form onSubmit={handleCreateNewDossier} className="p-5 sm:p-6 space-y-4 overflow-y-auto custom-finance-scroll flex-1">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">

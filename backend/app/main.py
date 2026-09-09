@@ -1,5 +1,6 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V18.0 (1:1 DEDICATED FORENSIC ROUTERS SUITE)
+# PHOENIX PROTOCOL - MAIN APPLICATION V18.1 (WIPED OUT INVESTIGATOR ROUTER)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS
 
 import os
 import logging
@@ -30,7 +31,7 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.laws import router as laws_router
 
-# Router Imports - Zyra Forenzike e Pavarur (1:1 Dedicated Suite)
+# Router Imports - Zyra Forenzike e Pavarur (Pa Hetuesin)
 from .api.endpoints.forensic import (
     forensic_dossier_router,
     forensic_audio_router,
@@ -38,8 +39,7 @@ from .api.endpoints.forensic import (
     forensic_finance_router,
     forensic_document_router,
     forensic_war_room_router,
-    forensic_chat_router,
-    forensic_investigator_router
+    forensic_chat_router
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -111,7 +111,6 @@ forensic_suite_router.include_router(forensic_finance_router)
 forensic_suite_router.include_router(forensic_document_router)
 forensic_suite_router.include_router(forensic_war_room_router)
 forensic_suite_router.include_router(forensic_chat_router)
-forensic_suite_router.include_router(forensic_investigator_router)
 
 api_v1_router.include_router(forensic_suite_router)
 

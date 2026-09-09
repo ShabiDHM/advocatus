@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.7 (COMPLETE)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.8 (CLEAN - REMOVED INVESTIGATOR METHODS)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -60,8 +60,8 @@ export interface ForensicDocItem {
   evidence_sha256?: string;
   custody_stamp?: CustodyStamp;
   forensic_pillars?: Record<string, string>;
-  media_type?: 'audio' | 'video' | 'image';   // ✅ added for media files
-  media_id?: string;                           // ✅ added for media reference
+  media_type?: 'audio' | 'video' | 'image';
+  media_id?: string;
   created_at: string;
 }
 
@@ -171,7 +171,6 @@ export interface WarRoomSynthesisResponse {
 }
 
 export class ForensicDeskService {
-  // Ky shërbim përdoret VETËM në laboratorin forenzik (endpoint /forensic/...)
   private readonly baseUrl = '/forensic';
 
   // ==========================================================
@@ -195,8 +194,8 @@ export class ForensicDeskService {
           clientPhone: d.client_phone,
           clientEmail: d.client_email,
           courtJurisdiction: d.court_jurisdiction || 'Gjykata Themelore Prishtinë',
-          partnerLawyerName: 'Av. Zyra Partnere Forenzike',
-          partnerLawyerLicense: 'OAK-2026-KS',
+          partnerLawyerName: 'Avokatura Forenzike',
+          partnerLawyerLicense: 'OAK-KS',
           createdAt: d.created_at || new Date().toISOString(),
           updatedAt: d.updated_at,
           chainOfCustodyHash: hash,
@@ -236,8 +235,8 @@ export class ForensicDeskService {
       title: d.title,
       clientName: payload.clientName,
       courtJurisdiction: d.court_jurisdiction,
-      partnerLawyerName: 'Av. Zyra Partnere Forenzike',
-      partnerLawyerLicense: 'OAK-2026-KS',
+      partnerLawyerName: 'Avokatura Forenzike',
+      partnerLawyerLicense: 'OAK-KS',
       createdAt: d.created_at,
       chainOfCustodyHash: latestStamp ? latestStamp.custody_hash : 'PENDING_SEAL',
       isSealed: !!d.is_sealed,
@@ -258,13 +257,12 @@ export class ForensicDeskService {
     return response.data.trail || [];
   }
 
-  // NEW: Delete dossier (total cascade wipeout)
   public async deleteDossier(caseId: string): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}`);
   }
 
   // ==========================================================
-  // 2. LABORATORI I AUDIOS (100% I DEDIKUAR)
+  // 2. LABORATORI I AUDIOS
   // ==========================================================
   public async uploadForensicAudio(caseId: string, file: File): Promise<ForensicMediaItem> {
     const formData = new FormData();
@@ -315,7 +313,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 3. LABORATORI VIZUAL DHE CCTV VIDEO (100% I DEDIKUAR)
+  // 3. LABORATORI VIZUAL DHE CCTV VIDEO
   // ==========================================================
   public async uploadForensicVisual(caseId: string, file: File): Promise<ForensicMediaItem> {
     const formData = new FormData();
@@ -367,7 +365,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 4. LABORATORI I SHKRESAVE DHE SHTJELLAVE (100% I DEDIKUAR)
+  // 4. LABORATORI I SHKRESAVE DHE SHTJELLAVE
   // ==========================================================
   public async uploadForensicDocument(caseId: string, file: File): Promise<ForensicDocItem> {
     const formData = new FormData();
@@ -407,7 +405,6 @@ export class ForensicDeskService {
     await apiClient.delete(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`);
   }
 
-  // NEW: Save already generated pillar content
   public async saveForensicDocPillarContent(
     caseId: string,
     docId: string,
@@ -417,13 +414,11 @@ export class ForensicDeskService {
     await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`, { content });
   }
 
-  // NEW: Get case pillars
   public async getForensicCasePillars(caseId: string): Promise<Record<string, string>> {
     const response = await apiClient.get<Record<string, string>>(`${this.baseUrl}/dossiers/${caseId}/pillars`);
     return response.data || {};
   }
 
-  // NEW: Save case pillar content
   public async saveForensicCasePillarContent(
     caseId: string,
     pillar: string,
@@ -432,7 +427,6 @@ export class ForensicDeskService {
     await apiClient.put(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`, { content });
   }
 
-  // NEW: Delete case pillar
   public async deleteForensicCasePillar(caseId: string, pillar: string): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`);
   }
@@ -460,7 +454,6 @@ export class ForensicDeskService {
     return response.data.data;
   }
 
-  // NEW: Get financial records (LMD calculations & spreadsheet audits)
   public async getFinancialRecords(caseId: string): Promise<any[]> {
     const response = await apiClient.get<{ records: any[] }>(`${this.baseUrl}/finance/${caseId}/records`);
     return response.data.records || [];
@@ -515,7 +508,6 @@ export class ForensicDeskService {
     return response.data.data;
   }
 
-  // NEW: Get latest War Room synthesis
   public async getLatestWarRoomSynthesis(caseId: string): Promise<WarRoomSynthesisResponse | null> {
     const response = await apiClient.get<{ has_record: boolean; data: WarRoomSynthesisResponse | null }>(
       `${this.baseUrl}/war-room/${caseId}/latest`
@@ -524,7 +516,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 7. TERMINALI FORENZIK ME KUJTESË DHE PURGE
+  // 7. TERMINALI FORENZIK ME KUJTESË DHE STREAMING
   // ==========================================================
   public async sendChatMessage(caseId: string, message: string, caseContext: string = ''): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/chat`, {
@@ -577,58 +569,6 @@ export class ForensicDeskService {
 
   public async clearChatHistory(caseId: string): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/chat/${caseId}`);
-  }
-
-  // ==========================================================
-  // 8. DITARI I HETUESIT (3 ROLE) + STREAMING
-  // ==========================================================
-  public async runInvestigation(caseId: string, caseContext: string, focusEvidence: string[] = []): Promise<any> {
-    const response = await apiClient.post<any>(`${this.baseUrl}/investigate`, {
-      case_id: caseId,
-      case_context: caseContext,
-      focus_evidence: focusEvidence
-    });
-    return response.data;
-  }
-
-  public async streamInvestigation(
-    caseId: string,
-    caseContext: string,
-    focusEvidence: string[] = []
-  ): Promise<ReadableStream<Uint8Array>> {
-    const token = tokenManager.get();
-    if (!token) {
-      throw new Error('Token mungon. Ju lutemi kyçuni përsëri.');
-    }
-
-    const response = await fetch(`${API_V1_URL}/forensic/investigate/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        case_id: caseId,
-        case_context: caseContext,
-        focus_evidence: focusEvidence
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || 'Dështoi lidhja me serverin për streaming.');
-    }
-
-    if (!response.body) {
-      throw new Error('Streaming nuk u ofrua nga serveri.');
-    }
-
-    return response.body;
-  }
-
-  public async getInvestigationFindings(caseId: string): Promise<any[]> {
-    const response = await apiClient.get<{ findings: any[] }>(`${this.baseUrl}/investigate/${caseId}/findings`);
-    return response.data.findings || [];
   }
 
   // ==========================================================

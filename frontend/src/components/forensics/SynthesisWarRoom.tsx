@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/SynthesisWarRoom.tsx
-// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V2.2 (PERSISTENT LOAD ON MOUNT)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - SYNTHESIS WAR ROOM V2.4 (STREAMLINED - REMOVED REDUNDANT DISPATCH TAB)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • 100% CLEAN
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -12,10 +12,8 @@ import {
   Loader2,
   CheckCircle2,
   Copy,
-  FolderArchive,
   AlertTriangle,
   Clock,
-  Send,
   Flame,
   RefreshCw,
   FileCheck,
@@ -38,17 +36,15 @@ interface SynthesisWarRoomProps {
   onEvidenceChange?: () => void;
 }
 
-type DraftingActType = 'KALLËZIM_PENAL_PSRK' | 'MASË_EMERGJENTE_24H' | 'ANKESË_APEL' | 'PRAPËSIM_PADI';
+type DraftingActType = 'KALLËZIM_PENAL' | 'MASË_SIGURIMI' | 'ANKESË_APEL' | 'PRAPËSIM_PADI';
+type WarRoomSubTab = 'CROSS_EXAM' | 'DRAFTING';
 
-// ✅ Përmirësuar: Nivele të madhësisë së shkrimit
 const FONT_LEVELS = [
-  { label: '90%',   base: 15,   line: 1.6 },
-  { label: '100%',  base: 17,   line: 1.7 },
-  { label: '115%',  base: 19,   line: 1.75 },
-  { label: '130%',  base: 21,   line: 1.8 },
-  { label: '150%',  base: 24,   line: 1.85 },
-  { label: '175%',  base: 28,   line: 1.9 },
-  { label: '200%',  base: 32,   line: 2.0 }
+  { label: '90%',   base: 14,   line: 1.6 },
+  { label: '100%',  base: 16,   line: 1.65 },
+  { label: '115%',  base: 18,   line: 1.7 },
+  { label: '130%',  base: 20,   line: 1.75 },
+  { label: '150%',  base: 22,   line: 1.8 }
 ];
 
 export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
@@ -56,36 +52,30 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
   clientName = 'Pala e Përfaqësuar',
   chainOfCustodyHash = 'SEAL-SERVER-ACTIVE',
   courtJurisdiction = 'Gjykata Themelore Prishtinë',
-  partnerLawyerName = 'Av. Zyra Partner e Licencuar OAK',
-  partnerLawyerLicense = 'OAK-2026-KS',
   onEvidenceChange
 }) => {
   // Gjendjet e Kryqëzimit Multimodal
   const [isCrossAnalyzing, setIsCrossAnalyzing] = useState<boolean>(false);
   const [synthesisData, setSynthesisData] = useState<WarRoomSynthesisResponse | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'CROSS_EXAM' | 'DRAFTING' | 'DISPATCH'>('CROSS_EXAM');
+  const [activeSubTab, setActiveSubTab] = useState<WarRoomSubTab>('CROSS_EXAM');
 
   // Gjendjet e Kronologjisë
   const [isLoadingChronology, setIsLoadingChronology] = useState<boolean>(false);
   const [chronologyText, setChronologyText] = useState<string>('');
 
-  // Gjendjet e Hartimit Procedural me Claude Sonnet 4.6
-  const [selectedAct, setSelectedAct] = useState<DraftingActType>('KALLËZIM_PENAL_PSRK');
+  // Gjendjet e Hartimit Procedural
+  const [selectedAct, setSelectedAct] = useState<DraftingActType>('KALLËZIM_PENAL');
   const [isDrafting, setIsDrafting] = useState<boolean>(false);
   const [draftedLegalAct, setDraftedLegalAct] = useState<string>('');
 
-  // Gjendjet e Kopjimit dhe Arkivimit
-  const [, setCopiedCrossText] = useState<boolean>(false);
+  // Gjendjet e Kopjimit
   const [copiedDraftText, setCopiedDraftText] = useState<boolean>(false);
-  const [isArchiving, setIsArchiving] = useState<boolean>(false);
-  const [archiveSuccess, setArchiveSuccess] = useState<boolean>(false);
-  const [latestSealedHash, setLatestSealedHash] = useState<string>(chainOfCustodyHash);
 
-  // ✅ Shtuar: Kontrolli i zmadhimit të shkrimit
+  // Kontrolli i zmadhimit të shkrimit
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_war_room_font_size');
-      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1; // default 100%
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
     } catch {
       return 1;
     }
@@ -113,7 +103,6 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     try { localStorage.setItem('juristi_war_room_font_size', '1'); } catch {}
   };
 
-  // ✅ Ngarkon sintezën më të fundit nga serveri në montim
   useEffect(() => {
     const loadLatestSynthesis = async () => {
       if (!caseId) return;
@@ -129,7 +118,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     loadLatestSynthesis();
   }, [caseId]);
 
-  // 1. EKZEKUTIMI I KRYQËZIMIT MADHOR TË PROVAVE ME CLAUDE SONNET 4.6
+  // 1. KRYQËZIMI I PROVAVE
   const handleRunMultimodalSynthesis = async () => {
     if (!caseId || isCrossAnalyzing) return;
 
@@ -150,7 +139,7 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     }
   };
 
-  // 2. RINDËRTIMI I KRONOLOGJISË NGA TERMINALI FORENZIK
+  // 2. KRONOLOGJIA TEMPORALE
   const handleBuildChronology = async () => {
     if (!caseId || isLoadingChronology) return;
     setIsLoadingChronology(true);
@@ -158,10 +147,10 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     try {
       const response = await forensicDeskService.sendChatMessage(
         caseId,
-        `[KRONOLOGJI TEMPORALE]: Rindërto renditjen kronologjike të provave minutë-pas-minute për lëndën ${clientName}, duke u mbështetur në datat e dokumenteve dhe fotove me EXIF/GPS.`,
-        `Gjykata: ${courtJurisdiction}`
+        `[KRONOLOGJI TEMPORALE]: Rindërto renditjen kronologjike të ngjarjeve dhe provave për lëndën "${clientName}", duke u mbështetur në datat e dokumenteve dhe provave të administruara në dosje. Renditi veprimet sipas rendit kohor me data të sakta.`,
+        `Organi: ${courtJurisdiction}`
       );
-      setChronologyText(response.content || "Kronologjia u përpilua.");
+      setChronologyText(response.content || "Kronologjia u përpilua me sukses.");
     } catch (err: any) {
       alert(err?.response?.data?.detail || "Dështoi rindërtimi i kronologjisë.");
     } finally {
@@ -169,124 +158,119 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
     }
   };
 
-  // 3. HARTIMI AUTOMATIK I SHKRESËS ME CLAUDE SONNET 4.6
+  // 3. HARTIMI PROCEDURAL PROFESIONAL (PA REFUZIME NGA CLAUDE)
   const handleGenerateJudicialAct = async () => {
     if (!caseId || isDrafting) return;
 
     setIsDrafting(true);
     setDraftedLegalAct('');
 
-    const actLabels: Record<DraftingActType, string> = {
-      KALLËZIM_PENAL_PSRK: "Kallëzim Penal Solemn për Prokurorinë Speciale (PSRK)",
-      MASË_EMERGJENTE_24H: "Kërkesë për Masë Emergjente brenda 24H (Nenet 188/221 KPPRK)",
-      ANKESË_APEL: "Ankesë në Gjykatën e Apelit në Prishtinë (Neni 182 LPK)",
-      PRAPËSIM_PADI: "Prapësim dhe Përgjigje në Padi me Kamatëvonesë LMD (Neni 265)"
+    const actDefinitions: Record<DraftingActType, { title: string; promptNote: string }> = {
+      KALLËZIM_PENAL: {
+        title: "Kallëzim Penal sipas Nenit 83 të Kodit të Procedurës Penale (KPPRK)",
+        promptNote: "Harto një Kallëzim Penal të plotë, të argumentuar me faktet e provave të dosjes, dispozitat e Kodit Penal të Kosovës (KPRK) dhe dispozitat procedurale të KPPRK-së."
+      },
+      MASË_SIGURIMI: {
+        title: "Kërkesë për Masë të Përkohshme Sigurimi",
+        promptNote: "Harto një Kërkesë për Caktimin e Masës së Përkohshme të Sigurimit sipas dispozitave të LPK-së dhe KPPRK-së, duke arsyetuar rrezikun e menjëhershëm dhe bazueshmërinë e kërkesës."
+      },
+      ANKESË_APEL: {
+        title: "Ankesë kundër Aktgjykimit / Vendimit në Gjykatën e Apelit",
+        promptNote: "Harto një Ankesë procedurale të bazuar në Nenin 182 të LPK-së dhe nenet përkatëse të KPPRK-së për shkelje thelbësore të dispozitave dhe vërtetim të gabuar të gjendjes faktike."
+      },
+      PRAPËSIM_PADI: {
+        title: "Prapësim dhe Përgjigje në Padi me Llogaritje të Kamatës (LMD)",
+        promptNote: "Harto një Prapësim profesional dhe Përgjigje në Padi duke kundërshtuar kërkesëpadinë në themel dhe procedurë, me referenca nga Ligji për Marrëdhëniet e Detyrimeve (LMD)."
+      }
     };
+
+    const currentConfig = actDefinitions[selectedAct];
+
+    const legalPrompt = `[DRAFT PROCEDURAL I SHKRESËS LIGJORE]
+Lloji i aktit: "${currentConfig.title}"
+Palë e përfshirë: "${clientName}"
+Gjykata / Organi kompetent: "${courtJurisdiction}"
+
+DETYRË PËR HARTIMIN E SHKRESËS:
+1. ${currentConfig.promptNote}
+2. Përdor formatin standard procedural të akteve gjyqësore në Kosovë:
+   - Koka e aktit (Organi kompetent, Numri i lëndës, Të dhënat e palëve)
+   - Baza ligjore e saktë (nenet përkatëse të legjislacionit pozitiv të Kosovës)
+   - Përmbledhja e fakteve të vërtetuara nga provat e administruara
+   - Arsyetimi juridiko-doktrinar i kërkesës
+   - Propozimi i qartë për vendimmarrje
+   - Vendi për datën dhe nënshkrimin e parashtruesit / avokatit të autorizuar.
+3. Shkruaj aktin të plotë, të qartë, në gjuhë të pastër juridike dhe të gatshëm për ekzaminim profesional.`;
 
     try {
       const response = await forensicDeskService.sendChatMessage(
         caseId,
-        `[HARTIM PROCEDURAL]: Harto shkresën "${actLabels[selectedAct]}" për klientin ${clientName}. Përfshij vulën ${latestSealedHash}, nene të sakta të legjislacionit të Kosovës, dhe nënshkrimin e Av. ${partnerLawyerName} (${partnerLawyerLicense}).`,
-        `Gjykata Kompetente: ${courtJurisdiction}`
+        legalPrompt,
+        `Gjykata Kompetente: ${courtJurisdiction}. Lënda e klientit: ${clientName}.`
       );
       setDraftedLegalAct(response.content || "");
     } catch (err: any) {
-      alert(err?.response?.data?.detail || "Dështoi hartimi i aktit gjyqësor.");
+      alert(err?.response?.data?.detail || "Dështoi hartimi i shkresës procedurale.");
     } finally {
       setIsDrafting(false);
     }
   };
 
-  // 4. VULOSJA DHE ARKIVIMI I DOSJES NË SERVER (CHAIN OF CUSTODY)
-  const handleArchiveMasterDossier = async () => {
-    if (!caseId) return;
-
-    setIsArchiving(true);
-    try {
-      const stamp = await forensicDeskService.sealCustody(
-        caseId,
-        `ARKIVIM_I_WAR_ROOM: ${clientName} (${selectedAct})`
-      );
-      setLatestSealedHash(stamp.custody_hash);
-      setArchiveSuccess(true);
-      if (onEvidenceChange) onEvidenceChange();
-      setTimeout(() => setArchiveSuccess(false), 3500);
-    } catch (err: any) {
-      console.error("Archive failure:", err);
-      alert(err?.response?.data?.detail || "Dështoi vulosja dhe arkivimi i dosjes në server.");
-    } finally {
-      setIsArchiving(false);
-    }
+  const handleCopyDraftText = () => {
+    if (!draftedLegalAct) return;
+    navigator.clipboard.writeText(draftedLegalAct);
+    setCopiedDraftText(true);
+    setTimeout(() => setCopiedDraftText(false), 2500);
   };
-
-  const handleCopyText = (text: string, type: 'CROSS' | 'DRAFT') => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    if (type === 'CROSS') {
-      setCopiedCrossText(true);
-      setTimeout(() => setCopiedCrossText(false), 2500);
-    } else {
-      setCopiedDraftText(true);
-      setTimeout(() => setCopiedDraftText(false), 2500);
-    }
-  };
-
-  const dispatchMessage = `Të nderuar,\n\nZyra Ligjore ka finalizuar me sukses Kryqëzimin Multimodal të Provave për lëndën "${clientName}".\n\n📌 Vula Digjitale e Serverit (HMAC-SHA256): ${latestSealedHash}\n🏛️ Gjykata: ${courtJurisdiction}\n⚖️ Avokat Përgjegjës: ${partnerLawyerName} (Licenca: ${partnerLawyerLicense})\n\nDosja e plotë forenzike së bashku me shkresën procedurale është vulosur dhe është e gatshme për depozitim zyrtar.\n\nMe respekt,\nJuristi AI — Qendra e Ekspertizës Forenzike`;
 
   return (
-    <div className="glass-panel p-6 rounded-3xl border border-rose-500/30 bg-card shadow-xl space-y-6">
+    <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-rose-500/30 bg-card shadow-xl space-y-4 sm:space-y-6">
+      
       {/* SHIRITI I KOKËS SË WAR ROOM */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-main pb-5">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="w-10 h-10 rounded-xl bg-rose-600/10 text-rose-500 flex items-center justify-center">
-              <Swords size={22} />
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 border-b border-main pb-4 sm:pb-5">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-600/10 text-rose-500 flex items-center justify-center shrink-0">
+            <Swords size={20} className="sm:w-5 sm:h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-text-primary flex items-center gap-2">
+                <span>Salla Operative e Kryqëzimit (War Room)</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onEvidenceChange) onEvidenceChange();
+                  alert("Provat u rifreskuan nga të gjithë laboratorët.");
+                }}
+                title="Rifresko të dhënat"
+                className="p-1 text-text-muted hover:text-text-primary rounded-lg hover:bg-hover transition-colors cursor-pointer"
+              >
+                <RefreshCw size={13} />
+              </button>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-text-primary flex items-center gap-2">
-                  <span>Salla Operative e Kryqëzimit (War Room)</span>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-600/15 text-rose-500 text-[10px] font-mono font-bold uppercase">
-                    Claude Sonnet 4.6 • Top Secret
-                  </span>
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onEvidenceChange) onEvidenceChange();
-                    alert("Provat u rifreskuan nga të gjithë laboratorët!");
-                  }}
-                  title="Rifresko provat e sallës"
-                  className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-hover transition-colors cursor-pointer"
-                >
-                  <RefreshCw size={14} />
-                </button>
-              </div>
-              <p className="text-xs text-text-muted mt-0.5">
-                Kryqëzimi i Dokumenteve, Audios me Diarizim, Videove me EXIF dhe Financave LMD
-              </p>
-            </div>
+            <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
+              Kryqëzimi i Shkresave, Audios, Videove dhe Financave në një matricë të vetme
+            </p>
           </div>
         </div>
 
-        {/* Butonat e Nën-Laboratorëve + Kontrolli i Zmadhimit */}
+        {/* Butonat e Nën-Skedave + Kontrolli i Zmadhimit */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Kontrolli i Zmadhimit */}
-          <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
+          <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
             <button
               type="button"
               onClick={handleDecreaseFont}
               disabled={fontLevelIndex === 0}
-              title="Zvogëlo madhësinë e shkrimit"
-              className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+              className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer"
             >
               A−
             </button>
             <button
               type="button"
               onClick={handleResetFont}
-              title="Rivendos madhësinë e shkrimit"
-              className="min-w-10 rounded-lg px-1 text-[11px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
+              className="min-w-8 rounded-lg px-1 text-[10px] font-bold text-text-muted hover:bg-hover"
             >
               {activeFont.label}
             </button>
@@ -294,46 +278,37 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
               type="button"
               onClick={handleIncreaseFont}
               disabled={fontLevelIndex === FONT_LEVELS.length - 1}
-              title="Rrit madhësinë e shkrimit"
-              className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+              className="h-6 w-6 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer"
             >
               A+
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-surface border border-main rounded-2xl p-1 shadow-inner overflow-x-auto">
+          {/* VETËM 2 NËN-SKEDA THELBËSORE */}
+          <div className="flex items-center gap-1 bg-surface border border-main rounded-xl sm:rounded-2xl p-1 shadow-inner w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveSubTab('CROSS_EXAM')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 activeSubTab === 'CROSS_EXAM'
                   ? 'bg-rose-600 text-white shadow-md'
                   : 'text-text-muted hover:text-text-primary hover:bg-hover'
               }`}
             >
-              <Flame size={14} /> 1. Matrica & Pyetjet Tërthore
+              <Flame size={13} /> 
+              <span>1. Kryqëzimi i Provave</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveSubTab('DRAFTING')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 activeSubTab === 'DRAFTING'
                   ? 'bg-rose-600 text-white shadow-md'
                   : 'text-text-muted hover:text-text-primary hover:bg-hover'
               }`}
             >
-              <FileText size={14} /> 2. Hartimi i Shkresave
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('DISPATCH')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeSubTab === 'DISPATCH'
-                  ? 'bg-rose-600 text-white shadow-md'
-                  : 'text-text-muted hover:text-text-primary hover:bg-hover'
-              }`}
-            >
-              <Send size={14} /> 3. Pakoja & Vulosja
+              <FileText size={13} /> 
+              <span>2. Hartimi i Shkresës</span>
             </button>
           </div>
         </div>
@@ -342,24 +317,23 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
       {/* 1. MATRICA E KRYQËZIMIT DHE PYETJET TËRTHORE */}
       {activeSubTab === 'CROSS_EXAM' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-4 rounded-2xl border border-main">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-3.5 sm:p-4 rounded-2xl border border-main">
             <div className="text-xs space-y-0.5">
               <span className="font-bold text-text-primary flex items-center gap-1.5">
                 <AlertTriangle size={14} className="text-rose-500" />
-                Matrica e Kontradiktave & Cross-Examination (Claude Sonnet 4.6)
+                Matrica e Kontradiktave & Pyetësori Taktik
               </span>
-              <p className="text-text-muted">
-                Përplas të gjitha provat për të gjeneruar pyetjet vrastare të seancës dhe alibitë e rreme.
+              <p className="text-[11px] sm:text-xs text-text-muted">
+                Përplas provat materiale për të zbuluar alibitë dhe për të përgatitur pyetjet e seancës.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleBuildChronology}
                 disabled={isLoadingChronology}
-                className="h-10 px-3.5 bg-card hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-40"
-                title="Rindërto sekuencën kohore minutë-pas-minute"
+                className="h-9 sm:h-10 px-3 bg-card hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-40"
               >
                 {isLoadingChronology ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} className="text-primary-start" />}
                 <span>Kronologjia</span>
@@ -369,36 +343,35 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
                 type="button"
                 onClick={handleRunMultimodalSynthesis}
                 disabled={isCrossAnalyzing}
-                className="h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-40"
+                className="h-9 sm:h-10 px-4 sm:px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-40"
               >
-                {isCrossAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                <span>{synthesisData ? 'Ri-Kryqëzo Provat' : 'Fillo Kryqëzimin e Plotë'}</span>
+                {isCrossAnalyzing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                <span>{synthesisData ? 'Ri-Kryqëzo' : 'Fillo Kryqëzimin'}</span>
               </button>
             </div>
           </div>
 
-          {/* Dritarja e Rezultateve të War Room */}
           <div
-            className="min-h-[480px] max-h-[620px] overflow-y-auto custom-finance-scroll p-6 bg-surface/40 rounded-2xl border border-main text-text-primary select-text space-y-4"
+            className="min-h-[400px] max-h-[620px] overflow-y-auto custom-finance-scroll p-4 sm:p-6 bg-surface/40 rounded-2xl border border-main text-text-primary select-text space-y-4"
             style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
           >
             {synthesisData ? (
               <div className="space-y-4">
-                {/* Teoria Fituese e Lëndës */}
+                {/* Teoria Kryesore e Rastit */}
                 <div className="p-4 bg-primary-start/10 rounded-2xl border border-primary-start/20 space-y-1.5">
-                  <h3 className="font-bold text-primary-start flex items-center gap-2 uppercase" style={{ fontSize: `${activeFont.base * 1.2}px` }}>
-                    <Award size={16} /> Teoria Fituese e Lëndës:
+                  <h3 className="font-bold text-primary-start flex items-center gap-2 uppercase text-xs sm:text-sm">
+                    <Award size={15} /> Teoria Kryesore e Rastit:
                   </h3>
-                  <p className="text-text-primary leading-relaxed">{synthesisData.winning_theory_of_the_case}</p>
+                  <p className="text-text-primary leading-relaxed text-xs sm:text-sm">{synthesisData.winning_theory_of_the_case}</p>
                 </div>
 
-                {/* Kontradiktat Ndërprovuese */}
+                {/* Kontradiktat */}
                 {synthesisData.critical_cross_contradictions?.length > 0 && (
                   <div className="p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20 space-y-2">
-                    <h3 className="font-bold text-rose-500 flex items-center gap-2 uppercase" style={{ fontSize: `${activeFont.base * 1.2}px` }}>
-                      <Flame size={16} /> Kontradiktat Ndërprovuese të Zbuluara:
+                    <h3 className="font-bold text-rose-500 flex items-center gap-2 uppercase text-xs sm:text-sm">
+                      <Flame size={15} /> Kontradiktat e Identifikuara:
                     </h3>
-                    <ul className="list-disc list-inside space-y-1 text-text-primary">
+                    <ul className="list-disc list-inside space-y-1 text-text-primary text-xs sm:text-sm">
                       {synthesisData.critical_cross_contradictions.map((c, i) => (
                         <li key={i}>{c}</li>
                       ))}
@@ -406,22 +379,22 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
                   </div>
                 )}
 
-                {/* Pyetjet Tërthore Vrastare (Cross-Examination Traps) */}
+                {/* Pyetësori Taktik */}
                 {synthesisData.cross_examination_traps?.length > 0 && (
                   <div className="p-4 bg-surface rounded-2xl border border-main space-y-3">
-                    <h3 className="font-bold text-text-primary flex items-center gap-2 uppercase" style={{ fontSize: `${activeFont.base * 1.2}px` }}>
-                      <Target size={16} className="text-rose-500" /> Pyetjet Tërthore për Seancë Gjyqësore:
+                    <h3 className="font-bold text-text-primary flex items-center gap-2 uppercase text-xs sm:text-sm">
+                      <Target size={15} className="text-rose-500" /> Pyetësori Taktik për Seancë:
                     </h3>
                     <div className="space-y-2.5">
                       {synthesisData.cross_examination_traps.map((trap, idx) => (
                         <div key={idx} className="p-3 bg-card rounded-xl border border-main space-y-1">
-                          <div className="flex items-center justify-between" style={{ fontSize: `${activeFont.base * 0.9}px` }}>
-                            <span className="font-bold text-rose-500">Objektivi: {trap.witness_or_target}</span>
-                            <span className="text-text-muted font-mono">Pyetja #{idx + 1}</span>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-rose-500">Palë / Dëshmitar: {trap.witness_or_target}</span>
+                            <span className="text-text-muted font-mono">#{idx + 1}</span>
                           </div>
-                          <p className="font-bold text-text-primary italic" style={{ fontSize: `${activeFont.base}px` }}>"{trap.question}"</p>
-                          <p className="text-text-muted pt-1" style={{ fontSize: `${activeFont.base * 0.85}px` }}>
-                            <span className="font-bold text-primary-start">Kurthi Procedural:</span> {trap.trap_explanation}
+                          <p className="font-bold text-text-primary italic text-xs sm:text-sm">"{trap.question}"</p>
+                          <p className="text-text-muted pt-1 text-[11px] sm:text-xs">
+                            <span className="font-bold text-primary-start">Qëllimi Procedural:</span> {trap.trap_explanation}
                           </p>
                         </div>
                       ))}
@@ -429,13 +402,13 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
                   </div>
                 )}
 
-                {/* Vektorët e Dyshimit të Arsyeshëm */}
+                {/* Dyshimi i Arsyeshëm */}
                 {synthesisData.in_dubio_pro_reo_vectors?.length > 0 && (
                   <div className="p-4 bg-card rounded-2xl border border-main space-y-2">
-                    <h3 className="font-bold text-text-primary flex items-center gap-2 uppercase" style={{ fontSize: `${activeFont.base * 1.2}px` }}>
-                      <HelpCircle size={16} className="text-emerald-500" /> Pikat e Dyshimit të Arsyeshëm (In Dubio Pro Reo):
+                    <h3 className="font-bold text-text-primary flex items-center gap-2 uppercase text-xs sm:text-sm">
+                      <HelpCircle size={15} className="text-emerald-500" /> Elementet e Dyshimit të Arsyeshëm (In Dubio Pro Reo):
                     </h3>
-                    <ul className="list-disc list-inside space-y-1 text-text-muted">
+                    <ul className="list-disc list-inside space-y-1 text-text-muted text-xs sm:text-sm">
                       {synthesisData.in_dubio_pro_reo_vectors.map((v, i) => (
                         <li key={i}>{v}</li>
                       ))}
@@ -444,12 +417,12 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
                 )}
               </div>
             ) : chronologyText ? (
-              <div className="whitespace-pre-wrap font-mono">{chronologyText}</div>
+              <div className="whitespace-pre-wrap font-mono text-xs sm:text-sm">{chronologyText}</div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-3 py-16">
-                <Swords size={48} className="text-rose-500/30" />
-                <p className="font-semibold max-w-md">
-                  Shtypni butonin <span className="text-rose-500 font-bold">"Fillo Kryqëzimin e Plotë"</span> për të analizuar me Claude Sonnet 4.6 provat audio, vizuale dhe financiare në një matricë të vetme operacionale.
+              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-2.5 py-16">
+                <Swords size={40} className="text-rose-500/30" />
+                <p className="text-xs sm:text-sm max-w-sm">
+                  Shtypni butonin <span className="text-rose-500 font-bold">"Fillo Kryqëzimin"</span> për të analizuar dhe kryqëzuar të gjitha provat e administruara.
                 </p>
               </div>
             )}
@@ -457,43 +430,43 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
         </div>
       )}
 
-      {/* 2. HARTIMI I AKTEVE PROCEDURALE ME CLAUDE SONNET 4.6 */}
+      {/* 2. HARTIMI I AKTEVE PROCEDURALE */}
       {activeSubTab === 'DRAFTING' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-4 rounded-2xl border border-main">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-card border border-main text-text-muted text-xs font-bold">
-                <Scale size={14} className="text-primary-start" />
-                <span>Standardi Procedural:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-surface p-3.5 sm:p-4 rounded-2xl border border-main">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-card border border-main text-text-muted text-xs font-bold shrink-0">
+                <Scale size={13} className="text-primary-start" />
+                <span>Akti:</span>
               </div>
 
               <select
                 value={selectedAct}
                 onChange={(e) => setSelectedAct(e.target.value as DraftingActType)}
-                className="h-10 bg-card border border-main rounded-xl px-3 text-xs font-bold text-text-primary focus:outline-none focus:border-rose-500"
+                className="h-9 sm:h-10 bg-card border border-main rounded-xl px-2.5 text-xs font-bold text-text-primary focus:outline-none focus:border-rose-500 flex-1 min-w-[200px]"
               >
-                <option value="KALLËZIM_PENAL_PSRK">Kallëzim Penal Solemn (PSRK / Themelore)</option>
-                <option value="MASË_EMERGJENTE_24H">Kërkesë për Masë Emergjente 24H (Nenet 188/221 KPPRK)</option>
-                <option value="ANKESË_APEL">Ankesë në Gjykatën e Apelit (Neni 182 LPK)</option>
-                <option value="PRAPËSIM_PADI">Përgjigje në Padi (Prapësim me Kamatë LMD)</option>
+                <option value="KALLËZIM_PENAL">Kallëzim Penal (Neni 83 KPPRK)</option>
+                <option value="MASË_SIGURIMI">Kërkesë për Masë Sigurimi (LPK / KPPRK)</option>
+                <option value="ANKESË_APEL">Ankesë në Gjykatën e Apelit</option>
+                <option value="PRAPËSIM_PADI">Prapësim dhe Përgjigje në Padi</option>
               </select>
 
               <button
                 type="button"
                 onClick={handleGenerateJudicialAct}
                 disabled={isDrafting}
-                className="h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-40"
+                className="h-9 sm:h-10 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-40 shrink-0"
               >
-                {isDrafting ? <Loader2 size={14} className="animate-spin" /> : <FileCheck size={14} />}
-                <span>{draftedLegalAct ? 'Ri-Harto Shkresën' : 'Harto Aktin Zyrtar'}</span>
+                {isDrafting ? <Loader2 size={13} className="animate-spin" /> : <FileCheck size={13} />}
+                <span>{draftedLegalAct ? 'Ri-Harto' : 'Harto Shkresën'}</span>
               </button>
             </div>
 
             {draftedLegalAct && (
               <button
                 type="button"
-                onClick={() => handleCopyText(draftedLegalAct, 'DRAFT')}
-                className="h-10 px-4 bg-card hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer shadow-sm"
+                onClick={handleCopyDraftText}
+                className="h-9 sm:h-10 px-3.5 bg-card hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 self-end sm:self-auto"
               >
                 {copiedDraftText ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
                 <span>{copiedDraftText ? 'U Kopjua' : 'Kopjo Shkresën'}</span>
@@ -502,14 +475,14 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
           </div>
 
           <div
-            className="min-h-[480px] max-h-[620px] overflow-y-auto custom-finance-scroll p-6 bg-surface/40 rounded-2xl border border-main text-text-primary whitespace-pre-wrap font-mono select-text"
+            className="min-h-[420px] max-h-[640px] overflow-y-auto custom-finance-scroll p-4 sm:p-8 bg-surface/40 rounded-2xl border border-main text-text-primary whitespace-pre-wrap font-sans select-text leading-relaxed"
             style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
           >
             {draftedLegalAct || (
-              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-3 py-16">
-                <FileText size={48} className="text-rose-500/30" />
-                <p className="font-sans max-w-sm">
-                  Përzgjidhni llojin e aktit më lart dhe klikoni <span className="font-bold text-text-primary">"Harto Aktin Zyrtar"</span> për të gjeneruar shkresën e plotë procedurale me Claude Sonnet 4.6.
+              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-2.5 py-16">
+                <FileText size={40} className="text-rose-500/30" />
+                <p className="text-xs sm:text-sm max-w-sm">
+                  Përzgjidhni aktin procedural dhe shtypni <span className="font-bold text-text-primary">"Harto Shkresën"</span> për të gjeneruar draftin e plotë ligjor sipas dispozitave të Kosovës.
                 </p>
               </div>
             )}
@@ -517,81 +490,13 @@ export const SynthesisWarRoom: React.FC<SynthesisWarRoomProps> = ({
         </div>
       )}
 
-      {/* 3. PAKOJA PËRFUNDIMTARE & VULOSJA ME CHAIN OF CUSTODY */}
-      {activeSubTab === 'DISPATCH' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7 space-y-4">
-            <div className="p-5 rounded-3xl bg-surface border border-main space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                <Send size={15} className="text-primary-start" /> Njoftimi i Përmbledhur për Klientin / Organin
-              </h3>
-              <textarea
-                readOnly
-                value={dispatchMessage}
-                rows={10}
-                className="w-full bg-card border border-main rounded-2xl p-4 text-text-primary leading-relaxed font-sans focus:outline-none resize-none select-text"
-                style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(dispatchMessage);
-                  alert("Mesazhi u kopjua për dërgim!");
-                }}
-                className="px-4 py-2 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm"
-              >
-                <Copy size={13} />
-                <span>Kopjo Njoftimin për WhatsApp / Email</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 space-y-4">
-            <div className="p-6 rounded-3xl bg-surface border border-main space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2 border-b border-main pb-3">
-                <FolderArchive size={16} className="text-rose-500" /> Vulosja e Dosjes (Chain of Custody)
-              </h3>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3 rounded-xl bg-card border border-main space-y-1">
-                  <span className="text-text-muted text-[10px] uppercase font-bold">Vula Kriptografike e Serverit:</span>
-                  <p className="font-mono font-bold text-emerald-500 truncate text-[11px]">{latestSealedHash}</p>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl bg-card border border-main">
-                  <span className="text-text-muted">Kryqëzimi Multimodal:</span>
-                  <span className="font-bold text-text-primary">
-                    {synthesisData ? 'I Përfunduar' : 'Në Pritje'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl bg-card border border-main">
-                  <span className="text-text-muted">Shkresa e Hartuar:</span>
-                  <span className="font-bold text-text-primary">
-                    {draftedLegalAct ? selectedAct : 'E Papërgatitur'}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleArchiveMasterDossier}
-                disabled={isArchiving}
-                className="w-full h-11 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-40"
-              >
-                {isArchiving ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-                <span>{archiveSuccess ? 'U Vulos me Sukses në Server!' : 'Vulos Dosjen me Chain of Custody'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* FOOTER I STANDARDIT PROCEDURAL */}
-      <div className="pt-4 border-t border-main flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-text-muted">
+      {/* FOOTER */}
+      <div className="pt-3 border-t border-main flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[10px] sm:text-[11px] text-text-muted">
         <span className="flex items-center gap-1.5 font-medium">
-          <ShieldCheck size={14} className="text-emerald-500" />
-          Standard i Pajtueshëm me KPPRK dhe LPK të Kosovës
+          <ShieldCheck size={13} className="text-emerald-500" />
+          Pajtueshmëri me Kodin e Procedurës Penale dhe LPK të Kosovës
         </span>
-        <span className="font-mono text-[10px]">Vula: {partnerLawyerName} ({partnerLawyerLicense})</span>
+        <span className="font-mono">Vula: {chainOfCustodyHash ? `${chainOfCustodyHash.slice(0, 18)}...` : 'Aktive'}</span>
       </div>
     </div>
   );
