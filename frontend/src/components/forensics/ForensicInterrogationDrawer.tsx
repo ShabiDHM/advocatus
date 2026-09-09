@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.0 (DYNAMIC FONT & MOBILE READY)
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.1 (RICH-TEXT WORD COMPATIBLE COPY)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -69,6 +69,30 @@ const FONT_LEVELS = [
   { label: '130%',  base: 19,   line: 1.75 },
   { label: '150%',  base: 21,   line: 1.8 }
 ];
+
+const markdownToHtml = (markdown: string): string => {
+  const escapeHtml = (value: string) => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  return escapeHtml(markdown)
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/_(.+?)_/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^(.+)$/s, '<p>$1</p>');
+};
 
 export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerProps> = ({
   isOpen,
@@ -253,10 +277,28 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  const handleCopyMessage = (msgId: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(msgId);
-    setTimeout(() => setCopiedId(null), 2000);
+  // KOPJIMI I PASTËR DHE I FORNATUAR PËR MICROSOFT WORD (RICH TEXT)
+  const handleCopyMessage = async (msgId: string, text: string) => {
+    try {
+      // Përpunon Markdown në format HTML
+      const htmlContent = markdownToHtml(text);
+      
+      // Krijon një objekt ClipboardItem me HTML dhe Tekst të thjeshtë
+      const clipboardItem = new ClipboardItem({
+        'text/html': new Blob([htmlContent], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      });
+      
+      await navigator.clipboard.write([clipboardItem]);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      // Nëse API-ja ClipboardItem dështon (p.sh. shfletues i vjetër), kthehet te kopjimi klasik
+      console.warn('Clipboard API nuk mundi të ruajë HTML, po përdorim vetëm tekst.', err);
+      navigator.clipboard.writeText(text);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
   return (
@@ -467,7 +509,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                               type="button"
                               onClick={() => handleCopyMessage(msg.id, msg.content)}
                               className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
-                              title="Kopjo përgjigjen"
+                              title="Kopjo përgjigjen për Microsoft Word"
                             >
                               {copiedId === msg.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
                             </button>
