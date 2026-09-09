@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.0 (FULL CONVERSATIONAL MEMORY & ATOMIC PURGE)
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.2 (TRUE RAG: CASE BASE + KNOWLEDGE BASE)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,6 +16,7 @@ from app.models.user import UserInDB
 from app.services.forensic.forensic_llm_service import call_forensic_llm_chat, stream_forensic_llm_async
 from app.services.forensic.forensic_hallucination_filter import purge_and_regenerate_if_hallucinated
 from app.services.forensic.forensic_audit_service import log_forensic_action
+from app.services.vector_store_service import query_case_knowledge_base, query_global_knowledge_base
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -54,12 +55,13 @@ def get_forensic_chat_history(
             m["created_at"] = m["created_at"].isoformat()
         messages.append(m)
 
+    # Legacy fallback (keep for old data, but not primary)
     if len(messages) == 0:
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
             case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": str(case_id)}]})
             legacy_history = (case_doc or {}).get("forensic_chat_history") or []
-            if isinstance(legacy_history, list) and len(legacy_history) > 0:
+            if isinstance(legacy_history, list):
                 for idx, legacy_m in enumerate(legacy_history):
                     messages.append({
                         "_id": f"legacy_{idx}",
@@ -74,7 +76,7 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2. DËRGIMI I PYETJES ME KUJTESË TË PLOTË BASHKËBISEDUESE
+# 2. DËRGIMI I PYETJES ME RAG (CASE BASE + KNOWLEDGE BASE)
 # ==========================================================
 @router.post("/chat")
 def send_forensic_chat_message(
@@ -83,14 +85,16 @@ def send_forensic_chat_message(
     db: Database = Depends(get_db)
 ):
     """
-    Merr të gjitha pyetjet dhe përgjigjet e mëparshme, i dërgon te Claude Sonnet 4.6
-    si dialog i plotë multi-turn, verifikon citimet dhe ruan të gjithë sekuencën.
+    Përdor RAG të vërtetë: 
+    1. Case Base: Kërkim semantik në dokumentet e lëndës (vector store)
+    2. Knowledge Base: Nenet e ligjeve dhe praktika e Gjykatës Supreme
+    3. Historiku i plotë i bisedës për kujtesë afatgjatë
     """
     user_id = str(current_user.id)
     case_id_str = str(payload.case_id)
     now_utc = datetime.now(timezone.utc)
 
-    # 1. Mbledh historikun e kaluar nga MongoDB PËRPARA mesazhit të ri
+    # 1. Mbledh historikun e kaluar
     query = _build_case_query(case_id_str)
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
 
@@ -101,7 +105,7 @@ def send_forensic_chat_message(
             "content": m.get("content", "")
         })
 
-    # Nëse koleksioni ishte bosh, provo nga cases
+    # Legacy fallback
     if len(conversation_turns) == 0:
         try:
             case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
@@ -115,46 +119,86 @@ def send_forensic_chat_message(
         except Exception:
             pass
 
-    # Shto pyetjen aktuale në fund të zinxhirit të kujtesës
+    # Shto pyetjen aktuale
     conversation_turns.append({
         "role": "user",
         "content": payload.message
     })
 
-    # 2. Ruaj pyetjen e re të përdoruesit në MongoDB
-    user_msg_doc = {
+    # 2. RAG CASE BASE: Merr chunk-et relevante nga dokumentet e lëndës
+    case_chunks = []
+    try:
+        case_chunks = query_case_knowledge_base(
+            user_id=user_id,
+            query_text=payload.message,
+            n_results=6,
+            case_id=case_id_str
+        )
+    except Exception as e:
+        logger.warning(f"Case base retrieval failed: {e}")
+
+    # 3. RAG KNOWLEDGE BASE: Merr nenet dhe precedentët e Gjykatës Supreme
+    knowledge_chunks = []
+    try:
+        knowledge_chunks = query_global_knowledge_base(
+            query_text=payload.message,
+            n_results=8
+        )
+    except Exception as e:
+        logger.warning(f"Knowledge base retrieval failed: {e}")
+
+    # 4. Ruaj pyetjen e përdoruesit
+    db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
         "role": "user",
         "content": payload.message,
         "created_at": now_utc
-    }
-    db[FORENSIC_CHAT_COLLECTION].insert_one(user_msg_doc)
+    })
 
-    # 3. Direktiva e Kujtesës dhe Ekspertizës
-    system_prompt = f"""TERMINALI FORENZIK HETIMOR SUPREM (CLAUDE SONNET 4.6):
+    # 5. Ndërto system prompt me kontekst RAG
+    case_context_text = "\n".join([
+        f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}): {c.get('text','')}"
+        for c in case_chunks if c.get("text")
+    ]) if case_chunks else "Nuk ka pjesë relevante nga dokumentet e lëndës."
+
+    knowledge_context_text = "\n".join([
+        f"{c.get('source','Ligj')}: {c.get('text','')}"
+        for c in knowledge_chunks if c.get("text")
+    ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
+
+    system_prompt = f"""TERMINALI FORENZIK HETIMOR SUPREM (CLAUDE SONNET 4.6)
 Ju jeni hetuesi suprem ligjor për Republikën e Kosovës me KUJTESË TË PLOTË mbi këtë lëndë.
-Ju i dini dhe i mbani mend të gjitha pyetjet dhe përgjigjet e mëparshme të këtij dialogu.
-Përgjigjuni me koherencë të thellë hetimore: nëse një fakt apo person është përmendur më herët, ndërlidheni menjëherë.
+
+MANDATI:
+1. Përdorni VETËM provat dhe dokumentet e lëndës për fakte rasti.
+2. Përdorni BAZËN E NJOHURIVE për nenet dhe praktikën gjyqësore.
+3. Mos hamendësoni; nëse informacioni mungon, thoni qartë se nuk është në dispozicion.
 
 KONTEKSTI I LËNDËS:
-{payload.case_context or 'Çështje hetimore forenzike'}"""
+{payload.case_context or 'Çështje hetimore forenzike'}
 
-    # 4. Thirrja e Claude Sonnet 4.6 me KUJTESË TË PLOTË MULTI-TURN
+PJESËT RELEVANTE NGA DOKUMENTET E LËNDËS (CASE BASE):
+{case_context_text}
+
+REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
+{knowledge_context_text}"""
+
+    # 6. Thirrja e Claude Sonnet 4.6 me KUJTESË TË PLOTË
     raw_response = call_forensic_llm_chat(
         conversation_turns=conversation_turns,
         system_prompt=system_prompt,
         temperature=0.0
     )
 
-    # 5. Verifikimi i citimeve ligjore në MongoDB
+    # 7. Verifikimi i citimeve ligjore
     verified_text, audit_result = purge_and_regenerate_if_hallucinated(
         response_text=raw_response,
         db=db,
         original_prompt=payload.message
     )
 
-    # 6. Ruaj përgjigjen e verifikuar në MongoDB
+    # 8. Ruaj përgjigjen
     assistant_msg_doc = {
         "case_id": case_id_str,
         "user_id": user_id,
@@ -165,7 +209,7 @@ KONTEKSTI I LËNDËS:
     }
     result = db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
 
-    # 7. Sinkronizim i Dyfishtë për Multi-Device
+    # 9. Sinkronizim për multi-device (opsional)
     try:
         case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
         db.cases.update_one(
@@ -203,7 +247,7 @@ KONTEKSTI I LËNDËS:
     }
 
 # ==========================================================
-# 3. TOTAL CASCADE WIPEOUT (FSHIRJE TOTAL NGA KOSHI)
+# 3. TOTAL CASCADE WIPEOUT
 # ==========================================================
 @router.delete("/chat/{case_id}", status_code=status.HTTP_200_OK)
 def clear_forensic_chat_history(
@@ -239,6 +283,6 @@ def clear_forensic_chat_history(
 
     return {
         "status": "success",
-        "message": f"Biseda u asgjësua plotësisht (Total Cascade Wipeout). U fshinë {del_result.deleted_count} mesazhe.",
+        "message": f"Biseda u asgjësua plotësisht. U fshinë {del_result.deleted_count} mesazhe.",
         "deleted_count": del_result.deleted_count
     }
