@@ -1,5 +1,5 @@
 # FILE: backend/app/services/pdf_service.py
-# PHOENIX PROTOCOL - PDF SERVICE V7.0 (MULTI-CDN FONT FALLBACK & ZERO 404 LOGS)
+# ORIGINAL VERSION - WORKING
 
 import io
 import os
@@ -27,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 class PDFProcessor:
     _font_registered = False
-    _active_font_name = "Helvetica" # Default standard PDF font
+    _active_font_name = "Helvetica"
     
-    # Active Google Fonts CDN URLs for NotoEmoji
     FONT_URLS = [
         "https://raw.githubusercontent.com/google/fonts/main/ofl/notoemoji/NotoEmoji-VariableFont_wght.ttf",
         "https://github.com/google/fonts/raw/main/ofl/notoemoji/NotoEmoji-VariableFont_wght.ttf",
@@ -39,15 +38,9 @@ class PDFProcessor:
 
     @classmethod
     def _ensure_font_available(cls):
-        """
-        Attempts to download and register NotoEmoji from multi-CDN fallback list.
-        If successful, sets _active_font_name to 'NotoEmoji'.
-        If failed, keeps 'Helvetica'.
-        """
         if cls._font_registered and cls._active_font_name != "Helvetica":
             return
 
-        # 1. Define storage path (Assets or Temp)
         base_dirs = [
             os.path.join(os.path.dirname(__file__), "../assets/fonts"),
             "/tmp", 
@@ -67,33 +60,27 @@ class PDFProcessor:
             logger.warning("PDFService: No writable directory for fonts.")
             return
 
-        # 2. Download if missing (with SSL bypass and multi-URL fallback)
         if not os.path.exists(target_path) or os.path.getsize(target_path) < 1000:
             font_downloaded = False
             for url in cls.FONT_URLS:
                 try:
                     logger.info(f"PDFService: Attempting font download from {url}...")
-                    
                     ctx = ssl.create_default_context()
                     ctx.check_hostname = False
                     ctx.verify_mode = ssl.CERT_NONE
-                    
                     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                     with urllib.request.urlopen(req, context=ctx, timeout=8) as response, open(target_path, 'wb') as out_file:
                         shutil.copyfileobj(response, out_file)
-                    
                     if os.path.exists(target_path) and os.path.getsize(target_path) > 1000:
                         font_downloaded = True
                         logger.info("PDFService: Font download complete.")
                         break
                 except Exception as e:
                     logger.warning(f"PDFService: CDN Font download skipped ({url}): {e}")
-
             if not font_downloaded:
                 logger.info("PDFService: Using standard Helvetica fallback font.")
                 return
 
-        # 3. Register the font
         try:
             font_name = "NotoEmoji"
             pdfmetrics.registerFont(TTFont(font_name, target_path))
@@ -107,9 +94,6 @@ class PDFProcessor:
 
     @staticmethod
     def _sanitize_for_standard_font(text: str) -> str:
-        """
-        If using Helvetica, strip non-Latin characters/emojis to prevent broken glyphs.
-        """
         return text.encode('latin-1', 'ignore').decode('latin-1')
 
     @staticmethod
@@ -147,20 +131,15 @@ class PDFProcessor:
 
     @staticmethod
     def convert_bytes_to_pdf(content: bytes, filename: str) -> Tuple[bytes, str]:
-        """
-        Uses Platypus Engine for robust Text-to-PDF conversion.
-        """
         PDFProcessor._ensure_font_available()
         
         ext = filename.split('.')[-1].lower() if '.' in filename else ""
         base_name = os.path.splitext(filename)[0]
         new_filename = f"{base_name}.pdf"
 
-        # 1. Text to PDF
         if ext == "txt":
             try:
                 text_str = content.decode('utf-8', errors='replace')
-                
                 if PDFProcessor._active_font_name == "Helvetica":
                     text_str = PDFProcessor._sanitize_for_standard_font(text_str)
 
@@ -173,7 +152,6 @@ class PDFProcessor:
                 )
 
                 styles = getSampleStyleSheet()
-                
                 chat_style = ParagraphStyle(
                     'ChatLog',
                     parent=styles['Normal'],
@@ -203,7 +181,6 @@ class PDFProcessor:
                     if not line.strip():
                         story.append(Spacer(1, 2*mm))
                         continue
-                    
                     clean_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                     story.append(Paragraph(clean_line, chat_style))
 
@@ -214,13 +191,11 @@ class PDFProcessor:
                 logger.error(f"Text conversion failed: {e}")
                 return content, filename
 
-        # 2. Image to PDF
         if ext in ['jpg', 'jpeg', 'png', 'webp', 'bmp']:
             try:
                 img = PILImage.open(io.BytesIO(content))
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
-                
                 pdf_buffer = io.BytesIO()
                 img.save(pdf_buffer, "PDF", resolution=100.0)
                 return pdf_buffer.getvalue(), new_filename
@@ -240,7 +215,6 @@ class PDFProcessor:
             c = canvas.Canvas(watermark_stream)
             c.setFont("Helvetica", 8)
             c.setFillColor(colors.grey)
-            
             c.drawCentredString(A4[0] / 2, 1 * cm, f"Rasti: {case_id} | Juristi AI System")
             c.save()
             watermark_stream.seek(0)
