@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.3 (REMOVED SONNET BRANDING BADGE)
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V7.4 (MINIMALIST UI HEADER CLEANUP)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • SERVER-SIDE CUSTODY INTEGRATION
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -180,16 +180,18 @@ export const AdminForensicDeskPage: React.FC = () => {
               <h1 className="text-sm sm:text-xl md:text-2xl font-black uppercase tracking-tight text-text-primary leading-tight">
                 Laboratori Forenzik
               </h1>
+              
+              {/* Vula e Thjeshtëzuar: Vetëm ikona + Vula + Kopjo */}
               {activeDossier && (
                 <button
                   type="button"
                   onClick={handleCopyHash}
-                  className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-mono text-[9px] sm:text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-500/25 transition-colors cursor-pointer mt-1 sm:mt-0"
-                  title="Kopjo Chain of Custody Hash (HMAC-SHA256)"
+                  className="px-2.5 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-500 border border-emerald-500/30 font-mono text-[10px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer mt-0.5"
+                  title={`Chain of Custody Hash: ${activeDossier.chainOfCustodyHash} (Kliko për ta kopjuar)`}
                 >
-                  <Hash size={10} className="sm:w-[11px] sm:h-[11px]" />
-                  <span className="truncate max-w-[140px] sm:max-w-none">Vula: {activeDossier.chainOfCustodyHash}</span>
-                  {copiedHash ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" /> : <Copy size={10} className="shrink-0" />}
+                  <Hash size={11} className="shrink-0" />
+                  <span>{copiedHash ? 'U Kopjua!' : 'Vula'}</span>
+                  {copiedHash ? <CheckCircle2 size={11} className="text-emerald-500 shrink-0" /> : <Copy size={11} className="shrink-0" />}
                 </button>
               )}
             </div>
@@ -200,32 +202,28 @@ export const AdminForensicDeskPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          {/* Butoni Chat (vetëm Chat) */}
           {isSuperAdmin && activeDossier && (
             <button
               type="button"
               onClick={() => setShowChatDrawer(true)}
-              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
+              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
               title="Terminali i Sigurt i Bisedës Forenzike"
             >
               <ShieldCheck size={16} className="text-primary-start" />
-              <span className="hidden xs:inline">Terminali Forenzik</span>
-              <span className="xs:hidden">Chat</span>
-              <span className="hidden md:inline-flex px-1.5 py-0.5 rounded-md bg-primary-start text-white text-[9px] font-mono font-bold">
-                Sonnet 4.6
-              </span>
+              <span>Chat</span>
             </button>
           )}
 
+          {/* Butoni Hetuesi (vetëm Ikona) */}
           {activeDossier && (
             <button
               type="button"
               onClick={() => setShowInvestigatorDrawer(true)}
-              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0"
-              title="Hap Ditarin e Hetuesit Autonom (3 Role)"
+              className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+              title="Ditari i Hetuesit Autonom"
             >
-              <span className="text-sm">🕵️</span>
-              <span className="hidden xs:inline">Ditari i Hetuesit</span>
-              <span className="xs:hidden">Hetuesi</span>
+              <span className="text-base sm:text-lg select-none">🕵️</span>
             </button>
           )}
 
@@ -260,29 +258,27 @@ export const AdminForensicDeskPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Butoni i Fshirjes së Dosjes */}
+          {/* Butoni Fshirjes (vetëm Koshi) */}
           {activeDossier && (
             <button
               type="button"
               onClick={() => handleDeleteDossier(activeDossier.id, activeDossier.clientName)}
               disabled={deletingDossierId === activeDossier.id}
-              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-sm shrink-0 disabled:opacity-40"
+              className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 disabled:opacity-40"
               title="Fshi Dosjen dhe të Gjitha Provat (Total Cascade Wipeout)"
             >
-              {deletingDossierId === activeDossier.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              <span className="hidden xs:inline">Fshi Dosjen</span>
-              <span className="xs:hidden">Fshi</span>
+              {deletingDossierId === activeDossier.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </button>
           )}
 
+          {/* Butoni Shto (vetëm Plus) */}
           <button
             type="button"
             onClick={() => setShowNewDossierModal(true)}
-            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all cursor-pointer shrink-0"
+            className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer shrink-0"
+            title="Hap Dosje të Re Forenzike"
           >
-            <Plus size={14} />
-            <span className="hidden xs:inline">Dosje e Re</span>
-            <span className="xs:hidden">E Re</span>
+            <Plus size={16} />
           </button>
         </div>
       </header>
@@ -394,7 +390,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             <div>
               <h3 className="text-sm sm:text-base font-bold text-text-primary">Asnjë Dosje Forenzike nuk është aktive</h3>
               <p className="text-[11px] sm:text-xs text-text-muted mt-1 max-w-xs sm:max-w-sm mx-auto">
-                Përzgjidhni një dosje ekzistuese në menunë sipër ose klikoni "Dosje e Re" për të filluar administrimin e provave.
+                Përzgjidhni një dosje ekzistuese në menunë sipër ose klikoni butonin plus (+) për të filluar administrimin e provave.
               </p>
             </div>
             <button
@@ -402,7 +398,7 @@ export const AdminForensicDeskPage: React.FC = () => {
               onClick={() => setShowNewDossierModal(true)}
               className="h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all cursor-pointer mt-2"
             >
-              <Plus size={14} />
+              <Plus size={16} />
               <span>Regjistro Dosjen e Parë</span>
             </button>
           </div>
