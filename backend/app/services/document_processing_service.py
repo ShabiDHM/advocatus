@@ -1,5 +1,5 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V35.0 (UNIFIED CONTENT STORAGE & RESILIENT TIMEOUTS)
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V36.0 (COLLECTION-AWARE FOR FORENSIC DOCUMENTS)
 
 import os
 import tempfile
@@ -40,10 +40,10 @@ def _safe_remove_temp_file(file_path: str):
         pass
 
 
-async def _update_db_and_broadcast(db: Any, doc_id: ObjectId, user_id: str, document_id_str: str, percent: int, message: str, doc_status: str = "PROCESSING"):
+async def _update_db_and_broadcast(db: Any, collection: str, doc_id: ObjectId, user_id: str, document_id_str: str, percent: int, message: str, doc_status: str = "PROCESSING"):
     try:
         await asyncio.to_thread(
-            db.documents.update_one,
+            db[collection].update_one,
             {"_id": doc_id},
             {"$set": {
                 "progress_percent": percent,
@@ -80,10 +80,11 @@ async def orchestrate_document_processing_mongo(
     document_id_str: str,
     *args,
     db: Any = None,
+    collection: str = "documents",
     redis_client: Any = None,
     **kwargs
 ):
-    logger.info(f"⚡ [Orchestrator V35.0] Processing booted for doc: {document_id_str}")
+    logger.info(f"⚡ [Orchestrator V36.0] Processing booted for doc: {document_id_str} in collection '{collection}'")
     
     if db is None:
         from app.core.db import get_db_instance
@@ -95,9 +96,9 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Invalid Document ID: {document_id_str}")
         return
 
-    document = await asyncio.to_thread(db.documents.find_one, {"_id": doc_id})
+    document = await asyncio.to_thread(db[collection].find_one, {"_id": doc_id})
     if not document:
-        logger.error(f"Document {document_id_str} not found in DB.")
+        logger.error(f"Document {document_id_str} not found in {collection} collection.")
         return
 
     user_id = str(document.get("owner_id"))
@@ -105,7 +106,7 @@ async def orchestrate_document_processing_mongo(
     case_id_str = str(document.get("case_id"))
 
     # Faza 1: 30% Përgatitja
-    await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 30, "Duke përgatitur skedarin...")
+    await _update_db_and_broadcast(db, collection, doc_id, user_id, document_id_str, 30, "Duke përgatitur skedarin...")
 
     temp_original_file_path = ""
     raw_text = f"Dokument i ngarkuar: {doc_name}."
@@ -134,8 +135,8 @@ async def orchestrate_document_processing_mongo(
             logger.warning(f"Could not calculate page count for {doc_name}: {page_err}")
             real_page_count = 1
 
-        # Faza 2: 60% Leximi me AI Vision & OCR (Koha përshtatet me numrin e faqeve)
-        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin me AI Vision...")
+        # Faza 2: 60% Leximi me AI Vision & OCR
+        await _update_db_and_broadcast(db, collection, doc_id, user_id, document_id_str, 60, "Duke lexuar tekstin me AI Vision...")
         
         ocr_timeout = max(90.0, real_page_count * 20.0)
         try:
@@ -150,12 +151,11 @@ async def orchestrate_document_processing_mongo(
             logger.warning(f"OCR warning for {doc_name} (using fallback): {extract_err}")
 
         # Faza 3: 80% Vektorizimi në RAG
-        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 80, "Duke indeksuar në RAG...")
+        await _update_db_and_broadcast(db, collection, doc_id, user_id, document_id_str, 80, "Duke indeksuar në RAG...")
 
         async def task_summary():
             try:
                 sterilized_text = llm_service.sterilize_legal_text(raw_text)
-                # PHOENIX FIX: Zgjatet timeout nga 15s në 40s për t'i dhënë kohë AI-së të përmbledhë saktë
                 return await asyncio.wait_for(llm_service.process_large_document_async(sterilized_text), timeout=40.0)
             except Exception as e:
                 logger.warning(f"Summary task timeout/fallback: {e}")
@@ -195,7 +195,7 @@ async def orchestrate_document_processing_mongo(
                 return ""
 
         # Faza 4: 92% Përfundimi i Detyrave Paralele
-        await _update_db_and_broadcast(db, doc_id, user_id, document_id_str, 92, "Duke finalizuar...")
+        await _update_db_and_broadcast(db, collection, doc_id, user_id, document_id_str, 92, "Duke finalizuar...")
 
         try:
             results = await asyncio.wait_for(
@@ -215,10 +215,10 @@ async def orchestrate_document_processing_mongo(
         logger.error(f"Orchestrator pipeline exception on {doc_name}: {general_err}")
     
     finally:
-        # Faza 5: 100% GATI (PHOENIX FIX: Ruhen të dyja fushat 'content' dhe 'extracted_text')
+        # Faza 5: 100% GATI
         try:
             await asyncio.to_thread(
-                db.documents.update_one,
+                db[collection].update_one,
                 {"_id": doc_id},
                 {
                     "$set": {
@@ -237,7 +237,7 @@ async def orchestrate_document_processing_mongo(
                     }
                 }
             )
-            logger.info(f"✅ [Orchestrator V35.0] Document {document_id_str} ({real_page_count} pages) is 100% READY.")
+            logger.info(f"✅ [Orchestrator V36.0] Document {document_id_str} ({real_page_count} pages) is 100% READY in {collection}.")
         except Exception as db_err:
             logger.error(f"Failed to update MongoDB document status: {db_err}")
 

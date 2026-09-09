@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V1.7 (ADDED EXTRACTED TEXT ENDPOINT)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V2.0 (BACKGROUND PROCESSING PIPELINE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -8,7 +8,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, BackgroundTasks
 from fastapi.responses import StreamingResponse, PlainTextResponse
 from pymongo.database import Database
 from bson import ObjectId
@@ -23,6 +23,7 @@ from app.services.forensic.forensic_chain_of_custody import generate_evidence_ha
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_llm_service import call_forensic_llm
 from app.services.pdf_service import pdf_service
+from app.services.document_processing_service import orchestrate_document_processing_mongo
 
 router = APIRouter(prefix="/documents", tags=["Forensic Documents"])
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ def _serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
 async def upload_forensic_document(
     case_id: str = Form(...),
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
@@ -82,16 +84,6 @@ async def upload_forensic_document(
         metadata={"filename": filename, "file_size_bytes": len(raw_bytes)}
     )
 
-    extracted_text = ""
-    try:
-        extracted_text = await asyncio.to_thread(
-            text_extraction_service.extract_text,
-            raw_bytes,
-            filename
-        )
-    except Exception as ocr_err:
-        logger.warning(f"OCR warning: {ocr_err}")
-
     now = datetime.now(timezone.utc)
     doc = {
         "case_id": case_id,
@@ -99,17 +91,27 @@ async def upload_forensic_document(
         "file_name": filename,
         "storage_key": storage_key,
         "mime_type": content_type,
-        "status": "READY",
+        "status": "PROCESSING",
         "evidence_sha256": evidence_sha256,
         "custody_stamp": custody_stamp,
-        "extracted_text": extracted_text or "",
+        "extracted_text": "",
         "forensic_pillars": {},
+        "progress_percent": 0,
+        "progress_message": "Në pritje të përpunimit...",
         "created_at": now,
         "updated_at": now
     }
 
     result = db[FORENSIC_DOCS_COLLECTION].insert_one(doc)
     doc["_id"] = result.inserted_id
+    doc_id_str = str(result.inserted_id)
+
+    # Start background processing (extraction + vectorization)
+    background_tasks.add_task(
+        orchestrate_document_processing_mongo,
+        doc_id_str,
+        collection=FORENSIC_DOCS_COLLECTION
+    )
 
     log_forensic_action(
         db=db,
@@ -414,7 +416,8 @@ async def preview_forensic_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
 
-    storage_key = doc.get("storage_key")
+    # Prefer the preview_storage_key if exists (generated PDF)
+    storage_key = doc.get("preview_storage_key") or doc.get("storage_key")
     if not storage_key:
         raise HTTPException(status_code=404, detail="Skedari nuk gjendet në ruajtje.")
 
@@ -428,8 +431,8 @@ async def preview_forensic_document(
     filename = doc.get("file_name", "dokument.pdf")
     mime_type = doc.get("mime_type", "application/pdf")
 
-    # Nëse tashmë është PDF, ktheje direkt
-    if filename.lower().endswith('.pdf') or mime_type == 'application/pdf':
+    # Nëse është PDF, ktheje direkt
+    if file_bytes.startswith(b'%PDF'):
         return StreamingResponse(
             io.BytesIO(file_bytes),
             media_type="application/pdf",
@@ -459,7 +462,7 @@ async def preview_forensic_document(
         raise HTTPException(status_code=500, detail="Dështoi konvertimi i dokumentit në PDF.")
 
 # ==========================================================
-# 7. NEW: GET EXTRACTED TEXT
+# 7. GET EXTRACTED TEXT (ONLY STORED TEXT)
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/extracted-text", response_class=PlainTextResponse)
 async def get_extracted_text(
@@ -469,8 +472,7 @@ async def get_extracted_text(
     db: Database = Depends(get_db)
 ):
     """
-    Kthen tekstin e ekstraktuar/procesuar për dokumentin e dhënë,
-    i cili përdoret për embeddings dhe analiza.
+    Kthen tekstin e ekstraktuar/procesuar që është ruajtur në DB.
     """
     doc = None
     if ObjectId.is_valid(doc_id):

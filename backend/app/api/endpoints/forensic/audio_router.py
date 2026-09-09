@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/audio_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.2 (PURE TRANSCRIPT SUPPORT)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.3 (AUTO PROCESSING & VECTORIZATION)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -8,7 +8,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pymongo.database import Database
 from bson import ObjectId
@@ -21,6 +21,7 @@ from app.services import storage_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_audio_service import process_audio_file
+from app.services.forensic.forensic_media_processing_service import process_audio_media_background
 
 router = APIRouter(prefix="/audio", tags=["Forensic Audio"])
 logger = logging.getLogger(__name__)
@@ -37,12 +38,13 @@ def _serialize_media(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 # ==========================================================
-# 1. NGARKIMI I AUDIOS ME VULOSJE TË MENJËHERSHME (CUSTODY SEAL)
+# 1. NGARKIMI I AUDIOS ME VULOSJE DHE PËRPUNIM AUTOMATIK
 # ==========================================================
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_forensic_audio(
     case_id: str = Form(...),
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
@@ -80,15 +82,21 @@ async def upload_forensic_audio(
         "storage_key": storage_key,
         "media_type": "audio",
         "mime_type": content_type,
-        "status": "READY",
+        "status": "PROCESSING",
         "evidence_sha256": evidence_sha256,
         "custody_stamp": custody_stamp,
         "created_at": now,
-        "updated_at": now
+        "updated_at": now,
+        "progress_percent": 0,
+        "progress_message": "Në pritje të përpunimit..."
     }
 
     result = db[FORENSIC_MEDIA_COLLECTION].insert_one(doc)
     doc["_id"] = result.inserted_id
+    media_id_str = str(result.inserted_id)
+
+    # Trigger background processing (transcription + analysis + embeddings)
+    background_tasks.add_task(process_audio_media_background, db, media_id_str)
 
     log_forensic_action(
         db=db,
