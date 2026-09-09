@@ -1,5 +1,6 @@
 # FILE: backend/app/services/pdf_service.py
-# ORIGINAL VERSION - WORKING
+# PHOENIX PROTOCOL - FIXED VERSION
+# Adds DOCX (and other document) conversion in convert_bytes_to_pdf
 
 import io
 import os
@@ -8,6 +9,8 @@ import shutil
 import logging
 import urllib.request
 import ssl
+from typing import Tuple, Optional
+
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm, mm
@@ -18,8 +21,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from fastapi import UploadFile
-from typing import Tuple, Optional
-from PIL import Image as PILImage 
+from PIL import Image as PILImage
 
 from . import conversion_service
 
@@ -35,6 +37,11 @@ class PDFProcessor:
         "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji_WindowsCompatible.ttf"
     ]
     FONT_FILENAME = "NotoEmoji-Regular.ttf"
+
+    # Extensions that conversion_service can handle (mainly office documents)
+    CONVERTIBLE_EXTENSIONS = {
+        'docx', 'doc', 'odt', 'rtf', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'html', 'htm'
+    }
 
     @classmethod
     def _ensure_font_available(cls):
@@ -137,6 +144,7 @@ class PDFProcessor:
         base_name = os.path.splitext(filename)[0]
         new_filename = f"{base_name}.pdf"
 
+        # TXT conversion
         if ext == "txt":
             try:
                 text_str = content.decode('utf-8', errors='replace')
@@ -191,6 +199,7 @@ class PDFProcessor:
                 logger.error(f"Text conversion failed: {e}")
                 return content, filename
 
+        # Image conversion
         if ext in ['jpg', 'jpeg', 'png', 'webp', 'bmp']:
             try:
                 img = PILImage.open(io.BytesIO(content))
@@ -203,7 +212,58 @@ class PDFProcessor:
                 logger.error(f"Image conversion failed: {e}")
                 return content, filename
 
+        # Document (DOCX, DOC, etc.) conversion using conversion_service
+        if ext in PDFProcessor.CONVERTIBLE_EXTENSIONS:
+            try:
+                pdf_bytes = PDFProcessor._convert_document_bytes_to_pdf(content, filename)
+                if pdf_bytes is not None:
+                    return pdf_bytes, new_filename
+                else:
+                    logger.warning(f"Conversion service returned no data for {filename}, returning original")
+                    return content, filename
+            except Exception as e:
+                logger.error(f"Document conversion failed for {filename}: {e}")
+                return content, filename
+
+        # Fallback: unknown extension
         return content, filename
+
+    @staticmethod
+    def _convert_document_bytes_to_pdf(content: bytes, original_filename: str) -> Optional[bytes]:
+        """
+        Converts a document (DOCX, DOC, etc.) to PDF using conversion_service.
+        Writes bytes to a temporary file, calls the service, reads the resulting PDF.
+        Returns PDF bytes or None if conversion fails.
+        """
+        suffix = os.path.splitext(original_filename)[1].lower()
+        temp_source = None
+        temp_pdf = None
+
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(content)
+                temp_source = tmp.name
+
+            # conversion_service.convert_to_pdf returns path to PDF file
+            temp_pdf = conversion_service.convert_to_pdf(temp_source)
+            if not temp_pdf or not os.path.exists(temp_pdf):
+                logger.error("Conversion service did not produce a PDF file")
+                return None
+
+            with open(temp_pdf, "rb") as f:
+                return f.read()
+
+        except Exception as e:
+            logger.error(f"Exception in _convert_document_bytes_to_pdf: {e}")
+            return None
+
+        finally:
+            if temp_source and os.path.exists(temp_source):
+                try: os.remove(temp_source)
+                except: pass
+            if temp_pdf and os.path.exists(temp_pdf):
+                try: os.remove(temp_pdf)
+                except: pass
 
     @staticmethod
     def _apply_branding(pdf_bytes: bytes, case_id: str) -> bytes:
