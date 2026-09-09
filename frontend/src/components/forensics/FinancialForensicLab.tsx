@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/FinancialForensicLab.tsx
-// PHOENIX PROTOCOL - FORENSIC FINANCIAL LAB V2.2 (PERSISTENT LMD & SPREADSHEET)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC FINANCIAL LAB V3.1 (ZERO TS WARNINGS & PURE FORENSIC ACCOUNTING)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • MOBILE & TABLET READY
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -10,16 +10,17 @@ import {
   Calendar,
   DollarSign,
   Percent,
-  CheckCircle2,
-  AlertCircle,
   Loader2,
   Copy,
   FileSpreadsheet,
   TrendingUp,
-  ShieldAlert,
   Send,
   Scale,
-  AlertTriangle
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Check,
+  FileText
 } from 'lucide-react';
 import {
   forensicDeskService,
@@ -31,43 +32,41 @@ interface FinancialForensicLabProps {
   onEvidenceChange?: () => void;
 }
 
-// ✅ Përmirësuar: Nivele të madhësisë së shkrimit (si në War Room)
 const FONT_LEVELS = [
-  { label: '90%',   base: 15,   line: 1.6 },
-  { label: '100%',  base: 17,   line: 1.7 },
-  { label: '115%',  base: 19,   line: 1.75 },
-  { label: '130%',  base: 21,   line: 1.8 },
-  { label: '150%',  base: 24,   line: 1.85 },
-  { label: '175%',  base: 28,   line: 1.9 },
-  { label: '200%',  base: 32,   line: 2.0 }
+  { label: '90%',   base: 14,   line: 1.55 },
+  { label: '100%',  base: 16,   line: 1.65 },
+  { label: '115%',  base: 18,   line: 1.7 },
+  { label: '130%',  base: 20,   line: 1.75 },
+  { label: '150%',  base: 22,   line: 1.8 }
 ];
 
 export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
   caseId,
   onEvidenceChange
 }) => {
-  // Gjendjet e Përllogaritësit LMD
+  // Gjendjet e Llogaritësit LMD
   const [principalAmount, setPrincipalAmount] = useState<string>('10000');
   const [startDate, setStartDate] = useState<string>('2023-01-01');
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [annualRate, setAnnualRate] = useState<string>('8.0');
   const [isCalculatingLmd, setIsCalculatingLmd] = useState<boolean>(false);
   const [lmdResult, setLmdResult] = useState<LMDInterestResponse | null>(null);
+  const [copiedFormula, setCopiedFormula] = useState<boolean>(false);
 
-  // Gjendjet e Analizës së Tabelave me Pandas
+  // Gjendjet e Auditimit Tabelor (Pandas)
   const [isUploadingSpreadsheet, setIsUploadingSpreadsheet] = useState<boolean>(false);
   const [spreadsheetData, setSpreadsheetData] = useState<any | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
+  const [copiedAuditSummary, setCopiedAuditSummary] = useState<boolean>(false);
 
-  // Gjendjet e Interrogimit Financiar
+  // Gjendjet e Pyetësorit Financiar
   const [interrogationQuestion, setInterrogationQuestion] = useState<string>('');
   const [isInterrogating, setIsInterrogating] = useState<boolean>(false);
   const [interrogationResult, setInterrogationResult] = useState<string>('');
 
-  const [copiedReport, setCopiedReport] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Shtuar: Kontrolli i zmadhimit të shkrimit
+  // Kontrolli i zmadhimit të shkrimit
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_financial_forensic_font_size');
@@ -99,35 +98,33 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
     try { localStorage.setItem('juristi_financial_forensic_font_size', '1'); } catch {}
   };
 
-  // ✅ Ngarkon rezultatin e fundit LMD dhe analizën e fundit të spreadsheet-it
+  // Ngarkon rezultatet e fundit nga MongoDB në montim
   useEffect(() => {
     const loadPersistedData = async () => {
       if (!caseId) return;
       try {
         const records = await forensicDeskService.getFinancialRecords(caseId);
         if (Array.isArray(records) && records.length > 0) {
-          // Gjej rekordin më të fundit LMD
           const latestLmd = records.find(r => r.record_type === 'LMD_CALCULATION');
           if (latestLmd?.result) {
             setLmdResult(latestLmd.result);
           }
 
-          // Gjej rekordin më të fundit spreadsheet
           const latestSpreadsheet = records.find(r => r.record_type === 'SPREADSHEET_ANALYSIS');
           if (latestSpreadsheet) {
-            setSpreadsheetData(latestSpreadsheet);
+            setSpreadsheetData(latestSpreadsheet.spreadsheet_analysis ? latestSpreadsheet : latestSpreadsheet);
             setUploadedFileName(latestSpreadsheet.filename || '');
           }
         }
       } catch (err) {
-        console.warn("Nuk u ngarkuan të dhënat e ruajtura financiare:", err);
+        console.warn("Nuk u ngarkuan të dhënat financiare:", err);
       }
     };
 
     loadPersistedData();
   }, [caseId]);
 
-  // LLOGARITJA E KAMATËS ME BACKEND-IN E IZOLUAR FORENZIK
+  // 1. LLOGARITJA E KAMATËS STATUTORE (LMD 265)
   const handleCalculateLmdInterest = async () => {
     const principal = parseFloat(principalAmount);
     if (isNaN(principal) || principal <= 0) {
@@ -154,7 +151,7 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
     }
   };
 
-  // Ngarkimi dhe Auditimi i Pasqyrës me Pandas & Claude Sonnet 4.6
+  // 2. NGARKIMI DHE AUDITIMI I PASQYRAVE ME PANDAS
   const handleUploadSpreadsheet = async (files: FileList | null) => {
     if (!files || files.length === 0 || !caseId) return;
     const file = files[0];
@@ -167,7 +164,7 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
         caseId,
         file,
         claimed,
-        `Ekspertizë financiare mbi pretendimin e padisë (${principalAmount} €)`
+        `Ekspertizë financiare gjyqësore mbi pretendimin e padisë (${principalAmount} €)`
       );
       setSpreadsheetData(res);
       if (onEvidenceChange) onEvidenceChange();
@@ -179,7 +176,7 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
     }
   };
 
-  // Interrogimi i Provave me Claude Sonnet 4.6
+  // 3. PYETJE MBI PROVAT FINANCIARE
   const handleInterrogateFinances = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!interrogationQuestion.trim() || !caseId || isInterrogating) return;
@@ -191,7 +188,7 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
       const res = await forensicDeskService.sendChatMessage(
         caseId,
         `[PYETJE MBI PROVAT FINANCIARE DHE KAMATËN LMD]: ${interrogationQuestion}`,
-        `Kryegjëja: ${principalAmount} €, Kamata LMD: ${lmdResult?.interest_amount || 0} €`
+        `Kryegjëja e kërkuar: ${principalAmount} €, Kamata LMD e llogaritur: ${lmdResult?.interest_amount || 0} €`
       );
       setInterrogationResult(res.content || "Nuk pati përgjigje nga motori hetimor.");
     } catch (err: any) {
@@ -201,78 +198,123 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
     }
   };
 
-  const handleCopyReport = (text: string) => {
-    if (!text) return;
+  const handleCopyFormula = () => {
+    if (!lmdResult) return;
+    const text = `=== LLOGARITJA E KAMATËVONESËS LIGJORE (LMD NENI 265 & 277) ===
+Kryegjëja: ${lmdResult.principal.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+Periudha e Vonesës: ${lmdResult.start_date} deri më ${lmdResult.end_date} (${lmdResult.days_elapsed} ditë)
+Norma Vjetore: ${lmdResult.interest_rate_annual}%
+Kamata Ditore: ${lmdResult.daily_accrual} € / ditë
+Kamata e Grumbulluar: ${lmdResult.interest_amount.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+Detyrimi Total: ${lmdResult.total_obligation.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+Baza Juridike: ${lmdResult.legal_basis}`;
+
     navigator.clipboard.writeText(text);
-    setCopiedReport(true);
-    setTimeout(() => setCopiedReport(false), 2500);
+    setCopiedFormula(true);
+    setTimeout(() => setCopiedFormula(false), 2500);
   };
 
+  const handleCopyAuditSummary = () => {
+    if (!spreadsheetData) return;
+    const opinion = spreadsheetData.forensic_opinion;
+    const analysis = spreadsheetData.spreadsheet_analysis;
+    const disc = analysis?.discrepancy_with_claim;
+
+    const text = `=== RAPORTI I EKSPERTIZËS FINANCIARE FORENZIKE ===
+Skedari i Audituar: ${uploadedFileName}
+Verdikti i Auditimit: ${opinion?.financial_audit_verdict || 'I AUDITUAR'}
+
+REZULTATI KONTABËL:
+- Hyrjet Totale (Kredi): ${analysis?.total_inflows?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || '0.00'} €
+- Daljet Totale (Debi): ${analysis?.total_outflows?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || '0.00'} €
+- Fluksi Neto Monetar: ${analysis?.net_cash_flow?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || '0.00'} €
+- Shuma e Dokumentuar: ${analysis?.total_documented_amount?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || '0.00'} €
+
+KRAHASIMI ME PADINË:
+- Pretendimi në Padi: ${disc?.claimed_in_suit?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || 'N/A'} €
+- Provuar me Pasqyrë: ${disc?.documented_in_sheet?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || 'N/A'} €
+- Diferenca (Delta): ${disc?.delta?.toLocaleString('sq-AL', { minimumFractionDigits: 2 }) || 'N/A'} €
+- Statusi: ${disc?.status || 'N/A'}
+
+KONKLUZIONI I EKSPERTIT:
+${opinion?.expert_concluding_summary || ''}`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedAuditSummary(true);
+    setTimeout(() => setCopiedAuditSummary(false), 2500);
+  };
+
+  const analysis = spreadsheetData?.spreadsheet_analysis;
+  const opinion = spreadsheetData?.forensic_opinion;
+  const discrepancy = analysis?.discrepancy_with_claim;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 select-none">
+      
       {/* KOLONA E MAJTË: LLOGARITËSI LMD & NGARKIMI I TABELAVE */}
       <div className="lg:col-span-5 space-y-4">
-        {/* PËRLLOGARITËSI STATUTOR I KAMATËVONESËS LIGJORE (LMD NENI 265) */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-4">
+        
+        {/* PËRLLOGARITËSI STATUTOR I KAMATËVONESËS LIGJORE (LMD 265) */}
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3.5">
           <div className="flex items-center justify-between border-b border-main pb-2.5">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-              <Calculator size={16} className="text-primary-start" /> Kamata Ligjore LMD (Neni 265)
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+              <Calculator size={15} className="text-primary-start" /> Kamata Ligjore LMD (Neni 265)
             </h3>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-primary-start/10 text-primary-start font-bold">
-              8% Standard Kosovë
+            <span className="text-[10px] sm:text-xs font-mono px-2 py-0.5 rounded-full bg-primary-start/15 text-primary-start font-bold">
+              8% Statutore
             </span>
           </div>
 
-          <div className="space-y-3 text-sm">
+          <div className="space-y-3 text-xs sm:text-sm">
             <div>
-              <label className="block text-text-muted font-bold mb-1 flex items-center gap-1">
-                <DollarSign size={14} /> Shuma e Kryegjësë (€) *
+              <label className="block text-text-muted font-bold mb-1 flex items-center gap-1 text-xs">
+                <DollarSign size={13} className="text-primary-start" /> Shuma e Kryegjësë (€) *
               </label>
               <input
                 type="number"
                 value={principalAmount}
                 onChange={(e) => setPrincipalAmount(e.target.value)}
                 placeholder="p.sh. 15000"
-                className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary font-mono text-base focus:outline-none focus:border-primary-start"
+                className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary font-mono text-sm sm:text-base font-bold focus:outline-none focus:border-primary-start"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-text-muted font-bold mb-1 flex items-center gap-1">
-                  <Calendar size={14} /> Data e Fillimit të Vonesës
+                <label className="block text-text-muted font-bold mb-1 flex items-center gap-1 text-xs">
+                  <Calendar size={13} className="text-primary-start" /> Fillimi i Vonesës
                 </label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-primary-start"
+                  className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary text-xs focus:outline-none focus:border-primary-start"
                 />
               </div>
 
               <div>
-                <label className="block text-text-muted font-bold mb-1 flex items-center gap-1">
-                  <Calendar size={14} /> Data e Pagesës / Gjykimit
+                <label className="block text-text-muted font-bold mb-1 flex items-center gap-1 text-xs">
+                  <Calendar size={13} className="text-primary-start" /> Data e Përfundimit
                 </label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-primary-start"
+                  className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary text-xs focus:outline-none focus:border-primary-start"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-text-muted font-bold mb-1 flex items-center gap-1">
-                <Percent size={14} /> Shkalla Vjetore e Kamatës (%)
+              <label className="block text-text-muted font-bold mb-1 flex items-center gap-1 text-xs">
+                <Percent size={13} className="text-primary-start" /> Shkalla Vjetore e Kamatës (%)
               </label>
               <input
                 type="number"
                 step="0.1"
                 value={annualRate}
                 onChange={(e) => setAnnualRate(e.target.value)}
-                className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-primary-start"
+                className="w-full bg-surface border border-main rounded-xl px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-primary-start font-medium"
               />
             </div>
 
@@ -280,50 +322,61 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
               type="button"
               onClick={handleCalculateLmdInterest}
               disabled={isCalculatingLmd}
-              className="w-full h-10 bg-primary-start hover:bg-primary-start/90 text-white font-bold rounded-xl text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+              className="w-full h-10 bg-primary-start hover:bg-primary-start/90 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
             >
-              {isCalculatingLmd ? <Loader2 size={16} className="animate-spin" /> : <Calculator size={16} />}
-              <span>Llogarit & Vulos në Server</span>
+              {isCalculatingLmd ? <Loader2 size={15} className="animate-spin" /> : <Calculator size={15} />}
+              <span>Llogarit Kamatën Ligjore</span>
             </button>
           </div>
 
-          {/* BILANCI I PËRLLOGARITUR LMD NGA SERVERI */}
+          {/* PASQYRA STATUTORE E LLOGARITJES */}
           {lmdResult && (
-            <div className="p-4 rounded-2xl bg-surface border border-main space-y-2.5 text-sm" style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}>
-              <div className="flex items-center justify-between">
-                <span className="text-text-muted">Ditë Vonese të Verifikuara:</span>
-                <span className="font-bold font-mono text-text-primary">{lmdResult.days_elapsed} ditë</span>
+            <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-surface border border-main space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-card border border-main">
+                  <span className="text-text-muted text-[10px] block font-bold uppercase">Ditë Vonese:</span>
+                  <span className="font-mono font-bold text-sm text-text-primary">{lmdResult.days_elapsed} ditë</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-card border border-main">
+                  <span className="text-text-muted text-[10px] block font-bold uppercase">Kamata Ditore:</span>
+                  <span className="font-mono font-bold text-xs sm:text-sm text-text-muted">{lmdResult.daily_accrual} €</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-emerald-500 text-[10px] block font-bold uppercase">Kamata (8%):</span>
+                  <span className="font-mono font-bold text-xs sm:text-sm text-emerald-500">
+                    +{lmdResult.interest_amount.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-primary-start/10 border border-primary-start/20">
+                  <span className="text-primary-start text-[10px] block font-bold uppercase">Detyrimi Total:</span>
+                  <span className="font-mono font-black text-xs sm:text-sm text-primary-start">
+                    {lmdResult.total_obligation.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-text-muted">Interesi Ditor:</span>
-                <span className="font-mono text-text-muted">{lmdResult.daily_accrual} € / ditë</span>
+
+              <div className="flex items-center justify-between pt-1 border-t border-main text-xs">
+                <span className="text-[10px] text-text-muted truncate max-w-[200px]">Neni 265 & 277 LMD</span>
+                <button
+                  type="button"
+                  onClick={handleCopyFormula}
+                  className="px-2.5 py-1 rounded-lg bg-surface hover:bg-hover border border-main text-text-primary text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  {copiedFormula ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                  <span>{copiedFormula ? 'U Kopjua!' : 'Kopjo Përllogaritjen'}</span>
+                </button>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-text-muted">Kamata e Grumbulluar (8%):</span>
-                <span className="font-bold font-mono text-emerald-500">
-                  + {lmdResult.interest_amount.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-              <div className="pt-2 border-t border-main flex items-center justify-between text-base">
-                <span className="font-bold text-text-primary">Detyrimi Total i Padisë:</span>
-                <span className="font-black font-mono text-primary-start">
-                  {lmdResult.total_obligation.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-              <p className="text-xs text-text-muted font-mono italic text-center pt-1">
-                Baza: {lmdResult.legal_basis}
-              </p>
             </div>
           )}
         </div>
 
-        {/* NGARKIMI I EKSTRAKTEVE ME PANDAS AUDIT */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-main pb-2.5">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-              <FileSpreadsheet size={16} className="text-primary-start" /> Auditimi i Pasqyrave Financiare
+        {/* NGARKIMI I DOKUMENTIT TABELOR PËR PANDAS AUDIT */}
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-main pb-2">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+              <FileSpreadsheet size={15} className="text-primary-start" /> Auditimi i Pasqyrave Financiare
             </h3>
-            <span className="text-xs font-mono text-primary-start font-bold">Pandas + Claude Sonnet 4.6</span>
+            <span className="text-[10px] font-mono text-primary-start font-bold">Pandas Engine</span>
           </div>
 
           <div
@@ -333,12 +386,12 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
               e.preventDefault();
               if (!isUploadingSpreadsheet) handleUploadSpreadsheet(e.dataTransfer.files);
             }}
-            className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-2xl p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
+            className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
           >
             {isUploadingSpreadsheet ? (
               <div className="flex flex-col items-center justify-center gap-2 py-2">
                 <Loader2 size={22} className="animate-spin text-primary-start" />
-                <span className="text-sm font-bold text-primary-start">Duke analizuar me Pandas & Claude Sonnet 4.6...</span>
+                <span className="text-xs sm:text-sm font-bold text-primary-start">Duke audituar me motorin Pandas...</span>
               </div>
             ) : (
               <>
@@ -346,8 +399,8 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
                   <UploadCloud size={20} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-text-primary">Kliko ose tërhiq skedar (XLSX, CSV)</p>
-                  <p className="text-xs text-text-muted">Krahasim automatik i pretendimit të padisë me transaksionet reale</p>
+                  <p className="text-xs sm:text-sm font-bold text-text-primary">Ngarko Pasqyrë Bankare (Excel / CSV)</p>
+                  <p className="text-[11px] text-text-muted mt-0.5">Analizë e hyrjeve, daljeve dhe ballafaqim me padinë</p>
                 </div>
               </>
             )}
@@ -362,45 +415,44 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
         </div>
       </div>
 
-      {/* KOLONA E DJATHTË: RAPORTI FORENZIK PANDAS & INTERROGIMI */}
+      {/* KOLONA E DJATHTË: PASQYRA DHE EKSPERTIZA FINANCIARE FORENZIKE */}
       <div className="lg:col-span-7 space-y-4">
-        {/* PYETËSORI FORENZIK ME CLAUDE SONNET 4.6 */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
+        
+        {/* PYETËSORI FORENZIK MBI SHIFRAT */}
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-              <ShieldAlert size={16} className="text-primary-start" /> Interrogimi i Provave Financiare
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+              <Coins size={15} className="text-primary-start" /> Pyetje mbi Provat Financiare
             </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-emerald-500 font-bold">Verifikim Ligjor Aktiv</span>
-              {/* Kontrolli i Zmadhimit */}
-              <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-1" aria-label="Madhësia e shkrimit">
-                <button
-                  type="button"
-                  onClick={handleDecreaseFont}
-                  disabled={fontLevelIndex === 0}
-                  title="Zvogëlo madhësinë e shkrimit"
-                  className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  A−
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetFont}
-                  title="Rivendos madhësinë e shkrimit"
-                  className="min-w-10 rounded-lg px-1 text-[11px] font-bold text-text-muted hover:bg-hover hover:text-text-primary"
-                >
-                  {activeFont.label}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleIncreaseFont}
-                  disabled={fontLevelIndex === FONT_LEVELS.length - 1}
-                  title="Rrit madhësinë e shkrimit"
-                  className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  A+
-                </button>
-              </div>
+            
+            {/* Kontrolli i Fontit me Buton të Vërtetë Reset */}
+            <div className="flex items-center gap-1 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
+              <button
+                type="button"
+                onClick={handleDecreaseFont}
+                disabled={fontLevelIndex === 0}
+                className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover text-center disabled:opacity-30 cursor-pointer"
+                title="Zvogëlo shkrimin"
+              >
+                A−
+              </button>
+              <button
+                type="button"
+                onClick={handleResetFont}
+                title="Rivendos madhësinë e shkrimit në 100%"
+                className="min-w-7 text-[10px] font-bold text-text-muted hover:bg-hover rounded text-center cursor-pointer px-1"
+              >
+                {activeFont.label}
+              </button>
+              <button
+                type="button"
+                onClick={handleIncreaseFont}
+                disabled={fontLevelIndex === FONT_LEVELS.length - 1}
+                className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover text-center disabled:opacity-30 cursor-pointer"
+                title="Zmadho shkrimin"
+              >
+                A+
+              </button>
             </div>
           </div>
 
@@ -409,133 +461,219 @@ export const FinancialForensicLab: React.FC<FinancialForensicLabProps> = ({
               type="text"
               value={interrogationQuestion}
               onChange={(e) => setInterrogationQuestion(e.target.value)}
-              placeholder="Pyet p.sh.: A ka elemente të dëmtimit të kreditorëve sipas KPK?"
-              className="flex-1 bg-surface border border-main rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-primary-start"
+              placeholder="Pyet p.sh.: Sa është diferenca mes padisë dhe pasqyrës?"
+              className="flex-1 bg-surface border border-main rounded-xl px-3 py-2 text-xs sm:text-sm text-text-primary focus:outline-none focus:border-primary-start"
             />
             <button
               type="submit"
               disabled={isInterrogating || !interrogationQuestion.trim()}
-              className="px-4 py-2 bg-primary-start hover:bg-primary-start/90 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shrink-0"
+              className="px-3.5 sm:px-4 py-2 bg-primary-start hover:bg-primary-start/90 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-40 cursor-pointer shrink-0"
             >
-              {isInterrogating ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isInterrogating ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               <span>Pyet</span>
             </button>
           </form>
 
           {interrogationResult && (
-            <div className="p-3.5 bg-surface/60 rounded-xl border border-main text-text-primary leading-relaxed font-sans select-text" style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}>
-              <p className="font-bold text-primary-start mb-1 flex items-center gap-1" style={{ fontSize: `${activeFont.base * 1.1}px` }}>
-                <CheckCircle2 size={16} /> Përgjigjja e Ekspertizës Financiare:
-              </p>
+            <div 
+              className="p-3 bg-surface/60 rounded-xl border border-main text-text-primary leading-relaxed select-text text-xs sm:text-sm font-medium"
+              style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
+            >
               {interrogationResult}
             </div>
           )}
         </div>
 
-        {/* HAPËSIRA KRYESORE E RAPORTIT TË AUDITIMIT ME PANDAS */}
-        <div className="glass-panel p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-4">
+        {/* PASQYRA KRYESORE E KONTABILITETIT FORENZIK */}
+        <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-main pb-3">
             <div>
-              <div className="flex items-center gap-2">
-                <TrendingUp size={18} className="text-primary-start" />
-                <h3 className="text-base font-bold uppercase tracking-wider text-text-primary">
-                  Ekspertiza Financiare e Pasqyrave
-                </h3>
-              </div>
-              <p className="text-sm text-text-muted mt-0.5 truncate max-w-md">
-                {uploadedFileName ? `Skedari: ${uploadedFileName}` : 'Ngarkoni një skedar Excel/CSV për llogaritje automatike'}
+              <h3 className="text-xs sm:text-base font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <TrendingUp size={16} className="text-primary-start" /> Ekspertiza Financiare e Pasqyrave
+              </h3>
+              <p className="text-[11px] sm:text-xs text-text-muted mt-0.5 truncate max-w-sm sm:max-w-md">
+                {uploadedFileName ? `Dokumenti: ${uploadedFileName}` : 'Ngarkoni një skedar Excel/CSV për auditim automatik'}
               </p>
             </div>
 
-            {spreadsheetData?.forensic_opinion?.expert_concluding_summary && (
+            {spreadsheetData && (
               <button
                 type="button"
-                onClick={() => handleCopyReport(spreadsheetData.forensic_opinion.expert_concluding_summary)}
-                className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-sm font-bold text-text-primary flex items-center gap-1.5 transition-all cursor-pointer"
+                onClick={handleCopyAuditSummary}
+                className="h-8 sm:h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer self-end sm:self-auto"
               >
-                {copiedReport ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Copy size={16} />}
-                <span>{copiedReport ? 'U Kopjua' : 'Kopjo Ekspertizën'}</span>
+                {copiedAuditSummary ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                <span>{copiedAuditSummary ? 'U Kopjua' : 'Kopjo Raportin'}</span>
               </button>
             )}
           </div>
 
           <div
-            className="min-h-[280px] max-h-[420px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-text-primary select-text space-y-3"
+            className="min-h-[320px] max-h-[580px] overflow-y-auto custom-finance-scroll p-3 sm:p-5 bg-surface/40 rounded-xl sm:rounded-2xl border border-main text-text-primary select-text space-y-4"
             style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
           >
             {spreadsheetData ? (
-              <div className="space-y-3">
-                {/* Statusi dhe Verdikti Financiar */}
-                <div className="flex items-center justify-between p-3 bg-surface rounded-xl border border-main">
-                  <span className="font-bold">Verdikti i Auditimit:</span>
-                  <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase ${spreadsheetData.forensic_opinion?.financial_audit_verdict?.includes('ANOMALI') ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'}`}>
-                    {spreadsheetData.forensic_opinion?.financial_audit_verdict || 'I AUDITUAR'}
+              <div className="space-y-4">
+                
+                {/* Verdikti i Ekspertizës */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface border border-main flex-wrap gap-2">
+                  <span className="text-xs font-bold uppercase text-text-muted">Verdikti Kontabël:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
+                    opinion?.financial_audit_verdict?.includes('FRYRJE') || opinion?.financial_audit_verdict?.includes('ANOMALI')
+                      ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
+                      : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
+                  }`}>
+                    {opinion?.financial_audit_verdict || 'I AUDITUAR'}
                   </span>
                 </div>
 
-                {/* Krahasimi me Padinë (Discrepancy) */}
-                {spreadsheetData.spreadsheet_analysis?.discrepancy_with_claim && (
-                  <div className="p-3 bg-card rounded-xl border border-main space-y-1">
-                    <h4 className="font-bold text-text-primary flex items-center gap-1.5" style={{ fontSize: `${activeFont.base * 1.1}px` }}>
-                      <Scale size={16} className="text-primary-start" /> Krahasimi i Padisë me Transaksionet Reale:
-                    </h4>
-                    <div className="grid grid-cols-3 gap-2 pt-1 font-mono" style={{ fontSize: `${activeFont.base * 0.9}px` }}>
-                      <div>Pretendimi: <span className="font-bold">{spreadsheetData.spreadsheet_analysis.discrepancy_with_claim.claimed_in_suit} €</span></div>
-                      <div>Provuar me Tabelë: <span className="font-bold text-emerald-500">{spreadsheetData.spreadsheet_analysis.discrepancy_with_claim.documented_in_sheet} €</span></div>
-                      <div>Diferenca: <span className="font-bold text-rose-500">{spreadsheetData.spreadsheet_analysis.discrepancy_with_claim.delta} €</span></div>
+                {/* Pasqyra e Pajtimit Kontabël (Reconciliation Cards) */}
+                {analysis && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-3 rounded-xl bg-card border border-main">
+                      <span className="text-text-muted text-[10px] block font-bold uppercase flex items-center gap-1">
+                        <ArrowDownRight size={12} className="text-emerald-500" /> Hyrje (Kredit)
+                      </span>
+                      <span className="font-mono font-bold text-xs sm:text-sm text-emerald-500">
+                        {analysis.total_inflows?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                      </span>
                     </div>
-                    <p className="text-amber-500 font-bold pt-1" style={{ fontSize: `${activeFont.base * 0.85}px` }}>
-                      Statusi: {spreadsheetData.spreadsheet_analysis.discrepancy_with_claim.status}
+
+                    <div className="p-3 rounded-xl bg-card border border-main">
+                      <span className="text-text-muted text-[10px] block font-bold uppercase flex items-center gap-1">
+                        <ArrowUpRight size={12} className="text-rose-500" /> Dalje (Debi)
+                      </span>
+                      <span className="font-mono font-bold text-xs sm:text-sm text-rose-500">
+                        {analysis.total_outflows?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-card border border-main">
+                      <span className="text-text-muted text-[10px] block font-bold uppercase">
+                        Fluksi Neto
+                      </span>
+                      <span className={`font-mono font-bold text-xs sm:text-sm ${analysis.net_cash_flow >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {analysis.net_cash_flow?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-primary-start/10 border border-primary-start/20">
+                      <span className="text-primary-start text-[10px] block font-bold uppercase">
+                        I Dokumentuar
+                      </span>
+                      <span className="font-mono font-black text-xs sm:text-sm text-primary-start">
+                        {analysis.total_documented_amount?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Krahasimi me Padinë (Delta / Discrepancy) */}
+                {discrepancy && (
+                  <div className="p-3.5 rounded-xl bg-card border border-main space-y-2">
+                    <h4 className="font-bold text-xs sm:text-sm text-text-primary flex items-center gap-1.5 uppercase">
+                      <Scale size={14} className="text-primary-start" /> Krahasimi i Padisë me Transaksionet Reale:
+                    </h4>
+                    
+                    <div className="grid grid-cols-3 gap-2 font-mono text-xs pt-1">
+                      <div className="p-2 rounded-lg bg-surface border border-main">
+                        <span className="text-[10px] text-text-muted block">Pretendimi:</span>
+                        <span className="font-bold">{discrepancy.claimed_in_suit?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-surface border border-main">
+                        <span className="text-[10px] text-text-muted block">Dokumentuar:</span>
+                        <span className="font-bold text-emerald-500">{discrepancy.documented_in_sheet?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-surface border border-main">
+                        <span className="text-[10px] text-text-muted block">Diferenca (Delta):</span>
+                        <span className={`font-bold ${discrepancy.delta > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          {discrepancy.delta?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-text-muted font-medium pt-1">
+                      <span className="font-bold text-amber-500">Vlerësimi Procedural:</span> {discrepancy.audit_explanation || discrepancy.status}
                     </p>
                   </div>
                 )}
 
-                {/* Anomalitë Kontabël */}
-                {spreadsheetData.forensic_opinion?.accounting_irregularities?.length > 0 && (
-                  <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 space-y-1">
-                    <h4 className="font-bold text-rose-500 flex items-center gap-1.5 uppercase" style={{ fontSize: `${activeFont.base * 1.1}px` }}>
-                      <AlertTriangle size={16} /> Parregullsi të Zbuluara:
+                {/* Flamujt e Kuq (Red Flags & Tërheqje Kesh) */}
+                {analysis?.red_flags?.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 space-y-2">
+                    <h4 className="font-bold text-xs sm:text-sm text-rose-500 flex items-center gap-1.5 uppercase">
+                      <AlertTriangle size={14} /> Flamuj të Kuq Kontabël ({analysis.red_flags.length}):
                     </h4>
-                    <ul className="list-disc list-inside text-text-primary">
-                      {spreadsheetData.forensic_opinion.accounting_irregularities.map((irr: string, i: number) => (
-                        <li key={i}>{irr}</li>
+                    <div className="space-y-1.5 text-xs">
+                      {analysis.red_flags.map((rf: any, i: number) => (
+                        <div key={i} className="p-2 rounded-lg bg-surface border border-rose-500/30 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="min-w-0">
+                            <span className="font-mono text-[10px] text-text-muted mr-2">{rf.date}</span>
+                            <span className="font-bold text-text-primary">{rf.description || 'Tërheqje'}</span>
+                          </div>
+                          <div className="font-mono font-bold text-rose-500 text-xs shrink-0">
+                            {rf.amount?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €
+                          </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
 
-                {/* Këshillë Taktike e Mbrojtjes */}
-                {spreadsheetData.forensic_opinion?.tactical_litigation_advice && (
-                  <div className="p-3 bg-primary-start/10 rounded-xl border border-primary-start/20 space-y-1">
-                    <h4 className="font-bold text-primary-start flex items-center gap-1.5 uppercase" style={{ fontSize: `${activeFont.base * 1.1}px` }}>
-                      Këshillë Taktike për Seancë Gjyqësore:
+                {/* Mostra e Transaksioneve Kryesore të Audituara */}
+                {analysis?.top_transactions_sample?.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-surface border border-main space-y-2">
+                    <h4 className="font-bold text-xs sm:text-sm text-text-primary uppercase flex items-center gap-1.5">
+                      <FileText size={14} className="text-primary-start" /> Mostra e Transaksioneve Kryesore:
                     </h4>
-                    <p className="text-text-primary">{spreadsheetData.forensic_opinion.tactical_litigation_advice}</p>
+                    <div className="overflow-x-auto scrollbar-none">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-main text-text-muted text-[10px] uppercase">
+                            <th className="py-1.5 pr-2">Data</th>
+                            <th className="py-1.5 pr-2">Përshkrimi</th>
+                            <th className="py-1.5 text-right">Vlera</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-main">
+                          {analysis.top_transactions_sample.map((row: any, i: number) => (
+                            <tr key={i} className="hover:bg-hover/50">
+                              <td className="py-1.5 pr-2 text-text-muted whitespace-nowrap">{row.date}</td>
+                              <td className="py-1.5 pr-2 truncate max-w-[200px] text-text-primary">{row.description}</td>
+                              <td className="py-1.5 text-right font-bold text-text-primary whitespace-nowrap">{row.amount?.toLocaleString('sq-AL', { minimumFractionDigits: 2 })} €</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
-                {/* Përmbledhja e Ekspertit */}
-                <div className="p-3 bg-surface rounded-xl border border-main space-y-1">
-                  <h4 className="font-bold text-text-primary uppercase" style={{ fontSize: `${activeFont.base * 1.1}px` }}>Konkluzioni Formal:</h4>
-                  <p className="text-text-muted whitespace-pre-wrap">{spreadsheetData.forensic_opinion?.expert_concluding_summary}</p>
-                </div>
+                {/* Konkluzioni i Ekspertit Financiar Forenzik */}
+                {opinion?.expert_concluding_summary && (
+                  <div className="p-3.5 rounded-xl bg-card border border-main space-y-1.5">
+                    <h4 className="font-bold text-xs uppercase text-text-primary">
+                      Përmbledhja Ekzekutive për Gjykatën:
+                    </h4>
+                    <p className="text-xs leading-relaxed text-text-primary whitespace-pre-wrap font-medium">
+                      {opinion.expert_concluding_summary}
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-3 py-10">
-                <AlertCircle size={36} className="opacity-30 text-primary-start" />
-                <p className="max-w-sm">
-                  Përdorni kalkulatorin majtas për vlerën e padisë ose ngarkoni një ekstrakt bankar/tabelë Excel për auditim me Pandas dhe Claude Sonnet 4.6.
+              <div className="h-full flex flex-col items-center justify-center text-text-muted text-center gap-2.5 py-16">
+                <Coins size={36} className="text-primary-start/30" />
+                <p className="text-xs sm:text-sm max-w-xs">
+                  Ngarkoni një pasqyrë bankare majtas ose llogarisni kamatën për të parë ekspertizën forenzike me shifra reale.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="pt-2 flex items-center justify-between text-sm text-text-muted border-t border-main">
-            <span className="flex items-center gap-1 font-medium">
-              <Coins size={16} className="text-primary-start" />
-              Përputhshmëri me Ligjin Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)
-            </span>
-            <span className="font-mono text-xs">Llogaritja: Neni 265 (8% vjetore)</span>
+          <div className="pt-2 flex items-center justify-between text-[11px] text-text-muted border-t border-main">
+            <span>Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)</span>
+            <span className="font-mono text-[10px]">Standardi: Nenet 265 & 277</span>
           </div>
         </div>
       </div>

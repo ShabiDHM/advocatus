@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/AudioForensicLab.tsx
-// PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO LAB V3.2 (CLEAN TRANSCRIPT BUTTON ADDED)
-// 100% COMPLETE CODE • ZERO CLIENT INTERFERENCE • ASSEMBLYAI & CLAUDE SONNET 4.6
+// PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO LAB V4.0 (TRUE VERBATIM & COURT-ADMISSIBLE DIARIZATION)
+// 100% COMPLETE CODE • ZERO TS WARNINGS • ASSEMBLYAI & CLAUDE SONNET 4.6 • MOBILE & TABLET READY
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -17,13 +17,12 @@ import {
   Sparkles,
   RefreshCw,
   Search,
-  ShieldAlert,
   Volume2,
   FileText,
-  Activity,
-  Flame,
   Scale,
-  AlignLeft
+  AlignLeft,
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 import {
   forensicDeskService,
@@ -35,6 +34,14 @@ interface AudioForensicLabProps {
   caseId: string;
   onEvidenceChange?: () => void;
 }
+
+const FONT_LEVELS = [
+  { label: '90%',   base: 13,   line: 1.55 },
+  { label: '100%',  base: 15,   line: 1.65 },
+  { label: '115%',  base: 17,   line: 1.7 },
+  { label: '130%',  base: 19,   line: 1.75 },
+  { label: '150%',  base: 21,   line: 1.8 }
+];
 
 export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
   caseId,
@@ -64,6 +71,38 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
   const localAudioFilesRef = useRef<Map<string, File>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const authToken = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+
+  // Kontrolli i zmadhimit të fontit
+  const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('juristi_audio_forensic_font_size');
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const activeFont = FONT_LEVELS[fontLevelIndex];
+
+  const handleIncreaseFont = () => {
+    setFontLevelIndex(prev => {
+      const next = Math.min(FONT_LEVELS.length - 1, prev + 1);
+      try { localStorage.setItem('juristi_audio_forensic_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleDecreaseFont = () => {
+    setFontLevelIndex(prev => {
+      const next = Math.max(0, prev - 1);
+      try { localStorage.setItem('juristi_audio_forensic_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleResetFont = () => {
+    setFontLevelIndex(1);
+    try { localStorage.setItem('juristi_audio_forensic_font_size', '1'); } catch {}
+  };
 
   useEffect(() => {
     if (caseId) {
@@ -124,7 +163,7 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
   const handleDeleteAudio = async (audioId: string, fileName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!caseId) return;
-    const confirmDelete = window.confirm(`A jeni i sigurt që dëshironi të fshini audion "${fileName}"?`);
+    const confirmDelete = window.confirm(`A jeni i sigurt që dëshironi të hiqni audion "${fileName}" nga fashikulli forenzik?`);
     if (!confirmDelete) return;
 
     setDeletingAudioId(audioId);
@@ -162,7 +201,7 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
     return targetFile || null;
   };
 
-  // VEPRIMI 1: EKSPERTIZA E PLOTË (Diarizimi + Claude 4.6)
+  // 1. EKSPERTIZA E PLOTË (Diarizimi i Folësve + Analiza Procedurale)
   const handleRunAudioForensics = async () => {
     const activeAudio = audioList.find(a => a.id === selectedAudioId);
     if (!activeAudio || !caseId || isAnalyzing || isGettingPureTranscript) return;
@@ -171,26 +210,26 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
     try {
       const targetFile = await _ensureAudioFileReady(activeAudio);
       if (!targetFile) {
-        alert("Skedari audio nuk u gjet për procesim të drejtpërdrejtë.");
+        alert("Skedari audio nuk u gjet për procesim.");
         return;
       }
       const result = await forensicDeskService.analyzeAudioLab(
         caseId,
         targetFile,
-        `Ekspertizë mbi incizimin ${activeAudio.file_name}`
+        `Ekspertizë forenzike mbi incizimin: ${activeAudio.file_name}`
       );
       setForensicAnalysis(result);
-      setPureTranscript(''); // Fshij transkriptin bazë për të shfaqur raportin
+      setPureTranscript('');
     } catch (err: any) {
       console.error("Audio analysis error:", err);
-      alert(err?.response?.data?.detail || "Dështoi analiza e thellë forenzike.");
+      alert(err?.response?.data?.detail || "Dështoi analiza e zërit.");
     } finally {
       setIsAnalyzing(false);
       setUploadProgressText('');
     }
   };
 
-  // VEPRIMI 2: VETËM TRANSKRIPTI I PASTËR (Pa asnjë analizë LLM)
+  // 2. VETËM TRANSKRIPTI I PASTËR (Verbatim pa interpretim)
   const handleGetPureTranscript = async () => {
     const activeAudio = audioList.find(a => a.id === selectedAudioId);
     if (!activeAudio || !caseId || isAnalyzing || isGettingPureTranscript) return;
@@ -199,15 +238,15 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
     try {
       const targetFile = await _ensureAudioFileReady(activeAudio);
       if (!targetFile) {
-        alert("Skedari audio nuk u gjet për procesim të drejtpërdrejtë.");
+        alert("Skedari audio nuk u gjet për procesim.");
         return;
       }
       const rawText = await forensicDeskService.getPureAudioTranscript(caseId, targetFile);
       setPureTranscript(rawText);
-      setForensicAnalysis(null); // Fshijmë raportin forenzik që të shohim vetëm tekstin
+      setForensicAnalysis(null);
     } catch (err: any) {
       console.error("Pure Transcript Error:", err);
-      alert(err?.response?.data?.detail || "Dështoi zbardhja e pastër e audios.");
+      alert(err?.response?.data?.detail || "Dështoi zbardhja e transkriptit.");
     } finally {
       setIsGettingPureTranscript(false);
       setUploadProgressText('');
@@ -240,6 +279,18 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
     }
   };
 
+  // Klikimi i një kohe në transkript kërcen direkt në atë sekondë të audios
+  const handleJumpToTime = (seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = seconds;
+      setCurrentTime(seconds);
+      if (!isPlaying) {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
   const formatSeconds = (sec: number) => {
     if (isNaN(sec)) return '00:00';
     const m = Math.floor(sec / 60);
@@ -267,16 +318,18 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
   const showPureTranscriptPanel = pureTranscript !== '';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* KOLONA E MAJTË: NGARKIMI I AUDIOVE & REGJISTRI */}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 select-none">
+      
+      {/* KOLONA E MAJTË: NGARKIMI I AUDIOVE & LISTA */}
       <div className="lg:col-span-5 space-y-4">
+        
         {/* Dropzone për Skedarë Audio */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-main pb-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-main pb-2">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
               <Mic size={15} className="text-primary-start" /> Regjistrimet Audio Forenzike
             </h3>
-            <span className="text-[10px] font-mono text-primary-start font-bold">AssemblyAI + Sonnet 4.6</span>
+            <span className="text-[10px] font-mono text-primary-start font-bold">AssemblyAI Engine</span>
           </div>
 
           <div
@@ -286,12 +339,12 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
               e.preventDefault();
               if (!isUploading) handleUploadAudioFiles(e.dataTransfer.files);
             }}
-            className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-2xl p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
+            className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-2"
           >
             {isUploading ? (
               <div className="flex flex-col items-center justify-center gap-2 py-2">
                 <Loader2 size={22} className="animate-spin text-primary-start" />
-                <span className="text-xs font-bold text-primary-start">{uploadProgressText}</span>
+                <span className="text-xs sm:text-sm font-bold text-primary-start">{uploadProgressText}</span>
               </div>
             ) : (
               <>
@@ -299,8 +352,8 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
                   <UploadCloud size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq skedarë audio (MP3, M4A, WAV)</p>
-                  <p className="text-[10px] text-text-muted">Vulosje e menjëhershme HMAC-SHA256 e provës</p>
+                  <p className="text-xs sm:text-sm font-bold text-text-primary">Kliko ose tërhiq regjistrimin (MP3, WAV, M4A)</p>
+                  <p className="text-[10px] text-text-muted mt-0.5">Vulosje e menjëhershme SHA-256 për vlefshmëri gjyqësore</p>
                 </div>
               </>
             )}
@@ -315,10 +368,10 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
           />
         </div>
 
-        {/* Paneli i Kërkimit dhe Përzgjedhjes së Audios */}
-        <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="relative flex-1 mr-2">
+        {/* Lista e Regjistrimeve */}
+        <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="relative flex-1">
               <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
               <input
                 type="text"
@@ -330,14 +383,14 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
             </div>
             <button
               onClick={loadAudioEvidence}
-              title="Rifresko provat audio"
-              className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+              title="Rifresko listën"
+              className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
             >
               <RefreshCw size={13} className={loadingMedia ? 'animate-spin' : ''} />
             </button>
           </div>
 
-          <div className="space-y-2 max-h-[380px] overflow-y-auto custom-finance-scroll pr-1">
+          <div className="space-y-2 max-h-[360px] sm:max-h-[420px] overflow-y-auto custom-finance-scroll pr-1">
             {filteredAudios.length === 0 ? (
               <div className="text-center py-8 text-xs text-text-muted">
                 {loadingMedia ? 'Duke lexuar arkivën audio...' : 'Nuk ka asnjë audio të regjistruar.'}
@@ -351,19 +404,19 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
                   <div
                     key={audio.id}
                     onClick={() => setSelectedAudioId(audio.id)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    className={`p-3 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
                       isSelected
                         ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
                         : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <div className={`p-2 rounded-xl ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                        <Mic size={16} />
+                    <div className="flex items-center gap-2.5 truncate min-w-0 flex-1">
+                      <div className={`p-2 rounded-xl shrink-0 ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
+                        <Mic size={15} />
                       </div>
                       <div className="truncate text-xs">
                         <p className="font-bold truncate text-text-primary">{audio.file_name}</p>
-                        <p className="text-[10px] font-mono text-text-muted flex items-center gap-1">
+                        <p className="text-[10px] font-mono text-text-muted flex items-center gap-1 mt-0.5">
                           <Clock size={10} />
                           {audio.created_at ? new Date(audio.created_at).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' }) : '00:00'}
                         </p>
@@ -376,7 +429,7 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
                         type="button"
                         onClick={(e) => handleDeleteAudio(audio.id, audio.file_name, e)}
                         disabled={isDeleting}
-                        title="Fshij përgjimin"
+                        title="Hiq nga lënda"
                         className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
                       >
                         {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
@@ -390,11 +443,12 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
         </div>
       </div>
 
-      {/* KOLONA E DJATHTË: AUDIO PLAYER DHE EKSPERTIZA OSE TRANSKRIPTI I PASTËR */}
+      {/* KOLONA E DJATHTË: AUDIO PLAYER DHE TRANSKRIPTI I DIARIZUAR */}
       <div className="lg:col-span-7 space-y-4">
-        {/* AUDIO PLAYER */}
+        
+        {/* AUDIO PLAYER PROFESIONAL */}
         {activeAudio && streamUrl && (
-          <div className="glass-panel p-5 rounded-3xl border border-main bg-card shadow-sm space-y-3">
+          <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
             <audio
               ref={audioRef}
               src={streamUrl}
@@ -404,12 +458,12 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
               className="hidden"
             />
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Volume2 size={16} className="text-primary-start" />
-                <span className="text-xs font-bold truncate max-w-xs text-text-primary">{activeAudio.file_name}</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 truncate">
+                <Volume2 size={16} className="text-primary-start shrink-0" />
+                <span className="text-xs font-bold truncate text-text-primary">{activeAudio.file_name}</span>
               </div>
-              <span className="text-[11px] font-mono text-text-muted">
+              <span className="text-[11px] font-mono text-text-muted shrink-0">
                 {formatSeconds(currentTime)} / {formatSeconds(duration)}
               </span>
             </div>
@@ -435,165 +489,201 @@ export const AudioForensicLab: React.FC<AudioForensicLabProps> = ({
           </div>
         )}
 
-        {/* PANELI I REZULTATIT (TRANSKRIPT OSE EKSPERTIZË) */}
-        <div className="glass-panel p-6 rounded-3xl border border-main bg-card shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-4">
+        {/* PANELI KRYESOR I ZBARDHJES DHE EKSPERTIZËS */}
+        <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-4">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-main pb-3.5">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {showForensicPanel ? <ShieldAlert size={18} className="text-primary-start" /> : <AlignLeft size={18} className="text-primary-start" />}
-                <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary">
-                  {showForensicPanel ? 'Diarizimi & Analiza e Stresit' : 'Zbardhja Origjinale'}
+              <div className="flex items-center gap-2">
+                {showForensicPanel ? <ShieldCheck size={17} className="text-primary-start" /> : <AlignLeft size={17} className="text-primary-start" />}
+                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary">
+                  {showForensicPanel ? 'Transkripti Zyrtar me Diarizim' : 'Zbardhja Fjalë-për-Fjalë'}
                 </h3>
-                {forensicAnalysis?.forensic_intelligence?.threat_level && (
-                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                    forensicAnalysis.forensic_intelligence.threat_level === 'KRITIKE' || forensicAnalysis.forensic_intelligence.threat_level === 'E LARTË'
-                      ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
-                      : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                  }`}>
-                    Kërcënimi: {forensicAnalysis.forensic_intelligence.threat_level}
-                  </span>
-                )}
               </div>
-              <p className="text-xs text-text-muted mt-0.5">
-                {showForensicPanel ? 'AssemblyAI Speaker Diarization + Claude Sonnet 4.6' : 'Transkript i pacënuar fjalë-për-fjalë me sekonda.'}
+              <p className="text-[11px] text-text-muted mt-0.5">
+                {showForensicPanel ? 'Ndarja e folësve sipas sekondave dhe analiza procedurale' : 'Zbardhje e plotë tekstuale me vulë provuese.'}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+              {/* Kontrolli i Fontit */}
+              <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
+                <button
+                  type="button"
+                  onClick={handleDecreaseFont}
+                  disabled={fontLevelIndex === 0}
+                  className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover disabled:opacity-30 cursor-pointer"
+                >
+                  A−
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetFont}
+                  className="min-w-7 text-[10px] font-bold text-text-muted hover:bg-hover rounded text-center cursor-pointer px-1"
+                >
+                  {activeFont.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleIncreaseFont}
+                  disabled={fontLevelIndex === FONT_LEVELS.length - 1}
+                  className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover disabled:opacity-30 cursor-pointer"
+                >
+                  A+
+                </button>
+              </div>
+
               {(showForensicPanel || showPureTranscriptPanel) && (
                 <button
                   type="button"
                   onClick={() => handleCopyText(showPureTranscriptPanel ? pureTranscript : (forensicAnalysis?.formatted_transcript || ''))}
-                  className="h-9 px-3 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="h-8 px-2.5 bg-surface hover:bg-hover border border-main rounded-xl text-xs font-bold text-text-primary flex items-center gap-1.5 cursor-pointer"
                 >
-                  {copiedTranscript ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                  <span className="hidden sm:inline">{copiedTranscript ? 'U Kopjua' : 'Kopjo Tekstin'}</span>
+                  {copiedTranscript ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                  <span>{copiedTranscript ? 'U Kopjua' : 'Kopjo'}</span>
                 </button>
               )}
 
-              {/* BUTONI 1: TRANSKRIPTI I PASTËR */}
+              {/* BUTONI 1: ZBARDHJA VERBATIM */}
               <button
                 type="button"
                 onClick={handleGetPureTranscript}
                 disabled={!selectedAudioId || isAnalyzing || isGettingPureTranscript}
-                className={`h-9 px-3 sm:px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all disabled:opacity-40 cursor-pointer ${
-                  showPureTranscriptPanel ? 'bg-primary-start/15 border border-primary-start/30 text-primary-start' : 'bg-surface hover:bg-hover border border-main text-text-primary'
+                className={`h-8 sm:h-9 px-3 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-40 cursor-pointer ${
+                  showPureTranscriptPanel ? 'bg-primary-start text-white' : 'bg-surface hover:bg-hover border border-main text-text-primary'
                 }`}
               >
-                {isGettingPureTranscript ? <Loader2 size={13} className="animate-spin text-primary-start" /> : <AlignLeft size={13} />}
-                <span className="hidden sm:inline">Transkripti Origjinal</span>
-                <span className="sm:hidden">Origjinali</span>
+                {isGettingPureTranscript ? <Loader2 size={13} className="animate-spin" /> : <AlignLeft size={13} />}
+                <span>Zbardhja</span>
               </button>
 
-              {/* BUTONI 2: EKSPERTIZA E PLOTË (Diarizim + Claude) */}
+              {/* BUTONI 2: DIARIZIMI DHE ANALIZA PROCEDURALE */}
               <button
                 type="button"
                 onClick={handleRunAudioForensics}
                 disabled={!selectedAudioId || isAnalyzing || isGettingPureTranscript}
-                className="h-9 px-3 sm:px-4 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all disabled:opacity-40 cursor-pointer"
+                className="h-8 sm:h-9 px-3.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-40 cursor-pointer"
               >
                 {isAnalyzing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                <span className="hidden sm:inline">Ekspertiza e Zërit</span>
-                <span className="sm:hidden">Ekspertiza</span>
+                <span>Diarizimi i Folësve</span>
               </button>
             </div>
           </div>
 
-          {/* Dritarja e Tekstit të Përpunuar */}
+          {/* DRITARJA E PËRMBAJTJES */}
           {showPureTranscriptPanel ? (
             /* PANELI I TRANSKRIPTIT TË PASTËR */
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
-                <FileText size={12} /> Teksti Origjinal i Pandryshuar:
+                <FileText size={13} className="text-primary-start" /> Teksti i Plotë Verbatim:
               </span>
-              <div className="h-[380px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-xs sm:text-sm leading-relaxed text-text-primary whitespace-pre-wrap font-mono select-text">
+              <div 
+                className="h-[380px] sm:h-[460px] overflow-y-auto custom-finance-scroll p-4 sm:p-5 bg-surface/50 rounded-2xl border border-main text-text-primary whitespace-pre-wrap font-mono select-text"
+                style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
+              >
                 {pureTranscript}
               </div>
             </div>
           ) : showForensicPanel ? (
-            /* PANELI I EKSPERTIZËS (2 Kolona) */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Majtas: Transkripti me Folës dhe Minuta */}
-              <div className="space-y-1.5">
+            /* PANELI I EKSPERTIZËS (Diarizim + Deklarata Procedurale) */
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              
+              {/* Majtas: Segmentet e Folësve me Jump-to-Time */}
+              <div className="md:col-span-7 space-y-2">
                 <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
-                  <User size={12} /> Biseda me Folës (AssemblyAI):
+                  <User size={13} className="text-primary-start" /> Diarizimi sipas Folësve (Kliko kohën për ta dëgjuar):
                 </span>
-                <div className="h-[380px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-xs leading-relaxed text-text-primary whitespace-pre-wrap font-mono select-text space-y-2">
+                <div 
+                  className="h-[380px] sm:h-[460px] overflow-y-auto custom-finance-scroll p-3 sm:p-4 bg-surface/50 rounded-2xl border border-main select-text space-y-2"
+                  style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}
+                >
                   {forensicAnalysis?.segments && forensicAnalysis.segments.length > 0 ? (
                     forensicAnalysis.segments.map((seg, idx) => (
-                      <div key={idx} className="p-2 rounded-xl bg-card border border-main/40 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] text-text-muted font-bold">
-                          <span className="text-primary-start">{seg.speaker}</span>
-                          <span>{seg.timestamp_label}</span>
+                      <div 
+                        key={idx} 
+                        className="p-3 rounded-xl bg-card border border-main/50 space-y-1 hover:border-primary-start/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-primary-start uppercase tracking-wider flex items-center gap-1">
+                            <User size={10} /> {seg.speaker}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleJumpToTime(seg.start)}
+                            className="font-mono text-text-muted hover:text-primary-start hover:underline cursor-pointer bg-surface px-1.5 py-0.5 rounded border border-main"
+                            title="Kërce në këtë sekondë të audios"
+                          >
+                            ▶ {seg.timestamp_label}
+                          </button>
                         </div>
-                        <p className="text-xs text-text-primary">{seg.text}</p>
+                        <p className="text-text-primary leading-relaxed pt-0.5">{seg.text}</p>
                       </div>
                     ))
                   ) : (
-                    <p>{forensicAnalysis?.formatted_transcript || 'Ska të dhëna'}</p>
+                    <p className="font-mono text-xs">{forensicAnalysis?.formatted_transcript || 'Ska të dhëna'}</p>
                   )}
                 </div>
               </div>
 
-              {/* Djathtas: Raporti Ligjor i Stresit dhe Kanosjes */}
-              <div className="space-y-1.5">
+              {/* Djathtas: Raporti Procedural mbi Deklaratat */}
+              <div className="md:col-span-5 space-y-2">
                 <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
-                  <ShieldAlert size={12} className="text-rose-500" /> Analiza Kriminalistike (Claude Sonnet 4.6):
+                  <Scale size={13} className="text-primary-start" /> Vlerësimi Procedural (KPPRK):
                 </span>
-                <div className="h-[380px] overflow-y-auto custom-finance-scroll p-4 bg-surface/50 rounded-2xl border border-main text-xs leading-relaxed text-text-primary whitespace-pre-wrap font-sans select-text space-y-3">
-                  <div className="space-y-3">
-                    <div className="p-3 bg-surface rounded-xl border border-main space-y-1">
-                      <h4 className="font-bold text-text-primary flex items-center gap-1.5">
-                        <Activity size={13} className="text-primary-start" /> Përmbledhja:
+                <div 
+                  className="h-[380px] sm:h-[460px] overflow-y-auto custom-finance-scroll p-3.5 sm:p-4 bg-surface/50 rounded-2xl border border-main select-text space-y-3 text-xs"
+                  style={{ fontSize: `${activeFont.base - 1}px`, lineHeight: activeFont.line }}
+                >
+                  {/* Përmbledhja */}
+                  <div className="p-3 bg-card rounded-xl border border-main space-y-1">
+                    <h4 className="font-bold text-text-primary uppercase text-[11px]">
+                      Konteksti i Incizimit:
+                    </h4>
+                    <p className="text-text-muted leading-relaxed">
+                      {forensicAnalysis?.forensic_intelligence?.summary}
+                    </p>
+                  </div>
+
+                  {/* Deklaratat relevante penale */}
+                  {forensicAnalysis?.forensic_intelligence?.criminal_elements_detected && forensicAnalysis.forensic_intelligence.criminal_elements_detected.length > 0 && (
+                    <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 space-y-1">
+                      <h4 className="font-bold text-rose-500 uppercase text-[11px]">
+                        Deklaratat Relevante Penale:
                       </h4>
-                      <p className="text-text-muted">{forensicAnalysis?.forensic_intelligence?.summary}</p>
+                      <ul className="list-disc list-inside text-text-primary space-y-0.5 pt-0.5">
+                        {forensicAnalysis.forensic_intelligence.criminal_elements_detected.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
                     </div>
+                  )}
 
-                    {forensicAnalysis?.forensic_intelligence?.criminal_elements_detected && forensicAnalysis.forensic_intelligence.criminal_elements_detected.length > 0 && (
-                      <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 space-y-1">
-                        <h4 className="font-bold text-rose-500 flex items-center gap-1.5">
-                          <Flame size={13} /> Elementet Penale të Detektuara:
-                        </h4>
-                        <ul className="list-disc list-inside text-text-primary">
-                          {forensicAnalysis.forensic_intelligence.criminal_elements_detected.map((item, i) => (
-                            <li key={i}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <div className="p-3 bg-surface rounded-xl border border-main space-y-1">
-                      <h4 className="font-bold text-text-primary flex items-center gap-1.5">
-                        <Scale size={13} className="text-primary-start" /> Pranueshmëria në Gjykatë:
-                      </h4>
-                      <p className="text-text-muted">{forensicAnalysis?.forensic_intelligence?.court_admissibility_recommendation}</p>
-                    </div>
-
-                    {forensicAnalysis?.stress_flags && forensicAnalysis.stress_flags.length > 0 && (
-                      <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-1">
-                        <h4 className="font-bold text-amber-500 text-[11px] uppercase">
-                          Momente me Tension/Stres të Lartë ({forensicAnalysis.stress_flags.length}):
-                        </h4>
-                        <div className="space-y-1 mt-1">
-                          {forensicAnalysis.stress_flags.map((flag, idx) => (
-                            <p key={idx} className="text-[11px] text-text-primary">
-                              <span className="font-bold font-mono">[{formatSeconds(flag.start)}]:</span> "{flag.text}"
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  {/* Pranueshmëria në Gjykatë */}
+                  <div className="p-3 bg-card rounded-xl border border-main space-y-1">
+                    <h4 className="font-bold text-primary-start uppercase text-[11px]">
+                      Pranueshmëria si Provë (KPPRK):
+                    </h4>
+                    <p className="text-text-muted leading-relaxed">
+                      {forensicAnalysis?.forensic_intelligence?.court_admissibility_recommendation}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
             /* PANELI FILLËSTAR BOSH */
-            <div className="h-[380px] flex flex-col items-center justify-center text-text-muted text-center gap-2">
-              <Mic size={32} className="opacity-30" />
-              <p className="text-xs max-w-sm">
-                Shtypni <span className="font-bold text-text-primary">"Transkripti Origjinal"</span> për zbardhje të thjeshtë, ose <span className="font-bold text-text-primary">"Ekspertiza e Zërit"</span> për diarizim folësish dhe analizë kriminalistike me Claude Sonnet 4.6.
-              </p>
+            <div className="h-[340px] sm:h-[420px] flex flex-col items-center justify-center text-text-muted text-center gap-2 p-6">
+              <div className="w-12 h-12 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
+                <Mic size={24} />
+              </div>
+              <div className="space-y-1 max-w-sm">
+                <h4 className="font-bold text-text-primary text-xs sm:text-sm">
+                  Përzgjidhni një incizim audio për zbardhje
+                </h4>
+                <p className="text-[11px] text-text-muted">
+                  Përdorni <span className="font-bold text-text-primary">"Zbardhja"</span> për tekst verbatim, ose <span className="font-bold text-text-primary">"Diarizimi i Folësve"</span> për ndarjen e zërave me sekonda dhe vlerësim procedural.
+                </p>
+              </div>
             </div>
           )}
         </div>
