@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - STANDALONE FORENSIC INTERROGATION TERMINAL V5.3 (MOBILE 100DVH & TOUCH OPTIMIZED)
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.0 (DYNAMIC FONT & MOBILE READY)
 // 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -45,7 +45,7 @@ const QUICK_FORENSIC_COMMANDS = [
     prompt: 'Kryqëzo të gjitha provat materiale dhe dëshmitë në këtë dosje dhe më nxirr listën e plotë të të gjitha kontradiktave, alibive të rreme dhe datave të pasakta.'
   },
   {
-    label: 'Pyetësor Taktik Kurth për Seancë',
+    label: 'Pyetësor Taktik Kurth',
     icon: HelpCircle,
     prompt: 'Më harto një pyetësor taktik të thellë me 7 pyetje kurth për të ballafaquar palën kundërshtare dhe zyrtarët në seancën e ardhshme gjyqësore.'
   },
@@ -55,10 +55,19 @@ const QUICK_FORENSIC_COMMANDS = [
     prompt: 'Analizo të gjitha procesverbalet dhe aktvendimet e administruara dhe më nxirr shkeljet thelbësore procedurale sipas Nenit 182 të LPK-së dhe Kodit Penal.'
   },
   {
-    label: 'Kryqëzimi i Provave Mjekësore & QPS',
+    label: 'Kryqëzimi i Provave & QPS',
     icon: ShieldAlert,
     prompt: 'Kryqëzo raportin e testit toksikologjik dhe provat shkencore me raportet e QPS-së dhe deklaratat e ekspertëve psikiatrikë.'
   }
+];
+
+// Nivelet e madhësisë së fontit për Chat-in
+const FONT_LEVELS = [
+  { label: '90%',   base: 13,   line: 1.55 },
+  { label: '100%',  base: 15,   line: 1.65 },
+  { label: '115%',  base: 17,   line: 1.7 },
+  { label: '130%',  base: 19,   line: 1.75 },
+  { label: '150%',  base: 21,   line: 1.8 }
 ];
 
 export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerProps> = ({
@@ -80,7 +89,38 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Ngarkimi i historikut nga MongoDB sapo hapet dritarja
+  // Kontrolli i Zmadhimit të Shkrimit
+  const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('juristi_chat_font_size');
+      return saved !== null ? Math.min(Math.max(0, parseInt(saved, 10)), FONT_LEVELS.length - 1) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const activeFont = FONT_LEVELS[fontLevelIndex];
+
+  const handleIncreaseFont = () => {
+    setFontLevelIndex(prev => {
+      const next = Math.min(FONT_LEVELS.length - 1, prev + 1);
+      try { localStorage.setItem('juristi_chat_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleDecreaseFont = () => {
+    setFontLevelIndex(prev => {
+      const next = Math.max(0, prev - 1);
+      try { localStorage.setItem('juristi_chat_font_size', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleResetFont = () => {
+    setFontLevelIndex(1);
+    try { localStorage.setItem('juristi_chat_font_size', '1'); } catch {}
+  };
+
   const loadChatHistory = useCallback(async () => {
     if (!caseId) return;
     try {
@@ -117,7 +157,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   }, [input]);
 
-  // Dërgimi i pyetjes me streaming
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
     if (!cleanText || isProcessing || !caseId || isPurging) return;
@@ -242,7 +281,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             className={`absolute top-0 right-0 h-[100dvh] max-h-[100dvh] ${
               isFullscreen 
                 ? 'w-full max-w-full' 
-                : 'w-full sm:w-[580px] md:w-[680px] lg:w-[760px] max-w-full'
+                : 'w-full sm:w-[600px] md:w-[700px] lg:w-[800px] max-w-full'
             } border-l border-main shadow-2xl flex flex-col bg-card transition-all duration-300 ease-in-out`}
             style={{ backgroundColor: 'var(--bg-card, #020617)' }}
           >
@@ -254,26 +293,56 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-text-primary truncate">
+                    <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-text-primary truncate">
                       Terminali Forenzik
                     </h3>
-                    <span className="hidden xs:inline-flex px-1.5 py-0.5 rounded-full bg-primary-start/20 text-primary-start border border-primary-start/40 text-[9px] font-mono font-bold uppercase shrink-0">
-                      Claude Sonnet 4.6
+                    <span className="hidden xs:inline-flex px-1.5 py-0.5 rounded-full bg-primary-start/20 text-primary-start border border-primary-start/40 text-[9px] sm:text-[10px] font-mono font-bold uppercase shrink-0">
+                      Sonnet 4.6
                     </span>
                   </div>
-                  <p className="text-[10px] sm:text-xs text-text-muted truncate font-mono mt-0.5">
+                  <p className="text-[10px] sm:text-[11px] text-text-muted truncate font-mono mt-0.5">
                     {caseNumber}: <span className="text-text-primary font-bold">{clientName}</span>
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* KONTROLLI I ZMADHIMIT TË SHKRIMIT */}
+                <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
+                  <button
+                    type="button"
+                    onClick={handleDecreaseFont}
+                    disabled={fontLevelIndex === 0}
+                    className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
+                    title="Zvogëlo shkrimin"
+                  >
+                    A−
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetFont}
+                    title="Rivendos madhësinë e shkrimit"
+                    className="min-w-8 text-[10px] font-bold text-text-muted hover:bg-hover rounded text-center cursor-pointer px-1 h-7 flex items-center justify-center"
+                  >
+                    {activeFont.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleIncreaseFont}
+                    disabled={fontLevelIndex === FONT_LEVELS.length - 1}
+                    className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
+                    title="Zmadho shkrimin"
+                  >
+                    A+
+                  </button>
+                </div>
+
                 {/* Butoni i Koshit të Plehrave */}
                 <button
                   type="button"
                   onClick={handleClearConsole}
                   disabled={messages.length === 0 || isProcessing || isPurging}
-                  className={`p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer ${
+                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
                     messages.length === 0 
                       ? 'text-text-muted/30 cursor-not-allowed' 
                       : 'text-text-muted hover:text-rose-500 hover:bg-rose-500/10'
@@ -297,26 +366,44 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
+                  className="p-2 bg-rose-500/10 text-rose-500 hover:bg-rose-600 hover:text-white rounded-xl transition-colors cursor-pointer"
                   title="Mbyll"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
+            {/* STILI DINAMIK PËR MARKDOWN BAZUAR NË FONT CONTROL */}
+            <style>{`
+              .forensic-chat-markdown p,
+              .forensic-chat-markdown li,
+              .forensic-chat-markdown span:not(.lucide) {
+                font-size: ${activeFont.base}px !important;
+                line-height: ${activeFont.line} !important;
+              }
+              .forensic-chat-markdown h1, 
+              .forensic-chat-markdown h2, 
+              .forensic-chat-markdown h3 {
+                font-size: ${activeFont.base + 2}px !important;
+                line-height: 1.4 !important;
+                margin-top: 1em !important;
+                margin-bottom: 0.5em !important;
+              }
+            `}</style>
+
             {/* Message Stream Area */}
-            <div className={`flex-1 overflow-y-auto p-3.5 sm:p-6 custom-finance-scroll space-y-4 bg-canvas/30 select-text ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
+            <div className={`flex-1 overflow-y-auto p-4 sm:p-6 custom-finance-scroll space-y-5 sm:space-y-6 bg-canvas/30 select-text ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-2 sm:p-6 my-auto space-y-4 sm:space-y-6">
-                  <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner shrink-0">
-                    <BrainCircuit size={28} className="sm:w-10 sm:h-10" />
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner shrink-0">
+                    <BrainCircuit size={32} className="sm:w-10 sm:h-10" />
                   </div>
                   <div className="max-w-xl">
-                    <h4 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-text-primary">
+                    <h4 className="text-base sm:text-lg md:text-xl font-black uppercase tracking-tight text-text-primary">
                       Terminali Hetimor Ekskluziv
                     </h4>
-                    <p className="text-xs sm:text-sm text-text-muted mt-1 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-text-muted mt-1.5 leading-relaxed">
                       Shtroni pyetje hetimore mbi provat, datat, deklaratat dhe shkeljet ligjore.
                     </p>
                   </div>
@@ -328,15 +415,15 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                         key={idx}
                         type="button"
                         onClick={() => handleSendMessage(cmd.prompt)}
-                        className="p-3 sm:p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 rounded-xl sm:rounded-2xl text-left transition-all cursor-pointer shadow-xs group flex flex-col justify-between"
+                        className="p-3.5 sm:p-4 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 rounded-xl sm:rounded-2xl text-left transition-all cursor-pointer shadow-xs group flex flex-col justify-between"
                       >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <cmd.icon size={15} className="text-primary-start shrink-0" />
+                        <div className="flex items-center gap-2 mb-2">
+                          <cmd.icon size={16} className="text-primary-start shrink-0" />
                           <span className="text-xs sm:text-sm font-bold text-text-primary group-hover:text-primary-start transition-colors">
                             {cmd.label}
                           </span>
                         </div>
-                        <p className="text-[11px] text-text-muted line-clamp-2 leading-snug">
+                        <p className="text-[11px] sm:text-xs text-text-muted line-clamp-2 leading-relaxed">
                           {cmd.prompt}
                         </p>
                       </button>
@@ -344,7 +431,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 sm:space-y-6">
+                <div className="space-y-5 sm:space-y-6">
                   {messages.map((msg) => {
                     const isAi = msg.role === 'ai';
                     const isThinking = isAi && isProcessing && msg.content === '';
@@ -354,63 +441,67 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                         key={msg.id}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`flex gap-2.5 sm:gap-3.5 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
+                        className={`flex gap-2.5 sm:gap-4 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
                       >
                         {/* Avatar */}
                         <div
-                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-xs ${
+                          className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm ${
                             isAi
-                              ? 'bg-primary-start text-white border-primary-start'
+                              ? 'bg-gradient-to-br from-primary-start to-indigo-700 text-white border-primary-start/50'
                               : 'bg-surface border-main text-text-primary'
                           }`}
                         >
-                          {isAi ? <BrainCircuit size={16} className="sm:w-5 sm:h-5" /> : <User size={16} className="sm:w-5 sm:h-5" />}
+                          {isAi ? <BrainCircuit size={18} className="sm:w-6 sm:h-6" /> : <User size={18} className="sm:w-6 sm:h-6" />}
                         </div>
 
                         {/* Bubble Content */}
                         <div
-                          className={`relative max-w-[88%] rounded-2xl py-2.5 px-3.5 sm:py-3.5 sm:px-5 border shadow-sm ${
+                          className={`relative max-w-[88%] rounded-2xl py-3 px-4 sm:py-4 sm:px-6 border shadow-sm ${
                             isAi
-                              ? 'bg-surface border-main text-text-primary rounded-tl-xs'
-                              : 'bg-primary-start/15 border-primary-start/30 text-text-primary rounded-tr-xs font-medium'
+                              ? 'bg-surface border-main text-text-primary rounded-tl-sm'
+                              : 'bg-primary-start/10 border-primary-start/30 text-text-primary rounded-tr-sm font-medium'
                           }`}
                         >
                           {isAi && msg.content && (
                             <button
                               type="button"
                               onClick={() => handleCopyMessage(msg.id, msg.content)}
-                              className="absolute top-2.5 right-2.5 p-1 text-text-muted hover:text-text-primary rounded-lg transition-colors cursor-pointer"
+                              className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
                               title="Kopjo përgjigjen"
                             >
-                              {copiedId === msg.id ? <CheckCircle2 size={14} className="text-status-success" /> : <Copy size={14} />}
+                              {copiedId === msg.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
                             </button>
                           )}
 
                           {isThinking ? (
-                            <div className="flex items-center gap-2 py-1">
-                              <Loader2 size={16} className="animate-spin text-primary-start" />
+                            <div className="flex items-center gap-2.5 py-1.5">
+                              <Loader2 size={18} className="animate-spin text-primary-start" />
                               <span className="text-xs sm:text-sm font-bold text-primary-start">
                                 Duke arsyetuar mbi provat...
                               </span>
                             </div>
                           ) : isAi ? (
-                            <div className="space-y-1.5">
-                              <div className="markdown-content prose prose-slate dark:prose-invert max-w-none text-text-primary text-xs sm:text-sm leading-relaxed">
+                            <div className="space-y-2">
+                              {/* RENDERUESI I FONTIT DINAMIK PËR AI */}
+                              <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                                   {autoLinkLegalCitations(msg.content)}
                                 </ReactMarkdown>
                               </div>
 
                               {msg.citationAudit && (
-                                <div className="pt-2 border-t border-main/60 flex items-center gap-2 text-[10px] text-text-muted font-mono flex-wrap">
-                                  <ShieldCheck size={11} className="text-emerald-500 shrink-0" />
-                                  <span>Nene: {msg.citationAudit.articles_cited?.length || 0}</span>
-                                  <span>• Precedentë: {msg.citationAudit.verified_precedents?.length || 0}</span>
+                                <div className="pt-3 border-t border-main/60 flex items-center gap-2 text-[10px] sm:text-[11px] text-text-muted font-mono flex-wrap">
+                                  <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
+                                  <span>Nene të Zbuluara: <span className="font-bold text-text-primary">{msg.citationAudit.articles_cited?.length || 0}</span></span>
+                                  <span>• Precedentë: <span className="font-bold text-text-primary">{msg.citationAudit.verified_precedents?.length || 0}</span></span>
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap leading-relaxed text-xs sm:text-sm">{msg.content}</p>
+                            /* PËRGJIGJA E PËRDORUESIT (TEXT NORMAL DINAMIK) */
+                            <p className="whitespace-pre-wrap font-medium" style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}>
+                              {msg.content}
+                            </p>
                           )}
                         </div>
                       </motion.div>
@@ -422,36 +513,36 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             </div>
 
             {/* Input Terminal Bar (Optimizuar për Tastierën Mobile) */}
-            <div className={`p-3 sm:p-4 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
+            <div className={`p-3 sm:p-5 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage(input);
                 }}
-                className="flex items-end gap-2 sm:gap-2.5 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 focus-within:border-primary-start/50 transition-colors shadow-xs"
+                className="flex items-end gap-2 sm:gap-3 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 sm:p-2.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Pyet mbi provat, alibitë apo shkeljet..."
-                  // 16px (text-base) në mobile për të parandaluar auto-zoom në iOS
-                  className="flex-1 p-1.5 sm:p-2 bg-transparent text-base sm:text-sm text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] max-h-[140px] border-0 outline-none"
+                  placeholder="Pyet mbi provat, alibitë apo shkeljet ligjore..."
+                  // E RËNDËSISHME: font-size mbajtur në minimum 16px për mobile për të ndaluar auto-zoom në iPhone
+                  className="flex-1 p-1.5 sm:p-2 bg-transparent text-base text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[160px] border-0 outline-none"
                   rows={1}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isProcessing || isPurging}
-                  className="h-10 w-10 sm:h-11 sm:w-11 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
+                  className="h-10 w-10 sm:h-12 sm:w-12 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
                   title="Dërgo"
                 >
-                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="ml-0.5" />}
+                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
                 </button>
               </form>
-              <div className="flex items-center justify-between mt-2 px-1 text-[10px] sm:text-xs text-text-muted">
-                <span className="truncate">Vula: {chainOfCustodyHash ? `${chainOfCustodyHash.slice(0, 16)}...` : 'E Vërtetuar'}</span>
-                <span className="font-mono font-medium shrink-0 ml-2">Sonnet 4.6</span>
+              <div className="flex items-center justify-between mt-2.5 px-1.5 text-[10px] sm:text-xs text-text-muted">
+                <span className="truncate">Vula e Çështjes: {chainOfCustodyHash ? `${chainOfCustodyHash.slice(0, 16)}...` : 'E Vërtetuar'}</span>
+                <span className="font-mono font-medium shrink-0 ml-2">Modeli: anthropic/claude-sonnet-4.6</span>
               </div>
             </div>
           </motion.div>
