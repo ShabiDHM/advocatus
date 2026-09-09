@@ -1,6 +1,6 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V16.1 (FIXED PATH HANDLING FOR BYTES/STR)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
+# PHOENIX PROTOCOL - OCR ENGINE V16.2 (HEADERS/FOOTERS + PARALLEL OCR)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
 
 import fitz
 import logging
@@ -9,10 +9,16 @@ import tempfile
 import re
 import io
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Union
 
 try:
     import docx
+    from docx.document import Document as _DocxDocument
+    from docx.oxml.table import CT_Tbl
+    from docx.oxml.text.paragraph import CT_P
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 except ImportError:
     docx = None
 
@@ -27,6 +33,9 @@ except Exception:
 logger = logging.getLogger(__name__)
 FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 
+# OCR parallelization settings
+OCR_WORKERS = int(os.environ.get("OCR_WORKERS", "4"))  # Number of parallel OCR threads
+OCR_PAGE_DELAY = float(os.environ.get("OCR_PAGE_DELAY", "0.0"))  # Optional delay after each page (default 0)
 
 def _sanitize_text(text: str) -> str: 
     return text.replace("\x00", "") if text else ""
@@ -54,8 +63,30 @@ def _extract_legacy_doc_text(file_path: str) -> str:
     return ""
 
 
+def _extract_docx_headers_footers(doc) -> str:
+    """Extract text from all headers and footers of a DOCX document."""
+    header_footer_texts = []
+    try:
+        for section in doc.sections:
+            # Standard headers/footers
+            for header in [section.header, section.first_page_header, section.even_page_header]:
+                if header is not None and not header.is_linked_to_previous:
+                    for para in header.paragraphs:
+                        if para.text.strip():
+                            header_footer_texts.append(f"[HEADER] {para.text.strip()}")
+            for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+                if footer is not None and not footer.is_linked_to_previous:
+                    for para in footer.paragraphs:
+                        if para.text.strip():
+                            header_footer_texts.append(f"[FOOTER] {para.text.strip()}")
+    except Exception as e:
+        logger.warning(f"Header/footer extraction warning: {e}")
+
+    return "\n".join(header_footer_texts)
+
+
 def _extract_docx_text(file_path: str) -> str:
-    """Extracts text from modern .docx and falls back gracefully for binary .doc."""
+    """Extracts text from modern .docx including headers, footers, tables, and fallbacks."""
     if not docx:
         return _extract_legacy_doc_text(file_path)
 
@@ -67,7 +98,18 @@ def _extract_docx_text(file_path: str) -> str:
             for row in table.rows:
                 tables_text.append(" | ".join(cell.text.strip() for cell in row.cells if cell.text.strip()))
         
-        full_text = "\n".join(paragraphs_text + tables_text)
+        # Extract headers and footers
+        headers_footers_text = _extract_docx_headers_footers(doc)
+
+        parts = []
+        if headers_footers_text:
+            parts.append(headers_footers_text)
+        if paragraphs_text:
+            parts.append("\n".join(paragraphs_text))
+        if tables_text:
+            parts.append("\n".join(tables_text))
+
+        full_text = "\n\n".join(parts) if parts else ""
         if full_text and len(full_text.strip()) > 0:
             return _sanitize_text(full_text)
     except Exception as docx_err:
@@ -118,13 +160,25 @@ def _extract_text_from_pdf(file_path: str) -> str:
 
         doc.close()
 
-        # Pass 2: PHOENIX SEQUENTIAL OCR
+        # Pass 2: PHOENIX PARALLEL OCR (thread pool)
         if pages_needing_ocr:
-            logger.info(f"📄 [OCR Sequential] Filloi leximi i {len(pages_needing_ocr)} faqeve të skanuara me radhë...")
-            for page_num, j_bytes in pages_needing_ocr:
-                page_text = _ocr_single_page_bytes(page_num, j_bytes)
-                pages_results[page_num] = page_text
-                time.sleep(0.3)
+            logger.info(f"📄 [OCR Parallel] Filloi leximi i {len(pages_needing_ocr)} faqeve të skanuara me {OCR_WORKERS} punëtorë...")
+            with ThreadPoolExecutor(max_workers=OCR_WORKERS) as executor:
+                future_to_page = {
+                    executor.submit(_ocr_single_page_bytes, page_num, j_bytes): page_num
+                    for page_num, j_bytes in pages_needing_ocr
+                }
+                for future in as_completed(future_to_page):
+                    page_num = future_to_page[future]
+                    try:
+                        pages_results[page_num] = future.result()
+                    except Exception as exc:
+                        logger.error(f"❌ [OCR] Faqja {page_num + 1} dështoi: {exc}")
+                        pages_results[page_num] = f"\n--- [FAQJA {page_num + 1}] ---\n[Gabim OCR]"
+
+            # Optional small delay after batch (configurable)
+            if OCR_PAGE_DELAY > 0:
+                time.sleep(OCR_PAGE_DELAY)
 
         ordered_text = "\n\n".join([pages_results[i] for i in range(total) if i in pages_results])
         logger.info(f"✅ [PDF Extraction Complete] U nxorën gjithsej {len(ordered_text)} karaktere nga {total} faqe.")

@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V59.0 (ATOMIC CASCADE RENAME & $UNSET PURGE)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V60.0 (FIXED PREVIEW FOR NON-PDF FILES)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.services import document_service, storage_service
+from app.services.pdf_service import pdf_service  # <-- ADDED FOR DOCX CONVERSION
 from app.services.archive_service import ArchiveService
 from app.models.document import DocumentOut, DocumentStatus
 from app.models.archive import ArchiveItemOut
@@ -394,7 +395,7 @@ async def upload_document_for_case(
         price = os.getenv("CASE_UNLOCK_PRICE_EUR", "9.99")
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshe prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
+            detail=f"Kërkohet pagesë paraprake: Për të ngarkuar shkresat e fashikullit dhe për të kryer Analizën Ligjore të kësaj lënde, ju lutem bëni zhbllokimin e lëndës (Pagesë njëherëshme prej {price}€ me Kartelë Bankare, m-Banking ose Para në dorë në zyrë)."
         )
 
     pdf_bytes = await file.read()
@@ -681,7 +682,49 @@ async def get_document_preview(
     filename = doc.file_name if hasattr(doc, 'file_name') and doc.file_name else "dokument.pdf"
     doc_mime = getattr(doc, 'mime_type', None)
     resolved_media_type = _resolve_media_type(filename, doc_mime)
-    
+
+    # ============================================================
+    # 🔥 FIX: If the document is not a directly viewable format,
+    # convert it to PDF using pdf_service (like forensic preview).
+    # ============================================================
+    viewable_exts = (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".txt", ".csv", ".json")
+    need_conversion = not any(filename.lower().endswith(ext) for ext in viewable_exts)
+
+    if need_conversion:
+        try:
+            # Read the original bytes from cache or stream
+            if cached_path and os.path.exists(cached_path):
+                with open(cached_path, "rb") as f:
+                    file_bytes = f.read()
+            elif stream is not None:
+                file_bytes = stream.read()
+            else:
+                raise FileNotFoundError("Preview content not available.")
+
+            pdf_bytes, new_filename = await asyncio.to_thread(
+                pdf_service.convert_bytes_to_pdf,
+                file_bytes,
+                filename
+            )
+            if pdf_bytes != file_bytes:
+                return StreamingResponse(
+                    io.BytesIO(pdf_bytes),
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f'inline; filename="{new_filename}"',
+                        "Cache-Control": "public, max-age=3600",
+                        "Accept-Ranges": "bytes"
+                    }
+                )
+            else:
+                # Conversion failed, fallback to original
+                resolved_media_type = "application/octet-stream"
+        except Exception as e:
+            logger.error(f"Preview conversion failed: {e}")
+            # Fallback to original stream/file
+            pass
+
+    # Original behavior for viewable files or when conversion not needed/fails
     if cached_path and os.path.exists(cached_path):
         return FileResponse(
             path=cached_path,
