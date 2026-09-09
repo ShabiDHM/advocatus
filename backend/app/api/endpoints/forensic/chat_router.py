@@ -1,8 +1,9 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.2 (TRUE RAG: CASE BASE + KNOWLEDGE BASE)
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.4 (CLEAN PROFESSIONAL STREAMING)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pymongo.database import Database
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ import logging
 from app.core.db import get_db
 from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
-from app.services.forensic.forensic_llm_service import call_forensic_llm_chat, stream_forensic_llm_async
+from app.services.forensic.forensic_llm_service import call_forensic_llm_chat, stream_forensic_llm_chat_async
 from app.services.forensic.forensic_hallucination_filter import purge_and_regenerate_if_hallucinated
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.vector_store_service import query_case_knowledge_base, query_global_knowledge_base
@@ -55,7 +56,6 @@ def get_forensic_chat_history(
             m["created_at"] = m["created_at"].isoformat()
         messages.append(m)
 
-    # Legacy fallback (keep for old data, but not primary)
     if len(messages) == 0:
         try:
             case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -76,19 +76,17 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2. DËRGIMI I PYETJES ME RAG (CASE BASE + KNOWLEDGE BASE)
+# 2. DËRGIMI I PYETJES ME STREAMING (RAG + KUJTESË)
 # ==========================================================
-@router.post("/chat")
-def send_forensic_chat_message(
+@router.post("/chat/stream")
+async def stream_forensic_chat_message(
     payload: ForensicChatMessage,
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
     """
-    Përdor RAG të vërtetë: 
-    1. Case Base: Kërkim semantik në dokumentet e lëndës (vector store)
-    2. Knowledge Base: Nenet e ligjeve dhe praktika e Gjykatës Supreme
-    3. Historiku i plotë i bisedës për kujtesë afatgjatë
+    Streaming endpoint për terminalin forenzik.
+    Përdor RAG (Case Base + Knowledge Base) dhe transmeton token-at në kohë reale.
     """
     user_id = str(current_user.id)
     case_id_str = str(payload.case_id)
@@ -125,7 +123,7 @@ def send_forensic_chat_message(
         "content": payload.message
     })
 
-    # 2. RAG CASE BASE: Merr chunk-et relevante nga dokumentet e lëndës
+    # 2. RAG CASE BASE
     case_chunks = []
     try:
         case_chunks = query_case_knowledge_base(
@@ -137,7 +135,7 @@ def send_forensic_chat_message(
     except Exception as e:
         logger.warning(f"Case base retrieval failed: {e}")
 
-    # 3. RAG KNOWLEDGE BASE: Merr nenet dhe precedentët e Gjykatës Supreme
+    # 3. RAG KNOWLEDGE BASE
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
@@ -156,7 +154,7 @@ def send_forensic_chat_message(
         "created_at": now_utc
     })
 
-    # 5. Ndërto system prompt me kontekst RAG
+    # 5. Ndërto system prompt TË PASTËR PROFESIONAL
     case_context_text = "\n".join([
         f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}): {c.get('text','')}"
         for c in case_chunks if c.get("text")
@@ -167,13 +165,10 @@ def send_forensic_chat_message(
         for c in knowledge_chunks if c.get("text")
     ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
 
-    system_prompt = f"""TERMINALI FORENZIK HETIMOR SUPREM (CLAUDE SONNET 4.6)
-Ju jeni hetuesi suprem ligjor për Republikën e Kosovës me KUJTESË TË PLOTË mbi këtë lëndë.
+    system_prompt = f"""Ju jeni një ekspert ligjor i specializuar për legjislacionin e Republikës së Kosovës.
+Detyra juaj është të jepni përgjigje të sakta, profesionale dhe koncize, pa zhargon të panevojshëm, pa fraza marketingu, pa emoji dhe pa formatim të tepruar.
 
-MANDATI:
-1. Përdorni VETËM provat dhe dokumentet e lëndës për fakte rasti.
-2. Përdorni BAZËN E NJOHURIVE për nenet dhe praktikën gjyqësore.
-3. Mos hamendësoni; nëse informacioni mungon, thoni qartë se nuk është në dispozicion.
+Përdorni vetëm gjuhë zyrtare juridike. Mos përfshini emra të tillë si "Terminali Forenzik Hetimor Suprem", "VULA FORENZIKE", etj. Përgjigjuni drejtpërdrejt pyetjes.
 
 KONTEKSTI I LËNDËS:
 {payload.case_context or 'Çështje hetimore forenzike'}
@@ -184,67 +179,78 @@ PJESËT RELEVANTE NGA DOKUMENTET E LËNDËS (CASE BASE):
 REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
 {knowledge_context_text}"""
 
-    # 6. Thirrja e Claude Sonnet 4.6 me KUJTESË TË PLOTË
-    raw_response = call_forensic_llm_chat(
-        conversation_turns=conversation_turns,
-        system_prompt=system_prompt,
-        temperature=0.0
+    # 6. Funksioni gjenerator për StreamingResponse
+    async def generate():
+        full_response = ""
+        try:
+            async for token in stream_forensic_llm_chat_async(
+                conversation_turns=conversation_turns,
+                system_prompt=system_prompt,
+                temperature=0.0
+            ):
+                full_response += token
+                yield token
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield f"\n\n[GABIM: {str(e)}]"
+        finally:
+            # Pas përfundimit, ruaj përgjigjen
+            if full_response:
+                # Verifikimi i citimeve
+                try:
+                    verified_text, audit_result = purge_and_regenerate_if_hallucinated(
+                        response_text=full_response,
+                        db=db,
+                        original_prompt=payload.message
+                    )
+                    content_to_save = verified_text
+                except Exception:
+                    content_to_save = full_response
+                    audit_result = None
+
+                assistant_msg_doc = {
+                    "case_id": case_id_str,
+                    "user_id": user_id,
+                    "role": "assistant",
+                    "content": content_to_save,
+                    "citation_audit": audit_result,
+                    "created_at": datetime.now(timezone.utc)
+                }
+                db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
+
+                # Sinkronizim për multi-device
+                try:
+                    case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
+                    db.cases.update_one(
+                        {"$or": [{"_id": case_oid}, {"_id": case_id_str}]},
+                        {
+                            "$push": {
+                                "forensic_chat_history": {
+                                    "$each": [
+                                        {"role": "user", "content": payload.message, "timestamp": now_utc.isoformat()},
+                                        {"role": "assistant", "content": content_to_save, "timestamp": assistant_msg_doc["created_at"].isoformat()}
+                                    ]
+                                }
+                            },
+                            "$set": {"updated_at": datetime.now(timezone.utc)}
+                        }
+                    )
+                except Exception as sync_err:
+                    logger.warning(f"Multi-device sync warning: {sync_err}")
+
+                log_forensic_action(
+                    db=db,
+                    user_id=user_id,
+                    case_id=case_id_str,
+                    action="FORENSIC_INTERROGATION_QUERY",
+                    details={"query_preview": payload.message[:100], "streaming": True}
+                )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain; charset=utf-8",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
-
-    # 7. Verifikimi i citimeve ligjore
-    verified_text, audit_result = purge_and_regenerate_if_hallucinated(
-        response_text=raw_response,
-        db=db,
-        original_prompt=payload.message
-    )
-
-    # 8. Ruaj përgjigjen
-    assistant_msg_doc = {
-        "case_id": case_id_str,
-        "user_id": user_id,
-        "role": "assistant",
-        "content": verified_text,
-        "citation_audit": audit_result,
-        "created_at": datetime.now(timezone.utc)
-    }
-    result = db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
-
-    # 9. Sinkronizim për multi-device (opsional)
-    try:
-        case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
-        db.cases.update_one(
-            {"$or": [{"_id": case_oid}, {"_id": case_id_str}]},
-            {
-                "$push": {
-                    "forensic_chat_history": {
-                        "$each": [
-                            {"role": "user", "content": payload.message, "timestamp": now_utc.isoformat()},
-                            {"role": "assistant", "content": verified_text, "timestamp": assistant_msg_doc["created_at"].isoformat()}
-                        ]
-                    }
-                },
-                "$set": {"updated_at": datetime.now(timezone.utc)}
-            }
-        )
-    except Exception as sync_err:
-        logger.warning(f"Multi-device sync warning: {sync_err}")
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id_str,
-        action="FORENSIC_INTERROGATION_QUERY",
-        details={"query_preview": payload.message[:100], "memory_turns_count": len(conversation_turns)}
-    )
-
-    return {
-        "_id": str(result.inserted_id),
-        "case_id": case_id_str,
-        "role": "assistant",
-        "content": verified_text,
-        "citation_audit": audit_result,
-        "created_at": assistant_msg_doc["created_at"].isoformat()
-    }
 
 # ==========================================================
 # 3. TOTAL CASCADE WIPEOUT

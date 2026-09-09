@@ -1,5 +1,5 @@
 # FILE: backend/app/services/forensic/forensic_llm_service.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V2.0 (MULTI-TURN CHAT MEMORY • CLAUDE SONNET 4.6)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V2.2 (CLEAN PROFESSIONAL TONE)
 
 import os
 import time
@@ -13,15 +13,12 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
-FORENSIC_SYSTEM_IDENTITY = """[REPUBLIKA E KOSOVËS • ZYRA FORENZIKE HETIMORE GJYQËSORE]
-JU JENI: Eksperti Suprem Forenzik Ligjor dhe Kriminalistik i Juristi AI.
-MANDATI JUAJ DHE KUJTESA HETIMORE:
-1. Përdorni vetëm standarde të larta hetimore dhe forenzike shkencore.
-2. KUJTONI me saktësi çdo provë, deklaratë, faturë, datë dhe emër të diskutuar më herët në këtë bisedë.
-3. Nëse pyetja e re lidhet me një fakt të mëparshëm, ndërlidhni menjëherë faktet dhe nxirrni kontradiktat.
-4. Citoni me saktësi kirurgjikale legjislacionin e Kosovës (KPK, KPPRK, LMD, LPK).
-5. GJUHA E DETYRUESHME: Shqipe standarde zyrtare administrative-juridike.
-6. Asnjëherë mos hamendësoni fakte apo nene që nuk ekzistojnë."""
+
+# Clean, professional system identity without jargon or branding
+FORENSIC_SYSTEM_IDENTITY = """You are a legal expert specialized in the legislation of the Republic of Kosovo.
+Provide accurate, professional, and concise responses in Albanian legal language.
+Do not use unnecessary jargon, marketing phrases, emojis, or excessive formatting.
+Strictly adhere to official legal terminology and avoid promotional language."""
 
 class ForensicLLMError(Exception):
     pass
@@ -106,22 +103,18 @@ def call_forensic_llm_chat(
     max_tokens: int = 16384
 ) -> str:
     """
-    THIRRJE ME KUJTESË TË PLOTË DHE TË ZGJUAR (MULTI-TURN CONVERSATION MEMORY):
-    I dërgon Claude Sonnet 4.6 historikun e vërtetë strukturor të pyetjeve dhe përgjigjeve,
-    duke mbajtur mend çdo detaj të diskutuar më parë.
+    THIRRJE ME KUJTESË TË PLOTË DHE TË ZGJUAR (MULTI-TURN CONVERSATION MEMORY).
     """
     client = _get_sync_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
 
-    # Përgatit listën e integruar të mesazheve me rolet përkatëse
     formatted_messages: List[Dict[str, str]] = [
         {"role": "system", "content": full_system}
     ]
 
     for turn in conversation_turns:
         role = turn.get("role", "user")
-        # Normalizo rolet për standardin OpenAI/Claude API
         standard_role = "assistant" if role in ["assistant", "ai"] else "user"
         content = turn.get("content", "").strip()
         if content:
@@ -160,7 +153,7 @@ async def stream_forensic_llm_async(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> AsyncGenerator[str, None]:
-    """Transmetim asinkron për streaming."""
+    """Transmetim asinkron për streaming (single-turn)."""
     client = _get_async_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -181,4 +174,40 @@ async def stream_forensic_llm_async(
                 yield chunk.choices[0].delta.content
     except Exception as e:
         logger.error(f"❌ [Forensic LLM Stream] Gabim: {e}")
+        yield f"\n\n[GABIM: Lidhja me {target_model} u ndërpre: {str(e)}]"
+
+async def stream_forensic_llm_chat_async(
+    conversation_turns: List[Dict[str, str]],
+    system_prompt: str = "",
+    temperature: float = 0.0,
+    max_tokens: int = 16384
+) -> AsyncGenerator[str, None]:
+    """Transmetim asinkron me kujtesë të plotë multi-turn."""
+    client = _get_async_client()
+    target_model = _get_forensic_model()
+    full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
+
+    formatted_messages: List[Dict[str, str]] = [
+        {"role": "system", "content": full_system}
+    ]
+    for turn in conversation_turns:
+        role = turn.get("role", "user")
+        standard_role = "assistant" if role in ["assistant", "ai"] else "user"
+        content = turn.get("content", "").strip()
+        if content:
+            formatted_messages.append({"role": standard_role, "content": content})
+
+    try:
+        stream = await client.chat.completions.create(
+            model=target_model,
+            messages=formatted_messages,
+            temperature=temperature,
+            stream=True,
+            max_tokens=max_tokens
+        )
+        async for chunk in stream:
+            if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        logger.error(f"❌ [Forensic LLM Stream Chat] Gabim: {e}")
         yield f"\n\n[GABIM: Lidhja me {target_model} u ndërpre: {str(e)}]"

@@ -1,5 +1,5 @@
 # FILE: backend/app/services/forensic/forensic_audio_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V1.0 (ASSEMBLYAI DIARIZATION & CLAUDE STRESS ANALYSIS)
+# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V1.1 (CLEAN PROFESSIONAL TONE)
 
 import os
 import time
@@ -147,19 +147,13 @@ def analyze_audio_forensics_with_llm(
     case_context: str = ""
 ) -> Dict[str, Any]:
     """
-    Ekzekuton ekspertizën forenzike mbi transkriptin me Claude Sonnet 4.6.
+    Kryen analizën ligjore të transkriptit.
     """
-    system_prompt = """EKSPERTIZA FORENZIKE E AUDIO-PËRGJIMEVE DHE DEKLARATAVE (CLAUDE SONNET 4.6):
-Ju jeni eksperti kriminalistik i zërit dhe analizës së bisedave hetimore.
-Detyra juaj:
-1. Identifikoni elementet e veprave penale: Kërcënim (Neni 181 KPK), Shantazh (Neni 329 KPK), Shtrëngim (Neni 192 KPK), Deklarim i Rremë.
-2. Analizoni kontradiktat në fjalët e folësve.
-3. Verifikoni nivelin e presionit psikologjik dhe stresit gjatë bisedës.
-4. Jepni konkluzionin e vlefshmërisë së provës për gjykatë.
-
-Kthe përgjigjen VETËM në format të vlefshëm JSON me këtë strukturë:
+    system_prompt = """Ju jeni një ekspert ligjor i specializuar në analizën e provave audio.
+Analizoni transkriptin dhe ofroni një vlerësim profesional mbi elementet e veprave penale, presionin psikologjik dhe pranueshmërinë e provës sipas legjislacionit të Kosovës.
+Kthejeni përgjigjen në formatin JSON me strukturën e mëposhtme:
 {
-  "summary": "Përmbledhja ekzekutive e incizimit",
+  "summary": "Përmbledhje ekzekutive e incizimit",
   "threat_level": "E ULËT | E MESME | E LARTË | KRITIKE",
   "criminal_elements_detected": ["Lista e neneve dhe veprave të dyshuara"],
   "stress_and_intimidation_analysis": "Analizë e thellë mbi presionin dhe frikësimin",
@@ -205,7 +199,7 @@ def process_audio_file(
     case_context: str = ""
 ) -> Dict[str, Any]:
     """
-    Funksioni master që orkestron të gjithë procesin e Laboratorit të Audios.
+    Funksioni master që orkestron të gjithë procesin e analizës së audios.
     """
     # 1. Ngarkimi në AssemblyAI
     upload_url = upload_audio_to_assemblyai(audio_bytes)
@@ -219,7 +213,7 @@ def process_audio_file(
     # 4. Formatimi i transkriptit dhe nxjerrja e pikave të stresit
     formatted_transcript, segments, stress_flags = format_forensic_transcript(assembly_result)
     
-    # 5. Ekspertiza e thellë ligjore me Claude Sonnet 4.6
+    # 5. Analiza e thellë ligjore
     llm_analysis = analyze_audio_forensics_with_llm(
         transcript_text=formatted_transcript,
         stress_flags=stress_flags,

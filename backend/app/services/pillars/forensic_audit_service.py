@@ -13,12 +13,11 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    KRYE-AUDITORI DOKTRINAR I SHKRESËS (V275.0):
-    - I Optimizuar për Streaming: Rrjedhje e qetë dhe e plotë pa ndërprerje.
-    - Shtjella 1: Pasaporta Procedurale, Palët dhe Baza Provuese (Seksionet 1, 2 dhe 3).
-    - Shtjella 2: Nenet e Zbatuara dhe Shkeljet Procedurale (Seksionet 4 dhe 5).
-    - Shtjella 3: Auditimi i Kërkesës, Diagnoza dhe Master Plani (Seksionet 6, 7 dhe 8).
-    - Saktësi e Pastër: Bazohet ekskluzivisht në tekstin real të shkresës.
+    Shërbim për analizën e dokumenteve ligjore.
+    Krijon struktura të qarta për tre shtjella:
+    - Shtjella 1: Pasaporta procedurale, palët dhe baza provuese.
+    - Shtjella 2: Nenet e zbatueshme dhe shkeljet procedurale.
+    - Shtjella 3: Auditimi i kërkesës, diagnoza dhe plani i veprimit.
     """
 
     @staticmethod
@@ -130,7 +129,7 @@ Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
 
 ### 4. TABELA E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
 Nxirr të gjitha nenet e legjislacionit pozitiv të Kosovës që lidhen drejtpërdrejt me këtë shkresë:
-| Neni dhe Ligji i Kosovës | Instituti Juridik | Shkelja apo Zbatimi i Gabuar | 🏛️ Precedenti i Gjykatës Supreme |
+| Neni dhe Ligji i Kosovës | Instituti Juridik | Shkelja apo Zbatimi i Gabuar | Precedenti i Gjykatës Supreme |
 | :--- | :--- | :--- | :--- |
 
 ### 5. GJETJET KRITIKE DHE SHKELJET THELBËSORE
@@ -165,12 +164,12 @@ Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_dat
 Trajto në mënyrë të qartë pasaportën procedurale, bazën ligjore dhe rekomandimet konkrete për veprim.
 """
 
-        return f"""[DIREKTIVË E EKSPERTIZËS DOKTRINARE MBI SHKRESËN • JURISTI AI]
-Ju jeni Konsulenca e Ekspertizës Ligjore të Gjykatës Supreme për Republikën e Kosovës.
+        return f"""[DIREKTIVË PËR ANALIZË TË DOKUMENTIT LIGJOR]
+Ju jeni një ekspert ligjor i specializuar në legjislacionin e Republikës së Kosovës.
 RREGULLAT E PËRGJIGJES:
-1. Përdorni gjuhë standarde administrative-juridike të Kosovës.
-2. Bazo arsyetimin ekskluzivisht në tekstin real të shkresës që auditohet.
-3. Përgjigju në mënyrë të dendur, pa përsëritje të panevojshme, duke plotësuar të gjitha pikat e strukturës së kërkuar.
+1. Përdorni gjuhë standarde juridike shqipe.
+2. Bazo arsyetimin ekskluzivisht në tekstin e shkresës që auditohet.
+3. Përgjigju në mënyrë të qartë dhe pa përsëritje të panevojshme, duke plotësuar të gjitha pikat e strukturës së kërkuar.
 
 {protokolli_suprem}
 

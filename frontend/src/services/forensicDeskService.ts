@@ -1,8 +1,8 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.1 (PURE TRANSCRIPT SUPPORT)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.2 (STREAMING SUPPORT)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
 
-import { apiClient, API_V1_URL } from './apiClient';
+import { apiClient, API_V1_URL, tokenManager } from './apiClient';
 
 export interface CustodyStamp {
   custody_hash: string;
@@ -481,6 +481,42 @@ export class ForensicDeskService {
       case_context: caseContext
     });
     return response.data;
+  }
+
+  // NEW: Streaming method for forensic chat
+  public async streamForensicChat(
+    caseId: string,
+    message: string,
+    caseContext: string = ''
+  ): Promise<ReadableStream<Uint8Array>> {
+    const token = tokenManager.get();
+    if (!token) {
+      throw new Error('Token mungon. Ju lutemi kyçuni përsëri.');
+    }
+
+    const response = await fetch(`${API_V1_URL}/forensic/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        case_id: caseId,
+        message,
+        case_context: caseContext
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || 'Dështoi lidhja me serverin për streaming.');
+    }
+
+    if (!response.body) {
+      throw new Error('Streaming nuk u ofrua nga serveri.');
+    }
+
+    return response.body;
   }
 
   public async getChatHistory(caseId: string): Promise<any[]> {

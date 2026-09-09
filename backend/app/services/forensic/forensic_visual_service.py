@@ -1,6 +1,5 @@
 # FILE: backend/app/services/forensic/forensic_visual_service.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ENGINE V2.0
-# EXIF/GPS • ELA TAMPER DETECTION • FFMPEG KEYFRAMES • GOOGLE VISION • CLAUDE SONNET 4.6
+# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ENGINE V2.1 (CLEAN PROFESSIONAL TONE)
 
 import os
 import io
@@ -94,7 +93,7 @@ def extract_exif_and_gps(image_bytes: bytes) -> Dict[str, Any]:
                 metadata["google_maps_url"] = f"https://www.google.com/maps?q={lat_val},{lon_val}"
 
     except Exception as e:
-        logger.warning(f"⚠️ EXIF error: {e}")
+        logger.warning(f"EXIF error: {e}")
 
     return metadata
 
@@ -222,7 +221,7 @@ def extract_video_keyframes(video_bytes: bytes, interval_sec: int = 15, max_fram
             })
 
     except Exception as e:
-        logger.error(f"❌ Keyframe extraction error: {e}")
+        logger.error(f"Keyframe extraction error: {e}")
     finally:
         if os.path.exists(temp_video_path):
             try: os.remove(temp_video_path)
@@ -235,7 +234,7 @@ def extract_video_keyframes(video_bytes: bytes, interval_sec: int = 15, max_fram
     return frames
 
 # ==========================================================
-# 5. EKSPERTIZA E THELLË CCTV & VIDEO ME CLAUDE SONNET 4.6
+# 5. ANALIZA E PLOTË E VIDEOS CCTV
 # ==========================================================
 def analyze_cctv_video_forensics(
     video_bytes: bytes,
@@ -243,10 +242,7 @@ def analyze_cctv_video_forensics(
     case_context: str = ""
 ) -> Dict[str, Any]:
     """
-    Laboratori i plotë i Ekspertizës së Videos CCTV:
-    1. Nxjerr kornizat kyçe me FFmpeg.
-    2. Analizon montazhin (ELA) në korniza.
-    3. Rindërton kronologjinë skenë-pas-skene me Claude Sonnet 4.6.
+    Kryen analizën e videos CCTV: nxjerr kornizat, analizon integritetin dhe gjeneron raport.
     """
     # 1. Nxjerrja e kornizave
     keyframes = extract_video_keyframes(video_bytes, interval_sec=10, max_frames=8)
@@ -264,29 +260,23 @@ def analyze_cctv_video_forensics(
             if label not in all_objects:
                 all_objects.append(label)
 
-    # 4. Ekspertiza Kriminalistike me Claude Sonnet 4.6
-    system_prompt = """EKSPERTIZA FORENZIKE E PAMJEVE CCTV DHE VIDEO-REGJISTRIMEVE (CLAUDE SONNET 4.6):
-Ju jeni Eksperti Kriminalistik i Provave Digjitale i autorizuar për Gjykatat e Kosovës.
-MANDATI:
-1. Rindërtoni kronologjinë vizuale sekondë-pas-sekonde bazuar në kornizat e nxjerra të videos.
-2. Vlerësoni integritetin e provës: a ka shenja prerjeje, ndryshimi të shpejtësisë apo manipulimi të pikselave?
-3. Analizoni objektet dhe lëvizjet e personave/mjeteve dhe ndikimin e tyre në alibinë e palëve.
-4. Jepni konkluzionin solemn mbi vlefshmërinë dhe pranueshmërinë e videos sipas Kodit të Procedurës Penale të Kosovës (KPPRK).
-
-Kthe përgjigjen VETËM në format të pastër JSON:
+    # 4. Analiza ligjore me LLM
+    system_prompt = """Ju jeni një ekspert ligjor për analizën e provave video.
+Vlerësoni integritetin e videos, identifikoni objektet dhe rindërtoni kronologjinë e ngjarjeve.
+Kthejeni përgjigjen në formatin JSON:
 {
   "cctv_chronology": [
-    {"timestamp": "[00:00]", "description": "Përshkrimi i skenës në këtë sekondë"}
+    {"timestamp": "[00:00]", "description": "Përshkrimi i skenës"}
   ],
   "tamper_verdict": "E PACËNUAR | E DYSHUAR PËR NDËRHYRJE | E MONTAJAR",
   "key_identifications": ["Objekti/Personi 1", "Objekti/Personi 2"],
-  "alibi_impact_assessment": "Vlerësimi mbi rrëzimin ose vërtetimin e pretendimeve",
-  "court_admissibility_statement": "Deklarata zyrtare për gjykatë",
-  "expert_summary": "Përmbledhja ekzekutive e ekspertit"
+  "alibi_impact_assessment": "Vlerësimi mbi alibinë",
+  "court_admissibility_statement": "Deklarata për gjykatë",
+  "expert_summary": "Përmbledhje ekzekutive"
 }"""
 
     user_content = f"""EMRI I VIDEOS: {file_name}
-KONTEKSTI I LËNDËS: {case_context or 'Ekspertizë e video-provës gjyqësore'}
+KONTEKSTI I LËNDËS: {case_context or 'Analizë e video-provës'}
 REZULTATI I ANALIZËS ELA: {avg_tamper_score}% rrezik ndërhyrjeje
 KORNIZAT E ANALIZUARA:
 {json.dumps([{'timestamp': k['timestamp_label'], 'objects': k['vision'].get('objects', [])} for k in keyframes], ensure_ascii=False, indent=2)}"""
@@ -338,9 +328,9 @@ def process_visual_evidence(image_bytes: bytes, case_context: str = "") -> Dict[
     ela_data = calculate_ela_manipulation(image_bytes)
     vision_data = analyze_with_google_vision(image_bytes)
 
-    system_prompt = """EKSPERTIZA FORENZIKE E FOTOS DHE PROVËS ELEKTRONIKE (CLAUDE SONNET 4.6):
-Vlerësoni autenticitetin, GPS-in, pajisjen regjistruese dhe objektet sipas legjislacionit të Kosovës.
-Kthe përgjigjen në format JSON me: authenticity_assessment, key_findings, chain_of_custody_impact, court_defense_strategy, expert_statement."""
+    system_prompt = """Ju jeni një ekspert ligjor për analizën e provave fotografike.
+Vlerësoni autenticitetin, metadatat dhe objektet sipas legjislacionit të Kosovës.
+Kthejeni përgjigjen në formatin JSON me fushat: authenticity_assessment, key_findings, chain_of_custody_impact, court_defense_strategy, expert_statement."""
 
     user_content = f"Të dhënat EXIF: {json.dumps(exif_data)}\nELA: {json.dumps(ela_data)}\nVision: {json.dumps(vision_data)}"
     raw = call_forensic_llm(system_prompt=system_prompt, user_content=user_content, json_mode=True, temperature=0.0)

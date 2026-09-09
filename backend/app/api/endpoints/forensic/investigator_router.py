@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/investigator_router.py
-# PHOENIX PROTOCOL - FORENSIC INVESTIGATOR LOG ROUTER V1.0 (MULTI-ROLE SYNTHESIS)
+# PHOENIX PROTOCOL - FORENSIC INVESTIGATOR LOG ROUTER V1.1 (CLEAN PROFESSIONAL TONE)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pymongo.database import Database
@@ -48,44 +48,34 @@ def run_investigation_analysis(
     db: Database = Depends(get_db)
 ):
     """
-    Ekzekuton hetimin e thelluar duke simuluar 3 role thelbësore të drejtësisë:
-    1. Hetuesi Policor (Faktet materiale, gjurmët dhe vlefshmëria e sekuestrimit)
-    2. Prokurori i Shtetit (Barra e provës, elementet e veprës penale dhe kualifikimi)
-    3. Gjyqtari (Rregullsia procedurale, In Dubio Pro Reo, dhe standardi i provueshmërisë)
+    Ekzekuton analizën hetimore duke simuluar këndvështrime të ndryshme profesionale.
     """
     user_id = str(current_user.id)
 
-    system_prompt = """EKSPERTIZA E DITARIT TË HETUESIT (3-ROLËSH) - CLAUDE SONNET 4.6:
-Ju jeni një trup i pavarur hetimor i përbërë nga:
-- HETUES POLICOR I KRIMEVE TË RËNDA
-- PROKUROR SPECIAL I SHTETIT
-- GJYQTAR I PROCEDURËS PARAPRAKE
-
-Analizoni provat e dhëna dhe identifikoni pikat më të ndjeshme, shkeljet procedurale dhe kontradiktat.
-
-Kthe përgjigjen VETËM në format të pastër JSON:
+    system_prompt = """Ju jeni një analist ligjor i pavarur. Kryeni një analizë të thellë të provave dhe kontekstit të çështjes sipas legjislacionit të Republikës së Kosovës.
+Jepni rezultatin në formatin e mëposhtëm JSON:
 {
-  "investigation_summary": "Përmbledhje e përgjithshme e situatës hetimore",
+  "investigation_summary": "Përmbledhje e përgjithshme",
   "police_perspective": {
-    "factual_gaps": ["Zbrazëtira faktike 1", "Zbrazëtira faktike 2"],
-    "evidence_chain_integrity": "Vlerësimi mbi sigurimin e vendit të ngjarjes dhe provave",
-    "recommended_actions": ["Veprim operativ 1", "Veprim operativ 2"]
+    "factual_gaps": ["Zbrazëtira faktike"],
+    "evidence_chain_integrity": "Vlerësimi i zinxhirit të provave",
+    "recommended_actions": ["Veprime të rekomanduara"]
   },
   "prosecutor_perspective": {
-    "elements_of_offense_met": ["Cilat elemente të veprës plotësohen"],
-    "missing_corpus_delicti": ["Çfarë mungon për të ngritur aktakuzë të qëndrueshme"],
-    "indictment_vulnerability": "Pika ku aktakuza mund të rrëzohet me lehtësi"
+    "elements_of_offense_met": ["Elemente të veprës penale të plotësuara"],
+    "missing_corpus_delicti": ["Mungesa për aktakuzë"],
+    "indictment_vulnerability": "Pika e dobët e aktakuzës"
   },
   "judge_perspective": {
-    "procedural_violations": ["Shkelje procedurale të mundshme (p.sh. bastisje e paligjshme)"],
-    "in_dubio_pro_reo_assessment": "Pikët ku dyshimi i arsyeshëm duhet të shkojë në favor të të pandehurit",
-    "admissibility_verdict": "A janë provat të pranueshme sipas KPP të Kosovës?"
+    "procedural_violations": ["Shkelje procedurale"],
+    "in_dubio_pro_reo_assessment": "Vlerësimi i dyshimit të arsyeshëm",
+    "admissibility_verdict": "Pranueshmëria e provave"
   },
-  "tactical_masterstroke": "Këshilla supreme e mbrojtjes për të fituar lëndën"
+  "tactical_masterstroke": "Rekomandim taktik"
 }"""
 
     import json
-    user_content = f"""KONTEKSTI I LËNDËS DHE DËSHMITË:
+    user_content = f"""KONTEKSTI I LËNDËS:
 {payload.case_context}
 
 PROVAT SPECIFIKE NË SHQYRTIM:
