@@ -1,6 +1,6 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V18.2 (WAR ROOM FULLY WIPED OUT)
-# 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS • ZERO REDUNDANCY
+# PHOENIX PROTOCOL - MAIN APPLICATION V18.3 (FINANCE TAB FULLY WIPED OUT)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS • 3 PURE EVIDENCE LABS
 
 import os
 import logging
@@ -31,12 +31,11 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.laws import router as laws_router
 
-# Router Imports - Zyra Forenzike e Pavarur (Pa War Room)
+# Router Imports - Zyra Forenzike e Pavarur (3 Laboratorët Realë të Provave)
 from .api.endpoints.forensic import (
     forensic_dossier_router,
     forensic_audio_router,
     forensic_visual_router,
-    forensic_finance_router,
     forensic_document_router,
     forensic_chat_router
 )
@@ -101,12 +100,11 @@ api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"]
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 
-# 2. Rrugët e Zyrës Forenzike (4 Laboratorët e Provave + Terminali Forenzik)
+# 2. Rrugët e Zyrës Forenzike (3 Laboratorët e Provave + Terminali Forenzik)
 forensic_suite_router = APIRouter(prefix="/forensic", tags=["Forensic Desk"])
 forensic_suite_router.include_router(forensic_dossier_router)
 forensic_suite_router.include_router(forensic_audio_router)
 forensic_suite_router.include_router(forensic_visual_router)
-forensic_suite_router.include_router(forensic_finance_router)
 forensic_suite_router.include_router(forensic_document_router)
 forensic_suite_router.include_router(forensic_chat_router)
 
@@ -120,7 +118,7 @@ def health_check():
     return {
         "status": "ok", 
         "version": "1.8.0", 
-        "forensic_engine": "Claude Sonnet 4.6 (4 Pure Labs + Forensic Chat)"
+        "forensic_engine": "Claude Sonnet 4.6 (3 Pure Evidence Labs + Forensic Chat)"
     }
 
 # Static Files Mount

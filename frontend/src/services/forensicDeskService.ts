@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V5.5 (FULL DOSSIER METADATA INTEGRATION)
-// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • PHONE & EMAIL CAPTURE
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V7.0 (FINANCIAL TAB FULLY WIPED OUT)
+// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • 3 PURE EVIDENCE LABS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
 
@@ -68,7 +68,6 @@ export interface LabEvidenceCounts {
   DOCUMENTS: number;
   AUDIO: number;
   VISUAL: number;
-  FINANCIAL: number;
 }
 
 export interface AudioAnalysisResponse {
@@ -144,23 +143,11 @@ export interface CCTVVideoAnalysisResponse {
   analyzed_at: string;
 }
 
-export interface LMDInterestResponse {
-  principal: number;
-  interest_rate_annual: number;
-  start_date: string;
-  end_date: string;
-  days_elapsed: number;
-  daily_accrual: number;
-  interest_amount: number;
-  total_obligation: number;
-  legal_basis: string;
-}
-
 export class ForensicDeskService {
   private readonly baseUrl = '/forensic';
 
   // ==========================================================
-  // 1. DOSJET FORENZIKE DHE VULOSJA SERVER-SIDE
+  // 1. DOSJET FORENZIKE (LEXIM, KRIJIM, EDITIM, FSHIRJE)
   // ==========================================================
   public async loadAllDossiers(): Promise<{ rawCases: any[]; mappedDossiers: ForensicDossier[] }> {
     try {
@@ -235,6 +222,24 @@ export class ForensicDeskService {
       isSealed: !!d.is_sealed,
       status: 'ACTIVE'
     };
+  }
+
+  public async updateDossier(caseId: string, payload: {
+    clientName?: string;
+    clientPhone?: string;
+    clientEmail?: string;
+    courtJurisdiction?: string;
+    caseNumber?: string;
+    caseSummary?: string;
+  }): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/dossiers/${caseId}`, {
+      client_name: payload.clientName,
+      client_phone: payload.clientPhone,
+      client_email: payload.clientEmail,
+      court_jurisdiction: payload.courtJurisdiction,
+      case_number: payload.caseNumber,
+      case_summary: payload.caseSummary
+    });
   }
 
   public async sealCustody(caseId: string, actionNote: string, evidenceIds: string[] = []): Promise<CustodyStamp> {
@@ -358,7 +363,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 4. LABORATORI I SHKRESAVE DHE DOKUMENTEVE
+  // 4. LABORATORI I SHKRESAVE DHE DOKUMENTEVE (ME EXCEL/CSV TË INTEGRUAR)
   // ==========================================================
   public async uploadForensicDocument(caseId: string, file: File): Promise<ForensicDocItem> {
     const formData = new FormData();
@@ -382,57 +387,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 5. LABORATORI FINANCIAR (LMD 265 & PANDAS)
-  // ==========================================================
-  public async calculateLegalInterest(params: {
-    principal: number;
-    startDate: string;
-    endDate?: string;
-    ratePercent?: number;
-    caseId?: string;
-  }): Promise<LMDInterestResponse> {
-    const response = await apiClient.post<{ success: boolean; data: LMDInterestResponse }>(
-      `${this.baseUrl}/finance/calculate-interest`,
-      {
-        principal: params.principal,
-        start_date: params.startDate,
-        end_date: params.endDate,
-        rate_percent: params.ratePercent ?? 8.0,
-        case_id: params.caseId
-      }
-    );
-    return response.data.data;
-  }
-
-  public async getFinancialRecords(caseId: string): Promise<any[]> {
-    const response = await apiClient.get<{ records: any[] }>(`${this.baseUrl}/finance/${caseId}/records`);
-    return response.data.records || [];
-  }
-
-  public async analyzeSpreadsheet(
-    caseId: string,
-    file: File,
-    claimedAmount?: number,
-    caseContext: string = ''
-  ): Promise<any> {
-    const formData = new FormData();
-    formData.append('case_id', caseId);
-    if (claimedAmount !== undefined && claimedAmount !== null) {
-      formData.append('claimed_amount', claimedAmount.toString());
-    }
-    formData.append('case_context', caseContext);
-    formData.append('file', file);
-
-    const response = await apiClient.post<any>(
-      `${this.baseUrl}/finance/analyze-spreadsheet`,
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    return response.data;
-  }
-
-  // ==========================================================
-  // 6. TERMINALI FORENZIK ME KUJTESË DHE STREAMING
+  // 5. TERMINALI FORENZIK ME KUJTESË DHE STREAMING
   // ==========================================================
   public async sendChatMessage(caseId: string, message: string, caseContext: string = ''): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/chat`, {
@@ -488,7 +443,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // STATISTIKAT E PROVAVE
+  // STATISTIKAT E PROVAVE (3 LABORATORËT REALË: SHKRESAT, AUDIO, VIDEO)
   // ==========================================================
   public async getEvidenceCounts(caseId: string): Promise<LabEvidenceCounts> {
     try {
@@ -501,11 +456,10 @@ export class ForensicDeskService {
       return {
         DOCUMENTS: docs.length,
         AUDIO: audios.length,
-        VISUAL: visuals.length,
-        FINANCIAL: docs.length > 0 ? 1 : 0
+        VISUAL: visuals.length
       };
     } catch {
-      return { DOCUMENTS: 0, AUDIO: 0, VISUAL: 0, FINANCIAL: 0 };
+      return { DOCUMENTS: 0, AUDIO: 0, VISUAL: 0 };
     }
   }
 }
