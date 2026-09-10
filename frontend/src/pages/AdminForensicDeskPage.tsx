@@ -1,10 +1,9 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V8.5 (CLEAN TOP CONTROLS & DIRECT LAB EMBED)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • STREAMLINED WORKSPACE
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V9.0 (EXECUTIVE DOSSIER PASSPORT HEADER)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • METADATA INTEGRITY
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ShieldAlert,
   FileText,
   Mic,
   Video,
@@ -14,8 +13,6 @@ import {
   Hash,
   CheckCircle2,
   Copy,
-  UserCheck,
-  Building2,
   RefreshCw,
   FolderPlus,
   Trash2,
@@ -27,7 +24,6 @@ import {
   Scale
 } from 'lucide-react';
 
-import { useAuth } from '../context/AuthContext';
 import {
   forensicDeskService,
   ForensicDossier,
@@ -43,8 +39,6 @@ import { FinancialForensicLab } from '../components/forensics/FinancialForensicL
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL';
 
 export const AdminForensicDeskPage: React.FC = () => {
-  useAuth();
-
   const [activeLab, setActiveLab] = useState<ForensicLabType>('DOCUMENTS');
   const [activeDossier, setActiveDossier] = useState<ForensicDossier | null>(null);
   
@@ -106,6 +100,8 @@ export const AdminForensicDeskPage: React.FC = () => {
     try {
       const created = await forensicDeskService.createDossier({
         clientName: newDossierForm.clientName,
+        clientPhone: newDossierForm.clientPhone,
+        clientEmail: newDossierForm.clientEmail,
         courtJurisdiction: newDossierForm.courtJurisdiction
       });
 
@@ -152,110 +148,135 @@ export const AdminForensicDeskPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-canvas text-text-primary p-2.5 sm:p-5 lg:p-8 max-w-[1750px] mx-auto transition-colors select-none">
+    <div className="w-full min-h-screen bg-canvas text-text-primary p-2.5 sm:p-5 lg:p-7 max-w-[1750px] mx-auto transition-colors select-none">
       
-      {/* KOKA SUPREME: IDENTITETI DHE KONTROLLI I DOSJES FORENZIKE */}
-      <header className="flex flex-col gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-main">
-        <div className="flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-rose-600 via-indigo-700 to-primary-start text-white flex items-center justify-center shadow-md shrink-0">
-              <ShieldAlert size={20} className="sm:w-6 sm:h-6" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-sm sm:text-lg md:text-2xl font-black uppercase tracking-tight text-text-primary leading-tight truncate">
-                  Laboratori Forenzik
-                </h1>
-                
-                {activeDossier && (
-                  <button
-                    type="button"
-                    onClick={handleCopyHash}
-                    className="px-2 py-0.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-500 border border-emerald-500/30 font-mono text-[9px] sm:text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                    title={`Chain of Custody Hash: ${activeDossier.chainOfCustodyHash} (Kliko për ta kopjuar)`}
-                  >
-                    <Hash size={10} className="shrink-0" />
-                    <span>{copiedHash ? 'U Kopjua!' : 'Vula'}</span>
-                    {copiedHash ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" /> : <Copy size={10} className="shrink-0" />}
-                  </button>
+      {/* PASAPORTA EKZEKUTIVE E DOSJES NË KRYE TË FAQES */}
+      <header className="glass-panel p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-2.5 flex-wrap">
+          
+          {/* PJESA E MAJTË: ZGJEDHËSI I DOSJES + PASAPORTA E KLIENTIT */}
+          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[200px]">
+            
+            {/* Zgjedhësi Dropdown */}
+            <div className="relative flex items-center bg-surface border border-main rounded-xl px-2.5 py-1.5 shadow-xs">
+              <FolderOpen size={14} className="text-primary-start mr-1.5 shrink-0" />
+              <select
+                value={activeDossier?.id || ''}
+                onChange={(e) => {
+                  const found = dossiersList.find(d => d.id === e.target.value);
+                  if (found) setActiveDossier(found);
+                }}
+                className="bg-transparent text-xs font-bold text-text-primary focus:outline-none pr-5 cursor-pointer max-w-[180px] sm:max-w-xs truncate"
+                disabled={loadingCases}
+              >
+                {dossiersList.length === 0 ? (
+                  <option value="">Nuk ka dosje forenzike</option>
+                ) : (
+                  dossiersList.map(d => (
+                    <option key={d.id} value={d.id} className="bg-card text-text-primary">
+                      FOR: {d.clientName}
+                    </option>
+                  ))
                 )}
-              </div>
-              <p className="hidden sm:block text-[11px] sm:text-xs text-text-muted font-medium mt-0.5 truncate">
-                Qendra Administrative e Ekspertizës dhe Verifikimit Forenzik të Provave
-              </p>
+              </select>
+              <button
+                onClick={loadExistingDossiers}
+                title="Rifresko"
+                className="ml-1 p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+              >
+                <RefreshCw size={11} className={loadingCases ? 'animate-spin' : ''} />
+              </button>
             </div>
-          </div>
-        </div>
 
-        {/* Rreshti 2: Paneli i Kontrollit (Zgjedhësi i Dosjes + Fshirja + Shto) */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="relative flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm flex-1 min-w-[150px] max-w-full sm:max-w-xs">
-            <FolderOpen size={14} className="text-primary-start mr-1.5 shrink-0" />
-            <select
-              value={activeDossier?.id || ''}
-              onChange={(e) => {
-                const found = dossiersList.find(d => d.id === e.target.value);
-                if (found) setActiveDossier(found);
-              }}
-              className="bg-transparent text-[11px] sm:text-xs font-bold text-text-primary focus:outline-none pr-4 sm:pr-6 cursor-pointer w-full truncate"
-              disabled={loadingCases}
-            >
-              {dossiersList.length === 0 ? (
-                <option value="">Nuk ka dosje forenzike</option>
-              ) : (
-                dossiersList.map(d => (
-                  <option 
-                    key={d.id} 
-                    value={d.id} 
-                    className="bg-card text-text-primary"
-                    title={`Numri Zyrtar: ${d.caseNumber}`}
+            {/* ELEMENTET E PASAPORTËS SË DOSJES */}
+            {activeDossier && (
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
+                
+                {/* Emri i Klientit */}
+                <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs">
+                  <User size={13} className="text-primary-start shrink-0" />
+                  <span className="font-bold text-text-primary">{activeDossier.clientName}</span>
+                </div>
+
+                {/* Telefoni / WhatsApp */}
+                {activeDossier.clientPhone && (
+                  <a
+                    href={`tel:${activeDossier.clientPhone}`}
+                    className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono"
+                    title="Telefono ose shkruaj në WhatsApp"
                   >
-                    FOR: {d.clientName}
-                  </option>
-                ))
-              )}
-            </select>
-            <button
-              onClick={loadExistingDossiers}
-              title="Rifresko"
-              className="ml-1 p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
-            >
-              <RefreshCw size={11} className={loadingCases ? 'animate-spin' : ''} />
-            </button>
+                    <Phone size={12} className="text-emerald-500 shrink-0" />
+                    <span>{activeDossier.clientPhone}</span>
+                  </a>
+                )}
+
+                {/* Email */}
+                {activeDossier.clientEmail && (
+                  <a
+                    href={`mailto:${activeDossier.clientEmail}`}
+                    className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono"
+                    title="Dërgo Email"
+                  >
+                    <Mail size={12} className="text-sky-500 shrink-0" />
+                    <span className="max-w-[150px] truncate">{activeDossier.clientEmail}</span>
+                  </a>
+                )}
+
+                {/* Organi / Gjykata */}
+                <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl text-text-muted shadow-xs">
+                  <Scale size={13} className="text-primary-start shrink-0" />
+                  <span className="font-medium text-text-primary truncate max-w-[200px]">{activeDossier.courtJurisdiction}</span>
+                </div>
+
+                {/* Vula Forenzike */}
+                <button
+                  type="button"
+                  onClick={handleCopyHash}
+                  className="px-2.5 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-500 border border-emerald-500/30 font-mono text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  title={`Chain of Custody Hash: ${activeDossier.chainOfCustodyHash} (Kliko për ta kopjuar)`}
+                >
+                  <Hash size={10} className="shrink-0" />
+                  <span>{copiedHash ? 'U Kopjua!' : 'Vula'}</span>
+                  {copiedHash ? <CheckCircle2 size={10} className="text-emerald-500 shrink-0" /> : <Copy size={10} className="shrink-0" />}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* PJESA E DJATHTË: BUTONAT E VEPRIMIT (DOSJE E RE + FSHI) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {activeDossier && (
               <button
                 type="button"
                 onClick={() => handleDeleteDossier(activeDossier.id, activeDossier.clientName)}
                 disabled={deletingDossierId === activeDossier.id}
-                className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 disabled:opacity-40"
-                title="Fshi Dosjen dhe të Gjitha Provat (Total Cascade Wipeout)"
+                className="h-8 w-8 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-xs disabled:opacity-40"
+                title="Fshi Dosjen dhe të Gjitha Provat"
               >
-                {deletingDossierId === activeDossier.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {deletingDossierId === activeDossier.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setShowNewDossierModal(true)}
-              className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl sm:rounded-2xl bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer shrink-0"
+              className="h-8 px-3 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer"
               title="Hap Dosje të Re Forenzike"
             >
-              <Plus size={16} />
+              <Plus size={15} />
+              <span className="hidden sm:inline">Dosje e Re</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* SHIRITI I NAVIGIMIT MES 4 LABORATORËVE TË PROVAVE */}
-      <nav className="my-3 sm:my-5 w-full">
+      <nav className="my-3 sm:my-4 w-full">
         <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-inner gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x [-webkit-overflow-scrolling:touch]">
           <button
             type="button"
             onClick={() => setActiveLab('DOCUMENTS')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[40px] sm:min-h-[44px] ${
+            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
               activeLab === 'DOCUMENTS'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -271,7 +292,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveLab('AUDIO')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[40px] sm:min-h-[44px] ${
+            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
               activeLab === 'AUDIO'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -287,7 +308,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveLab('VISUAL')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[40px] sm:min-h-[44px] ${
+            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
               activeLab === 'VISUAL'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -303,7 +324,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveLab('FINANCIAL')}
-            className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[40px] sm:min-h-[44px] ${
+            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
               activeLab === 'FINANCIAL'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -316,26 +337,10 @@ export const AdminForensicDeskPage: React.FC = () => {
             </span>
           </button>
         </div>
-
-        {activeDossier && (
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 bg-surface border border-main px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs mt-2.5 w-fit">
-            <div className="flex items-center gap-1.5">
-              <UserCheck size={13} className="text-primary-start" />
-              <span className="text-text-muted">Palë:</span>
-              <span className="font-bold text-text-primary">{activeDossier.clientName}</span>
-            </div>
-            <span className="text-text-muted hidden sm:inline">|</span>
-            <div className="flex items-center gap-1.5">
-              <Building2 size={13} className="text-primary-start" />
-              <span className="text-text-muted">Organi:</span>
-              <span className="font-bold text-text-primary">{activeDossier.courtJurisdiction}</span>
-            </div>
-          </div>
-        )}
       </nav>
 
       {/* TRUPI OPERATIV I ZYRËS - 4 LABORATORËT E PROVAVE */}
-      <main className="space-y-4 sm:space-y-6">
+      <main className="space-y-4">
         {!activeDossier ? (
           <div className="p-6 sm:p-12 text-center glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
@@ -344,7 +349,7 @@ export const AdminForensicDeskPage: React.FC = () => {
             <div>
               <h3 className="text-sm sm:text-base font-bold text-text-primary">Asnjë Dosje Forenzike nuk është aktive</h3>
               <p className="text-[11px] sm:text-xs text-text-muted mt-1 max-w-xs sm:max-w-sm mx-auto">
-                Përzgjidhni një dosje ekzistuese në menunë sipër ose klikoni butonin plus (+) për të filluar administrimin e provave.
+                Përzgjidhni një dosje ekzistuese në menunë sipër ose klikoni butonin "Dosje e Re" për të filluar administrimin e provave.
               </p>
             </div>
             <button

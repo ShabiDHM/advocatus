@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V5.0 (LEGACY PILLARS & COMPREHENSIVE SERVICE FULLY PURGED)
-// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • LEAN CLEAN ARCHITECTURE
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V5.5 (FULL DOSSIER METADATA INTEGRATION)
+// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • PHONE & EMAIL CAPTURE
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
 
@@ -177,8 +177,8 @@ export class ForensicDeskService {
           caseNumber: d.case_number || `FOR-${(d._id || '').slice(-6).toUpperCase()}`,
           title: d.title || 'Dosje pa titull',
           clientName: d.client_name || d.title?.replace(/^DOSJA FORENZIKE:\s*/i, '') || 'Palë e Regjistruar',
-          clientPhone: d.client_phone,
-          clientEmail: d.client_email,
+          clientPhone: d.client_phone || '',
+          clientEmail: d.client_email || '',
           courtJurisdiction: d.court_jurisdiction || 'Gjykata Themelore Prishtinë',
           partnerLawyerName: 'Avokatura Forenzike',
           partnerLawyerLicense: 'OAK-KS',
@@ -199,12 +199,17 @@ export class ForensicDeskService {
 
   public async createDossier(payload: {
     clientName: string;
+    clientPhone?: string;
+    clientEmail?: string;
     caseNumber?: string;
     courtJurisdiction?: string;
     caseSummary?: string;
   }): Promise<ForensicDossier> {
     const body = {
       title: `DOSJA FORENZIKE: ${payload.clientName}`,
+      client_name: payload.clientName,
+      client_phone: payload.clientPhone || '',
+      client_email: payload.clientEmail || '',
       case_number: payload.caseNumber,
       court_jurisdiction: payload.courtJurisdiction || 'Gjykata Themelore Prishtinë',
       case_summary: payload.caseSummary || ''
@@ -220,6 +225,8 @@ export class ForensicDeskService {
       caseNumber: d.case_number,
       title: d.title,
       clientName: payload.clientName,
+      clientPhone: payload.clientPhone || '',
+      clientEmail: payload.clientEmail || '',
       courtJurisdiction: d.court_jurisdiction,
       partnerLawyerName: 'Avokatura Forenzike',
       partnerLawyerLicense: 'OAK-KS',
@@ -351,7 +358,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 4. LABORATORI I SHKRESAVE DHE DOKUMENTEVE (PA METODA TË VJETRA SHTJELLASH)
+  // 4. LABORATORI I SHKRESAVE DHE DOKUMENTEVE
   // ==========================================================
   public async uploadForensicDocument(caseId: string, file: File): Promise<ForensicDocItem> {
     const formData = new FormData();
@@ -481,7 +488,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // STATISTIKAT E PROVAVE (VETËM LABORATORËT REALË)
+  // STATISTIKAT E PROVAVE
   // ==========================================================
   public async getEvidenceCounts(caseId: string): Promise<LabEvidenceCounts> {
     try {
