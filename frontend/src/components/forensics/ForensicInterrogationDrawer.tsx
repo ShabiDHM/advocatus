@@ -1,13 +1,13 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.6 (ZERO-LAG MEMOIZED ENGINE + ATTACHMENT PIPELINE)
-// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS • ULTRA 60FPS TYPING
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V7.0 (OMNI-CHANNEL UNIVERSAL ATTACHMENT PIPELINE)
+// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS • MULTI-EVIDENCE SMART ROUTER
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BrainCircuit, X, Send, Trash2, Copy, CheckCircle2, 
   Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2, ShieldCheck,
-  Paperclip, FileText
+  Paperclip, FileText, Volume2, Table as TableIcon, Image as ImageIcon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -69,6 +69,23 @@ const FONT_LEVELS = [
   { label: '130%',  base: 19,   line: 1.75 },
   { label: '150%',  base: 21,   line: 1.8 }
 ];
+
+type FileCategory = 'audio' | 'spreadsheet' | 'image' | 'document';
+
+const detectFileCategory = (file: File): FileCategory => {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  if (type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(name)) {
+    return 'audio';
+  }
+  if (type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(name)) {
+    return 'image';
+  }
+  if (/\.(xlsx|xls|csv)$/i.test(name) || type.includes('spreadsheet') || type.includes('excel') || type.includes('csv')) {
+    return 'spreadsheet';
+  }
+  return 'document';
+};
 
 const markdownToWordHtml = (markdown: string): string => {
   const lines = markdown.split(/\r?\n/);
@@ -239,8 +256,7 @@ const markdownToWordHtml = (markdown: string): string => {
 };
 
 // ============================================================================
-// KOMPONENTI I MEMOIZUAR PËR ZERO-LAG TYPING (React.memo)
-// Parandalon ri-vizatimin e mesazheve të vjetra kur shkruhet në tastierë!
+// KOMPONENTI I MEMOIZUAR I MESAZHIT (ZERO-LAG TYPING)
 // ============================================================================
 interface ForensicMessageBubbleProps {
   msg: ForensicMessage;
@@ -263,7 +279,6 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
   activeFontBase,
   activeFontLine
 }) => {
-  // Memoizon autolinking që të ekzekutohet VETËM një herë për çdo mesazh
   const formattedContent = useMemo(() => {
     return isAi ? autoLinkLegalCitations(msg.content) : msg.content;
   }, [msg.content, isAi]);
@@ -274,7 +289,6 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
       animate={{ opacity: 1, y: 0 }}
       className={`flex gap-2.5 sm:gap-4 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
     >
-      {/* Avatar */}
       <div
         className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm ${
           isAi
@@ -285,7 +299,6 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
         {isAi ? <BrainCircuit size={18} className="sm:w-6 sm:h-6" /> : <User size={18} className="sm:w-6 sm:h-6" />}
       </div>
 
-      {/* Bubble Content */}
       <div
         className={`relative max-w-[88%] rounded-2xl py-3 px-4 sm:py-4 sm:px-6 border shadow-sm ${
           isAi
@@ -298,7 +311,7 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
             type="button"
             onClick={() => onCopy(msg.id, msg.content)}
             className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
-            title="Kopjo përgjigjen për Microsoft Word (Formatuar me Tabela)"
+            title="Kopjo përgjigjen për Microsoft Word"
           >
             {isCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
           </button>
@@ -340,7 +353,7 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
 ForensicMessageBubble.displayName = 'ForensicMessageBubble';
 
 // ============================================================================
-// KOMPONENTI KRYESOR
+// KOMPONENTI KRYESOR FORENZIK
 // ============================================================================
 export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerProps> = ({
   isOpen,
@@ -357,16 +370,16 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Gjendja për dokumentin e bashkëngjitur
+  // Gjendja për dokumentin/provën e bashkëngjitur
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Kontrolli Qendror i Zmadhimit të Shkrimit
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_chat_font_size');
@@ -427,7 +440,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
-  // Rillogaritja e lartësisë së shkrimit pa bllokuar tastierën
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
@@ -450,6 +462,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     setAttachedFile(null);
   };
 
+  // DËRGIMI DHE DREJTIMI INTELIGJENT I SKEDARIT NË LABORATORIN PËRKATËS
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
     if ((!cleanText && !attachedFile) || isProcessing || isUploadingDoc || !caseId || isPurging) return;
@@ -459,19 +472,45 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
 
     if (attachedFile) {
       setIsUploadingDoc(true);
+      const category = detectFileCategory(attachedFile);
+
       try {
-        const uploadedDoc = await forensicDeskService.uploadForensicDocument(caseId, attachedFile);
-        fileUploadedNotice = `\n\n📎 [DOKUMENT I BASHKANGJITUR: ${uploadedDoc.file_name || attachedFile.name}]`;
-        if (!userPromptText) {
-          userPromptText = `Ju lutem analizoni këtë dokument të ngarkuar rishtazi: ${attachedFile.name}. Nxirrni faktet kyçe, personat dhe shkeljet ligjore.`;
+        if (category === 'audio') {
+          setUploadStatusText('Duke transkriptuar dhe analizuar regjistrimin audio me AI...');
+          const uploadedAudio = await forensicDeskService.uploadForensicAudio(caseId, attachedFile);
+          fileUploadedNotice = `\n\n🎙️ [PROVË AUDIO E ZBARDHUR NË LABORATOR: ${uploadedAudio.file_name || attachedFile.name}]`;
+          if (!userPromptText) {
+            userPromptText = `Ju lutem analizoni këtë regjistrim audio/dëshmi të sapongarkuar: ${attachedFile.name}. Nxirrni kërcënimet, kontradiktat, alibitë dhe elementet e veprave penale.`;
+          }
+        } else {
+          setUploadStatusText(
+            category === 'spreadsheet' 
+              ? 'Duke indeksuar tabelën financiare me Pandas...' 
+              : category === 'image'
+              ? 'Duke ekzekutuar OCR mbi foton e provës...'
+              : 'Duke indeksuar dokumentin në RAG...'
+          );
+          const uploadedDoc = await forensicDeskService.uploadForensicDocument(caseId, attachedFile);
+          const label = category === 'spreadsheet' 
+            ? 'TABELË FINANCIARE' 
+            : category === 'image' 
+            ? 'PROVË VIZUALE' 
+            : 'DOKUMENT ZYRTAR';
+          
+          fileUploadedNotice = `\n\n📎 [${label} E INDEKSUAR: ${uploadedDoc.file_name || attachedFile.name}]`;
+          if (!userPromptText) {
+            userPromptText = `Ju lutem analizoni këtë material të ngarkuar rishtazi: ${attachedFile.name}. Nxirrni faktet kyçe, personat, datat dhe shkeljet ligjore.`;
+          }
         }
       } catch (uploadErr: any) {
-        console.error("Dështoi ngarkimi i dokumentit nga Chati:", uploadErr);
-        alert(`Dështoi ngarkimi i skedarit: ${uploadErr?.response?.data?.detail || uploadErr?.message || 'Gabim në server'}`);
+        console.error("Dështoi ngarkimi i materialit forenzik:", uploadErr);
+        alert(`Dështoi ngarkimi i provës: ${uploadErr?.response?.data?.detail || uploadErr?.message || 'Gabim në server'}`);
         setIsUploadingDoc(false);
+        setUploadStatusText('');
         return;
       } finally {
         setIsUploadingDoc(false);
+        setUploadStatusText('');
         setAttachedFile(null);
       }
     }
@@ -610,6 +649,40 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   }, []);
 
+  // Renditja e ikonës për distinktivin e skedarit sipas llojit
+  const renderAttachedBadge = () => {
+    if (!attachedFile) return null;
+    const cat = detectFileCategory(attachedFile);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-primary-start/15 border border-primary-start/40 rounded-xl text-xs text-text-primary w-fit shadow-xs"
+      >
+        {cat === 'audio' && <Volume2 size={14} className="text-amber-400 shrink-0 animate-pulse" />}
+        {cat === 'spreadsheet' && <TableIcon size={14} className="text-emerald-400 shrink-0" />}
+        {cat === 'image' && <ImageIcon size={14} className="text-sky-400 shrink-0" />}
+        {cat === 'document' && <FileText size={14} className="text-primary-start shrink-0" />}
+
+        <span className="font-bold truncate max-w-[220px] sm:max-w-[340px] text-text-primary">
+          {attachedFile.name}
+        </span>
+        <span className="text-[10px] text-text-muted font-mono uppercase">
+          [{cat}] ({(attachedFile.size / 1024).toFixed(0)} KB)
+        </span>
+        <button
+          type="button"
+          onClick={handleRemoveAttachedFile}
+          className="ml-1 p-0.5 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+          title="Hiq skedarin"
+        >
+          <X size={13} />
+        </button>
+      </motion.div>
+    );
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -659,7 +732,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Butonat Qendrorë të Zmadhimit të Shkrimit */}
                 <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
                   <button
                     type="button"
@@ -689,7 +761,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   </button>
                 </div>
 
-                {/* Butoni i pastrimit të bisedës */}
                 <button
                   type="button"
                   onClick={handleClearConsole}
@@ -704,7 +775,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
 
-                {/* Fullscreen Toggle */}
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(!isFullscreen)}
@@ -714,7 +784,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
 
-                {/* Butoni Mbyll */}
                 <button
                   type="button"
                   onClick={onClose}
@@ -726,7 +795,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
             </div>
 
-            {/* STILIZIMI DINAMIK I NJËHUR */}
+            {/* STILIZIMI DINAMIK */}
             <style>{`
               .forensic-chat-markdown p,
               .forensic-chat-markdown li,
@@ -761,11 +830,10 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                       Terminali Hetimor Ekskluziv
                     </h4>
                     <p className="text-xs sm:text-sm text-text-muted mt-1.5 leading-relaxed">
-                      Shtroni pyetje hetimore mbi provat, alibitë, ose bashkëngjitni një dokument me ikonën 📎 më poshtë.
+                      Shtroni pyetje hetimore mbi provat, ose bashkëngjitni me 📎 shkresa, audio regjistrime, foto ose tabela financiare.
                     </p>
                   </div>
 
-                  {/* Quick Forensic Action Chips */}
                   <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 pt-2">
                     {QUICK_FORENSIC_COMMANDS.map((cmd, idx) => (
                       <button
@@ -815,37 +883,15 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             {/* Input Terminal Bar */}
             <div className={`p-3 sm:p-5 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
               
-              {/* DISTINKTIVI VIZUAL I SKEDARIT TË BASHKANGJITUR */}
-              {attachedFile && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-primary-start/15 border border-primary-start/40 rounded-xl text-xs text-text-primary w-fit shadow-xs"
-                >
-                  <FileText size={14} className="text-primary-start shrink-0" />
-                  <span className="font-bold truncate max-w-[220px] sm:max-w-[340px] text-text-primary">
-                    {attachedFile.name}
-                  </span>
-                  <span className="text-[10px] text-text-muted font-mono">
-                    ({(attachedFile.size / 1024).toFixed(0)} KB)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveAttachedFile}
-                    className="ml-1 p-0.5 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
-                    title="Hiq dokumentin e bashkëngjitur"
-                  >
-                    <X size={13} />
-                  </button>
-                </motion.div>
-              )}
+              {/* DISTINKTIVI VIZUAL MULTI-KATEGORI */}
+              {renderAttachedBadge()}
 
-              {/* INPUT I FSHEHUR PËR SKEDARIN */}
+              {/* INPUT I FSHEHUR GJITHËPËRFSHIRËS (DOKUMENTE, TABELA, FOTO DHE AUDIO) */}
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".pdf,.docx,.doc,.txt,image/*"
+                accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.mp3,.wav,.m4a,.ogg,.aac,.flac,image/*,audio/*"
                 className="hidden"
               />
 
@@ -856,7 +902,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 }}
                 className="flex items-end gap-2 sm:gap-3 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 sm:p-2.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
-                {/* BUTONI PAPERCLIP */}
+                {/* BUTONI OMNI-ATTACHMENT (PAPERCLIP) */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -866,18 +912,22 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                       ? 'bg-primary-start text-white shadow-xs'
                       : 'text-text-muted hover:text-primary-start hover:bg-primary-start/10'
                   }`}
-                  title="Bashkëngjit dokument nga kompjuteri (.pdf, .docx, foto)"
+                  title="Bashkëngjit provë: Shkresë, Audio, Excel/CSV ose Foto"
                 >
                   <Paperclip size={18} />
                 </button>
 
-                {/* TEXTAREA ME PËRDITËSIM TË MENJËHERSHËM (ZERO LAG) */}
+                {/* TEXTAREA ME ZERO LAG */}
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={attachedFile ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...` : "Pyet mbi provat, alibitë apo shkeljet ligjore..."}
+                  placeholder={
+                    attachedFile 
+                      ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...` 
+                      : "Pyet mbi provat, alibitë apo shkeljet ligjore..."
+                  }
                   className="forensic-interrogation-textarea flex-1 p-1.5 sm:p-2 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[200px] border-0 outline-none"
                   rows={1}
                 />
@@ -898,7 +948,9 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </form>
 
               <div className="flex items-center justify-between mt-2.5 px-1.5 text-[10px] sm:text-xs text-text-muted">
-                <span className="truncate">Vula e Çështjes: {chainOfCustodyHash ? `${chainOfCustodyHash.slice(0, 16)}...` : 'E Vërtetuar'}</span>
+                <span className="truncate">
+                  {uploadStatusText || (chainOfCustodyHash ? `Vula: ${chainOfCustodyHash.slice(0, 16)}...` : 'Vula: E Vërtetuar')}
+                </span>
                 <span className="font-mono font-medium shrink-0 ml-2">Modeli: anthropic/claude-sonnet-4.6</span>
               </div>
             </div>
