@@ -15,6 +15,5 @@ __all__ = [
     "forensic_visual_router",
     "forensic_finance_router",
     "forensic_document_router",
-    "forensic_war_room_router",
     "forensic_chat_router"
 ]

@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V5.0 (DEEP DOSSIER RETRIEVAL ENGINE)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE SYNC
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V5.5 (TOKEN-EFFICIENT HYBRID FORMATTER)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • HIGH SPEED BULLET & NARRATIVE ENGINE
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -43,12 +43,12 @@ def _build_system_prompt_with_rag(
     db: Optional[Database] = None
 ) -> str:
     """
-    Ndërton system prompt me thellësi të plotë hetimore (Deep Case Dossier RAG).
-    Zgjeron dritaren nga 6 copëza në 35 copëza dhe tërheq tekstin integral të dosjes.
+    Ndërton system prompt me formatim të shpejtë, efiçient në tokene dhe fleksibël (Bullets + Narrative).
+    Tabelat gjenerohen VETËM nëse kërkohen shprehimisht nga përdoruesi.
     """
     case_chunks: List[Dict[str, Any]] = []
     
-    # 1. Tërheqje e thellë nga Vector Store (35 copëza në vend të 6)
+    # 1. Tërheqje e thellë nga Vector Store (deri në 35 copëza)
     try:
         case_chunks = query_case_knowledge_base(
             user_id=user_id,
@@ -59,7 +59,7 @@ def _build_system_prompt_with_rag(
     except Exception as e:
         logger.warning(f"Deep case base retrieval failed: {e}")
 
-    # 2. Siguresë Integriteti: Nëse copëzat vektoriale janë të pakta, merr tekstin e plotë direkt nga dokumentet e lëndës
+    # 2. Injektim i tekstit të plotë të dosjes nga MongoDB documents
     direct_dossier_text = ""
     if db is not None:
         try:
@@ -101,9 +101,7 @@ def _build_system_prompt_with_rag(
     else:
         case_context_text = direct_dossier_text if direct_dossier_text else "Nuk ka pjesë relevante nga dokumentet e lëndës."
 
-    # Nëse kemi tekst të drejtpërdrejtë të dosjes, e bashkojmë për transparencë maksimale
     if direct_dossier_text and case_chunks:
-        # Bashkon fragmentet specifike me përmbajtjen integrale të dosjes
         case_context_text = f"=== FRAGMENTET PARËSORE TË IDENTIFIKUARA ===\n{case_context_text}\n\n=== PËRMBAJTJA INTEGRALE E DOSJES SË LËNDËS ===\n{direct_dossier_text}"
 
     knowledge_context_text = "\n".join([
@@ -111,13 +109,24 @@ def _build_system_prompt_with_rag(
         for c in knowledge_chunks if c.get("text")
     ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
 
-    return f"""Ju jeni një ekspert ligjor i specializuar për legjislacionin e Republikës së Kosovës.
+    return f"""Ju jeni një ekspert ligjor i lartë i specializuar për legjislacionin dhe procedurën gjyqësore të Republikës së Kosovës.
 Detyra juaj është të jepni përgjigje të sakta, profesionale, shteruese dhe me bazë ligjore të pakundërshtueshme.
 
-RREGULLAT E ANALIZËS HETIMORE:
-1. Analizoni ME KUJDES TË GJITHA faqet, personat e përfshirë, të gjithë të dyshuarit (zyrtarë publikë, mjekë, punonjës socialë, gjyqtarë, persona privatë) dhe çdo provë shkresore që gjendet në dosje.
-2. Mos supozoni se mungojnë faqe apo të dyshuar: e gjithë dosja e lëndës gjendet më poshtë. Përgjigjuni mbi bazën e të gjitha provave dhe dokumenteve të administruara.
-3. Përdorni vetëm gjuhë zyrtare juridike. Përgjigjuni drejtpërdrejt pyetjes.
+RREGULLAT E FORMATIMIT DHE EFIÇIENCËS SË TOKENAVE:
+1. FORMATI PARËSOR ME PIKA (DEFAULT):
+   Përdorni strukturë hierarkike të qartë me numra dhe pika (bullet points):
+   - 1. Të dhënat & Personat e Përfshirë (me rolet dhe institucionet e tyre)
+   - 2. Faktet Kryesore & Deklarimet Fjalë për Fjalë (Verbatim)
+   - 3. Shkeljet Ligjore & Pasojat Procedurale
+   - 4. Konkluzioni / Hapat Taktikë
+2. STILI NARRATIV SHPJEGUES:
+   Nëse përdoruesi pyet "Më shpjego...", "Si ta kuptoj...", ose kërkon arsyetim bisedor, përgjigjuni me tekst të rrjedhshëm analitik juridik, si koleg me përvojë të lartë gjyqësore.
+3. RREGULLI I RREPTË PËR TABELAT:
+   MOS përdorni tabela automatikisht për çdo gjë. Përdorni tabela VETËM nëse përdoruesi e kërkon shprehimisht në pyetjen e tij (p.sh. "në tabelë", "krahaso tabelarisht", "nxirr inventar në tabelë"). Kjo garanton shpejtësi të lartë, qartësi maksimale dhe kursim tokenash.
+4. PËRMBAJTJA HETIMORE:
+   Analizoni ME KUJDES TË GJITHA faqet e dosjes së vënë në dispozicion më poshtë. Citoni fjalët kyçe në thonjëza, datat ekzakte, numrat e neneve dhe vendimet procedurale.
+5. GJUHA:
+   Gjuhë zyrtare juridike, pa fraza marketingu, pa hyrje boshe dhe pa emoji. Përgjigjuni menjëherë te thelbi.
 
 KONTEKSTI I LËNDËS:
 {payload.case_context or 'Çështje hetimore forenzike'}
@@ -197,7 +206,6 @@ def send_forensic_chat_message_nonstream(
 
     conversation_turns.append({"role": "user", "content": payload.message})
 
-    # Ruaj pyetjen
     db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
@@ -206,10 +214,8 @@ def send_forensic_chat_message_nonstream(
         "created_at": now_utc
     })
 
-    # Ndërto system prompt me qasje të plotë në dosje
     system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context, db=db)
 
-    # Thirr LLM
     raw_response = call_forensic_llm_chat(
         conversation_turns=conversation_turns,
         system_prompt=system_prompt,
@@ -308,7 +314,6 @@ async def stream_forensic_chat_message(
         "created_at": now_utc
     })
 
-    # Ndërto system prompt me qasje të plotë në dosje
     system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context, db=db)
 
     async def generate():

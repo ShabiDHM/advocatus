@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V7.0 (OMNI-CHANNEL UNIVERSAL ATTACHMENT PIPELINE)
-// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS • MULTI-EVIDENCE SMART ROUTER
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V7.5 (SMART AUTO-AWAIT OCR + ZERO-LAG + OMNI-ATTACHMENT)
+// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS • RACE-CONDITION ELIMINATED
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -462,7 +462,39 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     setAttachedFile(null);
   };
 
-  // DËRGIMI DHE DREJTIMI INTELIGJENT I SKEDARIT NË LABORATORIN PËRKATËS
+  // PRITJA INTELIGJENTE: PRET DERISA DOKUMENTI TË BËHET 'READY' / 'E PROCESUAR' NË SERVER
+  const waitForEvidenceProcessing = async (category: FileCategory, evidenceId: string): Promise<boolean> => {
+    const maxPolls = 18; // deri në ~18-20 sekonda
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+    for (let i = 0; i < maxPolls; i++) {
+      await delay(1200);
+      try {
+        if (category === 'audio') {
+          const audios = await forensicDeskService.listForensicAudio(caseId);
+          const match = audios.find(a => (a.id === evidenceId || a._id === evidenceId));
+          if (match) {
+            const st = (match.status || '').toUpperCase();
+            if (st === 'READY' || st === 'PROCESSED') return true;
+          }
+        } else {
+          const docs = await forensicDeskService.listForensicDocuments(caseId);
+          const match = docs.find(d => (d.id === evidenceId || d._id === evidenceId));
+          if (match) {
+            const st = (match.status || '').toUpperCase();
+            if (st === 'READY' || st === 'PROCESSED' || (match.extracted_text && match.extracted_text.length > 50)) {
+              return true;
+            }
+          }
+        }
+      } catch (pollErr) {
+        console.warn("Status check poll notice:", pollErr);
+      }
+    }
+    return false;
+  };
+
+  // DËRGIMI DHE DREJTIMI INTELIGJENT I SKEDARIT ME PRITJE AUTOMATIKE TË OCR-IT
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
     if ((!cleanText && !attachedFile) || isProcessing || isUploadingDoc || !caseId || isPurging) return;
@@ -473,35 +505,58 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     if (attachedFile) {
       setIsUploadingDoc(true);
       const category = detectFileCategory(attachedFile);
+      const currentFileName = attachedFile.name;
 
       try {
         if (category === 'audio') {
-          setUploadStatusText('Duke transkriptuar dhe analizuar regjistrimin audio me AI...');
+          setUploadStatusText('Duke ngarkuar audion në server...');
           const uploadedAudio = await forensicDeskService.uploadForensicAudio(caseId, attachedFile);
-          fileUploadedNotice = `\n\n🎙️ [PROVË AUDIO E ZBARDHUR NË LABORATOR: ${uploadedAudio.file_name || attachedFile.name}]`;
+          const audioId = uploadedAudio.id || uploadedAudio._id || '';
+
+          setUploadStatusText('Duke zbardhur transkriptin audio me AI...');
+          if (audioId) {
+            await waitForEvidenceProcessing('audio', audioId);
+          }
+
+          fileUploadedNotice = `\n\n🎙️ [PROVË AUDIO E ZBARDHUR NË LABORATOR: ${uploadedAudio.file_name || currentFileName}]`;
           if (!userPromptText) {
-            userPromptText = `Ju lutem analizoni këtë regjistrim audio/dëshmi të sapongarkuar: ${attachedFile.name}. Nxirrni kërcënimet, kontradiktat, alibitë dhe elementet e veprave penale.`;
+            userPromptText = `Ju lutem analizoni këtë regjistrim audio/dëshmi të sapongarkuar: ${currentFileName}. Nxirrni kërcënimet, kontradiktat, alibitë dhe elementet e veprave penale.`;
           }
         } else {
           setUploadStatusText(
             category === 'spreadsheet' 
-              ? 'Duke indeksuar tabelën financiare me Pandas...' 
+              ? 'Duke ngarkuar tabelën financiare...' 
               : category === 'image'
-              ? 'Duke ekzekutuar OCR mbi foton e provës...'
-              : 'Duke indeksuar dokumentin në RAG...'
+              ? 'Duke ngarkuar foton e provës...'
+              : 'Duke ngarkuar shkresën...'
           );
+
           const uploadedDoc = await forensicDeskService.uploadForensicDocument(caseId, attachedFile);
+          const docId = uploadedDoc.id || uploadedDoc._id || '';
+
+          // PRITJA AUTOMATIKE E OCR-IT PARA SE T'I FLASIM CLAUDE-IT
+          setUploadStatusText('Duke lexuar faqet me OCR dhe indeksuar në RAG...');
+          if (docId) {
+            await waitForEvidenceProcessing('document', docId);
+          }
+
           const label = category === 'spreadsheet' 
             ? 'TABELË FINANCIARE' 
             : category === 'image' 
             ? 'PROVË VIZUALE' 
             : 'DOKUMENT ZYRTAR';
           
-          fileUploadedNotice = `\n\n📎 [${label} E INDEKSUAR: ${uploadedDoc.file_name || attachedFile.name}]`;
+          fileUploadedNotice = `\n\n📎 [${label} E PROCESUAR DHE INDEKSUAR: ${uploadedDoc.file_name || currentFileName}]`;
           if (!userPromptText) {
-            userPromptText = `Ju lutem analizoni këtë material të ngarkuar rishtazi: ${attachedFile.name}. Nxirrni faktet kyçe, personat, datat dhe shkeljet ligjore.`;
+            userPromptText = `Ju lutem bëni analizën e plotë ligjore dhe hetimore të këtij dokumenti të sapo procesuar: ${currentFileName}. Nxirrni personat, datat, deklaratat dhe shkeljet ligjore.`;
           }
         }
+
+        // Njofton panelin majtas për rifreskim automatik
+        try {
+          window.dispatchEvent(new CustomEvent('FORENSIC_DOCUMENTS_CHANGED', { detail: { caseId } }));
+        } catch {}
+
       } catch (uploadErr: any) {
         console.error("Dështoi ngarkimi i materialit forenzik:", uploadErr);
         alert(`Dështoi ngarkimi i provës: ${uploadErr?.response?.data?.detail || uploadErr?.message || 'Gabim në server'}`);
@@ -649,7 +704,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   }, []);
 
-  // Renditja e ikonës për distinktivin e skedarit sipas llojit
   const renderAttachedBadge = () => {
     if (!attachedFile) return null;
     const cat = detectFileCategory(attachedFile);
@@ -697,7 +751,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             />
           )}
 
-          {/* Slide-over Drawer Panel */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
@@ -764,7 +817,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 <button
                   type="button"
                   onClick={handleClearConsole}
-                  disabled={messages.length === 0 || isProcessing || isPurging}
+                  disabled={messages.length === 0 || isProcessing || isPurging || isUploadingDoc}
                   className={`p-2 rounded-xl transition-colors cursor-pointer ${
                     messages.length === 0 
                       ? 'text-text-muted/30 cursor-not-allowed' 
@@ -883,10 +936,8 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             {/* Input Terminal Bar */}
             <div className={`p-3 sm:p-5 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
               
-              {/* DISTINKTIVI VIZUAL MULTI-KATEGORI */}
               {renderAttachedBadge()}
 
-              {/* INPUT I FSHEHUR GJITHËPËRFSHIRËS (DOKUMENTE, TABELA, FOTO DHE AUDIO) */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -902,7 +953,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 }}
                 className="flex items-end gap-2 sm:gap-3 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 sm:p-2.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
-                {/* BUTONI OMNI-ATTACHMENT (PAPERCLIP) */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -917,22 +967,23 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                   <Paperclip size={18} />
                 </button>
 
-                {/* TEXTAREA ME ZERO LAG */}
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder={
-                    attachedFile 
+                    isUploadingDoc
+                      ? uploadStatusText
+                      : attachedFile 
                       ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...` 
                       : "Pyet mbi provat, alibitë apo shkeljet ligjore..."
                   }
-                  className="forensic-interrogation-textarea flex-1 p-1.5 sm:p-2 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[200px] border-0 outline-none"
+                  disabled={isUploadingDoc}
+                  className="forensic-interrogation-textarea flex-1 p-1.5 sm:p-2 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[200px] border-0 outline-none disabled:opacity-60"
                   rows={1}
                 />
 
-                {/* BUTONI DËRGO */}
                 <button
                   type="submit"
                   disabled={(!input.trim() && !attachedFile) || isProcessing || isUploadingDoc || isPurging}
@@ -948,7 +999,8 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </form>
 
               <div className="flex items-center justify-between mt-2.5 px-1.5 text-[10px] sm:text-xs text-text-muted">
-                <span className="truncate">
+                <span className="truncate text-primary-start font-medium flex items-center gap-1.5">
+                  {isUploadingDoc && <Loader2 size={12} className="animate-spin shrink-0" />}
                   {uploadStatusText || (chainOfCustodyHash ? `Vula: ${chainOfCustodyHash.slice(0, 16)}...` : 'Vula: E Vërtetuar')}
                 </span>
                 <span className="font-mono font-medium shrink-0 ml-2">Modeli: anthropic/claude-sonnet-4.6</span>

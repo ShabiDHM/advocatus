@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V3.9 (WAR ROOM TOTAL WIPEOUT CLIENT)
-// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V4.0 (WAR ROOM COMPLETELY WIPED OUT)
+// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • LEAN ARCHITECTURE
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
 
@@ -70,7 +70,6 @@ export interface LabEvidenceCounts {
   AUDIO: number;
   VISUAL: number;
   FINANCIAL: number;
-  WAR_ROOM: number;
 }
 
 export interface AudioAnalysisResponse {
@@ -156,18 +155,6 @@ export interface LMDInterestResponse {
   interest_amount: number;
   total_obligation: number;
   legal_basis: string;
-}
-
-export interface WarRoomSynthesisResponse {
-  war_room_executive_summary: string;
-  critical_cross_contradictions: string[];
-  cross_examination_traps: Array<{
-    witness_or_target: string;
-    question: string;
-    trap_explanation: string;
-  }>;
-  in_dubio_pro_reo_vectors: string[];
-  winning_theory_of_the_case: string;
 }
 
 export class ForensicDeskService {
@@ -482,46 +469,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 6. WAR ROOM & GRAPHRAG (CLAUDE SONNET 4.6)
-  // ==========================================================
-  public async synthesizeWarRoom(params: {
-    caseId: string;
-    caseTitle: string;
-    audioFindings?: any;
-    visualFindings?: any;
-    financialFindings?: any;
-    documentExcerpts?: string[];
-    searchGraphTerm?: string;
-  }): Promise<WarRoomSynthesisResponse> {
-    const response = await apiClient.post<{ success: boolean; data: WarRoomSynthesisResponse }>(
-      `${this.baseUrl}/war-room/synthesize`,
-      {
-        case_id: params.caseId,
-        case_title: params.caseTitle,
-        audio_findings: params.audioFindings,
-        visual_findings: params.visualFindings,
-        financial_findings: params.financialFindings,
-        document_excerpts: params.documentExcerpts,
-        search_graph_term: params.searchGraphTerm
-      }
-    );
-    return response.data.data;
-  }
-
-  public async getLatestWarRoomSynthesis(caseId: string): Promise<WarRoomSynthesisResponse | null> {
-    const response = await apiClient.get<{ has_record: boolean; data: WarRoomSynthesisResponse | null }>(
-      `${this.baseUrl}/war-room/${caseId}/latest`
-    );
-    return response.data.has_record ? response.data.data : null;
-  }
-
-  // NEW: Total Wipeout i War Room nga MongoDB
-  public async deleteWarRoomSynthesis(caseId: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/war-room/${caseId}`);
-  }
-
-  // ==========================================================
-  // 7. TERMINALI FORENZIK ME KUJTESË DHE STREAMING
+  // 6. TERMINALI FORENZIK ME KUJTESË DHE STREAMING
   // ==========================================================
   public async sendChatMessage(caseId: string, message: string, caseContext: string = ''): Promise<any> {
     const response = await apiClient.post<any>(`${this.baseUrl}/chat`, {
@@ -577,7 +525,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // STATISTIKAT E PROVAVE (NUMËRIM NGA BAZA FORENZIKE)
+  // STATISTIKAT E PROVAVE (VETËM LABORATORËT REALË TË PROVAVE)
   // ==========================================================
   public async getEvidenceCounts(caseId: string): Promise<LabEvidenceCounts> {
     try {
@@ -591,11 +539,10 @@ export class ForensicDeskService {
         DOCUMENTS: docs.length,
         AUDIO: audios.length,
         VISUAL: visuals.length,
-        FINANCIAL: docs.length > 0 ? 1 : 0,
-        WAR_ROOM: docs.length + audios.length + visuals.length
+        FINANCIAL: docs.length > 0 ? 1 : 0
       };
     } catch {
-      return { DOCUMENTS: 0, AUDIO: 0, VISUAL: 0, FINANCIAL: 0, WAR_ROOM: 0 };
+      return { DOCUMENTS: 0, AUDIO: 0, VISUAL: 0, FINANCIAL: 0 };
     }
   }
 }
