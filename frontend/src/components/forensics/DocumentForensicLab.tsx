@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V15.0 (SPLIT-SCREEN WORKSPACE + CHAT-DRIVEN AUTOPSY)
-// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE • OMNI-ATTACHMENT
+// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V17.0 (DUAL-MODE: SINGLE DOC & FULL DOSSIER + TOGGLE DESELECT)
+// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -290,13 +290,13 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
       className={`flex gap-2.5 sm:gap-3.5 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
     >
       <div
-        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
+        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
           isAi
             ? 'bg-gradient-to-br from-primary-start to-indigo-700 text-white border-primary-start/50'
             : 'bg-surface border-main text-text-primary'
         }`}
       >
-        {isAi ? <BrainCircuit size={17} className="sm:w-5 sm:h-5" /> : <User size={17} className="sm:w-5 sm:h-5" />}
+        {isAi ? <BrainCircuit size={16} /> : <User size={16} />}
       </div>
 
       <div
@@ -353,7 +353,7 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
 ForensicMessageBubble.displayName = 'ForensicMessageBubble';
 
 // ============================================================================
-// KOMPONENTI KRYESOR: WORKSPACE SPLIT-SCREEN ME CHAT DIREKT NË TË DJATHTË
+// KOMPONENTI KRYESOR FORENZIK ME ZGJEDHJE DHE ÇZGJEDHJE (TOGGLE DESELECT)
 // ============================================================================
 export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   caseId,
@@ -364,8 +364,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Lista e shkresave
   const [documents, setDocuments] = useState<ForensicDocItem[]>([]);
+  // selectedDocId mund të jetë null (Gjendja Neutrale / Fashikulli i Plotë)
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -373,10 +373,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Ndërrimi i pamjes në Mobile (< lg)
   const [mobileTab, setMobileTab] = useState<'DOCS' | 'CHAT'>('DOCS');
 
-  // Gjendja e Chat-it të Integruar në të Djathtë
+  // Gjendja e Chat-it Simetrik
   const [messages, setMessages] = useState<ForensicMessage[]>([]);
   const [input, setInput] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -384,7 +383,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFullscreenChat, setIsFullscreenChat] = useState<boolean>(false);
 
-  // Gjendja e bashkëngjitjes në Chat me 📎
+  // Gjendja e bashkëngjitjes në Chat
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isUploadingChatDoc, setIsUploadingChatDoc] = useState<boolean>(false);
   const [chatUploadStatusText, setChatUploadStatusText] = useState<string>('');
@@ -405,9 +404,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
+  
+  // Dokumenti aktiv (ose null nëse jemi në gjendje neutrale / fashikull i plotë)
   const activeDoc = useMemo(() => documents.find(d => d.id === selectedDocId), [documents, selectedDocId]);
 
-  // Kontrolli i Fontit
+  // Kontrolli i Madhësisë së Shkrimit
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_forensic_font_size');
@@ -439,7 +440,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     try { localStorage.setItem('juristi_forensic_font_size', '1'); } catch {}
   };
 
-  // Ngarkimi i historikut të bisedës
   const loadChatHistory = useCallback(async () => {
     if (!caseId) return;
     try {
@@ -459,24 +459,19 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   }, [caseId]);
 
-  // Ngarkimi i dokumenteve
   const loadDocuments = useCallback(async (silent: boolean = false) => {
     if (!caseId) return;
     if (!silent) setLoadingDocs(true);
     try {
       const docs = await forensicDeskService.listForensicDocuments(caseId);
       setDocuments(docs);
-      if (docs.length > 0 && !selectedDocId) {
-        setSelectedDocId(docs[0].id);
-      }
     } catch (err) {
       console.error("Dështoi ngarkimi i dokumenteve forenzike:", err);
     } finally {
       if (!silent) setLoadingDocs(false);
     }
-  }, [caseId, selectedDocId]);
+  }, [caseId]);
 
-  // Auto-polling kur ka dokumente në 'PROCESSING'
   useEffect(() => {
     const hasProcessing = documents.some(d => d.status === 'PROCESSING' || d.status === 'UPLOADING');
     if (!hasProcessing) return;
@@ -499,7 +494,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
-  // Ngarkimi i dokumenteve nga paneli majtas
+  // TOGGLE SELECT / DESELECT: Nëse klikoni dokumentin aktiv, ai ÇZGJIHET (kthehet neutral te fashikulli)
+  const handleToggleSelectDoc = (docId: string) => {
+    setSelectedDocId(prev => (prev === docId ? null : docId));
+    if (window.innerWidth < 1024) setMobileTab('CHAT');
+  };
+
   const handleUploadFiles = async (files: FileList | null) => {
     if (!files || files.length === 0 || !caseId) return;
     setIsUploading(true);
@@ -622,15 +622,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // ==========================================================
-  // FUNKSIONET E CHAT-IT DIREKT NË WORKSPACE
-  // ==========================================================
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
     const target = e.target;
     target.style.height = 'auto';
-    target.style.height = `${Math.min(target.scrollHeight, 180)}px`;
+    target.style.height = `${Math.min(target.scrollHeight, 160)}px`;
   };
 
   const handleChatFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -659,6 +656,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     return false;
   };
 
+  // DËRGIMI I MESAZHIT: NËSE KA DOKUMENT TË PËRZGJEDHUR, FOKUSOHET TE AI; NËSE JO, VEPRON ME TË GJITHË FASHIKULLIN
   const handleSendChatMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
     if ((!cleanText && !attachedFile) || isProcessing || isUploadingChatDoc || !caseId || isPurging) return;
@@ -734,11 +732,16 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setIsProcessing(true);
 
+    // KONTEKSTI DINAMIK: DOKUMENT SPECIFIK APO FASHIKULLI I PLOTË
+    const contextHeader = activeDoc
+      ? `Lënda: ${caseNumber} - ${clientName}. Dokumenti i fokusuar: ${activeDoc.file_name}. Vula: ${chainOfCustodyHash || 'AKTIVE'}`
+      : `Lënda: ${caseNumber} - ${clientName}. FASHIKULLI I PLOTË (${documents.length} shkresa të administruara). Vula: ${chainOfCustodyHash || 'AKTIVE'}`;
+
     try {
       const stream = await forensicDeskService.streamForensicChat(
         caseId,
         fullMessageContent,
-        `Lënda: ${caseNumber} - ${clientName}. Vula: ${chainOfCustodyHash || 'AKTIVE'}`
+        contextHeader
       );
 
       const reader = stream.getReader();
@@ -774,16 +777,27 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // BUTONI I SHPEJTË: "ANALIZO DOKUMENTIN" NË HEADER TË CHAT-IT
-  const handleQuickAnalyzeActiveDoc = () => {
-    if (!activeDoc || isProcessing) return;
-    const prompt = `[DIREKTIVË FORENZIKE] Ju lutem bëni analizën e plotë ligjore dhe hetimore të shkresës: "${activeDoc.file_name}".
+  // BUTONI I SHPEJTË DINAMIK: ANALIZO DOKUMENTIN (NËSE KA DOK) APO ANALIZO FASHIKULLIN (NËSE ËSHTË NEUTRAL)
+  const handleQuickAction = () => {
+    if (isProcessing) return;
+
+    if (activeDoc) {
+      // 1. Analizë e dokumentit të përzgjedhur
+      const prompt = `[DIREKTIVË FORENZIKE] Ju lutem bëni analizën e plotë ligjore dhe hetimore të shkresës: "${activeDoc.file_name}".
 1. Të dhënat procedurale (Organi, numri i lëndës/aktit, data).
 2. Struktura e personave të përfshirë dhe rolet procedurale.
 3. Rrethanat faktike dhe deklaratat fjalë për fjalë (Verbatim).
 4. Shkeljet ligjore, kontradiktat dhe pasojat procedurale sipas Kodit Penal dhe Procedurës Penale/Civile të Kosovës.`;
-
-    handleSendChatMessage(prompt);
+      handleSendChatMessage(prompt);
+    } else {
+      // 2. Analizë e gjithë fashikullit të lëndës (Neutral)
+      const prompt = `[DIREKTIVË FORENZIKE — FASHIKULLI I PLOTË] Ju lutem bëni analizën e thellë të të gjithë fashikullit të lëndës duke kryqëzuar të gjitha ${documents.length} shkresat dhe provat e administruara:
+1. Rindërtimi kronologjik i ngjarjeve nga të gjitha shkresat.
+2. Struktura e plotë e aktorëve, personave të dyshuar, zyrtarëve dhe deklarimeve të tyre.
+3. Kontradiktat thelbësore dhe alibitë e rreme të zbuluara mes provave.
+4. Shkeljet thelbësore procedurale (Neni 182 LPK / KPP) dhe masat e menjëhershme ligjore.`;
+      handleSendChatMessage(prompt);
+    }
   };
 
   const handleClearChat = async () => {
@@ -877,20 +891,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         }
       `}</style>
 
-      {/* RRJETI KRYESOR (SPLIT-SCREEN WORKSPACE) */}
-      <div className={`grid grid-cols-1 ${isFullscreenChat ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-4 sm:gap-6 transition-all duration-300`}>
+      {/* RRJETI SIMETRIK ME LARTËSI TË NJËJTË (SPLIT-SCREEN WORKSPACE) */}
+      <div className={`grid grid-cols-1 ${isFullscreenChat ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-4 sm:gap-6 items-stretch h-[calc(100vh-210px)] min-h-[680px] max-h-[820px] transition-all duration-300`}>
         
-        {/* KOLONA E MAJTË: SHKRESAT DHE PROVAT (5 Kolona në Desktop) */}
+        {/* KOLONA E MAJTË: SHKRESAT (5 Kolona në Desktop) */}
         {(!isFullscreenChat && (mobileTab === 'DOCS' || window.innerWidth >= 1024)) && (
-          <div className="lg:col-span-5 space-y-3 sm:space-y-4">
+          <div className="lg:col-span-5 flex flex-col h-full gap-3 sm:gap-4 min-h-0 overflow-hidden">
             
-            {/* Zona e Ngarkimit */}
-            <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-2.5">
-              <div className="flex items-center justify-between border-b border-main pb-2">
+            {/* Zona e Ngarkimit (Fikse lart) */}
+            <div className="glass-panel p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm shrink-0 space-y-2">
+              <div className="flex items-center justify-between border-b border-main pb-1.5">
                 <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                   <FileText size={15} className="text-primary-start" /> Administrimi i Shkresave
                 </h3>
-                <span className="text-[10px] sm:text-[11px] font-mono text-text-muted">Vision OCR</span>
+                <span className="text-[10px] font-mono text-text-muted">Vision OCR</span>
               </div>
 
               <div
@@ -900,21 +914,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   e.preventDefault();
                   if (!isUploading) handleUploadFiles(e.dataTransfer.files);
                 }}
-                className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-xl sm:rounded-2xl p-4 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-1.5"
+                className="border-2 border-dashed border-main hover:border-primary-start/50 bg-surface/50 rounded-xl sm:rounded-2xl p-3 text-center cursor-pointer transition-all hover:bg-surface flex flex-col items-center justify-center gap-1"
               >
                 {isUploading ? (
-                  <div className="flex flex-col items-center justify-center gap-2 py-1">
-                    <Loader2 size={20} className="animate-spin text-primary-start" />
-                    <span className="text-xs sm:text-sm font-bold text-primary-start">{uploadProgressText}</span>
+                  <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                    <Loader2 size={18} className="animate-spin text-primary-start" />
+                    <span className="text-xs font-bold text-primary-start">{uploadProgressText}</span>
                   </div>
                 ) : (
                   <>
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
-                      <UploadCloud size={18} className="sm:w-5 sm:h-5" />
+                    <div className="w-8 h-8 rounded-xl bg-primary-start/10 text-primary-start flex items-center justify-center">
+                      <UploadCloud size={16} />
                     </div>
                     <div>
-                      <p className="text-xs sm:text-sm font-bold text-text-primary">Kliko ose tërhiq shkresat</p>
-                      <p className="text-[10px] sm:text-[11px] text-text-muted">PDF, DOCX, Skanime të zbardhura me AI</p>
+                      <p className="text-xs font-bold text-text-primary">Kliko ose tërhiq shkresat</p>
+                      <p className="text-[10px] text-text-muted">PDF, DOCX, Skanime me AI</p>
                     </div>
                   </>
                 )}
@@ -928,9 +942,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               />
             </div>
 
-            {/* Lista e Shkresave */}
-            <div className="glass-panel p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm space-y-3">
-              <div className="flex items-center justify-between gap-2">
+            {/* Lista e Shkresave (Flex-1 me Scroll të Pavarur) */}
+            <div className="glass-panel p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex-1 min-h-0 flex flex-col gap-2.5 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 shrink-0">
                 <div className="relative flex-1">
                   <Search size={13} className="absolute left-3 top-2.5 text-text-muted" />
                   <input
@@ -938,21 +952,21 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filtro shkresat..."
-                    className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs sm:text-sm text-text-primary focus:outline-none focus:border-primary-start"
+                    className="w-full bg-surface border border-main rounded-xl pl-8 pr-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary-start"
                   />
                 </div>
                 <button
                   onClick={() => loadDocuments(false)}
                   title="Rifresko listën"
-                  className="p-2 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 bg-surface hover:bg-hover border border-main rounded-xl text-text-muted hover:text-text-primary transition-colors cursor-pointer shrink-0"
                 >
                   <RefreshCw size={13} className={loadingDocs ? 'animate-spin' : ''} />
                 </button>
               </div>
 
-              <div className="space-y-2 max-h-[480px] sm:max-h-[540px] overflow-y-auto custom-finance-scroll pr-1">
+              <div className="space-y-2 flex-1 min-h-0 overflow-y-auto custom-finance-scroll pr-1">
                 {filteredDocs.length === 0 ? (
-                  <div className="text-center py-10 text-xs sm:text-sm text-text-muted">
+                  <div className="text-center py-12 text-xs text-text-muted">
                     {loadingDocs ? 'Duke ngarkuar shkresat...' : 'Nuk u gjet asnjë shkresë.'}
                   </div>
                 ) : (
@@ -968,22 +982,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     return (
                       <div
                         key={doc.id}
-                        onClick={() => {
-                          setSelectedDocId(doc.id);
-                          if (window.innerWidth < 1024) setMobileTab('CHAT');
-                        }}
-                        className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 sm:gap-3 ${
+                        // E RËNDËSISHME: TOGGLE DESELECT NËSE KLIKOHET PËRSËRI DOKUMENTI I NJËJTË
+                        onClick={() => handleToggleSelectDoc(doc.id)}
+                        className={`p-2.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
                           isSelected
-                            ? 'bg-primary-start/10 border-primary-start text-primary-start shadow-sm'
+                            ? 'bg-primary-start/15 border-primary-start text-primary-start shadow-sm ring-1 ring-primary-start/30'
                             : 'bg-surface border-main hover:border-primary-start/40 text-text-primary'
                         } ${isArchived ? 'opacity-60' : ''}`}
                       >
-                        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                          <div className={`p-1.5 sm:p-2 rounded-xl shrink-0 ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
-                            {isMedia ? <Play size={15} /> : <FileText size={15} />}
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className={`p-1.5 rounded-xl shrink-0 ${isSelected ? 'bg-primary-start text-white' : 'bg-surface/80 text-text-muted'}`}>
+                            {isMedia ? <Play size={14} /> : <FileText size={14} />}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-bold truncate text-xs sm:text-sm text-text-primary">
+                            <p className="font-bold truncate text-xs text-text-primary">
                               {doc.file_name}
                             </p>
                             <div className="flex items-center gap-1 mt-0.5">
@@ -1000,24 +1012,24 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           {isMedia ? (
                             <button
                               type="button"
                               onClick={(e) => handleViewMediaDocument(doc, e)}
                               title="Luaj"
-                              className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                              className="p-1 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
                             >
-                              <Play size={14} />
+                              <Play size={13} />
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={(e) => handleViewDocument(doc, e)}
                               title="Shiko origjinalin"
-                              className="p-1.5 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
+                              className="p-1 text-text-muted hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors cursor-pointer"
                             >
-                              <Eye size={14} />
+                              <Eye size={13} />
                             </button>
                           )}
 
@@ -1027,13 +1039,13 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                               onClick={(e) => handleViewExtractedText(doc, e)}
                               disabled={isTextLoading}
                               title="Shiko tekstin"
-                              className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40 ${
+                              className={`p-1 rounded-lg transition-colors cursor-pointer disabled:opacity-40 ${
                                 isProcessing 
                                   ? 'text-amber-500 hover:bg-amber-500/10' 
                                   : 'text-text-muted hover:text-emerald-500 hover:bg-emerald-500/10'
                               }`}
                             >
-                              {isTextLoading ? <Loader2 size={14} className="animate-spin text-emerald-500" /> : <FileSearch size={14} />}
+                              {isTextLoading ? <Loader2 size={13} className="animate-spin text-emerald-500" /> : <FileSearch size={13} />}
                             </button>
                           )}
 
@@ -1045,9 +1057,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                               setRenameDocName(doc.file_name);
                             }}
                             title="Riemërto"
-                            className="hidden sm:inline-flex p-1.5 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            className="hidden sm:inline-flex p-1 text-text-muted hover:text-amber-500 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
                           >
-                            <Pencil size={14} />
+                            <Pencil size={13} />
                           </button>
 
                           <button
@@ -1055,9 +1067,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                             onClick={(e) => handleArchiveDocument(doc, e)}
                             disabled={isArchiving || isArchived}
                             title="Arkivo"
-                            className="hidden sm:inline-flex p-1.5 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                            className="hidden sm:inline-flex p-1 text-text-muted hover:text-purple-500 rounded-lg hover:bg-purple-500/10 transition-colors cursor-pointer disabled:opacity-40"
                           >
-                            {isArchiving ? <Loader2 size={14} className="animate-spin text-purple-500" /> : <Archive size={14} />}
+                            {isArchiving ? <Loader2 size={13} className="animate-spin text-purple-500" /> : <Archive size={13} />}
                           </button>
 
                           <button
@@ -1065,9 +1077,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                             onClick={(e) => handleDeleteDocument(doc.id, doc.file_name, e)}
                             disabled={isDeleting}
                             title="Fshi"
-                            className="p-1.5 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                            className="p-1 text-text-muted hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
                           >
-                            {isDeleting ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
+                            {isDeleting ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
                           </button>
                         </div>
                       </div>
@@ -1079,60 +1091,62 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           </div>
         )}
 
-        {/* KOLONA E DJATHTË: TERMINALI FORENZIK I INTEGRUAR (7 Kolona në Desktop) */}
+        {/* KOLONA E DJATHTË: CHAT TERMINAL (7 Kolona në Desktop - Simetrik & Bounded) */}
         {(!isFullscreenChat && (mobileTab === 'CHAT' || window.innerWidth >= 1024)) || isFullscreenChat ? (
-          <div className={`${isFullscreenChat ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col h-[740px] sm:h-[800px] overflow-hidden transition-all duration-300 relative`}>
+          <div className={`${isFullscreenChat ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 relative`}>
             
-            {/* Top Header i Chat-it të Integruar */}
-            <div className="p-3 sm:p-4 border-b border-main bg-surface/90 shrink-0 flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-start to-indigo-700 text-white flex items-center justify-center border border-primary-start/30 shadow-sm shrink-0">
-                  <BrainCircuit size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-text-primary truncate">
-                      Terminali Hetimor
-                    </h3>
-                    <span className="px-1.5 py-0.5 rounded-full bg-primary-start/20 text-primary-start border border-primary-start/40 text-[9px] font-mono font-bold uppercase">
-                      Sonnet 4.6
+            {/* HEADER I PASTËR DHE MINIMALIST (PA 'TERMINALI HETIMOR' DHE PA 'SONNET 4.6') */}
+            <div className="px-3 sm:px-4 py-2 border-b border-main bg-surface/90 shrink-0 flex items-center justify-between gap-2 min-h-[44px]">
+              
+              {/* Informacioni i Dokumentit Aktiv OSE Fashikullit të Plotë */}
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {activeDoc ? (
+                  <div className="flex items-center gap-1.5 min-w-0 bg-primary-start/10 border border-primary-start/20 px-2.5 py-1 rounded-xl">
+                    <FileText size={13} className="text-primary-start shrink-0" />
+                    <span className="text-[11px] text-text-muted shrink-0 font-medium">Dokument:</span>
+                    <span className="text-xs font-bold text-primary-start truncate font-mono">{activeDoc.file_name}</span>
+                    {/* BUTONI X PËR T'U KTHYER NË GJENDJEN NEUTRALE (FASHIKULLI I PLOTË) */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDocId(null)}
+                      className="ml-1 p-0.5 text-text-muted hover:text-rose-500 rounded hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title="Kthehu te Fashikulli i Plotë (Çzgjidh)"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 min-w-0 px-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="text-xs font-bold text-text-primary truncate font-mono">
+                      Fashikulli i Plotë: {clientName} ({documents.length} shkresa)
                     </span>
                   </div>
-                  <p className="text-[10px] sm:text-[11px] text-text-muted truncate font-mono mt-0.5">
-                    {activeDoc ? (
-                      <span>Dokumenti: <strong className="text-primary-start">{activeDoc.file_name}</strong></span>
-                    ) : (
-                      <span>Fashikulli i Plotë: <strong className="text-text-primary">{clientName}</strong></span>
-                    )}
-                  </p>
-                </div>
+                )}
               </div>
 
-              {/* BUTONI KRYESOR: "ANALIZO DOKUMENTIN" + VEPRIMET */}
+              {/* BUTONAT E VEPRIMIT NË HEADER */}
               <div className="flex items-center gap-1.5 shrink-0">
                 
-                {/* Butoni i Shpejtë Analizo Dokumentin */}
-                {activeDoc && (
-                  <button
-                    type="button"
-                    onClick={handleQuickAnalyzeActiveDoc}
-                    disabled={isProcessing}
-                    className="h-8 px-2.5 sm:px-3 bg-primary-start hover:brightness-110 text-white rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-40"
-                    title="Bëj analizën e plotë të këtij dokumenti me Claude Sonnet 4.6"
-                  >
-                    <Sparkles size={13} className={isProcessing ? 'animate-spin' : ''} />
-                    <span className="hidden xs:inline">Analizo Dokumentin</span>
-                    <span className="xs:hidden">Analizo</span>
-                  </button>
-                )}
+                {/* Butoni Dinamik: "Analizo Dokumentin" (nëse ka dok) ose "Analizo Fashikullin" (nëse neutral) */}
+                <button
+                  type="button"
+                  onClick={handleQuickAction}
+                  disabled={isProcessing}
+                  className="h-7 px-2.5 bg-primary-start hover:brightness-110 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer disabled:opacity-40"
+                  title={activeDoc ? "Analizo këtë dokument" : "Analizo dhe kryqëzo gjithë fashikullin"}
+                >
+                  <Sparkles size={12} className={isProcessing ? 'animate-spin' : ''} />
+                  <span>{activeDoc ? 'Analizo Dokumentin' : 'Analizo Fashikullin'}</span>
+                </button>
 
                 {/* Kontrolli i Madhësisë së Shkrimit */}
-                <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5">
+                <div className="flex items-center gap-0.5 rounded-lg border border-main bg-surface p-0.5">
                   <button
                     type="button"
                     onClick={handleDecreaseFont}
                     disabled={fontLevelIndex === 0}
-                    className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
+                    className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
                     title="Zvogëlo shkrimin"
                   >
                     A−
@@ -1141,7 +1155,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     type="button"
                     onClick={handleResetFont}
                     title="Rivendos madhësinë"
-                    className="min-w-7 text-[10px] font-bold text-text-muted hover:bg-hover rounded text-center px-1 h-7 flex items-center justify-center"
+                    className="min-w-6 text-[10px] font-bold text-text-muted hover:bg-hover rounded text-center px-1 h-6 flex items-center justify-center"
                   >
                     {activeFont.label}
                   </button>
@@ -1149,7 +1163,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     type="button"
                     onClick={handleIncreaseFont}
                     disabled={fontLevelIndex === FONT_LEVELS.length - 1}
-                    className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
+                    className="h-6 w-6 rounded text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
                     title="Zmadho shkrimin"
                   >
                     A+
@@ -1161,42 +1175,46 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   type="button"
                   onClick={handleClearChat}
                   disabled={messages.length === 0 || isProcessing || isPurging}
-                  className="p-1.5 rounded-xl text-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-30"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-30"
                   title="Fshi bisedën"
                 >
-                  {isPurging ? <Loader2 size={15} className="animate-spin text-rose-500" /> : <Trash2 size={15} />}
+                  {isPurging ? <Loader2 size={14} className="animate-spin text-rose-500" /> : <Trash2 size={14} />}
                 </button>
 
                 {/* Fullscreen Toggle */}
                 <button
                   type="button"
                   onClick={() => setIsFullscreenChat(!isFullscreenChat)}
-                  className="hidden md:flex p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
+                  className="hidden md:flex p-1.5 text-text-muted hover:text-text-primary hover:bg-hover rounded-lg transition-colors cursor-pointer"
                   title={isFullscreenChat ? "Zvogëlo" : "Fullscreen"}
                 >
-                  {isFullscreenChat ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                  {isFullscreenChat ? <Minimize2 size={14} /> : <Maximize2 size={15} />}
                 </button>
               </div>
             </div>
 
-            {/* Message Stream Area */}
-            <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 custom-finance-scroll space-y-4 bg-canvas/30 select-text">
+            {/* MESSAGE STREAM AREA: SCROLL I PLOTË DHE I PAVARUR BRENDA KUTISË */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 custom-finance-scroll space-y-3.5 bg-canvas/20 select-text">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-4 my-auto space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner">
-                    <BrainCircuit size={28} />
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 my-auto space-y-2.5">
+                  <div className="w-12 h-12 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner">
+                    <BrainCircuit size={24} />
                   </div>
                   <div className="max-w-md">
-                    <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-text-primary">
+                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-tight text-text-primary">
                       Studio Hetimore e Integruar
                     </h4>
-                    <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                      Zgjidhni një shkresë majtas dhe klikoni <strong className="text-primary-start">"Analizo Dokumentin"</strong>, ose shtroni pyetje direkt më poshtë.
+                    <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                      {activeDoc ? (
+                        <span>Jeni duke analizuar shkresën <strong className="text-primary-start">{activeDoc.file_name}</strong>. Klikoni <strong>"Analizo Dokumentin"</strong> ose shtroni pyetje më poshtë.</span>
+                      ) : (
+                        <span>Fashikulli me të gjitha <strong>{documents.length} shkresat</strong> është gati. Klikoni <strong>"Analizo Fashikullin"</strong> për kryqëzim të plotë, ose zgjidhni një shkresë majtas.</span>
+                      )}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                   {messages.map((msg) => {
                     const isAi = msg.role === 'ai';
                     const isThinking = isAi && isProcessing && msg.content === '';
@@ -1220,20 +1238,19 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               )}
             </div>
 
-            {/* Input Terminal Bar në fund të Chat-it */}
-            <div className="p-3 sm:p-4 bg-surface border-t border-main shrink-0">
+            {/* INPUT TERMINAL BAR (Fiks në fund me fushë të zgjuar dinamike) */}
+            <div className="p-2.5 sm:p-3 bg-surface border-t border-main shrink-0">
               
-              {/* Badge i skedarit të bashkëngjitur me 📎 */}
               {attachedFile && (
-                <div className="flex items-center gap-2 px-3 py-1 mb-2 bg-primary-start/15 border border-primary-start/40 rounded-xl text-xs text-text-primary w-fit">
-                  <Paperclip size={13} className="text-primary-start shrink-0" />
-                  <span className="font-bold truncate max-w-[200px]">{attachedFile.name}</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 mb-1.5 bg-primary-start/15 border border-primary-start/40 rounded-lg text-xs text-text-primary w-fit">
+                  <Paperclip size={12} className="text-primary-start shrink-0" />
+                  <span className="font-bold truncate max-w-[180px] text-[11px]">{attachedFile.name}</span>
                   <button
                     type="button"
                     onClick={() => setAttachedFile(null)}
                     className="p-0.5 text-text-muted hover:text-rose-500"
                   >
-                    <X size={12} />
+                    <X size={11} />
                   </button>
                 </div>
               )}
@@ -1251,21 +1268,20 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                   e.preventDefault();
                   handleSendChatMessage(input);
                 }}
-                className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 focus-within:border-primary-start/50 transition-colors shadow-xs"
+                className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-1.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
-                {/* Butoni 📎 */}
                 <button
                   type="button"
                   onClick={() => chatFileInputRef.current?.click()}
                   disabled={isProcessing || isUploadingChatDoc}
-                  className={`p-2 rounded-xl transition-all cursor-pointer mb-0.5 shrink-0 ${
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer mb-0.5 shrink-0 ${
                     attachedFile
                       ? 'bg-primary-start text-white'
                       : 'text-text-muted hover:text-primary-start hover:bg-primary-start/10'
                   }`}
-                  title="Bashkëngjit provë: PDF, Word, Audio, Excel apo Foto"
+                  title="Bashkëngjit provë"
                 >
-                  <Paperclip size={16} />
+                  <Paperclip size={15} />
                 </button>
 
                 <textarea
@@ -1284,23 +1300,23 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       : attachedFile
                       ? `Shtoni pyetje për ${attachedFile.name}...`
                       : activeDoc
-                      ? `Pyet për "${activeDoc.file_name}" ose gjithë dosjen...`
-                      : "Pyet mbi provat, alibitë apo shkeljet ligjore..."
+                      ? `Pyet për "${activeDoc.file_name}" (ose kliko '✕' lart për gjithë dosjen)...`
+                      : `Pyet mbi të gjithë fashikullin (${documents.length} shkresa të lidhura)...`
                   }
-                  className="forensic-integrated-textarea flex-1 p-1.5 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[42px] max-h-[160px] border-0 outline-none"
+                  className="forensic-integrated-textarea flex-1 p-1 bg-transparent text-xs sm:text-sm text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[38px] max-h-[140px] border-0 outline-none"
                   rows={1}
                 />
 
                 <button
                   type="submit"
                   disabled={(!input.trim() && !attachedFile) || isProcessing || isUploadingChatDoc}
-                  className="h-9 w-9 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
+                  className="h-8 w-8 bg-primary-start text-white rounded-lg shadow-sm flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
                   title="Dërgo"
                 >
                   {isProcessing || isUploadingChatDoc ? (
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Send size={16} className="ml-0.5" />
+                    <Send size={14} className="ml-0.5" />
                   )}
                 </button>
               </form>

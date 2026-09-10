@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V266.0 (MULTI-DEVICE CHAT HISTORY + REPORT CACHE)
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V267.0 (TOTAL WIPEOUT OF LEGACY COMPREHENSIVE SERVICE)
 # 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • MULTI-TURN REASONING
 
 import os
@@ -17,15 +17,13 @@ from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
 from app.services.pillars.base_pillar_service import BasePillarService
 
-# Importimi i 4 Shtyllave Kryesore të Pavarura
+# Importimi i Shtyllave të Pavarura (Pa ComprehensiveAnalysisService)
 from app.services.pillars.forensic_audit_service import ForensicAuditService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
-from app.services.pillars.comprehensive_analysis_service import ComprehensiveAnalysisService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
 logger = logging.getLogger(__name__)
 
-# Koleksioni i ri për historikun e bisedës në lëndë
 CASE_CHAT_HISTORY_COLLECTION = "case_chat_history"
 
 MANDATORY_LEGAL_DISCLAIMER = (
@@ -80,12 +78,12 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V266.0 me Historik Multi‑Device dhe Raporte të Ruajtura."""
+    """Shërbimi Kryesor RAG — V267.0 pa varësi të vjetra të ComprehensiveAnalysis."""
 
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V266.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V267.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -158,7 +156,7 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        # ✅ NGARKIMI I HISTORIKUT NGA DB NËSE NUK JEPET
+        # Ngarkimi i historikut nga DB
         if history is None and self.db is not None and case_id and user_id:
             try:
                 past_cursor = self.db[CASE_CHAT_HISTORY_COLLECTION].find({
@@ -189,7 +187,7 @@ class AlbanianRAGService:
             "autopsi e plotë", "fashikull", "gjithë fashikullit"
         ])
 
-        # 2. Zbulimi i kërkesës për verifikim direkt statutor
+        # 2. Zbulimi i kërkesës për verifikim statutor
         is_statutory_verification = any(kw in query_lower for kw in [
             "verifiko nenet", "a janë të sakta nenet", "referencat ligjore", 
             "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
@@ -226,7 +224,6 @@ class AlbanianRAGService:
                 cached_text = doc_pillars[req_pillar]
                 if is_valid_legal_report(cached_text):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
-                    # Ruaj mesazhin e përdoruesit dhe përgjigjen
                     self._save_chat_message(user_id, case_id, "user", query)
                     self._save_chat_message(user_id, case_id, "assistant", cached_text)
                     yield cached_text
@@ -256,7 +253,7 @@ class AlbanianRAGService:
                     return
 
         # =========================================================================
-        # 🔍 FILLON GJENERIMI I PËRSHTATUR ME MEMORIE HISTORIKE
+        # 🔍 FILLON GJENERIMI ME DOKTRINË RAG
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
@@ -289,52 +286,32 @@ class AlbanianRAGService:
             exec_query = optimized_query
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            dossier_blocks = []
-            manifest_lines = []
-            max_chars_per_doc = 8000 if len(db_documents) > 10 else 25000
-
-            for idx, doc in enumerate(db_documents, 1):
-                doc_title = doc.get("file_name") or doc.get("title") or f"Dokumenti #{idx}"
-                raw_text = (doc.get("content") or doc.get("extracted_text") or doc.get("text") or "").strip()
-                doc_text = raw_text[:max_chars_per_doc]
-                doc_date = doc.get("document_date") or doc.get("created_at") or ""
-                if hasattr(doc_date, "strftime"):
-                    doc_date = doc_date.strftime("%d.%m.%Y")
-                
-                manifest_lines.append(f"{idx}. {doc_title} (Data/Ref: {doc_date})")
-                dossier_blocks.append(
-                    f"======================================================================\n"
-                    f"SHKRESA #{idx} NË FASHIKULL: {doc_title} | DATA: {doc_date}\n"
-                    f"======================================================================\n"
-                    f"{doc_text}\n"
-                )
-
-            if dossier_blocks:
-                integral_context_str = "\n".join(dossier_blocks)
-                manifest_str = "\n".join(manifest_lines)
-            else:
-                case_docs = vector_store_service.query_case_knowledge_base(
-                    user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
-                )
-                global_docs = vector_store_service.query_global_knowledge_base(
-                    query_text=optimized_query, n_results=15
-                )
-                manifest_str, integral_context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
-
-            base_prompt = ComprehensiveAnalysisService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                manifest_str=manifest_str,
-                context_str=integral_context_str,
-                case_domain=detected_domain,
-                db=self.db,
-                query_text=optimized_query,
-                user_id=user_id,
-                case_id=case_id
+            # ANALIZË E THELLË DHE E INTEGRUAR PA SHTJELLA TË NGURTA STATIKE
+            case_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=35
             )
-            system_prompt = base_prompt
+            global_docs = vector_store_service.query_global_knowledge_base(
+                query_text=optimized_query, n_results=15
+            )
+            manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
+
+            system_prompt = f"""
+            Ti je "Juristi AI - Asistenti Ligjor Inteligjent dhe Eksperti Kryesor i Doktrinës Ligjore në Kosovë".
+            LËNDA: **{case_title}** | LËMIA: **{detected_domain}** | KLIENTI: **{client_name}** ({client_position}) | DATA: {current_date_str}
+
+            {ANTI_HALLUCINATION_INSTRUCTION}
+
+            DETYRA E ANALIZËS GJITHËPËRFSHIRËSE:
+            Analizo të gjithë fashikullin e lëndës në mënyrë të strukturuar, shteruese dhe profesionale:
+            1. Pasqyra Procedurale dhe Faktet e Vërtetuara nga Shkresat (Rindërtimi kronologjik).
+            2. Kryqëzimi i Dëshmive dhe Subjekteve të Përfshira.
+            3. Shkeljet Ligjore, Nenet e Aplikueshme dhe Precedentët e Gjykatës Supreme.
+            4. Plani Taktik i Veprimit, Mjetet Juridike dhe Afatet e Prera.
+
+            DOKUMENTET DHE PROVAT E FASHIKULLIT:
+            {manifest_str}
+            {context_str}
+            """
             exec_query = optimized_query
 
         elif user_intent == "STATUTORY_VERIFICATION":
@@ -386,7 +363,7 @@ class AlbanianRAGService:
             system_prompt = base_prompt
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
-            # 🧠 CHAT UNIVERSAL DHE ADAPTUAR NDAJ ÇDO PYETJEJE
+            # CHAT UNIVERSAL
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
             )
@@ -412,7 +389,6 @@ class AlbanianRAGService:
             {context_str}
             """
 
-        # Ruaj mesazhin e përdoruesit në historik
         if self.db is not None and case_id and user_id:
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
@@ -425,13 +401,11 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save user chat message: {e}")
 
-        # Gjenerimi me Stream duke përcjellë historikun e plotë
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
             full_generated_response += content
             yield content
 
-        # Ruaj përgjigjen në historik
         if self.db is not None and case_id and user_id:
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
@@ -444,7 +418,6 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save assistant chat message: {e}")
 
-        # Ruajtja automatike nëse është raport i vlefshëm
         if is_valid_legal_report(full_generated_response):
             if single_doc_obj and self.db is not None:
                 save_doc_key = req_pillar or "PILLAR_1"

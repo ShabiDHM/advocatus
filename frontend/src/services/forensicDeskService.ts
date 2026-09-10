@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V4.0 (WAR ROOM COMPLETELY WIPED OUT)
-// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • LEAN ARCHITECTURE
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V5.0 (LEGACY PILLARS & COMPREHENSIVE SERVICE FULLY PURGED)
+// 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • LEAN CLEAN ARCHITECTURE
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
 
@@ -59,7 +59,6 @@ export interface ForensicDocItem {
   extracted_text?: string;
   evidence_sha256?: string;
   custody_stamp?: CustodyStamp;
-  forensic_pillars?: Record<string, string>;
   media_type?: 'audio' | 'video' | 'image';
   media_id?: string;
   created_at: string;
@@ -352,7 +351,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // 4. LABORATORI I SHKRESAVE DHE SHTJELLAVE
+  // 4. LABORATORI I SHKRESAVE DHE DOKUMENTEVE (PA METODA TË VJETRA SHTJELLASH)
   // ==========================================================
   public async uploadForensicDocument(caseId: string, file: File): Promise<ForensicDocItem> {
     const formData = new FormData();
@@ -373,49 +372,6 @@ export class ForensicDeskService {
 
   public async renameForensicDocument(caseId: string, docId: string, newName: string): Promise<void> {
     await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/rename`, { new_name: newName });
-  }
-
-  public async getForensicDocPillars(caseId: string, docId: string): Promise<Record<string, string>> {
-    const response = await apiClient.get<Record<string, string>>(`${this.baseUrl}/documents/${caseId}/${docId}/pillars`);
-    return response.data || {};
-  }
-
-  public async generateForensicDocPillar(caseId: string, docId: string, pillar: string, prompt: string): Promise<string> {
-    const response = await apiClient.post<{ content: string }>(
-      `${this.baseUrl}/documents/${caseId}/${docId}/pillars`,
-      { pillar, prompt }
-    );
-    return response.data.content || '';
-  }
-
-  public async deleteForensicDocPillar(caseId: string, docId: string, pillar: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`);
-  }
-
-  public async saveForensicDocPillarContent(
-    caseId: string,
-    docId: string,
-    pillar: string,
-    content: string
-  ): Promise<void> {
-    await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/pillars/${pillar}`, { content });
-  }
-
-  public async getForensicCasePillars(caseId: string): Promise<Record<string, string>> {
-    const response = await apiClient.get<Record<string, string>>(`${this.baseUrl}/dossiers/${caseId}/pillars`);
-    return response.data || {};
-  }
-
-  public async saveForensicCasePillarContent(
-    caseId: string,
-    pillar: string,
-    content: string
-  ): Promise<void> {
-    await apiClient.put(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`, { content });
-  }
-
-  public async deleteForensicCasePillar(caseId: string, pillar: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}/pillars/${pillar}`);
   }
 
   // ==========================================================
@@ -525,7 +481,7 @@ export class ForensicDeskService {
   }
 
   // ==========================================================
-  // STATISTIKAT E PROVAVE (VETËM LABORATORËT REALË TË PROVAVE)
+  // STATISTIKAT E PROVAVE (VETËM LABORATORËT REALË)
   // ==========================================================
   public async getEvidenceCounts(caseId: string): Promise<LabEvidenceCounts> {
     try {

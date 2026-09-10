@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V8.0 (WAR ROOM COMPLETELY ELIMINATED)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • 4 PURE FORENSIC LABS
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V8.5 (CLEAN TOP CONTROLS & DIRECT LAB EMBED)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • STREAMLINED WORKSPACE
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,7 +18,6 @@ import {
   Building2,
   RefreshCw,
   FolderPlus,
-  ShieldCheck,
   Trash2,
   Loader2,
   X,
@@ -41,19 +40,10 @@ import { AudioForensicLab } from '../components/forensics/AudioForensicLab';
 import { VisualForensicLab } from '../components/forensics/VisualForensicLab';
 import { FinancialForensicLab } from '../components/forensics/FinancialForensicLab';
 
-// Importimi i Terminalit të Bisedës Forenzike
-import { ForensicInterrogationDrawer } from '../components/forensics/ForensicInterrogationDrawer';
-
 export type ForensicLabType = 'DOCUMENTS' | 'AUDIO' | 'VISUAL' | 'FINANCIAL';
 
 export const AdminForensicDeskPage: React.FC = () => {
-  const { user } = useAuth();
-  
-  const isSuperAdmin = React.useMemo(() => {
-    if (!user) return false;
-    const role = String(user.role || (user as any).user_role || '').toUpperCase();
-    return role === 'SUPERADMIN' || role === 'ADMIN';
-  }, [user]);
+  useAuth();
 
   const [activeLab, setActiveLab] = useState<ForensicLabType>('DOCUMENTS');
   const [activeDossier, setActiveDossier] = useState<ForensicDossier | null>(null);
@@ -62,7 +52,6 @@ export const AdminForensicDeskPage: React.FC = () => {
   const [dossiersList, setDossiersList] = useState<ForensicDossier[]>([]);
   
   const [showNewDossierModal, setShowNewDossierModal] = useState<boolean>(false);
-  const [showChatDrawer, setShowChatDrawer] = useState<boolean>(false);
   const [deletingDossierId, setDeletingDossierId] = useState<string | null>(null);
 
   const [labCounts, setLabCounts] = useState<LabEvidenceCounts>({
@@ -198,7 +187,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Rreshti 2: Paneli i Kontrollit (Zgjedhësi + Chat + Fshirja + Shto) */}
+        {/* Rreshti 2: Paneli i Kontrollit (Zgjedhësi i Dosjes + Fshirja + Shto) */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="relative flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm flex-1 min-w-[150px] max-w-full sm:max-w-xs">
             <FolderOpen size={14} className="text-primary-start mr-1.5 shrink-0" />
@@ -236,18 +225,6 @@ export const AdminForensicDeskPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {isSuperAdmin && activeDossier && (
-              <button
-                type="button"
-                onClick={() => setShowChatDrawer(true)}
-                className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl sm:rounded-2xl bg-primary-start/10 hover:bg-primary-start/20 border border-primary-start/30 text-primary-start font-bold text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
-                title="Terminali i Sigurt i Bisedës Forenzike"
-              >
-                <ShieldCheck size={15} className="text-primary-start" />
-                <span className="hidden xs:inline">Chat</span>
-              </button>
-            )}
-
             {activeDossier && (
               <button
                 type="button"
@@ -382,7 +359,13 @@ export const AdminForensicDeskPage: React.FC = () => {
         ) : (
           <>
             {activeLab === 'DOCUMENTS' && (
-              <DocumentForensicLab caseId={activeDossier.id} onEvidenceChange={refreshEvidenceCounts} />
+              <DocumentForensicLab
+                caseId={activeDossier.id}
+                clientName={activeDossier.clientName}
+                caseNumber={activeDossier.caseNumber}
+                chainOfCustodyHash={activeDossier.chainOfCustodyHash}
+                onEvidenceChange={refreshEvidenceCounts}
+              />
             )}
 
             {activeLab === 'AUDIO' && (
@@ -399,18 +382,6 @@ export const AdminForensicDeskPage: React.FC = () => {
           </>
         )}
       </main>
-
-      {/* TERMINALI FORENZIK */}
-      {isSuperAdmin && activeDossier && (
-        <ForensicInterrogationDrawer
-          isOpen={showChatDrawer}
-          onClose={() => setShowChatDrawer(false)}
-          caseId={activeDossier.id}
-          caseNumber={activeDossier.caseNumber}
-          clientName={activeDossier.clientName}
-          chainOfCustodyHash={activeDossier.chainOfCustodyHash}
-        />
-      )}
 
       {/* MODALI I DOSJES SË RE */}
       {showNewDossierModal && (
