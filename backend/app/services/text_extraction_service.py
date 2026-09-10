@@ -1,5 +1,5 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V16.2 (HEADERS/FOOTERS + PARALLEL OCR)
+# PHOENIX PROTOCOL - OCR & SEQUENTIAL DOCX ENGINE V17.0 (IN-LINE TABLES + REAL PAGE SEGMENTATION)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • BACKWARD COMPATIBLE SERVICE ADAPTER
 
 import fitz
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 
 # OCR parallelization settings
-OCR_WORKERS = int(os.environ.get("OCR_WORKERS", "4"))  # Number of parallel OCR threads
-OCR_PAGE_DELAY = float(os.environ.get("OCR_PAGE_DELAY", "0.0"))  # Optional delay after each page (default 0)
+OCR_WORKERS = int(os.environ.get("OCR_WORKERS", "4"))
+OCR_PAGE_DELAY = float(os.environ.get("OCR_PAGE_DELAY", "0.0"))
 
 def _sanitize_text(text: str) -> str: 
     return text.replace("\x00", "") if text else ""
@@ -68,7 +68,6 @@ def _extract_docx_headers_footers(doc) -> str:
     header_footer_texts = []
     try:
         for section in doc.sections:
-            # Standard headers/footers
             for header in [section.header, section.first_page_header, section.even_page_header]:
                 if header is not None and not header.is_linked_to_previous:
                     for para in header.paragraphs:
@@ -86,34 +85,84 @@ def _extract_docx_headers_footers(doc) -> str:
 
 
 def _extract_docx_text(file_path: str) -> str:
-    """Extracts text from modern .docx including headers, footers, tables, and fallbacks."""
+    """
+    Ekstrakton tekstin nga .docx duke ruajtur renditjen kronologjike të paragrafëve dhe tabelave,
+    si dhe duke segmentuar saktë faqet (--- [FAQJA X] ---) për Claude dhe sistemin RAG.
+    """
     if not docx:
         return _extract_legacy_doc_text(file_path)
 
     try:
         doc = docx.Document(file_path)
-        paragraphs_text = [p.text for p in doc.paragraphs if p.text]
-        tables_text = []
-        for table in doc.tables:
-            for row in table.rows:
-                tables_text.append(" | ".join(cell.text.strip() for cell in row.cells if cell.text.strip()))
-        
-        # Extract headers and footers
-        headers_footers_text = _extract_docx_headers_footers(doc)
+        parts: List[str] = []
 
-        parts = []
+        headers_footers_text = _extract_docx_headers_footers(doc)
         if headers_footers_text:
             parts.append(headers_footers_text)
-        if paragraphs_text:
-            parts.append("\n".join(paragraphs_text))
-        if tables_text:
-            parts.append("\n".join(tables_text))
+
+        current_page = 1
+        parts.append(f"\n--- [FAQJA {current_page}] ---\n")
+
+        char_count_in_page = 0
+        PAGE_CHAR_THRESHOLD = 2300  # Mesatare e standardizuar për faqe ligjore A4
+
+        # Përshkimi sekuencial i trupit të dokumentit (Paragrafët dhe Tabelat në renditje natyrale)
+        for element in doc.element.body:
+            if isinstance(element, CT_P):
+                p = Paragraph(element, doc)
+                text = p.text.strip()
+
+                # Kontrollo për thyerje të qartë faqeje në XML të Word-it
+                has_hard_page_break = bool(
+                    element.xpath('.//w:br[@w:type="page"]') or 
+                    element.xpath('.//w:lastRenderedPageBreak')
+                )
+
+                if has_hard_page_break and char_count_in_page > 150:
+                    current_page += 1
+                    parts.append(f"\n--- [FAQJA {current_page}] ---\n")
+                    char_count_in_page = 0
+
+                if text:
+                    parts.append(text)
+                    char_count_in_page += len(text)
+
+                # Ndarje natyrale faqeje sipas vëllimit nëse Word nuk ka ruajtur hard break
+                if char_count_in_page >= PAGE_CHAR_THRESHOLD:
+                    current_page += 1
+                    parts.append(f"\n--- [FAQJA {current_page}] ---\n")
+                    char_count_in_page = 0
+
+            elif isinstance(element, CT_Tbl):
+                table = Table(element, doc)
+                table_rows_text: List[str] = []
+
+                for row in table.rows:
+                    cell_values = [cell.text.replace("\n", " ").strip() for cell in row.cells]
+                    if any(cell_values):
+                        table_rows_text.append("| " + " | ".join(cell_values) + " |")
+
+                if table_rows_text:
+                    col_count = len(table.rows[0].cells) if table.rows else 2
+                    sep = "| " + " | ".join(["---"] * col_count) + " |"
+                    formatted_table = [table_rows_text[0], sep] + table_rows_text[1:]
+                    tbl_str = "\n".join(formatted_table)
+
+                    parts.append("\n" + tbl_str + "\n")
+                    char_count_in_page += len(tbl_str)
+
+                    if char_count_in_page >= PAGE_CHAR_THRESHOLD:
+                        current_page += 1
+                        parts.append(f"\n--- [FAQJA {current_page}] ---\n")
+                        char_count_in_page = 0
 
         full_text = "\n\n".join(parts) if parts else ""
         if full_text and len(full_text.strip()) > 0:
+            logger.info(f"✅ [DOCX Sequential Extraction] U nxorën {len(full_text)} karaktere nga {current_page} faqe të identifikuara.")
             return _sanitize_text(full_text)
+
     except Exception as docx_err:
-        logger.warning(f"python-docx warning: {docx_err}")
+        logger.warning(f"python-docx sequential warning: {docx_err}")
         return _extract_legacy_doc_text(file_path)
 
     return _extract_legacy_doc_text(file_path)
@@ -176,7 +225,6 @@ def _extract_text_from_pdf(file_path: str) -> str:
                         logger.error(f"❌ [OCR] Faqja {page_num + 1} dështoi: {exc}")
                         pages_results[page_num] = f"\n--- [FAQJA {page_num + 1}] ---\n[Gabim OCR]"
 
-            # Optional small delay after batch (configurable)
             if OCR_PAGE_DELAY > 0:
                 time.sleep(OCR_PAGE_DELAY)
 
@@ -189,11 +237,7 @@ def _extract_text_from_pdf(file_path: str) -> str:
         return ""
 
 
-# ==========================================================
-# FIX: KONVERSION I SIGURT I FILE_PATH NË STRING
-# ==========================================================
 def _ensure_string_path(file_path: Union[str, bytes, os.PathLike]) -> str:
-    """Konverton file_path në string në mënyrë të sigurt."""
     if isinstance(file_path, bytes):
         return file_path.decode('utf-8', errors='ignore')
     if isinstance(file_path, os.PathLike):
@@ -202,11 +246,6 @@ def _ensure_string_path(file_path: Union[str, bytes, os.PathLike]) -> str:
 
 
 def extract_text(file_path: Union[str, bytes, os.PathLike], mime_type: str = "") -> str:
-    """
-    Nxjerr tekstin nga një skedar.
-    Argumenti file_path mund të jetë string, bytes, ose PathLike.
-    """
-    # Konverto file_path në string të sigurt
     path_str = _ensure_string_path(file_path)
     file_name_lower = path_str.lower()
     mime_lower = (mime_type or "").lower()
@@ -260,9 +299,6 @@ def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
                 pass
 
 
-# =========================================================================
-# 🎯 PHOENIX ADAPTER: KLASA DHE INSTANCA ZYRTARE PËR ROUTER-AT
-# =========================================================================
 class TextExtractionService:
     """Shërbimi qendror i nxjerrjes së tekstit dhe OCR-it."""
     
@@ -278,5 +314,4 @@ class TextExtractionService:
         return extract_text(file_path, mime_type)
 
 
-# Instanca zyrtare e eksportuar që kërkohet nga forensic/document_router.py
 text_extraction_service = TextExtractionService()

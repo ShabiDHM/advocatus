@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V4.5 (DUAL ENDPOINT: STREAM + NON-STREAM)
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V5.0 (DEEP DOSSIER RETRIEVAL ENGINE)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MULTI-DEVICE SYNC
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -39,35 +39,72 @@ def _build_system_prompt_with_rag(
     case_id_str: str,
     user_id: str,
     payload: ForensicChatMessage,
-    case_context: str
+    case_context: str,
+    db: Optional[Database] = None
 ) -> str:
-    """Ndërton system prompt profesional me RAG (Case Base + Knowledge Base)."""
-    # RAG Case Base
-    case_chunks = []
+    """
+    Ndërton system prompt me thellësi të plotë hetimore (Deep Case Dossier RAG).
+    Zgjeron dritaren nga 6 copëza në 35 copëza dhe tërheq tekstin integral të dosjes.
+    """
+    case_chunks: List[Dict[str, Any]] = []
+    
+    # 1. Tërheqje e thellë nga Vector Store (35 copëza në vend të 6)
     try:
         case_chunks = query_case_knowledge_base(
             user_id=user_id,
             query_text=payload.message,
-            n_results=6,
+            n_results=35,
             case_id=case_id_str
         )
     except Exception as e:
-        logger.warning(f"Case base retrieval failed: {e}")
+        logger.warning(f"Deep case base retrieval failed: {e}")
 
-    # RAG Knowledge Base
+    # 2. Siguresë Integriteti: Nëse copëzat vektoriale janë të pakta, merr tekstin e plotë direkt nga dokumentet e lëndës
+    direct_dossier_text = ""
+    if db is not None:
+        try:
+            c_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
+            doc_cursor = db.documents.find(
+                {"$or": [{"case_id": str(case_id_str)}, {"case_id": c_oid}], "status": {"$ne": "DELETED"}},
+                {"file_name": 1, "extracted_text": 1, "content": 1, "text": 1, "page_count": 1}
+            ).limit(10)
+
+            dossier_parts = []
+            for doc in doc_cursor:
+                content = (doc.get("extracted_text") or doc.get("content") or doc.get("text") or "").strip()
+                if content and len(content) > 50:
+                    fname = doc.get("file_name", "Dokument i Lëndës")
+                    pcount = doc.get("page_count", "I plotë")
+                    dossier_parts.append(f"--- DOKUMENTI ZYRTAR I LËNDËS: {fname} (Gjithsej faqe: {pcount}) ---\n{content}")
+
+            if dossier_parts:
+                direct_dossier_text = "\n\n".join(dossier_parts)
+        except Exception as doc_err:
+            logger.warning(f"Direct dossier lookup error: {doc_err}")
+
+    # 3. RAG Knowledge Base (Statute + Caselaw e Gjykatës Supreme)
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
             query_text=payload.message,
-            n_results=8
+            n_results=15
         )
     except Exception as e:
         logger.warning(f"Knowledge base retrieval failed: {e}")
 
-    case_context_text = "\n".join([
-        f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}): {c.get('text','')}"
-        for c in case_chunks if c.get("text")
-    ]) if case_chunks else "Nuk ka pjesë relevante nga dokumentet e lëndës."
+    # Formatimi i copëzave të lëndës
+    if case_chunks:
+        case_context_text = "\n\n".join([
+            f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}) [Fragment {i+1}]:\n{c.get('text','')}"
+            for i, c in enumerate(case_chunks) if c.get("text")
+        ])
+    else:
+        case_context_text = direct_dossier_text if direct_dossier_text else "Nuk ka pjesë relevante nga dokumentet e lëndës."
+
+    # Nëse kemi tekst të drejtpërdrejtë të dosjes, e bashkojmë për transparencë maksimale
+    if direct_dossier_text and case_chunks:
+        # Bashkon fragmentet specifike me përmbajtjen integrale të dosjes
+        case_context_text = f"=== FRAGMENTET PARËSORE TË IDENTIFIKUARA ===\n{case_context_text}\n\n=== PËRMBAJTJA INTEGRALE E DOSJES SË LËNDËS ===\n{direct_dossier_text}"
 
     knowledge_context_text = "\n".join([
         f"{c.get('source','Ligj')}: {c.get('text','')}"
@@ -75,14 +112,17 @@ def _build_system_prompt_with_rag(
     ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
 
     return f"""Ju jeni një ekspert ligjor i specializuar për legjislacionin e Republikës së Kosovës.
-Detyra juaj është të jepni përgjigje të sakta, profesionale dhe koncize, pa zhargon të panevojshëm, pa fraza marketingu, pa emoji dhe pa formatim të tepruar.
+Detyra juaj është të jepni përgjigje të sakta, profesionale, shteruese dhe me bazë ligjore të pakundërshtueshme.
 
-Përdorni vetëm gjuhë zyrtare juridike. Mos përfshini emra të tillë si "Terminali Forenzik Hetimor Suprem", "VULA FORENZIKE", etj. Përgjigjuni drejtpërdrejt pyetjes.
+RREGULLAT E ANALIZËS HETIMORE:
+1. Analizoni ME KUJDES TË GJITHA faqet, personat e përfshirë, të gjithë të dyshuarit (zyrtarë publikë, mjekë, punonjës socialë, gjyqtarë, persona privatë) dhe çdo provë shkresore që gjendet në dosje.
+2. Mos supozoni se mungojnë faqe apo të dyshuar: e gjithë dosja e lëndës gjendet më poshtë. Përgjigjuni mbi bazën e të gjitha provave dhe dokumenteve të administruara.
+3. Përdorni vetëm gjuhë zyrtare juridike. Përgjigjuni drejtpërdrejt pyetjes.
 
 KONTEKSTI I LËNDËS:
 {payload.case_context or 'Çështje hetimore forenzike'}
 
-PJESËT RELEVANTE NGA DOKUMENTET E LËNDËS (CASE BASE):
+DOSJA DHE PROVAT SHKRESORE TË LËNDËS (CASE BASE):
 {case_context_text}
 
 REFERENCAT LIGJORE DHE PRAKTIKA E GJYKATËS SUPREME (KNOWLEDGE BASE):
@@ -129,7 +169,7 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2a. DËRGIMI I PYETJES JO-STREAMING (PËR AUTOPSINË E DOKUMENTIT ETJ.)
+# 2a. DËRGIMI I PYETJES JO-STREAMING
 # ==========================================================
 @router.post("/chat")
 def send_forensic_chat_message_nonstream(
@@ -137,15 +177,10 @@ def send_forensic_chat_message_nonstream(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Endpoint jo-streaming për përputhshmëri me komponentët ekzistues (p.sh. autopsia e dokumentit).
-    Kryen të njëjtën logjikë RAG dhe kthen përgjigjen e plotë.
-    """
     user_id = str(current_user.id)
     case_id_str = str(payload.case_id)
     now_utc = datetime.now(timezone.utc)
 
-    # Mbledh historikun
     query = _build_case_query(case_id_str)
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
     conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
@@ -171,17 +206,16 @@ def send_forensic_chat_message_nonstream(
         "created_at": now_utc
     })
 
-    # Ndërto system prompt me RAG
-    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context)
+    # Ndërto system prompt me qasje të plotë në dosje
+    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context, db=db)
 
-    # Thirr LLM (jo-streaming)
+    # Thirr LLM
     raw_response = call_forensic_llm_chat(
         conversation_turns=conversation_turns,
         system_prompt=system_prompt,
         temperature=0.0
     )
 
-    # Verifiko citimet
     try:
         verified_text, audit_result = purge_and_regenerate_if_hallucinated(
             response_text=raw_response,
@@ -191,7 +225,6 @@ def send_forensic_chat_message_nonstream(
     except Exception:
         verified_text, audit_result = raw_response, None
 
-    # Ruaj përgjigjen
     assistant_msg_doc = {
         "case_id": case_id_str,
         "user_id": user_id,
@@ -202,7 +235,6 @@ def send_forensic_chat_message_nonstream(
     }
     db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
 
-    # Sinkronizim multi-device
     try:
         case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
         db.cases.update_one(
@@ -240,7 +272,7 @@ def send_forensic_chat_message_nonstream(
     }
 
 # ==========================================================
-# 2b. DËRGIMI I PYETJES ME STREAMING (PËR TERMINALIN E CHAT-IT)
+# 2b. DËRGIMI I PYETJES ME STREAMING
 # ==========================================================
 @router.post("/chat/stream")
 async def stream_forensic_chat_message(
@@ -248,15 +280,10 @@ async def stream_forensic_chat_message(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Streaming endpoint për terminalin forenzik.
-    Përdor RAG (Case Base + Knowledge Base) dhe transmeton token-at në kohë reale.
-    """
     user_id = str(current_user.id)
     case_id_str = str(payload.case_id)
     now_utc = datetime.now(timezone.utc)
 
-    # Mbledh historikun
     query = _build_case_query(case_id_str)
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
     conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
@@ -273,7 +300,6 @@ async def stream_forensic_chat_message(
 
     conversation_turns.append({"role": "user", "content": payload.message})
 
-    # Ruaj pyetjen
     db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
@@ -282,8 +308,8 @@ async def stream_forensic_chat_message(
         "created_at": now_utc
     })
 
-    # Ndërto system prompt me RAG
-    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context)
+    # Ndërto system prompt me qasje të plotë në dosje
+    system_prompt = _build_system_prompt_with_rag(case_id_str, user_id, payload, payload.case_context, db=db)
 
     async def generate():
         full_response = ""
