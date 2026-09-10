@@ -6,7 +6,6 @@ from .audio_router import router as forensic_audio_router
 from .visual_router import router as forensic_visual_router
 from .finance_router import router as forensic_finance_router
 from .document_router import router as forensic_document_router
-from .war_room_router import router as forensic_war_room_router
 from .chat_router import router as forensic_chat_router
 
 __all__ = [
