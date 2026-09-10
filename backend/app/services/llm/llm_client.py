@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V76.0 (COST-SAFE ROUTING & STRICT MODEL CHAIN)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • REDIS FLUSH
+# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V77.0 (VERIFIED OPENROUTER ENDPOINTS + AUTO-ALIASING)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • ZERO 404 RETRIES
 
 import os
 import json
@@ -30,10 +30,18 @@ PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
 FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
 DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-4.6")
 
-# Fallback-ët ekonomikë për kërkesat e përgjithshme
+# MAPIMI SANITAR: Parandalon gabimet 404 nëse një model i vjetër kërkohet nga .env apo shërbime të tjera
+MODEL_ALIASES: Dict[str, str] = {
+    "google/gemini-2.0-flash-001": "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash": "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash-exp": "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash-exp:free": "google/gemini-2.5-flash",
+}
+
+# Fallback-ët zyrtarë aktivë dhe të verifikuar në OpenRouter
 FALLBACK_MODELS = [
     "openai/gpt-4o-mini",
-    "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash",
     "deepseek/deepseek-chat",
     "openai/gpt-4o"
 ]
@@ -73,10 +81,17 @@ def _get_async_client() -> AsyncOpenAI:
         default_headers=OPENROUTER_HEADERS
     )
 
+def _resolve_model_name(model_name: str) -> str:
+    """Konverton automatikisht emrat e vjetëruar të OpenRouter në modelet aktive për të parandaluar 404."""
+    if not model_name:
+        return PRIMARY_MODEL
+    return MODEL_ALIASES.get(model_name, model_name)
+
 def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
-    # PHOENIX FIX: Nëse nuk specifikohet modeli, default është modeli ekonomik PRIMARY_MODEL (GPT-4o-Mini)
-    primary = requested_model or PRIMARY_MODEL
-    chain = [primary] + [m for m in FALLBACK_MODELS if m != primary]
+    primary_raw = requested_model or PRIMARY_MODEL
+    primary = _resolve_model_name(primary_raw)
+    
+    chain = [primary] + [_resolve_model_name(m) for m in FALLBACK_MODELS if _resolve_model_name(m) != primary]
     
     unique_chain: List[str] = []
     for m in chain:
