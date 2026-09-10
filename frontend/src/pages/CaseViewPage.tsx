@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V100.2 (FIXED 700px HEIGHT, SYMMETRIC PANELS)
-// ZERO TS WARNINGS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V101.0 (CASE ANALYSIS MODAL FULLY WIPED OUT • PURE STREAMLINED VIEW)
+// ZERO TS WARNINGS • 100% COMPLETE CODE • FIXED 700px SYMMETRIC PANELS
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,7 +19,6 @@ import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelp
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
-import { StandardCaseAnalysisModal } from '../components/case/StandardCaseAnalysisModal';
 import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
 
 type CaseData = { details: Case | null };
@@ -41,10 +40,7 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // 1. Dritarja Modale: Analizo Rastin
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState<boolean>(false);
-
-  // 2. Dritarja Modale: Analizo Dokumentin
+  // Dritarja Modale e Auditimit të Shkresës me Gjyqtarin Suprem
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -54,13 +50,8 @@ const CaseViewPage: React.FC = () => {
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
   const userSalutation = useMemo(() => getUserSalutation(user), [user]);
-  const caseTitle = useMemo(() => (caseData.details as any)?.title || (caseData.details as any)?.case_name || 'Lënda Ligjore', [caseData.details]);
   const clientName = useMemo(() => (caseData.details as any)?.client_name || (caseData.details as any)?.client?.name || 'Klienti', [caseData.details]);
   const clientPosition = useMemo(() => (caseData.details as any)?.client_position || 'DEFENDANT', [caseData.details]);
-
-  const isAnalysisDirty = useMemo(() => {
-    return Boolean((caseData.details as any)?.analysis_dirty);
-  }, [caseData.details]);
 
   const selectedDocObj = useMemo(() => {
     if (selectedDocumentIds.length > 0) {
@@ -285,10 +276,6 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
-  const handleOpenCaseAnalysis = useCallback(() => {
-    setIsAnalysisModalOpen(true);
-  }, []);
-
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     if (!caseId) return;
     setCurrentAuditedDoc(doc);
@@ -339,9 +326,10 @@ const CaseViewPage: React.FC = () => {
           documents={liveDocuments}
         />
 
-        {/* FIXED HEIGHT 700px FOR SYMMETRIC PANELS */}
+        {/* LARTËSIA E FIKSUAR 700px ME PANELE SIMETRIKE */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 h-[700px]">
-          {/* PANELI I MAJTË (DOKUMENTET) */}
+          
+          {/* PANELI I MAJTË (DOKUMENTET DHE PROVAT) */}
           <div className="lg:col-span-5 h-full overflow-y-auto flex flex-col">
             <EvidenceVaultPanel
               caseId={caseData.details.id}
@@ -359,7 +347,7 @@ const CaseViewPage: React.FC = () => {
             />
           </div>
 
-          {/* PANELI I DJATHTË (CHAT) */}
+          {/* PANELI I DJATHTË (CHAT DIREKT ME CLAUDE / GPT) */}
           <div className="lg:col-span-7 flex flex-col bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative h-full">
             <ChatPanel
               messages={chatMessages}
@@ -377,10 +365,8 @@ const CaseViewPage: React.FC = () => {
               onDocumentSelectionChange={setSelectedDocumentIds}
               userSalutation={userSalutation}
               clientPosition={clientPosition}
-              onOpenCaseAnalysis={handleOpenCaseAnalysis}
               onAnalyzeDocument={handleTriggerSelectedDocAudit}
               selectedDocName={selectedDocObj?.file_name}
-              isAnalysisDirty={isAnalysisDirty}
             />
           </div>
         </div>
@@ -401,15 +387,6 @@ const CaseViewPage: React.FC = () => {
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={() => handleViewOriginal(minimizedDocument)} onClose={() => setMinimizedDocument(null)} />}
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
-
-      <StandardCaseAnalysisModal
-        isOpen={isAnalysisModalOpen}
-        onClose={() => setIsAnalysisModalOpen(false)}
-        caseId={currentCaseId}
-        caseTitle={caseTitle}
-        clientName={clientName}
-        isAnalysisDirty={isAnalysisDirty}
-      />
 
       <StandardDocumentAuditModal
         isOpen={isDocAuditModalOpen}

@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/case/StandardDocumentAuditModal.tsx
-// PHOENIX PROTOCOL - UNIFIED FAST DOCUMENT AUDIT MODAL V4.0 (TRUE ATOMIC MONGODB CASCADE WIPEOUT)
-// ZERO TS WARNINGS • POWERED BY FAST MODEL (GPT-4O-MINI) • TOTAL PURGE SYNC • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - SUPREME JUDICIAL DOCUMENT AUDIT MODAL V5.0 (TOKEN-EFFICIENT & WORD-COMPATIBLE)
+// ZERO TS WARNINGS • POWERED BY GPT-4O-MINI / CLAUDE • TOTAL PURGE SYNC • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,120 @@ const FONT_LEVELS = [
   { label: '115%', base: 16.5, h1: 23, h2: 19.5, h3: 17.5, line: 1.75 },
   { label: '130%', base: 18.5, h1: 26, h2: 21.5, h3: 19, line: 1.8 }
 ];
+
+const markdownToWordHtml = (markdown: string): string => {
+  const lines = markdown.split(/\r?\n/);
+  const htmlOutput: string[] = [];
+  let inList: 'ul' | 'ol' | null = null;
+  let inBlockquote = false;
+  let blockquoteLines: string[] = [];
+
+  const formatInline = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 4px; font-family: Consolas, monospace; font-size: 10pt;">$1</code>');
+  };
+
+  const flushList = () => {
+    if (inList) {
+      htmlOutput.push(inList === 'ul' ? '</ul>' : '</ol>');
+      inList = null;
+    }
+  };
+
+  const flushBlockquote = () => {
+    if (inBlockquote) {
+      htmlOutput.push(`<blockquote style="border-left: 4px solid #2563eb; margin: 10px 0; padding: 8px 16px; background-color: #f8fafc; color: #334155; font-style: italic; font-family: Calibri, Arial, sans-serif;">${blockquoteLines.map(formatInline).join('<br>')}</blockquote>`);
+      blockquoteLines = [];
+      inBlockquote = false;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (/^(---|---|\*\*\*|___)$/.test(line)) {
+      flushList();
+      flushBlockquote();
+      htmlOutput.push('<hr style="border: 0; border-top: 1px solid #cbd5e1; margin: 16px 0;" />');
+      continue;
+    }
+
+    const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (hMatch) {
+      flushList();
+      flushBlockquote();
+      const level = hMatch[1].length;
+      const text = formatInline(hMatch[2]);
+      const fontSize = level === 1 ? '16pt' : level === 2 ? '14pt' : '12pt';
+      htmlOutput.push(`<h${level} style="font-size: ${fontSize}; font-family: Calibri, Arial, sans-serif; font-weight: bold; color: #0f172a; margin-top: 14px; margin-bottom: 6px;">${text}</h${level}>`);
+      continue;
+    }
+
+    if (line.startsWith('>')) {
+      flushList();
+      inBlockquote = true;
+      blockquoteLines.push(line.replace(/^>\s?/, ''));
+      continue;
+    } else if (inBlockquote) {
+      flushBlockquote();
+    }
+
+    const bulletMatch = line.match(/^([•\-\*])\s+(.+)$/);
+    if (bulletMatch) {
+      if (inList !== 'ul') {
+        flushList();
+        htmlOutput.push('<ul style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
+        inList = 'ul';
+      }
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(bulletMatch[2])}</li>`);
+      continue;
+    }
+
+    const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      if (inList !== 'ol') {
+        flushList();
+        htmlOutput.push('<ol style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
+        inList = 'ol';
+      }
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
+      continue;
+    }
+
+    flushList();
+    if (line.length === 0) continue;
+
+    htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b;">${formatInline(line)}</p>`);
+  }
+
+  flushList();
+  flushBlockquote();
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Pasqyra e Shkresës</title>
+      <style>
+        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; }
+      </style>
+    </head>
+    <body>
+      ${htmlOutput.join('\n')}
+    </body>
+    </html>
+  `.trim();
+};
 
 export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProps> = ({
   isOpen,
@@ -72,14 +186,14 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
     }
   }, [isOpen, caseId, documentId]);
 
-  // Auto-scroll gjatë kohës që gjenerohet teksti i ri
+  // Auto-scroll gjatë gjenerimit
   useEffect(() => {
     if (!isUserScrolledUpRef.current && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
   }, [reportContent, isLoading]);
 
-  // Gjenerimi i shpejtë dhe ekonomik me GPT-4o-Mini (FAST Mode)
+  // GJENERIMI I AUDITIMIT DOKTRINAR TË SHKRESËS
   const handleGenerateAudit = useCallback(async () => {
     if (!caseId || !documentId || isLoading || isPurging) return;
 
@@ -87,19 +201,35 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
     setReportContent('');
     isUserScrolledUpRef.current = false;
 
-    const fastPrompt = `[ANALIZË STANDARDE E SHKRESËS — PËRMBLEDHJE EKZEKUTIVE]
-Dokumenti: "${documentName}"
-DETYRË: Kryej analizën e qartë, praktike dhe koncize të kësaj shkrese për përdorim të shpejtë ligjor:
-1. IDENTITETI DHE LLOJI I SHKRESËS: Çfarë akti është, organi lëshues/nxjerrës, data dhe palët e përfshira.
-2. PËRMBLEDHJA E THELBISË: Çfarë kërkohet, vendoset ose pretendohet në këtë shkresë.
-3. BAZA KRYESORE LIGJORE: Dispozitat dhe nenet kryesore të legjislacionit të Kosovës që përmenden ose zbatohen.
-4. VLERËSIMI PROCEDURAL & AFATET: Rreziqet e menjëhershme, afatet ligjore prekluzive dhe hapat e rekomanduar.
-Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
+    const auditPrompt = `[EKZAMINIMI DOKTRINAR DHE AUDITIMI PROCEDURAL I SHKRESËS]
+Dokumenti: "${documentName}" | Klienti: "${clientName}"
+
+DETYRË E KONSULENCËS GJYQËSORE: Kryeni auditimin e thellë, të saktë dhe të strukturuar të këtij akti sipas legjislacionit pozitiv të Kosovës:
+
+### 1. DIAGNOZA E AKTIT DHE PASAPORTA PROCEDURALE
+* Lloji dhe forma ekzakte e aktit (Padi, Ankesë, Aktgjykim, Aktvendim, Procesverbal, Kontratë).
+* Organi nxjerrës, numri i lëndës/protokollit dhe auditimi i afateve ligjore prekluzive.
+* Struktura e palëve, cilësia procedurale dhe legjitimiteti aktiv/pasiv.
+
+### 2. VERIFIKIMI I NENEVE DHE KORRIGJIMI I GABIMEVE
+* Dispozitat e zbatuara saktë në formatin e verifikueshëm "Neni X i [Ligjit]".
+* Identifikimi i çdo neni të gabuar, të shfuqizuar apo të keqzbatuar dhe zëvendësimi me nenin e saktë në fuqi.
+
+### 3. PRECEDENTËT KYÇ TË GJYKATËS SUPREME DHE KUSHTETUESE
+* Precedentët e konsoliduar (PML / Revizion) dhe praktika kushtetuese që lidhen me këtë shkresë.
+
+### 4. VLERËSIMI PËRMBAJTJESOR DHE SHKELJET PROCEDURALE
+* Pikat e forta, dobësitë provuese dhe shkeljet thelbësore (Neni 182 i LPK-së / KPP-së).
+
+### 5. REKOMANDIMI TAKTIK PËRFUNDIMTAR DHE HAPI I ARDHSHËM
+* Hapi i prerë procedural që duhet ndërmarrë nga klienti me afatet e sakta ligjore.
+
+Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike, pa tabela të fryra dhe pa formalitete të tepërta hyrëse.`;
 
     try {
       const stream = apiService.sendChatMessageStream(
         caseId,
-        fastPrompt,
+        auditPrompt,
         [documentId],
         'ks',
         'FAST',
@@ -114,13 +244,13 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
       }
     } catch (err: any) {
       console.error("Standard Doc Audit Error:", err);
-      alert("Ndodhi një gabim gjatë pasqyrës së shkresës.");
+      alert("Ndodhi një gabim gjatë auditimit të shkresës.");
     } finally {
       setIsLoading(false);
     }
-  }, [caseId, documentId, documentName, isLoading, isPurging]);
+  }, [caseId, documentId, documentName, clientName, isLoading, isPurging]);
 
-  // TOTAL CASCADE WIPEOUT: Asgjësim atomik me $unset në MongoDB Atlas
+  // TOTAL CASCADE WIPEOUT në MongoDB
   const handleClearContent = async () => {
     if (!reportContent || !caseId || !documentId || isPurging) return;
     const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht pasqyrën e kësaj shkrese nga serveri (Total Cascade Wipeout)?");
@@ -138,11 +268,28 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
     }
   };
 
-  const handleCopy = () => {
+  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD
+  const handleCopy = async () => {
     if (!reportContent) return;
-    navigator.clipboard.writeText(reportContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const htmlContent = markdownToWordHtml(reportContent);
+
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const clipboardItem = new ClipboardItem({
+          'text/html': new Blob([htmlContent], { type: 'text/html' }),
+          'text/plain': new Blob([reportContent], { type: 'text/plain' }),
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        throw new Error();
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      await navigator.clipboard.writeText(reportContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleScroll = () => {
@@ -182,11 +329,8 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
-                    Pasqyra e Shkresës
+                    Auditimi Ligjor i Shkresës
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono uppercase">
-                    E Shpejtë • GPT-4o
-                  </span>
                 </div>
                 <p className="text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
                   {documentName} • {clientName}
@@ -221,14 +365,14 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                 </button>
               </div>
 
-              {/* Trash: TOTAL CASCADE WIPEOUT NË MONGODB ATLAS */}
+              {/* Trash */}
               {reportContent && (
                 <button
                   type="button"
                   onClick={handleClearContent}
                   disabled={isPurging}
                   className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                  title="Asgjëso përfundimisht nga MongoDB Atlas (Total Wipeout)"
+                  title="Fshi raportin nga serveri (Total Wipeout)"
                 >
                   {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
@@ -281,9 +425,9 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                   <Sparkles size={28} />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-text-primary">Pasqyra Ligjore e Shkresës</h4>
+                  <h4 className="text-base font-bold text-text-primary">Ekzaminimi Doktrinar i Shkresës</h4>
                   <p className="text-xs text-text-muted max-w-md mt-1">
-                    Gjeneroni një analizë të shpejtë dhe të qartë të këtij dokumenti me identifikimin e neneve dhe afateve thelbësore.
+                    Ekzaminoni këtë shkresë për vlefshmërinë e neneve, precedentët supremë dhe shkeljet procedurale.
                   </p>
                 </div>
                 <button
@@ -293,14 +437,14 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                   className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift disabled:opacity-50"
                 >
                   <Sparkles size={14} />
-                  <span>Gjenero Pasqyrën e Shkresës</span>
+                  <span>Fillo Auditimin e Shkresës</span>
                 </button>
               </div>
             ) : isLoading && !reportContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto space-y-3">
                 <Loader2 className="w-9 h-9 animate-spin text-primary-start" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                  Duke analizuar shkresën me shpejtësi...
+                  Duke audituar shkresën dhe verifikuar nenet...
                 </p>
               </div>
             ) : (
@@ -311,7 +455,6 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
               </div>
             )}
 
-            {/* Butoni Lundrues për lëvizje në fund të raportit */}
             {showScrollBottomBtn && (
               <button
                 type="button"
@@ -324,13 +467,13 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
             )}
           </div>
 
-          {/* Bottom Actions me Mbrojtje Anti-Abuzim */}
+          {/* Bottom Actions */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && !isLoading && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium" title="Shkresa është analizuar tashmë">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium" title="Shkresa është audituar tashmë">
                 <Lock size={12} className="text-text-muted" />
-                <span className="hidden sm:inline">Shkresa është e analizuar (Pastrojeni me kosh për ta asgjësuar nga serveri)</span>
-                <span className="sm:hidden">E analizuar</span>
+                <span className="hidden sm:inline">Raporti është ruajtur (Përdorni koshin për ta asgjësuar nga serveri)</span>
+                <span className="sm:hidden">I ruajtur</span>
               </div>
             )}
 
@@ -342,7 +485,7 @@ Rregull: Përgjigju qartë, pa vonesa, në gjuhë standarde juridike shqipe.`;
                 className="h-9 px-5 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
               >
                 {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'U Kopjua!' : 'Kopjo Përmbledhjen'}</span>
+                <span>{copied ? 'U Kopjua!' : 'Kopjo për Word'}</span>
               </button>
             </div>
           </div>

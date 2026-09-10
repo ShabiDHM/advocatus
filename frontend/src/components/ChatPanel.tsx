@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V90.0 (ZERO-LAG MEMOIZED ENGINE + ATTACHMENT PIPELINE)
+// PHOENIX PROTOCOL - CHAT PANEL V91.0 (CASE ANALYSIS PROPS PURGED • ZERO-LAG & ATTACHMENT HARMONY)
 // ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -51,12 +51,8 @@ interface ChatPanelProps {
   onDocumentSelectionChange?: (ids: string[]) => void;
   userSalutation?: string;
   clientPosition?: 'DEFENDANT' | 'PLAINTIFF' | 'NEUTRAL' | string;
-  onOpenCaseAnalysis?: () => void;
   onAnalyzeDocument?: () => void;
   selectedDocName?: string;
-  isAnalyzingCase?: boolean;
-  isAnalysisDirty?: boolean;
-  hasExistingAnalysis?: boolean;
 }
 
 type FileCategory = 'audio' | 'spreadsheet' | 'image' | 'document';
@@ -381,12 +377,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     userSalutation = 'Avokat',
     clientPosition = 'DEFENDANT',
     isPro = true,
-    onOpenCaseAnalysis,
     onAnalyzeDocument,
     selectedDocName,
-    isAnalyzingCase = false,
-    isAnalysisDirty = false,
-    hasExistingAnalysis = false,
   } = props;
 
   const [input, setInput] = useState('');
@@ -544,12 +536,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         onExportChat={onExportChat}
         t={t}
         isPro={isPro}
-        onAnalyzeCase={onOpenCaseAnalysis}
         onAnalyzeDocument={onAnalyzeDocument}
         selectedDocName={selectedDocName}
-        isAnalyzingCase={isAnalyzingCase}
-        isAnalysisDirty={isAnalysisDirty}
-        hasExistingAnalysis={hasExistingAnalysis}
       />
 
       {/* BODY CONTEXT */}

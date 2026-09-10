@@ -1,10 +1,9 @@
-# FILE: app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V17.0 (PURGED DEPRECATED FORENSIC CHAT • PRODUCTION STABILITY)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • STRICT CASE MANAGEMENT & PILLARS
+# FILE: backend/app/api/endpoints/cases/case_management_router.py
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V18.0 (LEGACY PILLARS & CASE ANALYSIS FULLY PURGED)
+# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • LEAN CASE MANAGEMENT
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
-from pydantic import BaseModel
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from pymongo.database import Database
 import asyncio
@@ -21,15 +20,9 @@ from app.api.endpoints.cases.cases_helpers import validate_object_id, ChatHistor
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-class SavePillarRequest(BaseModel):
-    pillar: str
-    content: str
-
-class SaveDocPillarRequest(BaseModel):
-    pillar: str
-    content: str
-
-# --- PUBLIC CLIENT PORTAL ENDPOINTS ---
+# =========================================================================
+# 🌐 1. PUBLIC CLIENT PORTAL ENDPOINTS
+# =========================================================================
 
 @router.get("/public/{case_id}/timeline")
 async def get_public_case_timeline(
@@ -112,7 +105,9 @@ async def download_public_shared_document(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-# --- AUTHENTICATED CASE ENDPOINTS ---
+# =========================================================================
+# ⚖️ 2. AUTHENTICATED CASE CRUD & MANAGEMENT ENDPOINTS
+# =========================================================================
 
 @router.get("/", response_model=List[CaseOut], include_in_schema=False)
 async def get_user_cases(
@@ -203,188 +198,6 @@ async def update_case_chat_history(
         {"$set": {"chat_history": chat_history_dicts}}
     )
     return {"status": "success", "message": "Chat history saved"}
-
-# =========================================================================
-# 🧹 PHOENIX TOTAL PURGE: ASGJËSIMI I PLOTË I ANALIZËS SË RASTIT NGA MONGODB
-# =========================================================================
-@router.post("/{case_id}/analysis/clear", status_code=status.HTTP_200_OK)
-@router.delete("/{case_id}/analysis/clear", status_code=status.HTTP_200_OK)
-async def clear_full_case_analysis_endpoint(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": case_oid},
-        {
-            "$unset": {
-                "latest_deep_analysis": "",
-                "latest_comprehensive_analysis": "",
-                "latest_analysis": "",
-                "standard_summary": "",
-                "forensic_pillars": ""
-            },
-            "$set": {
-                "analysis_dirty": True,
-                "updated_at": datetime.now(timezone.utc)
-            }
-        }
-    )
-    logger.info(f"🧹 [FULL CASE ANALYSIS PURGED] U fshi me $unset çdo gjurmë e analizës për lëndën {case_id} nga MongoDB!")
-    return {"status": "success", "message": "Analiza e lëndës u asgjësua plotësisht nga MongoDB."}
-
-# =========================================================================
-# 🏛️ SHTJELLAT E LËNDËS NË MONGODB
-# =========================================================================
-
-@router.post("/{case_id}/pillars", status_code=status.HTTP_200_OK)
-async def save_case_pillar_endpoint(
-    case_id: str,
-    payload: SavePillarRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    user_oid = ObjectId(current_user.id) if ObjectId.is_valid(current_user.id) else current_user.id
-    
-    case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
-    
-    pillar_key = payload.pillar.strip()
-    content_clean = payload.content.strip()
-
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": case_oid},
-        {
-            "$set": {
-                f"forensic_pillars.{pillar_key}": content_clean,
-                "latest_deep_analysis": content_clean,
-                "analysis_dirty": False,
-                "updated_at": datetime.now(timezone.utc)
-            }
-        }
-    )
-    logger.info(f"💾 [MongoDB Case Pillar Saved] U ruajt {pillar_key} për lëndën {case_id}!")
-    return {"status": "success", "pillar": pillar_key}
-
-@router.get("/{case_id}/pillars", status_code=status.HTTP_200_OK)
-async def get_case_pillars_endpoint(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    user_oid = ObjectId(current_user.id) if ObjectId.is_valid(current_user.id) else current_user.id
-    
-    case = db.cases.find_one({"_id": case_oid, "$or": [{"owner_id": user_oid}, {"owner_id": str(user_oid)}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
-    
-    return case.get("forensic_pillars") or {}
-
-@router.delete("/{case_id}/pillars/{pillar_name}", status_code=status.HTTP_200_OK)
-async def delete_single_case_pillar_endpoint(
-    case_id: str,
-    pillar_name: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    pillar_key = pillar_name.strip()
-
-    await asyncio.to_thread(
-        db.cases.update_one,
-        {"_id": case_oid},
-        {
-            "$unset": {
-                f"forensic_pillars.{pillar_key}": "",
-                "latest_deep_analysis": "",
-                "latest_comprehensive_analysis": ""
-            },
-            "$set": {
-                "analysis_dirty": True,
-                "updated_at": datetime.now(timezone.utc)
-            }
-        }
-    )
-    logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] U fshi plotësisht shtjella {pillar_key} për lëndën {case_id}!")
-    return {"status": "success", "message": f"Shtjella {pillar_key} u asgjësua nga MongoDB."}
-
-# =========================================================================
-# ⚖️ SHTJELLAT E DOKUMENTIT TË VETËM
-# =========================================================================
-
-@router.post("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
-async def save_document_pillar_endpoint(
-    case_id: str,
-    document_id: str,
-    payload: SaveDocPillarRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    doc_oid = validate_object_id(document_id)
-    pillar_key = payload.pillar.strip()
-    content_clean = payload.content.strip()
-
-    await asyncio.to_thread(
-        db.documents.update_one,
-        {"_id": doc_oid, "$or": [{"case_id": case_id}, {"case_id": case_oid}]},
-        {
-            "$set": {
-                f"forensic_pillars.{pillar_key}": content_clean,
-                "latest_analysis": content_clean,
-                "latest_forensic_audit": content_clean,
-                "last_audited_at": datetime.now(timezone.utc)
-            }
-        }
-    )
-    logger.info(f"💾 [MongoDB Doc Pillar Saved] U ruajt {pillar_key} për dokumentin {document_id}!")
-    return {"status": "success", "document_id": document_id, "pillar": pillar_key}
-
-@router.get("/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
-async def get_document_pillars_endpoint(
-    case_id: str,
-    document_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    doc_oid = validate_object_id(document_id)
-    doc = db.documents.find_one({"_id": doc_oid})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
-
-    return doc.get("forensic_pillars") or {}
-
-@router.delete("/{case_id}/documents/{document_id}/pillars/{pillar_name}", status_code=status.HTTP_200_OK)
-async def delete_single_document_pillar_endpoint(
-    case_id: str,
-    document_id: str,
-    pillar_name: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    doc_oid = validate_object_id(document_id)
-    case_oid = validate_object_id(case_id)
-    pillar_key = pillar_name.strip()
-
-    await asyncio.to_thread(
-        db.documents.update_one,
-        {"_id": doc_oid, "$or": [{"case_id": case_id}, {"case_id": case_oid}]},
-        {
-            "$unset": {
-                f"forensic_pillars.{pillar_key}": "",
-                "latest_analysis": "",
-                "latest_forensic_audit": ""
-            }
-        }
-    )
-    logger.info(f"🧹 [TOTAL CASCADE WIPEOUT] U asgjësua {pillar_key} për dokumentin {document_id} nga MongoDB!")
-    return {"status": "success", "message": f"Shtjella {pillar_key} u fshi plotësisht nga dokumenti."}
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(

@@ -1,10 +1,10 @@
 # FILE: backend/app/services/pillars/forensic_audit_service.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT AUTOPSY PROMPT ENGINE V275.0 (STREAM-OPTIMIZED & CLEAN LEGAL PROSE)
-# GJUHË E PASTËR JURIDIKE SHQIPE • SAKTËSI DOKTRINARE • ZERO TRUNCATION
+# PHOENIX PROTOCOL - SUPREME COURT JUDICIAL CONSULTANCY ENGINE V280.0 (TOKEN-EFFICIENT & STATUTE AUDITING)
+# GJUHË E LARTË DOKTRINARE • KORRIGJIM NENESH ME LINKE • PRECEDENTË SUPREMË DHE KUSHTETUES • ZERO FLUFF
 
 import logging
 import re
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, List
 from app.services.pillars.base_pillar_service import BasePillarService
 from app.services.pillars.role_guard_service import RoleGuardService
 
@@ -13,11 +13,13 @@ logger = logging.getLogger(__name__)
 
 class ForensicAuditService:
     """
-    Shërbim për analizën e dokumenteve ligjore.
-    Krijon struktura të qarta për tre shtjella:
-    - Shtjella 1: Pasaporta procedurale, palët dhe baza provuese.
-    - Shtjella 2: Nenet e zbatueshme dhe shkeljet procedurale.
-    - Shtjella 3: Auditimi i kërkesës, diagnoza dhe plani i veprimit.
+    Shërbim i Konsulencës Doktrinore të Nivelit të Gjykatës Supreme.
+    Misioni:
+    1. Pasaporta procedurale dhe diagnoza e aktit.
+    2. Auditimi i neneve, zbulimi i gabimeve dhe korrigjimi me nene të sakta (me linke).
+    3. Precedentët kyç të Gjykatës Supreme (PML / Revizion) dhe Gjykatës Kushtetuese.
+    4. Vlerësimi përmbajtjesor dhe shkeljet thelbësore (Neni 182 LPK / KPP).
+    5. Rekomandimi taktik përfundimtar dhe hapi i ardhshëm me afate ligjore të prera.
     """
 
     @staticmethod
@@ -39,7 +41,7 @@ class ForensicAuditService:
         if unique_laws:
             search_tokens.append(" ".join(unique_laws))
         if unique_cases:
-            search_tokens.append(" ".join([f"Rasti {c}" for c in unique_cases]))
+            search_tokens.append(" ".join(unique_cases))
 
         return " ".join(search_tokens)
 
@@ -60,7 +62,7 @@ class ForensicAuditService:
     ) -> str:
         teksti_shkreses = (document_text or context_str).strip()
         
-        # Zbulim dinamik i lëmisë
+        # Zbulimi dinamik i lëmisë
         if not case_domain:
             case_domain = BasePillarService.detect_case_domain(
                 case_title=case_title,
@@ -79,7 +81,7 @@ class ForensicAuditService:
             termat_precedenteve.append("Aktgjykimet Revizion të Kolegjit Civil")
         
         orientimi = " dhe ".join(termat_precedenteve) or "Aktgjykimet PML dhe Revizionet"
-        pyetja_kerkimore = query_text or f"{entitetet_ligjore} {case_domain} {orientimi} të Gjykatës Supreme të Kosovës"
+        pyetja_kerkimore = query_text or f"{entitetet_ligjore} {case_domain} {orientimi} dhe Kushtetuese të Kosovës"
 
         baza_globale = ""
         try:
@@ -87,7 +89,7 @@ class ForensicAuditService:
                 user_id=user_id or "",
                 case_id="",
                 query_text=pyetja_kerkimore,
-                n_results=10
+                n_results=12
             )
         except Exception as rag_err:
             logger.warning(f"RAG precedent search warning: {rag_err}")
@@ -96,80 +98,14 @@ class ForensicAuditService:
         mbrojtja_rolit = RoleGuardService.build_role_guard(pozicioni, client_name)
         toni_rolit = RoleGuardService.get_role_specific_tone(pozicioni)
 
-        query_lower = (query_text or "").lower()
+        return f"""[MANDATI DHE DIREKTIVA E GJYQTARIT SUPREM NË KONSULENCË JURIDIKE]
+Ju jeni një Gjyqtar i Lartë i Gjykatës Supreme të Kosovës që ofroni ekspertizë doktrinore dhe auditim ligjor të shkresave.
+Detyra juaj është të ekzaminoni me përpikmëri shkencore shkresën e paraqitur, të verifikoni çdo nen, të zbuloni gabimet apo shkeljet dhe të jepni udhëzimin e saktë taktik për veprim.
 
-        # =========================================================================
-        # STRUKTURAT E MODULARIZUARA PA TEPRICA DHE PA ZHARGON
-        # =========================================================================
-        if any(term in query_lower for term in ["shtjella 1", "ekzaminimi", "pasaporta"]):
-            struktura_seksioneve = f"""
-SHTJELLA 1: EKZAMINIMI DHE FAKTET E SHKRESËS (SEKSIONET 1, 2 DHE 3)
-Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
-
-### 1. PASAPORTA PROCEDURALE DHE DIAGNOZA E AKTIT
-* **Natyra dhe Lloji i Aktit:** Përcakto formën e shkresës (Padi, Ankesë, Aktgjykim, Aktvendim, Procesverbal, Kontratë).
-* **Titullari Nxjerrës:** Gjykata, organi administrativ, prokuroria apo eksperti.
-* **Numri Identifikues i Lëndës:** Numri i saktë i protokollit apo shenjës gjyqësore.
-* **Auditimi i Afateve:** Vlerësimi nëse akti është nxjerrë apo goditur brenda afatit ligjor prekluziv.
-
-### 2. STRUKTURA E PALËVE DHE LEGJITIMITETI
-* **Parashtruesi i Aktit:** Legjitimiteti aktiv dhe cilësia procedurale.
-* **Pala Kundërshtare:** Legjitimiteti pasiv dhe fusha e efektit juridik.
-* **Interesi Juridik:** Të drejtat që mbrohen apo rrezikohen nga ky akt.
-
-### 3. KRYQËZIMI I FAKTEVE DHE BAZA PROVUESE
-* **Pretendimet Kryesore:** Përmbledhje e fakteve që pretendohen në shkresë.
-* **Provat e Administruara:** Provat shkresore, materiale apo ekspertizat që citohen.
-* **Zbrazëtirat Provuese:** Provat thelbësore që mungojnë apo janë shpërfillur padrejtësisht.
-"""
-        elif any(term in query_lower for term in ["shtjella 2", "nenet", "shkeljet"]):
-            struktura_seksioneve = f"""
-SHTJELLA 2: NENET DHE SHKELJET PROCEDURALE (SEKSIONET 4 DHE 5)
-Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
-
-### 4. TABELA E DISPOZITAVE DHE PRECEDENTËVE TË GJYKATËS SUPREME
-Nxirr të gjitha nenet e legjislacionit pozitiv të Kosovës që lidhen drejtpërdrejt me këtë shkresë:
-| Neni dhe Ligji i Kosovës | Instituti Juridik | Shkelja apo Zbatimi i Gabuar | Precedenti i Gjykatës Supreme |
-| :--- | :--- | :--- | :--- |
-
-### 5. GJETJET KRITIKE DHE SHKELJET THELBËSORE
-* **Shkeljet Thelbësore të Procedurës:** Analizo shkeljet sipas Nenit 182 të LPK-së apo Kodit të Procedurës Penale (mungesa e arsyetimit, kundërthëniet, moskompetenca).
-* **Tabela e Pasaktësive dhe Gabimeve Materiale në Shkresë:**
-| Formulimi i Pasaktë në Shkresë | Natyra e Gabimit / Shkeljes | Formulimi i Saktë Ligjor |
-| :--- | :--- | :--- |
-"""
-        elif any(term in query_lower for term in ["shtjella 3", "plani", "kundërshtimet"]):
-            struktura_seksioneve = f"""
-SHTJELLA 3: KUNDËRSHTIMET, DIAGNOZA DHE PLANI I VEPRIMIT (SEKSIONET 6, 7 DHE 8)
-Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
-
-### 6. AUDITIMI I KËRKESËS DHE FORCA EKZEKUTIVE
-* **Qartësia dhe Përmbajtja e Dispozitivit:** Vlerësimi i zbatueshmërisë praktike të kërkesës.
-* **Rreziqet Procedurale:** Pikat që rrezikojnë rrëzimin e aktit në shkallët më të larta të gjykimit.
-
-### 7. DIAGNOZA KORRIGJUESE DHE REKOMANDIMET
-* **Vlerësimi i Qëndrueshmërisë:** Pikat e forta dhe dobësitë e kësaj shkrese.
-* **Këshilla Taktike e Goditjes:** Si të neutralizohen efektet negative përmes mjeteve ligjore (Ankesë, Prapësim, Padi për Anulim, Masë Sigurimi).
-
-### 8. MASTER PLANI I VEPRIMIT DHE AFATET LIGJORE
-* **Hapi 1 (Veprimi Emergjent):** Çfarë duhet dorëzuar brenda afatit ligjor më të afërt.
-* **Hapi 2 (Plotësimi Provues):** Sigurimi i provave shtesë dhe ekspertizave.
-* **Konkluzioni Përfundimtar:** Vlerësimi përmbyllës i forcës ligjore të aktit për klientin {client_name}.
-"""
-        else:
-            struktura_seksioneve = f"""
-AUTOPSIA PROCEDURALE E SHKRESËS
-Lënda: {case_title} | Klienti: {client_name} ({pozicioni}) | Data: {current_date_str}
-
-Trajto në mënyrë të qartë pasaportën procedurale, bazën ligjore dhe rekomandimet konkrete për veprim.
-"""
-
-        return f"""[DIREKTIVË PËR ANALIZË TË DOKUMENTIT LIGJOR]
-Ju jeni një ekspert ligjor i specializuar në legjislacionin e Republikës së Kosovës.
 RREGULLAT E PËRGJIGJES:
-1. Përdorni gjuhë standarde juridike shqipe.
-2. Bazo arsyetimin ekskluzivisht në tekstin e shkresës që auditohet.
-3. Përgjigju në mënyrë të qartë dhe pa përsëritje të panevojshme, duke plotësuar të gjitha pikat e strukturës së kërkuar.
+1. GJUHË E LARTË ZYRTARE JURIDIKE: Përdorni terminologji të pastër gjyqësore të Republikës së Kosovës.
+2. CITIMI I NENEVE DHE LINQET: Sa herë që citoni një nen, shkruajeni saktë: "Neni [Numri] i [Emri i Ligjit ose Kodit]" (p.sh. Neni 182 i LPK-së, Neni 218 i KPPRK-së), në mënyrë që të jetë plotësisht i verifikueshëm.
+3. KURSENI TOKENAT DHE MOS PËRDORNI TABELA TË KOTA: Përgjigjuni me strukturë të qartë hierarkike me numra dhe pika (bullet points). Tabelat përdorini VETËM nëse përdoruesi e ka kërkuar shprehimisht.
 
 {protokolli_suprem}
 
@@ -177,21 +113,44 @@ RREGULLAT E PËRGJIGJES:
 
 TË DHËNAT E SHKRESËS NË AUDITIM:
 - Lënda: {case_title}
-- Klienti: {client_name or 'I papërcaktuar'}
-- Pozicioni: {pozicioni}
+- Klienti: {client_name or 'I papërcaktuar'} ({pozicioni})
 - Lëmia: {case_domain}
-- Data e Auditimit: {current_date_str}
+- Data e Ekzaminimit: {current_date_str}
 
 {toni_rolit}
 
-PRECEDENTËT SUPREMË RELEVANTË:
-{baza_globale if baza_globale else 'Zbato dispozitat pozitive të legjislacionit të Kosovës.'}
+JURISPRUDENCA E GJYKATËS SUPREME DHE KUSHTETUESE (KNOWLEDGE BASE):
+{baza_globale if baza_globale else 'Zbato dispozitat pozitive dhe precedentët e konsoliduar të Gjykatës Supreme të Kosovës.'}
 
 {'='*50}
 TEKSTI I SHKRESËS QË AUDITOHET:
 {'='*50}
-{teksti_shkreses[:25000]}
+{teksti_shkreses[:30000]}
 {'='*50}
 
-STRUKTURA E DETYRUESHME:
-{struktura_seksioneve}"""
+STRUKTURA E DETYRUESHME E OPINIONIT TUAJ:
+
+### 1. DIAGNOZA E AKTIT DHE PASAPORTA PROCEDURALE
+* **Lloji i Aktit dhe Forma:** Përcakto formën ekzakte (Padi, Kallëzim Penal, Ankesë, Prapësim, Aktgjykim, Aktvendim, Procesverbal, Kontratë).
+* **Organi / Titullari Nxjerrës:** Gjykata, Prokuroria, Noteri, Eksperti apo pala private.
+* **Shenja Identifikuese e Lëndës:** Numri i saktë i lëndës, aktit apo protokollit.
+* **Auditimi i Afateve Procedurale:** Vlerëso nëse akti është brenda afatit ligjor prekluziv apo ka rrezik skadimi të afateve.
+
+### 2. AUDITIMI I NENEVE DHE DETEKTORI I GABIMEVE
+* **Dispozitat e Zbatuara me Saktësi:** Nenet që janë zbatuar drejt sipas legjislacionit pozitiv të Kosovës.
+* **Nenet e Gabuara, të Shfuqizuara apo të Keqzbatuara:**
+  - Identifiko me saktësi çdo nen apo ligj të vjetëruar/shfuqizuar ose të cituar gabimisht në shkresë.
+  - **Rekomando Nenin dhe Ligjin e Saktë në Fuqi:** Jep formulimin e saktë ligjor që duhet përdorur për zëvendësim (p.sh. zëvendëso Nenin e vjetër me Nenin e ri në fuqi).
+
+### 3. PRECEDENTËT KYÇ TË GJYKATËS SUPREME DHE KUSHTETUESE
+* **Precedentët e Kolegjit të Gjykatës Supreme (PML / Revizion):** Cito praktikat gjyqësore detyruese që lidhen me nenet dhe institutin kryesor të këtij dokumenti.
+* **Praktika e Gjykatës Kushtetuese (nëse aplikohet):** Standardet për gjykim të drejtë (Neni 31 i Kushtetutës / Neni 6 i KEDNJ-së) dhe ndalimi i arbitraritetit.
+
+### 4. VLERËSIMI PËRMBAJTJESOR DHE SHKELJET E IDENTIFIKUARA
+* **Pikat e Forta të Shkresës:** Elementet provuese dhe juridike të qëndrueshme.
+* **Pikat e Dobëta, Zbrazëtirat Provuese dhe Rreziqet:** Ku çalon akti, çfarë provash mungojnë dhe ku mund të goditet nga pala kundërshtare.
+* **Shkeljet Thelbësore Procedurale:** Analizo shkeljet e mundshme sipas Nenit 182 të LPK-së apo Kodit të Procedurës Penale.
+
+### 5. REKOMANDIMI TAKTIK PËRFUNDIMTAR DHE HAPI I ARDHSHËM
+* **Udhëzimi Konkret i Veprimit:** Çfarë duhet të bëjë avokati/klienti tani (përmirësim i shkresës, parashtrim ankese, prapësim, kërkesë për përjashtim, masë sigurimi).
+* **Afatet Ligjore të Prera:** Afati i saktë brenda të cilit duhet ndërmarrë ky veprim procedurial."""

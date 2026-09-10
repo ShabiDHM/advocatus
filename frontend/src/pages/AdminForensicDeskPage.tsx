@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V11.0 (3 PURE EVIDENCE LABS • FINANCE TAB FULLY PURGED)
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V11.5 (CLEAN IDENTITY BAR • UNNECESSARY NUMBER PURGED)
 // 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • STREAMLINED STUDIO
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,7 +9,6 @@ import {
   Video,
   Plus,
   FolderOpen,
-  Hash,
   RefreshCw,
   FolderPlus,
   Trash2,
@@ -184,11 +183,11 @@ export const AdminForensicDeskPage: React.FC = () => {
   return (
     <div className="w-full min-h-screen bg-canvas text-text-primary p-2.5 sm:p-5 lg:p-7 max-w-[1750px] mx-auto transition-colors select-none">
       
-      {/* PASAPORTA EKZEKUTIVE E LËNDËS NË KRYE TË FAQES */}
+      {/* PASAPORTA EKZEKUTIVE E LËNDËS */}
       <header className="glass-panel p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-2.5 flex-wrap">
           
-          {/* PJESA E MAJTË: ZGJEDHËSI I DOSJES + TË DHËNAT REALE LIGJORE */}
+          {/* PJESA E MAJTË: ZGJEDHËSI I DOSJES + IDENTITETI I PASTËR I KLIENTIT */}
           <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[200px]">
             
             {/* Zgjedhësi Dropdown */}
@@ -222,16 +221,10 @@ export const AdminForensicDeskPage: React.FC = () => {
               </button>
             </div>
 
-            {/* TË DHËNAT ZYRTARE TË PALËS DHE LËNDËS */}
+            {/* TË DHËNAT ZYRTARE TË PALËS */}
             {activeDossier && (
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
                 
-                {/* Numri Zyrtar i Lëndës */}
-                <div className="flex items-center gap-1 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs text-text-muted font-mono" title="Numri i Lëndës / Protokolli">
-                  <Hash size={12} className="text-primary-start shrink-0" />
-                  <span className="font-bold text-text-primary">{activeDossier.caseNumber}</span>
-                </div>
-
                 {/* Emri i Palës / Klientit */}
                 <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs">
                   <User size={13} className="text-primary-start shrink-0" />
@@ -288,7 +281,7 @@ export const AdminForensicDeskPage: React.FC = () => {
                   <span className="font-medium text-text-primary truncate max-w-[220px]">{activeDossier.courtJurisdiction}</span>
                 </div>
 
-                {/* BUTONI I EDITIMIT ME LAPUS (✏️) */}
+                {/* BUTONI I EDITIMIT ME LAPS (✏️) */}
                 <button
                   type="button"
                   onClick={handleOpenEditModal}
@@ -328,7 +321,7 @@ export const AdminForensicDeskPage: React.FC = () => {
         </div>
       </header>
 
-      {/* SHIRITI I NAVIGIMIT MES 3 LABORATORËVE REALË TË PROVAVE */}
+      {/* SHIRITI I NAVIGIMIT MES 3 LABORATORËVE TË PROVAVE */}
       <nav className="my-3 sm:my-4 w-full">
         <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-inner gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x [-webkit-overflow-scrolling:touch]">
           <button
