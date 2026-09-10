@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.14 (MASTER MOBILE & TABLET RESPONSIVE)
+// PHOENIX PROTOCOL - DUAL FORENSIC AUTOPSY LAB V14.15 (GREEN TOAST COMPLETELY REMOVED)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -22,7 +22,6 @@ import {
   Copy,
   Check,
   X,
-  Sparkles,
   Scale
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -110,9 +109,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
 
   // Ndërrimi i skedës në Mobile/Tablet (< lg)
   const [mobileActiveTab, setMobileActiveTab] = useState<'DOCS' | 'AUTOPSY'>('DOCS');
-
-  // Njoftimi i suksesit (Toast) kur përfundon procesimi
-  const [statusNotification, setStatusNotification] = useState<string | null>(null);
 
   const [autopsyScope, setAutopsyScope] = useState<AutopsyScope>('DOCUMENT');
   const [activePillar, setActivePillar] = useState<PillarType>('PILLAR_1');
@@ -258,19 +254,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     if (!silent) setLoadingDocs(true);
     try {
       const docs = await forensicDeskService.listForensicDocuments(caseId);
-
-      setDocuments(prevDocs => {
-        prevDocs.forEach(oldDoc => {
-          if (oldDoc.status === 'PROCESSING') {
-            const updated = docs.find(d => d.id === oldDoc.id);
-            if (updated && updated.status !== 'PROCESSING') {
-              setStatusNotification(`Dokumenti "${updated.file_name}" u procesua dhe u indeksua me sukses.`);
-              setTimeout(() => setStatusNotification(null), 5000);
-            }
-          }
-        });
-        return docs;
-      });
+      setDocuments(docs);
 
       if (docs.length > 0 && !selectedDocId) {
         setSelectedDocId(docs[0].id);
@@ -492,9 +476,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // ============================================================
-  // GJENERIMI I BLINDUAR ME STREAMING + RUAJTJE PERSISTENTE
-  // ============================================================
   const handleGeneratePillar = useCallback(async (pillar: PillarType, scopeVal: AutopsyScope = autopsyScope, docIdVal: string | null = selectedDocId) => {
     if (!caseId || loadingPillars[pillar]) return;
 
@@ -661,20 +642,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         </button>
       </div>
 
-      {/* NJOFTIMI TOAST KUR PROCESIMI PËRFUNDON */}
-      {statusNotification && (
-        <div className="fixed top-4 sm:top-6 right-4 sm:right-6 z-50 flex items-center gap-2 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border border-emerald-500 animate-in slide-in-from-top duration-300 max-w-[90vw] sm:max-w-md">
-          <Sparkles size={16} className="shrink-0 animate-spin" />
-          <span className="text-xs sm:text-sm font-bold truncate">{statusNotification}</span>
-          <button
-            onClick={() => setStatusNotification(null)}
-            className="ml-auto p-1 hover:bg-emerald-700 rounded-lg cursor-pointer shrink-0"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {/* RRJETI KRYESOR (GRID) */}
       <div className={`grid grid-cols-1 ${isFullscreen ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-4 sm:gap-6 transition-all duration-300`}>
         
@@ -770,7 +737,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                           setSelectedDocId(doc.id);
                           setAutopsyScope('DOCUMENT');
                           setActivePillar('PILLAR_1');
-                          // Në mobile kalo automatikisht te pamja e autopsisë
                           if (window.innerWidth < 1024) {
                             setMobileActiveTab('AUTOPSY');
                           }
@@ -999,7 +965,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 )}
               </div>
 
-              {/* SHIRITI I 3 SHTJELLAVE (RESPONSIVE ME EMRA TË SHKURTËR NË MOBILE) */}
+              {/* SHIRITI I 3 SHTJELLAVE */}
               <div className="grid grid-cols-3 gap-1 sm:gap-2">
                 {(Object.keys(currentConfigs) as PillarType[]).map((pillarKey) => {
                   const cfg = currentConfigs[pillarKey];
@@ -1153,12 +1119,11 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         )}
       </div>
 
-      {/* MODAL I TEKSTIT TË EKSTRAKTUAR (RESPONSIVE NË MOBILE DHE WIDESCREEN) */}
+      {/* MODAL I TEKSTIT TË EKSTRAKTUAR */}
       {extractedModalData && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-6 md:p-8">
           <div className="relative w-full max-w-6xl xl:max-w-7xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[90vh] sm:h-[88vh] animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Header i Modalit */}
             <div className="flex items-center justify-between px-4 sm:px-8 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 gap-2 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
@@ -1195,14 +1160,12 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
               </div>
             </div>
 
-            {/* Trupi i Leximit të Tekstit */}
             <div className="p-4 sm:p-8 md:p-10 overflow-y-auto custom-finance-scroll bg-white dark:bg-slate-950 flex-1">
               <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm md:text-base leading-relaxed text-slate-800 dark:text-slate-200 select-text font-normal max-w-none">
                 {extractedModalData.text}
               </pre>
             </div>
 
-            {/* Footer */}
             <div className="px-4 sm:px-8 py-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
               <span className="hidden sm:inline">Korpus ligjor i indeksuar me AI</span>
               <button
