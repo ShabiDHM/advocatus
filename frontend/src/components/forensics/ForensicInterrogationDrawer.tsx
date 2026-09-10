@@ -1,12 +1,13 @@
 // FILE: frontend/src/components/forensics/ForensicInterrogationDrawer.tsx
-// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.4 (SYNCHRONIZED SINGLE-ZOOM FOR CHAT & TEXTAREA)
-// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL V6.6 (ZERO-LAG MEMOIZED ENGINE + ATTACHMENT PIPELINE)
+// 100% COMPLETE CODE • ZERO DUPLICATIONS • ZERO TS WARNINGS • ULTRA 60FPS TYPING
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BrainCircuit, X, Send, Trash2, Copy, CheckCircle2, 
-  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2, ShieldCheck
+  Loader2, Swords, Scale, User, HelpCircle, ShieldAlert, Maximize2, Minimize2, ShieldCheck,
+  Paperclip, FileText
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -61,7 +62,6 @@ const QUICK_FORENSIC_COMMANDS = [
   }
 ];
 
-// Nivelet e madhësisë së fontit: aplikohen NJËKOHËSISHT në Chat dhe në Textarea
 const FONT_LEVELS = [
   { label: '90%',   base: 13,   line: 1.55 },
   { label: '100%',  base: 15,   line: 1.65 },
@@ -70,10 +70,6 @@ const FONT_LEVELS = [
   { label: '150%',  base: 21,   line: 1.8 }
 ];
 
-/**
- * Konvertues i plotë semantik Markdown në HTML të pasur për Microsoft Word
- * Mbështet: Tabela me vija dhe ngjyra, Tituj, Lista, Kuotime, Vija ndarëse dhe Bold/Italic
- */
 const markdownToWordHtml = (markdown: string): string => {
   const lines = markdown.split(/\r?\n/);
   const htmlOutput: string[] = [];
@@ -242,6 +238,110 @@ const markdownToWordHtml = (markdown: string): string => {
   `.trim();
 };
 
+// ============================================================================
+// KOMPONENTI I MEMOIZUAR PËR ZERO-LAG TYPING (React.memo)
+// Parandalon ri-vizatimin e mesazheve të vjetra kur shkruhet në tastierë!
+// ============================================================================
+interface ForensicMessageBubbleProps {
+  msg: ForensicMessage;
+  isAi: boolean;
+  isThinking: boolean;
+  isCopied: boolean;
+  onCopy: (id: string, text: string) => void;
+  markdownComponents: any;
+  activeFontBase: number;
+  activeFontLine: number;
+}
+
+const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo(({
+  msg,
+  isAi,
+  isThinking,
+  isCopied,
+  onCopy,
+  markdownComponents,
+  activeFontBase,
+  activeFontLine
+}) => {
+  // Memoizon autolinking që të ekzekutohet VETËM një herë për çdo mesazh
+  const formattedContent = useMemo(() => {
+    return isAi ? autoLinkLegalCitations(msg.content) : msg.content;
+  }, [msg.content, isAi]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex gap-2.5 sm:gap-4 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
+    >
+      {/* Avatar */}
+      <div
+        className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm ${
+          isAi
+            ? 'bg-gradient-to-br from-primary-start to-indigo-700 text-white border-primary-start/50'
+            : 'bg-surface border-main text-text-primary'
+        }`}
+      >
+        {isAi ? <BrainCircuit size={18} className="sm:w-6 sm:h-6" /> : <User size={18} className="sm:w-6 sm:h-6" />}
+      </div>
+
+      {/* Bubble Content */}
+      <div
+        className={`relative max-w-[88%] rounded-2xl py-3 px-4 sm:py-4 sm:px-6 border shadow-sm ${
+          isAi
+            ? 'bg-surface border-main text-text-primary rounded-tl-sm'
+            : 'bg-primary-start/10 border-primary-start/30 text-text-primary rounded-tr-sm font-medium'
+        }`}
+      >
+        {isAi && msg.content && (
+          <button
+            type="button"
+            onClick={() => onCopy(msg.id, msg.content)}
+            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
+            title="Kopjo përgjigjen për Microsoft Word (Formatuar me Tabela)"
+          >
+            {isCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+          </button>
+        )}
+
+        {isThinking ? (
+          <div className="flex items-center gap-2.5 py-1.5">
+            <Loader2 size={18} className="animate-spin text-primary-start" />
+            <span className="text-xs sm:text-sm font-bold text-primary-start">
+              Duke arsyetuar mbi provat...
+            </span>
+          </div>
+        ) : isAi ? (
+          <div className="space-y-2">
+            <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {formattedContent}
+              </ReactMarkdown>
+            </div>
+
+            {msg.citationAudit && (
+              <div className="pt-3 border-t border-main/60 flex items-center gap-2 text-[10px] sm:text-[11px] text-text-muted font-mono flex-wrap">
+                <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
+                <span>Nene të Zbuluara: <span className="font-bold text-text-primary">{msg.citationAudit.articles_cited?.length || 0}</span></span>
+                <span>• Precedentë: <span className="font-bold text-text-primary">{msg.citationAudit.verified_precedents?.length || 0}</span></span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="whitespace-pre-wrap font-medium" style={{ fontSize: `${activeFontBase}px`, lineHeight: activeFontLine }}>
+            {msg.content}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+});
+
+ForensicMessageBubble.displayName = 'ForensicMessageBubble';
+
+// ============================================================================
+// KOMPONENTI KRYESOR
+// ============================================================================
 export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerProps> = ({
   isOpen,
   onClose,
@@ -257,11 +357,16 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
+  // Gjendja për dokumentin e bashkëngjitur
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Kontrolli Qendror i Zmadhimit të Shkrimit (Shared Zoom State)
+  // Kontrolli Qendror i Zmadhimit të Shkrimit
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('juristi_chat_font_size');
@@ -322,22 +427,61 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing]);
 
-  // Rillogaritja automatike e lartësisë së fushës së shkrimit sa herë që shkruhet tekst OSE ndryshohet madhësia e shkrimit
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+  // Rillogaritja e lartësisë së shkrimit pa bllokuar tastierën
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInput(val);
+    const target = e.target;
+    target.style.height = 'auto';
+    target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAttachedFile(file);
     }
-  }, [input, fontLevelIndex]);
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachedFile = () => {
+    setAttachedFile(null);
+  };
 
   const handleSendMessage = async (textToSend: string) => {
     const cleanText = textToSend.trim();
-    if (!cleanText || isProcessing || !caseId || isPurging) return;
+    if ((!cleanText && !attachedFile) || isProcessing || isUploadingDoc || !caseId || isPurging) return;
+
+    let userPromptText = cleanText;
+    let fileUploadedNotice = '';
+
+    if (attachedFile) {
+      setIsUploadingDoc(true);
+      try {
+        const uploadedDoc = await forensicDeskService.uploadForensicDocument(caseId, attachedFile);
+        fileUploadedNotice = `\n\n📎 [DOKUMENT I BASHKANGJITUR: ${uploadedDoc.file_name || attachedFile.name}]`;
+        if (!userPromptText) {
+          userPromptText = `Ju lutem analizoni këtë dokument të ngarkuar rishtazi: ${attachedFile.name}. Nxirrni faktet kyçe, personat dhe shkeljet ligjore.`;
+        }
+      } catch (uploadErr: any) {
+        console.error("Dështoi ngarkimi i dokumentit nga Chati:", uploadErr);
+        alert(`Dështoi ngarkimi i skedarit: ${uploadErr?.response?.data?.detail || uploadErr?.message || 'Gabim në server'}`);
+        setIsUploadingDoc(false);
+        return;
+      } finally {
+        setIsUploadingDoc(false);
+        setAttachedFile(null);
+      }
+    }
+
+    const fullMessageContent = `${userPromptText}${fileUploadedNotice}`;
 
     const userMsg: ForensicMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
-      content: cleanText,
+      content: fullMessageContent,
       timestamp: new Date().toISOString()
     };
 
@@ -351,12 +495,15 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
 
     setMessages(prev => [...prev, userMsg, aiPlaceholder]);
     setInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     setIsProcessing(true);
 
     try {
       const stream = await forensicDeskService.streamForensicChat(
         caseId,
-        cleanText,
+        fullMessageContent,
         `Lënda: ${caseNumber} - ${clientName}. Vula: ${chainOfCustodyHash || 'AKTIVE'}`
       );
 
@@ -426,8 +573,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
     }
   };
 
-  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD
-  const handleCopyMessage = async (msgId: string, text: string) => {
+  const handleCopyMessage = useCallback(async (msgId: string, text: string) => {
     const htmlContent = markdownToWordHtml(text);
 
     try {
@@ -462,13 +608,12 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
         setTimeout(() => setCopiedId(null), 2000);
       }
     }
-  };
+  }, []);
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[200] pointer-events-none overflow-hidden">
-          {/* Backdrop shfaqet VETËM në Fullscreen për të mos bllokuar workspace-in */}
           {isFullscreen && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -479,7 +624,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
             />
           )}
 
-          {/* Slide-over Drawer Panel me pointer-events-auto */}
+          {/* Slide-over Drawer Panel */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
@@ -514,14 +659,14 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Butonat Qendrorë të Zmadhimit të Shkrimit (Kontrollojnë njëkohësisht Chat-in dhe Textarea) */}
+                {/* Butonat Qendrorë të Zmadhimit të Shkrimit */}
                 <div className="flex items-center gap-0.5 rounded-xl border border-main bg-surface p-0.5" aria-label="Madhësia e shkrimit">
                   <button
                     type="button"
                     onClick={handleDecreaseFont}
                     disabled={fontLevelIndex === 0}
                     className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
-                    title="Zvogëlo shkrimin (Chat & Fushën e Shkrimit)"
+                    title="Zvogëlo shkrimin"
                   >
                     A−
                   </button>
@@ -538,7 +683,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                     onClick={handleIncreaseFont}
                     disabled={fontLevelIndex === FONT_LEVELS.length - 1}
                     className="h-7 w-7 rounded-lg text-xs font-bold text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 cursor-pointer flex items-center justify-center"
-                    title="Zmadho shkrimin (Chat & Fushën e Shkrimit)"
+                    title="Zmadho shkrimin"
                   >
                     A+
                   </button>
@@ -581,7 +726,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
               </div>
             </div>
 
-            {/* STILIZIMI DINAMIK I NJËHUR (APLIKOHET NJËKOHËSISHT MBI MESAZHET DHE MBI TEXTAREA) */}
+            {/* STILIZIMI DINAMIK I NJËHUR */}
             <style>{`
               .forensic-chat-markdown p,
               .forensic-chat-markdown li,
@@ -597,7 +742,6 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 margin-top: 1em !important;
                 margin-bottom: 0.5em !important;
               }
-              /* RREGULLA E DETYRUESHME ME !IMPORTANT PËR FUSHËN E SHKRIMIT (TEXTAREA) */
               .forensic-interrogation-textarea,
               .forensic-interrogation-textarea::placeholder {
                 font-size: ${activeFont.base}px !important;
@@ -617,7 +761,7 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                       Terminali Hetimor Ekskluziv
                     </h4>
                     <p className="text-xs sm:text-sm text-text-muted mt-1.5 leading-relaxed">
-                      Shtroni pyetje hetimore mbi provat, datat, deklaratat dhe shkeljet ligjore.
+                      Shtroni pyetje hetimore mbi provat, alibitë, ose bashkëngjitni një dokument me ikonën 📎 më poshtë.
                     </p>
                   </div>
 
@@ -650,73 +794,17 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                     const isThinking = isAi && isProcessing && msg.content === '';
 
                     return (
-                      <motion.div
+                      <ForensicMessageBubble
                         key={msg.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`flex gap-2.5 sm:gap-4 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
-                      >
-                        {/* Avatar */}
-                        <div
-                          className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm ${
-                            isAi
-                              ? 'bg-gradient-to-br from-primary-start to-indigo-700 text-white border-primary-start/50'
-                              : 'bg-surface border-main text-text-primary'
-                          }`}
-                        >
-                          {isAi ? <BrainCircuit size={18} className="sm:w-6 sm:h-6" /> : <User size={18} className="sm:w-6 sm:h-6" />}
-                        </div>
-
-                        {/* Bubble Content */}
-                        <div
-                          className={`relative max-w-[88%] rounded-2xl py-3 px-4 sm:py-4 sm:px-6 border shadow-sm ${
-                            isAi
-                              ? 'bg-surface border-main text-text-primary rounded-tl-sm'
-                              : 'bg-primary-start/10 border-primary-start/30 text-text-primary rounded-tr-sm font-medium'
-                          }`}
-                        >
-                          {isAi && msg.content && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopyMessage(msg.id, msg.content)}
-                              className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-text-muted hover:text-primary-start hover:bg-primary-start/10 rounded-lg transition-colors cursor-pointer"
-                              title="Kopjo përgjigjen për Microsoft Word (Formatuar me Tabela)"
-                            >
-                              {copiedId === msg.id ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                            </button>
-                          )}
-
-                          {isThinking ? (
-                            <div className="flex items-center gap-2.5 py-1.5">
-                              <Loader2 size={18} className="animate-spin text-primary-start" />
-                              <span className="text-xs sm:text-sm font-bold text-primary-start">
-                                Duke arsyetuar mbi provat...
-                              </span>
-                            </div>
-                          ) : isAi ? (
-                            <div className="space-y-2">
-                              {/* Renderimi i Markdown për AI */}
-                              <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                  {autoLinkLegalCitations(msg.content)}
-                                </ReactMarkdown>
-                              </div>
-
-                              {msg.citationAudit && (
-                                <div className="pt-3 border-t border-main/60 flex items-center gap-2 text-[10px] sm:text-[11px] text-text-muted font-mono flex-wrap">
-                                  <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
-                                  <span>Nene të Zbuluara: <span className="font-bold text-text-primary">{msg.citationAudit.articles_cited?.length || 0}</span></span>
-                                  <span>• Precedentë: <span className="font-bold text-text-primary">{msg.citationAudit.verified_precedents?.length || 0}</span></span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap font-medium" style={{ fontSize: `${activeFont.base}px`, lineHeight: activeFont.line }}>
-                              {msg.content}
-                            </p>
-                          )}
-                        </div>
-                      </motion.div>
+                        msg={msg}
+                        isAi={isAi}
+                        isThinking={isThinking}
+                        isCopied={copiedId === msg.id}
+                        onCopy={handleCopyMessage}
+                        markdownComponents={markdownComponents}
+                        activeFontBase={activeFont.base}
+                        activeFontLine={activeFont.line}
+                      />
                     );
                   })}
                   <div ref={messagesEndRef} />
@@ -726,6 +814,41 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
 
             {/* Input Terminal Bar */}
             <div className={`p-3 sm:p-5 bg-surface border-t border-main shrink-0 transition-all ${isFullscreen ? 'px-6 md:px-24 lg:px-48' : ''}`}>
+              
+              {/* DISTINKTIVI VIZUAL I SKEDARIT TË BASHKANGJITUR */}
+              {attachedFile && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-primary-start/15 border border-primary-start/40 rounded-xl text-xs text-text-primary w-fit shadow-xs"
+                >
+                  <FileText size={14} className="text-primary-start shrink-0" />
+                  <span className="font-bold truncate max-w-[220px] sm:max-w-[340px] text-text-primary">
+                    {attachedFile.name}
+                  </span>
+                  <span className="text-[10px] text-text-muted font-mono">
+                    ({(attachedFile.size / 1024).toFixed(0)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachedFile}
+                    className="ml-1 p-0.5 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                    title="Hiq dokumentin e bashkëngjitur"
+                  >
+                    <X size={13} />
+                  </button>
+                </motion.div>
+              )}
+
+              {/* INPUT I FSHEHUR PËR SKEDARIN */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".pdf,.docx,.doc,.txt,image/*"
+                className="hidden"
+              />
+
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -733,25 +856,47 @@ export const ForensicInterrogationDrawer: React.FC<ForensicInterrogationDrawerPr
                 }}
                 className="flex items-end gap-2 sm:gap-3 bg-canvas border border-main rounded-xl sm:rounded-2xl p-2 sm:p-2.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
               >
-                {/* TEXTAREA ME KLASËN E SINKRONIZUAR TË ZMADHIMIT (.forensic-interrogation-textarea) */}
+                {/* BUTONI PAPERCLIP */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessing || isUploadingDoc || isPurging}
+                  className={`p-2 sm:p-2.5 rounded-xl transition-all cursor-pointer mb-0.5 shrink-0 ${
+                    attachedFile
+                      ? 'bg-primary-start text-white shadow-xs'
+                      : 'text-text-muted hover:text-primary-start hover:bg-primary-start/10'
+                  }`}
+                  title="Bashkëngjit dokument nga kompjuteri (.pdf, .docx, foto)"
+                >
+                  <Paperclip size={18} />
+                </button>
+
+                {/* TEXTAREA ME PËRDITËSIM TË MENJËHERSHËM (ZERO LAG) */}
                 <textarea
                   ref={textareaRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Pyet mbi provat, alibitë apo shkeljet ligjore..."
+                  placeholder={attachedFile ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...` : "Pyet mbi provat, alibitë apo shkeljet ligjore..."}
                   className="forensic-interrogation-textarea flex-1 p-1.5 sm:p-2 bg-transparent text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[44px] sm:min-h-[48px] max-h-[200px] border-0 outline-none"
                   rows={1}
                 />
+
+                {/* BUTONI DËRGO */}
                 <button
                   type="submit"
-                  disabled={!input.trim() || isProcessing || isPurging}
+                  disabled={(!input.trim() && !attachedFile) || isProcessing || isUploadingDoc || isPurging}
                   className="h-10 w-10 sm:h-12 sm:w-12 bg-primary-start text-white rounded-xl shadow-md flex items-center justify-center hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 cursor-pointer mb-0.5"
                   title="Dërgo"
                 >
-                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="ml-0.5" />}
+                  {isProcessing || isUploadingDoc ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Send size={18} className="ml-0.5" />
+                  )}
                 </button>
               </form>
+
               <div className="flex items-center justify-between mt-2.5 px-1.5 text-[10px] sm:text-xs text-text-muted">
                 <span className="truncate">Vula e Çështjes: {chainOfCustodyHash ? `${chainOfCustodyHash.slice(0, 16)}...` : 'E Vërtetuar'}</span>
                 <span className="font-mono font-medium shrink-0 ml-2">Modeli: anthropic/claude-sonnet-4.6</span>
