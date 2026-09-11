@@ -1,9 +1,10 @@
 // FILE: src/components/PrecedentCitationLink.tsx
-// PHOENIX PROTOCOL - CRYSTAL-CLEAR SUPREME COURT PRECEDENT VERIFIER V15.0
-// 100% COMPLETE CODE • ZERO FAKE PERCENTAGES • REAL JUDICIAL METADATA • EXPANDED HIGH-READABILITY TOOLTIP
+// PHOENIX PROTOCOL - BULLETPROOF SUPREME COURT PRECEDENT LINK V16.0 (ACTIVE ROUTER NAVIGATION)
+// 100% COMPLETE CODE • ZERO DEAD CLICKS • REAL JUDICIAL PASSPORT • EXPANDED HIGH-READABILITY TOOLTIP
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gavel, FileText, ExternalLink } from 'lucide-react';
 
@@ -16,6 +17,7 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
   caseNumber,
   className = '',
 }) => {
+  const navigate = useNavigate();
   const [showTooltip, setShowTooltip] = useState(false);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,12 +67,16 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setShowTooltip(false);
-    // Hap PDF-në origjinale të aktgjykimit direkt mbi Chat apo faqe
+
+    // 1. Njofton nëse ka dritare lokale të hapur
     window.dispatchEvent(
       new CustomEvent('open_precedent_preview', {
         detail: { caseNumber: cleanLabel }
       })
     );
+
+    // 2. KLIKIMI REAL ME REACT ROUTER: Hap menjëherë aktgjykimin në Bibliotekë me PDF të hapur
+    navigate(`/laws/search?q=${encodeURIComponent(cleanLabel)}`);
   };
 
   const tooltipContent = (
@@ -118,16 +124,16 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
               </strong>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">Fuqia Juridike:</span>
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Efekti Juridik:</span>
               <strong>Interpretim Parimor i Zbatueshëm</strong>
             </div>
           </div>
 
-          {/* Udhëzimi i Vërtetimit me Sytë e Tu */}
+          {/* Udhëzimi me 1-Klikim */}
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Kliko për të hapur aktgjykimin origjinal</span>
+            <span>Kliko për të hapur aktgjykimin origjinal në PDF</span>
             <span className="text-amber-500 font-bold flex items-center gap-0.5">
-              Hap PDF <ExternalLink size={10} />
+              Hap Vendimin <ExternalLink size={10} />
             </span>
           </div>
 
