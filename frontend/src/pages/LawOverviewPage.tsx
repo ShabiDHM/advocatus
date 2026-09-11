@@ -1,6 +1,6 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - ZERO-TECH ACCESSIBLE SEMANTIC LAW ENGINE V61.0 (CLEAN PROFESSIONAL SUITE)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • SUGGESTION CHIPS PURGED
+// PHOENIX PROTOCOL - EXECUTIVE SEMANTIC LAW ENGINE V63.0 (CLEAN JURIDICAL ARCHITECTURE)
+// 100% COMPLETE CODE • ZERO GIMMICK CHIPS • ZERO TS WARNINGS • AUTHORITATIVE LEGAL INTERFACE
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -9,14 +9,11 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, ArrowRight, FileText, AlertCircle, 
   BookOpen, ExternalLink, Search, X,
-  Maximize2, Minimize2, Sparkles, Filter
+  Maximize2, Minimize2, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
-import { 
-  LEGAL_CATEGORIES, 
-  performSemanticSearch 
-} from '../utils/legalSemanticEngine';
+import { performSemanticSearch } from '../utils/legalSemanticEngine';
 
 interface LawOverviewData {
   law_title: string;
@@ -35,7 +32,6 @@ export default function LawOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isExpanded, setIsExpanded] = useState(false);
   
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -64,7 +60,7 @@ export default function LawOverviewPage() {
   const pdfUrl = data?.source ? `${API_V1_URL}/laws/pdf/${encodeURIComponent(data.source)}` : null;
   const displayHeaderTitle = lawTitle || data?.law_title || '';
 
-  // REZULTATI I MOTORIT TË KËRKIMIT SEMANTIK DHE FILTRIMIT
+  // REZULTATI I MOTORIT TË KËRKIMIT TË PASTËR
   const searchResults = useMemo(() => {
     if (!data?.articles) {
       return {
@@ -77,18 +73,18 @@ export default function LawOverviewPage() {
     return performSemanticSearch(
       data.articles,
       articleSearchQuery,
-      displayHeaderTitle,
-      activeCategory
+      displayHeaderTitle
     );
-  }, [data?.articles, articleSearchQuery, displayHeaderTitle, activeCategory]);
+  }, [data?.articles, articleSearchQuery, displayHeaderTitle]);
 
   const { filteredArticles, matchedIntent, highlightWords } = searchResults;
 
   const handleOpenArticle = (article: string) => {
+    const cleanArt = article.replace(/^neni\s*/i, '').replace(/\.$/, '').trim();
     const highlightParam = highlightWords.length > 0 ? `&highlight=${encodeURIComponent(highlightWords.join(' '))}` : '';
     navigate(
       `/laws/article?lawTitle=${encodeURIComponent(displayHeaderTitle)}&articleNumber=${encodeURIComponent(
-        article
+        cleanArt
       )}${highlightParam}`
     );
   };
@@ -132,7 +128,7 @@ export default function LawOverviewPage() {
         isExpanded ? 'max-w-[98vw] px-2 sm:px-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8'
       }`}>
         
-        {/* Navigimi 1 Hap Mbrapa / 1 Hap Përpara */}
+        {/* Navigimi Mbrapa / Përpara */}
         <div className="flex items-center gap-2 mb-4">
           <button
             type="button"
@@ -202,22 +198,19 @@ export default function LawOverviewPage() {
             </div>
           </div>
 
-          {/* KËRKUESI INTELIGJENT & NDËRFAQJA E LEHTË */}
-          <div className="bg-surface px-4 sm:px-8 pt-5 pb-5 border-b border-main flex flex-col gap-4">
-            
-            {/* Search Bar */}
+          {/* KËRKUESI PROFESIONAL */}
+          <div className="bg-surface px-4 sm:px-8 py-4 sm:py-5 border-b border-main flex flex-col gap-3">
             <div className="relative w-full">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center gap-1.5 pointer-events-none">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
                 <Search size={18} />
-                <Sparkles size={14} className="animate-pulse text-amber-500" />
               </div>
 
               <input
                 type="text"
-                placeholder="Shkruaj situatën tënde (p.sh. 's'kam pare për gjyq', 'bllokimi i llogarive', 'avokati pa letrën')..."
+                placeholder="Kërko nene sipas fjalëve kyçe, temës apo numrit të nenit..."
                 value={articleSearchQuery}
                 onChange={(e) => setArticleSearchQuery(e.target.value)}
-                className="w-full pl-14 pr-10 py-3.5 bg-canvas border border-main rounded-2xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
+                className="w-full pl-11 sm:pl-12 pr-10 py-3 sm:py-3.5 bg-canvas border border-main rounded-2xl text-xs sm:text-sm font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
               />
 
               {articleSearchQuery && (
@@ -232,42 +225,14 @@ export default function LawOverviewPage() {
               )}
             </div>
 
-            {/* FILTRAT SIPAS KATEGORIVE (CATEGORY PILLS) */}
-            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pt-1">
-              <div className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1 shrink-0 mr-1">
-                <Filter size={12} className="text-primary-start" />
-                <span>Kategoritë:</span>
-              </div>
-
-              {LEGAL_CATEGORIES.map((cat) => {
-                const isActive = activeCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border shrink-0 ${
-                      isActive
-                        ? 'bg-primary-start text-white border-primary-start shadow-sm'
-                        : 'bg-canvas text-text-secondary border-main hover:border-primary-start/50 hover:text-text-primary'
-                    }`}
-                    title={cat.description}
-                  >
-                    <span>{cat.icon}</span>
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* SHPJEGIMI NË GJUHË TË THJESHTË POPULLORE (HUMAN-FRIENDLY BANNER) */}
+            {/* PËRPUTHJA SEMANTIKE */}
             <AnimatePresence>
-              {matchedIntent && (
+              {matchedIntent && articleSearchQuery.trim().length > 2 && (
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 flex items-start gap-3 text-xs shadow-xs"
+                  className="bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 flex items-start gap-3 text-xs shadow-xs mt-1"
                 >
                   <div className="p-2 bg-primary-start text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
                     <Sparkles size={16} />
@@ -278,16 +243,14 @@ export default function LawOverviewPage() {
                         {matchedIntent.intent}
                       </span>
                       <span className="px-2 py-0.5 bg-primary-start/20 text-primary-start rounded-md font-mono text-[10px] font-black uppercase">
-                        Gjetje Automatike
+                        Gjetje Semantike
                       </span>
                     </div>
 
-                    {/* Shpjegimi popullor */}
                     <p className="text-text-primary font-medium text-xs leading-relaxed mb-1.5">
-                      💡 <strong>Në fjalë të thjeshta:</strong> {matchedIntent.plainLanguageSummary}
+                      💡 <strong>Përmbledhje:</strong> {matchedIntent.plainLanguageSummary}
                     </p>
 
-                    {/* Shpjegimi ligjor */}
                     {matchedIntent.suggestedArticles.map((sug, i) => (
                       <p key={i} className="text-text-secondary text-[11px] leading-relaxed">
                         📜 <strong>Baza Ligjore:</strong> {sug.explanation}
@@ -300,7 +263,7 @@ export default function LawOverviewPage() {
           </div>
 
           {/* Trupi me Rrjetën e Neneve */}
-          <div className="bg-canvas/30 px-4 sm:px-8 py-6 pb-8 flex flex-col">
+          <div className="bg-canvas/30 px-4 sm:px-8 py-5 sm:py-6 pb-8 flex flex-col">
             
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-black text-text-muted uppercase tracking-wider flex items-center gap-2">
@@ -308,21 +271,18 @@ export default function LawOverviewPage() {
                 Përmbajtja e Neneve ({filteredArticles.length})
               </h2>
 
-              {(articleSearchQuery || activeCategory !== 'all') && (
+              {articleSearchQuery && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setArticleSearchQuery('');
-                    setActiveCategory('all');
-                  }}
+                  onClick={() => setArticleSearchQuery('')}
                   className="text-xs font-bold text-primary-start hover:underline cursor-pointer"
                 >
-                  Pastro të gjithë filtrat
+                  Pastro kërkimin
                 </button>
               )}
             </div>
 
-            {/* Rrjeta me Scroll */}
+            {/* Rrjeta e Neneve */}
             <div className={`overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-2xl border border-main bg-surface/50 shadow-inner transition-all duration-300 ${
               isExpanded ? 'max-h-[75vh]' : 'max-h-[55vh]'
             }`}>
@@ -335,7 +295,7 @@ export default function LawOverviewPage() {
                     Nuk u gjet asnjë nen për kërkimin "{articleSearchQuery}"
                   </p>
                   <p className="text-[11px] text-text-muted mt-1">
-                    Provoni të kërkoni me fjalë kyçe të tjera ose përzgjidhni një kategori më lart.
+                    Provoni të kërkoni me fjalë kyçe të tjera ose numrin specifik të nenit.
                   </p>
                 </div>
               ) : (
@@ -345,7 +305,7 @@ export default function LawOverviewPage() {
                     : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
                 }`}>
                   {filteredArticles.map((article) => {
-                    const cleanArt = article.replace(/\.$/, '').trim();
+                    const cleanArt = article.replace(/^neni\s*/i, '').replace(/\.$/, '').trim();
                     const isPreamble =
                       cleanArt === '0' || cleanArt.toLowerCase().includes('preambula') || cleanArt.toLowerCase().includes('hyrja');
                     const label = isPreamble ? 'Preambula' : article.startsWith('Lënda') ? article : `Neni ${cleanArt}`;
