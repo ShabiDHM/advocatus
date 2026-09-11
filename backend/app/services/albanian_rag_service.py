@@ -1,6 +1,6 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V267.0 (TOTAL WIPEOUT OF LEGACY COMPREHENSIVE SERVICE)
-# 100% I PLOTË • ZERO TRUNCATION • ZERO EVASION • MULTI-TURN REASONING
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V268.0 (OPTIMIZIM RADIKAL KOSTOS DHE SHORT-MEMORY)
+# 100% I PLOTË • ZERO SNOWBALLING • ZERO EVASION • DEEPSEEK READY
 
 import os
 import logging
@@ -17,7 +17,7 @@ from app.services.rag.context_builder import ContextBuilder
 from app.services.rag.response_generator import ResponseGenerator
 from app.services.pillars.base_pillar_service import BasePillarService
 
-# Importimi i Shtyllave të Pavarura (Pa ComprehensiveAnalysisService)
+# Importimi i Shtyllave të Pavarura
 from app.services.pillars.forensic_audit_service import ForensicAuditService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
@@ -35,15 +35,15 @@ MANDATORY_LEGAL_DISCLAIMER = (
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
 )
 
+# 🛑 PHOENIX: RREGULLA TË PRERA PËR DEEPSEEK (ZERO FLUFF, ZERO HAPA TË KOTË)
 ANTI_HALLUCINATION_INSTRUCTION = """
-RREGULLAT E HEKURTA TË DOKTRINËS DHE KONSULENCËS:
-1. PËRGJIGJU DREJTPËRDREJT DHE ME PËRMBAJTJE SUBSTICIALE: Cito nenet me saktësi neni-për-nen duke u mbështetur në shkresat e fashikullit dhe ligjet e Kosovës.
-2. NDALOHET KATEGORIKISHT TË JAPËSH PËRGJIGJE EVAZIVE SI "VIZITONI FAQEN E KUVENDIT", "KËRKONI NË GOOGLE" APO "KONSULTONI NJË AVOKAT".
-   TI JE ASISTENTI LIGJOR DHE EKSPERTI DOKTRINAR QË E KRYEN PUNËN TANI: Zgjidhe pyetjen e përdoruesit në mënyrë konkrete, analitike dhe strategjike!
-3. MBROJTJA E INTERESIT TË KLIENTIT: Përshtatu me besnikëri ndaj pozitës procedurale të klientit dhe shfrytëzo të gjitha provat e administruara në dosje.
-4. Përdor ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016, Ligji për Gjykatën Komerciale Nr. 08/L-015, Ligji për PSRK Nr. 03/L-052.
+RREGULLAT E HEKURTA TË DOKTRINËS DHE KONSULENCËS (KUSHTE ABSOLUTE):
+1. PËRGJIGJE DIREKTE DHE TË SHKURTRA: Përgjigju drejtpërdrejt në thelbin e pyetjes! MOS shkruaj konfirmime si "E kuptova", "Jam gati", "Keni të drejtë", "Hapi 1, Hapi 2". Fillo direkt me thelbin e punës ose analizës juridike!
+2. NDALOHET KATEGORIKISHT përsëritja e pyetjes së përdoruesit në përgjigje.
+3. NDALOHET KATEGORIKISHT TË JAPËSH PËRGJIGJE EVAZIVE SI "VIZITONI FAQEN", "KËRKONI NË GOOGLE". TI E KRYEN PUNËN TANI.
+4. MBROJTJA E INTERESIT TË KLIENTIT: Cito nenet me saktësi neni-për-nen sipas ligjeve të Kosovës.
+5. Përdor ligjet pozitive të Kosovës: LPK Nr. 03/L-006, LMD Nr. 04/L-077, KPK Nr. 06/L-074, KPPRK Nr. 08/L-032, LSHT Nr. 06/L-016.
 """
-
 
 def is_valid_legal_report(text: str) -> bool:
     if not text or len(text.strip()) < 150:
@@ -78,12 +78,10 @@ def detect_requested_pillar(query_lower: str) -> Optional[str]:
 
 
 class AlbanianRAGService:
-    """Shërbimi Kryesor RAG — V267.0 pa varësi të vjetra të ComprehensiveAnalysis."""
-
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Service V267.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Service V268.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -156,15 +154,19 @@ class AlbanianRAGService:
             except Exception as ex:
                 logger.warning(f"Could not read case documents: {ex}")
 
-        # Ngarkimi i historikut nga DB
+        # 🛑 PHOENIX COST-CONTROL: KUFIZIM NË 6 MESAZHET E FUNDIT (Limit 6)
         if history is None and self.db is not None and case_id and user_id:
             try:
                 past_cursor = self.db[CASE_CHAT_HISTORY_COLLECTION].find({
                     "user_id": str(user_id),
                     "case_id": str(case_id)
-                }).sort("created_at", 1).limit(50)
+                }).sort("created_at", -1).limit(6)
+                
+                raw_hist = list(past_cursor)
+                raw_hist.reverse()
+
                 history = []
-                for h in past_cursor:
+                for h in raw_hist:
                     history.append({
                         "role": h.get("role", "user"),
                         "content": h.get("content", "")
@@ -180,20 +182,18 @@ class AlbanianRAGService:
         optimized_query = self._optimize_query(query)
         req_pillar = detect_requested_pillar(query_lower)
 
-        # 1. Zbulimi i kërkesës për të gjithë lëndën
         is_case_wide_request = any(kw in query_lower for kw in [
             "analizo rastin", "analizë e rastit", "analizë standarde e rastit",
             "pasqyra ekzekutive e lëndës", "pasqyra e lëndës", "raportin master",
             "autopsi e plotë", "fashikull", "gjithë fashikullit"
         ])
 
-        # 2. Zbulimi i kërkesës për verifikim statutor
         is_statutory_verification = any(kw in query_lower for kw in [
             "verifiko nenet", "a janë të sakta nenet", "referencat ligjore", 
             "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
         ])
 
-        if single_doc_obj is not None and not is_case_wide_request and not is_statutory_verification:
+        if single_doc_obj and not is_case_wide_request and not is_statutory_verification:
             user_intent = "FORENSIC_AUDIT"
         elif is_case_wide_request:
             user_intent = "COMPREHENSIVE_ANALYSIS"
@@ -215,27 +215,18 @@ class AlbanianRAGService:
             manifest_str=""
         )
 
-        # =========================================================================
-        # ⚡ SMART CACHE CHECK (0ms)
-        # =========================================================================
         if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
             doc_pillars = single_doc_obj.get("forensic_pillars") or {}
             if req_pillar and doc_pillars.get(req_pillar):
                 cached_text = doc_pillars[req_pillar]
                 if is_valid_legal_report(cached_text):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
-                    self._save_chat_message(user_id, case_id, "user", query)
-                    self._save_chat_message(user_id, case_id, "assistant", cached_text)
+                    if self.db is not None and case_id and user_id:
+                        self.db[CASE_CHAT_HISTORY_COLLECTION].insert_many([
+                            {"user_id": str(user_id), "case_id": str(case_id), "role": "user", "content": query, "created_at": datetime.now(timezone.utc)},
+                            {"user_id": str(user_id), "case_id": str(case_id), "role": "assistant", "content": cached_text, "created_at": datetime.now(timezone.utc)}
+                        ])
                     yield cached_text
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-            elif not req_pillar:
-                cached_doc_audit = single_doc_obj.get("latest_analysis") or single_doc_obj.get("latest_forensic_audit")
-                if cached_doc_audit and is_valid_legal_report(cached_doc_audit):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet latest_analysis për dokumentin.")
-                    self._save_chat_message(user_id, case_id, "user", query)
-                    self._save_chat_message(user_id, case_id, "assistant", cached_doc_audit)
-                    yield cached_doc_audit
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
 
@@ -246,8 +237,11 @@ class AlbanianRAGService:
                 cached_pillar = forensic_pillars[req_pillar]
                 if is_valid_legal_report(cached_pillar):
                     logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për lëndën {case_id}.")
-                    self._save_chat_message(user_id, case_id, "user", query)
-                    self._save_chat_message(user_id, case_id, "assistant", cached_pillar)
+                    if self.db is not None and case_id and user_id:
+                        self.db[CASE_CHAT_HISTORY_COLLECTION].insert_many([
+                            {"user_id": str(user_id), "case_id": str(case_id), "role": "user", "content": query, "created_at": datetime.now(timezone.utc)},
+                            {"user_id": str(user_id), "case_id": str(case_id), "role": "assistant", "content": cached_pillar, "created_at": datetime.now(timezone.utc)}
+                        ])
                     yield cached_pillar
                     yield MANDATORY_LEGAL_DISCLAIMER
                     return
@@ -282,16 +276,15 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=""
             )
-            system_prompt = base_prompt
+            system_prompt = base_prompt + "\n\n" + ANTI_HALLUCINATION_INSTRUCTION
             exec_query = optimized_query
 
         elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
-            # ANALIZË E THELLË DHE E INTEGRUAR PA SHTJELLA TË NGURTA STATIKE
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=35
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
             )
             global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
+                query_text=optimized_query, n_results=10
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
@@ -301,13 +294,6 @@ class AlbanianRAGService:
 
             {ANTI_HALLUCINATION_INSTRUCTION}
 
-            DETYRA E ANALIZËS GJITHËPËRFSHIRËSE:
-            Analizo të gjithë fashikullin e lëndës në mënyrë të strukturuar, shteruese dhe profesionale:
-            1. Pasqyra Procedurale dhe Faktet e Vërtetuara nga Shkresat (Rindërtimi kronologjik).
-            2. Kryqëzimi i Dëshmive dhe Subjekteve të Përfshira.
-            3. Shkeljet Ligjore, Nenet e Aplikueshme dhe Precedentët e Gjykatës Supreme.
-            4. Plani Taktik i Veprimit, Mjetet Juridike dhe Afatet e Prera.
-
             DOKUMENTET DHE PROVAT E FASHIKULLIT:
             {manifest_str}
             {context_str}
@@ -316,7 +302,7 @@ class AlbanianRAGService:
 
         elif user_intent == "STATUTORY_VERIFICATION":
             dossier_blocks = []
-            for idx, doc in enumerate(db_documents[:15], 1):
+            for idx, doc in enumerate(db_documents[:10], 1):
                 doc_title = doc.get("file_name") or f"Dokumenti #{idx}"
                 raw_text = (doc.get("content") or doc.get("extracted_text") or "")[:8000]
                 dossier_blocks.append(f"SHKRESA #{idx}: {doc_title}\n{raw_text}\n")
@@ -335,15 +321,15 @@ class AlbanianRAGService:
                 case_id=case_id,
                 db=self.db
             )
-            system_prompt = base_prompt
+            system_prompt = base_prompt + "\n\n" + ANTI_HALLUCINATION_INSTRUCTION
             exec_query = optimized_query
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
+                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=10
             )
             global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
+                query_text=optimized_query, n_results=10
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
@@ -360,7 +346,7 @@ class AlbanianRAGService:
                 user_id=user_id,
                 case_id=case_id
             )
-            system_prompt = base_prompt
+            system_prompt = base_prompt + "\n\n" + ANTI_HALLUCINATION_INSTRUCTION
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
             # CHAT UNIVERSAL
@@ -368,7 +354,7 @@ class AlbanianRAGService:
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=15
             )
             global_docs = vector_store_service.query_global_knowledge_base(
-                query_text=optimized_query, n_results=15
+                query_text=optimized_query, n_results=10
             )
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
@@ -379,10 +365,8 @@ class AlbanianRAGService:
             {ANTI_HALLUCINATION_INSTRUCTION}
 
             MANDATI YT ADAPTOHET SIPAS PYETJES SË PËRDORUESIT:
-            - Nëse pyetja kërkon strategji apo hapa ➔ Jep hapat e saktë proceduralë dhe taktikat e fitores.
-            - Nëse pyetja kërkon nene apo ligje ➔ Cito nenet neni-për-nen sipas legjislacionit pozitiv të Kosovës dhe precedentëve supremë.
-            - Nëse pyetja kërkon analizë provash apo faktesh ➔ Krahaso shkresat e fashikullit dhe zbulo të vërtetën.
-            - Nëse pyetja kërkon përmirësim apo riformulim të një rreshti apo fjalie ➔ Analizo historikun e bisedës dhe jep menjëherë formulimin e saktë profesional!
+            - Nëse pyetja kërkon përmirësim apo riformulim, bëje DIREKT atë punë pa thënë "Këtu është riformulimi".
+            - Cito direkt faktet dhe nenet. Jepi zgjidhje klientit në mënyrë të thjeshtë dhe taktike.
 
             DOKUMENTET DHE PROVAT E FASHIKULLIT:
             {manifest_str}

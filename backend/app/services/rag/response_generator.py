@@ -1,6 +1,6 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V92.0 (CLEAN IMPORTS & ZERO CIRCULAR LOCKS)
-# 100% COMPLETE CODE • ZERO IMPORT ERRORS • CLAUDE SONNET 4.6 & GEMINI 2.0 FLASH
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V94.0
+# 100% COMPLETE CODE • ZERO CLAUDE SONNET • ZERO GPT-4O-MINI • EXCLUSIVE DEEPSEEK CORE
 
 import logging
 import asyncio
@@ -23,23 +23,20 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# 🏛️ ZYRA FORENZIKE: Modeli Suprem Doktrinar (Claude Sonnet 4.6)
-TIER1_ELITE_MODEL = "anthropic/claude-sonnet-4.6"  
+# 🏛️ MODELI THEMELOR I THELLË JURIDIK (DEEPSEEK NGA .ENV / CONFIG)
+EFFECTIVE_DEEP_MODEL = getattr(settings, "LLM_DEEP_MODEL", None) or DEEP_MODEL or "deepseek/deepseek-chat"
 
-# ⚡ CASEVIEW & CHAT: Modeli i Shpejtë Ekonomik ($0.10/1M)
-CHAT_FAST_MODEL = "google/gemini-2.0-flash-001"  
-
-HEAVY_TASK_FALLBACKS = [
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-3.7-sonnet",
-    "google/gemini-2.0-flash-001",
-    "google/gemini-pro-1.5"
+# 🛡️ LISTAT E FALLBACK-UT (ZERO CLAUDE • ZERO GPT-4O-MINI)
+DEEP_TASK_FALLBACKS = [
+    EFFECTIVE_DEEP_MODEL,
+    "deepseek/deepseek-chat",
+    "google/gemini-2.0-flash-001"
 ]
 
-FAST_TASK_FALLBACKS = [
-    "google/gemini-2.0-flash-001",
-    "openai/gpt-4o-mini",
-    "deepseek/deepseek-chat"
+CHAT_FALLBACKS = [
+    EFFECTIVE_DEEP_MODEL,
+    "deepseek/deepseek-chat",
+    "google/gemini-2.0-flash-001"
 ]
 
 LLM_TIMEOUT = 300
@@ -54,9 +51,12 @@ OPENROUTER_HEADERS = {
 
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V92.0):
-    - Multi-Turn Conversational Memory me pastrim total të importeve rrethore.
-    - Dual Engine: Gemini 2.0 Flash (Fast) dhe Claude Sonnet 4.6 (Deep).
+    Gjeneruesi Suprem i Përgjigjeve (V94.0):
+    - Motor Ekskluziv: DeepSeek (LLM_DEEP_MODEL) për arsyetim të thellë doktrinar.
+    - Zero Claude Sonnet (i asgjësuar plotësisht).
+    - Zero GPT-4o-mini.
+    - Multi-provider fallback për DeepSeek (DeepSeek, Fireworks, Together, Nebius, DeepInfra).
+    - Multi-Turn Conversational Memory me pastrim nga gabimet teknike.
     """
 
     def __init__(self):
@@ -69,12 +69,12 @@ class ResponseGenerator:
         stream: bool = True, 
         max_tokens: int = 16384,
         model: Optional[str] = None,
-        is_heavy_task: bool = False
+        is_heavy_task: bool = True
     ):
         last_error = None
-        base_list = HEAVY_TASK_FALLBACKS if is_heavy_task else FAST_TASK_FALLBACKS
+        base_list = DEEP_TASK_FALLBACKS if is_heavy_task else CHAT_FALLBACKS
         
-        target_model = model or (TIER1_ELITE_MODEL if is_heavy_task else CHAT_FAST_MODEL)
+        target_model = model or EFFECTIVE_DEEP_MODEL
         models_to_try = [target_model] + [m for m in base_list if m != target_model]
         
         unique_models: List[str] = []
@@ -85,7 +85,11 @@ class ResponseGenerator:
         for current_model in unique_models:
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
-                    logger.info(f"⚖️ [Juristi AI Engine] Modeli në ekzekutim: {current_model} (Tier: {'CLAUDE_SONNET_DEEP' if is_heavy_task else 'GEMINI_FAST'}, MaxTokens: {max_tokens}) Përpjekja {attempt}...")
+                    logger.info(
+                        f"⚖️ [Juristi AI Engine] Modeli në ekzekutim: {current_model} "
+                        f"(Tier: {'DEEPSEEK_DOCTRINAL' if is_heavy_task else 'DEEPSEEK_CHAT'}, "
+                        f"MaxTokens: {max_tokens}) Përpjekja {attempt}..."
+                    )
                     kwargs: Dict[str, Any] = {
                         "model": current_model,
                         "messages": messages,
@@ -129,34 +133,17 @@ class ResponseGenerator:
         try:
             combined_upper = f"{system_prompt} {user_query}".upper()
 
-            # 1. Zgjedhja e Modelit
-            is_explicit_fast = (
+            # Përcaktimi i kompleksitetit të detyrës
+            is_heavy_task = not (
                 reasoning_mode == "FAST" or
                 "[ANALIZË STANDARDE" in combined_upper or
                 "[PËRMBLEDHJE EKZEKUTIVE" in combined_upper or
                 "[AUDITIM STANDART" in combined_upper
             )
 
-            is_explicit_heavy = not is_explicit_fast and (
-                reasoning_mode == "DEEP" or
-                "[DIREKTIVË FORENZIKE" in combined_upper or
-                "SHTJELLA" in combined_upper or
-                "FORENZIKE" in combined_upper or
-                "[RAPORT MASTER" in combined_upper
-            )
-
-            if is_explicit_fast:
-                is_heavy_task = False
-                selected_model = model_override or CHAT_FAST_MODEL
-                max_tokens = 8192
-            elif is_explicit_heavy:
-                is_heavy_task = True
-                selected_model = model_override or TIER1_ELITE_MODEL
-                max_tokens = 16384
-            else:
-                is_heavy_task = False
-                selected_model = model_override or CHAT_FAST_MODEL
-                max_tokens = 4096
+            # Rregulli Themelor: Modeli i thellë DeepSeek është motori parësor i padiskutueshëm
+            selected_model = model_override or EFFECTIVE_DEEP_MODEL
+            max_tokens = 16384 if is_heavy_task else 8192
 
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             

@@ -1,5 +1,6 @@
 # FILE: backend/app/services/forensic/forensic_llm_service.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V2.2 (CLEAN PROFESSIONAL TONE)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V3.0 (DEEPSEEK HIGH-PRECISION UNIFIED)
+# 100% COMPLETE CODE • EXCLUSIVE DEEPSEEK CORE • MULTI-PROVIDER ROUTING • ZERO GPT-4O-MINI
 
 import os
 import time
@@ -14,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 
-# Clean, professional system identity without jargon or branding
-FORENSIC_SYSTEM_IDENTITY = """You are a legal expert specialized in the legislation of the Republic of Kosovo.
-Provide accurate, professional, and concise responses in Albanian legal language.
-Do not use unnecessary jargon, marketing phrases, emojis, or excessive formatting.
-Strictly adhere to official legal terminology and avoid promotional language."""
+# Identiteti Solemn Forenzik për Republikën e Kosovës
+FORENSIC_SYSTEM_IDENTITY = """You are a senior forensic legal expert specialized in the legislation and jurisprudence of the Republic of Kosovo.
+Provide accurate, highly professional, doctrinally sound, and exhaustive responses in standard Albanian legal language.
+Do not use marketing phrases, filler words, or emojis.
+Strictly cite statutes article-by-article and extract literal evidentiary facts from the court dossier."""
 
 class ForensicLLMError(Exception):
     pass
@@ -30,7 +31,23 @@ def _get_openrouter_key() -> str:
     return key
 
 def _get_forensic_model() -> str:
-    return getattr(settings, "FORENSIC_LLM_MODEL", "anthropic/claude-sonnet-4.6")
+    """Rikthen modelin parësor të thellë: DeepSeek nga .env (LLM_DEEP_MODEL)."""
+    return (
+        getattr(settings, "LLM_DEEP_MODEL", None) or
+        getattr(settings, "FORENSIC_LLM_MODEL", None) or
+        "deepseek/deepseek-chat"
+    )
+
+def _get_provider_routing_payload(model_name: str) -> Dict[str, Any]:
+    """Garanton ekzekutimin e shpejtë të DeepSeek përmes 5 ofruesve kryesorë me failover automatik."""
+    if "deepseek" in model_name.lower():
+        return {
+            "provider": {
+                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
+                "allow_fallbacks": True
+            }
+        }
+    return {}
 
 def _get_sync_client() -> OpenAI:
     return OpenAI(
@@ -61,7 +78,7 @@ def call_forensic_llm(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> str:
-    """Thirrje e thjeshtë një-hapëshe te Claude Sonnet 4.6."""
+    """Thirrje sinkrone një-hapëshe e optimizuar për DeepSeek."""
     client = _get_sync_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -75,6 +92,11 @@ def call_forensic_llm(
         "temperature": temperature,
         "max_tokens": max_tokens
     }
+    
+    extra_body = _get_provider_routing_payload(target_model)
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
@@ -83,6 +105,7 @@ def call_forensic_llm(
 
     for attempt in range(retries):
         try:
+            logger.info(f"⚖️ [Forensic LLM] Ekzekutim në {target_model} (Attempt {attempt + 1})...")
             res = client.chat.completions.create(**kwargs)
             if res and res.choices and len(res.choices) > 0:
                 content = getattr(res.choices[0].message, "content", "") or ""
@@ -90,6 +113,7 @@ def call_forensic_llm(
                     return content
         except Exception as e:
             last_error = e
+            logger.warning(f"⚠️ [Forensic LLM Retry {attempt + 1}] {e}")
             if attempt < retries - 1:
                 time.sleep(2.0 * (attempt + 1))
                 continue
@@ -102,9 +126,7 @@ def call_forensic_llm_chat(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> str:
-    """
-    THIRRJE ME KUJTESË TË PLOTË DHE TË ZGJUAR (MULTI-TURN CONVERSATION MEMORY).
-    """
+    """Thirrje sinkrone me kujtesë të plotë multi-turn e optimizuar për DeepSeek."""
     client = _get_sync_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -127,12 +149,16 @@ def call_forensic_llm_chat(
         "max_tokens": max_tokens
     }
 
+    extra_body = _get_provider_routing_payload(target_model)
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
     retries = 3
     last_error: Optional[Exception] = None
 
     for attempt in range(retries):
         try:
-            logger.info(f"🧠 [Forensic Memory] Dërgim i {len(formatted_messages)} kthesave bisede te {target_model}...")
+            logger.info(f"🧠 [Forensic Memory] Dërgim i {len(formatted_messages)} kthesave te {target_model} (Attempt {attempt + 1})...")
             res = client.chat.completions.create(**kwargs)
             if res and res.choices and len(res.choices) > 0:
                 content = getattr(res.choices[0].message, "content", "") or ""
@@ -158,17 +184,24 @@ async def stream_forensic_llm_async(
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
 
+    kwargs: Dict[str, Any] = {
+        "model": target_model,
+        "messages": [
+            {"role": "system", "content": full_system},
+            {"role": "user", "content": user_content}
+        ],
+        "temperature": temperature,
+        "stream": True,
+        "max_tokens": max_tokens
+    }
+
+    extra_body = _get_provider_routing_payload(target_model)
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
     try:
-        stream = await client.chat.completions.create(
-            model=target_model,
-            messages=[
-                {"role": "system", "content": full_system},
-                {"role": "user", "content": user_content}
-            ],
-            temperature=temperature,
-            stream=True,
-            max_tokens=max_tokens
-        )
+        logger.info(f"⚖️ [Forensic Stream] Ekzekutim në {target_model}...")
+        stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
@@ -182,7 +215,7 @@ async def stream_forensic_llm_chat_async(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> AsyncGenerator[str, None]:
-    """Transmetim asinkron me kujtesë të plotë multi-turn."""
+    """Transmetim asinkron me kujtesë të plotë multi-turn përmes DeepSeek."""
     client = _get_async_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -197,14 +230,21 @@ async def stream_forensic_llm_chat_async(
         if content:
             formatted_messages.append({"role": standard_role, "content": content})
 
+    kwargs: Dict[str, Any] = {
+        "model": target_model,
+        "messages": formatted_messages,
+        "temperature": temperature,
+        "stream": True,
+        "max_tokens": max_tokens
+    }
+
+    extra_body = _get_provider_routing_payload(target_model)
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
     try:
-        stream = await client.chat.completions.create(
-            model=target_model,
-            messages=formatted_messages,
-            temperature=temperature,
-            stream=True,
-            max_tokens=max_tokens
-        )
+        logger.info(f"🧠 [Forensic Stream Chat] Transmetim i {len(formatted_messages)} mesazheve te {target_model}...")
+        stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content

@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - TIER-1 SUPREME ORCHESTRATION CLIENT V77.0 (VERIFIED OPENROUTER ENDPOINTS + AUTO-ALIASING)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • MONGO ATLAS SYNC • ZERO 404 RETRIES
+# PHOENIX PROTOCOL - ECONOMICAL HIGH-PERFORMANCE RAG ORCHESTRATION CLIENT V81.0
+# 100% COMPLETE CODE • ZERO CLAUDE • ZERO GPT-4O-MINI • EXCLUSIVE DEEPSEEK CORE
 
 import os
 import json
@@ -25,12 +25,12 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# PHOENIX SUPREME: Konfigurimi Ekonomik dhe Doktrinar i Modeleve
-PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "openai/gpt-4o-mini")
-FAST_MODEL = os.getenv("LLM_FAST_MODEL", "openai/gpt-4o-mini")
-DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "anthropic/claude-sonnet-4.6")
+# 🏛️ PHOENIX SUPREME: Konfigurimi Ekskluziv me DeepSeek si Motor Parësor dhe të Thellë
+PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "deepseek/deepseek-chat")
+DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "deepseek/deepseek-chat")
+FAST_MODEL = os.getenv("LLM_FAST_MODEL", "google/gemini-2.5-flash")
 
-# MAPIMI SANITAR: Parandalon gabimet 404 nëse një model i vjetër kërkohet nga .env apo shërbime të tjera
+# MAPIMI SANITAR I MODELEVE
 MODEL_ALIASES: Dict[str, str] = {
     "google/gemini-2.0-flash-001": "google/gemini-2.5-flash",
     "google/gemini-2.0-flash": "google/gemini-2.5-flash",
@@ -38,12 +38,11 @@ MODEL_ALIASES: Dict[str, str] = {
     "google/gemini-2.0-flash-exp:free": "google/gemini-2.5-flash",
 }
 
-# Fallback-ët zyrtarë aktivë dhe të verifikuar në OpenRouter
+# 🛡️ Fallback-ët zyrtarë (ZERO Claude • ZERO GPT-4o-mini)
 FALLBACK_MODELS = [
-    "openai/gpt-4o-mini",
-    "google/gemini-2.5-flash",
     "deepseek/deepseek-chat",
-    "openai/gpt-4o"
+    "google/gemini-2.5-flash",
+    "google/gemini-2.0-flash-001"
 ]
 
 TEMP_ANALYSIS = 0.0
@@ -82,7 +81,6 @@ def _get_async_client() -> AsyncOpenAI:
     )
 
 def _resolve_model_name(model_name: str) -> str:
-    """Konverton automatikisht emrat e vjetëruar të OpenRouter në modelet aktive për të parandaluar 404."""
     if not model_name:
         return PRIMARY_MODEL
     return MODEL_ALIASES.get(model_name, model_name)
@@ -98,6 +96,17 @@ def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
         if m and m not in unique_chain:
             unique_chain.append(m)
     return unique_chain
+
+def _get_provider_routing_payload(model_name: str) -> Dict[str, Any]:
+    """Rutim me prioritet të lartë për DeepSeek me 5 ofrues automatikë."""
+    if "deepseek" in model_name.lower():
+        return {
+            "provider": {
+                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
+                "allow_fallbacks": True
+            }
+        }
+    return {}
 
 def _apply_hallucination_filter(text: str) -> str:
     try:
@@ -169,6 +178,11 @@ def _call_llm(
             "temperature": temperature,
             "max_tokens": 16384
         }
+        
+        extra_body = _get_provider_routing_payload(current_model)
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
@@ -216,6 +230,11 @@ async def _call_llm_async(
             "temperature": temperature,
             "max_tokens": 16384
         }
+
+        extra_body = _get_provider_routing_payload(current_model)
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
@@ -270,23 +289,31 @@ async def stream_text_async(
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
-    target_models = _build_model_chain(model)
+    
+    # Parazgjedhja absolute: DEEP_MODEL (DeepSeek)
+    target_model_name = model or DEEP_MODEL
+    target_models = _build_model_chain(target_model_name)
 
     last_err: Optional[Exception] = None
     stream_started = False
 
     for current_model in target_models:
         try:
-            stream = await client.chat.completions.create(
-                model=current_model,
-                messages=[
+            kwargs: Dict[str, Any] = {
+                "model": current_model,
+                "messages": [
                     {"role": "system", "content": full_sys},
                     {"role": "user", "content": sanitized_user_p}
                 ],
-                temperature=temp,
-                stream=True,
-                max_tokens=16384
-            )
+                "temperature": temp,
+                "stream": True,
+                "max_tokens": 16384
+            }
+            extra_body = _get_provider_routing_payload(current_model)
+            if extra_body:
+                kwargs["extra_body"] = extra_body
+
+            stream = await client.chat.completions.create(**kwargs)
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
                     stream_started = True
