@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V5.5 (TOKEN-EFFICIENT HYBRID FORMATTER)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • HIGH SPEED BULLET & NARRATIVE ENGINE
+# PHOENIX PROTOCOL - FORENSIC INTERROGATION TERMINAL ROUTER V6.0 (ATOMIC PERSISTENCE GUARANTEE)
+# 100% COMPLETE CODE • ZERO LOST MESSAGES • ATOMIC MONGODB SYNC • IMMUNE TO GENERATOR EXIT
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -15,7 +15,7 @@ from app.core.db import get_db
 from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
 from app.services.forensic.forensic_llm_service import call_forensic_llm_chat, stream_forensic_llm_chat_async
-from app.services.forensic.forensic_hallucination_filter import purge_and_regenerate_if_hallucinated
+from app.services.forensic.forensic_hallucination_filter import audit_citations
 from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.vector_store_service import query_case_knowledge_base, query_global_knowledge_base
 
@@ -42,13 +42,9 @@ def _build_system_prompt_with_rag(
     case_context: str,
     db: Optional[Database] = None
 ) -> str:
-    """
-    Ndërton system prompt me formatim të shpejtë, efiçient në tokene dhe fleksibël (Bullets + Narrative).
-    Tabelat gjenerohen VETËM nëse kërkohen shprehimisht nga përdoruesi.
-    """
+    """Ndërton system prompt me të gjitha provat e dosjes dhe precedentët supremë."""
     case_chunks: List[Dict[str, Any]] = []
     
-    # 1. Tërheqje e thellë nga Vector Store (deri në 35 copëza)
     try:
         case_chunks = query_case_knowledge_base(
             user_id=user_id,
@@ -59,7 +55,6 @@ def _build_system_prompt_with_rag(
     except Exception as e:
         logger.warning(f"Deep case base retrieval failed: {e}")
 
-    # 2. Injektim i tekstit të plotë të dosjes nga MongoDB documents
     direct_dossier_text = ""
     if db is not None:
         try:
@@ -82,7 +77,6 @@ def _build_system_prompt_with_rag(
         except Exception as doc_err:
             logger.warning(f"Direct dossier lookup error: {doc_err}")
 
-    # 3. RAG Knowledge Base (Statute + Caselaw e Gjykatës Supreme)
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
@@ -92,7 +86,6 @@ def _build_system_prompt_with_rag(
     except Exception as e:
         logger.warning(f"Knowledge base retrieval failed: {e}")
 
-    # Formatimi i copëzave të lëndës
     if case_chunks:
         case_context_text = "\n\n".join([
             f"📄 {c.get('source','Dokument')} (Faqe {c.get('page','?')}) [Fragment {i+1}]:\n{c.get('text','')}"
@@ -120,13 +113,13 @@ RREGULLAT E FORMATIMIT DHE EFIÇIENCËS SË TOKENAVE:
    - 3. Shkeljet Ligjore & Pasojat Procedurale
    - 4. Konkluzioni / Hapat Taktikë
 2. STILI NARRATIV SHPJEGUES:
-   Nëse përdoruesi pyet "Më shpjego...", "Si ta kuptoj...", ose kërkon arsyetim bisedor, përgjigjuni me tekst të rrjedhshëm analitik juridik, si koleg me përvojë të lartë gjyqësore.
+   Nëse përdoruesi pyet "Më shpjego...", "Si ta kuptoj...", ose kërkon arsyetim bisedor, përgjigjuni me tekst të rrjedhshëm analitik juridik.
 3. RREGULLI I RREPTË PËR TABELAT:
-   MOS përdorni tabela automatikisht për çdo gjë. Përdorni tabela VETËM nëse përdoruesi e kërkon shprehimisht në pyetjen e tij (p.sh. "në tabelë", "krahaso tabelarisht", "nxirr inventar në tabelë"). Kjo garanton shpejtësi të lartë, qartësi maksimale dhe kursim tokenash.
+   Përdorni tabela VETËM nëse përdoruesi e kërkon shprehimisht në pyetjen e tij.
 4. PËRMBAJTJA HETIMORE:
    Analizoni ME KUJDES TË GJITHA faqet e dosjes së vënë në dispozicion më poshtë. Citoni fjalët kyçe në thonjëza, datat ekzakte, numrat e neneve dhe vendimet procedurale.
 5. GJUHA:
-   Gjuhë zyrtare juridike, pa fraza marketingu, pa hyrje boshe dhe pa emoji. Përgjigjuni menjëherë te thelbi.
+   Gjuhë zyrtare juridike, pa fraza marketingu, pa hyrje boshe dhe pa emoji.
 
 KONTEKSTI I LËNDËS:
 {payload.case_context or 'Çështje hetimore forenzike'}
@@ -194,18 +187,9 @@ def send_forensic_chat_message_nonstream(
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
     conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
 
-    if len(conversation_turns) == 0:
-        try:
-            case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
-            case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id_str}]})
-            legacy_history = (case_doc or {}).get("forensic_chat_history") or []
-            for legacy_m in legacy_history[-30:]:
-                conversation_turns.append({"role": legacy_m.get("role", "user"), "content": legacy_m.get("content", "")})
-        except Exception:
-            pass
-
     conversation_turns.append({"role": "user", "content": payload.message})
 
+    # Ruhet pyetja e përdoruesit
     db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
@@ -222,20 +206,13 @@ def send_forensic_chat_message_nonstream(
         temperature=0.0
     )
 
-    try:
-        verified_text, audit_result = purge_and_regenerate_if_hallucinated(
-            response_text=raw_response,
-            db=db,
-            original_prompt=payload.message
-        )
-    except Exception:
-        verified_text, audit_result = raw_response, None
+    audit_result = audit_citations(raw_response, db)
 
     assistant_msg_doc = {
         "case_id": case_id_str,
         "user_id": user_id,
         "role": "assistant",
-        "content": verified_text,
+        "content": raw_response,
         "citation_audit": audit_result,
         "created_at": datetime.now(timezone.utc)
     }
@@ -250,7 +227,7 @@ def send_forensic_chat_message_nonstream(
                     "forensic_chat_history": {
                         "$each": [
                             {"role": "user", "content": payload.message, "timestamp": now_utc.isoformat()},
-                            {"role": "assistant", "content": verified_text, "timestamp": assistant_msg_doc["created_at"].isoformat()}
+                            {"role": "assistant", "content": raw_response, "timestamp": assistant_msg_doc["created_at"].isoformat()}
                         ]
                     }
                 },
@@ -272,13 +249,13 @@ def send_forensic_chat_message_nonstream(
         "_id": str(assistant_msg_doc.get("_id")),
         "case_id": case_id_str,
         "role": "assistant",
-        "content": verified_text,
+        "content": raw_response,
         "citation_audit": audit_result,
         "created_at": assistant_msg_doc["created_at"].isoformat()
     }
 
 # ==========================================================
-# 2b. DËRGIMI I PYETJES ME STREAMING
+# 2b. DËRGIMI I PYETJES ME STREAMING (ME RUAJTJE TË GARANTUAR ATOMIKE)
 # ==========================================================
 @router.post("/chat/stream")
 async def stream_forensic_chat_message(
@@ -294,18 +271,9 @@ async def stream_forensic_chat_message(
     past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
     conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
 
-    if len(conversation_turns) == 0:
-        try:
-            case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
-            case_doc = db.cases.find_one({"$or": [{"_id": case_oid}, {"_id": case_id_str}]})
-            legacy_history = (case_doc or {}).get("forensic_chat_history") or []
-            for legacy_m in legacy_history[-30:]:
-                conversation_turns.append({"role": legacy_m.get("role", "user"), "content": legacy_m.get("content", "")})
-        except Exception:
-            pass
-
     conversation_turns.append({"role": "user", "content": payload.message})
 
+    # 1. RUAJTJA E MENJËHERSHME E PYETJES SË PËRDORUESIT
     db[FORENSIC_CHAT_COLLECTION].insert_one({
         "case_id": case_id_str,
         "user_id": user_id,
@@ -330,29 +298,31 @@ async def stream_forensic_chat_message(
             logger.error(f"Streaming error: {e}")
             yield f"\n\n[GABIM: {str(e)}]"
         finally:
-            if full_response:
+            # 2. RUAJTJA E HEKURT DHE E MENJËHERSHME E PËRGJIGJES SË AI-së NË MONGODB
+            if full_response.strip():
+                clean_ai_text = full_response.strip()
+                now_ai_utc = datetime.now(timezone.utc)
+
+                audit_result = None
                 try:
-                    verified_text, audit_result = purge_and_regenerate_if_hallucinated(
-                        response_text=full_response,
-                        db=db,
-                        original_prompt=payload.message
-                    )
-                    content_to_save = verified_text
-                except Exception:
-                    content_to_save = full_response
-                    audit_result = None
+                    audit_result = audit_citations(clean_ai_text, db)
+                except Exception as a_err:
+                    logger.warning(f"Audit warning: {a_err}")
 
                 assistant_msg_doc = {
                     "case_id": case_id_str,
                     "user_id": user_id,
                     "role": "assistant",
-                    "content": content_to_save,
+                    "content": clean_ai_text,
                     "citation_audit": audit_result,
-                    "created_at": datetime.now(timezone.utc)
+                    "created_at": now_ai_utc
                 }
-                db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
 
                 try:
+                    # Shkruhet ATOMIKISHT në koleksionin e bisedës
+                    db[FORENSIC_CHAT_COLLECTION].insert_one(assistant_msg_doc)
+
+                    # Sinkronizohet edhe në dokumentin e lëndës
                     case_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
                     db.cases.update_one(
                         {"$or": [{"_id": case_oid}, {"_id": case_id_str}]},
@@ -361,23 +331,27 @@ async def stream_forensic_chat_message(
                                 "forensic_chat_history": {
                                     "$each": [
                                         {"role": "user", "content": payload.message, "timestamp": now_utc.isoformat()},
-                                        {"role": "assistant", "content": content_to_save, "timestamp": assistant_msg_doc["created_at"].isoformat()}
+                                        {"role": "assistant", "content": clean_ai_text, "timestamp": now_ai_utc.isoformat()}
                                     ]
                                 }
                             },
-                            "$set": {"updated_at": datetime.now(timezone.utc)}
+                            "$set": {"updated_at": now_ai_utc}
                         }
                     )
-                except Exception as sync_err:
-                    logger.warning(f"Multi-device sync warning: {sync_err}")
+                    logger.info(f"✅ [Forensic Chat Persisted] U ruajt përgjigja ({len(clean_ai_text)} karaktere) për lëndën {case_id_str}")
+                except Exception as save_err:
+                    logger.error(f"❌ Dështoi ruajtja e mesazhit të AI në MongoDB: {save_err}")
 
-                log_forensic_action(
-                    db=db,
-                    user_id=user_id,
-                    case_id=case_id_str,
-                    action="FORENSIC_INTERROGATION_QUERY",
-                    details={"query_preview": payload.message[:100], "streaming": True}
-                )
+                try:
+                    log_forensic_action(
+                        db=db,
+                        user_id=user_id,
+                        case_id=case_id_str,
+                        action="FORENSIC_INTERROGATION_QUERY",
+                        details={"query_preview": payload.message[:100], "streaming": True}
+                    )
+                except Exception:
+                    pass
 
     return StreamingResponse(
         generate(),

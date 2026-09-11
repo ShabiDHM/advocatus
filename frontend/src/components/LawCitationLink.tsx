@@ -1,6 +1,6 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - UNIFIED GROUND-TRUTH CITATION TOOLTIP V14.0
-// 100% COMPLETE CODE • ZERO TS WARNINGS • ZERO UNUSED IMPORTS • REAL MONGODB SOURCE & PAGE TRUTHFULNESS
+// PHOENIX PROTOCOL - BULLETPROOF FIXED PORTAL & SMART AUTO-FLIP TOOLTIP V15.0
+// 100% COMPLETE CODE • ZERO OVERFLOW • VIEWPORT BOUNDARY AWARE • CONSISTENT DESIGN
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -51,7 +51,13 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [coords, setCoords] = useState({ top: 0, tooltipLeft: 0, arrowOffset: 0 });
+  // Pozicionim i saktë 'fixed' me mbrojtje nga dalja jashtë ekranit
+  const [coords, setCoords] = useState({
+    top: 0,
+    left: 0,
+    arrowLeft: 0,
+    isFlippedBelow: false,
+  });
   const containerRef = useRef<HTMLSpanElement>(null);
 
   const cleanDisplayLabel = (fullMatch || `${lawTitle} - Neni ${articleNum}`)
@@ -62,19 +68,26 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const tooltipWidth = viewportWidth < 640 ? 300 : 360;
+      const tooltipWidth = Math.min(viewportWidth - 32, viewportWidth < 640 ? 300 : 360);
       const margin = 16;
 
-      const idealLeft = rect.left + rect.width / 2;
+      // 1. Llogaritja horizontale me clamping të rreptë
+      const idealCenter = rect.left + rect.width / 2;
       const minLeft = tooltipWidth / 2 + margin;
       const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
-      const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft));
-      const arrowOffset = idealLeft - clampedLeft;
+      const clampedLeft = Math.max(minLeft, Math.min(idealCenter, maxLeft));
+      const arrowOffset = idealCenter - clampedLeft;
+
+      // 2. Llogaritja vertikale (Auto-Flip nëse është shumë lart në chat)
+      const estimatedTooltipHeight = 240;
+      const isFlippedBelow = rect.top < (estimatedTooltipHeight + 20);
+      const computedTop = isFlippedBelow ? (rect.bottom + 10) : (rect.top - 10);
 
       setCoords({
-        top: rect.top + window.scrollY,
-        tooltipLeft: clampedLeft,
-        arrowOffset: arrowOffset,
+        top: computedTop,
+        left: clampedLeft,
+        arrowLeft: arrowOffset,
+        isFlippedBelow,
       });
     }
   };
@@ -86,7 +99,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
       const response = await apiService.getLawArticle(lawTitle, articleNum);
       setSourceInfo(response.source_info || null);
     } catch {
-      // Graceful fallback on network/lookup failure
+      // Graceful fallback
     } finally {
       setIsLoading(false);
     }
@@ -98,7 +111,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     fetchTimeoutRef.current = setTimeout(() => {
       setShowTooltip(true);
       fetchSourceInfo();
-    }, 180);
+    }, 150);
   };
 
   const handleMouseLeave = () => {
@@ -113,18 +126,18 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     <AnimatePresence>
       {showTooltip && sourceInfo && (
         <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+          initial={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+          exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          className="absolute w-80 sm:w-96 p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-2xl z-[9999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+          className="fixed w-[300px] sm:w-[360px] p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
           style={{
-            top: `${coords.top - 8}px`,
-            left: `${coords.tooltipLeft}px`,
-            transform: 'translate(-50%, -100%)',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            transform: coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
           }}
         >
-          {/* KOKA E TOOLTIP-IT ME STATUSIN REAL */}
+          {/* Header */}
           <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-1.5 font-black text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
               <ShieldCheck size={16} />
@@ -136,16 +149,16 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             </span>
           </div>
 
-          {/* TITULLI I LIGJIT DHE NENI */}
+          {/* Titulli i Ligjit & Neni */}
           <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mb-2 leading-snug">
             {sourceInfo.matched_law || lawTitle} • Neni {sourceInfo.matched_article || articleNum}
           </div>
 
-          {/* DETAJET E VERIFIKIMIT REAL NGA MONGODB */}
+          {/* Të Dhënat Reale */}
           <div className="space-y-1.5 text-[11px] font-sans bg-slate-50 dark:bg-slate-900/90 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 mb-2">
             <div className="flex items-center justify-between">
               <span className="text-slate-500 dark:text-slate-400">Burimi në Server:</span>
-              <strong className="truncate max-w-[200px] font-mono text-[10px]" title={sourceInfo.source_file}>
+              <strong className="truncate max-w-[190px] font-mono text-[10px]" title={sourceInfo.source_file}>
                 {sourceInfo.source_file || 'Gazeta Zyrtare e Kosovës'}
               </strong>
             </div>
@@ -161,17 +174,20 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             </div>
           </div>
 
-          {/* PËRSHKRIMI FAKTIK */}
+          {/* Përshkrimi Faktik */}
           <div className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed italic border-t border-slate-200 dark:border-slate-800/80 pt-2">
             {sourceInfo.confidence?.description || 'Nen i nxjerrë direkt nga fondi zyrtar i ligjeve të Kosovës.'}
           </div>
 
+          {/* Shigjeta inteligjente (lart ose poshtë) */}
           <div
-            className="absolute top-full -translate-x-1/2 -mt-[2px] border-[8px] border-transparent pointer-events-none"
+            className={`absolute -translate-x-1/2 border-[8px] border-transparent pointer-events-none ${
+              coords.isFlippedBelow 
+                ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
+                : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
+            }`}
             style={{
-              borderTopColor: 'var(--tw-prose-body, currentColor)',
-              opacity: 0.6,
-              left: `calc(50% + ${coords.arrowOffset}px)`,
+              left: `calc(50% + ${coords.arrowLeft}px)`,
             }}
           />
         </motion.div>

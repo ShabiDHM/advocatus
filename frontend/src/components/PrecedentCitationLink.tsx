@@ -1,6 +1,6 @@
 // FILE: src/components/PrecedentCitationLink.tsx
-// PHOENIX PROTOCOL - BULLETPROOF SUPREME COURT PRECEDENT LINK V16.0 (ACTIVE ROUTER NAVIGATION)
-// 100% COMPLETE CODE • ZERO DEAD CLICKS • REAL JUDICIAL PASSPORT • EXPANDED HIGH-READABILITY TOOLTIP
+// PHOENIX PROTOCOL - BULLETPROOF FIXED PRECEDENT PORTAL V17.0
+// 100% COMPLETE CODE • ZERO OVERFLOW • SMART AUTO-FLIP • FULL VIEWPORT PROTECTION
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,7 +21,12 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [coords, setCoords] = useState({ top: 0, tooltipLeft: 0, arrowOffset: 0 });
+  const [coords, setCoords] = useState({
+    top: 0,
+    left: 0,
+    arrowLeft: 0,
+    isFlippedBelow: false,
+  });
   const containerRef = useRef<HTMLSpanElement>(null);
 
   const cleanLabel = caseNumber.replace(/^\[+|\]+$/g, '').trim();
@@ -30,19 +35,26 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const tooltipWidth = viewportWidth < 640 ? 340 : 420;
+      const tooltipWidth = Math.min(viewportWidth - 32, viewportWidth < 640 ? 320 : 400);
       const margin = 16;
 
-      const idealLeft = rect.left + rect.width / 2;
+      // 1. Clamping horizontal
+      const idealCenter = rect.left + rect.width / 2;
       const minLeft = tooltipWidth / 2 + margin;
       const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
-      const clampedLeft = Math.max(minLeft, Math.min(idealLeft, maxLeft));
-      const arrowOffset = idealLeft - clampedLeft;
+      const clampedLeft = Math.max(minLeft, Math.min(idealCenter, maxLeft));
+      const arrowOffset = idealCenter - clampedLeft;
+
+      // 2. Auto-Flip vertikal
+      const estimatedTooltipHeight = 220;
+      const isFlippedBelow = rect.top < (estimatedTooltipHeight + 20);
+      const computedTop = isFlippedBelow ? (rect.bottom + 10) : (rect.top - 10);
 
       setCoords({
-        top: rect.top + window.scrollY,
-        tooltipLeft: clampedLeft,
-        arrowOffset: arrowOffset,
+        top: computedTop,
+        left: clampedLeft,
+        arrowLeft: arrowOffset,
+        isFlippedBelow,
       });
     }
   };
@@ -68,14 +80,12 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
     e.stopPropagation();
     setShowTooltip(false);
 
-    // 1. Njofton nëse ka dritare lokale të hapur
     window.dispatchEvent(
       new CustomEvent('open_precedent_preview', {
         detail: { caseNumber: cleanLabel }
       })
     );
 
-    // 2. KLIKIMI REAL ME REACT ROUTER: Hap menjëherë aktgjykimin në Bibliotekë me PDF të hapur
     navigate(`/laws/search?q=${encodeURIComponent(cleanLabel)}`);
   };
 
@@ -83,18 +93,18 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
     <AnimatePresence>
       {showTooltip && (
         <motion.div
-          initial={{ opacity: 0, y: 10, scale: 0.96 }}
+          initial={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.96 }}
-          transition={{ duration: 0.15 }}
-          className="absolute w-[340px] sm:w-[420px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+          exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
+          transition={{ duration: 0.12 }}
+          className="fixed w-[320px] sm:w-[400px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
           style={{
-            top: `${coords.top - 10}px`,
-            left: `${coords.tooltipLeft}px`,
-            transform: 'translate(-50%, -100%)',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            transform: coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
           }}
         >
-          {/* Header Institucional i Saktë */}
+          {/* Header */}
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black text-xs uppercase tracking-wider">
               <Gavel size={16} />
@@ -105,12 +115,12 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
             </span>
           </div>
 
-          {/* Numri Zyrtar i Vendimit */}
+          {/* Numri Zyrtar */}
           <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
             Vendimi: {cleanLabel}
           </div>
 
-          {/* Të Dhënat Reale Institucionale */}
+          {/* Të Dhënat Reale */}
           <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between">
               <span className="text-slate-500 dark:text-slate-400 font-medium">Instanca:</span>
@@ -130,18 +140,22 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           </div>
 
           {/* Udhëzimi me 1-Klikim */}
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Kliko për të hapur aktgjykimin origjinal në PDF</span>
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-2">
+            <span>Kliko për të hapur aktgjykimin origjinal</span>
             <span className="text-amber-500 font-bold flex items-center gap-0.5">
               Hap Vendimin <ExternalLink size={10} />
             </span>
           </div>
 
-          {/* Shigjeta e Tooltip-it */}
+          {/* Shigjeta inteligjente */}
           <div
-            className="absolute top-full -translate-x-1/2 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19] pointer-events-none"
+            className={`absolute -translate-x-1/2 border-[8px] border-transparent pointer-events-none ${
+              coords.isFlippedBelow 
+                ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
+                : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
+            }`}
             style={{
-              left: `calc(50% + ${coords.arrowOffset}px)`,
+              left: `calc(50% + ${coords.arrowLeft}px)`,
             }}
           />
         </motion.div>
