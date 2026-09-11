@@ -1,11 +1,12 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V115.0 (THEME-AWARE SOLID TOOLTIPS)
+// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V116.0 (CLEAN SEMANTIC CORE)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • SUGGESTION CHIPS PURGED
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Search, X, Scale, ArrowLeft, ChevronDown, Check, 
-  ShieldCheck, GraduationCap, Gavel, Lightbulb, 
+  ShieldCheck, GraduationCap, Gavel, 
   BookOpen, ArrowRight, ExternalLink, Loader2, Bot, FileText,
   CheckCircle2
 } from 'lucide-react';
@@ -14,7 +15,6 @@ import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
 import { 
-  QUICK_HELP_CHIPS, 
   SEMANTIC_INTENT_MATRIX, 
   sanitizeSearchText, 
   SemanticIntentRule 
@@ -257,12 +257,6 @@ export default function LawSearchPage() {
     }
   };
 
-  const handleChipClick = (queryText: string) => {
-    setSearchQuery(queryText);
-    setIsListExpanded(true);
-    setAiDiagnostic(null);
-  };
-
   const pdfUrl = useMemo(() => {
     if (!selectedPdfFilename) return null;
     
@@ -319,11 +313,11 @@ export default function LawSearchPage() {
           </div>
         </div>
 
-        {/* SHIRITI I KËRKIMIT UNIVERSAL */}
-        <div className="glass-panel p-5 sm:p-7 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-4">
+        {/* SHIRITI I KËRKIMIT UNIVERSAL (PA CHIPS, I PASTËR DHE PROFESIONAL) */}
+        <div className="glass-panel p-4 sm:p-6 mb-6 shadow-md border border-main bg-surface rounded-3xl flex flex-col gap-3">
           <div className="relative w-full">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
-              <Search size={22} />
+            <div className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-primary-start flex items-center pointer-events-none">
+              <Search size={20} className="sm:w-[22px] sm:h-[22px]" />
             </div>
 
             <input
@@ -337,10 +331,10 @@ export default function LawSearchPage() {
                 if (e.key === 'Enter') handleFindArticlesWithAi();
               }}
               placeholder="Shkruaj çfarëdo rasti apo pyetje (p.sh. 'bleva një banesë me defekt', 'prapësimi ndaj urdhrit përmbarimor')..."
-              className="w-full pl-12 pr-40 py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
+              className="w-full pl-11 sm:pl-12 pr-32 sm:pr-40 py-3.5 sm:py-4 bg-canvas border border-main rounded-2xl text-xs sm:text-sm md:text-base font-bold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-2 focus:ring-primary-start/20 transition-all shadow-inner"
             />
 
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 sm:gap-2">
               {searchQuery && (
                 <button
                   type="button"
@@ -348,10 +342,10 @@ export default function LawSearchPage() {
                     setSearchQuery('');
                     setAiDiagnostic(null);
                   }}
-                  className="p-2 text-text-muted hover:text-danger-start transition-colors cursor-pointer"
+                  className="p-1.5 sm:p-2 text-text-muted hover:text-danger-start transition-colors cursor-pointer"
                   title="Pastro"
                 >
-                  <X size={18} />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               )}
 
@@ -359,38 +353,17 @@ export default function LawSearchPage() {
                 type="button"
                 onClick={handleFindArticlesWithAi}
                 disabled={isAnalyzingWithAi || searchQuery.trim().length < 3}
-                className="px-4 py-2.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm transition-all hover-lift cursor-pointer disabled:opacity-50"
+                className="px-3 sm:px-4 py-2 sm:py-2.5 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all hover-lift cursor-pointer disabled:opacity-50 shrink-0"
                 title="Gjej Nenet me Inteligjencë Artificiale"
               >
                 {isAnalyzingWithAi ? (
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={15} className="animate-spin" />
                 ) : (
-                  <Bot size={16} />
+                  <Bot size={15} />
                 )}
-                <span>Gjej Nenet me AI</span>
+                <span className="hidden sm:inline">Gjej Nenet me AI</span>
+                <span className="sm:hidden">AI</span>
               </button>
-            </div>
-          </div>
-
-          {/* SHEMBUJ TË GATSHËM ME 1-KLIKIM */}
-          <div className="flex flex-col gap-1.5 pt-0.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-black text-text-muted uppercase tracking-wider">
-              <Lightbulb size={13} className="text-amber-500" />
-              <span>Zgjidhje të Shpejta me 1-Kliko:</span>
-            </div>
-
-            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
-              {QUICK_HELP_CHIPS.map((chip, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleChipClick(chip.query)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-canvas hover:bg-hover border border-main hover:border-primary-start text-xs font-semibold text-text-primary transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs hover-lift active:scale-95"
-                >
-                  <span>{chip.icon}</span>
-                  <span>{chip.label}</span>
-                </button>
-              ))}
             </div>
           </div>
 
@@ -401,7 +374,7 @@ export default function LawSearchPage() {
                 initial={{ opacity: 0, scale: 0.99 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.99 }}
-                className="mt-2 bg-gradient-to-br from-primary-start/15 via-surface to-canvas border-2 border-primary-start/40 rounded-3xl p-6 shadow-lg flex flex-col gap-4"
+                className="mt-2 bg-gradient-to-br from-primary-start/15 via-surface to-canvas border-2 border-primary-start/40 rounded-3xl p-4 sm:p-6 shadow-lg flex flex-col gap-4"
               >
                 <div className="flex items-center justify-between flex-wrap gap-2 border-b border-primary-start/20 pb-3">
                   <div className="flex items-center gap-3">
@@ -590,7 +563,7 @@ export default function LawSearchPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-1 bg-primary-start/10 border border-primary-start/30 rounded-2xl p-5 flex items-start gap-4 text-xs shadow-xs"
+                className="mt-1 bg-primary-start/10 border border-primary-start/30 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 sm:gap-4 text-xs shadow-xs"
               >
                 <div className="p-2.5 bg-primary-start text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
                   <Scale size={20} />
@@ -692,11 +665,11 @@ export default function LawSearchPage() {
         </div>
 
         {/* 3 TABS KRYESORE */}
-        <div className="grid grid-cols-3 w-full gap-2 mb-6 bg-surface p-2 rounded-2xl border border-main shadow-sm">
+        <div className="grid grid-cols-3 w-full gap-2 mb-6 bg-surface p-1.5 sm:p-2 rounded-2xl border border-main shadow-sm">
           <button
             type="button"
             onClick={() => { setActiveTab('statutes'); }}
-            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'statutes' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -707,7 +680,7 @@ export default function LawSearchPage() {
           <button
             type="button"
             onClick={() => { setActiveTab('academic'); }}
-            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'academic' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -718,7 +691,7 @@ export default function LawSearchPage() {
           <button
             type="button"
             onClick={() => { setActiveTab('caselaw'); }}
-            className={`w-full py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full py-3 sm:py-3.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-black uppercase tracking-tight sm:tracking-wider transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === 'caselaw' ? 'bg-primary-start text-white shadow-md' : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -728,8 +701,8 @@ export default function LawSearchPage() {
         </div>
 
         {/* LISTA E MATERIALEVE TË FILTRUARA ME 2 KOLONA NË DESKTOP */}
-        <div className="glass-panel p-6 sm:p-8 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
-          <div className="flex items-center justify-between mb-5 pb-3 border-b border-main">
+        <div className="glass-panel p-5 sm:p-8 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
+          <div className="flex items-center justify-between mb-4 sm:mb-5 pb-3 border-b border-main">
             <button
               type="button"
               onClick={() => setIsListExpanded(!isListExpanded)}
@@ -787,7 +760,7 @@ export default function LawSearchPage() {
                           key={idx}
                           type="button"
                           onClick={() => handleSelectLaw(lawTitle)}
-                          className="w-full text-left p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift"
+                          className="w-full text-left p-3.5 sm:p-4 rounded-2xl bg-canvas hover:bg-primary-start text-text-primary hover:text-white border border-main hover:border-primary-start flex items-center justify-between transition-all duration-200 cursor-pointer group shadow-xs hover-lift"
                         >
                           <div className="flex items-center gap-3.5 min-w-0 pr-3">
                             <div className="p-2.5 rounded-xl bg-surface group-hover:bg-white/20 border border-main group-hover:border-white/20 shrink-0 transition-colors">

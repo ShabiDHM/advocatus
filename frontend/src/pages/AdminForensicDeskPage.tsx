@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/AdminForensicDeskPage.tsx
-// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V11.5 (CLEAN IDENTITY BAR • UNNECESSARY NUMBER PURGED)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • STREAMLINED STUDIO
+// PHOENIX PROTOCOL - MASTER FORENSIC STUDIO V12.0 (RESPONSIVE EXECUTIVE PASSPORT • MOBILE/TABLET/DESKTOP)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO REGRESSIONS • ARCHITECTURAL INTEGRITY
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -181,26 +181,27 @@ export const AdminForensicDeskPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-canvas text-text-primary p-2.5 sm:p-5 lg:p-7 max-w-[1750px] mx-auto transition-colors select-none">
+    <div className="w-full min-h-[100dvh] bg-canvas text-text-primary p-2 sm:p-4 lg:p-6 max-w-[1750px] mx-auto transition-colors select-none flex flex-col">
       
-      {/* PASAPORTA EKZEKUTIVE E LËNDËS */}
-      <header className="glass-panel p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-2.5 flex-wrap">
+      {/* PASAPORTA EKZEKUTIVE E LËNDËS (RESPONSIVE ARCHITECTURE) */}
+      <header className="glass-panel p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex flex-col gap-2.5 shrink-0">
+        
+        {/* NIVELI 1: ZGJEDHJA E DOSJES & VEPRIMET KRYESORE */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           
-          {/* PJESA E MAJTË: ZGJEDHËSI I DOSJES + IDENTITETI I PASTËR I KLIENTIT */}
-          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[200px]">
-            
-            {/* Zgjedhësi Dropdown */}
-            <div className="relative flex items-center bg-surface border border-main rounded-xl px-2.5 py-1.5 shadow-xs">
-              <FolderOpen size={14} className="text-primary-start mr-1.5 shrink-0" />
+          {/* Zgjedhësi Dropdown & Rifreskimi */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-[200px] max-w-full sm:max-w-md">
+            <div className="relative flex items-center bg-surface border border-main rounded-xl px-2.5 py-1.5 shadow-xs w-full">
+              <FolderOpen size={14} className="text-primary-start mr-2 shrink-0" />
               <select
                 value={activeDossier?.id || ''}
                 onChange={(e) => {
                   const found = dossiersList.find(d => d.id === e.target.value);
                   if (found) setActiveDossier(found);
                 }}
-                className="bg-transparent text-xs font-bold text-text-primary focus:outline-none pr-5 cursor-pointer max-w-[180px] sm:max-w-xs truncate"
+                className="bg-transparent text-xs font-bold text-text-primary focus:outline-none w-full pr-6 cursor-pointer truncate"
                 disabled={loadingCases}
+                aria-label="Përzgjidh Dosjen Aktive"
               >
                 {dossiersList.length === 0 ? (
                   <option value="">Nuk ka dosje aktive</option>
@@ -213,105 +214,38 @@ export const AdminForensicDeskPage: React.FC = () => {
                 )}
               </select>
               <button
+                type="button"
                 onClick={loadExistingDossiers}
-                title="Rifresko"
-                className="ml-1 p-0.5 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                title="Rifresko listën e dosjeve"
+                className="absolute right-2 p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
               >
-                <RefreshCw size={11} className={loadingCases ? 'animate-spin' : ''} />
+                <RefreshCw size={12} className={loadingCases ? 'animate-spin' : ''} />
               </button>
             </div>
-
-            {/* TË DHËNAT ZYRTARE TË PALËS */}
-            {activeDossier && (
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
-                
-                {/* Emri i Palës / Klientit */}
-                <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs">
-                  <User size={13} className="text-primary-start shrink-0" />
-                  <span className="font-bold text-text-primary">{activeDossier.clientName}</span>
-                </div>
-
-                {/* Telefoni / WhatsApp */}
-                {activeDossier.clientPhone ? (
-                  <a
-                    href={`tel:${activeDossier.clientPhone}`}
-                    className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono"
-                    title="Telefono / WhatsApp"
-                  >
-                    <Phone size={12} className="text-emerald-500 shrink-0" />
-                    <span>{activeDossier.clientPhone}</span>
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleOpenEditModal}
-                    className="flex items-center gap-1 bg-surface/50 hover:bg-surface border border-dashed border-main hover:border-emerald-500/50 px-2 py-1 rounded-xl text-[11px] text-text-muted hover:text-emerald-500 transition-colors cursor-pointer"
-                    title="Plotëso numrin e telefonit"
-                  >
-                    <Phone size={11} className="text-emerald-500" />
-                    <span>+ Shto Tel</span>
-                  </button>
-                )}
-
-                {/* Email */}
-                {activeDossier.clientEmail ? (
-                  <a
-                    href={`mailto:${activeDossier.clientEmail}`}
-                    className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono"
-                    title="Dërgo Email"
-                  >
-                    <Mail size={12} className="text-sky-500 shrink-0" />
-                    <span className="max-w-[150px] truncate">{activeDossier.clientEmail}</span>
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleOpenEditModal}
-                    className="flex items-center gap-1 bg-surface/50 hover:bg-surface border border-dashed border-main hover:border-sky-500/50 px-2 py-1 rounded-xl text-[11px] text-text-muted hover:text-sky-500 transition-colors cursor-pointer"
-                    title="Plotëso adresën e email-it"
-                  >
-                    <Mail size={11} className="text-sky-500" />
-                    <span>+ Shto Email</span>
-                  </button>
-                )}
-
-                {/* Gjykata / Organi Kompetent */}
-                <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl text-text-muted shadow-xs">
-                  <Scale size={13} className="text-primary-start shrink-0" />
-                  <span className="font-medium text-text-primary truncate max-w-[220px]">{activeDossier.courtJurisdiction}</span>
-                </div>
-
-                {/* BUTONI I EDITIMIT ME LAPS (✏️) */}
-                <button
-                  type="button"
-                  onClick={handleOpenEditModal}
-                  className="p-1.5 bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start rounded-xl transition-colors cursor-pointer shadow-xs"
-                  title="Edito të dhënat e dosjes (Emrin, Telefonin, Email-in, Gjykatën)"
-                >
-                  <Pencil size={13} />
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* PJESA E DJATHTË: BUTONAT E VEPRIMIT (DOSJE E RE + FSHI) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Veprimet e Dosjes (Fshi & Dosje e Re) */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
             {activeDossier && (
               <button
                 type="button"
                 onClick={() => handleDeleteDossier(activeDossier.id, activeDossier.clientName)}
                 disabled={deletingDossierId === activeDossier.id}
-                className="h-8 w-8 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-xs disabled:opacity-40"
+                className="h-8.5 w-8.5 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 border border-rose-600/30 text-rose-500 flex items-center justify-center transition-all cursor-pointer shadow-xs disabled:opacity-40"
                 title="Fshi Dosjen dhe të Gjitha Provat"
               >
-                {deletingDossierId === activeDossier.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {deletingDossierId === activeDossier.id ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setShowNewDossierModal(true)}
-              className="h-8 px-3 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+              className="h-8.5 px-3 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
               title="Hap Dosje të Re"
             >
               <Plus size={15} />
@@ -319,15 +253,87 @@ export const AdminForensicDeskPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* NIVELI 2: TË DHËNAT ZYRTARE TË PALËS (CHIPS ME AUTO-WRAP & ELIPSË) */}
+        {activeDossier && (
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs pt-1 border-t border-main/40">
+            
+            {/* Emri i Palës */}
+            <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl shadow-xs max-w-full sm:max-w-xs">
+              <User size={13} className="text-primary-start shrink-0" />
+              <span className="font-bold text-text-primary truncate">{activeDossier.clientName}</span>
+            </div>
+
+            {/* Telefoni / WhatsApp */}
+            {activeDossier.clientPhone ? (
+              <a
+                href={`tel:${activeDossier.clientPhone}`}
+                className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono shrink-0"
+                title="Telefono / WhatsApp"
+              >
+                <Phone size={12} className="text-emerald-500 shrink-0" />
+                <span>{activeDossier.clientPhone}</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpenEditModal}
+                className="flex items-center gap-1 bg-surface/60 hover:bg-surface border border-dashed border-main hover:border-emerald-500/50 px-2 py-1 rounded-xl text-[11px] text-text-muted hover:text-emerald-500 transition-colors cursor-pointer shrink-0"
+                title="Plotëso numrin e telefonit"
+              >
+                <Phone size={11} className="text-emerald-500" />
+                <span>+ Shto Tel</span>
+              </button>
+            )}
+
+            {/* Email */}
+            {activeDossier.clientEmail ? (
+              <a
+                href={`mailto:${activeDossier.clientEmail}`}
+                className="flex items-center gap-1.5 bg-surface hover:bg-hover border border-main px-2.5 py-1 rounded-xl text-text-muted hover:text-text-primary transition-colors shadow-xs font-mono max-w-[200px]"
+                title="Dërgo Email"
+              >
+                <Mail size={12} className="text-sky-500 shrink-0" />
+                <span className="truncate">{activeDossier.clientEmail}</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={handleOpenEditModal}
+                className="flex items-center gap-1 bg-surface/60 hover:bg-surface border border-dashed border-main hover:border-sky-500/50 px-2 py-1 rounded-xl text-[11px] text-text-muted hover:text-sky-500 transition-colors cursor-pointer shrink-0"
+                title="Plotëso adresën e email-it"
+              >
+                <Mail size={11} className="text-sky-500" />
+                <span>+ Shto Email</span>
+              </button>
+            )}
+
+            {/* Gjykata / Organi Kompetent */}
+            <div className="flex items-center gap-1.5 bg-surface border border-main px-2.5 py-1 rounded-xl text-text-muted shadow-xs max-w-full sm:max-w-xs">
+              <Scale size={13} className="text-primary-start shrink-0" />
+              <span className="font-medium text-text-primary truncate">{activeDossier.courtJurisdiction}</span>
+            </div>
+
+            {/* BUTONI I EDITIMIT ME LAPS (✏️) */}
+            <button
+              type="button"
+              onClick={handleOpenEditModal}
+              className="p-1.5 bg-surface hover:bg-hover border border-main text-text-muted hover:text-primary-start rounded-xl transition-colors cursor-pointer shadow-xs shrink-0"
+              title="Edito të dhënat e dosjes"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
+        )}
       </header>
 
       {/* SHIRITI I NAVIGIMIT MES 3 LABORATORËVE TË PROVAVE */}
-      <nav className="my-3 sm:my-4 w-full">
-        <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1 sm:p-1.5 shadow-inner gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x [-webkit-overflow-scrolling:touch]">
+      <nav className="my-2.5 sm:my-3.5 w-full shrink-0">
+        <div className="flex items-center bg-surface border border-main rounded-xl sm:rounded-2xl p-1 shadow-inner gap-1 overflow-x-auto scrollbar-none snap-x touch-pan-x [-webkit-overflow-scrolling:touch]">
           <button
             type="button"
             onClick={() => setActiveLab('DOCUMENTS')}
-            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
+            className={`flex-1 min-w-[120px] px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer snap-center min-h-[38px] ${
               activeLab === 'DOCUMENTS'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -335,7 +341,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           >
             <FileText size={14} className="shrink-0" />
             <span className="whitespace-nowrap">1. Shkresat</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/10 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/15 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
               {labCounts.DOCUMENTS}
             </span>
           </button>
@@ -343,7 +349,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveLab('AUDIO')}
-            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
+            className={`flex-1 min-w-[110px] px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer snap-center min-h-[38px] ${
               activeLab === 'AUDIO'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -351,7 +357,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           >
             <Mic size={14} className="shrink-0" />
             <span className="whitespace-nowrap">2. Audio</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/10 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/15 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
               {labCounts.AUDIO}
             </span>
           </button>
@@ -359,7 +365,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveLab('VISUAL')}
-            className={`px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 snap-center min-h-[38px] sm:min-h-[40px] ${
+            className={`flex-1 min-w-[110px] px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer snap-center min-h-[38px] ${
               activeLab === 'VISUAL'
                 ? 'bg-primary-start text-white shadow-md'
                 : 'text-text-muted hover:text-text-primary hover:bg-hover'
@@ -367,7 +373,7 @@ export const AdminForensicDeskPage: React.FC = () => {
           >
             <Video size={14} className="shrink-0" />
             <span className="whitespace-nowrap">3. Video</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/10 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-black/15 dark:bg-white/20 text-inherit flex items-center justify-center min-w-[18px]">
               {labCounts.VISUAL}
             </span>
           </button>
@@ -375,9 +381,9 @@ export const AdminForensicDeskPage: React.FC = () => {
       </nav>
 
       {/* TRUPI OPERATIV I ZYRËS - 3 LABORATORËT E PROVAVE */}
-      <main className="space-y-4">
+      <main className="flex-1 min-h-0 flex flex-col">
         {!activeDossier ? (
-          <div className="p-6 sm:p-12 text-center glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card flex flex-col items-center justify-center gap-4">
+          <div className="p-6 sm:p-12 text-center glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card flex flex-col items-center justify-center gap-4 my-auto">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
               <FolderPlus size={24} className="sm:w-8 sm:h-8" />
             </div>
@@ -421,7 +427,7 @@ export const AdminForensicDeskPage: React.FC = () => {
       {/* MODALI I DOSJES SË RE */}
       {showNewDossierModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-lg sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[92vh] flex flex-col">
+          <div className="relative w-full max-w-lg sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[90dvh] flex flex-col">
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-primary-start/10 dark:bg-primary-start/20 text-primary-start flex items-center justify-center shrink-0">
@@ -528,7 +534,7 @@ export const AdminForensicDeskPage: React.FC = () => {
       {/* MODALI I EDITIMIT TË DOSJES EKZISTUESE (✏️) */}
       {showEditDossierModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-lg sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[92vh] flex flex-col">
+          <div className="relative w-full max-w-lg sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 my-auto max-h-[90dvh] flex flex-col">
             <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-primary-start/10 dark:bg-primary-start/20 text-primary-start flex items-center justify-center shrink-0">

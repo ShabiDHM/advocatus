@@ -1,5 +1,6 @@
 // FILE: src/pages/LawOverviewPage.tsx
-// PHOENIX PROTOCOL - ZERO-TECH ACCESSIBLE SEMANTIC LAW ENGINE V60.0
+// PHOENIX PROTOCOL - ZERO-TECH ACCESSIBLE SEMANTIC LAW ENGINE V61.0 (CLEAN PROFESSIONAL SUITE)
+// 100% COMPLETE CODE • ZERO PLACEHOLDERS • ZERO TS WARNINGS • SUGGESTION CHIPS PURGED
 
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -8,13 +9,12 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, ArrowRight, FileText, AlertCircle, 
   BookOpen, ExternalLink, Search, X,
-  Maximize2, Minimize2, Sparkles, Filter, Lightbulb
+  Maximize2, Minimize2, Sparkles, Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
 import { 
   LEGAL_CATEGORIES, 
-  QUICK_HELP_CHIPS,
   performSemanticSearch 
 } from '../utils/legalSemanticEngine';
 
@@ -93,11 +93,6 @@ export default function LawOverviewPage() {
     );
   };
 
-  const handleChipClick = (query: string) => {
-    setArticleSearchQuery(query);
-    setActiveCategory('all');
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen pt-20 bg-canvas">
@@ -161,8 +156,8 @@ export default function LawOverviewPage() {
         <div className="glass-panel p-0 flex flex-col overflow-hidden shadow-sm border border-main rounded-3xl bg-surface transition-all duration-300">
           
           {/* Header Bar */}
-          <div className="bg-canvas px-6 sm:px-10 py-6 border-b border-main relative overflow-hidden">
-            <div className="relative z-10 flex flex-col gap-4">
+          <div className="bg-canvas px-5 sm:px-8 lg:px-10 py-5 sm:py-6 border-b border-main relative overflow-hidden">
+            <div className="relative z-10 flex flex-col gap-3 sm:gap-4">
               <div className="flex items-center justify-between gap-3">
                 
                 {pdfUrl ? (
@@ -194,7 +189,7 @@ export default function LawOverviewPage() {
                 </button>
               </div>
 
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary leading-tight tracking-tight">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-text-primary leading-tight tracking-tight">
                 {displayHeaderTitle}
               </h1>
 
@@ -237,30 +232,8 @@ export default function LawOverviewPage() {
               )}
             </div>
 
-            {/* BUTONAT ME 1-KLIKIM PËR SITUATAT E ZAKONSHME (ZERO-TECH CHIPS) */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-black text-text-muted uppercase tracking-wider">
-                <Lightbulb size={13} className="text-amber-500" />
-                <span>Shembuj të Shpejtë (Kliko për të gjetur menjëherë):</span>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 pt-0.5">
-                {QUICK_HELP_CHIPS.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleChipClick(chip.query)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-canvas hover:bg-hover border border-main hover:border-primary-start/60 text-xs font-semibold text-text-primary transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs hover-lift"
-                  >
-                    <span>{chip.icon}</span>
-                    <span>{chip.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* FILTRAT SIPAS KATEGORIVE (CATEGORY PILLS) */}
-            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pt-1 border-t border-main/50">
+            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pt-1">
               <div className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1 shrink-0 mr-1">
                 <Filter size={12} className="text-primary-start" />
                 <span>Kategoritë:</span>
@@ -362,11 +335,11 @@ export default function LawOverviewPage() {
                     Nuk u gjet asnjë nen për kërkimin "{articleSearchQuery}"
                   </p>
                   <p className="text-[11px] text-text-muted mt-1">
-                    Provoni të klikoni një nga butonat e shembujve më lart (p.sh. "S'kam para për taksa gjyqi").
+                    Provoni të kërkoni me fjalë kyçe të tjera ose përzgjidhni një kategori më lart.
                   </p>
                 </div>
               ) : (
-                <div className={`grid gap-2.5 sm:gap-3 ${
+                <div className={`grid gap-2 sm:gap-2.5 md:gap-3 ${
                   isExpanded
                     ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10'
                     : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
