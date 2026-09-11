@@ -1,6 +1,6 @@
 // FILE: frontend/src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V119.0
-// 100% COMPLETE CODE • ZERO MARKETING GIMMICKS • ZERO TS WARNINGS • RIGOROUS INSTITUTIONAL METADATA
+// PHOENIX PROTOCOL - UNIFIED STATUTE & SUPREME CASELAW FORENSIC ENGINE V120.0
+// 100% COMPLETE CODE • ZERO TS WARNINGS • EXPANDED CRYSTAL-CLEAR TOOLTIPS FOR STATUTE & SUPREME PRECEDENTS
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -81,7 +81,7 @@ export default function LawSearchPage() {
   const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
   const [showPdfModal, setShowPdfModal] = useState(false);
 
-  // FORENSIC METADATA TOOLTIP STATE
+  // FORENSIC TOOLTIP STATE
   const [hoveredArticleKey, setHoveredArticleKey] = useState<string | null>(null);
 
   // AI DIAGNOSTIC STATE
@@ -430,50 +430,69 @@ export default function LawSearchPage() {
                         const shortBadge = formatShortLawBadge(item.law_title);
                         const fullText = item.paragraph_text || item.explanation;
                         const supremeInterpretations = item.supreme_court_interpretations || [];
-                        const tooltipKey = `statute_${i}`;
-                        const isHovered = hoveredArticleKey === tooltipKey;
+                        const statuteTooltipKey = `statute_${i}`;
+                        const isStatuteHovered = hoveredArticleKey === statuteTooltipKey;
                         const fullLawTitle = resolveLawTitle(item.law_title);
 
                         return (
                           <div
                             key={i}
-                            className="p-4 rounded-2xl bg-surface border border-main/80 shadow-xs flex flex-col gap-3"
+                            className="p-4 sm:p-5 rounded-2xl bg-surface border border-main/80 shadow-xs flex flex-col gap-3.5"
                           >
-                            {/* Titulli i Nenit me Tooltip të Saktë të Pasaportës Ligjore */}
+                            {/* Titulli i Nenit me Tooltip të Madh dhe të Qartë */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <div 
-                                className="relative inline-flex items-center gap-2"
-                                onMouseEnter={() => setHoveredArticleKey(tooltipKey)}
+                                className="relative inline-flex items-center gap-2 cursor-help"
+                                onMouseEnter={() => setHoveredArticleKey(statuteTooltipKey)}
                                 onMouseLeave={() => setHoveredArticleKey(null)}
                               >
-                                <span className="px-2.5 py-1 rounded-lg bg-primary-start/15 text-primary-start font-black text-xs cursor-help">
+                                <span className="px-3 py-1 rounded-lg bg-primary-start/15 hover:bg-primary-start/25 text-primary-start font-black text-xs sm:text-sm transition-colors shadow-2xs">
                                   {shortBadge} • Neni {item.article_number}
                                 </span>
-                                <span className="text-xs font-bold text-text-primary">
+                                <span className="text-xs sm:text-sm font-bold text-text-primary hover:text-primary-start transition-colors">
                                   {item.law_title}
                                 </span>
 
-                                {/* PASAPORTA INSTITUCIONALE E NENIT (ZERO GIMMICKS) */}
+                                {/* TOOLTIP I ZMADHUAR, I QARTË DHE PROFESIONAL I NENIT */}
                                 <AnimatePresence>
-                                  {isHovered && (
+                                  {isStatuteHovered && (
                                     <motion.div
-                                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                      initial={{ opacity: 0, y: 10, scale: 0.96 }}
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                                      transition={{ duration: 0.12 }}
-                                      className="absolute left-0 bottom-full mb-2.5 w-80 p-3.5 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-[99999] pointer-events-none"
+                                      exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                                      transition={{ duration: 0.15 }}
+                                      className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[440px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-primary-start/40 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
                                     >
-                                      <div className="text-xs font-bold text-slate-900 dark:text-white mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">
-                                        📜 {fullLawTitle}
+                                      <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center gap-2 text-primary-start font-black text-xs uppercase tracking-wider">
+                                          <BookOpen size={16} />
+                                          <span>Pasaporta Normative</span>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
+                                          NË FUQI
+                                        </span>
                                       </div>
 
-                                      <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300 font-mono">
-                                        <div>Dispozita: <strong className="text-primary-start">Neni {item.article_number}</strong></div>
-                                        <div>Statusi: <strong className="text-emerald-600 dark:text-emerald-400">Në fuqi</strong></div>
-                                        <div>Jurisdiksioni: <strong>Republika e Kosovës</strong></div>
+                                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
+                                        {fullLawTitle}
                                       </div>
 
-                                      <div className="absolute top-full left-6 -mt-[1px] border-[7px] border-transparent border-t-white dark:border-t-[#0f172a]" />
+                                      <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Dispozita:</span>
+                                          <strong className="text-primary-start text-xs sm:text-sm">Neni {item.article_number}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Organi Miratues:</span>
+                                          <strong>Kuvendi i Kosovës</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Publikimi:</span>
+                                          <strong>Gazeta Zyrtare e Kosovës</strong>
+                                        </div>
+                                      </div>
+
+                                      <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
@@ -482,7 +501,7 @@ export default function LawSearchPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenExactArticle(item.law_title, item.article_number)}
-                                className="h-8 px-3 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all hover-lift"
+                                className="h-8.5 px-3.5 bg-primary-start text-white hover:bg-primary-start/90 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all hover-lift shadow-xs"
                               >
                                 <span>Lexo Nenin e Plotë</span>
                                 <ArrowRight size={13} />
@@ -490,50 +509,111 @@ export default function LawSearchPage() {
                             </div>
 
                             {/* PARAGRAFI I LIGJIT (TEKSTI I SAKTË STATUTOR) */}
-                            <div className="p-3.5 rounded-xl bg-canvas/60 border border-main text-xs sm:text-sm text-text-primary leading-relaxed font-sans">
-                              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-text-muted mb-1.5 font-bold">
-                                <BookMarked size={12} className="text-primary-start" />
+                            <div className="p-4 rounded-xl bg-canvas/60 border border-main text-xs sm:text-sm text-text-primary leading-relaxed font-sans">
+                              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-text-muted mb-2 font-bold">
+                                <BookMarked size={13} className="text-primary-start" />
                                 <span>Përmbajtja e Dispozitës Ligjore:</span>
                               </div>
                               <p className="whitespace-pre-wrap">{fullText}</p>
                             </div>
 
-                            {/* KOMENTET & AKTGJYKIMET E GJYKATËS SUPREME PËR KËTË NEN */}
+                            {/* KOMENTET & AKTGJYKIMET E GJYKATËS SUPREME PËR KËTË NEN (ME TOOLTIP TË DEDIKUAR) */}
                             {supremeInterpretations.length > 0 && (
-                              <div className="mt-1 pt-2.5 border-t border-main/60 flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-amber-500 font-bold">
-                                  <Gavel size={12} />
-                                  <span>Zbatimi nga Gjykata Supreme:</span>
+                              <div className="mt-1 pt-3 border-t border-main/60 flex flex-col gap-2.5">
+                                <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase text-amber-500 font-black">
+                                  <Gavel size={14} />
+                                  <span>Zbatimi dhe Interpretimi nga Gjykata Supreme:</span>
                                 </div>
 
-                                {supremeInterpretations.map((sc, scIdx) => (
-                                  <div
-                                    key={scIdx}
-                                    className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs flex flex-col gap-1.5"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-bold text-text-primary text-[11px] sm:text-xs flex items-center gap-1.5">
-                                        <FileText size={13} className="text-primary-start shrink-0" />
-                                        <span>⚖️ {sc.title}</span>
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedPdfFilename(sc.source || sc.title);
-                                          setInitialPageNumber(sc.page || 1);
-                                          setShowPdfModal(true);
-                                        }}
-                                        className="text-[10px] text-primary-start hover:underline font-mono flex items-center gap-1 cursor-pointer shrink-0"
-                                      >
-                                        <span>Hap Aktgjykimin (Faqja {sc.page})</span>
-                                        <ExternalLink size={11} />
-                                      </button>
+                                {supremeInterpretations.map((sc, scIdx) => {
+                                  const scTooltipKey = `statute_${i}_supreme_${scIdx}`;
+                                  const isScHovered = hoveredArticleKey === scTooltipKey;
+
+                                  return (
+                                    <div
+                                      key={scIdx}
+                                      className="relative p-3.5 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-xs flex flex-col gap-2 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div
+                                          className="relative inline-flex items-center gap-1.5 cursor-help"
+                                          onMouseEnter={() => setHoveredArticleKey(scTooltipKey)}
+                                          onMouseLeave={() => setHoveredArticleKey(null)}
+                                        >
+                                          <span className="font-black text-text-primary text-xs sm:text-sm flex items-center gap-1.5 hover:text-amber-500 transition-colors">
+                                            <FileText size={14} className="text-amber-500 shrink-0" />
+                                            <span>⚖️ {sc.title}</span>
+                                          </span>
+
+                                          {/* TOOLTIP I SAKTË DHE I MADH I GJYKATËS SUPREME */}
+                                          <AnimatePresence>
+                                            {isScHovered && (
+                                              <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                                                transition={{ duration: 0.15 }}
+                                                className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[440px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+                                              >
+                                                <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
+                                                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black text-xs uppercase tracking-wider">
+                                                    <Gavel size={16} />
+                                                    <span>Gjykata Supreme e Kosovës</span>
+                                                  </div>
+                                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
+                                                    PRECEDENT
+                                                  </span>
+                                                </div>
+
+                                                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
+                                                  {sc.case_number}
+                                                </div>
+
+                                                <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Instanca Gjyqësore:</span>
+                                                    <strong>Kolegji i Gjykatës Supreme</strong>
+                                                  </div>
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Vendi në Vendim:</span>
+                                                    <strong className="text-amber-600 dark:text-amber-400">Faqja {sc.page} e Aktgjykimit Origjinal</strong>
+                                                  </div>
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Efekti Juridik:</span>
+                                                    <strong>Praktikë Gjyqësore e Zbatueshme</strong>
+                                                  </div>
+                                                </div>
+
+                                                <div className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400 italic">
+                                                  Klikoni "Hap Aktgjykimin" për të lexuar vendimin e plotë në faqen {sc.page}.
+                                                </div>
+
+                                                <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
+                                              </motion.div>
+                                            )}
+                                          </AnimatePresence>
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedPdfFilename(sc.source || sc.title);
+                                            setInitialPageNumber(sc.page || 1);
+                                            setShowPdfModal(true);
+                                          }}
+                                          className="text-xs font-bold text-primary-start hover:underline font-mono flex items-center gap-1 cursor-pointer shrink-0 bg-surface px-2.5 py-1 rounded-lg border border-main shadow-2xs"
+                                        >
+                                          <span>Hap Aktgjykimin (Faqja {sc.page})</span>
+                                          <ExternalLink size={12} />
+                                        </button>
+                                      </div>
+
+                                      <p className="text-text-secondary text-xs sm:text-[13px] leading-relaxed italic bg-surface/40 p-2.5 rounded-lg border border-main/50">
+                                        "{sc.interpretation_commentary}"
+                                      </p>
                                     </div>
-                                    <p className="text-text-secondary text-[11px] leading-relaxed italic">
-                                      "{sc.interpretation_commentary}"
-                                    </p>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -543,7 +623,7 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* PRECEDENTËT SHTESË TË SUPREMES */}
+                {/* PRECEDENTËT PLOTËSUES TË SUPREMES NË FUND */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -578,27 +658,36 @@ export default function LawSearchPage() {
                               <ExternalLink size={12} className="text-text-muted shrink-0" />
                             </button>
 
-                            {/* PASAPORTA INSTITUCIONALE E AKTGJYKIMIT */}
+                            {/* TOOLTIP I MADH I PRECEDENTIT GLOBAL */}
                             <AnimatePresence>
                               {isCaseHovered && (
                                 <motion.div
-                                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  initial={{ opacity: 0, y: 10, scale: 0.96 }}
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                                  transition={{ duration: 0.12 }}
-                                  className="absolute left-0 bottom-full mb-2.5 w-80 p-3.5 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-[99999] pointer-events-none"
+                                  exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[420px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none"
                                 >
-                                  <div className="text-xs font-bold text-slate-900 dark:text-white mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">
-                                    ⚖️ Gjykata Supreme e Kosovës
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-200 dark:border-slate-800">
+                                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-black text-xs uppercase">
+                                      <Gavel size={15} />
+                                      <span>Gjykata Supreme e Kosovës</span>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
+                                      AKTARKIVË
+                                    </span>
                                   </div>
 
-                                  <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300 font-mono">
-                                    <div>Vendimi: <strong>{c.title}</strong></div>
-                                    <div>Dokumenti: <strong>Faqja {c.page} e aktgjykimit origjinal</strong></div>
-                                    <div>Instanca: <strong>Gjykata Supreme</strong></div>
+                                  <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2">
+                                    ⚖️ {c.title}
                                   </div>
 
-                                  <div className="absolute top-full left-6 -mt-[1px] border-[7px] border-transparent border-t-white dark:border-t-[#0f172a]" />
+                                  <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                                    <div>Referenca: <strong>Faqja {c.page} e Aktgjykimit Origjinal</strong></div>
+                                    <div>Instanca: <strong>Kolegji i Gjykatës Supreme</strong></div>
+                                  </div>
+
+                                  <div className="absolute top-full left-6 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
                                 </motion.div>
                               )}
                             </AnimatePresence>
