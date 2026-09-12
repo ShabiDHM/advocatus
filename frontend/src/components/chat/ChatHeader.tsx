@@ -1,5 +1,5 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V33.0 (PROMINENT EXPAND/MINIMIZE CONTROLS)
+// PHOENIX PROTOCOL - CHAT HEADER V34.0 (ICON-ONLY CLEAN EXPAND/MINIMIZE)
 // ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • 100% COMPLETE CODE
 
 import React from 'react';
@@ -32,7 +32,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onToggleFullscreen,
 }) => {
   return (
-    <div className="flex flex-row items-center justify-between px-3 sm:px-6 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
+    <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
       {/* 1. MAJTAS: Drita LED e Statusit dhe Emri i Dokumentit Aktiv */}
       <div className="flex items-center gap-2 shrink-0">
         <span
@@ -50,20 +50,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </span>
         ) : (
           <span className="text-xs font-bold text-text-muted hidden sm:inline">
-            {isFullscreen ? 'Pamje e Zgjeruar e Bisedës (DeepSeek)' : 'Biseda e Lëndës'}
+            Biseda e Lëndës
           </span>
         )}
       </div>
 
-      {/* 2. DJATHTAS: Butoni 'Analizo Dokumentin', Butoni 'Zvogëlo/Zgjero', Eksporti dhe Koshi */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+      {/* 2. DJATHTAS: Butoni 'Analizo Dokumentin', Ikona Zgjero/Zvogëlo, Eksporti dhe Koshi */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
         
         {/* Butoni: Analizo Dokumentin */}
         {onAnalyzeDocument && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
-            className="h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer"
+            className="h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer mr-1"
             title={selectedDocName ? `Kryej pasqyrën e shkresës: ${selectedDocName}` : 'Klikoni mbi një shkresë në listën majtas për ta analizuar'}
           >
             <FileText size={12} className="shrink-0 text-primary-start" />
@@ -72,28 +72,23 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* BUTONI I DREJTPËRDREJTË: ZGJERO / ZVOGËLO ME ETIKETË TË QARTË */}
+        {/* BUTONI VETËM ME IKONË: ZGJERO / ZVOGËLO (PA TEKST) */}
         {onToggleFullscreen && (
           <button
             type="button"
             onClick={onToggleFullscreen}
-            className={`h-8 px-2.5 sm:px-3 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+            className={`flex items-center justify-center w-8 h-8 shrink-0 rounded-lg transition-all focus:outline-none cursor-pointer ${
               isFullscreen
-                ? 'bg-primary-start text-white hover:bg-primary-start/90 shadow-md'
-                : 'bg-surface hover:bg-hover border border-main text-text-muted hover:text-text-primary'
+                ? 'bg-primary-start text-white hover:bg-primary-start/90 shadow-xs'
+                : 'text-text-muted hover:text-text-primary hover:bg-hover'
             }`}
-            title={isFullscreen ? "Kthehu te pamja e zakonshme (ESC)" : "Zgjero dritaren e bisedës në ekran të plotë"}
+            title={isFullscreen ? "Zvogëlo dritaren (ESC)" : "Zgjero dritaren"}
+            aria-label={isFullscreen ? "Zvogëlo dritaren" : "Zgjero dritaren"}
           >
             {isFullscreen ? (
-              <>
-                <Minimize2 size={13} className="shrink-0" />
-                <span>Zvogëlo</span>
-              </>
+              <Minimize2 size={15} />
             ) : (
-              <>
-                <Maximize2 size={13} className="shrink-0" />
-                <span className="hidden sm:inline">Zgjero</span>
-              </>
+              <Maximize2 size={15} />
             )}
           </button>
         )}
