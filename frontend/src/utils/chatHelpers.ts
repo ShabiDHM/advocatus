@@ -1,6 +1,6 @@
 // FILE: src/utils/chatHelpers.ts
-// PHOENIX PROTOCOL - CHAT HELPERS V76.0 (UNIVERSAL SUPREME PRECEDENT & STATUTE AUTO-LINKING)
-// 100% COMPLETE CODE • ZERO PLACEHOLDERS • COMPLETE SUPREME PREFIX COVERAGE
+// PHOENIX PROTOCOL - CHAT HELPERS V77.0 (STRICT SUPREME-ONLY CITATION FILTER)
+// 100% COMPLETE CODE • ZERO APPEALS/BASIC COURT LINKS • ONLY GENUINE SUPREME PRECEDENTS
 
 interface StatuteDefinition {
   regex: RegExp;
@@ -121,8 +121,8 @@ export const autoLinkLegalCitations = (text: any): string => {
     return `___LAW_TOKEN_${savedTokens.length - 1}___`;
   };
 
-  // Pastro backticks që të mos prishet njohja e markdown
-  let sanitized = text.replace(/`((?:Nen[ieatë]+|Rev|PML|KMLP|ANR|A\.NR|AC|CA|PKR|AP|AGJ|Kushtetut|Ligj|KEDNJ|Konvent)[^`\n]+)`/gi, '$1');
+  // Pastro backticks
+  let sanitized = text.replace(/`((?:Nen[ieatë]+|Rev|PML|KMLP|ANR|A\.NR|PZR|Kushtetut|Ligj|KEDNJ|Konvent)[^`\n]+)`/gi, '$1');
 
   // Mbroj lidhjet ekzistuese të markdown-it
   let processed = sanitized.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (fullMatch) => {
@@ -135,10 +135,11 @@ export const autoLinkLegalCitations = (text: any): string => {
   const processedLines = lines.map((line) => {
     let lineProcessed = line;
 
-    // PASS 0: PRECEDENTËT E GJYKATËS SUPREME (GJITHËPËRFSHIRËS PËR TË GJITHA KOLEGJET)
-    // Kap: Rev.nr. 142/2023, PML.Nr. 171/2025, A.NR.01/2025, KMLP.nr. 12/2022, etj.
-    const supremePrecedentRegex = /\b(PML|Rev|REV|KMLP|ANR|A\.NR|AC|CA|PKR|AP|AGJ|CP)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+[\w\/\.\-]*\/\d{2,4})\b/gi;
-    lineProcessed = lineProcessed.replace(supremePrecedentRegex, (fullMatch, prefix, numPair) => {
+    // 🏛️ PASS 0: EKSKLUZIVISHT PRECEDENTËT E GJYKATËS SUPREME (ZERO APEL • ZERO THEMELORE)
+    // Kap VETËM: PML, Rev, KMLP, A.NR, PZR.
+    // CA, AC (Apeli) dhe P, C, PKR (Themelorja) NUK PREKEN DHE MBETEN TEKST I THJESHTË!
+    const strictSupremeRegex = /\b(PML|Rev|REV|KMLP|ANR|A\.NR|PZR)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+[\w\/\.\-]*\/\d{2,4})\b/g;
+    lineProcessed = lineProcessed.replace(strictSupremeRegex, (fullMatch, prefix, numPair) => {
       if (fullMatch.includes('___LAW_TOKEN_')) return fullMatch;
       const cleanCaseNo = `${prefix.toUpperCase().replace(/\.$/, '')}.Nr.${numPair}`;
       const url = `/laws/search?q=${encodeURIComponent(cleanCaseNo)}`;

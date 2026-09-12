@@ -1,6 +1,6 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - UNIFIED FORENSIC CITATION & RESPONSIVE RENDERER V51.0
-// 100% COMPLETE CODE • ZERO DUPLICATIONS • CENTRALIZED PRECEDENT & LAW LINKING
+// PHOENIX PROTOCOL - UNIFIED FORENSIC CITATION & IN-PLACE PRECEDENT VIEWER V52.0
+// 100% COMPLETE CODE • ZERO REDIRECTIONS • TABLE & TEXT PRECEDENT AUTO-INTERCEPTION
 
 import React from 'react';
 import { LawCitationLink } from '../LawCitationLink';
@@ -17,7 +17,7 @@ const getNodeText = (node: any): string => {
 };
 
 // ============================================================================
-// MAIN MARKDOWN COMPONENTS BUILDER (ZERO-OVERFLOW, RESPONSIVE TABLES & CARDS)
+// MAIN MARKDOWN COMPONENTS BUILDER (IN-PLACE MODAL CITATIONS)
 // ============================================================================
 export const buildMarkdownComponents = () => ({
   h1: ({ node, ...props }: any): React.JSX.Element => (
@@ -86,6 +86,30 @@ export const buildMarkdownComponents = () => ({
       const targetUrl = linkMatch[2];
       const surroundingText = textContent.replace(linkMatch[0], '').trim();
 
+      // INTERCEPTIM I PRECEDENTËVE EDHE BRENDA TABELAVE (ZERO REDIRECTION)
+      const isPrecedentInTable =
+        /\b(PML|Rev|REV|KMLP|ANR|A\.NR|AC|CA|PKR|AP|AGJ|CP)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+[\w\/\.\-]*\/\d{2,4}|\d+)\b/i.test(label) ||
+        targetUrl.includes('/laws/search?q=') ||
+        targetUrl.includes('caseNumber=');
+
+      if (isPrecedentInTable) {
+        let cleanCaseNo = label.replace(/^\[+|\]+$/g, '').trim();
+        try {
+          const urlObj = new URL(targetUrl, window.location.origin);
+          const qParam = urlObj.searchParams.get('q');
+          if (qParam) cleanCaseNo = qParam.replace(/^\[+|\]+$/g, '').trim();
+        } catch {}
+
+        return (
+          <td className="px-3.5 py-2.5 align-top leading-relaxed break-words max-w-[280px]" {...props}>
+            <div className="flex flex-wrap items-center gap-1">
+              <PrecedentCitationLink caseNumber={cleanCaseNo} />
+              {surroundingText && <span className="text-text-secondary text-[11px]">{surroundingText}</span>}
+            </div>
+          </td>
+        );
+      }
+
       return (
         <td className="px-3.5 py-2.5 align-top leading-relaxed break-words max-w-[280px]" {...props}>
           <div className="flex flex-wrap items-center gap-1">
@@ -129,7 +153,7 @@ export const buildMarkdownComponents = () => ({
   },
 
   // =========================================================================
-  // 🔗 LINKET INTERAKTIVE: CITIME LIGJORE & PRECEDENTË TË CENTRALIZUAR
+  // 🔗 LINKET INTERAKTIVE NË TEKST TË RRJEDHSHËM (IN-PLACE PREVIEW)
   // =========================================================================
   a: ({ href, children }: any): React.JSX.Element => {
     const rawText = getNodeText(children).trim();
@@ -142,8 +166,16 @@ export const buildMarkdownComponents = () => ({
       rawHref.includes('caseNumber=');
 
     if (isPrecedent) {
-      const cleanLabel = rawText.replace(/^\[+|\]+$/g, '').trim();
-      return <PrecedentCitationLink caseNumber={cleanLabel} />;
+      let cleanCaseNo = rawText.replace(/^\[+|\]+$/g, '').trim();
+      try {
+        const urlObj = new URL(rawHref, window.location.origin);
+        const qParam = urlObj.searchParams.get('q');
+        if (qParam && qParam.length > 2) {
+          cleanCaseNo = qParam.replace(/^\[+|\]+$/g, '').trim();
+        }
+      } catch {}
+
+      return <PrecedentCitationLink caseNumber={cleanCaseNo} />;
     }
 
     // 2. LIDHJET ME NENET STATUTORE LIGJORE
