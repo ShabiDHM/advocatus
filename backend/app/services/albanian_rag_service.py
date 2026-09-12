@@ -1,6 +1,6 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V269.0 (FULL 31-DOC DOSSIER & 147-PAGE VERBATIM ENGINE)
-# 100% I PLOTË • ZERO ARTIFICIAL LIMITS • EXCLUSIVE DEEPSEEK CORE • MONGO ATLAS ATOMIC SYNC
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V271.0 (STRICT TENANT ISOLATION & FULL 100-PAGE CAP)
+# 100% I PLOTË • ZERO PERZIERJE ME FORENZIKËN • LEXON VETËM 'db.documents' • DEEPSEEK 128K ENGINE
 
 import os
 import logging
@@ -35,11 +35,10 @@ MANDATORY_LEGAL_DISCLAIMER = (
     "pozitiv në fuqi para përdorimit zyrtar në organet e drejtësisë.*"
 )
 
-# 🛑 PHOENIX: RREGULLA TË PRERA PËR DEEPSEEK NË FASHIKULLIN E PLOTË
 ANTI_HALLUCINATION_INSTRUCTION = """
 RREGULLAT E HEKURTA TË DOKTRINËS DHE KONSULENCËS (KUSHTE ABSOLUTE):
-1. QASJE E PLOTË NË TË GJITHË FASHIKULLIN:
-   Para syve tuaj ndodhet I GJITHË FASHIKULLI I LËNDËS (të gjitha shkresat dhe faqet e zbardhura fjalë për fjalë). NDALOHET kategorikisht të thoni "kam vetëm fragmente" ose "nuk më jepen faqet e brendshme", sepse e keni të gjithë materialin më poshtë!
+1. QASJE E PLOTË NË SHKRESAT E LËNDËS:
+   Para syve tuaj ndodhen TË GJITHA shkresat dhe faqet e ngarkuara nga avokati/klienti në këtë lëndë. NDALOHET kategorikisht të thoni "kam vetëm fragmente", sepse e keni të gjithë tekstin integral më poshtë!
 2. CITIM VERBATIM ME NUMËR FAQEJE:
    Citoni me thonjëza deklarimet ekzakte të palëve, ekspertëve dhe dëshmitarëve, duke treguar emrin e shkresës dhe faqen përkatëse.
 3. PËRGJIGJE DIREKTE PA MARKETING:
@@ -84,7 +83,7 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Full-Dossier Service V269.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Client Service V271.0 Initialized (Isolated Mode).")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -133,6 +132,7 @@ class AlbanianRAGService:
         case_doc = None
         c_oid = None
 
+        # 1. TËRHEQJE E IZOLUAR VETËM NGA LËNDA E AVOKATIT/KLIENTIT (db.documents)
         if case_id and self.db is not None:
             try:
                 c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -144,7 +144,7 @@ class AlbanianRAGService:
                     case_title = case_doc.get("title") or case_doc.get("case_name") or case_title
 
                 doc_filter: Dict[str, Any] = {
-                    "$or": [{"case_id": case_id}, {"case_id": c_oid}],
+                    "$or": [{"case_id": str(case_id)}, {"case_id": c_oid}],
                     "status": {"$ne": "DELETED"}
                 }
 
@@ -153,10 +153,12 @@ class AlbanianRAGService:
                     doc_strs = [str(did) for did in document_ids]
                     doc_filter["_id"] = {"$in": doc_oids + doc_strs}
 
-                # TËRHIQEN TË GJITHA SHKRESAT PA KUFIZIM
+                # Tërhiqen TË GJITHA shkresat e lëndës së këtij avokati nga db.documents (50-100 faqe)
                 db_documents = list(self.db.documents.find(doc_filter).sort([("created_at", 1), ("_id", 1)]))
+                logger.info(f"📁 [Client Case Dossier] U ngarkuan të plota {len(db_documents)} shkresa për lëndën {case_id}")
+
             except Exception as ex:
-                logger.warning(f"Could not read case documents: {ex}")
+                logger.warning(f"Could not read client documents: {ex}")
 
         # Historiku i bisedës
         if history is None and self.db is not None and case_id and user_id:
@@ -207,7 +209,6 @@ class AlbanianRAGService:
         else:
             user_intent = IntentDetector.detect(query)
 
-        # Shembull konteksti i lëndës nga të gjitha shkresat
         sample_text = ""
         if single_doc_obj:
             sample_text = (single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or "")[:10000]
@@ -220,40 +221,8 @@ class AlbanianRAGService:
             manifest_str=""
         )
 
-        # Smart Cache
-        if user_intent == "FORENSIC_AUDIT" and single_doc_obj:
-            doc_pillars = single_doc_obj.get("forensic_pillars") or {}
-            if req_pillar and doc_pillars.get(req_pillar):
-                cached_text = doc_pillars[req_pillar]
-                if is_valid_legal_report(cached_text):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për dokumentin.")
-                    if self.db is not None and case_id and user_id:
-                        self.db[CASE_CHAT_HISTORY_COLLECTION].insert_many([
-                            {"user_id": str(user_id), "case_id": str(case_id), "role": "user", "content": query, "created_at": datetime.now(timezone.utc)},
-                            {"user_id": str(user_id), "case_id": str(case_id), "role": "assistant", "content": cached_text, "created_at": datetime.now(timezone.utc)}
-                        ])
-                    yield cached_text
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-
-        elif user_intent == "COMPREHENSIVE_ANALYSIS" and case_doc and not single_doc_obj:
-            is_dirty = case_doc.get("analysis_dirty", False)
-            forensic_pillars = case_doc.get("forensic_pillars") or {}
-            if not is_dirty and req_pillar and forensic_pillars.get(req_pillar):
-                cached_pillar = forensic_pillars[req_pillar]
-                if is_valid_legal_report(cached_pillar):
-                    logger.info(f"⚡ [Smart Cache HIT - 0ms] Kthehet {req_pillar} për lëndën {case_id}.")
-                    if self.db is not None and case_id and user_id:
-                        self.db[CASE_CHAT_HISTORY_COLLECTION].insert_many([
-                            {"user_id": str(user_id), "case_id": str(case_id), "role": "user", "content": query, "created_at": datetime.now(timezone.utc)},
-                            {"user_id": str(user_id), "case_id": str(case_id), "role": "assistant", "content": cached_pillar, "created_at": datetime.now(timezone.utc)}
-                        ])
-                    yield cached_pillar
-                    yield MANDATORY_LEGAL_DISCLAIMER
-                    return
-
         # =========================================================================
-        # 🔍 FILLON GJENERIMI ME DOKTRINË DHE FASHIKULL TË PLOTË (147 FAQE)
+        # 🔍 FILLON GJENERIMI ME DOKTRINË DHE KONTEKST TË PLOTË TË AVOKATIT
         # =========================================================================
         exec_query = optimized_query
         system_prompt = ""
@@ -291,6 +260,7 @@ class AlbanianRAGService:
             global_docs = vector_store_service.query_global_knowledge_base(
                 query_text=optimized_query, n_results=15
             )
+            # ContextBuilder përfshin të gjitha shkresat nga db_documents deri në 450,000 karaktere
             manifest_str, context_str = ContextBuilder.build(case_docs, global_docs, db_documents)
 
             system_prompt = f"""
@@ -299,14 +269,13 @@ class AlbanianRAGService:
 
             {ANTI_HALLUCINATION_INSTRUCTION}
 
-            FASHIKULLI INTEGRAL I TË GJITHA {len(db_documents)} SHKRESAVE TË LËNDËS:
+            SHKRESAT INTEGRALE TË LËNDËS ({len(db_documents)} DOKUMENTE NË FASHIKULL):
             {manifest_str}
             {context_str}
             """
 
         elif user_intent == "STATUTORY_VERIFICATION":
             dossier_blocks = []
-            # PËRFSHIHEN TË GJITHA SHKRESAT PA LIMIT
             for idx, doc in enumerate(db_documents, 1):
                 doc_title = doc.get("file_name") or f"Dokumenti #{idx}"
                 raw_text = (doc.get("content") or doc.get("extracted_text") or "").strip()
@@ -354,7 +323,7 @@ class AlbanianRAGService:
             system_prompt = base_prompt + "\n\n" + ANTI_HALLUCINATION_INSTRUCTION
             exec_query = f"Harto aktin e plotë procedural të kërkuar ({optimized_query}) me strukturë solemne gjyqësore."
         else:
-            # CHAT UNIVERSAL I KLIENTIT ME TË GJITHA 31 SHKRESAT
+            # CHAT UNIVERSAL I LËNDËS ME TË GJITHA SHKRESAT E AVOKATIT
             case_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
             )
@@ -369,12 +338,12 @@ class AlbanianRAGService:
 
             {ANTI_HALLUCINATION_INSTRUCTION}
 
-            FASHIKULLI INTEGRAL I TË GJITHA {len(db_documents)} SHKRESAVE TË LËNDËS:
+            SHKRESAT INTEGRALE TË LËNDËS ({len(db_documents)} DOKUMENTE NË FASHIKULL):
             {manifest_str}
             {context_str}
             """
 
-        # Ruhet pyetja e përdoruesit në koleksion
+        # Ruhet pyetja e përdoruesit në MongoDB
         if self.db is not None and case_id and user_id:
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({
@@ -387,13 +356,13 @@ class AlbanianRAGService:
             except Exception as e:
                 logger.warning(f"Could not save user chat message: {e}")
 
-        # GJENERIMI ME DEEPSEEK
+        # Ekzekutimi me DeepSeek
         full_generated_response = ""
         async for content in self.response_generator.generate_stream(system_prompt, exec_query, context="", history=history):
             full_generated_response += content
             yield content
 
-        # Ruhet përgjigja e plotë e AI në koleksion menjëherë sapo mbyllet stream-i
+        # Ruhet përgjigja e plotë e AI në MongoDB menjëherë
         if self.db is not None and case_id and user_id and full_generated_response.strip():
             try:
                 self.db[CASE_CHAT_HISTORY_COLLECTION].insert_one({

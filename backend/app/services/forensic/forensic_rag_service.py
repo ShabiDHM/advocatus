@@ -1,5 +1,6 @@
 # FILE: backend/app/services/forensic/forensic_rag_service.py
-# PHOENIX PROTOCOL - FORENSIC GRAPHRAG & WAR ROOM SYNTHESIZER V1.0
+# PHOENIX PROTOCOL - FORENSIC GRAPHRAG & WAR ROOM SYNTHESIZER V2.0 (DEEPSEEK UNIFIED ENGINE)
+# 100% COMPLETE CODE • ZERO CLAUDE REFERENCES • EXCLUSIVE DEEPSEEK CORE
 
 import logging
 from typing import Dict, Any, List, Optional
@@ -71,11 +72,11 @@ def synthesize_war_room_intelligence(
     graph_context: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """
-    Sinteza Madhore e War Room me Claude Sonnet 4.6:
+    Sinteza Madhore e War Room me DeepSeek:
     Bashkon të 5 laboratorët për të gjeneruar strategjinë vrastare mbrojtëse/akuzuese.
     """
-    system_prompt = """KOMANDA E WAR ROOM FORENZIK (CLAUDE SONNET 4.6):
-Ju jeni Shefi i Shtabit të Mbrojtjes Ligjore dhe Eksperti Kryesor Forenzik.
+    system_prompt = """KOMANDA E WAR ROOM FORENZIK (DEEPSEEK JURIDIK):
+Ju jeni Shefi i Shtabit të Mbrojtjes Ligjore dhe Eksperti Kryesor Forenzik i Republikës së Kosovës.
 MANDATI JUAJ NË WAR ROOM:
 1. Bashkoni provat e audios (stres/kërcënime), provat vizuale (GPS/EXIF/manipulim), shifrat financiare dhe shkresat e lëndës.
 2. Zbuloni KONTRADIKTAT NDËRPROVUESE (p.sh. diferenca orare mes bisedës audio dhe vendndodhjes GPS, fryrje shifrash financiare).
@@ -137,8 +138,8 @@ async def stream_interactive_war_room_chat(
     chat_history: List[Dict[str, str]],
     user_question: str
 ):
-    """Bisedë interaktive në kohë reale me Claude Sonnet 4.6 për strategjinë e lëndës."""
-    system_prompt = f"""TERMINALI STRATEGJIK I WAR ROOM FORENZIK (CLAUDE SONNET 4.6):
+    """Bisedë interaktive në kohë reale me DeepSeek për strategjinë e lëndës."""
+    system_prompt = f"""TERMINALI STRATEGJIK I WAR ROOM FORENZIK (DEEPSEEK JURIDIK):
 Ju po këshilloni avokatin udhëheqës në kohë reale brenda sallës operative.
 Përgjigjuni me taktika konkrete procedurale, analiza provash dhe nene të sakta të Kosovës.
 

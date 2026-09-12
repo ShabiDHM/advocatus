@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V12.0 (GDPR HARDENED & ENCRYPTION READY)
+# PHOENIX PROTOCOL - CONFIG V13.0 (DEEPSEEK UNIFIED CORE • ZERO CLAUDE)
 
 import os
 from pathlib import Path
@@ -23,13 +23,12 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "Juristi AI"
     API_V1_STR: str = "/api/v1"
-    # SECRET_KEY tani duhet të vendoset patjetër në mjedis (në .env ose në Render)
-    SECRET_KEY: str = ""   # No default fallback
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
 
-    # Frontend Domain Configuration (Strip trailing slash automatically)
+    # Frontend Domain Configuration
     FRONTEND_URL: str = "https://juristi.tech"
 
     DATABASE_URI: str = ""
@@ -39,8 +38,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
 
-    # --- FORENSIC SUITE CONFIGURATION ---
-    FORENSIC_LLM_MODEL: str = "anthropic/claude-sonnet-4.6"
+    # --- 🏛️ LLM ENGINE CONFIGURATION (EXCLUSIVE DEEPSEEK CORE) ---
+    LLM_PRIMARY_MODEL: str = "deepseek/deepseek-chat"
+    LLM_DEEP_MODEL: str = "deepseek/deepseek-chat"
+    LLM_FAST_MODEL: str = "google/gemini-2.5-flash"
+    FORENSIC_LLM_MODEL: str = "deepseek/deepseek-chat"
     FORENSIC_API_KEY: str = ""
 
     # Audio Forensics (AssemblyAI: Diarization & Speech Sentiment/Stress)
@@ -59,21 +61,16 @@ class Settings(BaseSettings):
     B2_APPLICATION_KEY: str = ""
     B2_BUCKET_NAME: str = ""
     B2_ENDPOINT_URL: str = ""
-    B2_REGION_NAME: str = ""  # e.g., 'eu-central-003'
+    B2_REGION_NAME: str = ""
     
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8000
 
     # --- ENCRYPTION SERVICE (GDPR / Data at Rest) ---
-    # These values are read by encryption_service.py
     ENCRYPTION_SALT: str = ""
     ENCRYPTION_PASSWORD: str = ""
 
     def validate_production_settings(self):
-        """
-        Validates that critical secrets are set in production.
-        Should be called during startup if ENVIRONMENT == 'production'.
-        """
         missing = []
         if not self.SECRET_KEY:
             missing.append("SECRET_KEY")
@@ -85,7 +82,6 @@ class Settings(BaseSettings):
             missing.append("ENCRYPTION_SALT")
         if not self.ENCRYPTION_PASSWORD:
             missing.append("ENCRYPTION_PASSWORD")
-        # Add other critical keys as needed
         if missing:
             raise RuntimeError(
                 f"Missing critical environment variables: {', '.join(missing)}"

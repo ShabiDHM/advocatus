@@ -1,5 +1,6 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - AI VISION OCR ENGINE V30.0 (LIVE OPENROUTER VERIFIED SUITE • REFUSAL-IMMUNE)
+# PHOENIX PROTOCOL - AI VISION OCR ENGINE V31.0 (ZERO CLAUDE • ZERO GPT-4O-MINI • ECONOMICAL GEMINI SUITE)
+# 100% COMPLETE CODE • ZERO CREDIT LEAKAGE • BULLETPROOF VISION RECOGNITION
 
 import os
 import json
@@ -14,12 +15,11 @@ from app.services.llm.llm_client import _get_sync_client, _get_api_key
 
 logger = logging.getLogger(__name__)
 
-# Modelet Zyrtare 100% të Verifikuara Drejtpërdrejt nga OpenRouter API
+# 🛡️ HIERARKIA E VERIFIKUAR EKONOMIKE E AI VISION (ZERO CLAUDE • ZERO GPT-4O-MINI)
 VISION_MODELS_HIERARCHY = [
-    "google/gemini-2.5-flash-image",   # Modeli i dedikuar i Google posaçërisht për foto dhe OCR dokumentesh
-    "google/gemini-2.5-flash",         # Fallback i dytë i shpejtë
-    "openai/gpt-4o-mini",              # Modeli i OpenAI me mbikëqyrje refuzimi
-    "anthropic/claude-sonnet-4.6"      # Modeli elitar i thellë pa refuzime
+    "google/gemini-2.0-flash-001",     # Modeli parësor me shpejtësi ekstreme dhe kosto minimale ($0.10/1M)
+    "google/gemini-2.5-flash",         # Fallback me inteligjencë të lartë vizuale
+    "google/gemini-flash-1.5"          # Fallback i fundit i qëndrueshëm
 ]
 
 class SmartOCRResult:
@@ -55,7 +55,7 @@ def is_ai_refusal(text: str) -> bool:
     return False
 
 
-# --- 1. LOCAL PDF DIGITAL EXTRACTOR (Nëse dokumenti ka tekst dixhital të gatshëm) ---
+# --- 1. LOCAL PDF DIGITAL EXTRACTOR (0 KOSTO, 0 TOKENË kur teksti është dixhital) ---
 
 def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     try:
@@ -75,12 +75,12 @@ def extract_text_from_pdf_locally(pdf_bytes: bytes) -> Optional[str]:
     return None
 
 
-# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (ZERO REFUSAL • ZERO DROPS) ---
+# --- 2. OPENROUTER MULTIMODAL AI VISION OCR (ZERO CLAUDE • KONSUM MINIMAL) ---
 
 def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
     """
-    Përdor inteligjencën vizuale për të transkriptuar 100% të gjithë tekstin nga imazhi i skanuar.
-    Përfshin kontroll të hekurt ndaj refuzimeve dhe kalim automatik te modelet e verifikuara.
+    Përdor inteligjencën vizuale ekonomike për të transkriptuar 100% të tekstit
+    nga imazhi i skanuar, pa konsumuar kredi te Claude Sonnet.
     """
     api_key = _get_api_key()
     if not api_key:
@@ -105,7 +105,7 @@ def run_ai_vision_ocr(image_bytes: bytes) -> Tuple[str, float]:
     for model_name in VISION_MODELS_HIERARCHY:
         for attempt in range(2):
             try:
-                logger.info(f"👁️ [AI Vision OCR] Duke transkriptuar faqen me modelin: {model_name} (Përpjekja {attempt + 1})...")
+                logger.info(f"👁️ [AI Vision OCR] Transkriptim i faqes me modelin ekonomik: {model_name} (Përpjekja {attempt + 1})...")
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=[

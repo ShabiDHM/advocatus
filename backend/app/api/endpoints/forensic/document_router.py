@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V2.1 (PERSISTENT PILLAR SAVE)
-# 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V3.0 (DEEPSEEK UNIFIED ENGINE)
+# 100% COMPLETE CODE • ZERO CLAUDE PROMPTS • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
 import io
@@ -47,7 +47,7 @@ def _serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 # ==========================================================
-# 1. NGARKIMI I SHKRESËS ME VULË TË MENJËHERSHME DHE OCR
+# 1. NGARKIMI I SHKRESËS ME VULË DHE OCR
 # ==========================================================
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_forensic_document(
@@ -106,7 +106,6 @@ async def upload_forensic_document(
     doc["_id"] = result.inserted_id
     doc_id_str = str(result.inserted_id)
 
-    # Start background processing (extraction + vectorization)
     background_tasks.add_task(
         orchestrate_document_processing_mongo,
         doc_id_str,
@@ -128,7 +127,7 @@ async def upload_forensic_document(
     return _serialize_doc(doc)
 
 # ==========================================================
-# 2. LISTIMI I SHKRESAVE (PËRFSHIN EDHE TË ARKIVUARA)
+# 2. LISTIMI I SHKRESAVE
 # ==========================================================
 @router.get("/{case_id}/list")
 def list_forensic_documents(
@@ -156,7 +155,7 @@ def list_forensic_documents(
     return items
 
 # ==========================================================
-# 3. SHTJELLAT FORENZIKE (CLAUDE SONNET 4.6)
+# 3. SHTJELLAT FORENZIKE (DEEPSEEK JURIDIK)
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/pillars")
 def get_forensic_doc_pillars(
@@ -199,7 +198,7 @@ def generate_and_save_doc_pillar(
     pillar_key = payload.pillar.strip().upper()
     doc_text = (doc.get("extracted_text") or doc.get("content") or "")[:25000]
 
-    system_prompt = f"""EKSPERTIZA DOKTRINARE E SHKRESËS ({pillar_key}) - CLAUDE SONNET 4.6:
+    system_prompt = f"""EKSPERTIZA DOKTRINARE E SHKRESËS ({pillar_key}) - JURISTI AI:
 Ju jeni Konsulenca Supreme Ligjore e autorizuar për Republikën e Kosovës.
 Analizoni tekstin e shkresës me saktësi kirurgjikale dhe nene të sakta të ligjit pozitiv."""
 
@@ -236,7 +235,6 @@ TEKSTI I SHKRESËS:
 
     return {"status": "success", "pillar": pillar_key, "content": content}
 
-# NEW ENDPOINT: SAVE CONTENT ONLY
 @router.put("/{case_id}/{doc_id}/pillars/{pillar}")
 def save_forensic_doc_pillar_content(
     case_id: str,
@@ -246,10 +244,6 @@ def save_forensic_doc_pillar_content(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Ruan përmbajtjen e një shtylle të gjeneruar tashmë (p.sh. nga streaming)
-    pa e ri-gjeneruar me LLM.
-    """
     user_id = str(current_user.id)
     pillar_key = pillar.strip().upper()
     content = payload.get("content", "").strip()
@@ -406,7 +400,7 @@ def archive_forensic_document(
     return {"status": "success", "message": "Dokumenti u arkivua (mbetet në listë)."}
 
 # ==========================================================
-# 5. SHKARKIMI I SKEDARIT ORIGJINAL (DOWNLOAD)
+# 5. SHKARKIMI I SKEDARIT ORIGJINAL
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/download")
 async def download_forensic_document(
@@ -415,7 +409,6 @@ async def download_forensic_document(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """Kthen skedarin origjinal (pa konvertim)."""
     doc = None
     if ObjectId.is_valid(doc_id):
         doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
@@ -443,7 +436,7 @@ async def download_forensic_document(
         raise HTTPException(status_code=500, detail="Dështoi shkarkimi i skedarit.")
 
 # ==========================================================
-# 6. PREVIEW - KONVERTIM NË PDF (SI CASE VIEW)
+# 6. PREVIEW - KONVERTIM NË PDF
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/preview")
 async def preview_forensic_document(
@@ -452,10 +445,6 @@ async def preview_forensic_document(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Preview dokumenti: nëse nuk është PDF, konvertohet në PDF duke përdorur
-    të njëjtën logjikë si Case View (pdf_service).
-    """
     doc = None
     if ObjectId.is_valid(doc_id):
         doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})
@@ -507,7 +496,7 @@ async def preview_forensic_document(
         raise HTTPException(status_code=500, detail="Dështoi konvertimi i dokumentit në PDF.")
 
 # ==========================================================
-# 7. GET EXTRACTED TEXT (ONLY STORED TEXT)
+# 7. GET EXTRACTED TEXT
 # ==========================================================
 @router.get("/{case_id}/{doc_id}/extracted-text", response_class=PlainTextResponse)
 async def get_extracted_text(
@@ -516,9 +505,6 @@ async def get_extracted_text(
     current_user: UserInDB = Depends(get_current_forensic_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Kthen tekstin e ekstraktuar/procesuar që është ruajtur në DB.
-    """
     doc = None
     if ObjectId.is_valid(doc_id):
         doc = db[FORENSIC_DOCS_COLLECTION].find_one({"_id": ObjectId(doc_id)})

@@ -1,5 +1,5 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V18.3 (FINANCE TAB FULLY WIPED OUT)
+# PHOENIX PROTOCOL - MAIN APPLICATION V18.4 (DEEPSEEK V3 UNIFIED ENGINE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS • 3 PURE EVIDENCE LABS
 
 import os
@@ -118,7 +118,7 @@ def health_check():
     return {
         "status": "ok", 
         "version": "1.8.0", 
-        "forensic_engine": "Claude Sonnet 4.6 (3 Pure Evidence Labs + Forensic Chat)"
+        "forensic_engine": "DeepSeek V3 (3 Pure Evidence Labs + Forensic Chat)"
     }
 
 # Static Files Mount

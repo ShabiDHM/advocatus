@@ -1,6 +1,6 @@
 # FILE: backend/app/services/forensic/forensic_llm_service.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V3.0 (DEEPSEEK HIGH-PRECISION UNIFIED)
-# 100% COMPLETE CODE • EXCLUSIVE DEEPSEEK CORE • MULTI-PROVIDER ROUTING • ZERO GPT-4O-MINI
+# PHOENIX PROTOCOL - FORENSIC DEDICATED LLM ENGINE V4.0 (IRONCLAD CLAUDE BAN)
+# 100% COMPLETE CODE • EXCLUSIVE DEEPSEEK CORE • PHYSICAL CLAUDE BLOCK • MULTI-PROVIDER ROUTING
 
 import os
 import time
@@ -31,12 +31,18 @@ def _get_openrouter_key() -> str:
     return key
 
 def _get_forensic_model() -> str:
-    """Rikthen modelin parësor të thellë: DeepSeek nga .env (LLM_DEEP_MODEL)."""
-    return (
-        getattr(settings, "LLM_DEEP_MODEL", None) or
-        getattr(settings, "FORENSIC_LLM_MODEL", None) or
-        "deepseek/deepseek-chat"
-    )
+    """
+    BLLOKADË E HEKURT:
+    Garanton që modeli i Zyrës Forenzike është VETËM DeepSeek.
+    Nëse nga .env vjen ndonjë vlerë me 'claude' ose 'anthropic', ajo asgjësohet menjëherë!
+    """
+    model = getattr(settings, "LLM_DEEP_MODEL", None) or os.getenv("LLM_DEEP_MODEL", "") or "deepseek/deepseek-chat"
+    
+    # Mbrojtje e hekurt: Asnjë kërkesë me Claude nuk lejohet të dalë nga ky server
+    if not model or "claude" in model.lower() or "anthropic" in model.lower():
+        model = "deepseek/deepseek-chat"
+        
+    return model
 
 def _get_provider_routing_payload(model_name: str) -> Dict[str, Any]:
     """Garanton ekzekutimin e shpejtë të DeepSeek përmes 5 ofruesve kryesorë me failover automatik."""
@@ -78,7 +84,7 @@ def call_forensic_llm(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> str:
-    """Thirrje sinkrone një-hapëshe e optimizuar për DeepSeek."""
+    """Thirrje sinkrone një-hapëshe e blinduar me DeepSeek."""
     client = _get_sync_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -105,7 +111,7 @@ def call_forensic_llm(
 
     for attempt in range(retries):
         try:
-            logger.info(f"⚖️ [Forensic LLM] Ekzekutim në {target_model} (Attempt {attempt + 1})...")
+            logger.info(f"⚖️ [Forensic LLM] Ekzekutim i detyruar në {target_model} (Përpjekja {attempt + 1})...")
             res = client.chat.completions.create(**kwargs)
             if res and res.choices and len(res.choices) > 0:
                 content = getattr(res.choices[0].message, "content", "") or ""
@@ -126,7 +132,7 @@ def call_forensic_llm_chat(
     temperature: float = 0.0,
     max_tokens: int = 16384
 ) -> str:
-    """Thirrje sinkrone me kujtesë të plotë multi-turn e optimizuar për DeepSeek."""
+    """Thirrje me kujtesë multi-turn e blinduar me DeepSeek."""
     client = _get_sync_client()
     target_model = _get_forensic_model()
     full_system = f"{FORENSIC_SYSTEM_IDENTITY}\n\n{system_prompt}"
@@ -158,7 +164,7 @@ def call_forensic_llm_chat(
 
     for attempt in range(retries):
         try:
-            logger.info(f"🧠 [Forensic Memory] Dërgim i {len(formatted_messages)} kthesave te {target_model} (Attempt {attempt + 1})...")
+            logger.info(f"🧠 [Forensic Memory] Dërgim i {len(formatted_messages)} mesazheve te {target_model} (Përpjekja {attempt + 1})...")
             res = client.chat.completions.create(**kwargs)
             if res and res.choices and len(res.choices) > 0:
                 content = getattr(res.choices[0].message, "content", "") or ""
@@ -200,7 +206,7 @@ async def stream_forensic_llm_async(
         kwargs["extra_body"] = extra_body
 
     try:
-        logger.info(f"⚖️ [Forensic Stream] Ekzekutim në {target_model}...")
+        logger.info(f"⚖️ [Forensic Stream] Ekzekutim i detyruar në {target_model}...")
         stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
@@ -243,7 +249,7 @@ async def stream_forensic_llm_chat_async(
         kwargs["extra_body"] = extra_body
 
     try:
-        logger.info(f"🧠 [Forensic Stream Chat] Transmetim i {len(formatted_messages)} mesazheve te {target_model}...")
+        logger.info(f"🧠 [Forensic Stream Chat] Transmetim i detyruar te {target_model}...")
         stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
