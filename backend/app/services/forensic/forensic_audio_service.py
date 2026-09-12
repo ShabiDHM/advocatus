@@ -1,6 +1,6 @@
 # FILE: backend/app/services/forensic/forensic_audio_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V2.0 (CODE-SWITCHING & VERBATIM MULTILINGUAL)
-# 100% COMPLETE CODE • ZERO PY WARNINGS • WHISPER & ASSEMBLYAI HYBRID • ZERO PLACEHOLDERS
+# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V3.0 (DEEPSEEK UNIFIED ENGINE)
+# 100% COMPLETE CODE • ZERO CLAUDE REFERENCES • WHISPER & ASSEMBLYAI HYBRID • ZERO PLACEHOLDERS
 
 import os
 import time
@@ -53,11 +53,11 @@ def submit_diarization_job(audio_url: str) -> str:
     payload = {
         "audio_url": audio_url,
         "speaker_labels": True,
-        "speech_model": "best",           # Motori më i lartë me saktësi akustike
-        "language_detection": True,       # Zbulon gjuhët automatikisht
+        "speech_model": "best",
+        "language_detection": True,
         "punctuate": True,
         "format_text": True,
-        "disfluencies": True              # Verbatim: nuk heq fjalë, zbardh ekzaktësisht
+        "disfluencies": True
     }
     response = requests.post(
         f"{ASSEMBLYAI_BASE_URL}/transcript",
@@ -145,11 +145,11 @@ def normalize_and_analyze_transcript_with_llm(
     case_context: str = ""
 ) -> Tuple[str, Dict[str, Any]]:
     """
-    Përdor Claude Sonnet 4.6 për:
+    Përdor DeepSeek për:
     1. Korrigjuar fjalët e përziera Shqip-Anglisht (Code-switching) që modeli akustik mund t'i ketë ngatërruar fonetikisht.
     2. Identifikuar deklaratat relevante penale, dëshmitë, pranimet dhe bazën ligjore sipas KPPRK-së.
     """
-    system_prompt = """EKSPERTIZA FORENZIKE E ZËRIT DHE TRANSKRIPTIMI VERBATIM (CLAUDE SONNET 4.6):
+    system_prompt = """EKSPERTIZA FORENZIKE E ZËRIT DHE TRANSKRIPTIMI VERBATIM (DEEPSEEK JURIDIK):
 Ju jeni Eksperti Kriminalistik Audio për Gjykatat e Kosovës.
 
 UDHËZIME TË PRERA:
@@ -216,21 +216,12 @@ def process_audio_file(
     Orkestruesi kryesor:
     1. Ngarkon dhe kryen Diarizimin me modelin më të lartë akustik (AssemblyAI 'best').
     2. Formatizon sekondat dhe folësit.
-    3. Ekzekuton auditimin me Claude Sonnet 4.6 për zbardhjen e Code-Switching Shqip/Anglisht.
+    3. Ekzekuton auditimin me DeepSeek për zbardhjen e Code-Switching Shqip/Anglisht.
     """
-    # 1. Ngarkimi në AssemblyAI
     upload_url = upload_audio_to_assemblyai(audio_bytes)
-    
-    # 2. Nisja e Diarizimit
     job_id = submit_diarization_job(upload_url)
-    
-    # 3. Pritja e rezultatit
     assembly_result = poll_transcript_status(job_id)
-    
-    # 4. Formatimi i transkriptit me folës dhe sekonda
     formatted_transcript, segments, _ = format_forensic_transcript(assembly_result)
-    
-    # 5. Normalizimi Verbatim (Shqip + Anglisht) dhe Vlerësimi Procedural
     cleaned_transcript, llm_analysis = normalize_and_analyze_transcript_with_llm(
         transcript_text=formatted_transcript,
         case_context=case_context
