@@ -1,12 +1,14 @@
 // FILE: src/components/PrecedentCitationLink.tsx
-// PHOENIX PROTOCOL - BULLETPROOF FIXED PRECEDENT PORTAL V17.0
-// 100% COMPLETE CODE • ZERO OVERFLOW • SMART AUTO-FLIP • FULL VIEWPORT PROTECTION
+// PHOENIX PROTOCOL - DIRECT IN-PLACE PRECEDENT VIEWER V18.0 (ZERO REDIRECTIONS • INSTANT MODAL)
+// 100% COMPLETE CODE • OPENS EXACT PDF PAGE ON TOP OF CHAT • ZERO CONTEXT LOSS
 
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gavel, FileText, ExternalLink } from 'lucide-react';
+import { Gavel, FileText, ExternalLink, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { apiService, API_V1_URL } from '../services/api';
+import FileViewerModal from './FileViewerModal';
 
 export interface PrecedentCitationLinkProps {
   caseNumber: string;
@@ -17,10 +19,15 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
   caseNumber,
   className = '',
 }) => {
-  const navigate = useNavigate();
+  const { t } = useTranslation();
   const [showTooltip, setShowTooltip] = useState(false);
-  const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfPageNumber, setPdfPageNumber] = useState<number>(1);
+  const [pdfFilename, setPdfFilename] = useState<string>('Aktgjykim_Suprem.pdf');
 
+  const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [coords, setCoords] = useState({
     top: 0,
     left: 0,
@@ -38,14 +45,12 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
       const tooltipWidth = Math.min(viewportWidth - 32, viewportWidth < 640 ? 320 : 400);
       const margin = 16;
 
-      // 1. Clamping horizontal
       const idealCenter = rect.left + rect.width / 2;
       const minLeft = tooltipWidth / 2 + margin;
       const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
       const clampedLeft = Math.max(minLeft, Math.min(idealCenter, maxLeft));
       const arrowOffset = idealCenter - clampedLeft;
 
-      // 2. Auto-Flip vertikal
       const estimatedTooltipHeight = 220;
       const isFlippedBelow = rect.top < (estimatedTooltipHeight + 20);
       const computedTop = isFlippedBelow ? (rect.bottom + 10) : (rect.top - 10);
@@ -75,18 +80,45 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
     setShowTooltip(false);
   };
 
-  const handleClick = (e: React.MouseEvent) => {
+  // HAPJA E DREJTPËRDREJTË E PDF-SË PA BRAKTISUR FAQEN E BISEDËS
+  const handleDirectOpenPdf = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setShowTooltip(false);
 
-    window.dispatchEvent(
-      new CustomEvent('open_precedent_preview', {
-        detail: { caseNumber: cleanLabel }
-      })
-    );
+    if (isLoadingPdf) return;
+    setIsLoadingPdf(true);
 
-    navigate(`/laws/search?q=${encodeURIComponent(cleanLabel)}`);
+    try {
+      // 1. Pyet serverin për faqen e saktë dhe emrin zyrtar të skedarit
+      const res = await apiService.axiosInstance.get('/laws/case-page', {
+        params: { law_title: cleanLabel }
+      });
+
+      const pageNum = res.data?.page || res.data?.page_number || 1;
+      let targetFile = res.data?.law_title || cleanLabel;
+      if (!targetFile.toLowerCase().endsWith('.pdf')) {
+        targetFile = `${targetFile}.pdf`;
+      }
+
+      setPdfPageNumber(pageNum);
+      setPdfFilename(targetFile);
+
+      // 2. Ndërton URL-në e drejtpërdrejtë për hapjen e shpejtë të PDF-së
+      const fullUrl = `${API_V1_URL}/laws/caselaw/pdf/${encodeURIComponent(targetFile)}`;
+      setPdfUrl(fullUrl);
+      setShowPdfModal(true);
+
+    } catch (err) {
+      // Fallback nëse serveri nuk kthen faqe specifike: hap PDF-në me emrin bazë
+      const fallbackFile = cleanLabel.toLowerCase().endsWith('.pdf') ? cleanLabel : `${cleanLabel}.pdf`;
+      setPdfFilename(fallbackFile);
+      setPdfPageNumber(1);
+      setPdfUrl(`${API_V1_URL}/laws/caselaw/pdf/${encodeURIComponent(fallbackFile)}`);
+      setShowPdfModal(true);
+    } finally {
+      setIsLoadingPdf(false);
+    }
   };
 
   const tooltipContent = (
@@ -134,16 +166,16 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
               </strong>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">Efekti Juridik:</span>
-              <strong>Interpretim Parimor i Zbatueshëm</strong>
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Veprimi:</span>
+              <strong className="text-emerald-600 dark:text-emerald-400">Hapje e Menjëhershme në Ekran ✓</strong>
             </div>
           </div>
 
           {/* Udhëzimi me 1-Klikim */}
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-2">
-            <span>Kliko për të hapur aktgjykimin origjinal</span>
+            <span>Kliko për të hapur aktgjykimin në modal</span>
             <span className="text-amber-500 font-bold flex items-center gap-0.5">
-              Hap Vendimin <ExternalLink size={10} />
+              Hap Këtu <ExternalLink size={10} />
             </span>
           </div>
 
@@ -164,23 +196,45 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
   );
 
   return (
-    <span
-      ref={containerRef}
-      className={`inline-flex items-center align-baseline mx-0.5 my-0.5 max-w-full ${className}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <button
-        type="button"
-        onClick={handleClick}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
+    <>
+      <span
+        ref={containerRef}
+        className={`inline-flex items-center align-baseline mx-0.5 my-0.5 max-w-full ${className}`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
-        <Gavel size={13} className="shrink-0 opacity-90" />
-        <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
-      </button>
+        <button
+          type="button"
+          onClick={handleDirectOpenPdf}
+          disabled={isLoadingPdf}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
+        >
+          {isLoadingPdf ? (
+            <Loader2 size={13} className="animate-spin text-amber-500" />
+          ) : (
+            <Gavel size={13} className="shrink-0 opacity-90" />
+          )}
+          <span className="truncate max-w-[260px] sm:max-w-[340px]">{cleanLabel}</span>
+        </button>
 
-      {createPortal(tooltipContent, document.body)}
-    </span>
+        {createPortal(tooltipContent, document.body)}
+      </span>
+
+      {/* Dritarja Modale e Menjëhershme që hapet drejtpërdrejt pa lëvizur nga faqja */}
+      {showPdfModal && pdfUrl && (
+        <FileViewerModal
+          documentData={{
+            file_name: pdfFilename,
+            mime_type: 'application/pdf',
+          }}
+          directUrl={pdfUrl}
+          isAuth={true}
+          initialPage={pdfPageNumber}
+          onClose={() => setShowPdfModal(false)}
+          t={t}
+        />
+      )}
+    </>
   );
 };
 
