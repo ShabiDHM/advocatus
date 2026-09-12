@@ -1,12 +1,12 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - 100% RESPONSIVE MOBILE & DESKTOP CITATION TOOLTIP V16.0
-// 100% COMPLETE CODE • ZERO OVERFLOW ON MOBILE/TABLET • ADAPTIVE PIN ARROW • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - INFALLIBLE MOBILE PINNED CITATION TOOLTIP V17.0
+// 100% COMPLETE CODE • ZERO OVERFLOW • HARD PINNED LEFT:12PX/RIGHT:12PX • ZERO TS WARNINGS
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Scale, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Scale, ShieldCheck, CheckCircle2, X } from 'lucide-react';
 import { apiService } from '../services/api';
 
 export interface LawCitationLinkProps {
@@ -53,8 +53,8 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
 
   const [coords, setCoords] = useState({
     top: 0,
-    left: 0,
-    arrowLeftPercent: 50,
+    desktopLeft: 0,
+    arrowLeftPx: 50,
     isFlippedBelow: false,
     isMobile: false,
   });
@@ -72,38 +72,29 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
 
       const idealCenter = rect.left + rect.width / 2;
 
-      // 1. LLOGARITJA HORIZONTALE
-      let clampedLeft: number;
-      let arrowPercent: number;
+      // Në Mobile llogarisim vetëm shigjetën, trupi mbërthehet me left:12px, right:12px
+      let arrowPx: number;
+      let desktopLeft = 0;
 
       if (isMobile) {
-        // Në Mobile/Tablet: Tooltip-i qëndron fiks në mes të ekranit
-        clampedLeft = viewportWidth / 2;
-        // Shigjeta tregon te neni
-        const tooltipLeftEdge = 12;
-        const tooltipActualWidth = viewportWidth - 24;
-        const arrowPxInsideTooltip = idealCenter - tooltipLeftEdge;
-        arrowPercent = Math.max(8, Math.min(92, (arrowPxInsideTooltip / tooltipActualWidth) * 100));
+        // Pozicioni i shigjetës brenda gjerësisë së telefonit (me 12px anash)
+        const tooltipBoxLeft = Math.max(12, (viewportWidth - Math.min(viewportWidth - 24, 360)) / 2);
+        arrowPx = Math.max(20, Math.min(rect.left + rect.width / 2 - tooltipBoxLeft, Math.min(viewportWidth - 24, 360) - 20));
       } else {
-        // Në Desktop: Tooltip-i ndjek fjalën me clamping
         const tooltipWidth = 360;
         const margin = 16;
-        const minLeft = tooltipWidth / 2 + margin;
-        const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
-        clampedLeft = Math.max(minLeft, Math.min(idealCenter, maxLeft));
-        const arrowOffset = idealCenter - clampedLeft;
-        arrowPercent = 50 + (arrowOffset / (tooltipWidth / 2)) * 45;
+        desktopLeft = Math.max(tooltipWidth / 2 + margin, Math.min(idealCenter, viewportWidth - tooltipWidth / 2 - margin));
+        arrowPx = Math.max(20, Math.min(idealCenter - (desktopLeft - tooltipWidth / 2), tooltipWidth - 20));
       }
 
-      // 2. LLOGARITJA VERTIKALE (Auto-Flip)
       const estimatedHeight = 240;
       const isFlippedBelow = rect.top < (estimatedHeight + 20);
       const computedTop = isFlippedBelow ? (rect.bottom + 8) : (rect.top - 8);
 
       setCoords({
         top: computedTop,
-        left: clampedLeft,
-        arrowLeftPercent: arrowPercent,
+        desktopLeft,
+        arrowLeftPx: arrowPx,
         isFlippedBelow,
         isMobile,
       });
@@ -117,28 +108,44 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
       const response = await apiService.getLawArticle(lawTitle, articleNum);
       setSourceInfo(response.source_info || null);
     } catch {
-      // Graceful fallback
+      // Fallback
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleMouseEnter = () => {
+  const handleOpen = () => {
     updateCoordinates();
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(() => {
       setShowTooltip(true);
       fetchSourceInfo();
-    }, 150);
+    }, 100);
   };
 
-  const handleMouseLeave = () => {
+  const handleClose = () => {
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
       fetchTimeoutRef.current = null;
     }
     setShowTooltip(false);
   };
+
+  // Mbyllja nëse prek diku tjetër në telefon
+  useEffect(() => {
+    if (!showTooltip) return;
+    const handleOutsideClick = (e: TouchEvent | MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowTooltip(false);
+      }
+    };
+    window.addEventListener('touchstart', handleOutsideClick);
+    window.addEventListener('click', handleOutsideClick);
+    return () => {
+      window.removeEventListener('touchstart', handleOutsideClick);
+      window.removeEventListener('click', handleOutsideClick);
+    };
+  }, [showTooltip]);
 
   const tooltipContent = (
     <AnimatePresence>
@@ -148,11 +155,19 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          className="fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10 w-[calc(100vw-24px)] max-w-[360px]"
+          // 🛡️ PINNIMI I HEKURT NË MOBILE: left:12px, right:12px, margin:auto (ZERO OVERFLOW GARANTUAR)
+          className={`fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-auto ring-1 ring-black/10 dark:ring-white/10 ${
+            coords.isMobile
+              ? 'left-3 right-3 mx-auto max-w-[360px] w-[calc(100vw-24px)]'
+              : 'w-[360px]'
+          }`}
           style={{
             top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            transform: coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
+            left: coords.isMobile ? '12px' : `${coords.desktopLeft}px`,
+            right: coords.isMobile ? '12px' : 'auto',
+            transform: coords.isMobile
+              ? (coords.isFlippedBelow ? 'translateY(0%)' : 'translateY(-100%)')
+              : (coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)'),
           }}
         >
           {/* Header */}
@@ -161,10 +176,21 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
               <ShieldCheck size={15} />
               <span>Verifikuar në Bazën Lokale</span>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-              <CheckCircle2 size={10} />
-              <span>100% ZYRTAR</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                <CheckCircle2 size={10} />
+                <span>100% ZYRTAR</span>
+              </span>
+              {coords.isMobile && (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-200"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Titulli i Ligjit & Neni */}
@@ -197,15 +223,15 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
             {sourceInfo.confidence?.description || 'Nen i nxjerrë direkt nga fondi zyrtar i ligjeve të Kosovës.'}
           </div>
 
-          {/* Shigjeta e saktë adaptive */}
+          {/* Shigjeta adaptive e cila nuk del kurrë jashtë kartelës */}
           <div
-            className={`absolute -translate-x-1/2 border-[7px] border-transparent pointer-events-none ${
+            className={`absolute border-[7px] border-transparent pointer-events-none ${
               coords.isFlippedBelow 
                 ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
                 : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
             }`}
             style={{
-              left: `${coords.arrowLeftPercent}%`,
+              left: `${coords.arrowLeftPx}px`,
             }}
           />
         </motion.div>
@@ -217,8 +243,9 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     <span
       ref={containerRef}
       className={`inline-flex items-center align-baseline mx-0.5 my-0.5 max-w-full ${className}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseEnter={handleOpen}
+      onMouseLeave={handleClose}
+      onClick={handleOpen}
     >
       <Link
         to={targetUrl}
