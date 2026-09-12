@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V91.0 (CASE ANALYSIS PROPS PURGED • ZERO-LAG & ATTACHMENT HARMONY)
+// PHOENIX PROTOCOL - CHAT PANEL V92.0 (FULLSCREEN EXECUTIVE EXPAND & ZERO REGRESSIONS)
 // ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -359,7 +359,7 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
 ClientMessageBubble.displayName = 'ClientMessageBubble';
 
 // ============================================================================
-// KOMPONENTI KRYESOR CHAT PANEL
+// KOMPONENTI KRYESOR CHAT PANEL (ME EXPAND FULLSCREEN OVERLAY)
 // ============================================================================
 export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   const {
@@ -386,6 +386,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
 
+  // Gjendja e Zgjerimit në Ekran të Plotë (Fullscreen Expand)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
   // Gjendja e bashkëngjitjes së skedarit me 📎
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState<boolean>(false);
@@ -396,6 +399,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
+
+  // Mbyllja e Fullscreen me tastin ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -430,7 +444,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     let textToSend = cleanText;
     let fileNotice = '';
 
-    // Nëse kemi bashkëngjitur skedar me 📎 dhe jemi brenda një lënde
     if (attachedFile && activeContextId && activeContextId !== 'general') {
       setIsUploadingAttachment(true);
       setUploadStatusText(`Duke ngarkuar dhe indeksuar: ${attachedFile.name}...`);
@@ -528,146 +541,165 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
   };
 
   return (
-    <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border border-main bg-canvas shadow-sm ${className}`}>
-      <ChatHeader
-        connectionStatus={connectionStatus}
-        activeContextId={activeContextId}
-        onClearChat={onClearChat}
-        onExportChat={onExportChat}
-        t={t}
-        isPro={isPro}
-        onAnalyzeDocument={onAnalyzeDocument}
-        selectedDocName={selectedDocName}
-      />
+    <>
+      {/* Prapavija e errët kur Chat-i është në Fullscreen */}
+      {isFullscreen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 animate-in fade-in duration-200"
+          onClick={() => setIsFullscreen(false)}
+        />
+      )}
 
-      {/* BODY CONTEXT */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
-        {displayMessages.length === 0 && !isSendingMessage ? (
-          <div className="flex-1 min-h-full flex items-center justify-center w-full">
-            <CommandPaletteGrid
-              userSalutation={userSalutation}
-              clientPosition={clientPosition}
-              selectedDocumentIds={selectedDocumentIds}
-              documents={documents}
-              onSendMessage={sendMessage}
+      {/* Trupi Kryesor i ChatPanel */}
+      <div 
+        className={`flex flex-col glass-panel overflow-hidden bg-canvas transition-all duration-300 ${
+          isFullscreen 
+            ? 'fixed inset-2 sm:inset-4 z-50 rounded-2xl sm:rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.6)] border-2 border-primary-start/40' 
+            : `h-full w-full border border-main rounded-2xl sm:rounded-3xl shadow-sm ${className || ''}`
+        }`}
+      >
+        <ChatHeader
+          connectionStatus={connectionStatus}
+          activeContextId={activeContextId}
+          onClearChat={onClearChat}
+          onExportChat={onExportChat}
+          t={t}
+          isPro={isPro}
+          onAnalyzeDocument={onAnalyzeDocument}
+          selectedDocName={selectedDocName}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setIsFullscreen(prev => !prev)}
+        />
+
+        {/* BODY CONTEXT */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
+          {displayMessages.length === 0 && !isSendingMessage ? (
+            <div className="flex-1 min-h-full flex items-center justify-center w-full">
+              <CommandPaletteGrid
+                userSalutation={userSalutation}
+                clientPosition={clientPosition}
+                selectedDocumentIds={selectedDocumentIds}
+                documents={documents}
+                onSendMessage={sendMessage}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4 w-full">
+              <AnimatePresence initial={false}>
+                {displayMessages.map((msg, idx) => (
+                  <ClientMessageBubble
+                    key={idx}
+                    msg={msg}
+                    idx={idx}
+                    isLastMessage={idx === displayMessages.length - 1}
+                    isSendingMessage={isSendingMessage}
+                    onSendMessage={sendMessage}
+                    onFeedback={handleFeedback}
+                    feedbackGiven={feedbackGiven.has(idx)}
+                    onRetry={handleRetry}
+                    activeContextId={activeContextId}
+                    markdownComponents={markdownComponents}
+                    t={t}
+                  />
+                ))}
+
+                {isAwaitingFirstToken && !displayMessages.some(m => m.role === 'ai' && isThinkingPlaceholder(m.content)) && (
+                  <motion.div 
+                    key="thinking" 
+                    initial={{ opacity: 0, y: 5 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex items-start gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
+                      <BrainCircuit size={16} className="animate-pulse" />
+                    </div>
+                    <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
+                      <span className="text-xs font-bold text-primary-start tracking-wide">
+                        Juristi AI duke menduar
+                      </span>
+                      <ThinkingDots />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* INPUT AREA */}
+        <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendMessage(input);
+            }}
+            className="max-w-5xl mx-auto"
+          >
+            {/* BADGE I SKEDARIT TË BASHKANGJITUR */}
+            {renderAttachedBadge()}
+
+            {/* INPUT I FSHEHUR PËR SKEDARIN */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.mp3,.wav,.m4a,image/*"
+              className="hidden"
             />
-          </div>
-        ) : (
-          <div className="space-y-4 w-full">
-            <AnimatePresence initial={false}>
-              {displayMessages.map((msg, idx) => (
-                <ClientMessageBubble
-                  key={idx}
-                  msg={msg}
-                  idx={idx}
-                  isLastMessage={idx === displayMessages.length - 1}
-                  isSendingMessage={isSendingMessage}
-                  onSendMessage={sendMessage}
-                  onFeedback={handleFeedback}
-                  feedbackGiven={feedbackGiven.has(idx)}
-                  onRetry={handleRetry}
-                  activeContextId={activeContextId}
-                  markdownComponents={markdownComponents}
-                  t={t}
-                />
-              ))}
 
-              {isAwaitingFirstToken && !displayMessages.some(m => m.role === 'ai' && isThinkingPlaceholder(m.content)) && (
-                <motion.div 
-                  key="thinking" 
-                  initial={{ opacity: 0, y: 5 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="flex items-start gap-3"
+            <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
+              {/* BUTONI PAPERCLIP 📎 */}
+              {activeContextId !== 'general' && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSendingMessage || isUploadingAttachment}
+                  className={`p-2 rounded-lg transition-all cursor-pointer mb-0.5 shrink-0 ${
+                    attachedFile
+                      ? 'bg-primary-start text-white shadow-xs'
+                      : 'text-text-muted hover:text-primary-start hover:bg-primary-start/10'
+                  }`}
+                  title="Bashkëngjit dokument në lëndë (.pdf, .docx, Excel, foto)"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-primary-start text-white flex items-center justify-center shadow-sm shrink-0 border border-primary-start">
-                    <BrainCircuit size={16} className="animate-pulse" />
-                  </div>
-                  <div className="bg-surface border border-main rounded-xl rounded-tl-sm px-4 py-2.5 shadow-sm flex items-center gap-2">
-                    <span className="text-xs font-bold text-primary-start tracking-wide">
-                      Juristi AI duke menduar
-                    </span>
-                    <ThinkingDots />
-                  </div>
-                </motion.div>
+                  <Paperclip size={16} />
+                </button>
               )}
-            </AnimatePresence>
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
 
-      {/* INPUT AREA */}
-      <div className="p-3 sm:p-4 bg-surface shrink-0 z-20">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage(input);
-          }}
-          className="max-w-5xl mx-auto"
-        >
-          {/* BADGE I SKEDARIT TË BASHKANGJITUR */}
-          {renderAttachedBadge()}
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isUploadingAttachment
+                    ? uploadStatusText
+                    : attachedFile
+                    ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...`
+                    : t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu...')
+                }
+                disabled={isUploadingAttachment}
+                className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden disabled:opacity-60"
+                rows={1}
+              />
 
-          {/* INPUT I FSHEHUR PËR SKEDARIN */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.mp3,.wav,.m4a,image/*"
-            className="hidden"
-          />
-
-          <div className="flex items-end gap-2 bg-canvas border border-main rounded-xl p-2 transition-all focus-within:ring-2 focus-within:ring-primary-start/20 focus-within:border-primary-start/50 shadow-sm">
-            {/* BUTONI PAPERCLIP 📎 */}
-            {activeContextId !== 'general' && (
               <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isSendingMessage || isUploadingAttachment}
-                className={`p-2 rounded-lg transition-all cursor-pointer mb-0.5 shrink-0 ${
-                  attachedFile
-                    ? 'bg-primary-start text-white shadow-xs'
-                    : 'text-text-muted hover:text-primary-start hover:bg-primary-start/10'
-                }`}
-                title="Bashkëngjit dokument në lëndë (.pdf, .docx, Excel, foto)"
+                type="submit"
+                disabled={(!input.trim() && !attachedFile) || isSendingMessage || isUploadingAttachment}
+                className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift cursor-pointer"
               >
-                <Paperclip size={16} />
+                {isSendingMessage || isUploadingAttachment ? (
+                  <Loader2 size={15} className="animate-spin text-white" />
+                ) : (
+                  <Send size={15} className="ml-0.5" />
+                )}
               </button>
-            )}
-
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isUploadingAttachment
-                  ? uploadStatusText
-                  : attachedFile
-                  ? `Shtoni pyetje për ${attachedFile.name} (ose shtypni Dërgo)...`
-                  : t('chatPanel.inputPlaceholder', 'Shkruaj mesazhin tuaj këtu...')
-              }
-              disabled={isUploadingAttachment}
-              className="flex-1 p-2 bg-transparent text-xs sm:text-sm leading-relaxed text-text-primary placeholder:text-text-disabled focus:outline-none resize-none min-h-[40px] max-h-[200px] border-0 outline-none ring-0 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden disabled:opacity-60"
-              rows={1}
-            />
-
-            <button
-              type="submit"
-              disabled={(!input.trim() && !attachedFile) || isSendingMessage || isUploadingAttachment}
-              className="h-9 w-9 flex items-center justify-center bg-primary-start text-white rounded-lg shadow-md shadow-primary-start/15 hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0 mb-0.5 focus:outline-none hover-lift cursor-pointer"
-            >
-              {isSendingMessage || isUploadingAttachment ? (
-                <Loader2 size={15} className="animate-spin text-white" />
-              ) : (
-                <Send size={15} className="ml-0.5" />
-              )}
-            </button>
-          </div>
-        </form>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

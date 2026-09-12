@@ -1,9 +1,9 @@
-// FILE: frontend/src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V31.0 (CASE ANALYSIS BUTTON FULLY PURGED • CLEAN MINIMAL HEADER)
+// FILE: src/components/chat/ChatHeader.tsx
+// PHOENIX PROTOCOL - CHAT HEADER V32.0 (EXPAND/MINIMIZE SCREEN TOGGLE INTEGRATED)
 // ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • 100% COMPLETE CODE
 
 import React from 'react';
-import { Download, Trash2, FileText } from 'lucide-react';
+import { Download, Trash2, FileText, Maximize2, Minimize2 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -18,6 +18,8 @@ interface ChatHeaderProps {
   documents?: any[];
   selectedDocumentIds?: string[];
   onDocumentSelectionChange?: (ids: string[]) => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -26,6 +28,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onExportChat,
   onAnalyzeDocument,
   selectedDocName,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none">
@@ -37,17 +41,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               ? 'bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
               : 'bg-danger-start animate-pulse'
           }`}
-          title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive' : 'Lidhja e shkëputur'}
+          title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive me DeepSeek' : 'Lidhja e shkëputur'}
         />
         {selectedDocName && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[200px] sm:max-w-[320px] truncate" title={`Shkresa aktive: ${selectedDocName}`}>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-main text-[11px] font-medium text-text-secondary max-w-[180px] sm:max-w-[300px] truncate" title={`Shkresa aktive: ${selectedDocName}`}>
             <FileText size={12} className="text-primary-start shrink-0" />
             <span className="truncate">{selectedDocName}</span>
           </span>
         )}
       </div>
 
-      {/* 2. DJATHTAS: Butoni 'Analizo Dokumentin', Eksporti dhe Koshi */}
+      {/* 2. DJATHTAS: Butoni 'Analizo Dokumentin', Fullscreen Expand, Eksporti dhe Koshi */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
         
         {/* Butoni: Analizo Dokumentin */}
@@ -61,6 +65,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <FileText size={12} className="shrink-0 text-primary-start" />
             <span className="hidden sm:inline">Analizo Dokumentin</span>
             <span className="sm:hidden">Analizo</span>
+          </button>
+        )}
+
+        {/* Butoni i Ri: Zgjero / Zvogëlo Dritaren (Fullscreen Expand) */}
+        {onToggleFullscreen && (
+          <button
+            type="button"
+            onClick={onToggleFullscreen}
+            className="flex items-center justify-center w-8 h-8 shrink-0 text-text-muted hover:text-text-primary hover:bg-hover rounded-lg transition-all focus:outline-none cursor-pointer"
+            title={isFullscreen ? "Zvogëlo dritaren" : "Zgjero dritaren për lexim të thellë"}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
         )}
 
