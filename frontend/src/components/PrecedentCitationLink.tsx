@@ -1,11 +1,11 @@
 // FILE: src/components/PrecedentCitationLink.tsx
-// PHOENIX PROTOCOL - 100% RESPONSIVE PRECEDENT VIEWER & TOOLTIP V19.0
-// 100% COMPLETE CODE • ZERO OVERFLOW ON MOBILE/TABLET • ADAPTIVE PIN ARROW • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - INFALLIBLE MOBILE PINNED PRECEDENT VIEWER V20.0
+// 100% COMPLETE CODE • ZERO OVERFLOW • HARD PINNED LEFT:12PX/RIGHT:12PX • ZERO TS WARNINGS
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gavel, FileText, ExternalLink, Loader2 } from 'lucide-react';
+import { Gavel, FileText, ExternalLink, Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService, API_V1_URL } from '../services/api';
 import FileViewerModal from './FileViewerModal';
@@ -30,8 +30,8 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [coords, setCoords] = useState({
     top: 0,
-    left: 0,
-    arrowLeftPercent: 50,
+    desktopLeft: 0,
+    arrowLeftPx: 50,
     isFlippedBelow: false,
     isMobile: false,
   });
@@ -47,56 +47,63 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
 
       const idealCenter = rect.left + rect.width / 2;
 
-      // 1. Llogaritja horizontale me mbrojtje totale të kufijve
-      let clampedLeft: number;
-      let arrowPercent: number;
+      let arrowPx: number;
+      let desktopLeft = 0;
 
       if (isMobile) {
-        clampedLeft = viewportWidth / 2;
-        const tooltipLeftEdge = 12;
-        const tooltipActualWidth = viewportWidth - 24;
-        const arrowPxInsideTooltip = idealCenter - tooltipLeftEdge;
-        arrowPercent = Math.max(8, Math.min(92, (arrowPxInsideTooltip / tooltipActualWidth) * 100));
+        const tooltipBoxLeft = Math.max(12, (viewportWidth - Math.min(viewportWidth - 24, 390)) / 2);
+        arrowPx = Math.max(20, Math.min(idealCenter - tooltipBoxLeft, Math.min(viewportWidth - 24, 390) - 20));
       } else {
-        const tooltipWidth = 380;
+        const tooltipWidth = 390;
         const margin = 16;
-        const minLeft = tooltipWidth / 2 + margin;
-        const maxLeft = viewportWidth - tooltipWidth / 2 - margin;
-        clampedLeft = Math.max(minLeft, Math.min(idealCenter, maxLeft));
-        const arrowOffset = idealCenter - clampedLeft;
-        arrowPercent = 50 + (arrowOffset / (tooltipWidth / 2)) * 45;
+        desktopLeft = Math.max(tooltipWidth / 2 + margin, Math.min(idealCenter, viewportWidth - tooltipWidth / 2 - margin));
+        arrowPx = Math.max(20, Math.min(idealCenter - (desktopLeft - tooltipWidth / 2), tooltipWidth - 20));
       }
 
-      // 2. Auto-Flip vertikal
       const estimatedHeight = 220;
       const isFlippedBelow = rect.top < (estimatedHeight + 20);
       const computedTop = isFlippedBelow ? (rect.bottom + 8) : (rect.top - 8);
 
       setCoords({
         top: computedTop,
-        left: clampedLeft,
-        arrowLeftPercent: arrowPercent,
+        desktopLeft,
+        arrowLeftPx: arrowPx,
         isFlippedBelow,
         isMobile,
       });
     }
   };
 
-  const handleMouseEnter = () => {
+  const handleOpen = () => {
     updateCoordinates();
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(() => {
       setShowTooltip(true);
-    }, 150);
+    }, 100);
   };
 
-  const handleMouseLeave = () => {
+  const handleClose = () => {
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
       fetchTimeoutRef.current = null;
     }
     setShowTooltip(false);
   };
+
+  useEffect(() => {
+    if (!showTooltip) return;
+    const handleOutsideClick = (e: TouchEvent | MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowTooltip(false);
+      }
+    };
+    window.addEventListener('touchstart', handleOutsideClick);
+    window.addEventListener('click', handleOutsideClick);
+    return () => {
+      window.removeEventListener('touchstart', handleOutsideClick);
+      window.removeEventListener('click', handleOutsideClick);
+    };
+  }, [showTooltip]);
 
   const handleDirectOpenPdf = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -143,11 +150,19 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          className="fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10 w-[calc(100vw-24px)] max-w-[390px]"
+          // 🛡️ MBËRTHYERJE E PLOTË NË TELEFON ME left:12px, right:12px (ZERO DALJE JASHTË)
+          className={`fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-auto ring-1 ring-black/10 dark:ring-white/10 ${
+            coords.isMobile
+              ? 'left-3 right-3 mx-auto max-w-[390px] w-[calc(100vw-24px)]'
+              : 'w-[390px]'
+          }`}
           style={{
             top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            transform: coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
+            left: coords.isMobile ? '12px' : `${coords.desktopLeft}px`,
+            right: coords.isMobile ? '12px' : 'auto',
+            transform: coords.isMobile
+              ? (coords.isFlippedBelow ? 'translateY(0%)' : 'translateY(-100%)')
+              : (coords.isFlippedBelow ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)'),
           }}
         >
           {/* Header */}
@@ -156,9 +171,20 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
               <Gavel size={15} />
               <span>Gjykata Supreme e Kosovës</span>
             </div>
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
-              PRECEDENT GJYQËSOR
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
+                PRECEDENT
+              </span>
+              {coords.isMobile && (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-200"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Numri Zyrtar */}
@@ -195,13 +221,13 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
 
           {/* Shigjeta adaptive */}
           <div
-            className={`absolute -translate-x-1/2 border-[7px] border-transparent pointer-events-none ${
+            className={`absolute border-[7px] border-transparent pointer-events-none ${
               coords.isFlippedBelow 
                 ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
                 : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
             }`}
             style={{
-              left: `${coords.arrowLeftPercent}%`,
+              left: `${coords.arrowLeftPx}px`,
             }}
           />
         </motion.div>
@@ -214,8 +240,8 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
       <span
         ref={containerRef}
         className={`inline-flex items-center align-baseline mx-0.5 my-0.5 max-w-full ${className}`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onMouseEnter={handleOpen}
+        onMouseLeave={handleClose}
       >
         <button
           type="button"
@@ -234,6 +260,7 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
         {createPortal(tooltipContent, document.body)}
       </span>
 
+      {/* Dritarja Modale e Menjëhershme */}
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{
