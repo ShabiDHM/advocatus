@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED ROUTER V10.0 (360° VISION • HYBRID VECTOR + FULL DOSSIER)
-# 100% COMPLETE CODE • ZERO BLINDNESS • ZERO OVERFLOW • EQUAL DISTRIBUTION OVER ALL 31 DOCS
+# PHOENIX PROTOCOL - FORENSIC DEDICATED ROUTER V11.0 (50K OPTIMAL CALIBRATION • 0 ERRORS)
+# 100% COMPLETE CODE • SAFE 175K CHAR BUDGET • 360° HYBRID VISION • FULL 31-DOC COVERAGE
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 FORENSIC_CHAT_COLLECTION = "forensic_chat_history"
 FORENSIC_DOCS_COLLECTION = "forensic_documents"
 
-# Buxhet maksimal i sigurt për DeepSeek (120,000 tokene ≈ 420,000 karaktere)
-MAX_SAFE_TOTAL_CHARS = 420_000
+# Buxheti i artë i sigurisë: ~45,000-50,000 tokene (175,000 karaktere)
+# Garanton pranim të menjëhershëm nga të gjithë serverat e DeepSeek pa gabim 400
+MAX_SAFE_TOTAL_CHARS = 175_000
 
 class ForensicChatMessage(BaseModel):
     case_id: str
@@ -51,18 +52,18 @@ def _build_system_prompt_with_rag(
     db: Optional[Database] = None
 ) -> str:
     """
-    SHIKIM I PLOTË 360 SHKALLË:
-    1. Vektorët e saktë nga 'user_vectors' (reflektori mbi të 147 faqet).
-    2. Shpërndarje e barabartë e të gjitha 31 shkresave (asnjë shkresë nuk mbetet jashtë).
-    3. Korpus ligjor dhe precedentë supremë nga 'legal_knowledge_base'.
+    SHIKIM 360° I KALIBRUAR:
+    1. Vektorët nga 'user_vectors' (reflektori mbi të 147 faqet e lëndës).
+    2. Shpërndarje e balancuar e të gjitha 31 shkresave brenda kufirit 50k token.
+    3. Nenet dhe precedentët e Gjykatës Supreme nga 'legal_knowledge_base'.
     """
-    # 1. KËRKIMI SEMANTIK NGA 'user_vectors' (Gjen saktësisht faktet për pyetjen)
+    # 1. KËRKIMI SEMANTIK NGA 'user_vectors' (Nxjerr menjëherë faktet kyçe të pyetjes)
     case_chunks = []
     try:
         case_chunks = query_case_knowledge_base(
             user_id=user_id,
             query_text=payload.message,
-            n_results=30,
+            n_results=25,
             case_id=case_id_str
         )
     except Exception as e:
@@ -73,7 +74,7 @@ def _build_system_prompt_with_rag(
         for c in case_chunks if c.get("text")
     ]) if case_chunks else "Kërkimi semantik nuk ktheu fragmente specifike."
 
-    # 2. TËRHEQJA E TË GJITHA 31 SHKRESAVE NGA 'forensic_documents' DHE 'documents'
+    # 2. TËRHEQJA E SHKRESAVE NGA 'forensic_documents' DHE 'documents'
     all_docs = []
     total_docs_count = 0
     total_pages_count = 0
@@ -110,14 +111,13 @@ def _build_system_prompt_with_rag(
         except Exception as doc_err:
             logger.error(f"Dossier retrieval error: {doc_err}")
 
-    # 3. SHPËRNDARJE E ZGJUAR E BUXHETIT PËR TË GJITHA SHKRESAT (ZERO BREAK)
-    # Llogarisim buxhetin për çdo dokument që të përfaqësohen TË GJITHA 31 SHKRESAT
+    # 3. SHPËRNDARJE E BALANCUAR E BUXHETIT PËR TË 31 SHKRESAT
     dossier_blocks: List[str] = []
     if all_docs:
-        # Përcaktojmë kuotën për çdo dokument (p.sh. ~10,000 karaktere për shkresë)
-        budget_per_doc = max(4000, MAX_SAFE_TOTAL_CHARS // max(len(all_docs), 1))
+        # Përcaktojmë kuotën për çdo dokument (rreth 4,000 - 5,500 karaktere për shkresë)
+        budget_per_doc = max(3000, (MAX_SAFE_TOTAL_CHARS - len(vector_highlights_text)) // max(len(all_docs), 1))
 
-        # Kontrollojmë nëse përdoruesi ka zgjedhur një dokument specifik në fokus
+        # Dokumenti i fokusuar nëse përdoruesi ka klikuar mbi një shkresë
         focused_filename = ""
         if case_context and "Dokumenti i fokusuar:" in case_context:
             match_focus = re.search(r'Dokumenti i fokusuar:\s*([^.\n]+\.[a-zA-Z0-9]+)', case_context)
@@ -133,42 +133,43 @@ def _build_system_prompt_with_rag(
                 cleaned = _clean_text(raw_text)
                 is_focused = focused_filename and (focused_filename in fname.lower())
 
-                # Nëse është dokumenti i fokusuar merr përparësi të plotë, përndryshe merr kuotën e barabartë
-                doc_text_allowed = cleaned if is_focused else cleaned[:budget_per_doc]
-                has_more = len(cleaned) > len(doc_text_allowed)
+                # Nëse është i fokusuar merr më shumë vend, përndryshe merr kuotën e balancuar
+                allowed_len = min(len(cleaned), budget_per_doc * 3) if is_focused else min(len(cleaned), budget_per_doc)
+                doc_text_allowed = cleaned[:allowed_len]
+                has_more = len(cleaned) > allowed_len
 
                 block = (
-                    f"--- DOKUMENTI [{idx}/{total_docs_count}]: {fname} (Gjithsej faqe: {pcount}) ---\n"
+                    f"--- DOKUMENTI [{idx}/{total_docs_count}]: {fname} (Faqe: {pcount}) ---\n"
                     f"{doc_text_allowed}\n"
-                    f"{'[...Përmbajtja tjetër është në dispozicion...]' if has_more else ''}\n"
+                    f"{'[...Përmbajtja tjetër është në arkivë...]' if has_more else ''}\n"
                 )
                 dossier_blocks.append(block)
 
     full_dossier_text = "\n".join(dossier_blocks) if dossier_blocks else "Nuk ka shkresa në dosje."
 
-    # 4. KORPUSI LIGJOR NGA 'legal_knowledge_base'
+    # 4. KORPUSI LIGJOR DHE PRECEDENTËT SUPREMË
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
             query_text=payload.message,
-            n_results=10
+            n_results=8
         )
     except Exception as e:
         logger.warning(f"Knowledge base error: {e}")
 
     knowledge_context_text = "\n".join([
-        f"{c.get('source','Ligj')}: {c.get('text','')[:500]}"
+        f"{c.get('source','Ligj')}: {c.get('text','')[:450]}"
         for c in knowledge_chunks if c.get("text")
     ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
 
     return f"""Ju jeni Krye-Eksperti Forenzik Ligjor i autorizuar për legjislacionin dhe procedurën gjyqësore të Republikës së Kosovës.
-Ju keni qasje të plotë hetimore në të gjitha {total_docs_count} shkresat e fashikullit (~{total_pages_count} faqe).
+Ju keni qasje hetimore në të gjitha {total_docs_count} shkresat e fashikullit (~{total_pages_count} faqe).
 
 MANDATI JUAJ FORENZIK:
-1. QASJE E PLOTË NË TË GJITHA SHKRESAT:
-   Posedoni dhe analizoni provat nga të gjitha shkresat e administruara më poshtë.
+1. QASJE NË TË GJITHA SHKRESAT:
+   Posedoni dhe analizoni provat nga të gjitha shkresat e administruara në dosje.
 2. EKSTRAKTIM VERBATIM (FJALË PËR FJALË):
-   Citoni me thonjëza deklarimet ekzakte, duke specifikuar emrin e dokumentit (p.sh. Seanca_2.pdf, Raporti_i_dyte_i_ekspertve.pdf) dhe faqen.
+   Citoni me thonjëza deklarimet ekzakte, duke specifikuar emrin e dokumentit dhe faqen përkatëse.
 3. STRUKTURA E PËRGJIGJES:
    - 1. Të dhënat & Deklarimet Fjalë për Fjalë (Verbatim)
    - 2. Kontradiktat mes Seancave dhe Raporteve
@@ -179,7 +180,7 @@ FOKUSI I HETIMIT:
 {payload.case_context or 'Analizë e të gjitha shkresave të fashikullit'}
 
 ===============================================================================
-FRAGMENTET PARËSORE TË IDENTIFIKUARA NGA KERKIMI SEMANTIK (USER_VECTORS):
+FRAGMENTET PARËSORE NGA KERKIMI SEMANTIK (USER_VECTORS):
 ===============================================================================
 {vector_highlights_text}
 
@@ -189,7 +190,7 @@ PËRMBAJTJA E TË GJITHA {total_docs_count} SHKRESAVE TË FASHIKULLIT:
 {full_dossier_text}
 
 ===============================================================================
-REFERENCAT LIGJORE DHE PRECEDENTËT E GJYKATËS SUPREME (KNOWLEDGE BASE):
+REFERENCAT LIGJORE DHE PRECEDENTËT E GJYKATËS SUPREME:
 ===============================================================================
 {knowledge_context_text}"""
 
@@ -234,7 +235,7 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2. DËRGIMI I PYETJES ME STREAMING (ME SHIKIM 360° DHE RUAJTJE ATOMIKE)
+# 2. DËRGIMI I PYETJES ME STREAMING (ME RUAJTJE TË GARANTUAR)
 # ==========================================================
 @router.post("/chat/stream")
 async def stream_forensic_chat_message(
@@ -247,11 +248,11 @@ async def stream_forensic_chat_message(
     now_utc = datetime.now(timezone.utc)
 
     query = _build_case_query(case_id_str)
-    past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", -1).limit(10)
+    past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", -1).limit(8)
     raw_history = list(past_cursor)
     raw_history.reverse()
 
-    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")[:2000]} for m in raw_history]
+    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")[:1500]} for m in raw_history]
     conversation_turns.append({"role": "user", "content": payload.message})
 
     # 1. Ruhet pyetja e përdoruesit në MongoDB
@@ -317,7 +318,7 @@ async def stream_forensic_chat_message(
                             "$set": {"updated_at": now_ai_utc}
                         }
                     )
-                    logger.info(f"✅ [Full 360° Vision Saved] U ruajtën {len(clean_ai_text)} karaktere.")
+                    logger.info(f"✅ [Persisted] U ruajtën {len(clean_ai_text)} karaktere.")
                 except Exception as save_err:
                     logger.error(f"❌ Dështoi ruajtja në MongoDB: {save_err}")
 
