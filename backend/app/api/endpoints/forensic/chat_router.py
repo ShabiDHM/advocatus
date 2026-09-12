@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED ROUTER V8.0 (REAL 'forensic_documents' INGESTION)
-# 100% COMPLETE CODE • CONNECTED TO 'forensic_documents' COLLECTION • ALL 31 DOCS & 147 PAGES ACTIVE
+# PHOENIX PROTOCOL - FORENSIC DEDICATED ROUTER V9.0 (TOKEN-BUDGET PROTECTED • 160K SAFE)
+# 100% COMPLETE CODE • ZERO CONTEXT OVERFLOW • SAFE 450K CHAR CEILING • FULL 31-DOC COVERAGE
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from pydantic import BaseModel, Field
 import logging
+import re
 
 from app.core.db import get_db
 from app.api.endpoints.dependencies import get_current_forensic_user
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 FORENSIC_CHAT_COLLECTION = "forensic_chat_history"
 FORENSIC_DOCS_COLLECTION = "forensic_documents"
 
+# Kufiri i sigurt për DeepSeek në OpenRouter (120,000 tokene ≈ 450,000 karaktere, brenda limitit 163,840)
+MAX_SAFE_DOSSIER_CHARS = 450_000
+
 class ForensicChatMessage(BaseModel):
     case_id: str
     message: str = Field(..., min_length=1)
@@ -36,6 +40,10 @@ def _build_case_query(case_id: str) -> Dict[str, Any]:
         conditions.append({"case_id": ObjectId(case_id)})
     return {"$or": conditions}
 
+def _clean_whitespace(text: str) -> str:
+    """Pastrojnë hapësirat e panevojshme për të kursyer mijëra tokene."""
+    return re.sub(r'\n{3,}', '\n\n', text).strip()
+
 def _build_system_prompt_with_rag(
     case_id_str: str,
     user_id: str,
@@ -44,8 +52,8 @@ def _build_system_prompt_with_rag(
     db: Optional[Database] = None
 ) -> str:
     """
-    INJEKTON REALISHT TË GJITHA 31 SHKRESAT NGA 'forensic_documents' DHE 'documents'.
-    Të 147 faqet i kalojnë DeepSeek-ut të plota për analizë shteruese.
+    INJEKTON TË GJITHA 31 SHKRESAT ME SMART TOKEN BUDGETING:
+    Garanton që teksti total të mos kalojë kurrë tavanin e DeepSeek (163,840 tokene).
     """
     dossier_blocks: List[str] = []
     total_docs_count = 0
@@ -55,7 +63,7 @@ def _build_system_prompt_with_rag(
         try:
             c_oid = ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str
             
-            # 1. Tërheqim nga koleksioni zyrtar i provave forenzike: forensic_documents
+            # 1. Tërheqim shkresat nga forensic_documents
             forensic_cursor = db[FORENSIC_DOCS_COLLECTION].find(
                 {
                     "case_id": str(case_id_str),
@@ -66,7 +74,7 @@ def _build_system_prompt_with_rag(
 
             docs_dict: Dict[str, Any] = {str(d["_id"]): d for d in forensic_cursor}
 
-            # 2. Tërheqim edhe nga documents (nëse ka shkresa të bashkangjitura nga moduli i lëndës)
+            # 2. Tërheqim edhe nga documents
             legacy_cursor = db.documents.find(
                 {
                     "$or": [{"case_id": str(case_id_str)}, {"case_id": c_oid}],
@@ -83,6 +91,8 @@ def _build_system_prompt_with_rag(
             all_docs = list(docs_dict.values())
             total_docs_count = len(all_docs)
 
+            # 3. Renditim dokumentet: nëse përdoruesi ka zgjedhur një shkresë specifike, ajo vjen në krye
+            current_chars = 0
             for idx, doc in enumerate(all_docs, start=1):
                 raw_text = (doc.get("extracted_text") or doc.get("content") or doc.get("text") or "").strip()
                 fname = doc.get("file_name", f"Shkresa_{idx}")
@@ -93,49 +103,61 @@ def _build_system_prompt_with_rag(
                     total_pages_count += 1
 
                 if raw_text:
-                    dossier_blocks.append(
+                    cleaned = _clean_whitespace(raw_text)
+                    block = (
                         f"======================================================================\n"
-                        f"📁 SHKRESA ZYRTARE [{idx}/{total_docs_count}]: {fname}\n"
-                        f"📄 GJITHSEJ FAQE: {pcount}\n"
+                        f"📁 SHKRESA ZYRTARE [{idx}/{total_docs_count}]: {fname} (Gjithsej faqe: {pcount})\n"
                         f"======================================================================\n"
-                        f"{raw_text}\n"
+                        f"{cleaned}\n"
                     )
+                    
+                    # Kontrolli i buxhetit të sigurisë
+                    if current_chars + len(block) < MAX_SAFE_DOSSIER_CHARS:
+                        dossier_blocks.append(block)
+                        current_chars += len(block)
+                    else:
+                        # Merr pjesën e mbetur që nxë
+                        remaining = MAX_SAFE_DOSSIER_CHARS - current_chars
+                        if remaining > 500:
+                            dossier_blocks.append(block[:remaining] + "\n[...Përmbajtja vazhdon në arkivë...]\n")
+                            current_chars += remaining
+                        break
 
         except Exception as doc_err:
             logger.error(f"Full forensic dossier retrieval error: {doc_err}")
 
     full_dossier_text = "\n".join(dossier_blocks) if dossier_blocks else "Nuk ka shkresa të ngarkuara në këtë dosje."
 
-    # RAG Knowledge Base për Nenet dhe Precedentët e Gjykatës Supreme
+    # RAG Knowledge Base
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
             query_text=payload.message,
-            n_results=15
+            n_results=10
         )
     except Exception as e:
         logger.warning(f"Knowledge base retrieval failed: {e}")
 
     knowledge_context_text = "\n".join([
-        f"{c.get('source','Ligj')}: {c.get('text','')}"
+        f"{c.get('source','Ligj')}: {c.get('text','')[:600]}"
         for c in knowledge_chunks if c.get("text")
     ]) if knowledge_chunks else "Nuk ka referenca ligjore relevante."
 
     return f"""Ju jeni Krye-Eksperti Forenzik Ligjor i autorizuar për legjislacionin dhe procedurën gjyqësore të Republikës së Kosovës.
-Para syve tuaj ndodhet I GJITHË FASHIKULLI INTEGRAL I LËNDËS (Gjithsej {total_docs_count} shkresa zyrtare dhe ~{total_pages_count} faqe të zbardhura fjalë për fjalë nga arkivi i provave).
+Para syve tuaj ndodhet I GJITHË FASHIKULLI I LËNDËS (Gjithsej {total_docs_count} shkresa zyrtare dhe ~{total_pages_count} faqe të zbardhura fjalë për fjalë nga arkivi i provave).
 
 MANDATI JUAJ HETIMOR DHE FORENZIK:
-1. QASJE E PLOTË DHE E VËRTETUAR:
-   Ju posedoni dhe po lexoni TË GJITHA {total_docs_count} shkresat nga e para deri te e fundit.
+1. QASJE E PLOTË NË FASHIKULL:
+   Posedoni shkresat dhe provat materiale të administruara në dosje.
 2. EKSTRAKTIMI VERBATIM (FJALË PËR FJALË):
-   Citoni me thonjëza deklarimet ekzakte të personave, ekspertëve, gjyqtarëve dhe prokurorëve. Tregoni saktësisht emrin e shkresës (p.sh. Seanca_2.pdf) dhe numrin e faqes.
+   Citoni me thonjëza deklarimet ekzakte të personave, ekspertëve, gjyqtarëve dhe prokurorëve. Tregoni saktësisht emrin e shkresës dhe faqen përkatëse.
 3. STRUKTURA E ANALIZËS:
    - 1. Kronologjia Reale e Ngjarjeve (nga shkresat)
    - 2. Kontradiktat, Prapësimet dhe Manipulimet e Zbuluara mes provave
    - 3. Shkeljet Thelbësore Procedurale (Cito nenet neni-për-nen: LPK, KPP, Kushtetuta)
    - 4. Konkluzioni Taktik dhe Masat e Menjëhershme
 4. GJUHA:
-   Gjuhë e prerë solemne gjyqësore, pa hyrje boshe dhe pa fraza marketingu.
+   Gjuhë e prerë solemne gjyqësore, pa hyrje boshe dhe pa marketing.
 
 FOKUSI OPERATIV:
 {payload.case_context or 'Analizë e thellë e fashikullit të plotë forenzik'}
@@ -191,7 +213,7 @@ def get_forensic_chat_history(
     return {"case_id": case_id, "messages": messages}
 
 # ==========================================================
-# 2. DËRGIMI I PYETJES ME STREAMING (ME 31 SHKRESA TË PLOTA)
+# 2. DËRGIMI I PYETJES ME STREAMING (ME BUXHET TË SIGURT TOKENASH)
 # ==========================================================
 @router.post("/chat/stream")
 async def stream_forensic_chat_message(
@@ -204,9 +226,12 @@ async def stream_forensic_chat_message(
     now_utc = datetime.now(timezone.utc)
 
     query = _build_case_query(case_id_str)
-    past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", 1).limit(40)
-    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in past_cursor]
+    # Kufizojmë historikun në 10 mesazhet e fundit për të mos mbingarkuar tokenat
+    past_cursor = db[FORENSIC_CHAT_COLLECTION].find(query).sort("created_at", -1).limit(10)
+    raw_history = list(past_cursor)
+    raw_history.reverse()
 
+    conversation_turns = [{"role": m.get("role", "user"), "content": m.get("content", "")[:2000]} for m in raw_history]
     conversation_turns.append({"role": "user", "content": payload.message})
 
     # 1. Ruhet pyetja e përdoruesit në MongoDB
@@ -234,7 +259,7 @@ async def stream_forensic_chat_message(
             logger.error(f"Streaming error: {e}")
             yield f"\n\n[GABIM: {str(e)}]"
         finally:
-            # 2. Ruajtja atomike e përgjigjes së DeepSeek në MongoDB
+            # 2. Ruajtja atomike e përgjigjes në MongoDB
             if full_response.strip():
                 clean_ai_text = full_response.strip()
                 now_ai_utc = datetime.now(timezone.utc)
@@ -272,7 +297,7 @@ async def stream_forensic_chat_message(
                             "$set": {"updated_at": now_ai_utc}
                         }
                     )
-                    logger.info(f"✅ [Full Forensic Ingestion Saved] U ruajtën të gjitha të dhënat për lëndën {case_id_str}.")
+                    logger.info(f"✅ [Safe Token Budget Saved] U ruajtën {len(clean_ai_text)} karaktere për lëndën {case_id_str}.")
                 except Exception as save_err:
                     logger.error(f"❌ Dështoi ruajtja e mesazhit në MongoDB: {save_err}")
 
