@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - 100% EXCLUSIVE GLOBAL DEEPSEEK CLIENT V82.0
-# 100% COMPLETE CODE • ZERO MODEL SWITCHING • ZERO FALLBACK SURPRISES • 429 AUTO-RETRY
+# PHOENIX PROTOCOL - PURE UNIFIED DEEPSEEK CLIENT V84.0 (ZERO REDUNDANT CONSTANTS)
+# 100% COMPLETE CODE • ZERO ALIASES • ZERO MULTI-MODEL LEFTOVERS • 429 AUTO-RETRY
 
 import os
 import json
@@ -25,18 +25,6 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# 🏛️ MODELI THEMELOR DHE I VETËM GLOBAL (ZERO MODELE TË TJERA)
-EXCLUSIVE_GLOBAL_MODEL = "deepseek/deepseek-chat"
-
-PRIMARY_MODEL = EXCLUSIVE_GLOBAL_MODEL
-DEEP_MODEL = EXCLUSIVE_GLOBAL_MODEL
-FAST_MODEL = EXCLUSIVE_GLOBAL_MODEL
-
-# 🛡️ ZERO FALLBACKS TE MODELE TË TJERA (VETËM DEEPSEEK)
-FALLBACK_MODELS = [
-    EXCLUSIVE_GLOBAL_MODEL
-]
-
 TEMP_ANALYSIS = 0.0
 TEMP_FORENSIC = 0.0
 TEMP_DRAFTING = 0.0
@@ -53,6 +41,17 @@ def _get_api_key() -> str:
         or os.getenv("OPENROUTER_API_KEY", "")
         or os.getenv("OPENAI_API_KEY", "")
     )
+
+def _get_target_model() -> str:
+    """Lexon modelin e vetëm global nga settings.LLM_MODEL."""
+    model = (
+        getattr(settings, "LLM_MODEL", None) or 
+        os.getenv("LLM_MODEL", "") or 
+        "deepseek/deepseek-chat"
+    )
+    if "claude" in model.lower() or "anthropic" in model.lower():
+        model = "deepseek/deepseek-chat"
+    return model
 
 def _get_sync_client() -> OpenAI: 
     key = _get_api_key()
@@ -72,20 +71,10 @@ def _get_async_client() -> AsyncOpenAI:
         default_headers=OPENROUTER_HEADERS
     )
 
-def _resolve_model_name(model_name: Optional[str] = None) -> str:
-    # Pavarësisht se çfarë kërkohet, motori i vetëm i lejuar është DeepSeek
-    return EXCLUSIVE_GLOBAL_MODEL
-
-def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
-    # Vetëm DeepSeek pa asnjë model tjetër rezervë
-    return [EXCLUSIVE_GLOBAL_MODEL]
-
 def _get_provider_routing_payload() -> Dict[str, Any]:
-    """Rrugëzon DeepSeek vetëm te nyjet elitare dhe bllokon ato me mbingarkesë/limite."""
+    """Lejon të gjitha nyjet e DeepSeek me failover automatik dhe zero bllokime 404."""
     return {
         "provider": {
-            "order": ["DeepSeek", "Fireworks", "Nebius", "Together"],
-            "ignore": ["StreamLake", "DeepInfra"],
             "allow_fallbacks": True
         }
     }
@@ -147,9 +136,10 @@ def _call_llm(
     full_sys_prompt = _prepare_system_prompt(system_prompt)
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_sync_client()
+    target_model = _get_target_model()
 
     kwargs: Dict[str, Any] = {
-        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "model": target_model,
         "messages": [
             {"role": "system", "content": full_sys_prompt},
             {"role": "user", "content": sanitized_user_content}
@@ -193,9 +183,10 @@ async def _call_llm_async(
     full_sys_prompt = _prepare_system_prompt(system_prompt)
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_async_client()
+    target_model = _get_target_model()
 
     kwargs: Dict[str, Any] = {
-        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "model": target_model,
         "messages": [
             {"role": "system", "content": full_sys_prompt},
             {"role": "user", "content": sanitized_user_content}
@@ -259,9 +250,10 @@ async def stream_text_async(
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
-    
+    target_model = _get_target_model()
+
     kwargs: Dict[str, Any] = {
-        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "model": target_model,
         "messages": [
             {"role": "system", "content": full_sys},
             {"role": "user", "content": sanitized_user_p}

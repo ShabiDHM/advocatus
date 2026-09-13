@@ -1,6 +1,6 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V95.0 (EXCLUSIVE GLOBAL DEEPSEEK • ZERO FALLBACKS)
-# 100% COMPLETE CODE • ZERO MODEL SWITCHING • PURE DEEPSEEK DOCTRINAL REASONING • 429 AUTO-RETRY
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V97.0 (100% PURGED • ZERO RESIDUAL ARTIFACTS)
+# 100% COMPLETE CODE • ZERO 'FAST/DEEP' ARTIFACTS • ZERO MODEL OVERRIDES • EXCLUSIVE LLM_MODEL
 
 import logging
 import asyncio
@@ -12,16 +12,12 @@ from app.core.config import settings
 
 from app.services.llm.llm_client import (
     _get_api_key,
-    _get_async_client,
-    DEEP_MODEL
+    _get_async_client
 )
 
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-# 🏛️ MODELI THEMELOR DHE I VETËM GLOBAL (EKSKLUZIVISHT DEEPSEEK)
-EXCLUSIVE_DEEPSEEK_MODEL = "deepseek/deepseek-chat"
 
 LLM_TIMEOUT = 300
 MAX_RETRIES = 3
@@ -33,12 +29,18 @@ OPENROUTER_HEADERS = {
 }
 
 
+def _get_target_model() -> str:
+    """Lexon VETËM modelin e vetëm të unifikuar nga settings.LLM_MODEL."""
+    model = getattr(settings, "LLM_MODEL", None) or os.getenv("LLM_MODEL", "") or "deepseek/deepseek-chat"
+    if "claude" in model.lower() or "anthropic" in model.lower():
+        model = "deepseek/deepseek-chat"
+    return model
+
+
 def _get_provider_routing_payload() -> Dict[str, Any]:
-    """Rrugëzon ekskluzivisht te nyjet më të forta të DeepSeek dhe bllokon ato me limite artificiale."""
+    """Lejon të gjithë ofruesit zyrtarë të DeepSeek me failover automatik dhe zero bllokime 404."""
     return {
         "provider": {
-            "order": ["DeepSeek", "Fireworks", "Nebius", "Together"],
-            "ignore": ["StreamLake", "DeepInfra"],
             "allow_fallbacks": True
         }
     }
@@ -46,11 +48,10 @@ def _get_provider_routing_payload() -> Dict[str, Any]:
 
 class ResponseGenerator:
     """
-    Gjeneruesi Qendror i Përgjigjeve (V95.0):
-    - Motor Ekskluziv: DeepSeek (deepseek/deepseek-chat) për të gjithë sistemin.
-    - Zero Fallback te modele të tjera (Zero Gemini, Zero Claude, Zero GPT-4o-mini).
-    - Multi-provider failover vetëm brenda nyjeve të forta të DeepSeek.
-    - Mbrojtje automatike nga mbingarkesat (429 Auto-Retry).
+    Gjeneruesi Qendror i Përgjigjeve (V97.0):
+    - Motor i Vetëm dhe i Unifikuar: DeepSeek nga settings.LLM_MODEL.
+    - Zero mbeturina (u fshinë përfundimisht 'FAST/DEEP' dhe 'model_override').
+    - Mbrojtje e plotë nga mbingarkesat (429 Auto-Retry me 3 tentativa).
     """
 
     def __init__(self):
@@ -64,9 +65,10 @@ class ResponseGenerator:
         max_tokens: int = 8192
     ):
         last_error = None
+        target_model = _get_target_model()
 
         kwargs: Dict[str, Any] = {
-            "model": EXCLUSIVE_DEEPSEEK_MODEL,
+            "model": target_model,
             "messages": messages,
             "temperature": 0.0,
             "stream": stream,
@@ -74,17 +76,17 @@ class ResponseGenerator:
             "extra_body": _get_provider_routing_payload()
         }
 
-        # Riprovon deri në 3 herë me nyjet e forta të DeepSeek (me pauzë 2s nëse ka 429)
+        # Riprovon deri në 3 herë me DeepSeek nëse ka 429
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                logger.info(f"⚖️ [Juristi AI Engine] Ekzekutim në DeepSeek (Përpjekja {attempt}, MaxTokens: {max_tokens})...")
+                logger.info(f"⚖️ [Client AI Engine] Ekzekutim në {target_model} (Përpjekja {attempt})...")
                 response = await self.client.chat.completions.create(**kwargs)
                 return response
             except Exception as e:
                 last_error = e
                 err_str = str(e).lower()
                 if "429" in err_str or "rate limit" in err_str:
-                    logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s për çlirim të nyjes...")
+                    logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s...")
                     await asyncio.sleep(2.0 * attempt)
                     continue
                 logger.warning(f"⚠️ Dështoi përpjekja {attempt} në DeepSeek: {e}")
@@ -97,8 +99,6 @@ class ResponseGenerator:
         system_prompt: str,
         user_query: str,
         context: str = "",
-        model_override: Optional[str] = None,
-        reasoning_mode: Optional[str] = None,
         history: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         try:

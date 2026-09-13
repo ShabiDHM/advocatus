@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V15.0 (SINGLE SOURCE OF TRUTH • UNIFIED LLM_MODEL)
+# PHOENIX PROTOCOL - CONFIG V16.0 (100% PURE MINIMALIST • ZERO LEGACY SHIMS)
 
 import os
 from pathlib import Path
@@ -39,23 +39,9 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
 
     # =========================================================================
-    # 🏛️ NJË MODEL I VETËM DHE I CENTRALIZUAR GLOBAL (SINGLE SOURCE OF TRUTH)
+    # 🏛️ MODELI I VETËM DHE I UNIFIKUAR GLOBAL (SINGLE SOURCE OF TRUTH)
     # =========================================================================
     LLM_MODEL: str = "deepseek/deepseek-chat"
-
-    # Vetë-Sinkronizim automatik: çdo modul që kërkon emrat e vjetër merr LLM_MODEL
-    @property
-    def LLM_PRIMARY_MODEL(self) -> str: return self.LLM_MODEL
-    @property
-    def LLM_DEEP_MODEL(self) -> str: return self.LLM_MODEL
-    @property
-    def LLM_FAST_MODEL(self) -> str: return self.LLM_MODEL
-    @property
-    def FORENSIC_LLM_MODEL(self) -> str: return self.LLM_MODEL
-    @property
-    def CHAT_FAST_MODEL(self) -> str: return self.LLM_MODEL
-    @property
-    def CHAT_DEEP_MODEL(self) -> str: return self.LLM_MODEL
 
     # Audio Forensics
     ASSEMBLYAI_API_KEY: str = ""
