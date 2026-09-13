@@ -1,6 +1,6 @@
 # FILE: backend/app/services/rag/response_generator.py
-# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V94.0
-# 100% COMPLETE CODE • ZERO CLAUDE SONNET • ZERO GPT-4O-MINI • EXCLUSIVE DEEPSEEK CORE
+# PHOENIX PROTOCOL - UNIFIED SUPREME RESPONSE GENERATOR V95.0 (EXCLUSIVE GLOBAL DEEPSEEK • ZERO FALLBACKS)
+# 100% COMPLETE CODE • ZERO MODEL SWITCHING • PURE DEEPSEEK DOCTRINAL REASONING • 429 AUTO-RETRY
 
 import logging
 import asyncio
@@ -13,34 +13,18 @@ from app.core.config import settings
 from app.services.llm.llm_client import (
     _get_api_key,
     _get_async_client,
-    PRIMARY_MODEL,
-    FAST_MODEL,
-    DEEP_MODEL,
-    FALLBACK_MODELS
+    DEEP_MODEL
 )
 
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# 🏛️ MODELI THEMELOR I THELLË JURIDIK (DEEPSEEK NGA .ENV / CONFIG)
-EFFECTIVE_DEEP_MODEL = getattr(settings, "LLM_DEEP_MODEL", None) or DEEP_MODEL or "deepseek/deepseek-chat"
-
-# 🛡️ LISTAT E FALLBACK-UT (ZERO CLAUDE • ZERO GPT-4O-MINI)
-DEEP_TASK_FALLBACKS = [
-    EFFECTIVE_DEEP_MODEL,
-    "deepseek/deepseek-chat",
-    "google/gemini-2.0-flash-001"
-]
-
-CHAT_FALLBACKS = [
-    EFFECTIVE_DEEP_MODEL,
-    "deepseek/deepseek-chat",
-    "google/gemini-2.0-flash-001"
-]
+# 🏛️ MODELI THEMELOR DHE I VETËM GLOBAL (EKSKLUZIVISHT DEEPSEEK)
+EXCLUSIVE_DEEPSEEK_MODEL = "deepseek/deepseek-chat"
 
 LLM_TIMEOUT = 300
-MAX_RETRIES = 2
+MAX_RETRIES = 3
 MAX_SINGLE_PASS_CHARS = 1_500_000
 
 OPENROUTER_HEADERS = {
@@ -49,14 +33,24 @@ OPENROUTER_HEADERS = {
 }
 
 
+def _get_provider_routing_payload() -> Dict[str, Any]:
+    """Rrugëzon ekskluzivisht te nyjet më të forta të DeepSeek dhe bllokon ato me limite artificiale."""
+    return {
+        "provider": {
+            "order": ["DeepSeek", "Fireworks", "Nebius", "Together"],
+            "ignore": ["StreamLake", "DeepInfra"],
+            "allow_fallbacks": True
+        }
+    }
+
+
 class ResponseGenerator:
     """
-    Gjeneruesi Suprem i Përgjigjeve (V94.0):
-    - Motor Ekskluziv: DeepSeek (LLM_DEEP_MODEL) për arsyetim të thellë doktrinar.
-    - Zero Claude Sonnet (i asgjësuar plotësisht).
-    - Zero GPT-4o-mini.
-    - Multi-provider fallback për DeepSeek (DeepSeek, Fireworks, Together, Nebius, DeepInfra).
-    - Multi-Turn Conversational Memory me pastrim nga gabimet teknike.
+    Gjeneruesi Qendror i Përgjigjeve (V95.0):
+    - Motor Ekskluziv: DeepSeek (deepseek/deepseek-chat) për të gjithë sistemin.
+    - Zero Fallback te modele të tjera (Zero Gemini, Zero Claude, Zero GPT-4o-mini).
+    - Multi-provider failover vetëm brenda nyjeve të forta të DeepSeek.
+    - Mbrojtje automatike nga mbingarkesat (429 Auto-Retry).
     """
 
     def __init__(self):
@@ -67,59 +61,36 @@ class ResponseGenerator:
         self, 
         messages: List[Dict[str, str]], 
         stream: bool = True, 
-        max_tokens: int = 16384,
-        model: Optional[str] = None,
-        is_heavy_task: bool = True
+        max_tokens: int = 8192
     ):
         last_error = None
-        base_list = DEEP_TASK_FALLBACKS if is_heavy_task else CHAT_FALLBACKS
-        
-        target_model = model or EFFECTIVE_DEEP_MODEL
-        models_to_try = [target_model] + [m for m in base_list if m != target_model]
-        
-        unique_models: List[str] = []
-        for m in models_to_try:
-            if m and m not in unique_models:
-                unique_models.append(m)
 
-        for current_model in unique_models:
-            for attempt in range(1, MAX_RETRIES + 1):
-                try:
-                    logger.info(
-                        f"⚖️ [Juristi AI Engine] Modeli në ekzekutim: {current_model} "
-                        f"(Tier: {'DEEPSEEK_DOCTRINAL' if is_heavy_task else 'DEEPSEEK_CHAT'}, "
-                        f"MaxTokens: {max_tokens}) Përpjekja {attempt}..."
-                    )
-                    kwargs: Dict[str, Any] = {
-                        "model": current_model,
-                        "messages": messages,
-                        "temperature": 0.0,
-                        "stream": stream,
-                        "max_tokens": max_tokens
-                    }
-                    
-                    if "deepseek" in current_model.lower():
-                        kwargs["extra_body"] = {
-                            "provider": {
-                                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
-                                "allow_fallbacks": True
-                            }
-                        }
+        kwargs: Dict[str, Any] = {
+            "model": EXCLUSIVE_DEEPSEEK_MODEL,
+            "messages": messages,
+            "temperature": 0.0,
+            "stream": stream,
+            "max_tokens": max_tokens,
+            "extra_body": _get_provider_routing_payload()
+        }
 
-                    response = await self.client.chat.completions.create(**kwargs)
-                    return response
-                except Exception as e:
-                    last_error = e
-                    err_str = str(e).lower()
-                    if "429" in err_str or "rate limit" in err_str:
-                        logger.warning(f"⚠️ [Rate Limit] në {current_model}: {e}. Po pres {attempt * 2}s...")
-                        await asyncio.sleep(attempt * 2.0)
-                        continue
-                    else:
-                        logger.warning(f"⚠️ Dështoi modeli {current_model}: {e}. Po kaloj te fallback-u tjetër...")
-                        break
+        # Riprovon deri në 3 herë me nyjet e forta të DeepSeek (me pauzë 2s nëse ka 429)
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                logger.info(f"⚖️ [Juristi AI Engine] Ekzekutim në DeepSeek (Përpjekja {attempt}, MaxTokens: {max_tokens})...")
+                response = await self.client.chat.completions.create(**kwargs)
+                return response
+            except Exception as e:
+                last_error = e
+                err_str = str(e).lower()
+                if "429" in err_str or "rate limit" in err_str:
+                    logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s për çlirim të nyjes...")
+                    await asyncio.sleep(2.0 * attempt)
+                    continue
+                logger.warning(f"⚠️ Dështoi përpjekja {attempt} në DeepSeek: {e}")
+                await asyncio.sleep(1.5)
         
-        raise last_error if last_error else Exception("Dështoi komunikimi me të gjithë ofruesit e LLM.")
+        raise last_error if last_error else Exception("Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi.")
 
     async def generate_stream(
         self,
@@ -131,30 +102,15 @@ class ResponseGenerator:
         history: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         try:
-            combined_upper = f"{system_prompt} {user_query}".upper()
-
-            # Përcaktimi i kompleksitetit të detyrës
-            is_heavy_task = not (
-                reasoning_mode == "FAST" or
-                "[ANALIZË STANDARDE" in combined_upper or
-                "[PËRMBLEDHJE EKZEKUTIVE" in combined_upper or
-                "[AUDITIM STANDART" in combined_upper
-            )
-
-            # Rregulli Themelor: Modeli i thellë DeepSeek është motori parësor i padiskutueshëm
-            selected_model = model_override or EFFECTIVE_DEEP_MODEL
-            max_tokens = 16384 if is_heavy_task else 8192
-
             full_context_content = f"{context}\n\n{system_prompt}" if context else system_prompt
             
             enhanced_system_prompt = f"""
 {full_context_content}
 
-RREGULLAT E HEKURTA DOKTRINARE TË REPUBLIKËS SË KOSOVËS:
+RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
 1. Përgjigju VETËM në gjuhë standarde juridike shqipe të Republikës së Kosovës.
-2. DIALOGU INTERAKTIV DHE RIFORMULIMI:
-   Kur përdoruesi kërkon përmirësim, rishikim apo riformulim të një fjalie, rreshti apo seksioni të mëparshëm, analizoni menjëherë tekstin e mëparshëm në bisedë dhe ofroni formulën e përsosur solemne gjyqësore, duke shpjeguar arsyen doktrinare.
-3. NDALOHEN PËRGJIGJET EVAZIVE: Zgjidhe kërkesën ligjore drejtpërdrejt dhe me saktësi neni-për-nen!
+2. Dëgjoni me kujdes dhe bashkëpunoni natyrshëm me përdoruesin pa shabllone artificiale.
+3. Bazo çdo zgjidhje në ligjet pozitive dhe shkresat reale të fashikullit.
 """
             messages = [{"role": "system", "content": enhanced_system_prompt[:MAX_SINGLE_PASS_CHARS]}]
             
@@ -170,9 +126,7 @@ RREGULLAT E HEKURTA DOKTRINARE TË REPUBLIKËS SË KOSOVËS:
             response = await self._call_with_retry(
                 messages, 
                 stream=True, 
-                max_tokens=max_tokens,
-                model=selected_model,
-                is_heavy_task=is_heavy_task
+                max_tokens=8192
             )
             
             async for chunk in response:
@@ -182,5 +136,5 @@ RREGULLAT E HEKURTA DOKTRINARE TË REPUBLIKËS SË KOSOVËS:
                         yield choice.delta.content
                     
         except Exception as e:
-            logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve: {e}")
-            yield f"\n\n[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri: {str(e)}]"
+            logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve në DeepSeek: {e}")
+            yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"

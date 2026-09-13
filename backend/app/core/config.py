@@ -1,5 +1,5 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIG V13.0 (DEEPSEEK UNIFIED CORE • ZERO CLAUDE)
+# PHOENIX PROTOCOL - CONFIG V15.0 (SINGLE SOURCE OF TRUTH • UNIFIED LLM_MODEL)
 
 import os
 from pathlib import Path
@@ -38,17 +38,29 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
 
-    # --- 🏛️ LLM ENGINE CONFIGURATION (EXCLUSIVE DEEPSEEK CORE) ---
-    LLM_PRIMARY_MODEL: str = "deepseek/deepseek-chat"
-    LLM_DEEP_MODEL: str = "deepseek/deepseek-chat"
-    LLM_FAST_MODEL: str = "google/gemini-2.5-flash"
-    FORENSIC_LLM_MODEL: str = "deepseek/deepseek-chat"
-    FORENSIC_API_KEY: str = ""
+    # =========================================================================
+    # 🏛️ NJË MODEL I VETËM DHE I CENTRALIZUAR GLOBAL (SINGLE SOURCE OF TRUTH)
+    # =========================================================================
+    LLM_MODEL: str = "deepseek/deepseek-chat"
 
-    # Audio Forensics (AssemblyAI: Diarization & Speech Sentiment/Stress)
+    # Vetë-Sinkronizim automatik: çdo modul që kërkon emrat e vjetër merr LLM_MODEL
+    @property
+    def LLM_PRIMARY_MODEL(self) -> str: return self.LLM_MODEL
+    @property
+    def LLM_DEEP_MODEL(self) -> str: return self.LLM_MODEL
+    @property
+    def LLM_FAST_MODEL(self) -> str: return self.LLM_MODEL
+    @property
+    def FORENSIC_LLM_MODEL(self) -> str: return self.LLM_MODEL
+    @property
+    def CHAT_FAST_MODEL(self) -> str: return self.LLM_MODEL
+    @property
+    def CHAT_DEEP_MODEL(self) -> str: return self.LLM_MODEL
+
+    # Audio Forensics
     ASSEMBLYAI_API_KEY: str = ""
 
-    # Visual Forensics (Google Vision API)
+    # Visual Forensics
     GOOGLE_VISION_API_KEY: str = ""
 
     # Interactive War Room GraphRAG (Neo4j Aura)

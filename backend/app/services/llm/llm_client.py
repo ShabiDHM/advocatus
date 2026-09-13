@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - ECONOMICAL HIGH-PERFORMANCE RAG ORCHESTRATION CLIENT V81.0
-# 100% COMPLETE CODE • ZERO CLAUDE • ZERO GPT-4O-MINI • EXCLUSIVE DEEPSEEK CORE
+# PHOENIX PROTOCOL - 100% EXCLUSIVE GLOBAL DEEPSEEK CLIENT V82.0
+# 100% COMPLETE CODE • ZERO MODEL SWITCHING • ZERO FALLBACK SURPRISES • 429 AUTO-RETRY
 
 import os
 import json
@@ -25,24 +25,16 @@ logger = logging.getLogger(__name__)
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
-# 🏛️ PHOENIX SUPREME: Konfigurimi Ekskluziv me DeepSeek si Motor Parësor dhe të Thellë
-PRIMARY_MODEL = os.getenv("LLM_PRIMARY_MODEL", "deepseek/deepseek-chat")
-DEEP_MODEL = os.getenv("LLM_DEEP_MODEL", "deepseek/deepseek-chat")
-FAST_MODEL = os.getenv("LLM_FAST_MODEL", "google/gemini-2.5-flash")
+# 🏛️ MODELI THEMELOR DHE I VETËM GLOBAL (ZERO MODELE TË TJERA)
+EXCLUSIVE_GLOBAL_MODEL = "deepseek/deepseek-chat"
 
-# MAPIMI SANITAR I MODELEVE
-MODEL_ALIASES: Dict[str, str] = {
-    "google/gemini-2.0-flash-001": "google/gemini-2.5-flash",
-    "google/gemini-2.0-flash": "google/gemini-2.5-flash",
-    "google/gemini-2.0-flash-exp": "google/gemini-2.5-flash",
-    "google/gemini-2.0-flash-exp:free": "google/gemini-2.5-flash",
-}
+PRIMARY_MODEL = EXCLUSIVE_GLOBAL_MODEL
+DEEP_MODEL = EXCLUSIVE_GLOBAL_MODEL
+FAST_MODEL = EXCLUSIVE_GLOBAL_MODEL
 
-# 🛡️ Fallback-ët zyrtarë (ZERO Claude • ZERO GPT-4o-mini)
+# 🛡️ ZERO FALLBACKS TE MODELE TË TJERA (VETËM DEEPSEEK)
 FALLBACK_MODELS = [
-    "deepseek/deepseek-chat",
-    "google/gemini-2.5-flash",
-    "google/gemini-2.0-flash-001"
+    EXCLUSIVE_GLOBAL_MODEL
 ]
 
 TEMP_ANALYSIS = 0.0
@@ -80,33 +72,23 @@ def _get_async_client() -> AsyncOpenAI:
         default_headers=OPENROUTER_HEADERS
     )
 
-def _resolve_model_name(model_name: str) -> str:
-    if not model_name:
-        return PRIMARY_MODEL
-    return MODEL_ALIASES.get(model_name, model_name)
+def _resolve_model_name(model_name: Optional[str] = None) -> str:
+    # Pavarësisht se çfarë kërkohet, motori i vetëm i lejuar është DeepSeek
+    return EXCLUSIVE_GLOBAL_MODEL
 
 def _build_model_chain(requested_model: Optional[str] = None) -> List[str]:
-    primary_raw = requested_model or PRIMARY_MODEL
-    primary = _resolve_model_name(primary_raw)
-    
-    chain = [primary] + [_resolve_model_name(m) for m in FALLBACK_MODELS if _resolve_model_name(m) != primary]
-    
-    unique_chain: List[str] = []
-    for m in chain:
-        if m and m not in unique_chain:
-            unique_chain.append(m)
-    return unique_chain
+    # Vetëm DeepSeek pa asnjë model tjetër rezervë
+    return [EXCLUSIVE_GLOBAL_MODEL]
 
-def _get_provider_routing_payload(model_name: str) -> Dict[str, Any]:
-    """Rutim me prioritet të lartë për DeepSeek me 5 ofrues automatikë."""
-    if "deepseek" in model_name.lower():
-        return {
-            "provider": {
-                "order": ["DeepSeek", "Fireworks", "Together", "Nebius", "DeepInfra"],
-                "allow_fallbacks": True
-            }
+def _get_provider_routing_payload() -> Dict[str, Any]:
+    """Rrugëzon DeepSeek vetëm te nyjet elitare dhe bllokon ato me mbingarkesë/limite."""
+    return {
+        "provider": {
+            "order": ["DeepSeek", "Fireworks", "Nebius", "Together"],
+            "ignore": ["StreamLake", "DeepInfra"],
+            "allow_fallbacks": True
         }
-    return {}
+    }
 
 def _apply_hallucination_filter(text: str) -> str:
     try:
@@ -166,40 +148,34 @@ def _call_llm(
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_sync_client()
 
-    target_models = _build_model_chain(model)
+    kwargs: Dict[str, Any] = {
+        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "messages": [
+            {"role": "system", "content": full_sys_prompt},
+            {"role": "user", "content": sanitized_user_content}
+        ],
+        "temperature": temperature,
+        "max_tokens": 8192,
+        "extra_body": _get_provider_routing_payload()
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
 
-    for current_model in target_models:
-        kwargs: Dict[str, Any] = {
-            "model": current_model,
-            "messages": [
-                {"role": "system", "content": full_sys_prompt},
-                {"role": "user", "content": sanitized_user_content}
-            ],
-            "temperature": temperature,
-            "max_tokens": 16384
-        }
-        
-        extra_body = _get_provider_routing_payload(current_model)
-        if extra_body:
-            kwargs["extra_body"] = extra_body
-
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-        for attempt in range(2):
-            try:
-                res = client.chat.completions.create(**kwargs)
-                if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
-                    raw_content = getattr(res.choices[0].message, 'content', '') or ""
-                    if raw_content.strip():
-                        return _apply_hallucination_filter(raw_content)
-            except Exception as e:
-                err_msg = str(e)
-                if "429" in err_msg or "rate limit" in err_msg.lower():
-                    time.sleep(1.5 * (attempt + 1))
-                    continue
-                logger.warning(f"⚠️ [llm_client] Dështoi {current_model}: {err_msg}. Po provohet fallback...")
-                break
+    for attempt in range(1, 4):
+        try:
+            res = client.chat.completions.create(**kwargs)
+            if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
+                raw_content = getattr(res.choices[0].message, 'content', '') or ""
+                if raw_content.strip():
+                    return _apply_hallucination_filter(raw_content)
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "429" in err_msg or "rate limit" in err_msg:
+                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s...")
+                time.sleep(2.0 * attempt)
+                continue
+            logger.warning(f"⚠️ Përpjekja {attempt} në DeepSeek dështoi: {e}")
+            time.sleep(1.5)
 
     return ""
 
@@ -218,40 +194,34 @@ async def _call_llm_async(
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_async_client()
 
-    target_models = _build_model_chain(model)
+    kwargs: Dict[str, Any] = {
+        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "messages": [
+            {"role": "system", "content": full_sys_prompt},
+            {"role": "user", "content": sanitized_user_content}
+        ],
+        "temperature": temperature,
+        "max_tokens": 8192,
+        "extra_body": _get_provider_routing_payload()
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
 
-    for current_model in target_models:
-        kwargs: Dict[str, Any] = {
-            "model": current_model,
-            "messages": [
-                {"role": "system", "content": full_sys_prompt},
-                {"role": "user", "content": sanitized_user_content}
-            ],
-            "temperature": temperature,
-            "max_tokens": 16384
-        }
-
-        extra_body = _get_provider_routing_payload(current_model)
-        if extra_body:
-            kwargs["extra_body"] = extra_body
-
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-        for attempt in range(2):
-            try:
-                res = await client.chat.completions.create(**kwargs)
-                if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
-                    content = getattr(res.choices[0].message, 'content', '') or ""
-                    if content.strip():
-                        return _apply_hallucination_filter(content)
-            except Exception as e:
-                err_msg = str(e)
-                if "429" in err_msg or "rate limit" in err_msg.lower():
-                    await asyncio.sleep(1.5 * (attempt + 1))
-                    continue
-                logger.warning(f"⚠️ [llm_client_async] Dështoi {current_model}: {err_msg}. Po provohet fallback...")
-                break
+    for attempt in range(1, 4):
+        try:
+            res = await client.chat.completions.create(**kwargs)
+            if res and hasattr(res, 'choices') and res.choices and len(res.choices) > 0:
+                content = getattr(res.choices[0].message, 'content', '') or ""
+                if content.strip():
+                    return _apply_hallucination_filter(content)
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "429" in err_msg or "rate limit" in err_msg:
+                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek async. Po pres {2 * attempt}s...")
+                await asyncio.sleep(2.0 * attempt)
+                continue
+            logger.warning(f"⚠️ Përpjekja {attempt} në DeepSeek dështoi: {e}")
+            await asyncio.sleep(1.5)
 
     return ""
 
@@ -290,43 +260,36 @@ async def stream_text_async(
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
     
-    # Parazgjedhja absolute: DEEP_MODEL (DeepSeek)
-    target_model_name = model or DEEP_MODEL
-    target_models = _build_model_chain(target_model_name)
+    kwargs: Dict[str, Any] = {
+        "model": EXCLUSIVE_GLOBAL_MODEL,
+        "messages": [
+            {"role": "system", "content": full_sys},
+            {"role": "user", "content": sanitized_user_p}
+        ],
+        "temperature": temp,
+        "stream": True,
+        "max_tokens": 8192,
+        "extra_body": _get_provider_routing_payload()
+    }
 
     last_err: Optional[Exception] = None
-    stream_started = False
 
-    for current_model in target_models:
+    for attempt in range(1, 4):
         try:
-            kwargs: Dict[str, Any] = {
-                "model": current_model,
-                "messages": [
-                    {"role": "system", "content": full_sys},
-                    {"role": "user", "content": sanitized_user_p}
-                ],
-                "temperature": temp,
-                "stream": True,
-                "max_tokens": 16384
-            }
-            extra_body = _get_provider_routing_payload(current_model)
-            if extra_body:
-                kwargs["extra_body"] = extra_body
-
             stream = await client.chat.completions.create(**kwargs)
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content: 
-                    stream_started = True
                     yield chunk.choices[0].delta.content
             
-            if stream_started:
-                yield AI_DISCLAIMER
-                return
+            yield AI_DISCLAIMER
+            return
         except Exception as e:
             last_err = e
-            logger.warning(f"⚠️ [stream_text_async] Dështoi {current_model}: {e}. Po provohet fallback...")
-            if stream_started:
-                break
-            continue
+            err_msg = str(e).lower()
+            if "429" in err_msg or "rate limit" in err_msg:
+                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek stream. Po pres {2 * attempt}s...")
+                await asyncio.sleep(2.0 * attempt)
+                continue
+            await asyncio.sleep(1.5)
 
-    yield f"\n\n[Shërbimi AI është përkohësisht i ngarkuar. Ju lutem provoni përsëri: {str(last_err)}]"
+    yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
