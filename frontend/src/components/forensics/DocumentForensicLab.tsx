@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V18.0 (FULL MOBILE/TABLET/DESKTOP RESPONSIVENESS)
+// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V19.0 (ADAPTIVE FULL-WIDTH EXPAND)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -257,7 +257,7 @@ const markdownToWordHtml = (markdown: string): string => {
 };
 
 // ============================================================================
-// KOMPONENTI I MEMOIZUAR I MESAZHIT (ZERO-LAG TYPING)
+// KOMPONENTI I MEMOIZUAR I MESAZHIT (ADAPTIV PËR FULLSCREEN)
 // ============================================================================
 interface ForensicMessageBubbleProps {
   msg: ForensicMessage;
@@ -268,6 +268,7 @@ interface ForensicMessageBubbleProps {
   markdownComponents: any;
   activeFontBase: number;
   activeFontLine: number;
+  isFullscreenChat?: boolean;
 }
 
 const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo(({
@@ -278,7 +279,8 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
   onCopy,
   markdownComponents,
   activeFontBase,
-  activeFontLine
+  activeFontLine,
+  isFullscreenChat = false
 }) => {
   const formattedContent = useMemo(() => {
     return isAi ? autoLinkLegalCitations(msg.content) : msg.content;
@@ -288,7 +290,11 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-2 sm:gap-3.5 ${isAi ? 'flex-row' : 'flex-row-reverse'}`}
+      className={`flex gap-2 sm:gap-3.5 ${
+        isAi 
+          ? isFullscreenChat ? 'flex-row w-full' : 'flex-row'
+          : 'flex-row-reverse justify-start'
+      }`}
     >
       <div
         className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
@@ -301,10 +307,12 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
       </div>
 
       <div
-        className={`relative max-w-[92%] sm:max-w-[88%] rounded-2xl py-2.5 px-3 sm:py-3 sm:px-4 border shadow-sm ${
+        className={`relative border shadow-sm text-text-primary ${
           isAi
-            ? 'bg-surface border-main text-text-primary rounded-tl-sm'
-            : 'bg-primary-start/10 border-primary-start/30 text-text-primary rounded-tr-sm font-medium'
+            ? isFullscreenChat
+              ? 'w-full flex-1 max-w-full rounded-2xl rounded-tl-sm p-4 sm:p-6 bg-surface border-main'
+              : 'max-w-[92%] sm:max-w-[88%] rounded-2xl rounded-tl-sm py-2.5 px-3 sm:py-3 sm:px-4 bg-surface border-main'
+            : 'max-w-[85%] sm:max-w-[75%] rounded-2xl rounded-tr-sm py-2.5 px-3 sm:py-3 sm:px-4 bg-primary-start/10 border-primary-start/30 font-medium'
         }`}
       >
         {isAi && msg.content && (
@@ -326,8 +334,8 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
             </span>
           </div>
         ) : isAi ? (
-          <div className="space-y-2">
-            <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary">
+          <div className="space-y-2 w-full">
+            <div className="forensic-chat-markdown prose prose-slate dark:prose-invert max-w-none text-text-primary w-full overflow-x-auto">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {formattedContent}
               </ReactMarkdown>
@@ -354,7 +362,7 @@ const ForensicMessageBubble: React.FC<ForensicMessageBubbleProps> = React.memo((
 ForensicMessageBubble.displayName = 'ForensicMessageBubble';
 
 // ============================================================================
-// KOMPONENTI KRYESOR FORENZIK ME ZGJEDHJE DHE ÇZGJEDHJE (TOGGLE DESELECT)
+// KOMPONENTI KRYESOR FORENZIK
 // ============================================================================
 export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   caseId,
@@ -884,10 +892,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         }
       `}</style>
 
-      {/* WORKSPACE STRUKTURË ME LARTËSI TË SAKTË ME DVH */}
-      <div className={`grid grid-cols-1 ${isFullscreenChat ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-3 sm:gap-4 lg:gap-6 items-stretch flex-1 min-h-[480px] h-[calc(100dvh-185px)] sm:h-[calc(100dvh-200px)] lg:h-[calc(100dvh-215px)] lg:max-h-[850px] transition-all duration-300`}>
+      {/* WORKSPACE STRUKTURË ME LARTËSI DHE GJERËSI DINAMIKE */}
+      <div className={`grid grid-cols-1 ${isFullscreenChat ? 'lg:grid-cols-1' : 'lg:grid-cols-12'} gap-3 sm:gap-4 lg:gap-6 items-stretch flex-1 min-h-[480px] ${
+        isFullscreenChat 
+          ? 'h-[calc(100dvh-130px)] sm:h-[calc(100dvh-140px)] lg:max-h-none' 
+          : 'h-[calc(100dvh-185px)] sm:h-[calc(100dvh-200px)] lg:h-[calc(100dvh-215px)] lg:max-h-[850px]'
+      } transition-all duration-300`}>
         
-        {/* KOLONA E MAJTË: SHKRESAT (E Fshehur në Mobile nëse Tab='CHAT', gjithmonë flex në desktop) */}
+        {/* KOLONA E MAJTË: SHKRESAT (E Fshehur në Fullscreen dhe në Mobile nëse Tab='CHAT') */}
         <div className={`lg:col-span-5 flex-col h-full gap-2.5 sm:gap-3.5 min-h-0 overflow-hidden ${
           isFullscreenChat ? 'hidden' : mobileTab === 'DOCS' ? 'flex' : 'hidden lg:flex'
         }`}>
@@ -1084,15 +1096,14 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
           </div>
         </div>
 
-        {/* KOLONA E DJATHTË: CHAT TERMINAL (E fshehur në Mobile nëse Tab='DOCS', gjithmonë flex në desktop) */}
+        {/* KOLONA E DJATHTË: CHAT TERMINAL (ME SHTRIRJE 100% NË FULLSCREEN) */}
         <div className={`${isFullscreenChat ? 'lg:col-span-12' : 'lg:col-span-7'} glass-panel rounded-2xl sm:rounded-3xl border border-main bg-card shadow-sm flex-col h-full min-h-0 overflow-hidden transition-all duration-300 relative ${
           isFullscreenChat ? 'flex' : mobileTab === 'CHAT' ? 'flex' : 'hidden lg:flex'
         }`}>
           
-          {/* HEADER I STUDIOS HETIMORE (RESPONSIVE COMPACT) */}
+          {/* HEADER I STUDIOS HETIMORE */}
           <div className="px-2.5 sm:px-4 py-2 border-b border-main bg-surface/90 shrink-0 flex items-center justify-between gap-1.5 sm:gap-2 min-h-[44px]">
             
-            {/* Informacioni i Dokumentit Aktiv OSE Fashikullit të Plotë */}
             <div className="flex items-center gap-1.5 min-w-0 flex-1">
               {activeDoc ? (
                 <div className="flex items-center gap-1 min-w-0 bg-primary-start/10 border border-primary-start/20 px-2 py-1 rounded-xl max-w-full">
@@ -1121,7 +1132,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             {/* BUTONAT E VEPRIMIT NË HEADER */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               
-              {/* Butoni Dinamik i Analizës */}
               <button
                 type="button"
                 onClick={handleQuickAction}
@@ -1134,7 +1144,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 <span className="sm:hidden">Analizo</span>
               </button>
 
-              {/* Kontrolli i Madhësisë së Shkrimit (I fshehur në mobile tejet të ngushta) */}
               <div className="hidden xs:flex items-center gap-0.5 rounded-lg border border-main bg-surface p-0.5">
                 <button
                   type="button"
@@ -1164,7 +1173,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 </button>
               </div>
 
-              {/* Butoni i Pastrimit të Bisedës */}
               <button
                 type="button"
                 onClick={handleClearChat}
@@ -1175,7 +1183,6 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 {isPurging ? <Loader2 size={13} className="animate-spin text-rose-500" /> : <Trash2 size={13} />}
               </button>
 
-              {/* Fullscreen Toggle (Vetëm Desktop & Tablet Landscape) */}
               <button
                 type="button"
                 onClick={() => setIsFullscreenChat(!isFullscreenChat)}
@@ -1187,8 +1194,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             </div>
           </div>
 
-          {/* MESSAGE STREAM AREA (SCROLL I PLOTË DHE I PAVARUR) */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-finance-scroll space-y-3 sm:space-y-3.5 bg-canvas/20 select-text">
+          {/* MESSAGE STREAM AREA (ME SHTRIRJE TË PLOTË 100%) */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-6 custom-finance-scroll space-y-3 sm:space-y-4 bg-canvas/20 select-text">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-4 my-auto space-y-2.5">
                 <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center border border-primary-start/20 shadow-inner">
@@ -1208,7 +1215,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="space-y-3 sm:space-y-3.5">
+              <div className={`space-y-3 sm:space-y-4 w-full ${isFullscreenChat ? 'max-w-[99%] mx-auto' : ''}`}>
                 {messages.map((msg) => {
                   const isAi = msg.role === 'ai';
                   const isThinking = isAi && isProcessing && msg.content === '';
@@ -1224,6 +1231,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                       markdownComponents={markdownComponents}
                       activeFontBase={activeFont.base}
                       activeFontLine={activeFont.line}
+                      isFullscreenChat={isFullscreenChat}
                     />
                   );
                 })}
@@ -1232,8 +1240,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             )}
           </div>
 
-          {/* INPUT TERMINAL BAR (Fiks në fund) */}
-          <div className="p-2 sm:p-3 bg-surface border-t border-main shrink-0">
+          {/* INPUT TERMINAL BAR (Fiks në fund me shtrirje adaptive) */}
+          <div className="p-2 sm:p-3 md:p-4 bg-surface border-t border-main shrink-0">
             
             {attachedFile && (
               <div className="flex items-center gap-1.5 px-2 py-1 mb-1.5 bg-primary-start/15 border border-primary-start/40 rounded-lg text-xs text-text-primary w-fit max-w-full">
@@ -1262,7 +1270,9 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 e.preventDefault();
                 handleSendChatMessage(input);
               }}
-              className="flex items-end gap-1.5 sm:gap-2 bg-canvas border border-main rounded-xl p-1.5 focus-within:border-primary-start/50 transition-colors shadow-xs"
+              className={`flex items-end gap-1.5 sm:gap-2 bg-canvas border border-main rounded-xl p-1.5 focus-within:border-primary-start/50 transition-colors shadow-xs w-full ${
+                isFullscreenChat ? 'max-w-6xl mx-auto' : ''
+              }`}
             >
               <button
                 type="button"
