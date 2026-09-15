@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - PURE UNIFIED DEEPSEEK CLIENT V84.0 (ZERO REDUNDANT CONSTANTS)
-# 100% COMPLETE CODE • ZERO ALIASES • ZERO MULTI-MODEL LEFTOVERS • 429 AUTO-RETRY
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V85.0
+# 100% COMPLETE CODE • ZERO PLACEHOLDERS • SUPPORTS SPECIALIZED HIGH-SPEED SEARCH MODELS
 
 import os
 import json
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
+FAST_SEARCH_MODEL = "openai/gpt-4o-mini"
 
 TEMP_ANALYSIS = 0.0
 TEMP_FORENSIC = 0.0
@@ -43,7 +44,7 @@ def _get_api_key() -> str:
     )
 
 def _get_target_model() -> str:
-    """Lexon modelin e vetëm global nga settings.LLM_MODEL."""
+    """Lexon modelin e parazgjedhur global (DeepSeek)."""
     model = (
         getattr(settings, "LLM_MODEL", None) or 
         os.getenv("LLM_MODEL", "") or 
@@ -72,7 +73,6 @@ def _get_async_client() -> AsyncOpenAI:
     )
 
 def _get_provider_routing_payload() -> Dict[str, Any]:
-    """Lejon të gjitha nyjet e DeepSeek me failover automatik dhe zero bllokime 404."""
     return {
         "provider": {
             "allow_fallbacks": True
@@ -136,7 +136,7 @@ def _call_llm(
     full_sys_prompt = _prepare_system_prompt(system_prompt)
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_sync_client()
-    target_model = _get_target_model()
+    target_model = model if model else _get_target_model()
 
     kwargs: Dict[str, Any] = {
         "model": target_model,
@@ -161,10 +161,10 @@ def _call_llm(
         except Exception as e:
             err_msg = str(e).lower()
             if "429" in err_msg or "rate limit" in err_msg:
-                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek. Po pres {2 * attempt}s...")
+                logger.warning(f"⚠️ [Rate Limit 429] në {target_model}. Po pres {2 * attempt}s...")
                 time.sleep(2.0 * attempt)
                 continue
-            logger.warning(f"⚠️ Përpjekja {attempt} në DeepSeek dështoi: {e}")
+            logger.warning(f"⚠️ Përpjekja {attempt} në {target_model} dështoi: {e}")
             time.sleep(1.5)
 
     return ""
@@ -183,7 +183,7 @@ async def _call_llm_async(
     full_sys_prompt = _prepare_system_prompt(system_prompt)
     sanitized_user_content = _sanitize_and_disambiguate_prompt(user_content)
     client = _get_async_client()
-    target_model = _get_target_model()
+    target_model = model if model else _get_target_model()
 
     kwargs: Dict[str, Any] = {
         "model": target_model,
@@ -208,10 +208,10 @@ async def _call_llm_async(
         except Exception as e:
             err_msg = str(e).lower()
             if "429" in err_msg or "rate limit" in err_msg:
-                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek async. Po pres {2 * attempt}s...")
+                logger.warning(f"⚠️ [Rate Limit 429] në {target_model} async. Po pres {2 * attempt}s...")
                 await asyncio.sleep(2.0 * attempt)
                 continue
-            logger.warning(f"⚠️ Përpjekja {attempt} në DeepSeek dështoi: {e}")
+            logger.warning(f"⚠️ Përpjekja {attempt} në {target_model} dështoi: {e}")
             await asyncio.sleep(1.5)
 
     return ""
@@ -250,7 +250,7 @@ async def stream_text_async(
     client = _get_async_client()
     full_sys = _prepare_system_prompt(sys_p)
     sanitized_user_p = _sanitize_and_disambiguate_prompt(user_p)
-    target_model = _get_target_model()
+    target_model = model if model else _get_target_model()
 
     kwargs: Dict[str, Any] = {
         "model": target_model,
@@ -264,8 +264,6 @@ async def stream_text_async(
         "extra_body": _get_provider_routing_payload()
     }
 
-    last_err: Optional[Exception] = None
-
     for attempt in range(1, 4):
         try:
             stream = await client.chat.completions.create(**kwargs)
@@ -276,12 +274,11 @@ async def stream_text_async(
             yield AI_DISCLAIMER
             return
         except Exception as e:
-            last_err = e
             err_msg = str(e).lower()
             if "429" in err_msg or "rate limit" in err_msg:
-                logger.warning(f"⚠️ [Rate Limit 429] në DeepSeek stream. Po pres {2 * attempt}s...")
+                logger.warning(f"⚠️ [Rate Limit 429] në {target_model} stream. Po pres {2 * attempt}s...")
                 await asyncio.sleep(2.0 * attempt)
                 continue
             await asyncio.sleep(1.5)
 
-    yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+    yield f"\n\n[Shërbimi {target_model} është përkohësisht i ngarkuar. Ju lutem provoni përsëri pas pak sekondash.]"
