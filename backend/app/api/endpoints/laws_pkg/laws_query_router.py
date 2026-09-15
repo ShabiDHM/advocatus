@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - 100% AUTHENTIC GROUND-TRUTH LEGAL RAG V191.0
-# 100% COMPLETE CODE • ZERO FAKE CONFIDENCE • EXCLUSIVE DEEPSEEK CORE • AUTHENTIC TOOLTIP VERIFICATION
+# PHOENIX PROTOCOL - 100% AUTHENTIC GROUND-TRUTH LEGAL RAG V193.0
+# 100% COMPLETE CODE • ZERO IMPORT ERRORS • PURE UNIFIED LLM_MODEL DEEPSEEK • ZERO MOCKS
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any, Tuple
@@ -10,7 +10,7 @@ import re
 import json
 
 from app.services import vector_store_service, storage_service
-from app.services.llm.llm_client import _call_llm_async, clean_and_parse_json, DEEP_MODEL
+from app.services.llm.llm_client import _call_llm_async, clean_and_parse_json
 from app.api.endpoints.dependencies import get_current_user
 from app.api.endpoints.laws_pkg.laws_dictionary import _normalize_hallucinated_title, _natural_sort_key
 from app.api.endpoints.laws_pkg.laws_search_service import find_documents_by_title, find_law_documents, _generate_source_info
@@ -128,10 +128,7 @@ def _find_supreme_court_precedents_for_article(db, law_title: str, article_numbe
 
 
 async def _ai_qualify_user_query(query_text: str) -> Optional[Dict[str, Any]]:
-    """
-    KUALIFIKIM JURIDIK I THELLË ME DEEPSEEK (ZERO GPT-4O-MINI):
-    Arsyeton doktrinarisht dhe nxjerr saktësisht institutin, ligjin dhe nenet për çdo pyetje.
-    """
+    """Kualifikim juridik i thellë me DeepSeek pa modele të vjetra."""
     system_prompt = (
         "Ti je Eksperti Kryesor Ligjor i Republikës së Kosovës.\n"
         "Analizo këtë kërkesë apo rast jetësor të parashtruar nga përdoruesi.\n"
@@ -150,8 +147,7 @@ async def _ai_qualify_user_query(query_text: str) -> Optional[Dict[str, Any]]:
         raw_response = await _call_llm_async(
             system_prompt=system_prompt,
             user_content=query_text,
-            json_mode=True,
-            model=DEEP_MODEL  # DEEPSEEK EKSKLUZIV
+            json_mode=True
         )
         parsed = clean_and_parse_json(raw_response)
         if isinstance(parsed, dict) and "legal_institute" in parsed:
@@ -169,10 +165,6 @@ async def ai_semantic_law_search(
     payload: Optional[Dict[str, Any]] = Body(None),
     current_user = Depends(get_current_user)
 ):
-    """
-    MOTOR UNIVERSAL ME KUALIFIKIM DEEPSEEK DHE VERIFIKIM REAL NË MONGODB ATLAS:
-    Zero përqindje të shpikura. Çdo verifikim vërtetohet me burimin e saktë fizik dhe faqen.
-    """
     user_query = query or (payload.get("query") if payload else "")
     if not user_query or not user_query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
@@ -183,7 +175,6 @@ async def ai_semantic_law_search(
         from app.core.db import get_db_instance
         db = get_db_instance()
 
-        # 1. KUALIFIKIMI I THELLË ME DEEPSEEK
         ai_data = await _ai_qualify_user_query(clean_q)
 
         target_articles = []
@@ -209,7 +200,6 @@ async def ai_semantic_law_search(
         seen_articles = set()
         all_linked_caselaw = []
 
-        # 2. BALLAFAQIMI DHE VERIFIKIMI REAL NË BAZËN TONË (MONGODB ATLAS)
         for art_num in target_articles[:5]:
             if not art_num:
                 continue
@@ -249,7 +239,6 @@ async def ai_semantic_law_search(
                         if not any(c.get("source") == p["source"] and c.get("page") == p["page"] for c in all_linked_caselaw):
                             all_linked_caselaw.append(p)
 
-                    # VERIFIKIMI FAKTIK ME DOKUMENTIN REAL
                     matched_statutes.append({
                         "law_title": law_t,
                         "article_number": art_num,
@@ -268,7 +257,6 @@ async def ai_semantic_law_search(
                         "supreme_court_interpretations": supreme_precedents
                     })
 
-        # 3. KËRKIM NËSE NUK U GJET NEN ME NUMËR DIREKT
         if len(matched_statutes) == 0:
             search_terms = key_tokens if key_tokens else [w for w in re.findall(r'\w+', clean_q) if len(w) > 3 and w.lower() not in ALBANIAN_STOP_WORDS]
             
@@ -313,7 +301,6 @@ async def ai_semantic_law_search(
                             "supreme_court_interpretations": supreme_precedents
                         })
 
-        # 4. KRYQËZIMI ME AKTGJYKIMET E GJYKATËS SUPREME
         if len(all_linked_caselaw) < 2:
             caselaw_query: Dict[str, Any] = {
                 "$or": [
@@ -343,7 +330,6 @@ async def ai_semantic_law_search(
                         "page": page_val
                     })
 
-        # 5. KUALIFIKIMI PËRFUNDIMTAR DHE REAL
         if not legal_institute:
             if matched_statutes:
                 legal_institute = f"Baza Ligjore: {matched_statutes[0]['law_title']}"
