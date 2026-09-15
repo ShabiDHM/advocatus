@@ -1,6 +1,6 @@
 // FILE: src/components/chat/MarkdownRenderer.tsx
-// PHOENIX PROTOCOL - UNIFIED FORENSIC CITATION & IN-PLACE PRECEDENT VIEWER V52.0
-// 100% COMPLETE CODE • ZERO REDIRECTIONS • TABLE & TEXT PRECEDENT AUTO-INTERCEPTION
+// PHOENIX PROTOCOL - UNIFIED FORENSIC CITATION & IN-PLACE PRECEDENT VIEWER V53.0
+// 100% COMPLETE CODE • ZERO REDIRECTIONS • ACCURATE TABLE CITATION PARAMETER PARSING
 
 import React from 'react';
 import { LawCitationLink } from '../LawCitationLink';
@@ -16,9 +16,6 @@ const getNodeText = (node: any): string => {
   return '';
 };
 
-// ============================================================================
-// MAIN MARKDOWN COMPONENTS BUILDER (IN-PLACE MODAL CITATIONS)
-// ============================================================================
 export const buildMarkdownComponents = () => ({
   h1: ({ node, ...props }: any): React.JSX.Element => (
     <h1
@@ -86,7 +83,7 @@ export const buildMarkdownComponents = () => ({
       const targetUrl = linkMatch[2];
       const surroundingText = textContent.replace(linkMatch[0], '').trim();
 
-      // INTERCEPTIM I PRECEDENTËVE EDHE BRENDA TABELAVE (ZERO REDIRECTION)
+      // INTERCEPTIM I PRECEDENTËVE NË TABELA
       const isPrecedentInTable =
         /\b(PML|Rev|REV|KMLP|ANR|A\.NR|AC|CA|PKR|AP|AGJ|CP)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+[\w\/\.\-]*\/\d{2,4}|\d+)\b/i.test(label) ||
         targetUrl.includes('/laws/search?q=') ||
@@ -110,12 +107,28 @@ export const buildMarkdownComponents = () => ({
         );
       }
 
+      // ZBËRTHIMI I SAKTË I NENIT DHE LIGJIT NGA TARGET URL
+      let parsedLawTitle = label;
+      let parsedArticleNum = "";
+      try {
+        const urlObj = new URL(targetUrl, window.location.origin);
+        const qLaw = urlObj.searchParams.get('lawTitle');
+        const qArt = urlObj.searchParams.get('articleNumber');
+        if (qLaw) parsedLawTitle = qLaw;
+        if (qArt) parsedArticleNum = qArt;
+      } catch {}
+
+      if (!parsedArticleNum) {
+        const matchDigits = label.match(/\d+/);
+        if (matchDigits) parsedArticleNum = matchDigits[0];
+      }
+
       return (
         <td className="px-3.5 py-2.5 align-top leading-relaxed break-words max-w-[280px]" {...props}>
           <div className="flex flex-wrap items-center gap-1">
             <LawCitationLink
-              lawTitle={label}
-              articleNum=""
+              lawTitle={parsedLawTitle}
+              articleNum={parsedArticleNum}
               fullMatch={label}
               targetUrl={targetUrl}
             />
@@ -152,14 +165,12 @@ export const buildMarkdownComponents = () => ({
     );
   },
 
-  // =========================================================================
-  // 🔗 LINKET INTERAKTIVE NË TEKST TË RRJEDHSHËM (IN-PLACE PREVIEW)
-  // =========================================================================
+  // LINKET NË TEKST TË RRJEDHSHËM
   a: ({ href, children }: any): React.JSX.Element => {
     const rawText = getNodeText(children).trim();
     const rawHref = String(href || '').trim();
 
-    // 1. PRECEDENTËT E GJYKATËS SUPREME (Rev, PML, A.NR, KMLP etj.)
+    // 1. Precedentët e Supremes
     const isPrecedent =
       /\b(PML|Rev|REV|KMLP|ANR|A\.NR|AC|CA|PKR|AP|AGJ|CP)\.?\s*(?:Nr\.?|nr\.?)?\s*(\d+[\w\/\.\-]*\/\d{2,4}|\d+)\b/i.test(rawText) ||
       rawHref.includes('/laws/search?q=') ||
@@ -178,7 +189,7 @@ export const buildMarkdownComponents = () => ({
       return <PrecedentCitationLink caseNumber={cleanCaseNo} />;
     }
 
-    // 2. LIDHJET ME NENET STATUTORE LIGJORE
+    // 2. Nenet Statutore
     if (rawHref.startsWith('/laws/article') || rawHref.startsWith('/laws/')) {
       try {
         const url = new URL(rawHref, window.location.origin);
@@ -206,7 +217,7 @@ export const buildMarkdownComponents = () => ({
       }
     }
 
-    // 3. DOKUMENTET E DOSJES (PDF / SHKRESA)
+    // 3. Dokumentet e Dosjes
     const isDocLink =
       rawHref.toLowerCase().includes('/documents/') ||
       rawHref.toLowerCase().endsWith('.pdf') ||
@@ -235,7 +246,7 @@ export const buildMarkdownComponents = () => ({
       );
     }
 
-    // 4. LINKET E JASHTME
+    // 4. Linket e Jashtme
     return (
       <a
         href={href}

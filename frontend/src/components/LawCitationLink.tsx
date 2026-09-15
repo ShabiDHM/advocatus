@@ -1,8 +1,8 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - IN-PLACE LAW ARTICLE VIEWER V18.1 (ZERO REDIRECTION • INSTANT JUMPING)
-// 100% COMPLETE CODE • OPENS PDF MODAL IN-PLACE • HARD PINNED TOOLTIP • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - IN-PLACE LAW ARTICLE VIEWER V19.0 (DEFENSIVE PARAMETER RECOVERY)
+// 100% COMPLETE CODE • OPENS PDF MODAL IN-PLACE • EXTRACTS PARAMS FROM URL • ZERO TS WARNINGS
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scale, ShieldCheck, CheckCircle2, X, Loader2, ExternalLink } from 'lucide-react';
@@ -68,7 +68,33 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   });
   const containerRef = useRef<HTMLSpanElement>(null);
 
-  const cleanDisplayLabel = (fullMatch || `${lawTitle} - Neni ${articleNum}`)
+  // REZOLVIMI I SIGURT: Nëse articleNum mungon, nxirre menjëherë nga targetUrl ose fullMatch
+  const resolvedParams = useMemo(() => {
+    let lTitle = lawTitle || '';
+    let aNum = articleNum || '';
+
+    if (targetUrl) {
+      try {
+        const url = new URL(targetUrl, window.location.origin);
+        const qLaw = url.searchParams.get('lawTitle');
+        const qArt = url.searchParams.get('articleNumber');
+        if (qLaw) lTitle = qLaw;
+        if (qArt) aNum = qArt;
+      } catch {}
+    }
+
+    if (!aNum) {
+      const matchNum = (fullMatch || lawTitle).match(/\d+/);
+      if (matchNum) aNum = matchNum[0];
+    }
+
+    return {
+      lawTitle: lTitle.trim() || 'Ligji',
+      articleNum: aNum.trim() || '1'
+    };
+  }, [lawTitle, articleNum, targetUrl, fullMatch]);
+
+  const cleanDisplayLabel = (fullMatch || `${resolvedParams.lawTitle} - Neni ${resolvedParams.articleNum}`)
     .replace(/^\[+|\]+$/g, '')
     .trim();
 
@@ -110,13 +136,13 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   const fetchSourceInfo = async () => {
     if (sourceInfo) return;
     try {
-      const cleanArt = (articleNum || '').replace(/\D+/g, '') || articleNum;
-      const response = await apiService.getLawArticle(lawTitle, cleanArt);
+      const cleanArt = resolvedParams.articleNum.replace(/\D+/g, '') || resolvedParams.articleNum;
+      const response = await apiService.getLawArticle(resolvedParams.lawTitle, cleanArt);
       if (response && response.source_info) {
         setSourceInfo(response.source_info);
       }
     } catch {
-      // Hilët në heshtje
+      // Pasiv
     }
   };
 
@@ -152,7 +178,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     };
   }, [showTooltip]);
 
-  // HAPJA E MENJËHERSHME E PDF-SË NË VEND (OPSIONI A)
+  // HAPJA E MENJËHERSHME E PDF-SË NË VEND ME PARAMETRA TË SAKTË
   const handleDirectOpenPdf = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -162,11 +188,11 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     setIsLoadingPdf(true);
 
     try {
-      const cleanArt = (articleNum || '').replace(/\D+/g, '') || articleNum;
-      const res = await apiService.getLawArticle(lawTitle, cleanArt);
+      const cleanArt = resolvedParams.articleNum.replace(/\D+/g, '') || resolvedParams.articleNum;
+      const res = await apiService.getLawArticle(resolvedParams.lawTitle, cleanArt);
 
       const pageNum = res.page || res.page_number || 1;
-      const targetFile = res.source || `${lawTitle}.pdf`;
+      const targetFile = res.source || `${resolvedParams.lawTitle}.pdf`;
 
       setPdfPageNumber(pageNum);
       setPdfFilename(targetFile);
@@ -231,7 +257,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
 
           {/* Titulli i Ligjit & Neni */}
           <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mb-1.5 leading-snug">
-            {sourceInfo?.matched_law || lawTitle} • Neni {sourceInfo?.matched_article || articleNum}
+            {sourceInfo?.matched_law || resolvedParams.lawTitle} • Neni {sourceInfo?.matched_article || resolvedParams.articleNum}
           </div>
 
           {/* Të Dhënat Reale */}
@@ -308,8 +334,8 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
         <FileViewerModal
           documentData={{
             file_name: pdfFilename,
-            article_number: articleNum,
-            title: lawTitle,
+            article_number: resolvedParams.articleNum,
+            title: resolvedParams.lawTitle,
             page_number: pdfPageNumber,
             page: pdfPageNumber,
             mime_type: 'application/pdf',
