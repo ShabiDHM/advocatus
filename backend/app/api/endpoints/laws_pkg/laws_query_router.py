@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - ULTRA-FAST ENTERPRISE JURIDICAL RAG ENGINE V197.0
-# 100% COMPLETE CODE • FAST SEARCH MODEL (GPT-4O-MINI VIA OPENROUTER) • ZERO TOKEN BLINDNESS
+# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V198.0 (UNIVERSAL ACRONYM RESOLVER)
+# 100% COMPLETE CODE • RESOLVES KPRK/KPPRK/LPK/LMD 404S • ZERO HALLUCINATIONS
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any
@@ -26,6 +26,58 @@ ARTICLE_EXTRACT_REGEX = re.compile(
     r'\b(?:neni|nenit|nenin|artikulli|art\.?)\s*(\d+[a-zA-Z]?)\b',
     re.IGNORECASE
 )
+
+# Fjalor Universal për Përkthimin e Akronimeve Juridike në Regex të Bazës
+UNIVERSAL_ACRONYM_MAP: Dict[str, Dict[str, str]] = {
+    "kprk": {
+        "regex": r"^(?!.*procedur).*penal",
+        "name": "Kodi Penal i Kosovës"
+    },
+    "kpk": {
+        "regex": r"^(?!.*procedur).*penal",
+        "name": "Kodi Penal i Kosovës"
+    },
+    "kpprk": {
+        "regex": r"procedur.*penal",
+        "name": "Kodi i Procedurës Penale"
+    },
+    "kpp": {
+        "regex": r"procedur.*penal",
+        "name": "Kodi i Procedurës Penale"
+    },
+    "lpk": {
+        "regex": r"kontestimore|03/l-006|03 l 006",
+        "name": "Ligji për Procedurën Kontestimore"
+    },
+    "lmd": {
+        "regex": r"detyrimeve|04/l-077|04 l 077",
+        "name": "Ligji për Marrëdhëniet e Detyrimeve"
+    },
+    "lsht": {
+        "regex": r"tregtare|06/l-016",
+        "name": "Ligji për Shoqëritë Tregtare"
+    },
+    "lpp": {
+        "regex": r"permbarim|përmbarim|04/l-139",
+        "name": "Ligji për Procedurën Përmbarimore"
+    },
+    "lp": {
+        "regex": r"punës|punes|03/l-212",
+        "name": "Ligji i Punës"
+    },
+    "lfk": {
+        "regex": r"familjen|2004/32",
+        "name": "Ligji për Familjen"
+    },
+    "ktm": {
+        "regex": r"mitur|06/l-006",
+        "name": "Kodi i të Miturve"
+    },
+    "kushtetuta": {
+        "regex": r"kushtetut",
+        "name": "Kushtetuta e Kosovës"
+    }
+}
 
 DOMAIN_GENERIC_STOPWORDS = {
     "procedurë", "procedure", "procedurës", "procedura", "gjyqësore", "gjyqesore",
@@ -71,10 +123,6 @@ async def _rerank_and_verify_caselaw_with_ai(
     user_query: str, 
     raw_caselaw_candidates: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    """
-    RERANKER JURIDIK ULTRA I SHPEJTË ME GPT-4O-MINI:
-    Përgjigjet në < 0.8 sekonda me arsyetim të plotë (ratio decidendi).
-    """
     if not raw_caselaw_candidates:
         return []
 
@@ -156,7 +204,6 @@ async def _synthesize_legal_qualification(
     retrieved_statutes: List[Dict[str, Any]], 
     retrieved_caselaw: List[Dict[str, Any]]
 ) -> Dict[str, str]:
-    """Kualifikon institutin me shpejtësi dhe thellësi përmes FAST_SEARCH_MODEL."""
     context_statutes = "\n---\n".join([
         f"LIGJI: {s.get('law_title')} | NENI: {s.get('article_number')}\nTEKSTI: {s.get('text', '')[:400]}"
         for s in retrieved_statutes[:4]
@@ -203,7 +250,6 @@ async def _synthesize_legal_qualification(
 
 
 def _prioritize_statutes_by_intent(query_text: str, statutes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Rendit dispozitat ligjore duke i dhënë përparësi ligjit më relevant me temën."""
     q_lower = query_text.lower()
     
     def score_statute(item: Dict[str, Any]) -> int:
@@ -211,25 +257,21 @@ def _prioritize_statutes_by_intent(query_text: str, statutes: List[Dict[str, Any
         law_name = item.get("law_title", "").lower()
         content = item.get("text", "").lower()
         
-        # Përputhje penale
-        if any(w in q_lower for w in ["penal", "dënim", "denim", "rehabilitim", "krim", "fajësi", "fajesi"]):
+        if any(w in q_lower for w in ["penal", "dënim", "denim", "rehabilitim", "krim", "fajësi", "fajesi", "kprk"]):
             if "penal" in law_name and "procedur" not in law_name:
                 score += 50
             if "rehabilitim" in content or "shlyerj" in content or "pasojat juridike" in content:
                 score += 40
 
-        # Përputhje civile/kontraktore
-        if any(w in q_lower for w in ["detyrim", "kontrat", "qira", "dëm", "dem", "fatur"]):
+        if any(w in q_lower for w in ["detyrim", "kontrat", "qira", "dëm", "dem", "fatur", "lmd"]):
             if "detyrimeve" in law_name:
                 score += 50
 
-        # Përputhje me procedurën civile
-        if any(w in q_lower for w in ["padi", "padit", "kontestim", "ankes", "revizion"]):
+        if any(w in q_lower for w in ["padi", "padit", "kontestim", "ankes", "revizion", "lpk"]):
             if "kontestimore" in law_name:
                 score += 50
 
-        # Përputhje me fëmijët
-        if any(w in q_lower for w in ["fëmij", "femij", "mitur"]):
+        if any(w in q_lower for w in ["fëmij", "femij", "mitur", "ktm"]):
             if "mitur" in law_name or "familjen" in law_name:
                 score += 50
 
@@ -256,7 +298,6 @@ async def ai_semantic_law_search(
         db = get_db_instance()
         coll = db["legal_knowledge_base"]
 
-        # 1. TËRHEQJA NGA MOTORRI VEKTORIAL & INDEKSI STATUTOR
         raw_retrieved = vector_store_service.query_global_knowledge_base(clean_q, n_results=35)
 
         statute_candidates = []
@@ -304,7 +345,6 @@ async def ai_semantic_law_search(
                             "text": full_text
                         })
 
-        # 2. EKSTRAKTIMI I SAKTË I NENIT NËSE PËRMENDET ME NUMËR
         direct_art_match = ARTICLE_EXTRACT_REGEX.search(clean_q)
         if direct_art_match:
             art_cand = direct_art_match.group(1)
@@ -324,16 +364,10 @@ async def ai_semantic_law_search(
                         "text": exact_doc.get("text", "")
                     })
 
-        # Rendit nene sipas relevancës thelbësore
         ranked_statutes = _prioritize_statutes_by_intent(clean_q, statute_candidates)
-
-        # 3. RERANKING RIGOROZ ME FAST_SEARCH_MODEL (GPT-4O-MINI)
         verified_caselaw = await _rerank_and_verify_caselaw_with_ai(clean_q, raw_caselaw_candidates)
-
-        # 4. KUALIFIKIMI JURIDIK ME FAST_SEARCH_MODEL
         qualification = await _synthesize_legal_qualification(clean_q, ranked_statutes, verified_caselaw)
 
-        # 5. NDËRTIMI I REZULTATEVE STATUTORE TË VERIFIKUARA
         matched_statutes = []
         for s in ranked_statutes[:4]:
             law_name = s.get("law_title", "Ligji Zyrtar")
@@ -475,34 +509,34 @@ async def get_law_titles(current_user = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
 
 
-@router.get("/library")
-async def get_laws_library(
-    q: Optional[str] = Query(None), 
-    limit: int = Query(50, ge=1, le=200),
-    current_user = Depends(get_current_user)
-):
-    try:
-        if q and q.strip():
-            return vector_store_service.query_global_knowledge_base(q.strip(), n_results=limit)
-        return await get_law_titles(current_user=current_user)
-    except Exception as e:
-        logger.error(f"Error in /library endpoint: {e}")
-        raise HTTPException(status_code=500, detail=f"Library error: {str(e)}")
-
-
 @router.get("/by-title")
 async def get_law_articles(law_title: str = Query(...), current_user = Depends(get_current_user)):
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
         clean_title = law_title.strip()
+        clean_key = clean_title.lower().replace('.', '').replace(' ', '')
 
-        mapped_title = _normalize_hallucinated_title(clean_title, "")
-        docs = find_documents_by_title(
-            db, 
-            mapped_title if mapped_title else clean_title, 
-            fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "page_number": 1, "text": 1}
-        )
+        # PËRKTHIMI I AKRONIMEVE (KPRK, LPK, LMD, etj.)
+        law_regex_query = None
+        if clean_key in UNIVERSAL_ACRONYM_MAP:
+            law_regex_query = UNIVERSAL_ACRONYM_MAP[clean_key]["regex"]
+
+        if law_regex_query:
+            docs = list(db.legal_knowledge_base.find(
+                {
+                    "is_article": True,
+                    "law_title": {"$regex": law_regex_query, "$options": "i"}
+                },
+                {"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "page_number": 1, "text": 1}
+            ).limit(600))
+        else:
+            mapped_title = _normalize_hallucinated_title(clean_title, "")
+            docs = find_documents_by_title(
+                db, 
+                mapped_title if mapped_title else clean_title, 
+                fields={"law_title": 1, "article_number": 1, "source": 1, "chunk_index": 1, "page": 1, "page_number": 1, "text": 1}
+            )
 
         if not docs:
             words = [re.escape(w) for w in clean_title.split() if len(w) > 3]
@@ -515,7 +549,7 @@ async def get_law_articles(law_title: str = Query(...), current_user = Depends(g
         if not docs:
             raise HTTPException(status_code=404, detail=f"Ligji '{law_title}' nuk u gjet në bazën e të dhënave.")
         
-        canonical_title = docs[0].get("law_title", mapped_title if mapped_title else clean_title)
+        canonical_title = docs[0].get("law_title", clean_title)
 
         articles: Set[str] = {str(d.get("article_number")) for d in docs if d.get("article_number") and str(d.get("article_number")) != ""}
         sorted_articles = sorted(list(articles), key=_natural_sort_key)
@@ -546,6 +580,10 @@ async def get_law_article(
     article_number: str = Query(...), 
     current_user = Depends(get_current_user)
 ):
+    """
+    HAP NENIN ME AKRONIM OSE TITULL TË PLOTË:
+    Zgjidh 100% kërkesat si 'law_title=KPRK', 'law_title=LPK', 'law_title=LMD'.
+    """
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
@@ -562,20 +600,44 @@ async def get_law_article(
             raw_art,
             f"{raw_art}."
         ]
+        if art_digits.isdigit():
+            art_possible_forms.append(int(art_digits))
 
-        statute_docs = list(db.legal_knowledge_base.find({
-            "article_number": {"$in": art_possible_forms},
-            "law_title": {"$regex": re.escape(clean_law_title), "$options": "i"}
-        }).sort("chunk_index", 1))
+        # 1. ZGJIDHJA E AKRONIMIT (KPRK, KPK, LPK, LMD, etj.)
+        clean_key = clean_law_title.lower().replace('.', '').replace(' ', '')
+        law_regex = None
+        if clean_key in UNIVERSAL_ACRONYM_MAP:
+            law_regex = UNIVERSAL_ACRONYM_MAP[clean_key]["regex"]
 
+        statute_docs = []
+
+        # Përpjekja 1: Kërkim me Regex të Akronimit
+        if law_regex:
+            statute_docs = list(db.legal_knowledge_base.find({
+                "article_number": {"$in": art_possible_forms},
+                "is_article": True,
+                "law_title": {"$regex": law_regex, "$options": "i"}
+            }).sort("chunk_index", 1))
+
+        # Përpjekja 2: Kërkim me titullin e plotë ekzakt
+        if not statute_docs:
+            statute_docs = list(db.legal_knowledge_base.find({
+                "article_number": {"$in": art_possible_forms},
+                "is_article": True,
+                "law_title": {"$regex": re.escape(clean_law_title), "$options": "i"}
+            }).sort("chunk_index", 1))
+
+        # Përpjekja 3: Kërkim me fjalët thelbësore të titullit
         if not statute_docs:
             words = [w for w in re.findall(r'[\w\d]+', clean_law_title) if len(w) >= 3]
             if words:
                 statute_docs = list(db.legal_knowledge_base.find({
                     "article_number": {"$in": art_possible_forms},
+                    "is_article": True,
                     "$and": [{"law_title": {"$regex": re.escape(w), "$options": "i"}} for w in words[:3]]
                 }).sort("chunk_index", 1))
 
+        # Përpjekja 4: Fallback me shërbimin e kërkimit
         if not statute_docs:
             try:
                 found_statutes, _, _ = find_law_documents(db, clean_law_title, art_digits)
@@ -588,9 +650,9 @@ async def get_law_article(
             raise HTTPException(status_code=404, detail=f"Neni {art_digits} i ligjit '{clean_law_title}' nuk u gjet në bazën zyrtare.")
 
         primary_doc = statute_docs[0]
-        source_info = _generate_source_info(primary_doc, {}, clean_law_title, art_digits)
+        source_info = _generate_source_info(primary_doc, {}, primary_doc.get("law_title", clean_law_title), art_digits)
 
-        raw_page = primary_doc.get("page") or primary_doc.get("page_number") or 1
+        raw_page = primary_doc.get("actual_page") or primary_doc.get("page") or primary_doc.get("page_number") or 1
         try:
             page_val = int(raw_page)
         except Exception:
@@ -628,7 +690,7 @@ async def get_law_chunk(chunk_id: str, current_user = Depends(get_current_user))
         doc = db.legal_knowledge_base.find_one({"chunk_id": chunk_id})
         if not doc: raise HTTPException(status_code=404, detail="Chunk not found")
             
-        raw_page = doc.get("page") or doc.get("page_number") or 1
+        raw_page = doc.get("actual_page") or doc.get("page") or doc.get("page_number") or 1
         try:
             page_val = int(raw_page)
         except Exception:

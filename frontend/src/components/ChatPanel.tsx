@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V93.0 (BULLETPROOF PORTAL FULLSCREEN • ESC RESILIENT)
+// PHOENIX PROTOCOL - CHAT PANEL V94.0 (ADAPTIVE FULL-WIDTH EXPAND • ZERO WASTED GUTTERS)
 // ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -196,7 +196,7 @@ const resolveSuggestionCardUI = (query: string) => {
 };
 
 // ============================================================================
-// KOMPONENTI I MEMOIZUAR I MESAZHIT (ZERO-LAG TYPING)
+// KOMPONENTI I MEMOIZUAR I MESAZHIT (ADAPTIV PËR FULLSCREEN)
 // ============================================================================
 interface ClientMessageBubbleProps {
   msg: ChatMessage;
@@ -210,6 +210,7 @@ interface ClientMessageBubbleProps {
   activeContextId: string;
   markdownComponents: any;
   t: TFunction;
+  isFullscreen?: boolean;
 }
 
 const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
@@ -223,7 +224,8 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
   onRetry,
   activeContextId,
   markdownComponents,
-  t
+  t,
+  isFullscreen = false
 }) => {
   const { cleanText, questions: suggestedQuestions } = useMemo(
     () => extractFollowUpQuestions(msg.content),
@@ -249,7 +251,11 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex gap-3 group ${
+        msg.role === 'user' 
+          ? 'flex-row-reverse justify-start' 
+          : isFullscreen ? 'flex-row w-full' : 'flex-row'
+      }`}
     >
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${
@@ -264,8 +270,12 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
       </div>
 
       <div
-        className={`relative max-w-[85%] rounded-xl py-2.5 px-3.5 text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
-          msg.role === 'user' ? 'rounded-tr-sm' : 'rounded-tl-sm'
+        className={`relative text-xs sm:text-sm shadow-sm border border-main bg-surface text-text-primary ${
+          msg.role === 'user'
+            ? 'max-w-[85%] sm:max-w-[75%] rounded-xl rounded-tr-sm py-2.5 px-3.5'
+            : isFullscreen
+              ? 'w-full flex-1 max-w-full rounded-2xl rounded-tl-sm p-4 sm:p-6'
+              : 'max-w-[92%] sm:max-w-[85%] rounded-xl rounded-tl-sm py-2.5 px-3.5'
         }`}
       >
         {msg.content && !isSpecialCommand && !isAiPlaceholder && <MessageCopyButton text={msg.content} />}
@@ -280,7 +290,7 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
             <ThinkingDots />
           </div>
         ) : (
-          <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary">
+          <div className="markdown-content select-text prose prose-slate dark:prose-invert max-w-none prose-sm leading-relaxed text-text-primary w-full overflow-x-auto">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {autoLinkedText}
             </ReactMarkdown>
@@ -298,7 +308,7 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
                 {t('chat.suggestedFollowUps', 'Hapat e Ardhshëm të Sugjeruar nga Juristi AI')}
               </span>
               
-              <div className="flex flex-col gap-2 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
                 {suggestedQuestions.map((q, qIdx) => {
                   const cardInfo = resolveSuggestionCardUI(q);
                   return (
@@ -306,7 +316,7 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
                       key={qIdx}
                       type="button"
                       onClick={() => onSendMessage(q)}
-                      className="w-full p-3 sm:p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-2xl text-left transition-all hover-lift focus:outline-none shadow-sm flex items-start justify-between gap-3 group cursor-pointer"
+                      className="w-full p-3 sm:p-3.5 bg-canvas hover:bg-hover border border-main hover:border-primary-start/50 text-text-secondary hover:text-text-primary rounded-xl text-left transition-all hover-lift focus:outline-none shadow-2xs flex items-start justify-between gap-3 group cursor-pointer"
                     >
                       <div className="flex items-start gap-2.5 min-w-0">
                         {cardInfo.icon}
@@ -546,7 +556,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
     <div 
       className={`flex flex-col glass-panel overflow-hidden bg-canvas transition-all duration-200 ${
         isFullscreen 
-          ? 'fixed inset-0 sm:inset-3 md:inset-6 z-[999999] rounded-none sm:rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.8)] border-2 border-primary-start/50 bg-canvas' 
+          ? 'fixed inset-0 sm:inset-2 md:inset-4 z-[999999] rounded-none sm:rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.85)] border-2 border-primary-start/50 bg-canvas' 
           : `h-full w-full border border-main rounded-2xl sm:rounded-3xl shadow-sm ${className || ''}`
       }`}
     >
@@ -563,8 +573,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
         onToggleFullscreen={() => setIsFullscreen(prev => !prev)}
       />
 
-      {/* BODY CONTEXT */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
+      {/* BODY CONTEXT ME SHTRIRJE TË PLOTË */}
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-canvas/10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shadow-[inset_0_1px_8px_rgba(0,0,0,0.01)] border-b border-main flex flex-col">
         {displayMessages.length === 0 && !isSendingMessage ? (
           <div className="flex-1 min-h-full flex items-center justify-center w-full">
             <CommandPaletteGrid
@@ -576,7 +586,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
             />
           </div>
         ) : (
-          <div className="space-y-4 w-full">
+          <div className={`space-y-4 w-full ${isFullscreen ? 'max-w-[99%] mx-auto' : ''}`}>
             <AnimatePresence initial={false}>
               {displayMessages.map((msg, idx) => (
                 <ClientMessageBubble
@@ -592,6 +602,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
                   activeContextId={activeContextId}
                   markdownComponents={markdownComponents}
                   t={t}
+                  isFullscreen={isFullscreen}
                 />
               ))}
 
@@ -627,7 +638,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = (props) => {
             e.preventDefault();
             sendMessage(input);
           }}
-          className="max-w-5xl mx-auto"
+          className={`w-full ${isFullscreen ? 'max-w-6xl mx-auto' : ''}`}
         >
           {/* BADGE I SKEDARIT TË BASHKANGJITUR */}
           {renderAttachedBadge()}
