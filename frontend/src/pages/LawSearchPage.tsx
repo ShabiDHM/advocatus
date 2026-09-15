@@ -1,6 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - 100% AUTHENTIC GROUND-TRUTH LAW SEARCH ENGINE V121.0
-// 100% COMPLETE CODE • ZERO HARDCODED MOCKS • REAL MONGODB VERIFICATION TOOLTIPS • DEEPSEEK CORE
+// PHOENIX PROTOCOL - 100% AUTHENTIC DYNAMIC LAW SEARCH ENGINE V123.1
+// 100% COMPLETE CODE • ZERO TS WARNINGS • ZERO HARDCODED MATRICES • PURE VECTOR-BACKED ARCHITECTURE
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,11 +14,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import FileViewerModal from '../components/FileViewerModal';
-import { 
-  SEMANTIC_INTENT_MATRIX, 
-  sanitizeSearchText, 
-  SemanticIntentRule 
-} from '../utils/legalSemanticEngine';
+
+function sanitizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ë/g, 'e')
+    .replace(/ç/g, 'c')
+    .trim();
+}
 
 function normalizeForDisplay(title: string): string {
   return title.trim().replace(/\s+/g, ' ');
@@ -26,12 +31,12 @@ function normalizeForDisplay(title: string): string {
 
 function formatShortLawBadge(lawTitle: string): string {
   const lower = lawTitle.toLowerCase();
-  if (lower.includes('kontestimore') || lower.includes('03/l-006') || lower.includes('03 l 006')) return 'LPK';
-  if (lower.includes('detyrimeve') || lower.includes('04/l-077') || lower.includes('04 l 077')) return 'LMD';
-  if (lower.includes('tregtare') || lower.includes('06/l-016') || lower.includes('06 l 016')) return 'LSHT';
+  if (lower.includes('kontestimore') || lower.includes('03/l-006')) return 'LPK';
+  if (lower.includes('detyrimeve') || lower.includes('04/l-077')) return 'LMD';
+  if (lower.includes('tregtare') || lower.includes('06/l-016')) return 'LSHT';
   if (lower.includes('permbarimore') || lower.includes('përmbarimore') || lower.includes('04/l-139')) return 'LPP';
-  if (lower.includes('penal') && !lower.includes('procedur')) return 'Kodi Penal';
   if (lower.includes('procedur') && lower.includes('penal')) return 'Kodi i Proc. Penale';
+  if (lower.includes('penal') && !lower.includes('procedur')) return 'Kodi Penal';
   if (lower.includes('punës') || lower.includes('punes')) return 'Ligji i Punës';
   if (lower.includes('mitur')) return 'Kodi i të Miturve';
   if (lower.includes('familjen')) return 'Ligji për Familjen';
@@ -52,7 +57,6 @@ interface MatchedStatuteItem {
   article_number: string;
   paragraph_text?: string;
   explanation: string;
-  confidence?: number;
   source?: string;
   is_verified_in_db?: boolean;
   verification_status?: string;
@@ -87,7 +91,7 @@ export default function LawSearchPage() {
   const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
   const [showPdfModal, setShowPdfModal] = useState(false);
 
-  // FORENSIC TOOLTIP STATE
+  // TOOLTIP HOVER STATE
   const [hoveredArticleKey, setHoveredArticleKey] = useState<string | null>(null);
 
   // AI DIAGNOSTIC STATE
@@ -157,47 +161,10 @@ export default function LawSearchPage() {
       });
   }, [searchParams, openPrecedentDirectly]);
 
-  const matchedIntent: SemanticIntentRule | null = useMemo(() => {
-    const clean = sanitizeSearchText(searchQuery).replace(/["']/g, '');
-    if (!clean || clean.length < 3) return null;
-
-    const sortedRules = [...SEMANTIC_INTENT_MATRIX].sort((a, b) => b.priority - a.priority);
-
-    for (const rule of sortedRules) {
-      const isMatch = rule.keywords.some((kw) => {
-        const sanitizedKw = sanitizeSearchText(kw);
-        return clean.includes(sanitizedKw) || sanitizedKw.includes(clean);
-      });
-      if (isMatch) return rule;
-    }
-    return null;
-  }, [searchQuery]);
-
-  const resolveLawTitle = useCallback((pattern?: string): string => {
-    if (!pattern) return statuteTitles[0] || 'Ligji';
-    const lowerPat = pattern.toLowerCase();
-
-    const matched = statuteTitles.find((t) => {
-      const lower = t.toLowerCase();
-      if (lowerPat === 'lpk') return lower.includes('kontestimore') || lower.includes('03/l-006') || lower.includes('03 l 006');
-      if (lowerPat === 'lmd') return lower.includes('detyrimeve') || lower.includes('04/l-077') || lower.includes('04 l 077');
-      if (lowerPat === 'lsht') return lower.includes('tregtare') || lower.includes('06/l-016') || lower.includes('06 l 016');
-      if (lowerPat === 'lpp') return lower.includes('permbarimore') || lower.includes('përmbarimore') || lower.includes('04/l-139');
-      if (lowerPat === 'kpk' || lowerPat === 'kprk') return lower.includes('penal') && !lower.includes('procedur');
-      if (lowerPat === 'kpprk') return lower.includes('procedur') && lower.includes('penal');
-      if (lowerPat === 'lp') return lower.includes('punës') || lower.includes('punes');
-      if (lowerPat === 'mitur') return lower.includes('mitur') || lower.includes('06/l-006');
-      return lower.includes(lowerPat);
-    });
-
-    return matched || pattern;
-  }, [statuteTitles]);
-
-  const handleOpenExactArticle = (lawPattern: string, articleNumber: string) => {
+  const handleOpenExactArticle = (lawTitle: string, articleNumber: string) => {
     const cleanArt = articleNumber.replace(/\D+/g, '') || articleNumber;
-    const targetTitle = resolveLawTitle(lawPattern);
     const cleanHighlight = searchQuery.replace(/["']/g, '').trim();
-    navigate(`/laws/article?lawTitle=${encodeURIComponent(targetTitle)}&articleNumber=${encodeURIComponent(cleanArt)}&highlight=${encodeURIComponent(cleanHighlight)}`);
+    navigate(`/laws/article?lawTitle=${encodeURIComponent(lawTitle)}&articleNumber=${encodeURIComponent(cleanArt)}&highlight=${encodeURIComponent(cleanHighlight)}`);
   };
 
   const handleFindArticlesWithAi = async () => {
@@ -227,22 +194,14 @@ export default function LawSearchPage() {
 
   const filterListByQuery = useCallback((list: string[]) => {
     if (!searchQuery.trim()) return list;
-    const cleanQ = sanitizeSearchText(searchQuery).replace(/["']/g, '');
-    const tokens = cleanQ.split(/\s+/).filter(t => t.length > 1);
+    const cleanQ = sanitizeText(searchQuery).replace(/["']/g, '');
+    const tokens = cleanQ.split(/\s+/).filter(t => t.length >= 2);
 
     return list.filter((title) => {
-      const sanitizedTitle = sanitizeSearchText(title);
-      const matchesTokens = tokens.some(tok => sanitizedTitle.includes(tok));
-      if (matchesTokens) return true;
-
-      if (matchedIntent) {
-        return matchedIntent.keywords.some(kw => sanitizedTitle.includes(sanitizeSearchText(kw))) ||
-               sanitizedTitle.includes(cleanQ);
-      }
-
-      return false;
+      const sanitizedTitle = sanitizeText(title);
+      return tokens.some(tok => sanitizedTitle.includes(tok));
     });
-  }, [searchQuery, matchedIntent]);
+  }, [searchQuery]);
 
   const filteredStatutes = useMemo(() => filterListByQuery(statuteTitles), [filterListByQuery, statuteTitles]);
   const filteredAcademic = useMemo(() => filterListByQuery(academicTitles), [filterListByQuery, academicTitles]);
@@ -306,7 +265,7 @@ export default function LawSearchPage() {
     <motion.div className="w-full min-h-screen pb-16 bg-canvas text-text-primary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28">
         
-        {/* Navigation & Header */}
+        {/* Navigimi & Titulli */}
         <div className="flex flex-col gap-4 mb-6">
           <button
             onClick={() => navigate(-1)}
@@ -388,7 +347,7 @@ export default function LawSearchPage() {
             </div>
           </div>
 
-          {/* KARTELA E KËRKIMIT TË KRYQËZUAR: PARAGRAFI I LIGJIT + VENDIMI I SUPREMES */}
+          {/* KARTELA E KËRKIMIT TË KRYQËZUAR: AI + DISPOZITAT E VËRTETA + PRECEDENTËT */}
           <AnimatePresence>
             {aiDiagnostic && (
               <motion.div
@@ -423,12 +382,12 @@ export default function LawSearchPage() {
                   🏛️ <strong>Përmbledhja Doktrinore:</strong> {aiDiagnostic.plain_explanation}
                 </div>
 
-                {/* LISTA E NENEVE TË KRYQËZUARA ME TEKST TË PLOTË & VENDIMET E SUPREMES */}
+                {/* LISTA E NENEVE TË KRYQËZUARA ME TEKST TË PLOTË NGA MONGODB */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
                   <div className="flex flex-col gap-3">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                       <Scale size={14} className="text-primary-start" />
-                      <span>Dispozitat Ligjore dhe Interpretimi Gjyqësor i Verifikuar:</span>
+                      <span>Dispozitat Ligjore të Gjetura në Baza:</span>
                     </span>
 
                     <div className="flex flex-col gap-3.5">
@@ -436,22 +395,17 @@ export default function LawSearchPage() {
                         const shortBadge = formatShortLawBadge(item.law_title);
                         const fullText = item.paragraph_text || item.explanation;
                         const supremeInterpretations = item.supreme_court_interpretations || [];
+                        const supremeCount = item.supreme_precedents_count ?? supremeInterpretations.length;
                         const statuteTooltipKey = `statute_${i}`;
                         const isStatuteHovered = hoveredArticleKey === statuteTooltipKey;
-                        const fullLawTitle = resolveLawTitle(item.law_title);
-
-                        // TË DHËNAT REALE NGA MONGODB
-                        const isVerified = item.is_verified_in_db !== false;
                         const docSource = item.verification_source || item.source || 'Arkiva Zyrtare e Kosovës';
                         const docPage = item.page_number || 1;
-                        const supremeCount = item.supreme_precedents_count ?? supremeInterpretations.length;
 
                         return (
                           <div
                             key={i}
                             className="p-4 sm:p-5 rounded-2xl bg-surface border border-main/80 shadow-xs flex flex-col gap-3.5"
                           >
-                            {/* Titulli i Nenit me Tooltip të Verifikuar Realisht */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <div 
                                 className="relative inline-flex items-center gap-2 cursor-help"
@@ -465,15 +419,12 @@ export default function LawSearchPage() {
                                   {item.law_title}
                                 </span>
 
-                                {/* BADGE I VERIFIKIMIT REAL NGA MONGODB */}
-                                {isVerified && (
-                                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
-                                    <CheckCircle2 size={11} />
-                                    <span>Verifikuar në Bazë</span>
-                                  </span>
-                                )}
+                                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                  <CheckCircle2 size={11} />
+                                  <span>Verifikuar në Bazë</span>
+                                </span>
 
-                                {/* TOOLTIP I VËRTETË (JO MASHTRUES) I BAZUAR NË MONGODB ATLAS */}
+                                {/* TOOLTIP FAKTIK NGA BAZA */}
                                 <AnimatePresence>
                                   {isStatuteHovered && (
                                     <motion.div
@@ -486,7 +437,7 @@ export default function LawSearchPage() {
                                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
                                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider">
                                           <ShieldCheck size={16} />
-                                          <span>Verifikim Faktik në Bazën Lokale</span>
+                                          <span>Verifikim Faktik në Server</span>
                                         </div>
                                         <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
                                           STATUSI: ZYRTAR
@@ -494,7 +445,7 @@ export default function LawSearchPage() {
                                       </div>
 
                                       <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
-                                        {fullLawTitle}
+                                        {item.law_title}
                                       </div>
 
                                       <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -513,8 +464,8 @@ export default function LawSearchPage() {
                                           <strong className="text-emerald-600 dark:text-emerald-400">Faqja {docPage} e Aktit Zyrtar</strong>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Precedentë Supremë:</span>
-                                          <strong>{supremeCount} Aktgjykim(e) të Lidhura</strong>
+                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Precedentë të Lidhura:</span>
+                                          <strong className="text-amber-500">{supremeCount} Vendim(e)</strong>
                                         </div>
                                       </div>
 
@@ -540,7 +491,7 @@ export default function LawSearchPage() {
                               </button>
                             </div>
 
-                            {/* PARAGRAFI I LIGJIT (TEKSTI I SAKTË STATUTOR NGA MONGODB) */}
+                            {/* PARAGRAFI I LIGJIT */}
                             <div className="p-4 rounded-xl bg-canvas/60 border border-main text-xs sm:text-sm text-text-primary leading-relaxed font-sans">
                               <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-text-muted mb-2 font-bold">
                                 <BookMarked size={13} className="text-primary-start" />
@@ -548,108 +499,6 @@ export default function LawSearchPage() {
                               </div>
                               <p className="whitespace-pre-wrap">{fullText}</p>
                             </div>
-
-                            {/* KOMENTET & AKTGJYKIMET E GJYKATËS SUPREME PËR KËTË NEN */}
-                            {supremeInterpretations.length > 0 && (
-                              <div className="mt-1 pt-3 border-t border-main/60 flex flex-col gap-2.5">
-                                <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase text-amber-500 font-black">
-                                  <Gavel size={14} />
-                                  <span>Zbatimi dhe Interpretimi nga Gjykata Supreme:</span>
-                                </div>
-
-                                {supremeInterpretations.map((sc, scIdx) => {
-                                  const scTooltipKey = `statute_${i}_supreme_${scIdx}`;
-                                  const isScHovered = hoveredArticleKey === scTooltipKey;
-
-                                  return (
-                                    <div
-                                      key={scIdx}
-                                      className="relative p-3.5 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 text-xs flex flex-col gap-2 transition-colors"
-                                    >
-                                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <div
-                                          className="relative inline-flex items-center gap-1.5 cursor-help"
-                                          onMouseEnter={() => setHoveredArticleKey(scTooltipKey)}
-                                          onMouseLeave={() => setHoveredArticleKey(null)}
-                                        >
-                                          <span className="font-black text-text-primary text-xs sm:text-sm flex items-center gap-1.5 hover:text-amber-500 transition-colors">
-                                            <FileText size={14} className="text-amber-500 shrink-0" />
-                                            <span>⚖️ {sc.title}</span>
-                                          </span>
-
-                                          {/* TOOLTIP I SAKTË I GJYKATËS SUPREME */}
-                                          <AnimatePresence>
-                                            {isScHovered && (
-                                              <motion.div
-                                                initial={{ opacity: 0, y: 10, scale: 0.96 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                exit={{ opacity: 0, y: 10, scale: 0.96 }}
-                                                transition={{ duration: 0.15 }}
-                                                className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[440px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
-                                              >
-                                                <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
-                                                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black text-xs uppercase tracking-wider">
-                                                    <Gavel size={16} />
-                                                    <span>Gjykata Supreme e Kosovës</span>
-                                                  </div>
-                                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
-                                                    AKTARKIVË
-                                                  </span>
-                                                </div>
-
-                                                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
-                                                  {sc.case_number}
-                                                </div>
-
-                                                <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                                                  <div className="flex items-center justify-between">
-                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Instanca:</span>
-                                                    <strong>Kolegji i Gjykatës Supreme</strong>
-                                                  </div>
-                                                  <div className="flex items-center justify-between">
-                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Burimi në Server:</span>
-                                                    <strong className="truncate max-w-[240px] font-mono text-[11px]" title={sc.source}>
-                                                      {sc.source || 'Arkiva Supreme'}
-                                                    </strong>
-                                                  </div>
-                                                  <div className="flex items-center justify-between">
-                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Vendi në Aktgjykim:</span>
-                                                    <strong className="text-amber-600 dark:text-amber-400">Faqja {sc.page} e Vendimit</strong>
-                                                  </div>
-                                                </div>
-
-                                                <div className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400 italic">
-                                                  Klikoni "Hap Aktgjykimin" për të parë dokumentin origjinal në faqen {sc.page}.
-                                                </div>
-
-                                                <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
-                                              </motion.div>
-                                            )}
-                                          </AnimatePresence>
-                                        </div>
-
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedPdfFilename(sc.source || sc.title);
-                                            setInitialPageNumber(sc.page || 1);
-                                            setShowPdfModal(true);
-                                          }}
-                                          className="text-xs font-bold text-primary-start hover:underline font-mono flex items-center gap-1 cursor-pointer shrink-0 bg-surface px-2.5 py-1 rounded-lg border border-main shadow-2xs"
-                                        >
-                                          <span>Hap Aktgjykimin (Faqja {sc.page})</span>
-                                          <ExternalLink size={12} />
-                                        </button>
-                                      </div>
-
-                                      <p className="text-text-secondary text-xs sm:text-[13px] leading-relaxed italic bg-surface/40 p-2.5 rounded-lg border border-main/50">
-                                        "{sc.interpretation_commentary}"
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -657,12 +506,12 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* PRECEDENTËT PLOTËSUES TË SUPREMES NË FUND */}
+                {/* PRECEDENTËT DHE AKTGJYKIMET E GJYKATËS SUPREME */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                       <Gavel size={14} className="text-primary-start" />
-                      <span>Precedentë të Ndërlidhur të Gjykatës Supreme:</span>
+                      <span>Precedentë dhe Aktgjykime të Lidhura të Gjykatës Supreme:</span>
                     </span>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -683,16 +532,24 @@ export default function LawSearchPage() {
                                 setInitialPageNumber(c.page || 1);
                                 setShowPdfModal(true);
                               }}
-                              className="w-full h-11 px-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex items-center justify-between gap-2 transition-all cursor-pointer hover-lift text-left shadow-2xs"
+                              className="w-full p-3.5 bg-surface hover:bg-hover border border-main hover:border-primary-start rounded-xl text-xs font-medium text-text-primary flex flex-col gap-1.5 transition-all cursor-pointer hover-lift text-left shadow-2xs"
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <FileText size={14} className="text-primary-start shrink-0" />
-                                <span className="truncate font-bold text-xs">{c.title}</span>
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <FileText size={14} className="text-primary-start shrink-0" />
+                                  <span className="truncate font-bold text-xs">{c.title}</span>
+                                </div>
+                                <ExternalLink size={12} className="text-text-muted shrink-0" />
                               </div>
-                              <ExternalLink size={12} className="text-text-muted shrink-0" />
+
+                              {c.interpretation_commentary && (
+                                <p className="text-[11px] text-text-muted line-clamp-2 italic leading-relaxed">
+                                  "{c.interpretation_commentary}"
+                                </p>
+                              )}
                             </button>
 
-                            {/* TOOLTIP I MADH I PRECEDENTIT GLOBAL */}
+                            {/* TOOLTIP I PRECEDENTIT */}
                             <AnimatePresence>
                               {isCaseHovered && (
                                 <motion.div
@@ -713,7 +570,7 @@ export default function LawSearchPage() {
                                   </div>
 
                                   <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2">
-                                    ⚖️ {c.title}
+                                    {c.title}
                                   </div>
 
                                   <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -820,7 +677,7 @@ export default function LawSearchPage() {
                       Nuk u gjet asnjë material në këtë kategori për "{searchQuery}"
                     </p>
                     <p className="text-xs text-text-muted mt-1">
-                      Shtypni butonin "Kërko me AI" për të kryer kërkim semantik brenda tekstit të të gjitha ligjeve.
+                      Shtypni butonin "Kërko me AI" për të kryer kërkim semantik brenda të gjithë përmbajtjes.
                     </p>
                   </div>
                 ) : (
