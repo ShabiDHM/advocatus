@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V101.0 (CASE ANALYSIS MODAL FULLY WIPED OUT • PURE STREAMLINED VIEW)
-// ZERO TS WARNINGS • 100% COMPLETE CODE • FIXED 700px SYMMETRIC PANELS
+// PHOENIX PROTOCOL - CASE VIEW PAGE V103.0 (UNIFIED 3-WAY MOBILE NAV • ZERO REDUNDANCY)
+// ZERO TS WARNINGS • 100% COMPLETE CODE • SYMMETRIC SPLIT DESKTOP • NATIVE 3-TAB MOBILE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -13,15 +13,17 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FileText, Film, BrainCircuit } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelpers';
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
-import { EvidenceVaultPanel } from '../components/case/EvidenceVaultPanel';
+import { EvidenceVaultPanel, EvidenceSubTab } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
 
 type CaseData = { details: Case | null };
+
+type MobileMainTab = 'DOCS' | 'MEDIA' | 'CHAT';
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -40,7 +42,11 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Dritarja Modale e Auditimit të Shkresës me Gjyqtarin Suprem
+  // Tab-i i vetëm dhe i unifikuar në celular (3 Zgjedhje të pastra)
+  const [mobileTab, setMobileTab] = useState<MobileMainTab>('DOCS');
+  const [vaultSubTab, setVaultSubTab] = useState<EvidenceSubTab>('documents');
+
+  // Dritarja Modale e Auditimit
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
 
@@ -69,6 +75,8 @@ const CaseViewPage: React.FC = () => {
         return [docIdStr];
       }
     });
+    // Në telefon, kalo menjëherë te biseda për ta pyetur AI-n mbi atë shkresë
+    setMobileTab('CHAT');
   }, []);
 
   const saveToLocalStorage = useCallback((messages: ChatMessage[]) => {
@@ -319,18 +327,68 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-6 bg-canvas text-text-primary flex flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-3 sm:space-y-4 flex-1 flex flex-col">
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-2.5 sm:space-y-3.5 flex-1 flex flex-col">
         
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
         />
 
-        {/* LARTËSIA E FIKSUAR 700px ME PANELE SIMETRIKE */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 lg:gap-6 z-0 h-[700px]">
+        {/* SHIRITI I VETËM UNIFIKUAR NË CELULAR - 3 ZGJEDHJE TË PASTRA (ZERO DYFISHIM) */}
+        <div className="flex lg:hidden items-center bg-surface border border-main rounded-xl p-1 shadow-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setMobileTab('DOCS');
+              setVaultSubTab('documents');
+            }}
+            className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
+              mobileTab === 'DOCS' 
+                ? 'bg-primary-start text-white shadow-sm' 
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <FileText size={13} className="shrink-0" />
+            <span className="truncate">Dokumentet ({liveDocuments.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileTab('MEDIA');
+              setVaultSubTab('audio');
+            }}
+            className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
+              mobileTab === 'MEDIA' 
+                ? 'bg-primary-start text-white shadow-sm' 
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <Film size={13} className="shrink-0" />
+            <span className="truncate">Audio & Video</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileTab('CHAT')}
+            className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
+              mobileTab === 'CHAT' 
+                ? 'bg-primary-start text-white shadow-sm' 
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <BrainCircuit size={13} className="shrink-0" />
+            <span className="truncate">Biseda</span>
+          </button>
+        </div>
+
+        {/* PANELET E PUNËS (100% PA DYFISHIM NË CELULAR) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-6 z-0 h-[calc(100dvh-185px)] sm:h-[calc(100dvh-200px)] lg:h-[720px] max-h-[850px] items-stretch flex-1 min-h-[480px]">
           
-          {/* PANELI I MAJTË (DOKUMENTET DHE PROVAT) */}
-          <div className="lg:col-span-5 h-full overflow-y-auto flex flex-col">
+          {/* PANELI I PROVAVE: SHFAQET KUR ZGJIDHET 'DOCS' OSE 'MEDIA' */}
+          <div className={`lg:col-span-5 h-full overflow-y-auto flex-col ${
+            mobileTab === 'DOCS' || mobileTab === 'MEDIA' ? 'flex' : 'hidden lg:flex'
+          }`}>
             <EvidenceVaultPanel
               caseId={caseData.details.id}
               documents={liveDocuments}
@@ -343,12 +401,16 @@ const CaseViewPage: React.FC = () => {
               onVerifyDocumentLaws={handleVerifyDocumentLaws}
               selectedDocumentId={selectedDocObj ? String(selectedDocObj.id) : ''}
               onSelectDocument={handleSelectDocument}
+              activeSubTab={vaultSubTab}
+              onSubTabChange={setVaultSubTab}
               t={t}
             />
           </div>
 
-          {/* PANELI I DJATHTË (CHAT DIREKT ME CLAUDE / GPT) */}
-          <div className="lg:col-span-7 flex flex-col bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative h-full">
+          {/* PANELI I BISEDËS: SHFAQET KUR ZGJIDHET 'CHAT' */}
+          <div className={`lg:col-span-7 flex-col bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative h-full ${
+            mobileTab === 'CHAT' ? 'flex' : 'hidden lg:flex'
+          }`}>
             <ChatPanel
               messages={chatMessages}
               connectionStatus={connectionStatus}
