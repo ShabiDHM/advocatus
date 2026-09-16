@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V7.0 (VOICE PARSING + TRANSCRIPTION ENDPOINTS)
+# PHOENIX PROTOCOL - CALENDAR API V8.0 (VOICE ERROR GUARD)
 from fastapi import APIRouter, Depends, status, HTTPException, Response, Body, UploadFile, File, Form
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
@@ -40,6 +40,25 @@ class BriefingResponse(BaseModel):
 
 class VoiceParseRequest(BaseModel):
     text: str
+
+
+# Prefiksat e njohura të error-it nga transcription_service
+TRANSCRIPTION_ERROR_PREFIXES = (
+    "[Gabim gjatë transkriptimit:",
+    "[Nuk u detektua",
+    "[Zëri nuk mund të transkriptohej",
+)
+
+
+def _is_transcription_error(text: str) -> bool:
+    """Kontrollon nëse teksti i transkriptimit është error, jo tekst i vlefshëm."""
+    if not text or not text.strip():
+        return True
+    cleaned = text.strip()
+    for prefix in TRANSCRIPTION_ERROR_PREFIXES:
+        if cleaned.startswith(prefix):
+            return True
+    return False
 
 
 @router.get("/alerts", response_model=BriefingResponse)
@@ -133,7 +152,12 @@ async def parse_voice_text(
     if len(text) > 5000:
         raise HTTPException(status_code=400, detail="Teksti është shumë i gjatë (max 5000 karaktere).")
     
-    # Merr titujt e rasteve të përdoruesit për kontekst
+    if _is_transcription_error(text):
+        raise HTTPException(
+            status_code=422,
+            detail="Teksti i dhënë nuk përmban përmbajtje të vlefshme për analizë."
+        )
+    
     try:
         user_cases = list(db.cases.find(
             {"owner_id": current_user.id},
@@ -167,21 +191,14 @@ async def transcribe_voice_and_parse(
 ):
     """
     Merr një audio file, e transkripton me AssemblyAI, dhe e parse-on në një event të strukturuar.
-    Procesi:
-      1. Ruaj audio në temp
-      2. Transkripto me transcription_service
-      3. Parse me calendar_service.parse_voice_text_to_event
-      4. Kthe {text, parsed}
     """
     raw_bytes = await file.read()
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Skedari audio është i zbrazët.")
     
-    # Limiti 20MB për audio voice memo
     if len(raw_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Skedari audio është mbi 20 MB.")
     
-    # Ruaj në temp
     original_filename = file.filename or "voice.webm"
     ext = os.path.splitext(original_filename)[1].lower() or ".webm"
     if ext not in [".webm", ".mp3", ".wav", ".m4a", ".ogg", ".aac", ".opus", ".flac"]:
@@ -200,29 +217,33 @@ async def transcribe_voice_and_parse(
     
     transcription_text = ""
     try:
-        # 1. Transkripto
         transcription_text = await asyncio.to_thread(
             transcription_service.transcribe,
             temp_path
         )
     except Exception as e:
-        logger.error(f"❌ Voice transcription failed: {e}")
+        logger.error(f"❌ Voice transcription exception: {e}")
         transcription_text = ""
     finally:
         if os.path.exists(temp_path):
             try: os.remove(temp_path)
             except Exception: pass
     
+    # FIX: Kontroll i plotë për error strings
     if not transcription_text or not transcription_text.strip():
         raise HTTPException(
             status_code=422,
             detail="Transkriptimi dështoi ose nuk u detektua zë i kuptueshëm."
         )
     
-    if transcription_text.startswith("[") and "Nuk u detektua" in transcription_text:
-        raise HTTPException(status_code=422, detail=transcription_text)
+    if _is_transcription_error(transcription_text):
+        clean_error = transcription_text.strip().strip("[]").strip()
+        logger.error(f"❌ Voice transcription returned error: {clean_error}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Transkriptimi dështoi. {clean_error}"
+        )
     
-    # 2. Parse
     try:
         user_cases = list(db.cases.find(
             {"owner_id": current_user.id},
