@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V8.0 (AUDIT PERSISTENCE METHODS)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V9.0 (DOSSIER AUDIT PERSISTENCE)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • 3 PURE EVIDENCE LABS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -30,6 +30,8 @@ export interface ForensicDossier {
   chainOfCustodyHash: string;
   isSealed: boolean;
   status: 'ACTIVE' | 'ARCHIVED' | 'DISPATCHED';
+  latest_dossier_analysis?: string;
+  last_dossier_audited_at?: string;
 }
 
 export interface ForensicMediaItem {
@@ -176,7 +178,9 @@ export class ForensicDeskService {
           updatedAt: d.updated_at,
           chainOfCustodyHash: hash,
           isSealed: !!d.is_sealed,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          latest_dossier_analysis: d.latest_dossier_analysis,
+          last_dossier_audited_at: d.last_dossier_audited_at
         };
       });
 
@@ -260,6 +264,29 @@ export class ForensicDeskService {
 
   public async deleteDossier(caseId: string): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/dossiers/${caseId}`);
+  }
+
+  // ==========================================================
+  // 1.1. AUDITIMI DOKTRINAR I FASHIKULLIT (MULTI-DEVICE SYNC)
+  // ==========================================================
+  public async saveForensicDossierAudit(caseId: string, content: string): Promise<any> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/dossiers/${caseId}/audit`,
+      { content }
+    );
+    return response.data;
+  }
+
+  public async clearForensicDossierAudit(caseId: string): Promise<any> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/dossiers/${caseId}/clear-audit`
+    );
+    return response.data;
+  }
+
+  public async getForensicDossier(caseId: string): Promise<any> {
+    const response = await apiClient.get(`${this.baseUrl}/dossiers/${caseId}`);
+    return response.data;
   }
 
   // ==========================================================

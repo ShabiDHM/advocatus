@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V21.0 (FORENSIC AUDIT MODAL WIRED)
+// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V22.0 (DYNAMIC DOCUMENT/DOSSIER AUDIT)
 // ZERO TS WARNINGS • POWERED BY DEEPSEEK • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -39,6 +39,7 @@ import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 import PDFViewerModal from '../FileViewerModal';
 import { RenameDocumentModal } from '../case/RenameDocumentModal';
 import { ForensicDocumentAuditModal } from './ForensicDocumentAuditModal';
+import { ForensicDossierAuditModal } from './ForensicDossierAuditModal';
 import { API_V1_URL } from '../../services/api';
 import { apiClient } from '../../services/apiClient';
 
@@ -407,9 +408,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [renameDocName, setRenameDocName] = useState<string>('');
   const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
 
-  // Audit Modal i Forenzikës
+  // Audit Modals — DY: Dokument + Fashikull
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<ForensicDocItem | null>(null);
+  const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
@@ -786,17 +788,24 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // BUTONI "Analizo Dokumentin" — HAP MODALIN E AUDITIMIT FORENZIK
+  // BUTONI DINAMIK: "Analizo Dokumentin" (me dokument) / "Analizo Fashikullin" (pa dokument)
   const handleQuickAction = () => {
     if (isProcessing) return;
 
-    if (!activeDoc) {
-      alert("Ju lutem klikoni mbi një shkresë në listën majtas për ta analizuar. Për të biseduar me fashikullin e plotë, shkruani pyetjen tuaj në chat.");
+    // KASO 1: Ka dokument të selektuar → Hap modalin e auditimit të shkresës
+    if (activeDoc) {
+      setCurrentAuditedDoc(activeDoc);
+      setIsAuditModalOpen(true);
       return;
     }
 
-    setCurrentAuditedDoc(activeDoc);
-    setIsAuditModalOpen(true);
+    // KASO 2: Pa dokument → Hap modalin e doktrinës forenzike të fashikullit
+    if (documents.length === 0) {
+      alert("Nuk ka shkresa të administruara në këtë fashikull. Ngarkoni shkresat së pari.");
+      return;
+    }
+
+    setIsDossierAuditModalOpen(true);
   };
 
   const handleClearChat = async () => {
@@ -1130,16 +1139,29 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
             {/* BUTONAT E VEPRIMIT NË HEADER */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               
+              {/* BUTONI DINAMIK: Dokument (me selektim) / Fashikull (pa selektim) */}
               <button
                 type="button"
                 onClick={handleQuickAction}
                 disabled={isProcessing}
                 className="h-7 px-2 sm:px-2.5 bg-primary-start hover:brightness-110 text-white rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer disabled:opacity-40"
-                title={activeDoc ? `Analizo shkresën: ${activeDoc.file_name}` : 'Klikoni një shkresë për ta analizuar'}
+                title={
+                  activeDoc
+                    ? `Analizo shkresën: ${activeDoc.file_name}`
+                    : `Fillo doktrinën forenzike të fashikullit të plotë (${documents.length} shkresa)`
+                }
               >
-                <Sparkles size={11} className={isProcessing ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">Analizo Dokumentin</span>
-                <span className="sm:hidden">Analizo</span>
+                {activeDoc ? (
+                  <FileText size={11} className="shrink-0" />
+                ) : (
+                  <Sparkles size={11} className="shrink-0" />
+                )}
+                <span className="hidden sm:inline">
+                  {activeDoc ? 'Analizo Dokumentin' : 'Analizo Fashikullin'}
+                </span>
+                <span className="sm:hidden">
+                  {activeDoc ? 'Analizo' : 'Fashikull'}
+                </span>
               </button>
 
               <div className="hidden xs:flex items-center gap-0.5 rounded-lg border border-main bg-surface p-0.5">
@@ -1207,7 +1229,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                     {activeDoc ? (
                       <span>Jeni duke analizuar shkresën <strong className="text-primary-start">{activeDoc.file_name}</strong>. Shtroni pyetje më poshtë.</span>
                     ) : (
-                      <span>Fashikulli me të gjitha <strong>{documents.length} shkresat</strong> është gati për pyetësim dhe kryqëzim.</span>
+                      <span>Fashikulli me të gjitha <strong>{documents.length} shkresat</strong> është gati për pyetësim dhe kryqëzim. Ose klikoni <strong className="text-primary-start">"Analizo Fashikullin"</strong> për një doktrinë forenzike të plotë.</span>
                     )}
                   </p>
                 </div>
@@ -1400,6 +1422,16 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         documentId={String(activeDoc?.id || currentAuditedDoc?.id || '')}
         documentName={activeDoc?.file_name || currentAuditedDoc?.file_name || 'Dokument'}
         clientName={clientName}
+      />
+
+      {/* Modali i Doktrinës Forenzike të Fashikullit */}
+      <ForensicDossierAuditModal
+        isOpen={isDossierAuditModalOpen}
+        onClose={() => setIsDossierAuditModalOpen(false)}
+        caseId={caseId}
+        caseName={caseNumber}
+        clientName={clientName}
+        documentCount={documents.length}
       />
     </div>
   );

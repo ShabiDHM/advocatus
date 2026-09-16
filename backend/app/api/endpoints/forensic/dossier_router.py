@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/dossier_router.py
-# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V2.0 (FULL METADATA PERSISTENCE & EDIT ENDPOINT)
+# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V3.0 (DOSSIER-LEVEL AUDIT PERSISTENCE)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED • PHONE & EMAIL SYNC
 
 import logging
@@ -44,6 +44,9 @@ class ForensicDossierUpdate(BaseModel):
 class SealCustodyRequest(BaseModel):
     action_note: str = "Vulosje e Provave Materiale"
     evidence_ids: List[str] = Field(default_factory=list)
+
+class ForensicDossierAuditPayload(BaseModel):
+    content: str = Field(..., description="Përmbajtja e plotë e auditimit doktrinar të fashikullit")
 
 # ==========================================================
 # 1. KRIJIMI I DOSJES FORENZIKE ME METADATA TË PLOTA
@@ -157,6 +160,118 @@ def get_forensic_dossier(
 
     dossier["_id"] = str(dossier["_id"])
     return dossier
+
+# ==========================================================
+# 3.1. AUDITIMI DOKTRINAR I FASHIKULLIT — PERSISTENCE (MULTI-DEVICE SYNC)
+# ==========================================================
+@router.post("/dossiers/{case_id}/audit", status_code=status.HTTP_200_OK)
+def save_forensic_dossier_audit(
+    case_id: str,
+    payload: ForensicDossierAuditPayload,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Ruan auditimin doktrinar të fashikullit forenzik në MongoDB.
+    Provon së pari koleksionin `forensic_dossiers`, pastaj `cases` si fallback.
+    """
+    user_id = str(current_user.id)
+    content = (payload.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Përmbajtja e auditimit nuk mund të jetë e zbrazët.")
+
+    target_coll = FORENSIC_DOSSIERS_COLLECTION
+    try:
+        query = {"_id": ObjectId(case_id)}
+    except Exception:
+        query = {"_id": case_id}
+
+    dossier = db[FORENSIC_DOSSIERS_COLLECTION].find_one(query)
+    if not dossier:
+        dossier = db["cases"].find_one(query)
+        target_coll = "cases"
+
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Dosja forenzike nuk u gjet.")
+
+    now = datetime.now(timezone.utc)
+    db[target_coll].update_one(
+        {"_id": dossier["_id"]},
+        {"$set": {
+            "latest_dossier_analysis": content,
+            "last_dossier_audited_at": now,
+            "updated_at": now
+        }}
+    )
+
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id,
+        action="DOSSIER_AUDIT_SAVED",
+        details={
+            "content_length": len(content),
+            "target_collection": target_coll
+        }
+    )
+
+    logger.info(f"🧠 [FORENSIC DOSSIER AUDIT SAVED] {case_id} → {target_coll} — {len(content)} karaktere")
+
+    return {
+        "status": "success",
+        "case_id": case_id,
+        "saved_at": now.isoformat(),
+        "length": len(content),
+        "collection": target_coll
+    }
+
+@router.post("/dossiers/{case_id}/clear-audit", status_code=status.HTTP_200_OK)
+@router.delete("/dossiers/{case_id}/clear-audit", status_code=status.HTTP_200_OK)
+def clear_forensic_dossier_audit(
+    case_id: str,
+    current_user: UserInDB = Depends(get_current_forensic_user),
+    db: Database = Depends(get_db)
+):
+    """
+    Fshin auditimin e ruajtur të fashikullit forenzik nga të dyja koleksionet e mundshme.
+    """
+    user_id = str(current_user.id)
+    try:
+        query = {"_id": ObjectId(case_id)}
+    except Exception:
+        query = {"_id": case_id}
+
+    target_coll = FORENSIC_DOSSIERS_COLLECTION
+    dossier = db[FORENSIC_DOSSIERS_COLLECTION].find_one(query)
+    if not dossier:
+        dossier = db["cases"].find_one(query)
+        target_coll = "cases"
+
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Dosja forenzike nuk u gjet.")
+
+    db[target_coll].update_one(
+        {"_id": dossier["_id"]},
+        {"$unset": {
+            "latest_dossier_analysis": "",
+            "last_dossier_audited_at": ""
+        }}
+    )
+
+    log_forensic_action(
+        db=db,
+        user_id=user_id,
+        case_id=case_id,
+        action="DOSSIER_AUDIT_CLEARED",
+        details={"target_collection": target_coll}
+    )
+
+    return {
+        "status": "success",
+        "message": "Auditimi i fashikullit forenzik u fshi plotësisht.",
+        "case_id": case_id,
+        "collection": target_coll
+    }
 
 # ==========================================================
 # 4. EDITIMI DHE PËRDITËSIMI I TË DHËNAVE TË DOSJES (PUT)
