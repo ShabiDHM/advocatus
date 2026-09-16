@@ -1,10 +1,10 @@
 // FILE: src/components/calendar/EventDetailModal.tsx
-// PHOENIX PROTOCOL - EVENT DETAIL MODAL V3.0 (STATUS ACTIONS WIRED)
+// PHOENIX PROTOCOL - EVENT DETAIL MODAL V5.0 (CUSTOM CONFIRM MODAL + CROSS-PAGE SYNC)
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import { Clock, MapPin, XCircle, Check, CheckCircle2, Ban, Loader2 } from 'lucide-react';
+import { Clock, MapPin, XCircle, Check, CheckCircle2, Ban, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CalendarEvent } from '../../data/types';
 import { apiService } from '../../services/api';
@@ -25,11 +25,21 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   CANCELLED: { label: 'Anuluar',      className: 'bg-danger-start/15 text-danger-start border-danger-start/30' },
 };
 
+// Helper për të njoftuar të gjitha faqet për ndryshime në kalendar
+export function broadcastCalendarChange(action: 'created' | 'updated' | 'deleted', eventId?: string) {
+  try {
+    window.dispatchEvent(new CustomEvent('calendar:event-changed', {
+      detail: { action, eventId, timestamp: Date.now() }
+    }));
+  } catch { /* ignore */ }
+}
+
 export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language] || enUS;
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useLockBodyScroll(true);
 
@@ -45,6 +55,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClo
     setIsUpdating(true);
     try {
       await apiService.updateCalendarEvent(eventId, { status: newStatus } as any);
+      broadcastCalendarChange('updated', eventId);
       onUpdate();
       onClose();
     } catch (error: any) {
@@ -54,19 +65,19 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClo
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm(t('calendar.detailModal.deleteConfirm') as string)) return;
+  const confirmDelete = async () => {
     const eventId = getEventId(event);
     if (!eventId) return;
     setIsDeleting(true);
     try {
       await apiService.deleteCalendarEvent(eventId);
+      broadcastCalendarChange('deleted', eventId);
       onUpdate();
       onClose();
     } catch (error: any) {
       alert(error.response?.data?.message || t('calendar.detailModal.deleteFailed'));
-    } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -108,7 +119,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClo
           <button
             onClick={onClose}
             className="flex items-center justify-center w-11 h-11 rounded-xl text-text-muted hover:text-text-primary hover:bg-hover transition-colors focus:outline-none"
-            aria-label="Close details"
+            aria-label="Mbyll detajet"
           >
             <XCircle className="h-6 w-6" />
           </button>
@@ -149,7 +160,6 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClo
         </div>
 
         <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-main shrink-0">
-          {/* STATUS ACTIONS ROW */}
           {eventStatus && (
             <div className="flex flex-wrap gap-2">
               {eventStatus !== 'CONFIRMED' && eventStatus !== 'COMPLETED' && eventStatus !== 'CANCELLED' && (
@@ -182,33 +192,91 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClo
                   className="flex-1 min-w-[140px] h-11 px-4 rounded-xl bg-danger-start/10 hover:bg-danger-start/20 text-danger-start border border-danger-start/30 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
                 >
                   {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
-                  Anulo
+                  Shëno si Anuluar
                 </button>
               )}
             </div>
           )}
 
-          {/* BOTTOM ROW: Cancel / Delete */}
           <div className="flex flex-col-reverse sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-colors focus:outline-none"
+              className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-colors focus:outline-none cursor-pointer"
             >
-              {t('general.cancel', 'Mbyll')}
+              Mbyll
             </button>
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={busy}
-              className="w-full sm:w-auto px-6 h-11 bg-danger-start/10 hover:bg-danger-start/20 text-danger-start border border-danger-start/20 rounded-xl font-bold text-sm transition focus:outline-none disabled:opacity-50"
+              className="w-full sm:w-auto px-6 h-11 bg-danger-start/10 hover:bg-danger-start/20 text-danger-start border border-danger-start/20 rounded-xl font-bold text-sm transition focus:outline-none disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
             >
-              {isDeleting ? <Loader2 size={14} className="animate-spin mr-2 inline" /> : null}
+              <Trash2 size={14} />
               Fshij
             </button>
           </div>
         </div>
       </motion.div>
+
+      {/* CUSTOM DELETE CONFIRM MODAL */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-[2100]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 12 }}
+              className="w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl border border-danger-start/30 bg-card flex flex-col items-center text-center gap-5"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-danger-start/10 border border-danger-start/30 flex items-center justify-center">
+                <Trash2 size={28} className="text-danger-start" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-black text-text-primary uppercase tracking-tight">
+                  Fshij {event.category === 'FACT' ? 'Memoin' : 'Event-in'}?
+                </h3>
+                <p className="text-sm font-bold text-text-primary px-2 leading-snug">
+                  "{event.title}"
+                </p>
+                {event.start_date && (
+                  <p className="text-xs text-text-muted font-mono">
+                    {formatEventDate(event.start_date)}
+                  </p>
+                )}
+              </div>
+
+              <div className="w-full bg-danger-start/5 border border-danger-start/20 rounded-xl p-3 flex items-start gap-3">
+                <AlertTriangle size={16} className="text-danger-start shrink-0 mt-0.5" />
+                <p className="text-[11px] text-danger-start font-bold leading-snug text-left">
+                  Ky veprim është i pakthyeshëm. Event-i do të fshihet përgjithmonë nga serveri dhe nga të gjitha pajisjet.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="flex-1 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-hover border border-main transition-colors focus:outline-none disabled:opacity-50 cursor-pointer"
+                >
+                  Anulo
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 h-11 rounded-xl bg-danger-start hover:bg-danger-start/90 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-danger-start/30 active:scale-95 transition-all focus:outline-none disabled:opacity-50 cursor-pointer"
+                >
+                  {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  Po, Fshije
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

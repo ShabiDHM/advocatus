@@ -1,5 +1,5 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE V4.0 (COMPACT MOBILE CONTROLS + MONTH DEFAULT)
+// PHOENIX PROTOCOL - CALENDAR PAGE V4.1 (COMPACT MOBILE + CROSS-PAGE SYNC)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
@@ -88,6 +88,13 @@ const CalendarPage: React.FC = () => {
       loadData(false);
     }, 30000);
     return () => clearInterval(interval);
+  }, [loadData]);
+
+  // Cross-page sync: rifresko kur një event ndryshon në ndonjë faqe tjetër
+  useEffect(() => {
+    const handler = () => loadData(false);
+    window.addEventListener('calendar:event-changed', handler);
+    return () => window.removeEventListener('calendar:event-changed', handler);
   }, [loadData]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
