@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V15.0 (STRICT DOCUMENT-SCOPED FILTER)
+# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V16.0 (AUDIT TRAIL PURGED)
 # 100% COMPLETE CODE • ZERO HARDCODED TEMPLATES • PURE NATURAL REASONING • FULL 31-DOC CONTEXT
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,7 +17,6 @@ from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
 from app.services.forensic.forensic_llm_service import call_forensic_llm_chat, stream_forensic_llm_chat_async
 from app.services.forensic.forensic_hallucination_filter import audit_citations
-from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.vector_store_service import query_case_knowledge_base, query_global_knowledge_base
 
 router = APIRouter()
@@ -341,17 +340,6 @@ async def stream_forensic_chat_message(
                 except Exception as save_err:
                     logger.error(f"❌ Dështoi ruajtja në MongoDB: {save_err}")
 
-                try:
-                    log_forensic_action(
-                        db=db,
-                        user_id=user_id,
-                        case_id=case_id_str,
-                        action="FORENSIC_INTERROGATION_QUERY",
-                        details={"query_preview": payload.message[:100], "streaming": True}
-                    )
-                except Exception:
-                    pass
-
     return StreamingResponse(
         generate(),
         media_type="text/plain; charset=utf-8",
@@ -384,14 +372,6 @@ def clear_forensic_chat_history(
         )
     except Exception as unset_err:
         logger.warning(f"Case unset warning: {unset_err}")
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id_str,
-        action="FORENSIC_CHAT_TOTAL_CASCADE_WIPEOUT",
-        details={"deleted_messages_count": del_result.deleted_count}
-    )
 
     return {
         "status": "success",

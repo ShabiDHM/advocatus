@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/audio_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.4 (APPEAR AS DOCUMENT + CASCADE)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED AUDIO ROUTER V1.5 (AUDIT TRAIL PURGED)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -19,7 +19,6 @@ from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
-from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_audio_service import process_audio_file
 from app.services.forensic.forensic_media_processing_service import process_audio_media_background
 
@@ -117,18 +116,6 @@ async def upload_forensic_audio(
     # Trigger background processing
     background_tasks.add_task(process_audio_media_background, db, media_id_str)
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="AUDIO_EVIDENCE_ACQUIRED",
-        details={
-            "filename": filename,
-            "sha256": evidence_sha256,
-            "custody_hash": custody_stamp["custody_hash"]
-        }
-    )
-
     media_doc["_id"] = result.inserted_id
     return _serialize_media(media_doc)
 
@@ -202,7 +189,7 @@ def stream_forensic_audio(
     )
 
 # ==========================================================
-# 4. FSHIRJA E AUDIOS ME AUDIT TRAIL DHE CASCADE
+# 4. FSHIRJA E AUDIOS ME CASCADE
 # ==========================================================
 @router.delete("/{case_id}/{media_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_audio(
@@ -235,14 +222,6 @@ def delete_forensic_audio(
     # ✅ Fshij edhe nga forensic_documents
     db[FORENSIC_DOCS_COLLECTION].delete_many({"media_id": media_id, "case_id": str(case_id)})
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="AUDIO_EVIDENCE_PURGED",
-        details={"file_name": doc.get("file_name", "")}
-    )
-
     return {"status": "success", "message": "Prova audio u asgjësua nga laboratori forenzik."}
 
 # ==========================================================
@@ -264,17 +243,6 @@ async def analyze_audio_forensics(
     result = process_audio_file(
         audio_bytes=raw_bytes,
         case_context=case_context
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="AUDIO_EXPERT_ANALYSIS_EXECUTED",
-        details={
-            "file_name": file.filename,
-            "threat_level": result.get("forensic_intelligence", {}).get("threat_level", "N/A")
-        }
     )
 
     return {"success": True, "file_name": file.filename, "data": result}
@@ -305,14 +273,6 @@ async def get_pure_audio_transcript(
     try:
         result = await video_service.analyze_video_evidence_async(temp_path, file.filename or "audio")
         pure_text = result.get("transcription", "[Zëri nuk mund të transkriptohej.]")
-        
-        log_forensic_action(
-            db=db,
-            user_id=str(current_user.id),
-            case_id=case_id,
-            action="PURE_TRANSCRIPT_GENERATED",
-            details={"file_name": file.filename}
-        )
         
         return {"success": True, "data": pure_text}
     except Exception as e:

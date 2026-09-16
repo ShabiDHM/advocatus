@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V105.0 (DOCUMENT-ONLY AUDIT BUTTON • FREE CHAT = FULL DOSSIER)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V106.0 (DYNAMIC DOSSIER/DOCUMENT AUDIT)
 // ZERO TS WARNINGS • 100% COMPLETE CODE • SYMMETRIC SPLIT DESKTOP • NATIVE 3-TAB MOBILE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -20,6 +20,7 @@ import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel, EvidenceSubTab } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
 import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
+import { CaseDossierAuditModal } from '../components/case/CaseDossierAuditModal';
 
 type CaseData = { details: Case | null };
 
@@ -49,6 +50,9 @@ const CaseViewPage: React.FC = () => {
   // Dritarja Modale e Auditimit
   const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
   const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
+
+  // Dritarja Modale e Doktrinës së Fashikullit
+  const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -290,14 +294,22 @@ const CaseViewPage: React.FC = () => {
     setIsDocAuditModalOpen(true);
   }, [caseId]);
 
-  // BUTONI "Analizo" vepron VETËM mbi dokumentin e selektuar (jo fashikull)
+  // BUTONI DINAMIK: "Analizo Dokumentin" (me dokument) / "Analizo Fashikullin" (pa dokument)
   const handleTriggerSelectedDocAudit = useCallback(() => {
-    if (!selectedDocObj) {
-      alert("Ju lutem klikoni mbi një shkresë në listën majtas për ta analizuar. Për të biseduar me fashikullin e plotë, shkruani pyetjen tuaj në chat.");
+    // KASO 1: Ka dokument të selektuar → Hap modalin e auditimit të shkresës
+    if (selectedDocObj) {
+      handleVerifyDocumentLaws(selectedDocObj);
       return;
     }
-    handleVerifyDocumentLaws(selectedDocObj);
-  }, [selectedDocObj, handleVerifyDocumentLaws]);
+
+    // KASO 2: Pa dokument → Hap modalin e doktrinës së fashikullit
+    if (liveDocuments.length === 0) {
+      alert("Nuk ka shkresa të administruara në këtë lëndë. Ngarkoni shkresat së pari.");
+      return;
+    }
+
+    setIsDossierAuditModalOpen(true);
+  }, [selectedDocObj, liveDocuments.length, handleVerifyDocumentLaws]);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -458,6 +470,15 @@ const CaseViewPage: React.FC = () => {
         documentId={String(selectedDocObj?.id || currentAuditedDoc?.id || '')}
         documentName={selectedDocObj?.file_name || currentAuditedDoc?.file_name || 'Dokument'}
         clientName={clientName}
+      />
+
+      <CaseDossierAuditModal
+        isOpen={isDossierAuditModalOpen}
+        onClose={() => setIsDossierAuditModalOpen(false)}
+        caseId={currentCaseId}
+        caseName={(caseData.details as any)?.title || 'Fashikulli i Lëndës'}
+        clientName={clientName}
+        documentCount={liveDocuments.length}
       />
     </motion.div>
   );

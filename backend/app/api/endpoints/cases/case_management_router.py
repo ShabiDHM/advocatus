@@ -1,15 +1,16 @@
 # FILE: backend/app/api/endpoints/cases/case_management_router.py
-# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V18.0 (LEGACY PILLARS & CASE ANALYSIS FULLY PURGED)
+# PHOENIX PROTOCOL - CASE MANAGEMENT ROUTER V19.0 (DOSSIER-LEVEL AUDIT PERSISTENCE)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • LEAN CASE MANAGEMENT
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Dict, Any, Optional
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from pymongo.database import Database
+from bson import ObjectId
+from pydantic import BaseModel, Field
 import asyncio
 import logging
 from datetime import datetime, timezone
-from bson import ObjectId
 
 from app.services import case_service, storage_service
 from app.models.case import CaseCreate, CaseOut
@@ -19,6 +20,9 @@ from app.api.endpoints.cases.cases_helpers import validate_object_id, ChatHistor
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+class CaseDossierAuditPayload(BaseModel):
+    content: str = Field(..., description="Përmbajtja e plotë e doktrinës forenzike të fashikullit")
 
 # =========================================================================
 # 🌐 1. PUBLIC CLIENT PORTAL ENDPOINTS
@@ -198,6 +202,94 @@ async def update_case_chat_history(
         {"$set": {"chat_history": chat_history_dicts}}
     )
     return {"status": "success", "message": "Chat history saved"}
+
+# =========================================================================
+# 📜 2.1. DOKTRINA FORENZIKE E FASHIKULLIT — PERSISTENCE (MULTI-DEVICE SYNC)
+# =========================================================================
+
+@router.post("/{case_id}/audit", status_code=status.HTTP_200_OK)
+async def save_case_dossier_audit(
+    case_id: str,
+    payload: CaseDossierAuditPayload,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Ruan doktrinën forenzike të fashikullit në MongoDB (koleksioni `cases`).
+    """
+    case_oid = validate_object_id(case_id)
+    content = (payload.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Përmbajtja e doktrinës nuk mund të jetë e zbrazët.")
+
+    case = await asyncio.to_thread(
+        case_service.get_case_by_id,
+        db=db,
+        case_id=case_oid,
+        owner=current_user
+    )
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
+
+    now = datetime.now(timezone.utc)
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$set": {
+            "latest_dossier_analysis": content,
+            "last_dossier_audited_at": now,
+            "updated_at": now
+        }}
+    )
+
+    logger.info(f"🧠 [CASE DOSSIER AUDIT SAVED] Lënda {case_id} — {len(content)} karaktere")
+
+    return {
+        "status": "success",
+        "case_id": case_id,
+        "saved_at": now.isoformat(),
+        "length": len(content)
+    }
+
+@router.post("/{case_id}/clear-audit", status_code=status.HTTP_200_OK)
+@router.delete("/{case_id}/clear-audit", status_code=status.HTTP_200_OK)
+async def clear_case_dossier_audit(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Fshin doktrinën forenzike të ruajtur të fashikullit nga MongoDB.
+    """
+    case_oid = validate_object_id(case_id)
+
+    case = await asyncio.to_thread(
+        case_service.get_case_by_id,
+        db=db,
+        case_id=case_oid,
+        owner=current_user
+    )
+    if not case:
+        raise HTTPException(status_code=404, detail="Lënda nuk u gjet ose nuk keni autorizim.")
+
+    await asyncio.to_thread(
+        db.cases.update_one,
+        {"_id": case_oid},
+        {"$unset": {
+            "latest_dossier_analysis": "",
+            "last_dossier_audited_at": ""
+        }}
+    )
+
+    return {
+        "status": "success",
+        "message": "Doktrina forenzike e fashikullit u fshi plotësisht.",
+        "case_id": case_id
+    }
+
+# =========================================================================
+# 🗑️ 3. DELETE CASE
+# =========================================================================
 
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(

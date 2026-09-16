@@ -1,9 +1,9 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V36.0 (DOCUMENT-ONLY AUDIT BUTTON • ZERO DYNAMIC DOSSIER)
+// PHOENIX PROTOCOL - CHAT HEADER V37.0 (DYNAMIC DOSSIER/DOCUMENT LABEL)
 // ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • 100% COMPLETE CODE
 
 import React from 'react';
-import { Download, Trash2, FileText, Maximize2, Minimize2 } from 'lucide-react';
+import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles } from 'lucide-react';
 import { TFunction } from 'i18next';
 
 interface ChatHeaderProps {
@@ -31,6 +31,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isFullscreen = false,
   onToggleFullscreen,
 }) => {
+  const hasSelectedDoc = !!selectedDocName && selectedDocName.trim().length > 0;
+
   return (
     <div className="flex flex-row items-center justify-between px-3 sm:px-5 py-2.5 border-b border-main bg-surface z-30 shrink-0 h-13 min-h-[52px] w-full gap-2 select-none shadow-xs">
       {/* 1. MAJTAS: Drita LED e Statusit dhe Emri i Dokumentit Aktiv */}
@@ -55,20 +57,32 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
 
-      {/* 2. DJATHTAS: Butoni 'Analizo Dokumentin', Ikona Zgjero/Zvogëlo, Eksporti dhe Koshi */}
+      {/* 2. DJATHTAS: Butoni dinamik 'Analizo', Ikona Zgjero/Zvogëlo, Eksporti dhe Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
         
-        {/* Butoni: Analizo Dokumentin (VETËM për dokumentin e selektuar) */}
+        {/* Butoni Dinamik: Analizo Fashikullin (pa selektim) / Analizo Dokumentin (me selektim) */}
         {onAnalyzeDocument && (
           <button
             type="button"
             onClick={onAnalyzeDocument}
             className="h-8 px-2.5 sm:px-3.5 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all whitespace-nowrap focus:outline-none bg-surface hover:bg-hover text-primary-start hover:text-primary-end border border-main hover:border-primary-start/40 cursor-pointer mr-1"
-            title={selectedDocName ? `Kryej pasqyrën e shkresës: ${selectedDocName}` : 'Klikoni mbi një shkresë në listën majtas për ta analizuar'}
+            title={
+              hasSelectedDoc
+                ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
+                : `Kryej doktrinën e fashikullit të plotë (të gjitha shkresat)`
+            }
           >
-            <FileText size={12} className="shrink-0 text-primary-start" />
-            <span className="hidden sm:inline">Analizo Dokumentin</span>
-            <span className="sm:hidden">Analizo</span>
+            {hasSelectedDoc ? (
+              <FileText size={12} className="shrink-0 text-primary-start" />
+            ) : (
+              <Sparkles size={12} className="shrink-0 text-primary-start" />
+            )}
+            <span className="hidden sm:inline">
+              {hasSelectedDoc ? 'Analizo Dokumentin' : 'Analizo Fashikullin'}
+            </span>
+            <span className="sm:hidden">
+              {hasSelectedDoc ? 'Analizo' : 'Fashikull'}
+            </span>
           </button>
         )}
 

@@ -1,5 +1,5 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V15.0 (UNIFIED PILLARS, DIRTY STATE & STANDARD SUMMARY SUPPORT)
+# PHOENIX PROTOCOL - CASE MODEL V16.0 (DOSSIER-LEVEL AUDIT PERSISTENCE)
 # 100% COMPLETE CODE • ZERO 500 ERRORS • PYDANTIC V2 COMPLIANT • MONGO ATLAS SYNC
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -86,6 +86,10 @@ class CaseInDB(CaseBase):
     latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
     
+    # PHOENIX DOSSIER: Doktrina Forenzike e Fashikullit të Plotë
+    latest_dossier_analysis: Optional[str] = None
+    last_dossier_audited_at: Optional[Union[datetime, str]] = None
+    
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: List[str] = []
 
@@ -112,6 +116,10 @@ class CaseOut(CaseBase):
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
+    
+    # PHOENIX DOSSIER: Doktrina Forenzike e Fashikullit të Plotë
+    latest_dossier_analysis: Optional[str] = None
+    last_dossier_audited_at: Optional[Union[datetime, str]] = None
     
     analyzed_doc_ids: Optional[List[str]] = None
     assigned_user_ids: Optional[List[str]] = []

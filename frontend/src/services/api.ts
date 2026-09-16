@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V63.0 (AUDIT PERSISTENCE WIRED • ZERO TS ERRORS)
+// PHOENIX PROTOCOL - MASTER API FACADE V64.0 (CASE DOSSIER AUDIT WIRED)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • LEAN API FACADE
 
 export * from './apiClient';
@@ -93,6 +93,14 @@ class ApiService {
   };
   public clearDocumentAudit = async (caseId: string, documentId: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
+  };
+
+  // 🧠 Doktrina Forenzike e Fashikullit (Case-Level)
+  public saveCaseDossierAudit = async (caseId: string, content: string) => {
+    return apiClient.post(`/cases/${caseId}/audit`, { content });
+  };
+  public clearCaseDossierAudit = async (caseId: string) => {
+    return apiClient.post(`/cases/${caseId}/clear-audit`);
   };
 
   // 🏛️ Active Forensic Report Methods

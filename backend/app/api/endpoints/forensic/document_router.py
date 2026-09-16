@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/document_router.py
-# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V4.0 (AUDIT PERSISTENCE ADDED)
+# PHOENIX PROTOCOL - FORENSIC DOCUMENT ROUTER V5.0 (AUDIT TRAIL PURGED)
 # 100% COMPLETE CODE • ZERO CLAUDE PROMPTS • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -20,7 +20,6 @@ from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.text_extraction_service import text_extraction_service
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
-from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_llm_service import call_forensic_llm
 from app.services.pdf_service import pdf_service
 from app.services.document_processing_service import orchestrate_document_processing_mongo
@@ -113,18 +112,6 @@ async def upload_forensic_document(
         orchestrate_document_processing_mongo,
         doc_id_str,
         collection=FORENSIC_DOCS_COLLECTION
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_EVIDENCE_ACQUIRED",
-        details={
-            "filename": filename,
-            "sha256": evidence_sha256,
-            "custody_hash": custody_stamp["custody_hash"]
-        }
     )
 
     return _serialize_doc(doc)
@@ -228,14 +215,6 @@ TEKSTI I SHKRESËS:
         }}
     )
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_PILLAR_ANALYZED",
-        details={"doc_name": doc.get("file_name"), "pillar": pillar_key}
-    )
-
     return {"status": "success", "pillar": pillar_key, "content": content}
 
 @router.put("/{case_id}/{doc_id}/pillars/{pillar}")
@@ -270,14 +249,6 @@ def save_forensic_doc_pillar_content(
             f"forensic_pillars.{pillar_key}": content,
             "updated_at": datetime.now(timezone.utc)
         }}
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_PILLAR_SAVED",
-        details={"doc_name": doc.get("file_name"), "pillar": pillar_key}
     )
 
     return {"status": "success", "pillar": pillar_key}
@@ -344,18 +315,6 @@ def save_forensic_document_audit(
         }}
     )
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_AUDIT_SAVED",
-        details={
-            "doc_name": doc.get("file_name", ""),
-            "content_length": len(content),
-            "target_collection": target_coll
-        }
-    )
-
     logger.info(f"🧠 [FORENSIC DOC AUDIT SAVED] {doc_id} → {target_coll} — {len(content)} karaktere — Lënda {case_id}")
 
     return {
@@ -398,14 +357,6 @@ def clear_forensic_document_audit(
         }}
     )
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_AUDIT_CLEARED",
-        details={"doc_name": doc.get("file_name", ""), "target_collection": target_coll}
-    )
-
     return {
         "status": "success",
         "message": "Auditimi i shkresës forenzike u fshi plotësisht.",
@@ -443,14 +394,6 @@ def delete_forensic_document(
             storage_service.delete_file(storage_key)
         except Exception:
             pass
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOCUMENT_EVIDENCE_PURGED",
-        details={"file_name": doc.get("file_name", "")}
-    )
 
     return {"status": "success", "message": "Dokumenti u asgjësua nga dosja forenzike."}
 
@@ -500,14 +443,6 @@ def archive_forensic_document(
     db.documents.update_one(
         {"_id": ObjectId(doc_id)},
         {"$set": {"status": "ARCHIVED", "archived_at": now, "updated_at": now}}
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=str(current_user.id),
-        case_id=case_id,
-        action="DOCUMENT_ARCHIVED",
-        details={"doc_id": doc_id, "file_name": doc.get("file_name", "")}
     )
 
     return {"status": "success", "message": "Dokumenti u arkivua (mbetet në listë)."}

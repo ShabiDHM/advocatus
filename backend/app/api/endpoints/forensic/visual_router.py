@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/visual_router.py
-# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ROUTER V1.5 (APPEAR AS DOCUMENT + CASCADE)
+# PHOENIX PROTOCOL - FORENSIC DEDICATED VISUAL & CCTV VIDEO ROUTER V1.6 (AUDIT TRAIL PURGED)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED
 
 import os
@@ -21,7 +21,6 @@ from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.video_service import compress_video_for_storage
 from app.services.forensic.forensic_chain_of_custody import generate_evidence_hash, create_custody_stamp
-from app.services.forensic.forensic_audit_service import log_forensic_action
 from app.services.forensic.forensic_visual_service import (
     process_visual_evidence,
     analyze_cctv_video_forensics
@@ -152,20 +151,6 @@ async def upload_forensic_visual(
     # Trigger background processing
     background_tasks.add_task(process_visual_media_background, db, media_id_str)
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="VISUAL_EVIDENCE_ACQUIRED",
-        details={
-            "filename": filename,
-            "is_video": is_video,
-            "compressed": is_video,
-            "sha256": evidence_sha256,
-            "custody_hash": custody_stamp["custody_hash"]
-        }
-    )
-
     media_doc["_id"] = result.inserted_id
     return _serialize_media(media_doc)
 
@@ -240,7 +225,7 @@ def stream_forensic_visual(
     )
 
 # ==========================================================
-# 4. FSHIRJA E PROVËS VIZUALE ME AUDIT TRAIL DHE CASCADE
+# 4. FSHIRJA E PROVËS VIZUALE ME CASCADE
 # ==========================================================
 @router.delete("/{case_id}/{media_id}", status_code=status.HTTP_200_OK)
 def delete_forensic_visual(
@@ -273,14 +258,6 @@ def delete_forensic_visual(
     # ✅ Fshij edhe nga forensic_documents
     db[FORENSIC_DOCS_COLLECTION].delete_many({"media_id": media_id, "case_id": str(case_id)})
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="VISUAL_EVIDENCE_PURGED",
-        details={"file_name": doc.get("file_name", "")}
-    )
-
     return {"status": "success", "message": "Prova vizuale u asgjësua nga laboratori forenzik."}
 
 # ==========================================================
@@ -302,18 +279,6 @@ async def analyze_visual_forensics(
     result = process_visual_evidence(
         image_bytes=raw_bytes,
         case_context=case_context
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="IMAGE_EXPERT_ANALYSIS_EXECUTED",
-        details={
-            "file_name": file.filename,
-            "manipulation_score": result.get("tamper_analysis", {}).get("manipulation_risk_score", 0.0),
-            "has_gps": result.get("exif_metadata", {}).get("has_gps", False)
-        }
     )
 
     return {"success": True, "file_name": file.filename, "data": result}
@@ -338,18 +303,6 @@ async def analyze_video_cctv_forensics(
         video_bytes=raw_bytes,
         file_name=file.filename or "cctv_recording.mp4",
         case_context=case_context
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="CCTV_VIDEO_EXPERT_ANALYSIS_EXECUTED",
-        details={
-            "file_name": file.filename,
-            "keyframes_count": result.get("keyframes_count", 0),
-            "avg_tamper_score": result.get("avg_tamper_score", 0.0)
-        }
     )
 
     return {"success": True, "file_name": file.filename, "data": result}

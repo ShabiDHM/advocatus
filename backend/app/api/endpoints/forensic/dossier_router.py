@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/dossier_router.py
-# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V3.0 (DOSSIER-LEVEL AUDIT PERSISTENCE)
+# PHOENIX PROTOCOL - FORENSIC DOSSIER & CUSTODY ROUTER V4.0 (AUDIT TRAIL PURGED)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • RBAC PROTECTED • PHONE & EMAIL SYNC
 
 import logging
@@ -15,7 +15,6 @@ from app.api.endpoints.dependencies import get_current_forensic_user
 from app.models.user import UserInDB
 from app.services import storage_service
 from app.services.forensic.forensic_chain_of_custody import create_custody_stamp
-from app.services.forensic.forensic_audit_service import log_forensic_action, get_case_audit_trail
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -89,14 +88,6 @@ def create_forensic_dossier(
 
     result = db[FORENSIC_DOSSIERS_COLLECTION].insert_one(doc)
     doc_id = str(result.inserted_id)
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=doc_id,
-        action="DOSSIER_CREATED",
-        details={"case_number": doc["case_number"], "client_name": doc["client_name"]}
-    )
 
     doc["_id"] = doc_id
     doc["created_at"] = doc["created_at"].isoformat()
@@ -204,17 +195,6 @@ def save_forensic_dossier_audit(
         }}
     )
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOSSIER_AUDIT_SAVED",
-        details={
-            "content_length": len(content),
-            "target_collection": target_coll
-        }
-    )
-
     logger.info(f"🧠 [FORENSIC DOSSIER AUDIT SAVED] {case_id} → {target_coll} — {len(content)} karaktere")
 
     return {
@@ -256,14 +236,6 @@ def clear_forensic_dossier_audit(
             "latest_dossier_analysis": "",
             "last_dossier_audited_at": ""
         }}
-    )
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOSSIER_AUDIT_CLEARED",
-        details={"target_collection": target_coll}
     )
 
     return {
@@ -311,14 +283,6 @@ def update_forensic_dossier(
     if result.matched_count == 0:
         db["cases"].update_one(query, {"$set": update_fields})
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOSSIER_UPDATED",
-        details=update_fields
-    )
-
     return {"status": "success", "message": "Të dhënat e dosjes u përditësuan me sukses."}
 
 # ==========================================================
@@ -351,29 +315,11 @@ def seal_case_chain_of_custody(
     except Exception:
         pass
 
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="CHAIN_OF_CUSTODY_SEALED",
-        details={"note": payload.action_note, "hash": stamp["custody_hash"]},
-        evidence_ids=payload.evidence_ids
-    )
-
     return {
         "success": True,
         "message": "Dosja dhe provat u vulosën me sukses nga serveri.",
         "custody_stamp": stamp
     }
-
-@router.get("/dossiers/{case_id}/audit-trail")
-def get_case_audit(
-    case_id: str,
-    current_user: UserInDB = Depends(get_current_forensic_user),
-    db: Database = Depends(get_db)
-):
-    trail = get_case_audit_trail(db, case_id)
-    return {"case_id": case_id, "total_records": len(trail), "trail": trail}
 
 # ==========================================================
 # 6. TOTAL CASCADE WIPEOUT I DOSJES NGA MONGODB
@@ -449,14 +395,6 @@ def delete_forensic_dossier(
             {"_id": str(case_id)}
         ]
     })
-
-    log_forensic_action(
-        db=db,
-        user_id=user_id,
-        case_id=case_id,
-        action="DOSSIER_TOTAL_CASCADE_WIPEOUT",
-        details={"case_id": case_id}
-    )
 
     return {
         "status": "success",
