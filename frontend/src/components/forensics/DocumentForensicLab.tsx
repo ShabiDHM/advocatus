@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V19.0 (ADAPTIVE FULL-WIDTH EXPAND)
+// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V20.0 (DOCUMENT-ONLY AUDIT • FREE CHAT = FULL DOSSIER)
 // ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -781,24 +781,22 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
+  // BUTONI "Analizo" — vepron VETËM mbi dokumentin e selektuar (jo fashikull)
   const handleQuickAction = () => {
     if (isProcessing) return;
 
-    if (activeDoc) {
-      const prompt = `[DIREKTIVË FORENZIKE] Ju lutem bëni analizën e plotë ligjore dhe hetimore të shkresës: "${activeDoc.file_name}".
+    if (!activeDoc) {
+      alert("Ju lutem klikoni mbi një shkresë në listën majtas për ta analizuar. Për të biseduar me fashikullin e plotë, shkruani pyetjen tuaj në chat.");
+      return;
+    }
+
+    const prompt = `[DIREKTIVË FORENZIKE] Ju lutem bëni analizën e plotë ligjore dhe hetimore të shkresës: "${activeDoc.file_name}".
 1. Të dhënat procedurale (Organi, numri i lëndës/aktit, data).
 2. Struktura e personave të përfshirë dhe rolet procedurale.
 3. Rrethanat faktike dhe deklaratat fjalë për fjalë (Verbatim).
 4. Shkeljet ligjore, kontradiktat dhe pasojat procedurale sipas Kodit Penal dhe Procedurës Penale/Civile të Kosovës.`;
-      handleSendChatMessage(prompt);
-    } else {
-      const prompt = `[DIREKTIVË FORENZIKE — FASHIKULLI I PLOTË] Ju lutem bëni analizën e thellë të të gjithë fashikullit të lëndës duke kryqëzuar të gjitha ${documents.length} shkresat dhe provat e administruara:
-1. Rindërtimi kronologjik i ngjarjeve nga të gjitha shkresat.
-2. Struktura e plotë e aktorëve, personave të dyshuar, zyrtarëve dhe deklarimeve të tyre.
-3. Kontradiktat thelbësore dhe alibitë e rreme të zbuluara mes provave.
-4. Shkeljet thelbësore procedurale (Neni 182 LPK / KPP) dhe masat e menjëhershme ligjore.`;
-      handleSendChatMessage(prompt);
-    }
+
+    handleSendChatMessage(prompt);
   };
 
   const handleClearChat = async () => {
@@ -1137,10 +1135,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
                 onClick={handleQuickAction}
                 disabled={isProcessing}
                 className="h-7 px-2 sm:px-2.5 bg-primary-start hover:brightness-110 text-white rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all cursor-pointer disabled:opacity-40"
-                title={activeDoc ? "Analizo këtë dokument" : "Analizo dhe kryqëzo gjithë fashikullin"}
+                title={activeDoc ? `Analizo shkresën: ${activeDoc.file_name}` : 'Klikoni një shkresë për ta analizuar'}
               >
                 <Sparkles size={11} className={isProcessing ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">{activeDoc ? 'Analizo Dokumentin' : 'Analizo Fashikullin'}</span>
+                <span className="hidden sm:inline">Analizo Dokumentin</span>
                 <span className="sm:hidden">Analizo</span>
               </button>
 

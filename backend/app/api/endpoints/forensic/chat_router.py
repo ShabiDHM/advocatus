@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V14.0 (RECOMMENDATION-ONLY: NENE + PRECEDENTË)
+# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V15.0 (STRICT DOCUMENT-SCOPED FILTER)
 # 100% COMPLETE CODE • ZERO HARDCODED TEMPLATES • PURE NATURAL REASONING • FULL 31-DOC CONTEXT
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -49,29 +49,26 @@ def _build_system_prompt_with_rag(
     case_context: str,
     db: Optional[Database] = None
 ) -> str:
-    """I jep DeepSeek-ut lëndën, provat dhe ligjet, duke e lënë të lirë të arsyetojë vetë me mençuri."""
+    """
+    I jep LLM-së lëndën, provat dhe ligjet, duke e lënë të lirë të arsyetojë vetë me mençuri.
     
-    # 1. Kërkimi semantik nga user_vectors
-    case_chunks = []
-    try:
-        case_chunks = query_case_knowledge_base(
-            user_id=user_id,
-            query_text=payload.message,
-            n_results=25,
-            case_id=case_id_str
-        )
-    except Exception as e:
-        logger.warning(f"Vector search warning: {e}")
+    SJELLJA:
+    - Pa dokument të fokusuar → analiza shtrihet në TË GJITHA shkresat e lëndës (fashikull i plotë).
+    - Me dokument të fokusuar → analiza dhe kërkimi semantik FILTROHEN STRIKT vetëm në atë dokument.
+    """
+    
+    # 0. Ekstrakto emrin e dokumentit të fokusuar nga case_context (i dërguar nga frontend)
+    focused_filename = ""
+    if case_context and "Dokumenti i fokusuar:" in case_context:
+        match_focus = re.search(r'Dokumenti i fokusuar:\s*([^.\n]+\.[a-zA-Z0-9]+)', case_context)
+        if match_focus:
+            focused_filename = match_focus.group(1).strip().lower()
 
-    vector_highlights_text = "\n\n".join([
-        f"📌 [{c.get('source', 'Dokument')}, Faqja {c.get('page', '?')}]: {c.get('text', '')}"
-        for c in case_chunks if c.get("text")
-    ]) if case_chunks else ""
-
-    # 2. Shkresat e fashikullit nga forensic_documents dhe documents
+    # 1. Shkresat e fashikullit nga forensic_documents dhe documents
     all_docs = []
     total_docs_count = 0
     total_pages_count = 0
+    focused_doc_id: Optional[str] = None
 
     if db is not None:
         try:
@@ -95,6 +92,20 @@ def _build_system_prompt_with_rag(
                     docs_dict[leg_id] = leg
 
             all_docs = list(docs_dict.values())
+
+            # FILTRIM STRIKT: nëse ka dokument të fokusuar, mbaj vetëm atë
+            if focused_filename:
+                matched_docs = [
+                    d for d in all_docs 
+                    if focused_filename in (d.get("file_name", "") or "").lower()
+                ]
+                if matched_docs:
+                    focused_doc_id = str(matched_docs[0]["_id"])
+                    all_docs = [matched_docs[0]]
+                    logger.info(f"🎯 [FORENSIC FOCUS] Prompt kufizuar në dokumentin: {matched_docs[0].get('file_name')} (ID: {focused_doc_id})")
+                else:
+                    logger.warning(f"⚠️ [FORENSIC FOCUS] Dokumenti i fokusuar '{focused_filename}' nuk u gjet në fashikull; analiza do të shtrihet në të gjitha shkresat.")
+
             total_docs_count = len(all_docs)
 
             for d in all_docs:
@@ -105,15 +116,27 @@ def _build_system_prompt_with_rag(
         except Exception as doc_err:
             logger.error(f"Dossier retrieval error: {doc_err}")
 
+    # 2. Kërkimi semantik nga user_vectors (i filtruar sipas dokumentit kur ka fokus)
+    case_chunks = []
+    try:
+        case_chunks = query_case_knowledge_base(
+            user_id=user_id,
+            query_text=payload.message,
+            n_results=25,
+            case_id=case_id_str,
+            document_ids=[focused_doc_id] if focused_doc_id else None
+        )
+    except Exception as e:
+        logger.warning(f"Vector search warning: {e}")
+
+    vector_highlights_text = "\n\n".join([
+        f"📌 [{c.get('source', 'Dokument')}, Faqja {c.get('page', '?')}]: {c.get('text', '')}"
+        for c in case_chunks if c.get("text")
+    ]) if case_chunks else ""
+
     dossier_blocks: List[str] = []
     if all_docs:
         budget_per_doc = max(3000, (MAX_SAFE_TOTAL_CHARS - len(vector_highlights_text)) // max(len(all_docs), 1))
-
-        focused_filename = ""
-        if case_context and "Dokumenti i fokusuar:" in case_context:
-            match_focus = re.search(r'Dokumenti i fokusuar:\s*([^.\n]+\.[a-zA-Z0-9]+)', case_context)
-            if match_focus:
-                focused_filename = match_focus.group(1).strip().lower()
 
         for idx, doc in enumerate(all_docs, start=1):
             fname = doc.get("file_name", f"Shkresa_{idx}")
@@ -122,9 +145,7 @@ def _build_system_prompt_with_rag(
 
             if raw_text:
                 cleaned = _clean_text(raw_text)
-                is_focused = focused_filename and (focused_filename in fname.lower())
-
-                allowed_len = min(len(cleaned), budget_per_doc * 3) if is_focused else min(len(cleaned), budget_per_doc)
+                allowed_len = min(len(cleaned), budget_per_doc * 3) if focused_doc_id else min(len(cleaned), budget_per_doc)
                 doc_text_allowed = cleaned[:allowed_len]
                 has_more = len(cleaned) > allowed_len
 
@@ -137,7 +158,7 @@ def _build_system_prompt_with_rag(
 
     full_dossier_text = "\n".join(dossier_blocks) if dossier_blocks else "Nuk ka shkresa të ngarkuara në lëndë."
 
-    # 3. Baza ligjore e Kosovës dhe precedentët supremë
+    # 3. Baza ligjore e Kosovës dhe precedentët supremë (gjithmonë të plota — janë korpus i përbashkët)
     knowledge_chunks = []
     try:
         knowledge_chunks = query_global_knowledge_base(
@@ -151,6 +172,18 @@ def _build_system_prompt_with_rag(
         f"{c.get('source','Ligj')}: {c.get('text','')[:450]}"
         for c in knowledge_chunks if c.get("text")
     ]) if knowledge_chunks else "Nuk ka referenca ligjore shtesë."
+
+    # Shënim i qartë në system prompt për sjelljen aktuale
+    if focused_doc_id:
+        focus_note = (
+            "⚠️ FOKUS I KUFIZUAR: Analiza është e kufizuar VETËM në dokumentin e fokusuar më poshtë. "
+            "Mos përfshi prova nga shkresa të tjera të fashikullit."
+        )
+    else:
+        focus_note = (
+            "📚 KONTEKSTI I PLOTË: Analiza shtrihet në TË GJITHA shkresat e fashikullit. "
+            "Kryqëzo provat, kontradiktat dhe kronologjinë në mënyrë koherente."
+        )
 
     # PROMPT I PASTËR, I THJESHTË DHE PA ASNJË SHABLLON ME FORCË
     return f"""Ju jeni Ekspert i Lartë Juridik dhe Hetimor për legjislacionin dhe procedurën gjyqësore të Republikës së Kosovës.
@@ -167,9 +200,11 @@ RREGULL I HEKURT MBI NENET DHE PRECEDENTËT:
 - Nëse një nen ose precedent është cituar drejt dhe vlen, konfirmojeni si të saktë pa propozuar zëvendësim.
 - Ky rregull zbatohet pa përjashtim për të gjitha kërkesat: analiza doktrinare, zbardhje, kryqëzim provash, konsulencë taktike dhe çdo formë tjetër e arsyetimit juridik.
 
+{focus_note}
+
 LËNDA NË SHQYRTIM: {payload.case_context or 'Dosje Ligjore'}
 
-PROVAT NGA KERKIMI SEMANTIK (USER_VECTORS):
+PROVAT NGA KËRKIMI SEMANTIK (USER_VECTORS):
 {vector_highlights_text}
 
 SHKRESAT E FASHIKULLIT TË LËNDËS ({total_docs_count} shkresa, ~{total_pages_count} faqe):

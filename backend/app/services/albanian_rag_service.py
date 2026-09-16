@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V273.0 (INTENT TRACE - TEMPORARY VERIFICATION LOG)
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V272.0 (NATURAL HUMAN CLIENT CHAT • ZERO HARDCODING)
 # 100% I PLOTË • ZERO ROBOTIC TEMPLATES • PURE DEEPSEEK REASONING • STRICT TENANT ISOLATION
 
 import os
@@ -82,7 +82,7 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Natural Client Service V273.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Natural Client Service V272.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -205,27 +205,6 @@ class AlbanianRAGService:
             user_intent = "STATUTORY_VERIFICATION"
         else:
             user_intent = IntentDetector.detect(query)
-
-        # =====================================================================
-        # 🔍 [TEMP VERIFICATION LOG] - INTENT TRACE
-        # Ky log është i përkohshëm për të verifikuar degëzimin e saktë.
-        # Duhet të hiqet pas verifikimit.
-        # =====================================================================
-        try:
-            logger.warning(
-                f"🎯 [INTENT_TRACE] user_intent={user_intent} | "
-                f"is_case_wide={is_case_wide_request} | "
-                f"is_statutory={is_statutory_verification} | "
-                f"document_ids={document_ids} | "
-                f"db_documents_count={len(db_documents)} | "
-                f"single_doc={'YES' if single_doc_obj else 'NO'} | "
-                f"query_preview={query[:180]!r}"
-            )
-        except Exception as _trace_err:
-            logger.error(f"INTENT_TRACE failed: {_trace_err}")
-        # =====================================================================
-        # 🚫 FUND I LOG-UT TË PËRKOHSHËM
-        # =====================================================================
 
         sample_text = ""
         if single_doc_obj:

@@ -1,5 +1,5 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V104.0 (DYNAMIC DOSSIER/DOCUMENT AUDIT)
+// PHOENIX PROTOCOL - CASE VIEW PAGE V105.0 (DOCUMENT-ONLY AUDIT BUTTON • FREE CHAT = FULL DOSSIER)
 // ZERO TS WARNINGS • 100% COMPLETE CODE • SYMMETRIC SPLIT DESKTOP • NATIVE 3-TAB MOBILE
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -290,31 +290,14 @@ const CaseViewPage: React.FC = () => {
     setIsDocAuditModalOpen(true);
   }, [caseId]);
 
-  // DEGËZIMI DINAMIK: DOKUMENT i selektuar → Modal | FASHIKULL → Stream i analizës
+  // BUTONI "Analizo" vepron VETËM mbi dokumentin e selektuar (jo fashikull)
   const handleTriggerSelectedDocAudit = useCallback(() => {
-    // KASO 1: Nuk ka dokument të selektuar → Analizë e fashikullit të plotë
     if (!selectedDocObj) {
-      if (!caseId) return;
-
-      const docCount = liveDocuments.length;
-      const dossierPrompt = `[DIREKTIVË PËR ANALIZËN E FASHIKULLIT TË PLOTË]
-Analizoni të gjitha ${docCount} shkresat e kësaj lënde si një fashikull i vetëm dhe koherent:
-
-1. Rindërtimi kronologjik i ngjarjeve kryesore nga të gjitha shkresat (data, akte, palë).
-2. Struktura e plotë e aktorëve, palëve, dëshmitarëve dhe deklarimeve të tyre verbatim.
-3. Kontradiktat thelbësore mes provave dhe deklaratave të ndryshme.
-4. Baza ligjore e zbatueshme me nene të sakta të legjislacionit pozitiv të Kosovës dhe shkeljet procedurale thelbësore.
-5. Rekomandimi taktik përfundimtar dhe hapat e ardhshëm proceduralë me afate ligjore.
-
-Rregull i hekurt: NUK lejohet rishkrimi, zëvendësimi apo korrigjimi automatik i neneve dhe precedenteve. Për çdo gabim, paraqit: (a) siç është cituar në shkresë, (b) neni/precedenti i saktë si REKOMANDIM i veçantë, (c) arsyeja e saktë e problemit.`;
-
-      handleChatSubmit(dossierPrompt, 'document', 'DEEP', 'automatic', undefined, 'ks');
+      alert("Ju lutem klikoni mbi një shkresë në listën majtas për ta analizuar. Për të biseduar me fashikullin e plotë, shkruani pyetjen tuaj në chat.");
       return;
     }
-
-    // KASO 2: Dokument i selektuar → Hap modalin e auditimit (i njëjti si më parë)
     handleVerifyDocumentLaws(selectedDocObj);
-  }, [selectedDocObj, liveDocuments.length, caseId, handleChatSubmit, handleVerifyDocumentLaws]);
+  }, [selectedDocObj, handleVerifyDocumentLaws]);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;

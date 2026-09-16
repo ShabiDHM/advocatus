@@ -1,5 +1,5 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V64.0
+# PHOENIX PROTOCOL - BULLETPROOF DUAL-LAYER VECTOR RETRIEVER V65.0 (OPTIONAL DOCUMENT FILTER)
 # 100% COMPLETE CODE • GUARANTEED 1,425-PAGE SUPREME RETRIEVAL • ZERO ATLAS SEARCH DEPENDENCY
 
 import os
@@ -270,20 +270,39 @@ def query_global_knowledge_base(query_text: str, n_results: int = 35, **kwargs) 
 
 
 def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35, **kwargs) -> List[Dict[str, Any]]:
+    """
+    Kërkim semantik në shkresat e lëndës.
+    
+    Parametra opsionalë (kwargs):
+        case_context_id / case_id: ID e lëndës për filtrim.
+        document_ids: Listë opsionale e ID-ve të dokumenteve për t'u filtruar.
+                      Nëse jepet dhe ka elemente, kërkimi kufizohet vetëm në ato dokumente.
+                      Nëse nuk jepet ose është bosh, kërkimi shtrihet në të gjithë lëndën (sjellje origjinale).
+    """
     from . import embedding_service
     case_context_id = kwargs.get("case_context_id") or kwargs.get("case_id")
+    raw_document_ids = kwargs.get("document_ids")
     
     db = _get_db()
     coll = db["user_vectors"]
     results = []
     seen_chunk_ids = set()
 
+    # Ndërtimi i listës së ID-ve të lëndës (str dhe ObjectId)
     valid_case_ids = set()
     if case_context_id:
         case_id_str = str(case_context_id)
         valid_case_ids.add(case_id_str)
         if ObjectId.is_valid(case_id_str):
             valid_case_ids.add(str(ObjectId(case_id_str)))
+
+    # Ndërtimi i listës së ID-ve të dokumenteve (str) për filtrim strikt
+    valid_doc_ids = set()
+    if raw_document_ids:
+        for did in raw_document_ids:
+            did_str = str(did).strip()
+            if did_str:
+                valid_doc_ids.add(did_str)
 
     vector = embedding_service.generate_embedding(query_text) if query_text else None
 
@@ -304,8 +323,14 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
             for r in vector_results:
                 r_id = str(r.get("_id", ""))
                 r_case_id = str(r.get("case_id", ""))
+                r_doc_id = str(r.get("document_id", ""))
                 
+                # Filtri i lëndës
                 if valid_case_ids and r_case_id not in valid_case_ids:
+                    continue
+
+                # Filtri opsional i dokumentit (vetëm kur jepet eksplicitisht)
+                if valid_doc_ids and r_doc_id not in valid_doc_ids:
                     continue
                 
                 if r_id not in seen_chunk_ids:
@@ -327,6 +352,10 @@ def query_case_knowledge_base(user_id: str, query_text: str, n_results: int = 35
                 case_filter["case_id"] = {
                     "$in": [case_id_str, ObjectId(case_id_str) if ObjectId.is_valid(case_id_str) else case_id_str]
                 }
+
+            # Filtri strikt i dokumenteve kur jepet
+            if valid_doc_ids:
+                case_filter["document_id"] = {"$in": list(valid_doc_ids)}
             
             direct_chunks = list(coll.find(case_filter).sort([("page", 1), ("_id", 1)]).limit(n_results))
             for r in direct_chunks:
