@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V5.1 (VALIDATION FIX)
-from fastapi import APIRouter, Depends, status, HTTPException, Response
-from typing import List, Dict, Any
+# PHOENIX PROTOCOL - CALENDAR API V6.0 (PATCH ENDPOINT ADDED)
+from fastapi import APIRouter, Depends, status, HTTPException, Response, Body
+from typing import List, Dict, Any, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from pydantic import BaseModel
@@ -36,7 +36,6 @@ async def get_alerts_briefing(
     db: Database = Depends(get_db),
 ):
     """Returns the Guardian briefing. Fixes root-level 'count' requirement."""
-    # We pass the raw name to the service; it handles .title() internally now
     display_name = current_user.full_name or current_user.username
     
     briefing_data = await asyncio.to_thread(
@@ -46,7 +45,6 @@ async def get_alerts_briefing(
         user_name=display_name
     )
     
-    # Return directly. Service V3.2 guaranteed the 'count' key is present at root.
     return BriefingResponse(**briefing_data)
 
 @router.get("/events", response_model=List[CalendarEventOut])
@@ -63,6 +61,29 @@ async def create_new_event(
     db: Database = Depends(get_db),
 ):
     return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
+
+# ==========================================================
+# PATCH /events/{id} — Partial update (status, title, dates, etj.)
+# ==========================================================
+@router.patch("/events/{event_id}", response_model=CalendarEventOut)
+async def update_user_event(
+    event_id: str,
+    payload: Dict[str, Any] = Body(...),
+    current_user: UserInDB = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    try:
+        object_id = ObjectId(event_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid event ID")
+
+    return await asyncio.to_thread(
+        calendar_service.update_event,
+        db=db,
+        event_id=object_id,
+        user_id=current_user.id,
+        updates=payload
+    )
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_event(

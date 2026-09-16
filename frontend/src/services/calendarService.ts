@@ -1,5 +1,5 @@
 // FILE: src/services/calendarService.ts
-// PHOENIX PROTOCOL - CALENDAR & DEADLINE ALERTS SERVICE MODULE
+// PHOENIX PROTOCOL - CALENDAR & DEADLINE ALERTS SERVICE MODULE V2.0
 
 import { apiClient } from './apiClient';
 import type { CalendarEvent, CalendarEventCreateRequest, BriefingResponse } from '../data/types';
@@ -12,6 +12,11 @@ export class CalendarService {
 
   public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
     const response = await apiClient.post<CalendarEvent>('/calendar/events', data);
+    return response.data;
+  }
+
+  public async updateCalendarEvent(eventId: string, updates: Partial<CalendarEvent>): Promise<CalendarEvent> {
+    const response = await apiClient.patch<CalendarEvent>(`/calendar/events/${eventId}`, updates);
     return response.data;
   }
 

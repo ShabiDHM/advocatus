@@ -1,8 +1,9 @@
 // FILE: src/utils/kosovoHolidays.ts
-// PHOENIX PROTOCOL - KOSOVO HOLIDAY ENGINE V1.5 (ALIGNMENT FIXED)
+// PHOENIX PROTOCOL - KOSOVO HOLIDAY ENGINE V2.0 (EID DATES EXTENDED TO 2030)
 // 1. FIXED: Aligned all keys with translation.json (fiter_bajram, labor_day, etc.).
 // 2. RETAINED: Full Kosovo Law substitution rule (Weekend -> Monday).
 // 3. RETAINED: Catholic and Orthodox Easter algorithms.
+// 4. EXTENDED: Eid dates from 2024 through 2030 (was 2026).
 
 import { isSameDay, addDays, getDay } from 'date-fns';
 
@@ -38,10 +39,15 @@ function calculateOrthodoxEaster(year: number): Date {
   return addDays(new Date(year, month - 1, day), 13);
 }
 
+// FIX: Zgjeruar nga 2026 → 2030 për paritet me backend-in
 const eidDates: Record<string, { fitr: [number, number], adha: [number, number] }> = {
   '2024': { fitr: [4, 10], adha: [6, 16] },
   '2025': { fitr: [3, 31], adha: [6, 6] },
   '2026': { fitr: [3, 20], adha: [5, 27] },
+  '2027': { fitr: [3, 9],  adha: [5, 16] },
+  '2028': { fitr: [2, 26], adha: [5, 5] },
+  '2029': { fitr: [2, 14], adha: [4, 24] },
+  '2030': { fitr: [2, 4],  adha: [4, 13] },
 };
 
 function applySubstitutionRule(date: Date): Date {

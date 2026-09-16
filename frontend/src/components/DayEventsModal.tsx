@@ -1,15 +1,15 @@
 // FILE: src/components/DayEventsModal.tsx
-// PHOENIX PROTOCOL - DAY EVENTS MODAL V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Uses semantic color variables for priority indicators.
-// 3. Preserved the fix: using start_date instead of start_time.
-// 4. Maintained all functionality and animations.
+// PHOENIX PROTOCOL - DAY EVENTS MODAL V7.0 (PRIORITY NORMAL + BACKDROP + GET_EVENT_ID FIX)
+// 1. Shtuar NORMAL në priorityColors.
+// 2. Ndryshuar bg-canvas/80 → bg-black/60 (i saktë në light + dark).
+// 3. Përdorur getEventId() në vend të event.id për key të qëndrueshme.
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { X, Clock, MapPin, Calendar, Plus } from 'lucide-react';
 import { CalendarEvent } from '../data/types';
 import { TFunction } from 'i18next';
+import { getEventId } from '../utils/calendarHelpers';
 
 interface DayEventsModalProps {
   isOpen: boolean;
@@ -20,10 +20,12 @@ interface DayEventsModalProps {
   onAddEvent: () => void;
 }
 
+// FIX #14: Shtuar NORMAL (default i event-it)
 const priorityColors: Record<string, string> = {
   CRITICAL: 'bg-danger-start',
   HIGH: 'bg-warning-start',
   MEDIUM: 'bg-primary-start',
+  NORMAL: 'bg-primary-start/60',   // ← I RI
   LOW: 'bg-text-muted',
 };
 
@@ -37,7 +39,8 @@ const DayEventsModal: React.FC<DayEventsModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+    // FIX #15: Backdrop gjithmonë i errët, pavarësisht theme
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -67,7 +70,7 @@ const DayEventsModal: React.FC<DayEventsModalProps> = ({
           ) : (
             events.map((event) => (
               <div 
-                key={event.id} 
+                key={getEventId(event)}   // FIX #16
                 className="bg-surface/20 border border-main hover:border-primary-start/30 rounded-xl p-4 transition-all group"
               >
                 <div className="flex items-start gap-3">

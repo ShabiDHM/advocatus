@@ -1,11 +1,24 @@
 # FILE: backend/app/models/calendar.py
+# PHOENIX PROTOCOL - CALENDAR MODELS V2.0 (UTC-AWARE DATETIMES)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • PYDANTIC V2 COMPLIANT
+
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from bson import ObjectId
 
-from app.models.common import PyObjectId 
+from app.models.common import PyObjectId
+
+
+def _ensure_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """Normalizo datetime në UTC-aware. Treat naive si UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
 
 class EventType(str, Enum):
     DEADLINE = "DEADLINE"
@@ -49,6 +62,11 @@ class CalendarEventBase(BaseModel):
     attendees: Optional[List[str]] = None
     notes: Optional[str] = Field(None, max_length=1000)
 
+    @field_validator('start_date', 'end_date', mode='after')
+    @classmethod
+    def _validate_datetimes(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return _ensure_utc(v)
+
 class CalendarEventCreate(CalendarEventBase):
     case_id: PyObjectId
 
@@ -72,8 +90,13 @@ class CalendarEventInDB(CalendarEventBase):
     document_id: Optional[str] = None 
     status: EventStatus = EventStatus.PENDING
     is_public: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    @field_validator('created_at', 'updated_at', mode='after')
+    @classmethod
+    def _validate_audit_datetimes(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return _ensure_utc(v)
     
     model_config = ConfigDict(populate_by_name=True)
 

@@ -1,5 +1,6 @@
 // FILE: src/pages/CalendarPage.tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// PHOENIX PROTOCOL - CALENDAR PAGE V2.0 (UPCOMING ALERTS + POLLING FIX)
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,12 @@ import { CalendarMonthView } from '../components/calendar/CalendarMonthView';
 
 type ViewMode = 'month' | 'list';
 
+// Event-et që shfaqen në "Afatet e Ardhshme" (sidebar)
+const UPCOMING_EVENT_TYPES = ['DEADLINE', 'HEARING', 'COURT_DATE', 'FILING'];
+
+// Statuset që nuk janë më aktive
+const INACTIVE_STATUSES = ['CANCELLED', 'COMPLETED', 'RESOLVED'];
+
 const CalendarPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -37,24 +44,51 @@ const CalendarPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
+  // Ref për të shmangur re-render kur polling nuk ka ndryshime
+  const lastEventsJsonRef = useRef<string>('');
+
   useLockBodyScroll(isSidebarOpen);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isInitial: boolean = false) => {
     try {
-      setLoading(true);
-      setError('');
-      const [eventsData, casesData] = await Promise.all([apiService.getCalendarEvents(), apiService.getCases()]);
-      setEvents(eventsData);
+      if (isInitial) {
+        setLoading(true);
+        setError('');
+      }
+      const [eventsData, casesData] = await Promise.all([
+        apiService.getCalendarEvents(),
+        apiService.getCases()
+      ]);
+
+      // Polling i zgjuar: përditëso vetëm nëse ka ndryshim
+      const newJson = JSON.stringify(eventsData);
+      if (newJson !== lastEventsJsonRef.current) {
+        lastEventsJsonRef.current = newJson;
+        setEvents(eventsData);
+      }
       setCases(casesData);
     } catch {
-      setError(t('calendar.loadFailure') as string);
+      if (isInitial) {
+        setError(t('calendar.loadFailure') as string);
+      }
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+      }
     }
   }, [t]);
 
+  // Ngarkimi fillestar
   useEffect(() => {
-    loadData();
+    loadData(true);
+  }, [loadData]);
+
+  // FIX #9: Polling çdo 30 sekonda për rifreskim automatik
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [loadData]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -70,9 +104,25 @@ const CalendarPage: React.FC = () => {
     });
   }, [events, searchTerm, filterType, showFacts]);
 
+  // FIX #7 + #8: Vetëm event-e aktive, të ardhshme, dhe tipet kritike
   const upcomingAlerts = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Fillimi i ditës së sotme
+
     return events
-      .filter((event) => event.category === 'AGENDA' && ['DEADLINE', 'HEARING'].includes(event.event_type))
+      .filter((event) => {
+        // 1. Vetëm AGENDA
+        if (event.category !== 'AGENDA') return false;
+        // 2. Vetëm tipet kritike (jo MEETING/PAYMENT/OTHER)
+        if (!UPCOMING_EVENT_TYPES.includes(event.event_type)) return false;
+        // 3. Vetëm PENDING + CONFIRMED (jo CANCELLED/COMPLETED/RESOLVED)
+        const status = (event as any).status;
+        if (status && INACTIVE_STATUSES.includes(status)) return false;
+        // 4. Vetëm event-et e ardhshme ose sot
+        const eventDate = new Date(event.start_date);
+        if (eventDate.getTime() < now.getTime()) return false;
+        return true;
+      })
       .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
       .slice(0, 10);
   }, [events]);
@@ -234,8 +284,8 @@ const CalendarPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadData} />}
-      {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={loadData} />}
+      {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={() => loadData(false)} />}
+      {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={() => loadData(false)} />}
       <DayEventsModal
         isOpen={isDayModalOpen}
         onClose={() => setIsDayModalOpen(false)}

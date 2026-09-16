@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V64.0 (CASE DOSSIER AUDIT WIRED)
+// PHOENIX PROTOCOL - MASTER API FACADE V65.0 (UPDATE CALENDAR EVENT EXPOSED)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • LEAN API FACADE
 
 export * from './apiClient';
@@ -146,6 +146,7 @@ class ApiService {
   // Calendar Methods
   public getCalendarEvents = calendarService.getCalendarEvents.bind(calendarService);
   public createCalendarEvent = calendarService.createCalendarEvent.bind(calendarService);
+  public updateCalendarEvent = calendarService.updateCalendarEvent.bind(calendarService);
   public deleteCalendarEvent = calendarService.deleteCalendarEvent.bind(calendarService);
   public getBriefing = calendarService.getBriefing.bind(calendarService);
   public getAlertsCount = calendarService.getAlertsCount.bind(calendarService);

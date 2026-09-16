@@ -1,7 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V10.5 (ZERO-FRICTION CLIENT-FIRST MODAL)
+// PHOENIX PROTOCOL - DASHBOARD V11.0 (BRIEFING POLLING + ERROR STATE FIX)
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
@@ -26,15 +26,15 @@ const DashboardPage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
-  const hasCheckedBriefing = useRef(false);
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const [clientPosition, setClientPosition] = useState<ClientPositionType>('PLAINTIFF');
   const [newCaseData, setNewCaseData] = useState({ 
     title: '', 
     clientName: '', 
     clientEmail: '', 
-    clientPhone: ''
+    clientPhone: '' 
   });
   
   const [now, setNow] = useState<number>(Date.now());
@@ -112,10 +112,10 @@ const DashboardPage: React.FC = () => {
     }
   }, [effectiveBriefing?.status]);
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    setIsLoading(true);
+  // loadData i ri: pranon silent flag për polling
+  const loadData = async (silent: boolean = false) => {
+    if (!silent) setIsLoading(true);
+    setLoadError(null);
     try {
       const [cData, bData, eData] = await Promise.all([
         apiService.getCases(),
@@ -125,20 +125,35 @@ const DashboardPage: React.FC = () => {
       setCases(Array.isArray(cData) ? cData : []);
       setBriefing(bData);
       setFetchTimestamp(Date.now());
-      if (!hasCheckedBriefing.current && Array.isArray(eData) && eData.length > 0) {
+
+      // FIX #10: Rifresko event-et e sotme GJITHMONË (jo vetëm një herë)
+      if (Array.isArray(eData)) {
         const today = new Date();
         const matches = eData.filter(e => isSameDay(parseISO(e.start_date), today));
-        if (matches.length > 0) {
-          setTodaysEvents(matches);
-        }
-        hasCheckedBriefing.current = true;
+        setTodaysEvents(matches);
       }
     } catch (error) {
       console.error("Sync Failed:", error);
+      if (!silent) {
+        setLoadError(t('error.loadFailed', 'Dështoi ngarkimi i të dhënave. Provoni përsëri.'));
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
+
+  // Ngarkimi fillestar
+  useEffect(() => {
+    loadData(false);
+  }, []);
+
+  // FIX #10: Polling çdo 60 sekonda për briefing + event-e të freskëta
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,7 +174,7 @@ const DashboardPage: React.FC = () => {
       setShowCreateModal(false);
       setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
       setClientPosition('PLAINTIFF');
-      loadData();
+      loadData(false);
     } catch {
       alert(t('error.generic', 'Ndodhi një gabim gjatë krijimit të lëndës.'));
     } finally {
@@ -172,7 +187,7 @@ const DashboardPage: React.FC = () => {
     setIsDeletingCase(true);
     try {
       await apiService.deleteCase(caseToDeleteId);
-      await loadData();
+      await loadData(false);
       setCaseToDeleteId(null);
     } catch (error) {
       alert(t('error.caseDeleteFailed', 'Dështoi fshirja e rastit.'));
@@ -289,7 +304,26 @@ const DashboardPage: React.FC = () => {
     return <div className="h-full"></div>;
   };
 
-  if (!effectiveBriefing && !isLoading) {
+  // FIX: Error state — në vend të spinner të pafund
+  if (loadError && !effectiveBriefing) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div className="glass-panel border border-danger-start/30 bg-danger-start/5 rounded-2xl p-8 text-center">
+          <AlertTriangle className="mx-auto h-12 w-12 text-danger-start mb-4" />
+          <p className="font-bold text-text-primary mb-2">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => loadData(false)}
+            className="mt-4 px-6 h-10 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
+          >
+            Provo Përsëri
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!effectiveBriefing && isLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
   }
 
