@@ -1,17 +1,19 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V11.0 (BRIEFING POLLING + ERROR STATE FIX)
+// PHOENIX PROTOCOL - DASHBOARD V12.0 (VOICE RECORDER INTEGRATED)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
   PartyPopper, Coffee, Timer, Trash2, Calendar, Search, X,
-  Shield, Swords, Scale
+  Shield, Swords, Scale, Mic
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
+import { CreateEventModal, EventInitialValues } from '../components/calendar/CreateEventModal';
+import { VoiceEventRecorder, ParsedVoiceEvent } from '../components/calendar/VoiceEventRecorder';
 import { isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentBriefingHoliday } from '../utils/kosovoHolidays';
@@ -44,6 +46,11 @@ const DashboardPage: React.FC = () => {
   const [isDeletingCase, setIsDeletingCase] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
+
+  // VOICE — state i ri
+  const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
+  const [isVoiceEventCreateOpen, setIsVoiceEventCreateOpen] = useState(false);
+  const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
 
   const holidayBriefing = useMemo(() => {
     const today = new Date();
@@ -112,7 +119,6 @@ const DashboardPage: React.FC = () => {
     }
   }, [effectiveBriefing?.status]);
 
-  // loadData i ri: pranon silent flag për polling
   const loadData = async (silent: boolean = false) => {
     if (!silent) setIsLoading(true);
     setLoadError(null);
@@ -126,7 +132,6 @@ const DashboardPage: React.FC = () => {
       setBriefing(bData);
       setFetchTimestamp(Date.now());
 
-      // FIX #10: Rifresko event-et e sotme GJITHMONË (jo vetëm një herë)
       if (Array.isArray(eData)) {
         const today = new Date();
         const matches = eData.filter(e => isSameDay(parseISO(e.start_date), today));
@@ -142,18 +147,37 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Ngarkimi fillestar
   useEffect(() => {
     loadData(false);
   }, []);
 
-  // FIX #10: Polling çdo 60 sekonda për briefing + event-e të freskëta
   useEffect(() => {
     const interval = setInterval(() => {
       loadData(true);
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // VOICE handler — konverton parsed në initialValues dhe hap CreateEventModal
+  const handleVoiceParsed = (parsed: ParsedVoiceEvent, _transcription: string) => {
+    const initial: EventInitialValues = {
+      title: parsed.title,
+      description: parsed.description,
+      event_type: parsed.event_type,
+      priority: parsed.priority,
+      location: parsed.location,
+      category: parsed.category,
+      start_date: parsed.start_date,
+    };
+    setVoiceInitialValues(initial);
+    setIsVoiceRecorderOpen(false);
+    setIsVoiceEventCreateOpen(true);
+  };
+
+  const handleCloseVoiceEventCreate = () => {
+    setIsVoiceEventCreateOpen(false);
+    setVoiceInitialValues(undefined);
+  };
 
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,7 +328,6 @@ const DashboardPage: React.FC = () => {
     return <div className="h-full"></div>;
   };
 
-  // FIX: Error state — në vend të spinner të pafund
   if (loadError && !effectiveBriefing) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -395,6 +418,18 @@ const DashboardPage: React.FC = () => {
             className="w-full h-11 pl-11 pr-4 bg-surface border border-main rounded-xl text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all shadow-sm"
           />
         </div>
+
+        {/* VOICE BUTTON */}
+        <button
+          type="button"
+          onClick={() => setIsVoiceRecorderOpen(true)}
+          className="h-11 px-4 sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer"
+          title="Regjistro me zë"
+        >
+          <Mic size={16} strokeWidth={2.5} />
+          <span className="hidden sm:inline">Regjistro</span>
+        </button>
+
         <button 
             type="button"
             onClick={() => setShowCreateModal(true)} 
@@ -451,7 +486,6 @@ const DashboardPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleCreateCase} className="space-y-4">
-                {/* 3-POSITION SELECTOR */}
                 <div className="space-y-1.5">
                   <label className={labelClasses}>Pozicioni i Klientit Tuaj</label>
                   <div className="grid grid-cols-3 gap-2">
@@ -606,6 +640,25 @@ const DashboardPage: React.FC = () => {
       </AnimatePresence>
 
       <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
+
+      {/* VOICE RECORDER MODAL */}
+      <VoiceEventRecorder
+        isOpen={isVoiceRecorderOpen}
+        onClose={() => setIsVoiceRecorderOpen(false)}
+        onParsed={handleVoiceParsed}
+      />
+
+      {/* CREATE EVENT MODAL — prefill nga voice */}
+      {isVoiceEventCreateOpen && (
+        <CreateEventModal
+          cases={cases}
+          existingEvents={todaysEvents}
+          onClose={handleCloseVoiceEventCreate}
+          onCreate={() => loadData(false)}
+          initialValues={voiceInitialValues}
+          prefillSource="voice"
+        />
+      )}
     </div>
   );
 };

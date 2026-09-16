@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V65.0 (UPDATE CALENDAR EVENT EXPOSED)
+// PHOENIX PROTOCOL - MASTER API FACADE V66.0 (VOICE CALENDAR METHODS EXPOSED)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • LEAN API FACADE
 
 export * from './apiClient';
@@ -150,6 +150,8 @@ class ApiService {
   public deleteCalendarEvent = calendarService.deleteCalendarEvent.bind(calendarService);
   public getBriefing = calendarService.getBriefing.bind(calendarService);
   public getAlertsCount = calendarService.getAlertsCount.bind(calendarService);
+  public parseVoiceText = calendarService.parseVoiceText.bind(calendarService);
+  public transcribeVoiceAndParse = calendarService.transcribeVoiceAndParse.bind(calendarService);
 
   // Chat & Drafting Methods
   public submitChatFeedback = chatService.submitChatFeedback.bind(chatService);

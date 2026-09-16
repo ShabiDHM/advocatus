@@ -1,9 +1,10 @@
 // FILE: src/components/calendar/CreateEventModal.tsx
+// PHOENIX PROTOCOL - CREATE EVENT MODAL V2.0.1 (INITIAL VALUES + EVENT/MEMO TOGGLE)
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { isSameDay, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import { ShieldAlert, Eye, EyeOff, ChevronDown, Loader2 } from 'lucide-react';
+import { ShieldAlert, Eye, EyeOff, ChevronDown, Loader2, Sparkles, Calendar as CalendarIcon, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -16,33 +17,72 @@ import { localeMap } from '../../utils/calendarHelpers';
 
 const DatePicker = (ReactDatePicker as any).default;
 
+// Tip shtesë për pre-fill nga voice recorder
+export interface EventInitialValues {
+  title?: string;
+  description?: string;
+  event_type?: string;
+  priority?: string;
+  location?: string;
+  case_id?: string;
+  category?: 'AGENDA' | 'FACT';
+  start_date?: string | Date;
+  notes?: string;
+}
+
 interface CreateEventModalProps {
   cases: Case[];
   existingEvents: CalendarEvent[];
   onClose: () => void;
   onCreate: () => void;
+  initialValues?: EventInitialValues;
+  prefillSource?: 'voice' | 'manual';
 }
 
-export const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, existingEvents, onClose, onCreate }) => {
+export const CreateEventModal: React.FC<CreateEventModalProps> = ({
+  cases,
+  existingEvents,
+  onClose,
+  onCreate,
+  initialValues,
+  prefillSource,
+}) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language] || enUS;
   const [isCreating, setIsCreating] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [eventDate, setEventDate] = useState<Date | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(!!(initialValues?.description || initialValues?.location));
+
+  // FIX: Event date nga initialValues
+  const [eventDate, setEventDate] = useState<Date | null>(() => {
+    if (!initialValues?.start_date) return null;
+    try {
+      return new Date(initialValues.start_date);
+    } catch {
+      return null;
+    }
+  });
+
+  // FIX: Kategoria — Event (AGENDA) ose Memo (FACT)
+  const [category, setCategory] = useState<'AGENDA' | 'FACT'>(
+    initialValues?.category || 'AGENDA'
+  );
+
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
+
+  // FIX: Form state me vlera fillestare
   const [formData, setFormData] = useState<
     Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }
   >({
-    case_id: '',
-    title: '',
-    description: '',
-    event_type: 'MEETING',
-    location: '',
+    case_id: initialValues?.case_id || '',
+    title: initialValues?.title || '',
+    description: initialValues?.description || '',
+    event_type: (initialValues?.event_type as any) || 'MEETING',
+    location: initialValues?.location || '',
     attendees: '',
     is_all_day: true,
-    priority: 'MEDIUM',
-    notes: '',
+    priority: (initialValues?.priority as any) || 'MEDIUM',
+    notes: initialValues?.notes || '',
   });
 
   useLockBodyScroll(true);
@@ -68,7 +108,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, exist
         end_date: cleanDate,
         attendees: formData.attendees ? formData.attendees.split(',').map((a) => a.trim()) : [],
         is_public: isPublic,
-        category: 'AGENDA',
+        // FIX: Përdor category nga state — AGENDA (event) ose FACT (memo)
+        category: category,
         notes: isPublic ? formData.notes + '\n[CLIENT_VISIBLE]' : formData.notes,
       };
       await apiService.createCalendarEvent(payload);
@@ -89,7 +130,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, exist
         className="glass-panel w-full max-w-lg max-h-[90vh] p-6 sm:p-8 rounded-[2.5rem] flex flex-col shadow-2xl border border-main bg-canvas overflow-hidden"
       >
         <div className="flex justify-between items-center mb-6 shrink-0">
-          <h2 className="text-xl font-bold text-text-primary uppercase tracking-wider">{t('calendar.createModal.title')}</h2>
+          <h2 className="text-xl font-bold text-text-primary uppercase tracking-wider">
+            {category === 'FACT' ? 'Shënim i Ri (Memo)' : t('calendar.createModal.title')}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -99,14 +142,62 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, exist
             ✕
           </button>
         </div>
+
+        {/* BANNER: Pre-fill nga zëri */}
+        {prefillSource === 'voice' && (
+          <div className="bg-primary-start/10 border border-primary-start/30 rounded-xl p-3 mb-4 flex items-center gap-3 shrink-0">
+            <div className="p-2 rounded-lg bg-primary-start/20 text-primary-start">
+              <Sparkles size={14} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold text-primary-start uppercase tracking-wider">
+                Vlerat u parambushën nga regjistrimi zanor
+              </p>
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Kontrolloni dhe plotësoni para ruajtjes
+              </p>
+            </div>
+          </div>
+        )}
+
         {conflictWarning && (
-          <div className="bg-warning-start/15 border border-warning-start/20 rounded-xl p-4 mb-4 flex items-center gap-4 animate-pulse">
+          <div className="bg-warning-start/15 border border-warning-start/20 rounded-xl p-4 mb-4 flex items-center gap-4 animate-pulse shrink-0">
             <ShieldAlert className="text-warning-start h-5 w-5 shrink-0" />
             <span className="text-warning-start text-xs font-bold">{conflictWarning}</span>
           </div>
         )}
+
         <form onSubmit={handleSubmit} className="flex flex-col flex-grow overflow-hidden">
           <div className="overflow-y-auto pr-2 space-y-4 flex-grow custom-finance-scroll">
+            
+            {/* TOGGLE: Event (AGENDA) vs Memo (FACT) */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCategory('AGENDA')}
+                className={`h-12 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  category === 'AGENDA'
+                    ? 'bg-primary-start text-white border-primary-start shadow-md shadow-primary-start/20'
+                    : 'bg-surface border-main text-text-secondary hover:bg-hover'
+                }`}
+              >
+                <CalendarIcon size={14} />
+                Ngjarje
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory('FACT')}
+                className={`h-12 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  category === 'FACT'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20'
+                    : 'bg-surface border-main text-text-secondary hover:bg-hover'
+                }`}
+              >
+                <FileText size={14} />
+                Memo
+              </button>
+            </div>
+
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold text-primary-start uppercase tracking-widest ml-1">
                 {t('calendar.createModal.relatedCase')}

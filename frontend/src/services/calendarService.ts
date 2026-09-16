@@ -1,8 +1,35 @@
 // FILE: src/services/calendarService.ts
-// PHOENIX PROTOCOL - CALENDAR & DEADLINE ALERTS SERVICE MODULE V2.0
+// PHOENIX PROTOCOL - CALENDAR & DEADLINE ALERTS SERVICE MODULE V3.0 (VOICE PARSING)
 
 import { apiClient } from './apiClient';
 import type { CalendarEvent, CalendarEventCreateRequest, BriefingResponse } from '../data/types';
+
+export interface VoiceParseResponse {
+  success: boolean;
+  parsed: {
+    category?: 'AGENDA' | 'FACT';
+    title?: string;
+    description?: string;
+    event_type?: string;
+    priority?: string;
+    start_date?: string;
+    location?: string;
+  };
+}
+
+export interface VoiceTranscribeResponse {
+  success: boolean;
+  transcription: string;
+  parsed: {
+    category?: 'AGENDA' | 'FACT';
+    title?: string;
+    description?: string;
+    event_type?: string;
+    priority?: string;
+    start_date?: string;
+    location?: string;
+  };
+}
 
 export class CalendarService {
   public async getCalendarEvents(): Promise<CalendarEvent[]> {
@@ -32,6 +59,25 @@ export class CalendarService {
   public async getAlertsCount(): Promise<{ count: number }> {
     const response = await this.getBriefing();
     return { count: response.count };
+  }
+
+  // ==========================================================
+  // VOICE → EVENT METHODS
+  // ==========================================================
+  public async parseVoiceText(text: string): Promise<VoiceParseResponse> {
+    const response = await apiClient.post<VoiceParseResponse>('/calendar/voice-parse', { text });
+    return response.data;
+  }
+
+  public async transcribeVoiceAndParse(file: File): Promise<VoiceTranscribeResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<VoiceTranscribeResponse>(
+      '/calendar/voice-transcribe',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
   }
 }
 

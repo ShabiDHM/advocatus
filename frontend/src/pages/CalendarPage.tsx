@@ -1,5 +1,5 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE V2.0 (UPCOMING ALERTS + POLLING FIX)
+// PHOENIX PROTOCOL - CALENDAR PAGE V3.0 (VOICE RECORDER INTEGRATED)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
@@ -7,23 +7,21 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, addMonths, subMonths, isSameDay, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import { AlertCircle, Plus, ChevronLeft, ChevronRight, Search, History, Loader2, Menu, X } from 'lucide-react';
+import { AlertCircle, Plus, ChevronLeft, ChevronRight, Search, History, Loader2, Menu, X, Mic } from 'lucide-react';
 
 import DayEventsModal from '../components/DayEventsModal';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { localeMap } from '../utils/calendarHelpers';
 import { EventDetailModal } from '../components/calendar/EventDetailModal';
-import { CreateEventModal } from '../components/calendar/CreateEventModal';
+import { CreateEventModal, EventInitialValues } from '../components/calendar/CreateEventModal';
+import { VoiceEventRecorder, ParsedVoiceEvent } from '../components/calendar/VoiceEventRecorder';
 import { CalendarSidebar } from '../components/calendar/CalendarSidebar';
 import { CalendarListView } from '../components/calendar/CalendarListView';
 import { CalendarMonthView } from '../components/calendar/CalendarMonthView';
 
 type ViewMode = 'month' | 'list';
 
-// Event-et që shfaqen në "Afatet e Ardhshme" (sidebar)
 const UPCOMING_EVENT_TYPES = ['DEADLINE', 'HEARING', 'COURT_DATE', 'FILING'];
-
-// Statuset që nuk janë më aktive
 const INACTIVE_STATUSES = ['CANCELLED', 'COMPLETED', 'RESOLVED'];
 
 const CalendarPage: React.FC = () => {
@@ -44,7 +42,11 @@ const CalendarPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
-  // Ref për të shmangur re-render kur polling nuk ka ndryshime
+  // VOICE — state i ri
+  const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
+  const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
+  const [voicePrefillSource, setVoicePrefillSource] = useState<'voice' | 'manual' | undefined>(undefined);
+
   const lastEventsJsonRef = useRef<string>('');
 
   useLockBodyScroll(isSidebarOpen);
@@ -60,7 +62,6 @@ const CalendarPage: React.FC = () => {
         apiService.getCases()
       ]);
 
-      // Polling i zgjuar: përditëso vetëm nëse ka ndryshim
       const newJson = JSON.stringify(eventsData);
       if (newJson !== lastEventsJsonRef.current) {
         lastEventsJsonRef.current = newJson;
@@ -78,12 +79,10 @@ const CalendarPage: React.FC = () => {
     }
   }, [t]);
 
-  // Ngarkimi fillestar
   useEffect(() => {
     loadData(true);
   }, [loadData]);
 
-  // FIX #9: Polling çdo 30 sekonda për rifreskim automatik
   useEffect(() => {
     const interval = setInterval(() => {
       loadData(false);
@@ -104,21 +103,16 @@ const CalendarPage: React.FC = () => {
     });
   }, [events, searchTerm, filterType, showFacts]);
 
-  // FIX #7 + #8: Vetëm event-e aktive, të ardhshme, dhe tipet kritike
   const upcomingAlerts = useMemo(() => {
     const now = new Date();
-    now.setHours(0, 0, 0, 0); // Fillimi i ditës së sotme
+    now.setHours(0, 0, 0, 0);
 
     return events
       .filter((event) => {
-        // 1. Vetëm AGENDA
         if (event.category !== 'AGENDA') return false;
-        // 2. Vetëm tipet kritike (jo MEETING/PAYMENT/OTHER)
         if (!UPCOMING_EVENT_TYPES.includes(event.event_type)) return false;
-        // 3. Vetëm PENDING + CONFIRMED (jo CANCELLED/COMPLETED/RESOLVED)
         const status = (event as any).status;
         if (status && INACTIVE_STATUSES.includes(status)) return false;
-        // 4. Vetëm event-et e ardhshme ose sot
         const eventDate = new Date(event.start_date);
         if (eventDate.getTime() < now.getTime()) return false;
         return true;
@@ -126,6 +120,35 @@ const CalendarPage: React.FC = () => {
       .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
       .slice(0, 10);
   }, [events]);
+
+  // Handle parsed voice → hap CreateEventModal me vlera të parambushura
+  const handleVoiceParsed = useCallback((parsed: ParsedVoiceEvent, _transcription: string) => {
+    const initial: EventInitialValues = {
+      title: parsed.title,
+      description: parsed.description,
+      event_type: parsed.event_type,
+      priority: parsed.priority,
+      location: parsed.location,
+      category: parsed.category,
+      start_date: parsed.start_date,
+    };
+    setVoiceInitialValues(initial);
+    setVoicePrefillSource('voice');
+    setIsVoiceRecorderOpen(false);
+    setIsCreateModalOpen(true);
+  }, []);
+
+  const handleOpenCreateManually = () => {
+    setVoiceInitialValues(undefined);
+    setVoicePrefillSource(undefined);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setVoiceInitialValues(undefined);
+    setVoicePrefillSource(undefined);
+  };
 
   if (loading) {
     return (
@@ -179,13 +202,26 @@ const CalendarPage: React.FC = () => {
               <Menu size={20} />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="btn-primary flex items-center justify-center gap-3 px-8 h-11 rounded-xl text-xs uppercase tracking-widest shrink-0 w-full sm:w-auto focus:outline-none"
-          >
-            <Plus size={16} strokeWidth={3} /> {t('calendar.newEvent')}
-          </button>
+
+          {/* VOICE + NEW EVENT BUTTONS */}
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsVoiceRecorderOpen(true)}
+              className="h-11 px-4 sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all focus:outline-none shrink-0"
+              title="Regjistro me zë"
+            >
+              <Mic size={16} strokeWidth={2.5} />
+              <span className="hidden md:inline">Regjistro</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenCreateManually}
+              className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-3 px-8 h-11 rounded-xl text-xs uppercase tracking-widest focus:outline-none"
+            >
+              <Plus size={16} strokeWidth={3} /> {t('calendar.newEvent')}
+            </button>
+          </div>
         </div>
 
         <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center h-auto sm:h-11">
@@ -285,7 +321,25 @@ const CalendarPage: React.FC = () => {
       </AnimatePresence>
 
       {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={() => loadData(false)} />}
-      {isCreateModalOpen && <CreateEventModal cases={cases} existingEvents={events} onClose={() => setIsCreateModalOpen(false)} onCreate={() => loadData(false)} />}
+
+      {isCreateModalOpen && (
+        <CreateEventModal
+          cases={cases}
+          existingEvents={events}
+          onClose={handleCloseCreateModal}
+          onCreate={() => loadData(false)}
+          initialValues={voiceInitialValues}
+          prefillSource={voicePrefillSource}
+        />
+      )}
+
+      {/* VOICE RECORDER MODAL */}
+      <VoiceEventRecorder
+        isOpen={isVoiceRecorderOpen}
+        onClose={() => setIsVoiceRecorderOpen(false)}
+        onParsed={handleVoiceParsed}
+      />
+
       <DayEventsModal
         isOpen={isDayModalOpen}
         onClose={() => setIsDayModalOpen(false)}
@@ -294,7 +348,7 @@ const CalendarPage: React.FC = () => {
         t={t}
         onAddEvent={() => {
           setIsDayModalOpen(false);
-          setIsCreateModalOpen(true);
+          handleOpenCreateManually();
         }}
       />
     </div>

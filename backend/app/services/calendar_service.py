@@ -1,17 +1,18 @@
 # FILE: backend/app/services/calendar_service.py
-# PHOENIX PROTOCOL - CALENDAR SERVICE V5.1 (UPDATE EVENT SUPPORT)
+# PHOENIX PROTOCOL - CALENDAR SERVICE V6.0 (VOICE → EVENT PARSER)
 # 100% COMPLETE CODE • ZERO PY WARNINGS • INTEGRATED WITH kosovo_holidays
 
+import logging
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, timezone, timedelta, date
 from bson import ObjectId
 from fastapi import HTTPException, status
 from pymongo.database import Database
 
-from app.models.calendar import (
-    CalendarEventInDB, CalendarEventCreate, EventStatus, EventCategory
-)
+from app.models.calendar import CalendarEventInDB, CalendarEventCreate, EventStatus, EventCategory
 from app.services.kosovo_holidays import is_holiday
+
+logger = logging.getLogger(__name__)
 
 
 class CalendarService:
@@ -21,7 +22,7 @@ class CalendarService:
         Ditë pune = jo fundjavë DHE jo festë zyrtare e Kosovës.
         Integron festat kombëtare, fetare dhe ndërkombëtare.
         """
-        if d.weekday() >= 5:
+        if d.weekday() >= 5:  # Saturday=5, Sunday=6
             return False
         if is_holiday(d):
             return False
@@ -148,12 +149,10 @@ class CalendarService:
         Përditëson një event ekzistues. Vetëm fushat e dërguara aplikohen (partial update).
         Kthen event-in e përditësuar.
         """
-        # Kontroll pronesie
         existing = db.calendar_events.find_one({"_id": event_id, "owner_id": user_id})
         if not existing:
             raise HTTPException(status_code=404, detail="Event not found or unauthorized")
 
-        # Filtro fushat e lejuara
         allowed_fields = {
             "title", "description", "start_date", "end_date",
             "is_all_day", "event_type", "category", "priority",
@@ -164,7 +163,6 @@ class CalendarService:
         if not safe_updates:
             raise HTTPException(status_code=400, detail="No valid fields to update")
 
-        # Enum validim për status (nëse dërgohet)
         if "status" in safe_updates:
             try:
                 safe_updates["status"] = EventStatus(safe_updates["status"])
@@ -173,13 +171,6 @@ class CalendarService:
                     status_code=400,
                     detail=f"Invalid status. Must be one of: {[s.value for s in EventStatus]}"
                 )
-
-        # Enum validim për event_type
-        if "event_type" in safe_updates:
-            try:
-                safe_updates["event_type"] = safe_updates["event_type"]
-            except Exception:
-                pass
 
         safe_updates["updated_at"] = datetime.now(timezone.utc)
 
@@ -199,5 +190,156 @@ class CalendarService:
         if db.calendar_events.delete_one({"_id": event_id, "owner_id": user_id}).deleted_count == 0:
             raise HTTPException(404, "Not Found")
         return True
+
+    # ==========================================================
+    # VOICE → EVENT PARSER (Analiza semantike e tekstit të transkriptuar)
+    # ==========================================================
+    def parse_voice_text_to_event(
+        self,
+        text: str,
+        case_titles: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Analizon tekstin e transkriptuar nga zëri dhe nxjerr detajet e një event-i ose memo-je.
+        Përdor LLM (DeepSeek) për parsing semantik në gjuhën shqipe.
+        Kthen: {category, title, description, event_type, priority, start_date, location}
+        ose {} nëse dështon.
+        """
+        if not text or not text.strip():
+            return {}
+        
+        # Import brenda funksionit për të shmangur cycles
+        from app.services.llm.llm_client import _call_llm, clean_and_parse_json
+        
+        # Përdor zonën kohore të Kosovës nëse e mundur, tjetër UTC
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.now(ZoneInfo("Europe/Belgrade"))
+        except Exception:
+            now = datetime.now(timezone.utc)
+        
+        today_str = now.strftime("%Y-%m-%d")
+        weekday_sq = ["E Hënë", "E Martë", "E Mërkurë", "E Enjte", "E Premte", "E Shtunë", "E Diel"][now.weekday()]
+        
+        cases_context = ""
+        if case_titles:
+            cases_context = "\nRASTET E DISPONUESHME: " + ", ".join(case_titles[:50])
+        
+        system_prompt = f"""Ti je asistent i inteligjent ligjor. Detyra jote është të analizosh tekstin e transkriptuar nga zëri dhe të nxjerrësh të dhëna të strukturuara për një event ose shënim kalendarik.
+
+DATA E SOTME: {today_str} ({weekday_sq}){cases_context}
+
+KATEGORITË:
+- "AGENDA" = event i planifikuar (takim, seancë, afat, dorëzim, seancë gjyqësore)
+- "FACT" = shënim memo, pa datë specifike ose pa veprim të planifikuar
+
+TIPET E EVENT-IT:
+- "DEADLINE" = afat, parashkrim, dorëzim
+- "HEARING" = seancë dëgjimore, dëshmi
+- "COURT_DATE" = seancë gjyqësore, gjykatë
+- "MEETING" = takim me klient, koleg, palë
+- "FILING" = dorëzim parashtrese, padi, ankesë
+- "CONSULTATION" = konsultë
+- "PAYMENT" = pagesë, faturë
+- "OTHER" = tjetër
+
+PRIORITETI:
+- "CRITICAL" = afat prekluziv, urgjent, sot/nesër
+- "HIGH" = brenda 3 ditësh, i rëndësishëm
+- "MEDIUM" = normal (default)
+- "LOW" = i ulët, jo urgjent
+
+RREGULLA:
+1. Interpreto datat relative: "nesër" = +1 ditë, "pasnesër" = +2 ditë, "të hënën" = e hëna e ardhshme
+2. Nëse nuk përmendet datë për event → përdor të nesërmen si default
+3. Nëse është memo/notë pa datë → kategoria "FACT", data = sot
+4. Titulli duhet të jetë i shkurtër (max 80 karaktere) dhe përmbledhës
+5. Përgjigju VETËM me JSON të vlefshëm, pa shpjegime
+
+FORMATI I PËRGJIGJES (JSON):
+{{
+  "category": "AGENDA" ose "FACT",
+  "title": "string i shkurtër",
+  "description": "string përshkrues",
+  "event_type": "DEADLINE" | "HEARING" | "COURT_DATE" | "MEETING" | "FILING" | "CONSULTATION" | "PAYMENT" | "OTHER",
+  "priority": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+  "start_date": "YYYY-MM-DD",
+  "location": "string ose bosh"
+}}"""
+        
+        user_content = f"""TEKSTI I TRANSKRIPTUAR:
+"{text}"
+
+Nxirr të dhënat e strukturuara sipas formatit JSON të kërkuar. Përgjigju vetëm me JSON."""
+        
+        try:
+            raw = _call_llm(
+                system_prompt=system_prompt,
+                user_content=user_content,
+                json_mode=True,
+                temperature=0.0
+            )
+            if not raw:
+                logger.warning("⚠️ [Voice Parse] LLM returned empty")
+                return {}
+            
+            parsed = clean_and_parse_json(raw)
+            if not parsed:
+                logger.warning(f"⚠️ [Voice Parse] Failed to parse JSON: {raw[:200]}")
+                return {}
+            
+            # Validim + fallback i sigurt
+            valid_categories = {"AGENDA", "FACT"}
+            valid_types = {"DEADLINE", "HEARING", "COURT_DATE", "MEETING", "FILING", "CONSULTATION", "PAYMENT", "OTHER"}
+            valid_priorities = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+            
+            category = str(parsed.get("category", "AGENDA")).upper()
+            if category not in valid_categories:
+                category = "AGENDA"
+            
+            event_type = str(parsed.get("event_type", "MEETING")).upper()
+            if event_type not in valid_types:
+                event_type = "MEETING"
+            
+            priority = str(parsed.get("priority", "MEDIUM")).upper()
+            if priority not in valid_priorities:
+                priority = "MEDIUM"
+            
+            # Validim i datës — nëse në të kaluarën, zhvendos në të ardhmen
+            start_date_str = parsed.get("start_date")
+            fallback_date = (now.date() + timedelta(days=1)) if category == "AGENDA" else now.date()
+            try:
+                parsed_date = date.fromisoformat(str(start_date_str))
+                if parsed_date < now.date():
+                    parsed_date = fallback_date
+                start_date_final = parsed_date.isoformat()
+            except Exception:
+                start_date_final = fallback_date.isoformat()
+            
+            title = str(parsed.get("title", "")).strip()[:200]
+            if not title:
+                # Fallback: përdor 80 karakteret e para të tekstit origjinal
+                title = text.strip()[:80]
+            
+            description = str(parsed.get("description", "")).strip()[:1000]
+            location = str(parsed.get("location", "")).strip()[:200]
+            
+            result = {
+                "category": category,
+                "title": title,
+                "description": description,
+                "event_type": event_type,
+                "priority": priority,
+                "start_date": start_date_final,
+                "location": location,
+            }
+            
+            logger.info(f"🎙️ [Voice Parse] '{text[:60]}...' → category={category} type={event_type} priority={priority} date={start_date_final}")
+            return result
+        
+        except Exception as e:
+            logger.error(f"❌ [Voice Parse] Exception: {e}")
+            return {}
+
 
 calendar_service = CalendarService()
