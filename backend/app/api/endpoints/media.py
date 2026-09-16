@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V16.0 (AUDIO/VIDEO DETECTION FIXED)
+# PHOENIX PROTOCOL - MEDIA ROUTER V17.0 (AUDIO/VIDEO DETECTION + CLEAN MIME STREAMING)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • SAFE CLOUD STORAGE UPLOAD
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
@@ -182,7 +182,7 @@ async def upload_case_media(
     ext = os.path.splitext(filename)[1].lower()
 
     # ==========================================================
-    # FIX: DETEKTIMI I SAKTË AUDIO vs VIDEO
+    # FIX 1: DETEKTIMI I SAKTË AUDIO vs VIDEO
     # Prioriteti:
     # 1. content_type (më i besueshëm)
     # 2. Extension (fallback)
@@ -354,14 +354,29 @@ async def stream_case_media(
         raise HTTPException(status_code=404, detail="Nuk mund të lexohej skedari nga serveri.")
 
     filename = media_item.get("file_name", "media.mp4")
-    mime_type = media_item.get("mime_type", "video/mp4")
+    raw_mime = media_item.get("mime_type", "video/mp4") or "video/mp4"
+
+    # ==========================================================
+    # FIX 2: Heq parametrat e codec-it nga Content-Type HTTP.
+    # "audio/webm;codecs=opus" → "audio/webm"
+    # Browsers nuk e pranojnë codec parametrin në HTTP header dhe
+    # refuzojnë të dekodojnë audio track-un (silence absolute).
+    # ==========================================================
+    clean_mime = raw_mime.split(';')[0].strip().lower() if ';' in raw_mime else raw_mime.strip().lower()
+
+    # Fallback i sigurt nëse clean_mime është bosh ose i pavlefshëm
+    if not clean_mime or '/' not in clean_mime:
+        clean_mime = 'video/mp4' if any(filename.lower().endswith(e) for e in ['.mp4', '.mov', '.avi', '.mkv']) else 'audio/webm'
+
+    logger.info(f"🎧 [Media Stream] file='{filename}' raw_mime='{raw_mime}' → clean_mime='{clean_mime}'")
 
     return StreamingResponse(
         stream,
-        media_type=mime_type,
+        media_type=clean_mime,
         headers={
             "Content-Disposition": f"inline; filename=\"{filename}\"",
-            "Accept-Ranges": "bytes"
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache"
         }
     )
 
