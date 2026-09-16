@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V12.0 (FORENSIC-GRADE AUDIO RECORDING)
+// PHOENIX PROTOCOL - MEDIA PANEL V13.0 (OPAQUE MODAL + FORENSIC AUDIO RECORDING)
 // ZERO TS WARNINGS • 100% COMPLETE CODE • SECURE NATIVE AUDIO RECORDING
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -462,16 +462,16 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL - TRANSKRIPTI VERBATIM */}
+            {/* MODAL - TRANSKRIPTI VERBATIM (OPAQUE - FIXED FOR MOBILE) */}
             <AnimatePresence>
                 {selectedMedia && (
-                    <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[200] p-4 sm:p-6 lg:p-8">
+                    <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[200] p-3 sm:p-6 lg:p-8">
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.96, y: 12 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                            className="glass-panel w-full max-w-4xl h-[85vh] max-h-[800px] p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-main bg-card flex flex-col"
-                            style={{ backgroundColor: 'var(--bg-card, #ffffff)' }}
+                            className="w-full max-w-4xl h-[88vh] sm:h-[85vh] max-h-[800px] p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-main flex flex-col bg-card"
+                            style={{ backgroundColor: 'var(--bg-card)' }}
                         >
                             {/* Modal Header */}
                             <div className="flex justify-between items-center mb-4 border-b border-main pb-4 shrink-0">
@@ -486,13 +486,13 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         <p className="text-[11px] sm:text-xs text-text-muted font-medium truncate mt-0.5">{selectedMedia.file_name}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setSelectedMedia(null)} className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer">
+                                <button onClick={() => setSelectedMedia(null)} className="p-1.5 sm:p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer shrink-0">
                                     <X size={18} />
                                 </button>
                             </div>
 
-                            {/* Modal Body - Transkripti me Sekonda */}
-                            <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-5 bg-surface/50 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner">
+                            {/* Modal Body - Transkripti me Sekonda (OPAQUE) */}
+                            <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner bg-canvas">
                                 <div className="space-y-2.5 text-sm leading-relaxed">
                                     {selectedMedia.transcript ? (
                                         selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {

@@ -10,6 +10,7 @@ export default {
       colors: {
         // Foundation - RGB enabled for opacity support
         'canvas': 'var(--bg-base)',
+        'card': 'var(--bg-card)',
         'surface': 'rgb(var(--bg-surface-rgb) / <alpha-value>)',
         'surface-secondary': 'var(--bg-surface-secondary)',
         'input-bg': 'var(--bg-input)',
