@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/StandardDocumentAuditModal.tsx
-// PHOENIX PROTOCOL - SUPREME JUDICIAL DOCUMENT AUDIT MODAL V6.0 (PERSISTED + MULTI-DEVICE SYNC)
+// PHOENIX PROTOCOL - SUPREME JUDICIAL DOCUMENT AUDIT MODAL V6.2 (RECOMMENDATION-ONLY: NENE + PRECEDENTË)
 // ZERO TS WARNINGS • POWERED BY GPT-4O-MINI / CLAUDE • TOTAL PURGE SYNC • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -213,12 +213,16 @@ DETYRË E KONSULENCËS GJYQËSORE: Kryeni auditimin e thellë, të saktë dhe t�
 * Organi nxjerrës, numri i lëndës/protokollit dhe auditimi i afateve ligjore prekluzive.
 * Struktura e palëve, cilësia procedurale dhe legjitimiteti aktiv/pasiv.
 
-### 2. VERIFIKIMI I NENEVE DHE KORRIGJIMI I GABIMEVE
+### 2. VERIFIKIMI I NENEVE DHE REKOMANDIMI I KORRIGJIMEVE
 * Dispozitat e zbatuara saktë në formatin e verifikueshëm "Neni X i [Ligjit]".
-* Identifikimi i çdo neni të gabuar, të shfuqizuar apo të keqzbatuar dhe zëvendësimi me nenin e saktë në fuqi.
+* Identifikimi i çdo neni të gabuar, të shfuqizuar apo të keqzbatuar siç është përdorur në tekstin origjinal të shkresës.
+* RREGULL I HEKURT: NUK lejohet rishkrimi, zëvendësimi apo korrigjimi automatik i neneve brenda tekstit të shkresës. Për çdo gabim të identifikuar, paraqitni në mënyrë të veçantë dhe të strukturuar: (a) neni i gabuar siç është përdorur në shkresë, (b) neni i saktë në fuqi si REKOMANDIM i veçantë për korrigjim, (c) arsyeja e saktë e gabimit (shfuqizim, keqzbatim, referencë e pasaktë, etj.).
 
-### 3. PRECEDENTËT KYÇ TË GJYKATËS SUPREME DHE KUSHTETUESE
-* Precedentët e konsoliduar (PML / Revizion) dhe praktika kushtetuese që lidhen me këtë shkresë.
+### 3. PRECEDENTËT KYÇ TË GJYKATËS SUPREME DHE KUSHTETUESE — VERIFIKIM DHE REKOMANDIM
+* Identifikimi i çdo precedenti të cituar në tekstin origjinal të shkresës (PML, Revizion, Vendime Kushtetuese, praktikë gjyqësore e konsoliduar), saktësisht siç është paraqitur në shkresë.
+* Verifikimi i vërtetësisë dhe rëndësisë së çdo precedenti të cituar: a ekziston, a është i saktë numri/emërtimi, a është relevant me çështjen konkrete, a është ende i vlefshëm dhe i pazhvleftësuar.
+* RREGULL I HEKURT: NUK lejohet rishkrimi, zëvendësimi apo korrigjimi automatik i precedenteve brenda tekstit të shkresës. Për çdo precedent të problematik (i pasaktë, i pavlefshëm, i parëndësishëm, i keqcituar), paraqitni në mënyrë të veçantë dhe të strukturuar: (a) precedenti siç është cituar në shkresë, (b) precedenti i saktë dhe relevant në fuqi si REKOMANDIM i veçantë për korrigjim, (c) arsyeja e saktë e problemit (numër i gabuar, vendim i shfuqizuar, precedent jo relevant, praktikë e ndryshuar, etj.).
+* Nëse një precedent është cituar drejt dhe vlen, konfirmojeni si të saktë pa propozuar zëvendësim.
 
 ### 4. VLERËSIMI PËRMBAJTJESOR DHE SHKELJET PROCEDURALE
 * Pikat e forta, dobësitë provuese dhe shkeljet thelbësore (Neni 182 i LPK-së / KPP-së).

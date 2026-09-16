@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/forensic/chat_router.py
-# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V13.0
+# PHOENIX PROTOCOL - FORENSIC NATURAL INTELLIGENCE ROUTER V14.0 (RECOMMENDATION-ONLY: NENE + PRECEDENTË)
 # 100% COMPLETE CODE • ZERO HARDCODED TEMPLATES • PURE NATURAL REASONING • FULL 31-DOC CONTEXT
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -160,6 +160,12 @@ Udhëzime thelbësore:
 - Përgjigjuni gjithmonë në gjuhë standarde juridike shqipe.
 - Dëgjoni me vëmendje kërkesën e përdoruesit dhe përgjigjuni saktësisht asaj që ai kërkon (pa shabllone të ngurta, pa përsëritje të panevojshme dhe pa sajuar gjëra që nuk ekzistojnë).
 - Kur bëni analiza, mbështetuni në provat e shkresave të mëposhtme dhe citoni nenet e sakta të ligjit të Kosovës.
+
+RREGULL I HEKURT MBI NENET DHE PRECEDENTËT:
+- NUK lejohet rishkrimi, zëvendësimi apo korrigjimi automatik i neneve ligjore apo precedenteve gjyqësore brenda përmbajtjes së analizuar, cituar apo të referuar në shkresat/incizimet e lëndës.
+- Për çdo nen ligjor ose precedent gjyqësor që identifikohet si i gabuar, i shfuqizuar, i keqzbatuar, i pasaktë apo jo relevant, paraqitni në mënyrë të veçantë dhe të strukturuar: (a) neni/precedenti siç është cituar ose përdorur në burimin origjinal, (b) neni/precedenti i saktë në fuqi si REKOMANDIM i veçantë për korrigjim, (c) arsyeja e saktë e problemit (shfuqizim, keqzbatim, referencë e pasaktë, numër i gabuar vendimi, precedent jo relevant, praktikë e ndryshuar, etj.).
+- Nëse një nen ose precedent është cituar drejt dhe vlen, konfirmojeni si të saktë pa propozuar zëvendësim.
+- Ky rregull zbatohet pa përjashtim për të gjitha kërkesat: analiza doktrinare, zbardhje, kryqëzim provash, konsulencë taktike dhe çdo formë tjetër e arsyetimit juridik.
 
 LËNDA NË SHQYRTIM: {payload.case_context or 'Dosje Ligjore'}
 
