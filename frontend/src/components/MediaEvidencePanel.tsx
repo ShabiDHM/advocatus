@@ -1,8 +1,9 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V13.0 (OPAQUE MODAL + FORENSIC AUDIO RECORDING)
+// PHOENIX PROTOCOL - MEDIA PANEL V14.0 (PORTAL-RENDERED MODAL)
 // ZERO TS WARNINGS • 100% COMPLETE CODE • SECURE NATIVE AUDIO RECORDING
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
@@ -462,16 +463,21 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL - TRANSKRIPTI VERBATIM (OPAQUE - FIXED FOR MOBILE) */}
-            <AnimatePresence>
-                {selectedMedia && (
-                    <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[200] p-3 sm:p-6 lg:p-8">
+            {/* MODAL - TRANSKRIPTI VERBATIM (PORTAL-RENDERED - ALWAYS ON TOP) */}
+            {selectedMedia && createPortal(
+                <AnimatePresence>
+                    <div
+                        className="fixed inset-0 bg-black/85 flex items-center justify-center p-3 sm:p-6 lg:p-8"
+                        style={{ zIndex: 2147483647 }}
+                        onClick={() => setSelectedMedia(null)}
+                    >
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.96, y: 12 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 12 }}
                             className="w-full max-w-4xl h-[88vh] sm:h-[85vh] max-h-[800px] p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-main flex flex-col bg-card"
                             style={{ backgroundColor: 'var(--bg-card)' }}
+                            onClick={(e) => e.stopPropagation()}
                         >
                             {/* Modal Header */}
                             <div className="flex justify-between items-center mb-4 border-b border-main pb-4 shrink-0">
@@ -491,7 +497,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
-                            {/* Modal Body - Transkripti me Sekonda (OPAQUE) */}
+                            {/* Modal Body - Transkripti me Sekonda */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner bg-canvas">
                                 <div className="space-y-2.5 text-sm leading-relaxed">
                                     {selectedMedia.transcript ? (
@@ -550,13 +556,14 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                     }}
                                     className="h-9 px-4 sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
-                                    <Copy size={13} /> {copied ? 'U Kopjua!' : 'Kopjo Transkriptin'}
+                                    <Copy size={13} /> {copied ? 'U kopjua!' : 'Kopjo Transkriptin'}
                                 </button>
                             </div>
                         </motion.div>
                     </div>
-                )}
-            </AnimatePresence>
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 }
