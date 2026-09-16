@@ -1,5 +1,5 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE V3.2 (ICON-ONLY NEW EVENT ON MOBILE + MONTH DEFAULT)
+// PHOENIX PROTOCOL - CALENDAR PAGE V4.0 (COMPACT MOBILE CONTROLS + MONTH DEFAULT)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
@@ -42,6 +42,7 @@ const CalendarPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
+  // VOICE — state
   const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
   const [voicePrefillSource, setVoicePrefillSource] = useState<'voice' | 'manual' | undefined>(undefined);
@@ -170,7 +171,7 @@ const CalendarPage: React.FC = () => {
   return (
     <div className="h-auto lg:h-[calc(100dvh-64px)] overflow-y-auto lg:overflow-hidden bg-canvas flex flex-col font-sans selection:bg-primary-start/30">
       <div id="react-datepicker-portal"></div>
-      <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 min-h-0 bg-canvas">
+      <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-4 sm:gap-6 min-h-0 bg-canvas">
         {error && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="shrink-0 bg-danger-start/10 border border-danger-start/30 rounded-2xl p-4 flex items-center gap-4">
             <AlertCircle className="h-5 w-5 text-danger-start" />
@@ -178,13 +179,14 @@ const CalendarPage: React.FC = () => {
           </motion.div>
         )}
 
-        <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto h-auto sm:h-11">
+        {/* RRESHTI 1: Navigimi i Datës + Menu */}
+        <div className="shrink-0 flex items-center justify-between gap-4 w-full h-auto sm:h-11">
+          <div className="flex items-center gap-4">
             <div className="glass-panel flex items-center p-1 shrink-0 border border-main bg-surface h-11">
               <button type="button" onClick={() => navigateMonth('prev')} className="flex items-center justify-center w-9 h-9 hover:bg-hover rounded-xl transition-all focus:outline-none">
                 <ChevronLeft size={18} className="text-text-secondary" />
               </button>
-              <button type="button" onClick={() => setCurrentDate(new Date())} className="px-5 text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors focus:outline-none">
+              <button type="button" onClick={() => setCurrentDate(new Date())} className="px-4 sm:px-5 text-[11px] font-bold uppercase tracking-widest text-text-secondary hover:text-text-primary transition-colors focus:outline-none">
                 {t('calendar.today')}
               </button>
               <button type="button" onClick={() => navigateMonth('next')} className="flex items-center justify-center w-9 h-9 hover:bg-hover rounded-xl transition-all focus:outline-none">
@@ -196,36 +198,77 @@ const CalendarPage: React.FC = () => {
                 {format(currentDate, 'LLLL yyyy', { locale: currentLocale })}
               </h1>
             </div>
-            <button type="button" onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="xl:hidden flex items-center justify-center w-11 h-11 text-text-secondary hover:text-text-primary focus:outline-none">
-              <Menu size={20} />
-            </button>
           </div>
-
-          {/* VOICE + NEW EVENT BUTTONS */}
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsVoiceRecorderOpen(true)}
-              className="h-11 w-11 sm:w-auto sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all focus:outline-none shrink-0 cursor-pointer"
-              title="Regjistro me zë"
-              aria-label="Regjistro me zë"
-            >
-              <Mic size={16} strokeWidth={2.5} />
-              <span className="hidden md:inline">Regjistro</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenCreateManually}
-              className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-3 h-11 rounded-xl text-xs uppercase tracking-widest focus:outline-none cursor-pointer sm:px-8 w-11 sm:w-auto"
-              title={t('calendar.newEvent') as string}
-              aria-label={t('calendar.newEvent') as string}
-            >
-              <Plus size={18} strokeWidth={3} />
-              <span className="hidden sm:inline">{t('calendar.newEvent')}</span>
-            </button>
-          </div>
+          <button type="button" onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="xl:hidden flex items-center justify-center w-11 h-11 text-text-secondary hover:text-text-primary focus:outline-none shrink-0">
+            <Menu size={20} />
+          </button>
         </div>
 
+        {/* RRESHTI 2: Kontrollet e Kompaktuara [🎤] [Afatet] [Muaji|Lista] [+] */}
+        <div className="shrink-0 flex items-center gap-1.5 sm:gap-2 w-full h-11">
+          {/* Voice/Mic */}
+          <button
+            type="button"
+            onClick={() => setIsVoiceRecorderOpen(true)}
+            className="h-11 w-11 sm:w-auto sm:px-4 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all focus:outline-none shrink-0 cursor-pointer"
+            title="Regjistro me zë"
+            aria-label="Regjistro me zë"
+          >
+            <Mic size={16} strokeWidth={2.5} />
+            <span className="hidden sm:inline">Regjistro</span>
+          </button>
+
+          {/* Afatet */}
+          <button
+            type="button"
+            onClick={() => setShowFacts(!showFacts)}
+            className={`h-11 px-2.5 sm:px-5 flex-1 sm:flex-none rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all focus:outline-none flex items-center justify-center gap-1.5 cursor-pointer ${
+              showFacts
+                ? 'bg-primary-start text-white border-primary-start shadow-lg shadow-primary-start/15 border'
+                : 'border border-main text-text-secondary hover:bg-hover bg-surface'
+            }`}
+            title={showFacts ? 'Shfaq vetëm afatet' : 'Shfaq gjithçka'}
+          >
+            <History size={13} className="shrink-0" />
+            <span className="truncate">{showFacts ? 'Gjithçka' : 'Afatet'}</span>
+          </button>
+
+          {/* Muaji | Lista */}
+          <div className="flex p-0.5 rounded-xl border border-main bg-surface h-11 items-center shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('month')}
+              className={`px-2.5 sm:px-5 h-10 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all focus:outline-none cursor-pointer ${
+                viewMode === 'month' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Muaji
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 sm:px-5 h-10 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all focus:outline-none cursor-pointer ${
+                viewMode === 'list' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Lista
+            </button>
+          </div>
+
+          {/* Plus / Ngjarje e Re */}
+          <button
+            type="button"
+            onClick={handleOpenCreateManually}
+            className="h-11 w-11 sm:w-auto sm:px-6 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary-start/15 focus:outline-none shrink-0 cursor-pointer"
+            title={t('calendar.newEvent') as string}
+            aria-label={t('calendar.newEvent') as string}
+          >
+            <Plus size={18} strokeWidth={3} />
+            <span className="hidden sm:inline">{t('calendar.newEvent')}</span>
+          </button>
+        </div>
+
+        {/* RRESHTI 3: Kërkimi */}
         <div className="shrink-0 flex flex-col sm:flex-row gap-4 items-center h-auto sm:h-11">
           <div className="relative flex-1 h-11 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
@@ -237,39 +280,9 @@ const CalendarPage: React.FC = () => {
               className="w-full h-11 pl-12 pr-6 rounded-xl text-sm font-semibold border border-main bg-surface text-text-primary placeholder:text-text-disabled focus:outline-none focus:ring-2 focus:ring-primary-start/20 transition-all"
             />
           </div>
-          <div className="flex gap-4 h-11 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setShowFacts(!showFacts)}
-              className={`flex items-center justify-center gap-3 px-6 h-11 rounded-xl text-xs font-bold uppercase tracking-wider transition-all focus:outline-none ${
-                showFacts ? 'bg-primary-start text-white border-primary-start shadow-lg shadow-primary-start/15' : 'border border-main text-text-secondary hover:bg-hover'
-              }`}
-            >
-              <History size={14} /> {showFacts ? 'Gjithçka' : 'Afatet'}
-            </button>
-            <div className="glass-panel flex p-1 rounded-xl border border-main bg-surface h-11 items-center">
-              <button
-                type="button"
-                onClick={() => setViewMode('month')}
-                className={`px-5 h-9 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all focus:outline-none ${
-                  viewMode === 'month' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Muaji
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`px-5 h-9 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all focus:outline-none ${
-                  viewMode === 'list' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Lista
-              </button>
-            </div>
-          </div>
         </div>
 
+        {/* KALENDARI */}
         <div className="flex-1 grid grid-cols-1 xl:grid-cols-4 gap-8 min-h-0 relative bg-canvas">
           <div className="xl:col-span-3 flex flex-col min-h-0 bg-canvas">
             {viewMode === 'list' ? (
