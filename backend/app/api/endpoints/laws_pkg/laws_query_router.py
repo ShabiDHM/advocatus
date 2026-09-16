@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/laws_pkg/laws_query_router.py
-# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V203.0 (1-INDEXED STATUTE PAGE NORMALIZER)
-# 100% COMPLETE CODE • ZERO OFF-BY-ONE ERRORS • EXACT PAGE JUMPING • DEEPSEEK & GPT-4O-MINI
+# PHOENIX PROTOCOL - ULTRA-FAST JURIDICAL RAG ENGINE V204.0 (TOC IGNORANCE & 1-INDEX NORMALIZER)
+# 100% COMPLETE CODE • ZERO TOC JUMPS • EXACT PAGE JUMPING • DEEPSEEK & GPT-4O-MINI
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Set, List, Optional, Dict, Any
@@ -485,22 +485,43 @@ async def ai_semantic_law_search(
 
 @router.get("/case-page")
 async def get_case_starting_page(law_title: str = Query(...), current_user = Depends(get_current_user)):
+    """
+    GJEJA E SAKTË E FAQES SË PRECEDENTIT DUKE INJORUAR TABELAT E PËRMBAJTJES (FAQET 1-20).
+    """
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
         clean_title = law_title.strip()
 
+        # Ne kërkojmë vetëm faqe reale pasqyruese, duke shmangur faqet e para (ku gjendet Treguesi)
         doc = db.legal_knowledge_base.find_one(
-            {"$or": [
-                {"law_title": clean_title},
-                {"law_title": {"$regex": re.escape(clean_title), "$options": "i"}},
-                {"case_number": clean_title},
-                {"case_number": {"$regex": re.escape(clean_title), "$options": "i"}},
-                {"source": {"$regex": re.escape(clean_title), "$options": "i"}},
-                {"text": {"$regex": re.escape(clean_title), "$options": "i"}}
-            ]},
-            sort=[("actual_page", 1), ("page", 1)]
+            {
+                "page": {"$gt": 20}, # Injoron Tabelat e Përmbajtjes
+                "$or": [
+                    {"law_title": clean_title},
+                    {"law_title": {"$regex": re.escape(clean_title), "$options": "i"}},
+                    {"case_number": clean_title},
+                    {"case_number": {"$regex": re.escape(clean_title), "$options": "i"}},
+                    {"text": {"$regex": re.escape(clean_title), "$options": "i"}}
+                ]
+            },
+            sort=[("page", 1)] # Merr faqen e parë që plotëson kushtin
         )
+
+        # Nëse nuk gjendet asgjë pas faqes 20, provo sërish pa kufizim
+        if not doc:
+            doc = db.legal_knowledge_base.find_one(
+                {
+                    "$or": [
+                        {"law_title": clean_title},
+                        {"law_title": {"$regex": re.escape(clean_title), "$options": "i"}},
+                        {"case_number": {"$regex": re.escape(clean_title), "$options": "i"}},
+                        {"text": {"$regex": re.escape(clean_title), "$options": "i"}}
+                    ]
+                },
+                sort=[("page", 1)]
+            )
+
         if doc:
             raw_page = doc.get("actual_page") or doc.get("page") or doc.get("page_number") or 1
             try:
@@ -508,6 +529,7 @@ async def get_case_starting_page(law_title: str = Query(...), current_user = Dep
             except Exception:
                 page_val = 1
             return {"page": page_val, "page_number": page_val, "law_title": doc.get("source") or clean_title}
+            
         return {"page": 1, "page_number": 1, "law_title": clean_title}
     except Exception as e:
         logger.warning(f"Error fetching starting page: {e}")
@@ -649,10 +671,6 @@ async def get_law_article(
     article_number: str = Query(...), 
     current_user = Depends(get_current_user)
 ):
-    """
-    HAP NENIN ME KALKULIM TË SAKTË FIZIK TË FAQES NË PDF:
-    Sinkronizon bazën 0-indexed me lexuesin 1-indexed të PDF-ve (+1 normalizim).
-    """
     try:
         from app.core.db import get_db_instance
         db = get_db_instance()
@@ -677,7 +695,6 @@ async def get_law_article(
 
         statute_docs = []
 
-        # 1. Kërkim me Akronim
         if acronym_filter:
             statute_docs = list(db.legal_knowledge_base.find({
                 "article_number": {"$in": art_possible_forms},
@@ -685,7 +702,6 @@ async def get_law_article(
                 **acronym_filter
             }).sort("chunk_index", 1))
 
-        # 2. Kërkim me Titull të Plotë
         if not statute_docs:
             statute_docs = list(db.legal_knowledge_base.find({
                 "article_number": {"$in": art_possible_forms},
@@ -693,7 +709,6 @@ async def get_law_article(
                 "law_title": {"$regex": re.escape(clean_law_title), "$options": "i"}
             }).sort("chunk_index", 1))
 
-        # 3. Kërkim me Fjalë Kyçe
         if not statute_docs:
             words = [w for w in re.findall(r'[\w\d]+', clean_law_title) if len(w) >= 3]
             if words:
@@ -719,13 +734,16 @@ async def get_law_article(
         if not doc_source:
             raise HTTPException(status_code=404, detail=f"Ligji '{clean_law_title}' nuk u gjet.")
 
-        # 4. SKANIMI FIZIK DHE NORMALIZIMI I FAQES (+1 OFFSET I ZGJIDHUR)
         real_physical_page = _scan_exact_article_page(doc_source, art_digits)
 
         if real_physical_page:
             page_val = real_physical_page
+            if statute_docs:
+                db.legal_knowledge_base.update_many(
+                    {"_id": {"$in": [d["_id"] for d in statute_docs]}},
+                    {"$set": {"page": page_val, "actual_page": page_val}}
+                )
         elif statute_docs:
-            # Baza në MongoDB ka faqe 0-indexed; PDF Vieweri kërkon faqe 1-indexed -> +1
             raw_page = statute_docs[0].get("actual_page") or statute_docs[0].get("page") or statute_docs[0].get("page_number") or 1
             try:
                 page_val = int(raw_page) + 1
