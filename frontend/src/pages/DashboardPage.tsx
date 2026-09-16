@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V12.0 (VOICE RECORDER INTEGRATED)
+// PHOENIX PROTOCOL - DASHBOARD V12.1 (VOICE RECORDER + CROSS-PAGE SYNC)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +47,7 @@ const DashboardPage: React.FC = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
 
-  // VOICE — state i ri
+  // VOICE — state
   const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [isVoiceEventCreateOpen, setIsVoiceEventCreateOpen] = useState(false);
   const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
@@ -158,7 +158,13 @@ const DashboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // VOICE handler — konverton parsed në initialValues dhe hap CreateEventModal
+  // Cross-page sync: rifresko briefing + event-et kur kalendari ndryshon
+  useEffect(() => {
+    const handler = () => loadData(true);
+    window.addEventListener('calendar:event-changed', handler);
+    return () => window.removeEventListener('calendar:event-changed', handler);
+  }, []);
+
   const handleVoiceParsed = (parsed: ParsedVoiceEvent, _transcription: string) => {
     const initial: EventInitialValues = {
       title: parsed.title,
@@ -419,7 +425,6 @@ const DashboardPage: React.FC = () => {
           />
         </div>
 
-        {/* VOICE BUTTON */}
         <button
           type="button"
           onClick={() => setIsVoiceRecorderOpen(true)}
@@ -641,14 +646,12 @@ const DashboardPage: React.FC = () => {
 
       <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
 
-      {/* VOICE RECORDER MODAL */}
       <VoiceEventRecorder
         isOpen={isVoiceRecorderOpen}
         onClose={() => setIsVoiceRecorderOpen(false)}
         onParsed={handleVoiceParsed}
       />
 
-      {/* CREATE EVENT MODAL — prefill nga voice */}
       {isVoiceEventCreateOpen && (
         <CreateEventModal
           cases={cases}
