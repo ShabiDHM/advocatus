@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V12.1 (VOICE RECORDER + CROSS-PAGE SYNC)
+// PHOENIX PROTOCOL - DASHBOARD V13.0 (RISK-COLORED GUARDIAN + CLEAN PROFESSIONAL UI)
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -88,33 +88,40 @@ const DashboardPage: React.FC = () => {
     return briefing;
   }, [holidayBriefing, briefing]);
 
+  // FIX: theme tani ka 'bg' + 'border' të veçantë, të cilat ZBATOHEN në JSX.
+  // Ngjyra e kartës tregon nivelin e rrezikut — pa titull redundant.
   const theme = useMemo(() => {
     const status = effectiveBriefing?.status || 'OPTIMAL';
     switch (status) {
-      case 'HOLIDAY': 
-        return { 
-          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
-          icon: <PartyPopper className="h-6 w-6 text-indigo-400" /> 
+      case 'HOLIDAY':
+        return {
+          bg: 'from-indigo-500/[0.06] via-transparent to-transparent',
+          border: 'border-indigo-500/30',
+          icon: <PartyPopper className="h-5 w-5 text-indigo-400" />
         };
-      case 'WEEKEND': 
-        return { 
-          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
-          icon: <Coffee className="h-6 w-6 text-indigo-400" /> 
+      case 'WEEKEND':
+        return {
+          bg: 'from-indigo-500/[0.06] via-transparent to-transparent',
+          border: 'border-indigo-500/30',
+          icon: <Coffee className="h-5 w-5 text-indigo-400" />
         };
-      case 'CRITICAL': 
-        return { 
-          style: 'from-red-950/40 via-red-900/40 to-black/40 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]', 
-          icon: <ShieldAlert className="h-6 w-6 animate-pulse text-red-500" /> 
+      case 'CRITICAL':
+        return {
+          bg: 'from-rose-500/[0.10] via-rose-500/[0.03] to-transparent',
+          border: 'border-rose-500/40',
+          icon: <ShieldAlert className="h-5 w-5 animate-pulse text-rose-500" />
         };
-      case 'WARNING': 
-        return { 
-          style: 'from-amber-950/40 to-black/40 border-amber-500/50', 
-          icon: <AlertTriangle className="h-6 w-6 text-amber-400" /> 
+      case 'WARNING':
+        return {
+          bg: 'from-amber-500/[0.08] via-amber-500/[0.02] to-transparent',
+          border: 'border-amber-500/35',
+          icon: <AlertTriangle className="h-5 w-5 text-amber-400" />
         };
-      default: 
-        return { 
-          style: 'from-indigo-950/40 to-black/40 border-indigo-500/50', 
-          icon: <CheckCircle2 className="h-6 w-6 text-indigo-400" /> 
+      default:
+        return {
+          bg: 'from-emerald-500/[0.05] via-transparent to-transparent',
+          border: 'border-emerald-500/25',
+          icon: <CheckCircle2 className="h-5 w-5 text-emerald-400" />
         };
     }
   }, [effectiveBriefing?.status]);
@@ -285,20 +292,35 @@ const DashboardPage: React.FC = () => {
 
     const hasRiskRadar = effectiveBriefing?.risk_radar && effectiveBriefing.risk_radar.length > 0;
     if (hasRiskRadar) {
+      // FIX: Hequr titulli "RADARI I RREZIKUT" — ngjyra e kartës tregon nivelin e rrezikut.
       return (
-        <div className="space-y-3">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/50 ml-1 italic">RADARI I RREZIKUT</h3>
+        <div className="space-y-2">
           {effectiveBriefing!.risk_radar!.map((item: RiskAlert) => (
-            <div key={item.id} className={`p-4 rounded-2xl border border-main flex items-center justify-between gap-4 backdrop-blur-xl transition-all ${item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-danger-start/10 border-danger-start/20' : 'bg-warning-start/10 border-warning-start/20'}`}>
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-danger-start animate-ping' : 'bg-warning-start'}`} />
-                <span className={`text-xs sm:text-sm font-black uppercase tracking-tight ${item.level === 'LEVEL_1_PREKLUZIV' ? 'text-danger-start' : 'text-warning-start'}`}>
+            <div
+              key={item.id}
+              className={`p-3 rounded-xl border flex items-center justify-between gap-3 backdrop-blur-xl transition-all ${
+                item.level === 'LEVEL_1_PREKLUZIV'
+                  ? 'bg-rose-500/[0.08] border-rose-500/25'
+                  : 'bg-amber-500/[0.06] border-amber-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-rose-500 animate-ping' : 'bg-amber-500'
+                }`} />
+                <span className={`text-xs sm:text-sm font-bold tracking-tight truncate ${
+                  item.level === 'LEVEL_1_PREKLUZIV' ? 'text-rose-400' : 'text-amber-400'
+                }`}>
                   {item.title}
                 </span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-surface rounded-xl border border-main shrink-0 shadow-sm">
-                <Timer size={14} className={item.level === 'LEVEL_1_PREKLUZIV' ? 'text-danger-start' : 'text-warning-start'} />
-                <span className="text-xs font-black font-mono text-text-primary tabular-nums">{formatCountdown(item.seconds_remaining)}</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface/60 rounded-lg border border-main/40 shrink-0">
+                <Timer size={12} className={
+                  item.level === 'LEVEL_1_PREKLUZIV' ? 'text-rose-400' : 'text-amber-400'
+                } />
+                <span className="text-[11px] font-bold font-mono text-text-primary tabular-nums">
+                  {formatCountdown(item.seconds_remaining)}
+                </span>
               </div>
             </div>
           ))}
@@ -310,12 +332,11 @@ const DashboardPage: React.FC = () => {
       const previewEvents = todaysEvents.slice(0, 3);
       return (
         <div className="space-y-2">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary/50 ml-1 italic">NGJARJE SOT</h3>
           {previewEvents.map(event => (
-            <div key={event.id} className="p-3 rounded-xl border border-main bg-surface flex items-center gap-3 shadow-sm">
-              <div className="w-2 h-2 rounded-full bg-primary-start" />
-              <div>
-                <p className="text-xs font-bold text-text-primary">{event.title}</p>
+            <div key={event.id} className="p-3 rounded-xl border border-main/60 bg-surface/60 flex items-center gap-3 shadow-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary-start shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-text-primary truncate">{event.title}</p>
                 <p className="text-[10px] text-text-muted">
                   {new Date(event.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -323,7 +344,7 @@ const DashboardPage: React.FC = () => {
             </div>
           ))}
           {todaysEvents.length > 3 && (
-            <button className="text-[10px] text-primary-start hover:underline mt-2 hover-lift shadow-sm" onClick={() => setIsBriefingOpen(true)}>
+            <button className="text-[10px] text-primary-start hover:underline mt-1 hover-lift shadow-sm" onClick={() => setIsBriefingOpen(true)}>
               + {todaysEvents.length - 3} më shumë
             </button>
           )}
@@ -369,31 +390,32 @@ const DashboardPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className="glass-panel shrink-0 mb-6 rounded-[2rem] border border-main overflow-hidden shadow-sm bg-surface"
+            className={`shrink-0 mb-6 rounded-[1.75rem] border overflow-hidden bg-surface transition-colors duration-500 ${theme.border}`}
           >
-            <div className="p-5 sm:p-8 bg-gradient-to-br from-primary-start/5 to-transparent">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl shrink-0 border border-main shadow-sm bg-surface">
+            {/* FIX: theme.bg ZBATOHET tani në gradient — ngjyra tregon nivelin e rrezikut */}
+            <div className={`p-5 sm:p-7 bg-gradient-to-br transition-colors duration-500 ${theme.bg}`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div className="flex items-start gap-3.5">
+                  <div className={`p-2.5 rounded-xl shrink-0 border bg-surface/60 ${theme.border}`}>
                     {theme.icon}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
                         {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                       </h2>
                       <div className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse shrink-0" />
                     </div>
-                    <p className="font-bold text-lg sm:text-2xl text-text-primary tracking-tight leading-snug">
+                    <p className="font-bold text-base sm:text-xl text-text-primary tracking-tight leading-snug">
                       {getGreeting()}
                     </p>
-                    <p className="text-text-secondary font-semibold mt-1 text-xs sm:text-sm italic">
+                    <p className="text-text-secondary font-medium mt-1 text-xs sm:text-sm italic">
                       {getSubtitle()}
                     </p>
                   </div>
                 </div>
 
-                <div className="w-full md:max-w-xs">
+                <div className="w-full md:max-w-sm">
                   {getMainContent()}
                 </div>
 
@@ -401,9 +423,9 @@ const DashboardPage: React.FC = () => {
                   <button 
                     type="button"
                     onClick={() => window.location.href = '/calendar'} 
-                    className="h-11 w-full md:w-auto px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 bg-primary-start hover:bg-opacity-95 text-white shadow-lg shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
+                    className="h-10 w-full md:w-auto px-5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 bg-primary-start hover:bg-opacity-95 text-white shadow-md shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
                   >
-                    <Calendar size={16} />
+                    <Calendar size={14} />
                     {t('briefing.view_calendar', 'Kalendari')}
                   </button>
                 </div>
@@ -467,7 +489,6 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* ZERO-FRICTION MODAL (NO MANUAL OPPONENT INPUT) */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 overflow-y-auto custom-finance-scroll">
@@ -601,7 +622,6 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* DELETE CONFIRMATION MODAL */}
         {caseToDeleteId && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[110] p-4">
             <motion.div

@@ -1,8 +1,9 @@
 # FILE: backend/app/celery_app.py
-# PHOENIX PROTOCOL - CELERY ROBUSTNESS V3.0 (GDPR SCHEDULER READY)
+# PHOENIX PROTOCOL - CELERY ROBUSTNESS V3.1 (DEADLINE_EXTRACTION REMOVED)
 # 1. ENHANCED: Added beat schedule for GDPR archive deletion task.
 # 2. ENHANCED: Autodiscovers archive_tasks module.
 # 3. STATUS: Type-safe, decoupled configuration, production-ready.
+# 4. REMOVED: deadline_extraction (unused orphan task).
 
 from celery import Celery
 from celery.schedules import crontab
@@ -48,11 +49,9 @@ def configure_celery_app():
     # Define the modules where tasks are located.
     celery_app.autodiscover_tasks([
         'app.tasks.document_processing',
-        'app.tasks.deadline_extraction',
         'app.tasks.findings_extraction',
         'app.tasks.chat_tasks',
         'app.tasks.archive_tasks',   # Added for GDPR retention policy
     ])
     
     logging.getLogger(__name__).info("--- [Celery App] Celery application fully configured for worker (GDPR compliant). ---")
-
