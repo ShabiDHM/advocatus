@@ -1,5 +1,5 @@
 // FILE: frontend/src/services/forensicDeskService.ts
-// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V7.0 (FINANCIAL TAB FULLY WIPED OUT)
+// PHOENIX PROTOCOL - FORENSIC DEDICATED DESK CLIENT V8.0 (AUDIT PERSISTENCE METHODS)
 // 100% COMPLETE CODE • ZERO CLIENT DEPENDENCY • ZERO TS WARNINGS • 3 PURE EVIDENCE LABS
 
 import { apiClient, API_V1_URL, tokenManager } from './apiClient';
@@ -62,6 +62,9 @@ export interface ForensicDocItem {
   media_type?: 'audio' | 'video' | 'image';
   media_id?: string;
   created_at: string;
+  latest_analysis?: string;
+  latest_forensic_audit?: string;
+  last_audited_at?: string;
 }
 
 export interface LabEvidenceCounts {
@@ -384,6 +387,24 @@ export class ForensicDeskService {
 
   public async renameForensicDocument(caseId: string, docId: string, newName: string): Promise<void> {
     await apiClient.put(`${this.baseUrl}/documents/${caseId}/${docId}/rename`, { new_name: newName });
+  }
+
+  // ==========================================================
+  // 4.1. AUDITIMI DOKTRINAR I SHKRESËS FORENZIKE (MULTI-DEVICE SYNC)
+  // ==========================================================
+  public async saveForensicDocumentAudit(caseId: string, docId: string, content: string): Promise<any> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/documents/${caseId}/${docId}/audit`,
+      { content }
+    );
+    return response.data;
+  }
+
+  public async clearForensicDocumentAudit(caseId: string, docId: string): Promise<any> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/documents/${caseId}/${docId}/clear-audit`
+    );
+    return response.data;
   }
 
   // ==========================================================

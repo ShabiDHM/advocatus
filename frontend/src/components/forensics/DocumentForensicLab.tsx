@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/forensics/DocumentForensicLab.tsx
-// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V20.0 (DOCUMENT-ONLY AUDIT • FREE CHAT = FULL DOSSIER)
-// ZERO TS WARNINGS • POWERED BY CLAUDE SONNET 4.6 • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
+// PHOENIX PROTOCOL - INTEGRATED FORENSIC STUDIO V21.0 (FORENSIC AUDIT MODAL WIRED)
+// ZERO TS WARNINGS • POWERED BY DEEPSEEK • 100% COMPLETE CODE • PIXEL-PERFECT SYMMETRY
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -38,6 +38,7 @@ import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 import PDFViewerModal from '../FileViewerModal';
 import { RenameDocumentModal } from '../case/RenameDocumentModal';
+import { ForensicDocumentAuditModal } from './ForensicDocumentAuditModal';
 import { API_V1_URL } from '../../services/api';
 import { apiClient } from '../../services/apiClient';
 
@@ -406,6 +407,10 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
   const [renameDocName, setRenameDocName] = useState<string>('');
   const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
 
+  // Audit Modal i Forenzikës
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
+  const [currentAuditedDoc, setCurrentAuditedDoc] = useState<ForensicDocItem | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -772,7 +777,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         const next = [...prev];
         const idx = next.findIndex(m => m.id === aiPlaceholderId);
         if (idx !== -1) {
-          next[idx] = { ...next[idx], content: `[GABIM: ${err?.message || 'Lidhja me Claude dështoi.'}]` };
+          next[idx] = { ...next[idx], content: `[GABIM: ${err?.message || 'Lidhja me DeepSeek dështoi.'}]` };
         }
         return next;
       });
@@ -781,7 +786,7 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
     }
   };
 
-  // BUTONI "Analizo" — vepron VETËM mbi dokumentin e selektuar (jo fashikull)
+  // BUTONI "Analizo Dokumentin" — HAP MODALIN E AUDITIMIT FORENZIK
   const handleQuickAction = () => {
     if (isProcessing) return;
 
@@ -790,13 +795,8 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
       return;
     }
 
-    const prompt = `[DIREKTIVË FORENZIKE] Ju lutem bëni analizën e plotë ligjore dhe hetimore të shkresës: "${activeDoc.file_name}".
-1. Të dhënat procedurale (Organi, numri i lëndës/aktit, data).
-2. Struktura e personave të përfshirë dhe rolet procedurale.
-3. Rrethanat faktike dhe deklaratat fjalë për fjalë (Verbatim).
-4. Shkeljet ligjore, kontradiktat dhe pasojat procedurale sipas Kodit Penal dhe Procedurës Penale/Civile të Kosovës.`;
-
-    handleSendChatMessage(prompt);
+    setCurrentAuditedDoc(activeDoc);
+    setIsAuditModalOpen(true);
   };
 
   const handleClearChat = async () => {
@@ -1390,6 +1390,16 @@ export const DocumentForensicLab: React.FC<DocumentForensicLabProps> = ({
         onRename={handleConfirmRename}
         currentName={renameDocName}
         t={t}
+      />
+
+      {/* Modali i Auditimit Forenzik të Shkresës */}
+      <ForensicDocumentAuditModal
+        isOpen={isAuditModalOpen}
+        onClose={() => { setIsAuditModalOpen(false); setCurrentAuditedDoc(null); }}
+        caseId={caseId}
+        documentId={String(activeDoc?.id || currentAuditedDoc?.id || '')}
+        documentName={activeDoc?.file_name || currentAuditedDoc?.file_name || 'Dokument'}
+        clientName={clientName}
       />
     </div>
   );

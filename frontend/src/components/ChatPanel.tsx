@@ -1,5 +1,5 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V94.0 (ADAPTIVE FULL-WIDTH EXPAND • ZERO WASTED GUTTERS)
+// PHOENIX PROTOCOL - CHAT PANEL V95.0 (LEGACY FORENSIC PROMPT HANDLER PURGED)
 // ZERO TS WARNINGS • OFFICIAL JURISTI AI BRANDING • 100% COMPLETE CODE • ULTRA 60FPS TYPING
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -85,27 +85,6 @@ const isThinkingPlaceholder = (text?: string): boolean => {
 };
 
 const formatUserDisplayMessage = (content: string) => {
-  if (content.startsWith('[DIREKTIVË FORENZIKE') || content.startsWith('[DIREKTIVË E FORENZIKËS')) {
-    const docMatch = content.match(/"([^"]+)"/);
-    const rawDocName = docMatch ? docMatch[1] : 'Dokumenti';
-    const cleanDocName = rawDocName.replace(/\.[^/.]+$/, "");
-    
-    return (
-      <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
-        <span className="p-1 rounded-md bg-primary-start/15 text-primary-start border border-primary-start/30 flex items-center justify-center">
-          <Scale size={13} />
-        </span>
-        <span className="uppercase tracking-wider text-[11px] font-black text-text-primary">
-          Auditimi Forenzik
-        </span>
-        <span className="text-text-muted">•</span>
-        <span className="text-text-secondary font-medium max-w-[180px] sm:max-w-[280px] truncate text-[11px]">
-          {cleanDocName}
-        </span>
-      </div>
-    );
-  }
-
   if (content.includes('shtyllat strategjike') || content.includes('matrica e provave')) {
     return (
       <div className="inline-flex items-center gap-2 font-bold text-xs py-0.5">
@@ -238,7 +217,6 @@ const ClientMessageBubble: React.FC<ClientMessageBubbleProps> = React.memo(({
   );
 
   const isSpecialCommand = msg.role === 'user' && (
-    msg.content.startsWith('[DIREKTIVË') || 
     msg.content.includes('shtyllat strategjike') ||
     msg.content.includes('nxirr bazën e plotë ligjore') ||
     msg.content.includes('pyetësorin taktik') ||
