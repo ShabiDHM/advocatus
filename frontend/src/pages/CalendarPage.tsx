@@ -1,5 +1,5 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE V3.0 (VOICE RECORDER INTEGRATED)
+// PHOENIX PROTOCOL - CALENDAR PAGE V3.1 (VOICE RECORDER INTEGRATED + MONTH DEFAULT)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
@@ -30,7 +30,7 @@ const CalendarPage: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -42,7 +42,7 @@ const CalendarPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
-  // VOICE — state i ri
+  // VOICE — state
   const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
   const [voicePrefillSource, setVoicePrefillSource] = useState<'voice' | 'manual' | undefined>(undefined);
@@ -121,7 +121,6 @@ const CalendarPage: React.FC = () => {
       .slice(0, 10);
   }, [events]);
 
-  // Handle parsed voice → hap CreateEventModal me vlera të parambushura
   const handleVoiceParsed = useCallback((parsed: ParsedVoiceEvent, _transcription: string) => {
     const initial: EventInitialValues = {
       title: parsed.title,
@@ -203,7 +202,6 @@ const CalendarPage: React.FC = () => {
             </button>
           </div>
 
-          {/* VOICE + NEW EVENT BUTTONS */}
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
             <button
               type="button"
@@ -333,7 +331,6 @@ const CalendarPage: React.FC = () => {
         />
       )}
 
-      {/* VOICE RECORDER MODAL */}
       <VoiceEventRecorder
         isOpen={isVoiceRecorderOpen}
         onClose={() => setIsVoiceRecorderOpen(false)}
