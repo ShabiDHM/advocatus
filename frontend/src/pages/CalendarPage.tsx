@@ -1,5 +1,5 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE V3.1 (VOICE RECORDER INTEGRATED + MONTH DEFAULT)
+// PHOENIX PROTOCOL - CALENDAR PAGE V3.2 (ICON-ONLY NEW EVENT ON MOBILE + MONTH DEFAULT)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CalendarEvent, Case } from '../data/types';
 import { apiService } from '../services/api';
@@ -42,7 +42,6 @@ const CalendarPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const currentLocale = localeMap[i18n.language] || enUS;
 
-  // VOICE — state
   const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [voiceInitialValues, setVoiceInitialValues] = useState<EventInitialValues | undefined>(undefined);
   const [voicePrefillSource, setVoicePrefillSource] = useState<'voice' | 'manual' | undefined>(undefined);
@@ -202,12 +201,14 @@ const CalendarPage: React.FC = () => {
             </button>
           </div>
 
+          {/* VOICE + NEW EVENT BUTTONS */}
           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
             <button
               type="button"
               onClick={() => setIsVoiceRecorderOpen(true)}
-              className="h-11 px-4 sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all focus:outline-none shrink-0"
+              className="h-11 w-11 sm:w-auto sm:px-5 rounded-xl border border-main bg-surface hover:bg-hover text-primary-start font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all focus:outline-none shrink-0 cursor-pointer"
               title="Regjistro me zë"
+              aria-label="Regjistro me zë"
             >
               <Mic size={16} strokeWidth={2.5} />
               <span className="hidden md:inline">Regjistro</span>
@@ -215,9 +216,12 @@ const CalendarPage: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenCreateManually}
-              className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-3 px-8 h-11 rounded-xl text-xs uppercase tracking-widest focus:outline-none"
+              className="btn-primary flex-1 sm:flex-none flex items-center justify-center gap-3 h-11 rounded-xl text-xs uppercase tracking-widest focus:outline-none cursor-pointer sm:px-8 w-11 sm:w-auto"
+              title={t('calendar.newEvent') as string}
+              aria-label={t('calendar.newEvent') as string}
             >
-              <Plus size={16} strokeWidth={3} /> {t('calendar.newEvent')}
+              <Plus size={18} strokeWidth={3} />
+              <span className="hidden sm:inline">{t('calendar.newEvent')}</span>
             </button>
           </div>
         </div>
