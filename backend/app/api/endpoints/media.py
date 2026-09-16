@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V15.0 (B2 FREE TIER COMPRESSION & CLEAN CLIENT ISOLATION)
+# PHOENIX PROTOCOL - MEDIA ROUTER V16.0 (AUDIO/VIDEO DETECTION FIXED)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • SAFE CLOUD STORAGE UPLOAD
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
@@ -180,8 +180,38 @@ async def upload_case_media(
 
     filename = file.filename or "media.mp4"
     ext = os.path.splitext(filename)[1].lower()
-    is_video = ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']
-    content_type = file.content_type or ('video/mp4' if is_video else 'audio/mpeg')
+
+    # ==========================================================
+    # FIX: DETEKTIMI I SAKTË AUDIO vs VIDEO
+    # Prioriteti:
+    # 1. content_type (më i besueshëm)
+    # 2. Extension (fallback)
+    # .webm/.ogg trajtohen si audio nëse content_type mungon — sepse MediaRecorder
+    # i shfletuesit gjeneron audio/webm (Android/Desktop) ose audio/mp4 (iOS).
+    # ==========================================================
+    VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
+    AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.aac', '.opus', '.flac', '.webm'}
+
+    raw_ct = (file.content_type or '').lower().strip()
+    
+    if raw_ct.startswith('video/'):
+        is_video = True
+        content_type = file.content_type
+    elif raw_ct.startswith('audio/'):
+        is_video = False
+        content_type = file.content_type
+    elif ext in VIDEO_EXTENSIONS:
+        is_video = True
+        content_type = file.content_type or 'video/mp4'
+    elif ext in AUDIO_EXTENSIONS:
+        is_video = False
+        content_type = file.content_type or 'audio/webm'
+    else:
+        # Default: trajto si audio (rasti më i zakonshëm kur s'ka metadata)
+        is_video = False
+        content_type = file.content_type or 'audio/mpeg'
+
+    logger.info(f"📥 [Media Upload] file='{filename}' ext='{ext}' content_type='{raw_ct or 'none'}' → is_video={is_video} (stored_mime='{content_type}')")
 
     # Ruajtja e përkohshme
     temp_fd, temp_path = tempfile.mkstemp(suffix=ext)

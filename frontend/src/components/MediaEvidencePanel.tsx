@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V11.3 (ICON-ONLY MOBILE BUTTONS • ULTRA CLEAN UI)
+// PHOENIX PROTOCOL - MEDIA PANEL V12.0 (FORENSIC-GRADE AUDIO RECORDING)
 // ZERO TS WARNINGS • 100% COMPLETE CODE • SECURE NATIVE AUDIO RECORDING
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -49,6 +49,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<number | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
 
     const loadMedia = useCallback(async () => {
         try {
@@ -80,6 +81,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             if (timerRef.current !== null) clearInterval(timerRef.current);
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                 mediaRecorderRef.current.stop();
+            }
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
             }
         };
     }, []);
@@ -126,18 +130,50 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     };
 
     // ==========================================
-    // VOICE RECORDER LOGIC
+    // VOICE RECORDER LOGIC — FORENSIC GRADE
     // ==========================================
+    const pickSupportedMimeType = (): string => {
+        const candidates = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/ogg',
+            'audio/mp4;codecs=mp4a.40.2',
+            'audio/mp4',
+            'audio/mpeg'
+        ];
+        for (const m of candidates) {
+            try {
+                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) {
+                    return m;
+                }
+            } catch { /* ignore */ }
+        }
+        return '';
+    };
+
     const startRecording = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            let options = { mimeType: 'audio/webm;codecs=opus' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'audio/mp4' };
-                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                    options = { mimeType: '' }; 
-                }
+            // 1. Constraints të sakta — çaktivizo filtrat që hanë zërin njerëzor
+            const audioConstraints: MediaTrackConstraints = {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: true,
+                sampleRate: 48000,
+                channelCount: 1
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+            streamRef.current = stream;
+
+            // 2. Zgjedhja e mimeType — testimi i kandidatëve
+            const chosenMime = pickSupportedMimeType();
+
+            const options: MediaRecorderOptions = {
+                audioBitsPerSecond: 128000
+            };
+            if (chosenMime) {
+                options.mimeType = chosenMime;
             }
 
             const mediaRecorder = new MediaRecorder(stream, options);
@@ -145,24 +181,43 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
+                if (event.data && event.data.size > 0) {
                     audioChunksRef.current.push(event.data);
                 }
             };
 
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
-                stream.getTracks().forEach(track => track.stop());
+                // 3. Prit një tick për chunk-un final (i njohur për iOS Safari)
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // Ndal tracks para se të vazhdojmë
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+
+                const blobType = mediaRecorder.mimeType || chosenMime || 'audio/webm';
+                const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
+
+                console.log(`🎙️ [Recorder] Blob: size=${audioBlob.size} bytes, type=${blobType}, chunks=${audioChunksRef.current.length}`);
 
                 if (audioBlob.size > 0) {
-                    const ext = mediaRecorder.mimeType.includes('mp4') ? 'm4a' : 'webm';
+                    // 4. Extension i saktë sipas mimeType
+                    let ext = 'webm';
+                    if (blobType.includes('mp4') || blobType.includes('m4a')) ext = 'm4a';
+                    else if (blobType.includes('ogg')) ext = 'ogg';
+                    else if (blobType.includes('mpeg') || blobType.includes('mp3')) ext = 'mp3';
+
                     const fileName = `Deshmia_Zanore_${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
-                    const file = new File([audioBlob], fileName, { type: audioBlob.type });
+                    const file = new File([audioBlob], fileName, { type: blobType });
                     await uploadFileToServer(file);
+                } else {
+                    alert("Regjistrimi dështoi — skedari është bosh. Provoni përsëri.");
                 }
             };
 
-            mediaRecorder.start();
+            // 5. start me timeslice — mbledh chunks çdo 1s (mbron kundër iOS bug)
+            mediaRecorder.start(1000);
             setIsRecording(true);
             setRecordingTime(0);
 
@@ -170,14 +225,27 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 setRecordingTime(prev => prev + 1);
             }, 1000);
 
-        } catch (err) {
+        } catch (err: any) {
             console.error("Microphone access denied:", err);
-            alert("Sistemi ka nevojë për qasje në mikrofonin tuaj për të regjistruar dëshminë.");
+            const errName = err?.name || '';
+            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+                alert("Sistemi ka nevojë për qasje në mikrofonin tuaj për të regjistruar dëshminë. Ju lutem jepni leje në shfletues.");
+            } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+                alert("Nuk u gjet asnjë mikrofon në pajisjen tuaj.");
+            } else {
+                alert(`Dështoi regjistrimi: ${err?.message || 'Gabim i panjohur'}`);
+            }
         }
     };
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            // Kërko chunk-un final përpara stop
+            try {
+                if (mediaRecorderRef.current.state === 'recording') {
+                    mediaRecorderRef.current.requestData();
+                }
+            } catch { /* ignore */ }
             mediaRecorderRef.current.stop();
         }
         if (timerRef.current !== null) {
@@ -325,7 +393,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 <div className="grid grid-cols-1 gap-3">
                     {mediaItems.map(item => {
                         const streamUrl = `${API_V1_URL}/cases/${caseId}/media/${item.id}/stream${authToken ? `?token=${authToken}` : ''}`;
-                        const isVideo = item.media_type === 'video' || /\.(mp4|mov|avi|mkv|webm)$/i.test(item.file_name);
+                        const isVideo = item.media_type === 'video' || /\.(mp4|mov|avi|mkv)$/i.test(item.file_name);
 
                         return (
                             <div key={item.id} className="p-4 rounded-xl border border-main bg-card flex flex-col justify-between gap-3 shadow-sm">
