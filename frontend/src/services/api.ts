@@ -1,5 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V62.0 (LEGACY BINDINGS FULLY PURGED • ZERO TS ERRORS)
+// PHOENIX PROTOCOL - MASTER API FACADE V63.0 (AUDIT PERSISTENCE WIRED • ZERO TS ERRORS)
 // 100% COMPLETE CODE • ZERO TS WARNINGS • LEAN API FACADE
 
 export * from './apiClient';
@@ -87,6 +87,9 @@ class ApiService {
   };
   public saveDocumentAnalysis = async (caseId: string, documentId: string, content: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
+  };
+  public saveDocumentAudit = async (caseId: string, documentId: string, content: string) => {
+    return apiClient.post(`/cases/${caseId}/documents/${documentId}/audit`, { content });
   };
   public clearDocumentAudit = async (caseId: string, documentId: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);

@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/case/StandardDocumentAuditModal.tsx
-// PHOENIX PROTOCOL - SUPREME JUDICIAL DOCUMENT AUDIT MODAL V5.0 (TOKEN-EFFICIENT & WORD-COMPATIBLE)
+// PHOENIX PROTOCOL - SUPREME JUDICIAL DOCUMENT AUDIT MODAL V6.0 (PERSISTED + MULTI-DEVICE SYNC)
 // ZERO TS WARNINGS • POWERED BY GPT-4O-MINI / CLAUDE • TOTAL PURGE SYNC • 100% COMPLETE CODE
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -155,6 +155,7 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
 }) => {
   const [reportContent, setReportContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isPurging, setIsPurging] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -167,9 +168,10 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Leximi i pasqyrës ekzistuese nga MongoDB (0ms Cache)
+  // Leximi i pasqyrës ekzistuese nga MongoDB (0ms Cache) — rifreskohet në çdo hapje
   useEffect(() => {
     if (isOpen && caseId && documentId) {
+      setIsLoading(false);
       apiService.getDocuments(caseId)
         .then((docs: any[]) => {
           const currentDoc = (docs || []).find((d: any) => String(d.id || d._id) === String(documentId));
@@ -193,9 +195,9 @@ export const StandardDocumentAuditModal: React.FC<StandardDocumentAuditModalProp
     }
   }, [reportContent, isLoading]);
 
-  // GJENERIMI I AUDITIMIT DOKTRINAR TË SHKRESËS
+  // GJENERIMI I AUDITIMIT DOKTRINAR TË SHKRESËS (ME PERSISTENCE TË DETYRUAR)
   const handleGenerateAudit = useCallback(async () => {
-    if (!caseId || !documentId || isLoading || isPurging) return;
+    if (!caseId || !documentId || isLoading || isPurging || isSaving) return;
 
     setIsLoading(true);
     setReportContent('');
@@ -242,13 +244,27 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike, p
         accumulated += chunk;
         setReportContent(accumulated);
       }
+
+      // 🔒 PERSISTENCE: Ruajtja e detyruar në MongoDB pas përfundimit të transmetimit
+      const finalContent = accumulated.trim();
+      if (finalContent.length > 0) {
+        setIsSaving(true);
+        try {
+          await apiService.saveDocumentAudit(caseId, documentId, finalContent);
+        } catch (saveErr) {
+          console.error("Document Audit Persist Error:", saveErr);
+          alert("Auditimi u gjenerua por nuk mund të ruhej në server. Kontrolloni lidhjen dhe provoni përsëri.");
+        } finally {
+          setIsSaving(false);
+        }
+      }
     } catch (err: any) {
       console.error("Standard Doc Audit Error:", err);
       alert("Ndodhi një gabim gjatë auditimit të shkresës.");
     } finally {
       setIsLoading(false);
     }
-  }, [caseId, documentId, documentName, clientName, isLoading, isPurging]);
+  }, [caseId, documentId, documentName, clientName, isLoading, isPurging, isSaving]);
 
   // TOTAL CASCADE WIPEOUT në MongoDB
   const handleClearContent = async () => {
@@ -258,7 +274,7 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike, p
 
     setIsPurging(true);
     try {
-      await apiService.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
+      await apiService.clearDocumentAudit(caseId, documentId);
       setReportContent('');
     } catch (err) {
       console.error("Could not purge document audit on MongoDB:", err);
@@ -433,7 +449,7 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike, p
                 <button
                   type="button"
                   onClick={handleGenerateAudit}
-                  disabled={isPurging}
+                  disabled={isPurging || isSaving}
                   className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift disabled:opacity-50"
                 >
                   <Sparkles size={14} />
@@ -471,9 +487,19 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike, p
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && !isLoading && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium" title="Shkresa është audituar tashmë">
-                <Lock size={12} className="text-text-muted" />
-                <span className="hidden sm:inline">Raporti është ruajtur (Përdorni koshin për ta asgjësuar nga serveri)</span>
-                <span className="sm:hidden">I ruajtur</span>
+                {isSaving ? (
+                  <>
+                    <Loader2 size={12} className="text-primary-start animate-spin" />
+                    <span className="hidden sm:inline">Duke ruajtur në server...</span>
+                    <span className="sm:hidden">Duke ruajtur...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={12} className="text-text-muted" />
+                    <span className="hidden sm:inline">Raporti është ruajtur (Përdorni koshin për ta asgjësuar nga serveri)</span>
+                    <span className="sm:hidden">I ruajtur</span>
+                  </>
+                )}
               </div>
             )}
 
