@@ -1,5 +1,5 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V63.0 (RESTORED ORIGINAL PREVIEW LOGIC + CONVERSION FALLBACK)
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V64.0 (AUDIT PERSISTENCE RESTORED + TOTAL SYNC)
 # 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
@@ -38,6 +38,9 @@ MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 class DocumentPillarPayload(BaseModel):
     pillar: str = Field(..., description="Çelësi i shtjellës: PILLAR_1, PILLAR_2, ose PILLAR_3")
     content: str = Field(..., description="Përmbajtja tekstuale e shtjellës forenzike")
+
+class DocumentAuditPayload(BaseModel):
+    content: str = Field(..., description="Përmbajtja e plotë e auditimit doktrinar të shkresës")
 
 # Model i ri për kërkesën e Riemërtimit (Rename)
 class RenameDocumentRequest(BaseModel):
@@ -323,6 +326,51 @@ async def save_document_pillar_endpoint(
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
 
     return {"status": "success", "pillar": pillar_key}
+
+
+# =========================================================================
+# 🧠 AUDITIMI DOKTRINAR I SHKRESËS — PERSISTENCE (MULTI-DEVICE SYNC)
+# =========================================================================
+@router.post("/{case_id}/documents/{doc_id}/audit", status_code=status.HTTP_200_OK)
+async def save_document_audit_endpoint(
+    case_id: str,
+    doc_id: str,
+    payload: DocumentAuditPayload,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    case_oid = validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    content = (payload.content or "").strip()
+
+    if not content:
+        raise HTTPException(status_code=400, detail="Përmbajtja e auditimit nuk mund të jetë e zbrazët.")
+
+    now = datetime.now(timezone.utc)
+
+    res = db.documents.update_one(
+        {
+            "_id": doc_oid,
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "owner_id": current_user.id
+        },
+        {"$set": {
+            "latest_analysis": content,
+            "last_audited_at": now,
+            "updated_at": now
+        }}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
+
+    logger.info(f"🧠 [DOC AUDIT SAVED] Dokumenti {doc_id} — {len(content)} karaktere — Lënda {case_id}")
+
+    return {
+        "status": "success",
+        "document_id": doc_id,
+        "saved_at": now.isoformat(),
+        "length": len(content)
+    }
 
 
 @router.delete("/{case_id}/documents/{doc_id}/pillars/{pillar}", status_code=status.HTTP_200_OK)
