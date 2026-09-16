@@ -92,7 +92,7 @@ class ResponseGenerator:
                 logger.warning(f"⚠️ Dështoi përpjekja {attempt} në DeepSeek: {e}")
                 await asyncio.sleep(1.5)
         
-        raise last_error if last_error else Exception("Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi.")
+        raise last_error if last_error else Exception("Shërbimi është përkohësisht i ngarkuar nga fluksi.")
 
     async def generate_stream(
         self,
@@ -137,4 +137,4 @@ RREGULLAT E KONSULENCËS DHE DOKTRINËS SË KOSOVËS:
                     
         except Exception as e:
             logger.error(f"❌ Gjenerimi dështoi pas të gjitha përpjekjeve në DeepSeek: {e}")
-            yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+            yield f"\n\n[Shërbimi është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"

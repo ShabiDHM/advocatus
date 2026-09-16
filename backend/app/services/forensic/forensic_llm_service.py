@@ -120,7 +120,7 @@ def call_forensic_llm(
             logger.warning(f"⚠️ Dështoi përpjekja {attempt} në DeepSeek: {e}")
             time.sleep(1.5)
 
-    raise ForensicLLMError(f"Shërbimi DeepSeek është përkohësisht i ngarkuar. Provoni përsëri pas pak sekondash.")
+    raise ForensicLLMError(f"Shërbimi është përkohësisht i ngarkuar. Provoni përsëri pas pak sekondash.")
 
 def call_forensic_llm_chat(
     conversation_turns: List[Dict[str, str]],
@@ -169,7 +169,7 @@ def call_forensic_llm_chat(
                 continue
             time.sleep(1.5)
 
-    raise ForensicLLMError(f"Shërbimi DeepSeek është përkohësisht i ngarkuar. Provoni përsëri pas pak sekondash.")
+    raise ForensicLLMError(f"Shërbimtë përkohësisht i ngarkuar. Provoni përsëri pas pak sekondash.")
 
 async def stream_forensic_llm_async(
     system_prompt: str,
@@ -213,7 +213,7 @@ async def stream_forensic_llm_async(
             await asyncio.sleep(1.5)
 
     logger.error(f"❌ [Forensic Stream Error]: {last_error}")
-    yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+    yield f"\n\n[Shërbimi është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
 
 async def stream_forensic_llm_chat_async(
     conversation_turns: List[Dict[str, str]],
@@ -264,4 +264,4 @@ async def stream_forensic_llm_chat_async(
             await asyncio.sleep(1.5)
 
     logger.error(f"❌ [Forensic Stream Failure]: {last_error}")
-    yield f"\n\n[Shërbimi DeepSeek është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
+    yield f"\n\n[Shërbimi  është përkohësisht i ngarkuar nga fluksi i lartë. Ju lutem provoni përsëri pas pak sekondash.]"
