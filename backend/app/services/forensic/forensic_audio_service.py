@@ -1,5 +1,5 @@
 # FILE: backend/app/services/forensic/forensic_audio_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V4.0 (ASSEMBLYAI API-COMPATIBLE)
+# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V4.1 (ALBANIAN LANGUAGE FORCED)
 # 100% COMPLETE CODE • ZERO CLAUDE REFERENCES • WHISPER & ASSEMBLYAI HYBRID
 
 import os
@@ -58,18 +58,18 @@ def upload_audio_to_assemblyai(audio_bytes: bytes) -> str:
 def submit_diarization_job(audio_url: str) -> str:
     """
     Nis transkriptimin me Diarizim.
-    Payload i thjeshtë dhe kompatibël me API-n aktuale të AssemblyAI.
+    FIX: Force Albanian language (language_code='sq') — language_detection shkaktonte
+    klasifikim të gabuar si Turqisht për shkak të fonetikës së ngjashme.
     """
     headers = _get_assemblyai_headers()
     
-    # FIX: Payload i thjeshtë, kompatibël me free tier dhe multilingual.
-    # - Hequr 'speech_model: best' (deprecated)
-    # - Hequr 'disfluencies' (nuk ekziston)
-    # - Mbajtur speaker_labels + language_detection për diarizim multilingjual
+    # FIX: language_code e detyron gjuhën në Shqip.
+    # Universal model mbështet shqipen (nën "universal-2" ose "universal").
+    # speaker_labels ruhet për diarizim.
     payload = {
         "audio_url": audio_url,
         "speaker_labels": True,
-        "language_detection": True,
+        "language_code": "sq",
     }
     
     logger.info(f"🎙️ [AssemblyAI] Duke dërguar payload: {json.dumps(payload)}")
@@ -91,7 +91,7 @@ def submit_diarization_job(audio_url: str) -> str:
     if not job_id:
         raise RuntimeError(f"AssemblyAI nuk ktheu job ID: {response_data}")
     
-    logger.info(f"✅ [AssemblyAI Submit] Job ID: {job_id}")
+    logger.info(f"✅ [AssemblyAI Submit] Job ID: {job_id} (language=sq)")
     return job_id
 
 
