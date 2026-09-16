@@ -1,6 +1,6 @@
 # FILE: backend/app/services/forensic/forensic_audio_service.py
-# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V3.0 (DEEPSEEK UNIFIED ENGINE)
-# 100% COMPLETE CODE • ZERO CLAUDE REFERENCES • WHISPER & ASSEMBLYAI HYBRID • ZERO PLACEHOLDERS
+# PHOENIX PROTOCOL - FORENSIC AUDIO INTELLIGENCE V4.0 (ASSEMBLYAI API-COMPATIBLE)
+# 100% COMPLETE CODE • ZERO CLAUDE REFERENCES • WHISPER & ASSEMBLYAI HYBRID
 
 import os
 import time
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 ASSEMBLYAI_BASE_URL = "https://api.assemblyai.com/v2"
 
+
 def _get_assemblyai_headers() -> Dict[str, str]:
     api_key = getattr(settings, "ASSEMBLYAI_API_KEY", "") or os.getenv("ASSEMBLYAI_API_KEY", "")
     if not api_key:
@@ -26,6 +27,7 @@ def _get_assemblyai_headers() -> Dict[str, str]:
         "authorization": api_key.strip(),
         "content-type": "application/json"
     }
+
 
 # ==========================================================
 # 1. NGARKIMI DHE SUBMITIMI NË MOTORIN MULTILINGUAL
@@ -41,32 +43,57 @@ def upload_audio_to_assemblyai(audio_bytes: bytes) -> str:
         data=audio_bytes,
         timeout=180
     )
-    response.raise_for_status()
-    return response.json()["upload_url"]
+    if response.status_code >= 400:
+        error_body = response.text
+        logger.error(f"❌ [AssemblyAI Upload] Status {response.status_code}: {error_body}")
+        raise RuntimeError(f"AssemblyAI Upload {response.status_code}: {error_body}")
+    
+    upload_url = response.json().get("upload_url")
+    if not upload_url:
+        raise RuntimeError("AssemblyAI nuk ktheu upload_url.")
+    logger.info(f"✅ [AssemblyAI Upload] Success: {upload_url[:80]}...")
+    return upload_url
+
 
 def submit_diarization_job(audio_url: str) -> str:
     """
-    Nis transkriptimin me Diarizim të avancuar dhe modelin 'best'
-    i optimizuar për fjalë-për-fjalë (Verbatim) dhe Code-Switching Shqip/Anglisht.
+    Nis transkriptimin me Diarizim.
+    Payload i thjeshtë dhe kompatibël me API-n aktuale të AssemblyAI.
     """
     headers = _get_assemblyai_headers()
+    
+    # FIX: Payload i thjeshtë, kompatibël me free tier dhe multilingual.
+    # - Hequr 'speech_model: best' (deprecated)
+    # - Hequr 'disfluencies' (nuk ekziston)
+    # - Mbajtur speaker_labels + language_detection për diarizim multilingjual
     payload = {
         "audio_url": audio_url,
         "speaker_labels": True,
-        "speech_model": "best",
         "language_detection": True,
-        "punctuate": True,
-        "format_text": True,
-        "disfluencies": True
     }
+    
+    logger.info(f"🎙️ [AssemblyAI] Duke dërguar payload: {json.dumps(payload)}")
+    
     response = requests.post(
         f"{ASSEMBLYAI_BASE_URL}/transcript",
         headers=headers,
         json=payload,
         timeout=30
     )
-    response.raise_for_status()
-    return response.json()["id"]
+    
+    if response.status_code >= 400:
+        error_body = response.text
+        logger.error(f"❌ [AssemblyAI Submit] Status {response.status_code}: {error_body}")
+        raise RuntimeError(f"AssemblyAI Submit {response.status_code}: {error_body}")
+    
+    response_data = response.json()
+    job_id = response_data.get("id")
+    if not job_id:
+        raise RuntimeError(f"AssemblyAI nuk ktheu job ID: {response_data}")
+    
+    logger.info(f"✅ [AssemblyAI Submit] Job ID: {job_id}")
+    return job_id
+
 
 def poll_transcript_status(transcript_id: str, timeout_sec: int = 360) -> Dict[str, Any]:
     """Pret derisa transkriptimi dhe diarizimi të përfundojnë me sukses."""
@@ -79,7 +106,12 @@ def poll_transcript_status(transcript_id: str, timeout_sec: int = 360) -> Dict[s
             headers=headers,
             timeout=30
         )
-        response.raise_for_status()
+        
+        if response.status_code >= 400:
+            error_body = response.text
+            logger.error(f"❌ [AssemblyAI Poll] Status {response.status_code}: {error_body}")
+            raise RuntimeError(f"AssemblyAI Poll {response.status_code}: {error_body}")
+        
         data = response.json()
         status = data.get("status")
 
@@ -92,6 +124,7 @@ def poll_transcript_status(transcript_id: str, timeout_sec: int = 360) -> Dict[s
         time.sleep(3.0)
 
     raise TimeoutError(f"Transkriptimi në AssemblyAI tejkaloi limitin kohor prej {timeout_sec}s.")
+
 
 # ==========================================================
 # 2. FORMATIMI ME FOLËS DHE SEKONDA EKZAKTE
@@ -137,6 +170,7 @@ def format_forensic_transcript(assembly_data: Dict[str, Any]) -> Tuple[str, List
     full_transcript_str = "\n".join(formatted_lines)
     return full_transcript_str, structured_segments, []
 
+
 # ==========================================================
 # 3. KORRIGJIMI I CODE-SWITCHING (SHQIP-ANGLISHT) & ANALIZA PROCEDURALE
 # ==========================================================
@@ -146,7 +180,7 @@ def normalize_and_analyze_transcript_with_llm(
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Përdor DeepSeek për:
-    1. Korrigjuar fjalët e përziera Shqip-Anglisht (Code-switching) që modeli akustik mund t'i ketë ngatërruar fonetikisht.
+    1. Korrigjuar fjalët e përziera Shqip-Anglisht (Code-switching).
     2. Identifikuar deklaratat relevante penale, dëshmitë, pranimet dhe bazën ligjore sipas KPPRK-së.
     """
     system_prompt = """EKSPERTIZA FORENZIKE E ZËRIT DHE TRANSKRIPTIMI VERBATIM (DEEPSEEK JURIDIK):
@@ -205,6 +239,7 @@ TRANSKRIPTI ME FOLËS DHE SEKONDA:
     }
     return transcript_text, fallback_intelligence
 
+
 # ==========================================================
 # 4. MASTER ENGINE ORCHESTRATOR
 # ==========================================================
@@ -214,9 +249,9 @@ def process_audio_file(
 ) -> Dict[str, Any]:
     """
     Orkestruesi kryesor:
-    1. Ngarkon dhe kryen Diarizimin me modelin më të lartë akustik (AssemblyAI 'best').
+    1. Ngarkon dhe kryen Diarizimin.
     2. Formatizon sekondat dhe folësit.
-    3. Ekzekuton auditimin me DeepSeek për zbardhjen e Code-Switching Shqip/Anglisht.
+    3. Ekzekuton auditimin me DeepSeek.
     """
     upload_url = upload_audio_to_assemblyai(audio_bytes)
     job_id = submit_diarization_job(upload_url)
