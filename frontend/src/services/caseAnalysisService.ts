@@ -1,5 +1,6 @@
 // FILE: src/services/caseAnalysisService.ts
-// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.2
+// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.3
+// V1.3: force_reprocess gjithmonë true — pa cache hit për siguri.
 // V1.2: scope field (case/document) + document_review phase.
 
 import { tokenManager, API_V1_URL, apiClient } from './apiClient';
@@ -56,13 +57,12 @@ export class CaseAnalysisService {
    * Stream analizën e plotë të një lënde ose review të një dokumenti.
    *
    * @param caseId - ID e lëndës
-   * @param forceReprocess - Nëse true, ri-ekstrakton edhe nëse ekziston cache
+   * @param forceReprocess - Nëse true, gjithmonë ri-analizon (default: true)
    * @param documentIds - Nëse jepet, analiza skopohet VETËM në këto dokumente
-   *                      (mode: "Verifikimi i Dokumentit")
    */
   public async *streamCaseAnalysis(
     caseId: string,
-    forceReprocess: boolean = false,
+    forceReprocess: boolean = true,   // V1.3: default true
     documentIds?: string[],
   ): AsyncGenerator<AnalysisEvent, void, unknown> {
     let token = tokenManager.get();
@@ -81,7 +81,6 @@ export class CaseAnalysisService {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
 
-    // Body: force_reprocess + optional document_ids
     const body: Record<string, any> = {
       force_reprocess: forceReprocess,
     };
@@ -144,7 +143,6 @@ export class CaseAnalysisService {
           }
         }
 
-        // Përpuno çdo mbetje në buffer
         if (buffer.trim()) {
           const parsed = this._parseSSEBlock(buffer);
           if (parsed) {
@@ -188,7 +186,6 @@ export class CaseAnalysisService {
 
     if (!dataLine) return null;
 
-    // Sentinel — fundi i stream-it
     if (dataLine === '[DONE]') {
       return null;
     }
