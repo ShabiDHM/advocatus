@@ -1,5 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V32.0 (ADDED EXPLICIT PAGE_COUNT & FLEXIBLE OPPOSING PARTY)
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V33.0
+// V33.0: Hequr EnhancedAnomaly + SpreadsheetAnalysisResult (mobile flow i vdekur).
+// V32.0: ADDED EXPLICIT PAGE_COUNT & FLEXIBLE OPPOSING PARTY
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -328,32 +330,7 @@ export interface AnalyticsDashboardData {
     total_profit_period?: number; 
 }
 
-// --- 8. FORENSIC ANALYSIS ---
-export interface EnhancedAnomaly { 
-    date: string;
-    amount: number;
-    description: string;
-    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
-    explanation: string;
-    forensic_type?: string;
-    legal_reference?: string;
-    confidence?: number;
-}
-
-export interface SpreadsheetAnalysisResult { 
-    file_id?: string; 
-    filename: string; 
-    record_count: number; 
-    columns: string[]; 
-    narrative_report: string; 
-    charts: any[]; 
-    anomalies: EnhancedAnomaly[]; 
-    key_statistics: Record<string, string | number>; 
-    preview_rows?: Record<string, any>[]; 
-    processed_at: string; 
-}
-
-// --- 9. LEGAL STRATEGY (WAR ROOM) ---
+// --- 8. LEGAL STRATEGY (WAR ROOM) ---
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
 export interface AdversarialSimulation { 
     opponent_strategy: string; 
@@ -375,7 +352,7 @@ export interface DeepAnalysisResult {
     error?: string; 
 }
 
-// --- 10. ORGANIZATIONS & SaaS ---
+// --- 9. ORGANIZATIONS & SaaS ---
 export interface Organization { 
     id: string; 
     name: string; 
@@ -397,7 +374,7 @@ export interface Organization {
 export interface SubscriptionUpdate { status: string; expiry_date?: string; plan_tier?: string; }
 export interface PromoteRequest { firm_name: string; plan_tier: string; }
 
-// --- 11. CHAT & DRAFTING ---
+// --- 10. CHAT & DRAFTING ---
 export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
 
 export interface CreateDraftingJobRequest { 

@@ -1,5 +1,6 @@
 # FILE: backend/app/models/document.py
-# PHOENIX PROTOCOL - DOCUMENT MODELS V5.0 (PERSISTED FORENSIC AUDIT CACHE & ZERO 0ms REANALYSIS)
+# PHOENIX PROTOCOL - DOCUMENT MODELS V6.0
+# V6.0: Hequr latest_forensic_audit + litigation_analysis (të vdekura).
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, List, Any
@@ -38,13 +39,9 @@ class DocumentInDB(DocumentBase):
     progress_message: Optional[str] = None
     is_shared: Optional[bool] = False
     
-    # ⚡ PHOENIX FORENSIC CACHE: Ruajtja e Auditimit për Hapje në 0 Milisekonda
+    # PHOENIX CACHE: Ruajtja e Analizës për Hapje të Shpejtë
     latest_analysis: Optional[str] = None
-    latest_forensic_audit: Optional[str] = None
     last_audited_at: Optional[datetime] = None
-
-    # PHOENIX ENGINE: Persisted Strategic Analysis
-    litigation_analysis: Optional[Dict[str, Any]] = None
     
     model_config = ConfigDict(
         populate_by_name=True,

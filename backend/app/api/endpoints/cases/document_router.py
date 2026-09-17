@@ -172,9 +172,9 @@ async def get_documents_for_case(
             
         try:
             validated_doc = DocumentOut.model_validate(d)
-            if "forensic_pillars" in d:
+            if "pillars" in d:
                 v_dict = validated_doc.model_dump()
-                v_dict["forensic_pillars"] = d["forensic_pillars"]
+                v_dict["pillars"] = d["pillars"]
                 validated_docs.append(v_dict)
             else:
                 validated_docs.append(validated_doc)
@@ -290,7 +290,7 @@ async def get_document_pillars_endpoint(
     if not doc:
         raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet.")
 
-    return doc.get("forensic_pillars", {}) or {}
+    return doc.get("pillars", {}) or {}
 
 
 @router.post("/{case_id}/documents/{doc_id}/pillars", status_code=status.HTTP_200_OK)
@@ -315,7 +315,7 @@ async def save_document_pillar_endpoint(
             "owner_id": current_user.id
         },
         {"$set": {
-            f"forensic_pillars.{pillar_key}": payload.content,
+            f"pillars.{pillar_key}": payload.content,
             "updated_at": datetime.now(timezone.utc)
         }}
     )
@@ -348,7 +348,7 @@ async def delete_single_document_pillar_endpoint(
             "owner_id": current_user.id
         },
         {"$unset": {
-            f"forensic_pillars.{pillar_key}": ""
+            f"pillars.{pillar_key}": ""
         }}
     )
     if res.matched_count == 0:

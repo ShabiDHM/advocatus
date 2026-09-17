@@ -1,26 +1,23 @@
 // FILE: frontend/src/services/caseService.ts
-// PHOENIX PROTOCOL - CASE & FORENSIC ANALYSIS SERVICE MODULE V58.0
+// PHOENIX PROTOCOL - CASE SERVICE MODULE V60.0
+// V60.0: Hequr mobile flow (i vdekur): createMobileUploadSession, analyzeScannedImage,
+//        checkMobileUploadStatus, getMobileSessionFile, publicMobileUpload.
+// V59.0: Hequr archiveForensicReport + downloadForensicReport.
 // V58.0: Removed dead spreadsheet/forensic-interrogation feature.
-//        (Backend endpoints /analyze/spreadsheet* & /interrogate-finances* no longer exist.)
-// V57.0: Removed dead method clearDocumentAudit.
 
-import { apiClient, API_V1_URL } from './apiClient';
-import axios from 'axios';
+import { apiClient } from './apiClient';
 import type {
   Case,
   CreateCaseRequest,
   Document,
   DeletedDocumentResponse,
   CaseAnalysisResult,
-  DeepAnalysisResult,
-  SpreadsheetAnalysisResult
+  DeepAnalysisResult
 } from '../data/types';
 
 interface DocumentContentResponse { text: string; }
 interface ReprocessConfirmation { documentId: string; message: string; }
 interface BulkReprocessResponse { count: number; message: string; }
-interface MobileSessionResponse { upload_url: string; }
-interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
 
 export class CaseService {
   public async getCases(): Promise<Case[]> {
@@ -219,46 +216,6 @@ export class CaseService {
     return response.data;
   }
 
-  // ========== MOBILE SESSIONS ==========
-  public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
-    const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`;
-    const response = await apiClient.post<MobileSessionResponse>(url);
-    return response.data;
-  }
-
-  public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await apiClient.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData);
-    return response.data;
-  }
-
-  public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
-    const url = token.startsWith('GEN-') ? `/finance/mobile-upload-status/${token}` : `/cases/mobile-upload-status/${token}`;
-    const response = await apiClient.get<MobileUploadStatus>(url);
-    return response.data;
-  }
-
-  public async getMobileSessionFile(token: string): Promise<{ blob: Blob; filename: string }> {
-    const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`;
-    const response = await apiClient.get(url, { responseType: 'blob' });
-    const disposition = response.headers['content-disposition'];
-    let filename = 'mobile-upload.jpg';
-    if (disposition && disposition.indexOf('filename=') !== -1) {
-      const matches = /filename="([^"]*)"/.exec(disposition);
-      if (matches != null && matches[1]) filename = matches[1];
-    }
-    return { blob: response.data, filename };
-  }
-
-  public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`;
-    const response = await axios.post(url, formData);
-    return response.data;
-  }
-
   public async fetchImageBlob(url: string): Promise<Blob> {
     if (url.startsWith('blob:')) {
       const response = await window.fetch(url);
@@ -266,24 +223,6 @@ export class CaseService {
     }
     const response = await apiClient.get(url, { responseType: 'blob' });
     return response.data;
-  }
-
-  // ========== FINANCE FORENSIC REPORTS (i mbajtur — përdoret nga moduli financiar) ==========
-  public async archiveForensicReport(caseId: string, title: string, content: string): Promise<any> {
-    const response = await apiClient.post('/finance/forensic-report/archive', { case_id: caseId, title, content });
-    return response.data;
-  }
-
-  public async downloadForensicReport(caseId: string, data: any): Promise<void> {
-    const response = await apiClient.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' });
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-    window.URL.revokeObjectURL(url);
   }
 }
 

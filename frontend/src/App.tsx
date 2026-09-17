@@ -1,5 +1,7 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V8.0 (FORENSIC DESK REMOVED)
+// PHOENIX PROTOCOL - ROUTING V9.0 (MOBILE UPLOAD REMOVED)
+// V9.0: Hequr route /mobile-upload/:token + import MobileConnect (dead code).
+// V8.0: FORENSIC DESK REMOVED
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -24,7 +26,6 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminSupportPage from './pages/AdminSupportPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
-import MobileConnect from './pages/MobileConnect';
 import LawViewerPage from './pages/LawViewerPage';
 import LawSearchPage from './pages/LawSearchPage';
 import LawArticlePage from './pages/LawArticlePage';
@@ -78,7 +79,6 @@ const AppRoutes: React.FC = () => {
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
-      <Route path="/mobile-upload/:token" element={<MobileConnect />} />
       
       <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />
 

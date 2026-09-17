@@ -1,5 +1,6 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V5.0 (SAFE BUFFERED RESPONSE FOR PDF ZERO CORRUPTION)
+# PHOENIX PROTOCOL - ARCHIVE API V6.0
+# V6.0: Hequr klasa e vdekur ArchiveForensicReportRequest.
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
 from fastapi.responses import Response
@@ -26,11 +27,6 @@ class ArchiveShareRequest(BaseModel):
 class ArchiveCaseShareRequest(BaseModel):
     case_id: str
     is_shared: bool
-
-class ArchiveForensicReportRequest(BaseModel):
-    case_id: str
-    title: str
-    content: str
 
 
 # --- ENDPOINTS ---

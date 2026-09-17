@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V50.0 (MULTI-PAYMENT GATEWAY: RAIFFEISEN, MBANKING, CASH & ARCHIVE)
+# PHOENIX PROTOCOL - FINANCE ROUTER V51.0 (FORENSIC REPORT ENDPOINT REMOVED)
+# V51.0: Hequr endpoint-i /forensic-report/archive + klasa ArchiveForensicReportRequest.
+#        Hequr importi create_pdf_from_text.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -24,7 +26,7 @@ from app.models.finance import (
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
-from app.services.report_service import generate_invoice_pdf, create_pdf_from_text
+from app.services.report_service import generate_invoice_pdf
 from app.services.ocr_service import extract_text_from_image_bytes
 from app.services.llm_service import extract_expense_details_from_text
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
@@ -42,11 +44,6 @@ BANK_SWIFT = os.getenv("RAIFFEISEN_SWIFT", "RBKOXKPR")
 
 
 # ========== MODELET PYDANTIC PËR PAGESAT ==========
-class ArchiveForensicReportRequest(BaseModel):
-    case_id: str
-    title: str
-    content: str
-
 class CaseUnlockInfoResponse(BaseModel):
     case_id: str
     is_unlocked: bool
@@ -153,10 +150,8 @@ async def admin_manual_unlock_case(
     """
     Zhbllokon lëndën manualisht (p.sh. kur klienti paguan me CASH në zyrë ose konfirmohet m-Banking).
     """
-    # Kontrollo nëse përdoruesi është Admin ose Posedues
     user_role = getattr(current_user, "role", "USER").upper()
     if user_role not in ["ADMIN", "SUPERADMIN", "STAFF"]:
-        # Lejohet gjithashtu nëse pronari vetë verifikon faturën manualisht
         pass
 
     case_oid = validate_object_id(body.case_id)
@@ -164,7 +159,6 @@ async def admin_manual_unlock_case(
     if not case_doc:
         raise HTTPException(status_code=404, detail="Lënda nuk u gjet.")
 
-    # Përditëso statusin e lëndës në MongoDB
     now = datetime.now(timezone.utc)
     db.cases.update_one(
         {"_id": case_oid},
@@ -177,7 +171,6 @@ async def admin_manual_unlock_case(
         }}
     )
 
-    # Regjistro pagesën në regjistrin e porosive
     order_record = {
         "case_id": case_oid,
         "owner_id": case_doc.get("owner_id"),
@@ -404,47 +397,6 @@ async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Dep
     title = f"Fatura #{invoice.invoice_number} - {invoice.client_name}"
     
     archived_item = await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_content, category="INVOICE", title=title, case_id=case_id)
-    return archived_item
-
-# --- FORENSIC REPORT ARCHIVE ENDPOINT ---
-@router.post("/forensic-report/archive", response_model=ArchiveItemOut)
-async def archive_forensic_report(
-    body: ArchiveForensicReportRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db),
-):
-    archive_service = ArchiveService(db)
-    
-    c_title = "Rast Ligjor"
-    if body.case_id:
-        try:
-            c_oid = ObjectId(body.case_id) if ObjectId.is_valid(body.case_id) else body.case_id
-            c_obj = db.cases.find_one({"$or": [{"_id": c_oid}, {"_id": body.case_id}]})
-            if c_obj:
-                c_title = c_obj.get("title") or c_obj.get("name") or c_title
-        except Exception:
-            pass
-
-    header_meta = f"<b>LËNDA:</b> {c_title}"
-    pdf_buffer = create_pdf_from_text(
-        text=body.content, 
-        document_title=body.title, 
-        header_meta_content_html=header_meta
-    )
-    pdf_bytes = pdf_buffer.getvalue()
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    sanitized_title = "".join(c for c in body.title if c.isalnum() or c in (' ', '_')).replace(' ', '_')
-    filename = f"ForensicReport_{sanitized_title}_{timestamp}.pdf"
-    
-    archived_item = await archive_service.save_generated_file(
-        user_id=str(current_user.id),
-        filename=filename,
-        content=pdf_bytes,
-        category="FORENSIC",
-        title=body.title,
-        case_id=body.case_id
-    )
     return archived_item
 
 # --- EXPENSES ---

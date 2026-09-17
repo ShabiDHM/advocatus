@@ -1,8 +1,7 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - AUTH CONTEXT V2.3 (TYPE CONFLICT RESOLUTION)
-// 1. FIXED: Used 'Omit' to resolve type conflicts between base 'User' and 'AuthUser'.
-// 2. FIXED: Added explicit casting 'as AuthUser' to ensure state updates are accepted.
-// 3. STATUS: Resolves the 'type never' and 'not assignable' errors in VS Code.
+// PHOENIX PROTOCOL - AUTH CONTEXT V2.4 (MOBILE PATH CHECK REMOVED)
+// V2.4: Hequr kontrolli /mobile-upload/ (mobile flow i vdekur).
+// V2.3: TYPE CONFLICT RESOLUTION
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
@@ -10,7 +9,6 @@ import { apiService } from '../services/api';
 import { Loader2 } from 'lucide-react';
 
 // PHOENIX FIX: We Omit conflicting fields from the base User type before overriding them.
-// This prevents the 'intersection reduced to never' error.
 type AuthUser = Omit<User, 'subscription_tier' | 'account_type' | 'product_plan'> & {
     subscription_tier?: 'BASIC' | 'PRO';
     account_type?: 'SOLO' | 'ORGANIZATION';
@@ -57,12 +55,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let isMounted = true;
 
     const initializeApp = async () => {
-      // Mobile Upload Path Check
-      if (window.location.pathname.startsWith('/mobile-upload/')) {
-        if (isMounted) setIsLoading(false);
-        return;
-      }
-
       try {
         const refreshed = await apiService.refreshToken();
         

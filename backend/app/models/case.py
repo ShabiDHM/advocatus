@@ -1,6 +1,7 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CASE MODEL V16.0 (DOSSIER-LEVEL AUDIT PERSISTENCE)
-# 100% COMPLETE CODE • ZERO 500 ERRORS • PYDANTIC V2 COMPLIANT • MONGO ATLAS SYNC
+# PHOENIX PROTOCOL - CASE MODEL V17.0
+# V17.0: Hequr latest_forensic_audit (fushë e vdekur).
+# V16.0: DOSSIER-LEVEL AUDIT PERSISTENCE
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any, Union
@@ -77,16 +78,15 @@ class CaseInDB(CaseBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
     
-    # PHOENIX PERSISTENCE: Shtjellat Forenzike dhe Pasqyra e Shpejtë e Klientit
+    # PHOENIX PERSISTENCE: Shtjellat dhe Pasqyra e Shpejtë e Klientit
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
-    forensic_pillars: Optional[Dict[str, Any]] = None
+    pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
-    latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
     
-    # PHOENIX DOSSIER: Doktrina Forenzike e Fashikullit të Plotë
+    # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
     
@@ -110,14 +110,13 @@ class CaseOut(CaseBase):
     
     # PHOENIX SYNC: Lejon daljen e të gjitha analizave te Frontendi
     standard_summary: Optional[Union[str, Dict[str, Any]]] = None
-    forensic_pillars: Optional[Dict[str, Any]] = None
+    pillars: Optional[Dict[str, Any]] = None
     latest_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_deep_analysis: Optional[Union[str, Dict[str, Any]]] = None
     latest_comprehensive_analysis: Optional[Union[str, Dict[str, Any]]] = None
-    latest_forensic_audit: Optional[Union[str, Dict[str, Any]]] = None
     last_analyzed_at: Optional[Union[datetime, str]] = None
     
-    # PHOENIX DOSSIER: Doktrina Forenzike e Fashikullit të Plotë
+    # PHOENIX DOSSIER: Doktrina e Fashikullit të Plotë
     latest_dossier_analysis: Optional[str] = None
     last_dossier_audited_at: Optional[Union[datetime, str]] = None
     

@@ -1,13 +1,12 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V69.0
-// V69.0: Removed bindings for dead spreadsheet methods
-//        (analyzeSpreadsheet, analyzeExistingSpreadsheet, interrogateFinancialRecords).
-// V68.0: Removed dead methods saveDocumentAudit + clearDocumentAudit.
+// PHOENIX PROTOCOL - MASTER API FACADE V71.0
+// V71.0: Hequr bindings për mobile flow (5 metoda të vdekura).
+// V70.0: Hequr forensicService (i fshirë) — 2 bindings + import + export.
+// V69.0: Removed bindings for dead spreadsheet methods.
 
 export * from './apiClient';
 export * from './authService';
 export * from './caseService';
-export { forensicService, ForensicService } from './forensicService';
 export * from './financeService';
 export * from './archiveService';
 export * from './calendarService';
@@ -19,7 +18,6 @@ export * from './caseAnalysisService';
 import { apiClient, setGlobalLogoutHandler } from './apiClient';
 import { authService } from './authService';
 import { caseService } from './caseService';
-import { forensicService } from './forensicService';
 import { financeService } from './financeService';
 import { archiveService } from './archiveService';
 import { calendarService } from './calendarService';
@@ -48,7 +46,7 @@ class ApiService {
   public forgotPassword = authService.forgotPassword.bind(authService);
   public resetPassword = authService.resetPassword.bind(authService);
 
-  // Case Methods (Core CRUD & Records)
+  // Case Methods
   public getCases = caseService.getCases.bind(caseService);
   public createCase = caseService.createCase.bind(caseService);
   public getCaseDetails = caseService.getCaseDetails.bind(caseService);
@@ -75,11 +73,6 @@ class ApiService {
   public mergeGraphNodes = caseService.mergeGraphNodes.bind(caseService);
   public createCustomGraphEdge = caseService.createCustomGraphEdge.bind(caseService);
   public downloadCourtGraphReport = caseService.downloadCourtGraphReport.bind(caseService);
-  public createMobileUploadSession = caseService.createMobileUploadSession.bind(caseService);
-  public analyzeScannedImage = caseService.analyzeScannedImage.bind(caseService);
-  public checkMobileUploadStatus = caseService.checkMobileUploadStatus.bind(caseService);
-  public getMobileSessionFile = caseService.getMobileSessionFile.bind(caseService);
-  public publicMobileUpload = caseService.publicMobileUpload.bind(caseService);
   public fetchImageBlob = caseService.fetchImageBlob.bind(caseService);
 
   // ⚡ Metode Integrale Për Analizën e Shpejtë të Klientit
@@ -90,7 +83,7 @@ class ApiService {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
   };
 
-  // 🧠 Doktrina Forenzike e Fashikullit (Case-Level)
+  // 🧠 Doktrina e Rastit (Case-Level)
   public saveCaseDossierAudit = async (caseId: string, content: string) => {
     return apiClient.post(`/cases/${caseId}/audit`, { content });
   };
@@ -100,10 +93,6 @@ class ApiService {
 
   // 🔬 Analiza SSE e Lëndës (Moduli 2 + 3 + 4)
   public streamCaseAnalysis = caseAnalysisService.streamCaseAnalysis.bind(caseAnalysisService);
-
-  // 🏛️ Active Forensic Report Methods
-  public archiveForensicReport = forensicService.archiveForensicReport.bind(forensicService);
-  public downloadForensicReport = forensicService.downloadForensicReport.bind(forensicService);
 
   // Finance Methods
   public getInvoices = financeService.getInvoices.bind(financeService);

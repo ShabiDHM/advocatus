@@ -16,7 +16,7 @@ from app.services import chat_service
 from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_active_user, get_db, get_sync_redis
 
-router = APIRouter(tags=["Chat & Forensics"])
+router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
 
 class ChatMessageRequest(BaseModel):
@@ -80,7 +80,7 @@ async def handle_chat_message(
 # =========================================================================
 
 @router.put("/case/{case_id}/pillars", status_code=status.HTTP_200_OK)
-def save_case_forensic_pillar(
+def save_case_pillar(
     case_id: str,
     req: SavePillarRequest,
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
@@ -93,7 +93,7 @@ def save_case_forensic_pillar(
             {"_id": c_oid, "owner_id": current_user.id},
             {
                 "$set": {
-                    f"forensic_pillars.{req.pillar_key}": req.content,
+                    f"pillars.{req.pillar_key}": req.content,
                     "updated_at": datetime.now(timezone.utc)
                 }
             }
@@ -105,7 +105,7 @@ def save_case_forensic_pillar(
 
 
 @router.put("/case/{case_id}/documents/{document_id}/pillars", status_code=status.HTTP_200_OK)
-def save_document_forensic_pillar(
+def save_document_pillar(
     case_id: str,
     document_id: str,
     req: SavePillarRequest,
@@ -119,7 +119,7 @@ def save_document_forensic_pillar(
             {"_id": d_oid},
             {
                 "$set": {
-                    f"forensic_pillars.{req.pillar_key}": req.content,
+                    f"pillars.{req.pillar_key}": req.content,
                     "updated_at": datetime.now(timezone.utc)
                 }
             }
@@ -144,7 +144,7 @@ def clear_chat_history(
     try:
         c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
         
-        # 1. Pastron VETËM chat_history në lëndë (Pa prekur forensic_pillars apo analysis_dirty!)
+        # 1. Pastron VETËM chat_history në lëndë (Pa prekur pillarsapo analysis_dirty!)
         db.cases.update_one(
             {"_id": c_oid, "owner_id": current_user.id},
             {

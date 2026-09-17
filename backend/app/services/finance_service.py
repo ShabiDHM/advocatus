@@ -1,7 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE SERVICE V8.2 (TEMP UPLOAD)
-# 1. ADDED: New 'upload_temporary_receipt' method.
-# 2. LOGIC: This new method bypasses all database validation, safely storing files for mobile sessions.
+# PHOENIX PROTOCOL - FINANCE SERVICE V8.3
+# V8.3: Hequr upload_temporary_receipt (mobile flow i vdekur).
+# V8.2: TEMP UPLOAD
 
 import structlog
 import json
@@ -253,16 +253,6 @@ class FinanceService:
         folder = f"expenses/{user_id}"
         storage_key = upload_file_raw(file, folder)
         self.db.expenses.update_one({"_id": oid}, {"$set": {"receipt_url": storage_key}})
-        return storage_key
-
-    # PHOENIX: New dedicated method for temporary mobile uploads
-    def upload_temporary_receipt(self, user_id: str, temp_id: str, file: UploadFile) -> str:
-        """
-        Uploads a file to a temporary location for a mobile session without DB validation.
-        """
-        # We create a unique folder path to avoid conflicts
-        folder = f"temp_uploads/{user_id}/{temp_id}"
-        storage_key = upload_file_raw(file, folder)
         return storage_key
 
     def get_expense_receipt_stream(self, user_id: str, expense_id: str) -> Any:

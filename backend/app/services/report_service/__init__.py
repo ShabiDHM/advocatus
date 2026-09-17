@@ -1,7 +1,7 @@
 # FILE: backend/app/services/report_service/__init__.py
-# PHOENIX PROTOCOL - REPORT SERVICE PACKAGE INITIALIZER (CLEAN MODULAR EXPORTS)
+# PHOENIX PROTOCOL - REPORT SERVICE PACKAGE INITIALIZER V2.0
+# V2.0: Hequr importi i forensic_report (create_pdf_from_text) — feature e fshirë.
 
-from .forensic_report import create_pdf_from_text
 from .helpers import clean_text_for_pdf
 
 try:
@@ -10,7 +10,6 @@ except ImportError:
     generate_invoice_pdf = None
 
 __all__ = [
-    "create_pdf_from_text",
     "generate_invoice_pdf",
     "clean_text_for_pdf"
 ]
