@@ -21,7 +21,7 @@ from app.services.llm.llm_client import (
     _sanitize_and_disambiguate_prompt,
     _get_provider_routing_payload,
     _get_api_key,
-    FAST_SEARCH_MODEL,
+    DEEP_ANALYSIS_MODEL,
 )
 from app.services.vector_store_service import query_global_knowledge_base
 
@@ -337,7 +337,7 @@ def _stream_section_sync(system_prompt, user_content, temperature=0.1):
     client = _get_sync_client()
     try:
         stream = client.chat.completions.create(
-            model=FAST_SEARCH_MODEL,
+            model=DEEP_ANALYSIS_MODEL,
             messages=[
                 {"role": "system", "content": full_sys},
                 {"role": "user", "content": sanitized},
@@ -1110,7 +1110,7 @@ DETYRA: Harto seksionin "{section_cfg['title']}"."""
                         user_content=user_content,
                         json_mode=False,
                         temperature=0.1,
-                        model=FAST_SEARCH_MODEL,
+                        model=DEEP_ANALYSIS_MODEL,
                     )
                     accumulated = raw or ""
                     if stream_callback and accumulated:

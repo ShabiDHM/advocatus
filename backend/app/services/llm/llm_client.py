@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm/llm_client.py
-# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V86.0
+# PHOENIX PROTOCOL - UNIFIED DUAL-ENGINE LLM CLIENT V87.0
+# V87.0: Shtuar DEEP_ANALYSIS_MODEL për analiza të thella (synthesis + document review).
+#        FAST_SEARCH_MODEL mbetet për NER, Metadata, Law Search.
 # V86.0: Hequr konstantja e vdekur TEMP_FORENSIC.
-# V85.0: SUPPORTS SPECIALIZED HIGH-SPEED SEARCH MODELS
 
 import os
 import json
@@ -25,7 +26,17 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MODEL STRATEGY (V87.0 — Hybrid)
+# ═══════════════════════════════════════════════════════════════════════════
+# FAST_SEARCH_MODEL    → Detyra mekanike: NER, Metadata, Law Search
+#                        (shpejtësi + kosto minimale)
+# DEEP_ANALYSIS_MODEL  → Analiza të thella: Synthesis, Document Review
+#                        (reasoning maksimal)
+# ═══════════════════════════════════════════════════════════════════════════
 FAST_SEARCH_MODEL = "openai/gpt-4o-mini"
+DEEP_ANALYSIS_MODEL = "deepseek/deepseek-chat"
 
 TEMP_ANALYSIS = 0.0
 TEMP_DRAFTING = 0.0
