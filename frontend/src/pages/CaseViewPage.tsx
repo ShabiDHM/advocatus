@@ -1,6 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V107.0
-// FIX: unified CaseDossierAuditModal për të dyja rastet (fashikull + single-doc).
+// PHOENIX PROTOCOL - CASE VIEW PAGE V108.0
+// V108.0: autoStart={true} për CaseDossierAuditModal — analiza fillon me 1 klik.
+// V107.0: unified CaseDossierAuditModal për të dyja rastet (fashikull + single-doc).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -466,7 +467,7 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      {/* V107: I unifikuar — për fashikull ose dokument të vetëm */}
+      {/* V108: Auto-start i aktivizuar — analiza fillon me 1 klik */}
       <CaseDossierAuditModal
         isOpen={isDossierAuditModalOpen}
         onClose={handleCloseDossierModal}
@@ -476,6 +477,7 @@ const CaseViewPage: React.FC = () => {
         documentCount={liveDocuments.length}
         documentIds={dossierDocumentIds || undefined}
         documentNames={dossierDocumentNames}
+        autoStart={true}
       />
     </motion.div>
   );

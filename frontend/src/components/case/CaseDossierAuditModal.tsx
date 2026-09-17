@@ -1,6 +1,8 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.7
-// V2.7: Nxjerrë ngjyrat e Word export si konstante (WORD_*) — zero hex hardcoded në kod.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9
+// V2.9: Banner informues kur raport ekziston + butoni "Rianalizo" (force_reprocess).
+// V2.8: Auto-start prop — analiza fillon automatikisht kur nuk ka raport.
+// V2.7: Word export colors si konstante.
 // V2.6: Dynamic title based on scope (case vs document).
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
@@ -8,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle2,
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Sparkles, Lock, Scale, Folder,
-  FileSearch, GitBranch, FileText, CheckCircle, ShieldCheck
+  FileSearch, GitBranch, FileText, CheckCircle, ShieldCheck, RotateCcw, Calendar
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,18 +20,39 @@ import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WORD EXPORT COLORS — Për eksport në Microsoft Word (jo UI)
+// WORD EXPORT COLORS
 // ═══════════════════════════════════════════════════════════════════════════
-// Këto ngjyra janë për HTML që kopjohet në Word. Word nuk i kupton
-// CSS variables, prandaj duhen vlera literale. Gjithmonë light theme.
+const WORD_CODE_BG = '#f1f5f9';
+const WORD_BLOCKQUOTE_BORDER = '#2563eb';
+const WORD_BLOCKQUOTE_BG = '#f8fafc';
+const WORD_BLOCKQUOTE_TEXT = '#334155';
+const WORD_HR_COLOR = '#cbd5e1';
+const WORD_HEADING_COLOR = '#0f172a';
+const WORD_BODY_COLOR = '#1e293b';
+
 // ═══════════════════════════════════════════════════════════════════════════
-const WORD_CODE_BG = '#f1f5f9';           // Slate-100 — background për kod
-const WORD_BLOCKQUOTE_BORDER = '#2563eb'; // Blue-600 — border për citate
-const WORD_BLOCKQUOTE_BG = '#f8fafc';     // Slate-50 — background për citate
-const WORD_BLOCKQUOTE_TEXT = '#334155';   // Slate-700 — tekst për citate
-const WORD_HR_COLOR = '#cbd5e1';          // Slate-300 — ndarës horizontal
-const WORD_HEADING_COLOR = '#0f172a';     // Slate-900 — titujt
-const WORD_BODY_COLOR = '#1e293b';        // Slate-800 — teksti i trupit
+// V2.9: DATE FORMATTER (Albanian)
+// ═══════════════════════════════════════════════════════════════════════════
+const ALBANIAN_MONTHS = [
+  'Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor',
+  'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor',
+];
+
+const formatAuditDate = (isoDate: string | Date | undefined | null): string => {
+  if (!isoDate) return '';
+  try {
+    const d = typeof isoDate === 'string' ? new Date(isoDate) : isoDate;
+    if (isNaN(d.getTime())) return '';
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = ALBANIAN_MONTHS[d.getMonth()];
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${day} ${month} ${year}, ${hours}:${minutes}`;
+  } catch {
+    return '';
+  }
+};
 
 interface CaseDossierAuditModalProps {
   isOpen: boolean;
@@ -40,6 +63,11 @@ interface CaseDossierAuditModalProps {
   documentCount?: number;
   documentIds?: string[];
   documentNames?: string[];
+  /**
+   * V2.8: Nëse true, fillon analizën automatikisht kur modal hapet
+   * dhe nuk ekziston raport i ruajtur.
+   */
+  autoStart?: boolean;
 }
 
 type PhaseKey = 'extraction' | 'cross_reference' | 'synthesis' | 'document_review' | 'idle';
@@ -51,7 +79,6 @@ interface PhaseInfo {
   icon: React.ReactNode;
 }
 
-// Case phases
 const CASE_PHASES: PhaseInfo[] = [
   {
     key: 'extraction',
@@ -73,7 +100,6 @@ const CASE_PHASES: PhaseInfo[] = [
   },
 ];
 
-// Document review phases
 const DOCUMENT_PHASES: PhaseInfo[] = [
   {
     key: 'extraction',
@@ -243,6 +269,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   documentCount = 0,
   documentIds,
   documentNames,
+  autoStart = false,
 }) => {
   const [reportContent, setReportContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -257,8 +284,14 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [progressDetail, setProgressDetail] = useState<string>('');
   const [completedPhases, setCompletedPhases] = useState<PhaseKey[]>([]);
 
-  // V2.6: dynamic scope
   const [runtimeScope, setRuntimeScope] = useState<'case' | 'document' | null>(null);
+
+  // V2.9: Last audit timestamp
+  const [lastAuditedAt, setLastAuditedAt] = useState<string | null>(null);
+
+  // V2.8: Auto-start tracking
+  const [hasCheckedSavedReport, setHasCheckedSavedReport] = useState<boolean>(false);
+  const hasAutoStartedRef = useRef<boolean>(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef<boolean>(false);
@@ -272,7 +305,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // ═══ SCOPE DETECTION (V2.6) ═══
   const isSingleDoc = Boolean(documentIds && documentIds.length > 0);
   const singleDocName = isSingleDoc && documentNames && documentNames.length > 0
     ? documentNames[0]
@@ -300,24 +332,38 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     ? DOCUMENT_PHASES
     : CASE_PHASES;
 
+  // ═══ Load saved report ═══
   useEffect(() => {
     if (isOpen && caseId) {
       setIsLoading(false);
+      setHasCheckedSavedReport(false);
+      setLastAuditedAt(null);
+
       apiService.getCaseDetails(caseId)
         .then((details: any) => {
           const savedAudit = details?.latest_dossier_analysis || '';
           if (savedAudit && typeof savedAudit === 'string' && savedAudit.trim().length > 50) {
             setReportContent(savedAudit);
+            // V2.9: Capture last audit timestamp
+            const auditedAt = details?.last_dossier_audited_at;
+            setLastAuditedAt(auditedAt || null);
           } else {
             setReportContent('');
+            setLastAuditedAt(null);
           }
+          setHasCheckedSavedReport(true);
         })
         .catch(() => {
           setReportContent('');
+          setLastAuditedAt(null);
+          setHasCheckedSavedReport(true);
         });
+    } else {
+      setHasCheckedSavedReport(false);
     }
   }, [isOpen, caseId]);
 
+  // ═══ Reset state on open ═══
   useEffect(() => {
     if (isOpen) {
       setCurrentPhase('idle');
@@ -328,6 +374,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       accumulatedRef.current = '';
       currentSectionTitleRef.current = '';
       setRuntimeScope(null);
+      hasAutoStartedRef.current = false;
     }
   }, [isOpen]);
 
@@ -337,7 +384,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [reportContent, isLoading]);
 
-  const handleGenerateAudit = useCallback(async () => {
+  // ═══ V2.9: handleGenerateAudit me forceReprocess param ═══
+  const handleGenerateAudit = useCallback(async (forceReprocess: boolean = false) => {
     if (!caseId || isLoading || isPurging || isSaving) return;
 
     const generationId = ++generationIdRef.current;
@@ -345,6 +393,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
     setIsLoading(true);
     setReportContent('');
+    setLastAuditedAt(null);  // V2.9: clear timestamp kur fillon analiza e re
     setCurrentPhase('extraction');
     setPhaseLabel('Fillo...');
     setProgressDetail('');
@@ -356,7 +405,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     setRuntimeScope(null);
 
     try {
-      const stream = apiService.streamCaseAnalysis(caseId, false, documentIds);
+      // V2.9: kalon forceReprocess
+      const stream = apiService.streamCaseAnalysis(caseId, forceReprocess, documentIds);
 
       for await (const evt of stream) {
         if (isCancelled()) break;
@@ -478,6 +528,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         setIsSaving(true);
         try {
           await apiService.saveCaseDossierAudit(caseId, finalMarkdown);
+          // V2.9: Update lastAuditedAt me timestamp e tanishëm
+          setLastAuditedAt(new Date().toISOString());
         } catch (saveErr) {
           console.error("Save error:", saveErr);
           alert("Raporti u gjenerua por nuk mund të ruhej në server.");
@@ -498,6 +550,35 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds, phasesToShow, effectiveScope]);
 
+  // ═══ V2.8: AUTO-START — vetëm kur NUK ka raport ekzistues ═══
+  useEffect(() => {
+    if (
+      isOpen &&
+      autoStart &&
+      hasCheckedSavedReport &&
+      !reportContent.trim() &&
+      !isLoading &&
+      !isPurging &&
+      !isSaving &&
+      !hasAutoStartedRef.current
+    ) {
+      hasAutoStartedRef.current = true;
+      const timer = setTimeout(() => {
+        handleGenerateAudit(false);  // forceReprocess=false (nuk ka cache)
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isOpen,
+    autoStart,
+    hasCheckedSavedReport,
+    reportContent,
+    isLoading,
+    isPurging,
+    isSaving,
+    handleGenerateAudit,
+  ]);
+
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
     const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht raportin nga serveri?");
@@ -507,6 +588,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     try {
       await apiService.clearCaseDossierAudit(caseId);
       setReportContent('');
+      setLastAuditedAt(null);
       setCompletedPhases([]);
       setCurrentPhase('idle');
       accumulatedRef.current = '';
@@ -516,6 +598,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     } finally {
       setIsPurging(false);
     }
+  };
+
+  const handleRegenerate = () => {
+    // V2.9: Fshij raportin aktual dhe fillon analiza e re me force_reprocess=true
+    handleGenerateAudit(true);
   };
 
   const handleCopy = async () => {
@@ -555,6 +642,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const showReportBanner = Boolean(reportContent.trim()) && !isLoading && Boolean(lastAuditedAt);
 
   return (
     <AnimatePresence>
@@ -717,7 +806,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={handleGenerateAudit}
+                  onClick={() => handleGenerateAudit(false)}
                   disabled={isPurging || isSaving}
                   className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift disabled:opacity-50"
                 >
@@ -738,11 +827,43 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {autoLinkLegalCitations(reportContent)}
-                </ReactMarkdown>
-              </div>
+              <>
+                {/* ═══ V2.9: BANNER — Raport ekzistues ═══ */}
+                {showReportBanner && (
+                  <div className="mb-4 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <div className="w-8 h-8 rounded-lg bg-primary-start/15 flex items-center justify-center shrink-0">
+                        <Calendar size={15} className="text-primary-start" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-text-primary">
+                          Ky raport ekziston nga një analizë e mëparshme
+                        </p>
+                        <p className="text-[11px] sm:text-xs text-text-muted mt-0.5">
+                          Gjeneruar më <span className="font-mono font-semibold text-text-secondary">{formatAuditDate(lastAuditedAt)}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRegenerate}
+                      disabled={isLoading || isSaving || isPurging}
+                      className="h-9 px-4 rounded-xl bg-primary-start hover:bg-primary-start/90 text-white font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0 shadow-sm hover-lift"
+                      title="Rianalizo nga e para — injoron cache-në"
+                    >
+                      <RotateCcw size={13} />
+                      <span>Rianalizo</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Markdown content */}
+                <div className="markdown-content fast-case-dossier-audit prose prose-slate dark:prose-invert max-w-none text-text-primary">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {autoLinkLegalCitations(reportContent)}
+                  </ReactMarkdown>
+                </div>
+              </>
             )}
 
             {showScrollBottomBtn && (
