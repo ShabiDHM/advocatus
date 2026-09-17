@@ -1,5 +1,6 @@
 # FILE: backend/app/api/endpoints/cases/__init__.py
-# PHOENIX PROTOCOL - CASES ROUTER HUB V6.0 (STREAMLINED ULTRA-CLEAN WORKSPACE)
+# PHOENIX PROTOCOL - CASES ROUTER HUB V6.1
+# Shtuar: case_analysis_router (SSE endpoint për "Analizo Rastin")
 
 from fastapi import APIRouter, Depends, status
 from typing import List, Annotated
@@ -13,6 +14,7 @@ from app.services import case_service
 
 from app.api.endpoints.cases.case_management_router import router as case_management_router
 from app.api.endpoints.cases.document_router import router as document_router
+from app.api.endpoints.cases.case_analysis_router import router as case_analysis_router  # ← I RI
 
 router = APIRouter()
 
@@ -44,3 +46,4 @@ async def create_new_case_root(
 # 2. Përfshirja e nën-routerave aktive
 router.include_router(case_management_router)
 router.include_router(document_router)
+router.include_router(case_analysis_router)  # ← I RI

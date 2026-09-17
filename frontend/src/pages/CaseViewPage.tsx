@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V106.0 (DYNAMIC DOSSIER/DOCUMENT AUDIT)
-// ZERO TS WARNINGS • 100% COMPLETE CODE • SYMMETRIC SPLIT DESKTOP • NATIVE 3-TAB MOBILE
+// PHOENIX PROTOCOL - CASE VIEW PAGE V107.0
+// FIX: unified CaseDossierAuditModal për të dyja rastet (fashikull + single-doc).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,7 +19,6 @@ import { extractAndNormalizeHistory, getUserSalutation } from '../utils/caseHelp
 import { CaseHeaderBar } from '../components/case/CaseHeaderBar';
 import { EvidenceVaultPanel, EvidenceSubTab } from '../components/case/EvidenceVaultPanel';
 import { RenameDocumentModal } from '../components/case/RenameDocumentModal';
-import { StandardDocumentAuditModal } from '../components/case/StandardDocumentAuditModal';
 import { CaseDossierAuditModal } from '../components/case/CaseDossierAuditModal';
 
 type CaseData = { details: Case | null };
@@ -43,16 +42,12 @@ const CaseViewPage: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Tab-i i vetëm dhe i unifikuar në celular (3 Zgjedhje të pastra)
   const [mobileTab, setMobileTab] = useState<MobileMainTab>('DOCS');
   const [vaultSubTab, setVaultSubTab] = useState<EvidenceSubTab>('documents');
 
-  // Dritarja Modale e Auditimit
-  const [isDocAuditModalOpen, setIsDocAuditModalOpen] = useState<boolean>(false);
-  const [currentAuditedDoc, setCurrentAuditedDoc] = useState<Document | null>(null);
-
-  // Dritarja Modale e Doktrinës së Fashikullit
+  // CaseDossierAuditModal state (V107 — i unifikuar)
   const [isDossierAuditModalOpen, setIsDossierAuditModalOpen] = useState<boolean>(false);
+  const [dossierDocumentIds, setDossierDocumentIds] = useState<string[] | null>(null);
 
   const isPro = true;
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -79,7 +74,6 @@ const CaseViewPage: React.FC = () => {
         return [docIdStr];
       }
     });
-    // Në telefon, kalo menjëherë te biseda për ta pyetur AI-n mbi atë shkresë
     setMobileTab('CHAT');
   }, []);
 
@@ -208,7 +202,7 @@ const CaseViewPage: React.FC = () => {
 
       localStorage.removeItem(`chat_${caseId}`);
       setChatMessages([]);
-      
+
       setCaseData((prev) => ({
         ...prev,
         details: prev.details ? ({
@@ -223,28 +217,28 @@ const CaseViewPage: React.FC = () => {
   };
 
   const handleChatSubmit = useCallback(async (
-    text: string, 
-    mode: ChatMode, 
-    reasoning: ReasoningMode, 
-    domain: string, 
-    documentIds?: string[], 
+    text: string,
+    mode: ChatMode,
+    reasoning: ReasoningMode,
+    domain: string,
+    documentIds?: string[],
     jurisdiction?: Jurisdiction
   ) => {
     if (!caseId) return;
     const userMessage: ChatMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
     const assistantPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
-    
+
     setChatMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setIsSendingMessage(true);
 
     try {
       let acc = '';
       const stream = apiService.sendChatMessageStream(
-        caseId, 
-        text, 
-        documentIds, 
-        jurisdiction, 
-        reasoning, 
+        caseId,
+        text,
+        documentIds,
+        jurisdiction,
+        reasoning,
         mode === 'document' ? domain : 'automatic',
         true
       );
@@ -275,9 +269,9 @@ const CaseViewPage: React.FC = () => {
       setChatMessages((prev) => {
         const withError = [...prev];
         if (withError.length > 0) {
-          withError[withError.length - 1] = { 
-            ...withError[withError.length - 1], 
-            content: `[Gabim Teknik] ${errorDetail}` 
+          withError[withError.length - 1] = {
+            ...withError[withError.length - 1],
+            content: `[Gabim Teknik] ${errorDetail}`
           };
         }
         persistChatHistory(withError);
@@ -288,28 +282,34 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, persistChatHistory]);
 
+  // V107: Hap doktrinën e dokumentit (single-doc mode)
   const handleVerifyDocumentLaws = useCallback((doc: Document) => {
     if (!caseId) return;
-    setCurrentAuditedDoc(doc);
-    setIsDocAuditModalOpen(true);
+    setDossierDocumentIds([String(doc.id)]);
+    setIsDossierAuditModalOpen(true);
   }, [caseId]);
 
-  // BUTONI DINAMIK: "Analizo Dokumentin" (me dokument) / "Analizo Fashikullin" (pa dokument)
+  // V107: Butoni dinamik — me dok selektuar → dokument, pa → fashikull
   const handleTriggerSelectedDocAudit = useCallback(() => {
-    // KASO 1: Ka dokument të selektuar → Hap modalin e auditimit të shkresës
     if (selectedDocObj) {
-      handleVerifyDocumentLaws(selectedDocObj);
+      setDossierDocumentIds([String(selectedDocObj.id)]);
+      setIsDossierAuditModalOpen(true);
       return;
     }
 
-    // KASO 2: Pa dokument → Hap modalin e doktrinës së fashikullit
     if (liveDocuments.length === 0) {
       alert("Nuk ka shkresa të administruara në këtë lëndë. Ngarkoni shkresat së pari.");
       return;
     }
 
+    setDossierDocumentIds(null);
     setIsDossierAuditModalOpen(true);
-  }, [selectedDocObj, liveDocuments.length, handleVerifyDocumentLaws]);
+  }, [selectedDocObj, liveDocuments.length]);
+
+  const handleCloseDossierModal = useCallback(() => {
+    setIsDossierAuditModalOpen(false);
+    setDossierDocumentIds(null);
+  }, []);
 
   const handleRenameAction = async (newName: string) => {
     if (!caseId || !documentToRename) return;
@@ -338,16 +338,22 @@ const CaseViewPage: React.FC = () => {
     );
   }
 
+  // V107: Emrat e dokumenteve për modalin
+  const dossierDocumentNames = dossierDocumentIds
+    ? dossierDocumentIds
+        .map((id) => liveDocuments.find((d) => String(d.id) === id)?.file_name)
+        .filter((n): n is string => Boolean(n))
+    : undefined;
+
   return (
     <motion.div className="w-full min-h-screen pb-6 bg-canvas text-text-primary flex flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-2 space-y-2.5 sm:space-y-3.5 flex-1 flex flex-col">
-        
+
         <CaseHeaderBar
           caseDetails={caseData.details}
           documents={liveDocuments}
         />
 
-        {/* SHIRITI I VETËM UNIFIKUAR NË CELULAR - 3 ZGJEDHJE TË PASTRA (ZERO DYFISHIM) */}
         <div className="flex lg:hidden items-center bg-surface border border-main rounded-xl p-1 shadow-xs shrink-0">
           <button
             type="button"
@@ -356,8 +362,8 @@ const CaseViewPage: React.FC = () => {
               setVaultSubTab('documents');
             }}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'DOCS' 
-                ? 'bg-primary-start text-white shadow-sm' 
+              mobileTab === 'DOCS'
+                ? 'bg-primary-start text-white shadow-sm'
                 : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -372,8 +378,8 @@ const CaseViewPage: React.FC = () => {
               setVaultSubTab('audio');
             }}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'MEDIA' 
-                ? 'bg-primary-start text-white shadow-sm' 
+              mobileTab === 'MEDIA'
+                ? 'bg-primary-start text-white shadow-sm'
                 : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -385,8 +391,8 @@ const CaseViewPage: React.FC = () => {
             type="button"
             onClick={() => setMobileTab('CHAT')}
             className={`flex-1 py-2 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer min-h-[38px] ${
-              mobileTab === 'CHAT' 
-                ? 'bg-primary-start text-white shadow-sm' 
+              mobileTab === 'CHAT'
+                ? 'bg-primary-start text-white shadow-sm'
                 : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -395,10 +401,8 @@ const CaseViewPage: React.FC = () => {
           </button>
         </div>
 
-        {/* PANELET E PUNËS (100% PA DYFISHIM NË CELULAR) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-6 z-0 h-[calc(100dvh-185px)] sm:h-[calc(100dvh-200px)] lg:h-[720px] max-h-[850px] items-stretch flex-1 min-h-[480px]">
-          
-          {/* PANELI I PROVAVE: SHFAQET KUR ZGJIDHET 'DOCS' OSE 'MEDIA' */}
+
           <div className={`lg:col-span-5 h-full overflow-y-auto flex-col ${
             mobileTab === 'DOCS' || mobileTab === 'MEDIA' ? 'flex' : 'hidden lg:flex'
           }`}>
@@ -420,7 +424,6 @@ const CaseViewPage: React.FC = () => {
             />
           </div>
 
-          {/* PANELI I BISEDËS: SHFAQET KUR ZGJIDHET 'CHAT' */}
           <div className={`lg:col-span-7 flex-col bg-surface border border-main rounded-2xl overflow-hidden shadow-sm relative h-full ${
             mobileTab === 'CHAT' ? 'flex' : 'hidden lg:flex'
           }`}>
@@ -463,22 +466,16 @@ const CaseViewPage: React.FC = () => {
 
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRenameAction} currentName={documentToRename?.file_name || ''} t={t} />
 
-      <StandardDocumentAuditModal
-        isOpen={isDocAuditModalOpen}
-        onClose={() => setIsDocAuditModalOpen(false)}
-        caseId={currentCaseId}
-        documentId={String(selectedDocObj?.id || currentAuditedDoc?.id || '')}
-        documentName={selectedDocObj?.file_name || currentAuditedDoc?.file_name || 'Dokument'}
-        clientName={clientName}
-      />
-
+      {/* V107: I unifikuar — për fashikull ose dokument të vetëm */}
       <CaseDossierAuditModal
         isOpen={isDossierAuditModalOpen}
-        onClose={() => setIsDossierAuditModalOpen(false)}
+        onClose={handleCloseDossierModal}
         caseId={currentCaseId}
         caseName={(caseData.details as any)?.title || 'Fashikulli i Lëndës'}
         clientName={clientName}
         documentCount={liveDocuments.length}
+        documentIds={dossierDocumentIds || undefined}
+        documentNames={dossierDocumentNames}
       />
     </motion.div>
   );

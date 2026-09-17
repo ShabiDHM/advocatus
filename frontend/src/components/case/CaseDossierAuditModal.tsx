@@ -1,12 +1,13 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V1.0 (HOLISTIC-STRATEGIC DOCTRINE)
-// ZERO TS WARNINGS • MIRROR OF ForensicDossierAuditModal • API SERVICE INTEGRATION • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.5
+// V2.5: document_ids prop — analiza e një dokumenti ose fashikulli.
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle2,
-  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Sparkles, Lock, Scale, Folder
+  Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Sparkles, Lock, Scale, Folder,
+  FileSearch, GitBranch, FileText, CheckCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -22,7 +23,39 @@ interface CaseDossierAuditModalProps {
   caseName?: string;
   clientName?: string;
   documentCount?: number;
+  documentIds?: string[];
+  documentNames?: string[];
 }
+
+type PhaseKey = 'extraction' | 'cross_reference' | 'synthesis' | 'idle';
+
+interface PhaseInfo {
+  key: PhaseKey;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+const PHASES: PhaseInfo[] = [
+  {
+    key: 'extraction',
+    label: 'Ekstraktimi',
+    description: 'Duke lexuar dhe strukturuar dokumentet',
+    icon: <FileSearch size={14} />,
+  },
+  {
+    key: 'cross_reference',
+    label: 'Lidhjet',
+    description: 'Duke gjetur referencat midis shkresave',
+    icon: <GitBranch size={14} />,
+  },
+  {
+    key: 'synthesis',
+    label: 'Sinteza',
+    description: 'Duke hartuar doktrinën përfundimtare',
+    icon: <FileText size={14} />,
+  },
+];
 
 const FONT_LEVELS = [
   { label: '85%', base: 13.5, h1: 19, h2: 16.5, h3: 14.5, line: 1.55 },
@@ -145,6 +178,30 @@ const markdownToWordHtml = (markdown: string): string => {
   `.trim();
 };
 
+const TYPEWRITER_DURATION_MS = 2000;
+const TYPEWRITER_TICKS = 50;
+
+const applyTypewriter = async (
+  fullText: string,
+  onUpdate: (s: string) => void,
+  isCancelled: () => boolean,
+): Promise<void> => {
+  const totalChars = fullText.length;
+  if (totalChars === 0) return;
+
+  const chunkSize = Math.max(1, Math.ceil(totalChars / TYPEWRITER_TICKS));
+  const intervalMs = TYPEWRITER_DURATION_MS / TYPEWRITER_TICKS;
+
+  for (let i = 1; i <= TYPEWRITER_TICKS; i++) {
+    if (isCancelled()) return;
+    const end = Math.min(i * chunkSize, totalChars);
+    onUpdate(fullText.slice(0, end));
+    if (end >= totalChars) break;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  onUpdate(fullText);
+};
+
 export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   isOpen,
   onClose,
@@ -152,6 +209,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   caseName = 'Fashikulli i Lëndës',
   clientName = 'Klienti',
   documentCount = 0,
+  documentIds,
+  documentNames,
 }) => {
   const [reportContent, setReportContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -161,14 +220,44 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
 
+  const [currentPhase, setCurrentPhase] = useState<PhaseKey>('idle');
+  const [phaseLabel, setPhaseLabel] = useState<string>('');
+  const [progressDetail, setProgressDetail] = useState<string>('');
+  const [completedPhases, setCompletedPhases] = useState<PhaseKey[]>([]);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef<boolean>(false);
+
+  const hasReceivedChunksRef = useRef<boolean>(false);
+  const accumulatedRef = useRef<string>('');
+  const currentSectionTitleRef = useRef<string>('');
+  const generationIdRef = useRef<number>(0);
 
   const [fontLevelIndex, setFontLevelIndex] = useState<number>(1);
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
-  // Leximi i doktrinës ekzistuese nga MongoDB (0ms Cache) — rifreskohet në çdo hapje
+  const isSingleDoc = Boolean(documentIds && documentIds.length > 0);
+  const singleDocName = isSingleDoc && documentNames && documentNames.length > 0
+    ? documentNames[0]
+    : null;
+
+  const reportTitle = isSingleDoc
+    ? (singleDocName ? `Doktrina e Dokumentit` : 'Doktrina e Dokumentit')
+    : 'Doktrina e Fashikullit';
+
+  const headerSubtitle = isSingleDoc
+    ? `${singleDocName || 'Dokument i vetëm'} • ${clientName}`
+    : `${caseName} • ${clientName} • ${documentCount} shkresa`;
+
+  const actionButtonLabel = isSingleDoc
+    ? 'Fillo Analizën e Dokumentit'
+    : 'Fillo Doktrinën e Fashikullit';
+
+  const emptyStateDescription = isSingleDoc
+    ? 'Merrni një opinion të prerë strategjik mbi këtë dokument të vetëm. Analiza strukturohet në 6 seksione me streaming real-time.'
+    : `Merrni një opinion të prerë strategjik mbi historikun e plotë të këtij fashikulli me ${documentCount} shkresa — çfarë ka ndodhur, kontradiktat, shkeljet, pozicioni ligjor dhe hapi i ardhshëm konkret.`;
+
   useEffect(() => {
     if (isOpen && caseId) {
       setIsLoading(false);
@@ -187,101 +276,171 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [isOpen, caseId]);
 
-  // Auto-scroll gjatë gjenerimit
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentPhase('idle');
+      setPhaseLabel('');
+      setProgressDetail('');
+      setCompletedPhases([]);
+      hasReceivedChunksRef.current = false;
+      accumulatedRef.current = '';
+      currentSectionTitleRef.current = '';
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isUserScrolledUpRef.current && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
   }, [reportContent, isLoading]);
 
-  // DOKTRINA E FASHIKULLIT — OPINION HOLISTIK-STRAteGJIK
   const handleGenerateAudit = useCallback(async () => {
     if (!caseId || isLoading || isPurging || isSaving) return;
 
+    const generationId = ++generationIdRef.current;
+    const isCancelled = () => generationIdRef.current !== generationId;
+
     setIsLoading(true);
     setReportContent('');
+    setCurrentPhase('extraction');
+    setPhaseLabel('Fillo...');
+    setProgressDetail('');
+    setCompletedPhases([]);
+    hasReceivedChunksRef.current = false;
+    accumulatedRef.current = '';
+    currentSectionTitleRef.current = '';
     isUserScrolledUpRef.current = false;
 
-    const auditPrompt = `[DOKTRINA E FASHIKULLIT TË PLOTË]
-Lënda: "${caseName}" | Klienti: "${clientName}" | Shkresat e Administruara: ${documentCount}
-
-TI JE NJË KËSHILLTAR I LARTË LIGJOR me përvojë dekadash në procedurën civile, penale dhe administrative të Kosovës. Klienti ka kaluar nëpër disa instanca gjyqësore dhe vjen para teje për një OPINION TË PRERË STRATEGJIK mbi të gjithë fashikullin.
-
-DETYRA JOTE: Lexo dhe analizo TË GJITHA ${documentCount} SHKRESAT e fashikullit si një tërësi koherente. NUK je duke verifikuar nene individuale në një akt të vetëm — je duke dhënë një doktrinë forenzike mbi historikun e plotë dhe pozicionin ligjor aktual të klientit.
-
-Përgjigju me këtë strukturë të prerë:
-
-### 1. PËRMBLEDHJA E RASTIT DHE HISTORIKU PROCEDURAL
-* Çfarë ka ndodhur deri tani në këtë fashikull (nga të gjitha instancat).
-* Rindërtimi kronologjik i ngjarjeve dhe akteve kryesore (data, akte, palë, organe).
-* Palët, rolet e tyre procedurale dhe pozicionet në secilën fazë të procedurës.
-
-### 2. KONTRADIKTAT THELBËSORE DHE MOSPËRPUTHJET FAKTIKE
-* Kontradiktat mes deklaratave, provave dhe akteve të ndryshme të fashikullit.
-* Mospërputhjet kronologjike, alibitë dhe versionet e kundërta të palëve.
-* Pikat konkrete ku tregimi faktik nuk qëndron ose ku pala kundërshtare ka dobësi.
-
-### 3. SHKELJET PROCEDURALE DHE REFERENCAT LIGJORE TË PROBLEMATIKE
-* Shkeljet thelbësore procedurale gjatë ecurisë së çështjes (nëse ka), me përshkrim se ku dhe si kanë ndodhur.
-* Referencat ligjore të pasakta, të shfuqizuara ose të keqzbatuara në aktet e fashikullit.
-* RREGULL I HEKURT: NUK lejohet rishkrimi, zëvendësimi apo korrigjimi automatik i neneve. Për çdo referencë të problematik, paraqit: (a) referencën siç është cituar dhe në cilën shkresë, (b) referencën e saktë në fuqi si REKOMANDIM i veçantë, (c) arsyen e problemit.
-* Pasojat e mundshme të këtyre shkeljeve për vlefshmërinë e akteve dhe mundësitë e shfrytëzimit të tyre në favor të klientit.
-
-### 4. VLERËSIMI STRATEGJIK I POZICIONIT LIGJOR
-* Pozicioni i përgjithshëm i klientit në këtë fazë të procedurës.
-* Pikat e forta dhe dobësitë provuese të fashikullit në tërësi.
-* Mundësitë dhe rreziqet e hapave të mundshëm proceduralë.
-* Precedentët e Gjykatës Supreme dhe Kushtetuese që mund të shfrytëzohen në favor (vetëm ato që ekzistojnë vërtetë, pa sajim).
-
-### 5. REKOMANDIMI PËRFUNDIMTAR DHE HAPI I ARDHSHËM
-* Opinioni i prerë i ekspertit (si këshilltar i lartë) mbi rrugën më të mirë.
-* Hapi konkret procedural që duhet ndërmarrë TANI.
-* Afatet ligjore të sakta dhe strategjia taktike për fazën e ardhshme.
-
-Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike të strukturuara, si një OPINION I PRERË profesionale. Mos kopjo shkresat fjalë për fjalë, por nxirr thelbin e tyre. Pa tabela të fryra dhe pa formalitete të tepërta hyrëse.`;
-
     try {
-      // sendChatMessageStream(caseId, prompt, documentIds, jurisdiction, reasoning, domain, saveHistory)
-      // documentIds = undefined → të gjitha shkresat e fashikullit
-      // saveHistory = false → mos e ruaj në chat history
-      const stream = apiService.sendChatMessageStream(
-        caseId,
-        auditPrompt,
-        undefined,
-        'ks',
-        'DEEP',
-        'automatic',
-        false
-      );
+      const stream = apiService.streamCaseAnalysis(caseId, false, documentIds);
 
-      let accumulated = '';
-      for await (const chunk of stream) {
-        accumulated += chunk;
-        setReportContent(accumulated);
+      for await (const evt of stream) {
+        if (isCancelled()) break;
+        const evtType = evt.event;
+
+        if (evtType === 'start') {
+          setPhaseLabel(`Lënda: ${evt.case_title || caseName}`);
+          continue;
+        }
+
+        if (evtType === 'phase_started') {
+          setCurrentPhase(evt.phase as PhaseKey);
+          const phaseCfg = PHASES.find(p => p.key === evt.phase);
+          setPhaseLabel(phaseCfg ? `${phaseCfg.label}...` : evt.phase || '');
+          setProgressDetail('');
+          continue;
+        }
+
+        if (evtType === 'phase_completed') {
+          setCompletedPhases(prev => [...prev, evt.phase as PhaseKey]);
+          continue;
+        }
+
+        if (evtType === 'phase_skipped') {
+          setCompletedPhases(prev => [...prev, evt.phase as PhaseKey]);
+          continue;
+        }
+
+        if (evtType === 'document_started') {
+          setPhaseLabel(`Ekstraktimi: ${evt.file_name} (${(evt.index || 0) + 1}/${evt.total_documents || 0})`);
+          continue;
+        }
+        if (evtType === 'document_completed') {
+          setProgressDetail(`✓ ${evt.file_name} — ${evt.stats?.total_entities || 0} entitete`);
+          continue;
+        }
+        if (evtType === 'document_skipped') {
+          setProgressDetail(`⏭️ ${evt.file_name} (cache)`);
+          continue;
+        }
+        if (evtType === 'document_failed') {
+          setProgressDetail(`✗ ${evt.file_name}: ${evt.error || 'unknown'}`);
+          continue;
+        }
+
+        if (evtType === 'section_started') {
+          const title = evt.section_title || evt.section_key || '';
+          setPhaseLabel(`Sinteza: ${title}`);
+          currentSectionTitleRef.current = title;
+          accumulatedRef.current += `\n\n# ${title}\n\n`;
+          setReportContent(accumulatedRef.current);
+          continue;
+        }
+
+        if (evtType === 'section_chunk') {
+          const chunk = evt.chunk || '';
+          if (chunk) {
+            hasReceivedChunksRef.current = true;
+            accumulatedRef.current += chunk;
+            setReportContent(accumulatedRef.current);
+          }
+          continue;
+        }
+
+        if (evtType === 'section_completed') {
+          setProgressDetail(`✓ ${evt.section_title} (${evt.content_length || 0} chars)`);
+          continue;
+        }
+
+        if (evtType === 'report_ready') {
+          const content = evt.content || '';
+          const fromCache = evt.from_cache === true;
+
+          if (fromCache && content.trim() && !hasReceivedChunksRef.current) {
+            setPhaseLabel('Duke shfaqur doktrinën...');
+            await applyTypewriter(
+              content,
+              (partial) => {
+                if (!isCancelled()) setReportContent(partial);
+              },
+              isCancelled,
+            );
+            accumulatedRef.current = content;
+          }
+          continue;
+        }
+
+        if (evtType === 'complete') {
+          setCurrentPhase('idle');
+          setPhaseLabel('Doktrina u përfundua');
+          setProgressDetail('');
+          break;
+        }
+
+        if (evtType === 'error') {
+          console.error('[SSE Error]', evt);
+          setProgressDetail(`⚠️ ${evt.message || 'Gabim në server'}`);
+          continue;
+        }
       }
 
-      // 🔒 PERSISTENCE: Ruajtja e detyruar në MongoDB pas përfundimit të transmetimit
-      const finalContent = accumulated.trim();
-      if (finalContent.length > 0) {
+      if (isCancelled()) return;
+
+      const finalMarkdown = accumulatedRef.current.trim();
+      if (finalMarkdown) {
         setIsSaving(true);
         try {
-          await apiService.saveCaseDossierAudit(caseId, finalContent);
+          await apiService.saveCaseDossierAudit(caseId, finalMarkdown);
         } catch (saveErr) {
           console.error("Case Dossier Audit Persist Error:", saveErr);
-          alert("Doktrina u gjenerua por nuk mund të ruhej në server. Kontrolloni lidhjen dhe provoni përsëri.");
+          alert("Doktrina u gjenerua por nuk mund të ruhej në server.");
         } finally {
           setIsSaving(false);
         }
       }
     } catch (err: any) {
+      if (isCancelled()) return;
       console.error("Case Dossier Audit Error:", err);
-      alert("Ndodhi një gabim gjatë gjenerimit të doktrinës së fashikullit.");
+      setProgressDetail(`⚠️ ${err?.message || 'Gabim i panjohur'}`);
+      alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të doktrinës.');
     } finally {
-      setIsLoading(false);
+      if (!isCancelled()) {
+        setIsLoading(false);
+        setCurrentPhase('idle');
+      }
     }
-  }, [caseId, caseName, clientName, documentCount, isLoading, isPurging, isSaving]);
+  }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds]);
 
-  // TOTAL CASCADE WIPEOUT në MongoDB
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
     const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht doktrinën e fashikullit nga serveri (Total Cascade Wipeout)?");
@@ -291,6 +450,9 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
     try {
       await apiService.clearCaseDossierAudit(caseId);
       setReportContent('');
+      setCompletedPhases([]);
+      setCurrentPhase('idle');
+      accumulatedRef.current = '';
     } catch (err) {
       console.error("Could not purge case dossier audit on MongoDB:", err);
       alert("Dështoi asgjësimi i doktrinës së fashikullit në server.");
@@ -299,7 +461,6 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
     }
   };
 
-  // KOPJIMI I PASTËR DHE I FORMOSHËM PËR MICROSOFT WORD
   const handleCopy = async () => {
     if (!reportContent) return;
     const htmlContent = markdownToWordHtml(reportContent);
@@ -351,27 +512,24 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
               : 'h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
           } p-4 sm:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
         >
-          {/* Header */}
           <div className="flex items-center justify-between pb-3.5 border-b border-main shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="w-10 h-10 bg-primary-start/15 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0">
-                <Folder className="w-5 h-5" />
+                {isSingleDoc ? <FileText className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm sm:text-base font-black text-text-primary uppercase tracking-tight truncate">
-                    Doktrina e Fashikullit
+                    {reportTitle}
                   </h3>
                 </div>
                 <p className="text-xs text-text-muted font-medium truncate mt-0.5 font-mono">
-                  {caseName} • {clientName} • {documentCount} shkresa
+                  {headerSubtitle}
                 </p>
               </div>
             </div>
 
-            {/* Controls */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* Font Size */}
               <div className="flex items-center bg-surface border border-main rounded-xl p-0.5 text-xs">
                 <button
                   type="button"
@@ -396,7 +554,6 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
                 </button>
               </div>
 
-              {/* Trash */}
               {reportContent && (
                 <button
                   type="button"
@@ -409,7 +566,6 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
                 </button>
               )}
 
-              {/* Fullscreen */}
               <button
                 type="button"
                 onClick={() => setIsFullscreen(!isFullscreen)}
@@ -419,7 +575,6 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
                 {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
 
-              {/* Close */}
               <button
                 type="button"
                 onClick={onClose}
@@ -431,7 +586,41 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
             </div>
           </div>
 
-          {/* Body */}
+          {isLoading && (
+            <div className="pt-3 pb-1 shrink-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                {PHASES.map((phase) => {
+                  const isActive = currentPhase === phase.key;
+                  const isCompleted = completedPhases.includes(phase.key);
+                  return (
+                    <div
+                      key={phase.key}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all ${
+                        isCompleted
+                          ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                          : isActive
+                          ? 'bg-primary-start/15 text-primary-start border border-primary-start/30 animate-pulse'
+                          : 'bg-surface text-text-muted border border-main'
+                      }`}
+                    >
+                      {isCompleted ? <CheckCircle size={12} /> : isActive ? <Loader2 size={12} className="animate-spin" /> : phase.icon}
+                      <span className="hidden sm:inline">{phase.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs font-medium text-text-muted">
+                <Loader2 size={11} className="animate-spin text-primary-start shrink-0" />
+                <span className="truncate">{phaseLabel}</span>
+              </div>
+              {progressDetail && (
+                <div className="text-[10px] text-text-muted/70 truncate mt-0.5 font-mono pl-4">
+                  {progressDetail}
+                </div>
+              )}
+            </div>
+          )}
+
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -456,9 +645,12 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
                   <Scale size={28} />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-text-primary">Doktrina e Fashikullit të Plotë</h4>
+                  <h4 className="text-base font-bold text-text-primary">{reportTitle}</h4>
                   <p className="text-xs text-text-muted max-w-lg mt-1">
-                    Merrni një <strong className="text-text-primary">opinion të prerë strategjik</strong> mbi historikun e plotë të këtij fashikulli me <strong className="text-text-primary">{documentCount} shkresa</strong> — çfarë ka ndodhur, kontradiktat, shkeljet, pozicioni ligjor dhe hapi i ardhshëm konkret.
+                    {emptyStateDescription}
+                  </p>
+                  <p className="text-[10px] text-text-muted/70 mt-2 font-mono">
+                    Analiza zhvillohet në 3 faza: Ekstraktimi → Lidhjet → Sinteza
                   </p>
                 </div>
                 <button
@@ -468,14 +660,19 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
                   className="px-6 py-3 bg-primary-start hover:bg-primary-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all hover-lift disabled:opacity-50"
                 >
                   <Sparkles size={14} />
-                  <span>Fillo Doktrinën e Fashikullit</span>
+                  <span>{actionButtonLabel}</span>
                 </button>
               </div>
             ) : isLoading && !reportContent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto space-y-3">
                 <Loader2 className="w-9 h-9 animate-spin text-primary-start" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                  Duke analizuar fashikullin si një tërësi koherente...
+                  {isSingleDoc
+                    ? 'Duke analizuar dokumentin...'
+                    : 'Duke analizuar fashikullin si një tërësi koherente...'}
+                </p>
+                <p className="text-[10px] text-text-muted font-mono max-w-md text-center">
+                  Kjo mund të zgjasë disa minuta për dokumente të mëdhenj. Ju lutem mos mbyllni dritaren.
                 </p>
               </div>
             ) : (
@@ -498,10 +695,9 @@ Rregull i Hekurt: Përgjigju me gjuhë zyrtare gjyqësore, me pika hierarkike t�
             )}
           </div>
 
-          {/* Bottom Actions */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && !isLoading && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium" title="Fashikulli është analizuar tashmë">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
                 {isSaving ? (
                   <>
                     <Loader2 size={12} className="text-primary-start animate-spin" />

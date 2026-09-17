@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/forensicService.ts
-// PHOENIX PROTOCOL - FORENSIC SERVICE V5.0 (STREAMLINED CASE EVIDENCE & MEDIA CLIENT)
-// 100% COMPLETE CODE • ZERO TS WARNINGS • LEGACY PILLARS & DEEP SIMULATIONS FULLY PURGED
+// PHOENIX PROTOCOL - FORENSIC SERVICE V5.1
+// V5.1: Removed dead method clearDocumentAudit.
 
 import { apiClient } from './apiClient';
 
@@ -38,11 +38,6 @@ export class ForensicService {
   // =========================================================================
   // 📄 1. DOKUMENTET DHE RAPORTET E LËNDËS
   // =========================================================================
-
-  public async clearDocumentAudit(caseId: string, documentId: string): Promise<any> {
-    const response = await apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
-    return response.data;
-  }
 
   public async archiveForensicReport(caseId: string, title: string, content: string): Promise<any> {
     const response = await apiClient.post('/finance/forensic-report/archive', { case_id: caseId, title, content });

@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases/document_router.py
-# PHOENIX PROTOCOL - DOCUMENT ROUTER V64.0 (AUDIT PERSISTENCE RESTORED + TOTAL SYNC)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ATOMIC MONGODB PERSISTENCE
+# PHOENIX PROTOCOL - DOCUMENT ROUTER V65.0
+# V65.0: Removed dead code — DocumentAuditPayload, save_document_audit_endpoint, clear_document_audit_endpoint.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, BackgroundTasks, Query, Request
 from typing import List, Annotated, Optional, Dict, Any
@@ -38,9 +38,6 @@ MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 class DocumentPillarPayload(BaseModel):
     pillar: str = Field(..., description="Çelësi i shtjellës: PILLAR_1, PILLAR_2, ose PILLAR_3")
     content: str = Field(..., description="Përmbajtja tekstuale e shtjellës forenzike")
-
-class DocumentAuditPayload(BaseModel):
-    content: str = Field(..., description="Përmbajtja e plotë e auditimit doktrinar të shkresës")
 
 # Model i ri për kërkesën e Riemërtimit (Rename)
 class RenameDocumentRequest(BaseModel):
@@ -328,51 +325,6 @@ async def save_document_pillar_endpoint(
     return {"status": "success", "pillar": pillar_key}
 
 
-# =========================================================================
-# 🧠 AUDITIMI DOKTRINAR I SHKRESËS — PERSISTENCE (MULTI-DEVICE SYNC)
-# =========================================================================
-@router.post("/{case_id}/documents/{doc_id}/audit", status_code=status.HTTP_200_OK)
-async def save_document_audit_endpoint(
-    case_id: str,
-    doc_id: str,
-    payload: DocumentAuditPayload,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    doc_oid = validate_object_id(doc_id)
-    content = (payload.content or "").strip()
-
-    if not content:
-        raise HTTPException(status_code=400, detail="Përmbajtja e auditimit nuk mund të jetë e zbrazët.")
-
-    now = datetime.now(timezone.utc)
-
-    res = db.documents.update_one(
-        {
-            "_id": doc_oid,
-            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "owner_id": current_user.id
-        },
-        {"$set": {
-            "latest_analysis": content,
-            "last_audited_at": now,
-            "updated_at": now
-        }}
-    )
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
-
-    logger.info(f"🧠 [DOC AUDIT SAVED] Dokumenti {doc_id} — {len(content)} karaktere — Lënda {case_id}")
-
-    return {
-        "status": "success",
-        "document_id": doc_id,
-        "saved_at": now.isoformat(),
-        "length": len(content)
-    }
-
-
 @router.delete("/{case_id}/documents/{doc_id}/pillars/{pillar}", status_code=status.HTTP_200_OK)
 async def delete_single_document_pillar_endpoint(
     case_id: str,
@@ -513,42 +465,6 @@ async def upload_document_for_case(
 
     new_doc = db.documents.find_one({"_id": insert_result.inserted_id})
     return DocumentOut.model_validate(new_doc)
-
-
-@router.post("/{case_id}/documents/{doc_id}/clear-audit")
-@router.delete("/{case_id}/documents/{doc_id}/clear-audit")
-async def clear_document_audit_endpoint(
-    case_id: str,
-    doc_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
-):
-    case_oid = validate_object_id(case_id)
-    doc_oid = validate_object_id(doc_id)
-
-    doc = db.documents.find_one({
-        "_id": doc_oid,
-        "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-        "owner_id": current_user.id
-    })
-    if not doc:
-        raise HTTPException(status_code=404, detail="Dokumenti nuk u gjet ose nuk keni autorizim.")
-
-    db.documents.update_one(
-        {"_id": doc_oid},
-        {"$unset": {
-            "latest_analysis": "",
-            "latest_forensic_audit": "",
-            "forensic_pillars": "",
-            "last_audited_at": ""
-        }}
-    )
-
-    return {
-        "status": "success",
-        "message": "Auditimi i dokumentit u fshi plotësisht nga baza e të dhënave (Total Wipeout).",
-        "document_id": doc_id
-    }
 
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut)

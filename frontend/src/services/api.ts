@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V66.0 (VOICE CALENDAR METHODS EXPOSED)
-// 100% COMPLETE CODE • ZERO TS WARNINGS • LEAN API FACADE
+// PHOENIX PROTOCOL - MASTER API FACADE V68.0
+// V68.0: Removed dead methods saveDocumentAudit + clearDocumentAudit.
 
 export * from './apiClient';
 export * from './authService';
@@ -12,6 +12,7 @@ export * from './calendarService';
 export * from './chatService';
 export * from './adminService';
 export * from './lawService';
+export * from './caseAnalysisService';
 
 import { apiClient, setGlobalLogoutHandler } from './apiClient';
 import { authService } from './authService';
@@ -23,6 +24,7 @@ import { calendarService } from './calendarService';
 import { chatService } from './chatService';
 import { adminService } from './adminService';
 import { lawService } from './lawService';
+import { caseAnalysisService } from './caseAnalysisService';
 
 class ApiService {
   public axiosInstance = apiClient;
@@ -88,12 +90,6 @@ class ApiService {
   public saveDocumentAnalysis = async (caseId: string, documentId: string, content: string) => {
     return apiClient.post(`/cases/${caseId}/documents/${documentId}/pillars`, { pillar: 'PILLAR_1', content });
   };
-  public saveDocumentAudit = async (caseId: string, documentId: string, content: string) => {
-    return apiClient.post(`/cases/${caseId}/documents/${documentId}/audit`, { content });
-  };
-  public clearDocumentAudit = async (caseId: string, documentId: string) => {
-    return apiClient.post(`/cases/${caseId}/documents/${documentId}/clear-audit`);
-  };
 
   // 🧠 Doktrina Forenzike e Fashikullit (Case-Level)
   public saveCaseDossierAudit = async (caseId: string, content: string) => {
@@ -102,6 +98,9 @@ class ApiService {
   public clearCaseDossierAudit = async (caseId: string) => {
     return apiClient.post(`/cases/${caseId}/clear-audit`);
   };
+
+  // 🔬 Analiza SSE e Lëndës (Moduli 2 + 3 + 4)
+  public streamCaseAnalysis = caseAnalysisService.streamCaseAnalysis.bind(caseAnalysisService);
 
   // 🏛️ Active Forensic Report Methods
   public archiveForensicReport = forensicService.archiveForensicReport.bind(forensicService);
