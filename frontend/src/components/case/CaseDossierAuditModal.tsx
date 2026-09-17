@@ -1,8 +1,7 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.6
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.7
+// V2.7: Nxjerrë ngjyrat e Word export si konstante (WORD_*) — zero hex hardcoded në kod.
 // V2.6: Dynamic title based on scope (case vs document).
-//   - scope=case     → "Doktrina e Rastit"
-//   - scope=document → "Verifikimi i Dokumentit"
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +16,20 @@ import remarkGfm from 'remark-gfm';
 import { apiService } from '../../services/api';
 import { autoLinkLegalCitations } from '../../utils/chatHelpers';
 import { buildMarkdownComponents } from '../chat/MarkdownRenderer';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WORD EXPORT COLORS — Për eksport në Microsoft Word (jo UI)
+// ═══════════════════════════════════════════════════════════════════════════
+// Këto ngjyra janë për HTML që kopjohet në Word. Word nuk i kupton
+// CSS variables, prandaj duhen vlera literale. Gjithmonë light theme.
+// ═══════════════════════════════════════════════════════════════════════════
+const WORD_CODE_BG = '#f1f5f9';           // Slate-100 — background për kod
+const WORD_BLOCKQUOTE_BORDER = '#2563eb'; // Blue-600 — border për citate
+const WORD_BLOCKQUOTE_BG = '#f8fafc';     // Slate-50 — background për citate
+const WORD_BLOCKQUOTE_TEXT = '#334155';   // Slate-700 — tekst për citate
+const WORD_HR_COLOR = '#cbd5e1';          // Slate-300 — ndarës horizontal
+const WORD_HEADING_COLOR = '#0f172a';     // Slate-900 — titujt
+const WORD_BODY_COLOR = '#1e293b';        // Slate-800 — teksti i trupit
 
 interface CaseDossierAuditModalProps {
   isOpen: boolean;
@@ -100,7 +113,7 @@ const markdownToWordHtml = (markdown: string): string => {
       .replace(/__(.+?)__/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/_(.+?)_/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code style="background-color: #f1f5f9; padding: 2px 4px; font-family: Consolas, monospace; font-size: 10pt;">$1</code>');
+      .replace(/`([^`]+)`/g, `<code style="background-color: ${WORD_CODE_BG}; padding: 2px 4px; font-family: Consolas, monospace; font-size: 10pt;">$1</code>`);
   };
 
   const flushList = () => {
@@ -112,7 +125,7 @@ const markdownToWordHtml = (markdown: string): string => {
 
   const flushBlockquote = () => {
     if (inBlockquote) {
-      htmlOutput.push(`<blockquote style="border-left: 4px solid #2563eb; margin: 10px 0; padding: 8px 16px; background-color: #f8fafc; color: #334155; font-style: italic; font-family: Calibri, Arial, sans-serif;">${blockquoteLines.map(formatInline).join('<br>')}</blockquote>`);
+      htmlOutput.push(`<blockquote style="border-left: 4px solid ${WORD_BLOCKQUOTE_BORDER}; margin: 10px 0; padding: 8px 16px; background-color: ${WORD_BLOCKQUOTE_BG}; color: ${WORD_BLOCKQUOTE_TEXT}; font-style: italic; font-family: Calibri, Arial, sans-serif;">${blockquoteLines.map(formatInline).join('<br>')}</blockquote>`);
       blockquoteLines = [];
       inBlockquote = false;
     }
@@ -125,7 +138,7 @@ const markdownToWordHtml = (markdown: string): string => {
     if (/^(---|---|\*\*\*|___)$/.test(line)) {
       flushList();
       flushBlockquote();
-      htmlOutput.push('<hr style="border: 0; border-top: 1px solid #cbd5e1; margin: 16px 0;" />');
+      htmlOutput.push(`<hr style="border: 0; border-top: 1px solid ${WORD_HR_COLOR}; margin: 16px 0;" />`);
       continue;
     }
 
@@ -136,7 +149,7 @@ const markdownToWordHtml = (markdown: string): string => {
       const level = hMatch[1].length;
       const text = formatInline(hMatch[2]);
       const fontSize = level === 1 ? '16pt' : level === 2 ? '14pt' : '12pt';
-      htmlOutput.push(`<h${level} style="font-size: ${fontSize}; font-family: Calibri, Arial, sans-serif; font-weight: bold; color: #0f172a; margin-top: 14px; margin-bottom: 6px;">${text}</h${level}>`);
+      htmlOutput.push(`<h${level} style="font-size: ${fontSize}; font-family: Calibri, Arial, sans-serif; font-weight: bold; color: ${WORD_HEADING_COLOR}; margin-top: 14px; margin-bottom: 6px;">${text}</h${level}>`);
       continue;
     }
 
@@ -156,7 +169,7 @@ const markdownToWordHtml = (markdown: string): string => {
         htmlOutput.push('<ul style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
         inList = 'ul';
       }
-      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(bulletMatch[2])}</li>`);
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: ${WORD_BODY_COLOR}; font-size: 11pt;">${formatInline(bulletMatch[2])}</li>`);
       continue;
     }
 
@@ -167,14 +180,14 @@ const markdownToWordHtml = (markdown: string): string => {
         htmlOutput.push('<ol style="margin: 6px 0 6px 24px; padding: 0; font-family: Calibri, Arial, sans-serif;">');
         inList = 'ol';
       }
-      htmlOutput.push(`<li style="margin-bottom: 4px; color: #1e293b; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
+      htmlOutput.push(`<li style="margin-bottom: 4px; color: ${WORD_BODY_COLOR}; font-size: 11pt;">${formatInline(numMatch[2])}</li>`);
       continue;
     }
 
     flushList();
     if (line.length === 0) continue;
 
-    htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b;">${formatInline(line)}</p>`);
+    htmlOutput.push(`<p style="margin: 6px 0; font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR};">${formatInline(line)}</p>`);
   }
 
   flushList();
@@ -187,7 +200,7 @@ const markdownToWordHtml = (markdown: string): string => {
       <meta charset="utf-8">
       <title>Raport</title>
       <style>
-        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; }
+        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: ${WORD_BODY_COLOR}; }
       </style>
     </head>
     <body>
@@ -265,7 +278,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     ? documentNames[0]
     : null;
 
-  // Titulli varet nga scope (i deklaruar ose i runtime)
   const effectiveScope = runtimeScope || (isSingleDoc ? 'document' : 'case');
 
   const reportTitle = effectiveScope === 'document'
@@ -351,7 +363,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         const evtType = evt.event;
 
         if (evtType === 'start') {
-          // V2.6: lexo scope nga event
           if (evt.scope === 'case' || evt.scope === 'document') {
             setRuntimeScope(evt.scope);
           }
@@ -606,10 +617,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   type="button"
                   onClick={handleClearContent}
                   disabled={isPurging}
-                  className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
+                  className="p-2 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-colors cursor-pointer"
                   title="Fshi raportin nga serveri"
                 >
-                  {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
+                  {isPurging ? <Loader2 size={16} className="animate-spin text-danger-start" /> : <Trash2 size={16} />}
                 </button>
               )}
 
@@ -645,7 +656,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                       key={phase.key}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all ${
                         isCompleted
-                          ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                          ? 'bg-success-start/15 text-success-start border border-success-start/30'
                           : isActive
                           ? 'bg-primary-start/15 text-primary-start border border-primary-start/30 animate-pulse'
                           : 'bg-surface text-text-muted border border-main'
@@ -738,7 +749,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               <button
                 type="button"
                 onClick={scrollToBottom}
-                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+                className="sticky bottom-2 right-2 ml-auto z-20 px-3 py-1.5 bg-text-primary text-text-inverse text-[11px] font-bold rounded-full shadow-lg border border-border-strong flex items-center gap-1 cursor-pointer"
               >
                 <span>Te Fundi</span>
                 <ArrowDown size={12} className="animate-bounce" />

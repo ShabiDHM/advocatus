@@ -40,7 +40,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             connectionStatus === 'CONNECTED'
-              ? 'bg-[#22c55e] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
+              ? 'bg-[	var(--status-success)] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
               : 'bg-danger-start animate-pulse'
           }`}
           title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive me DeepSeek' : 'Lidhja e shkëputur'}

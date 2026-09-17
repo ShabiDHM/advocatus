@@ -1,5 +1,6 @@
 // FILE: src/components/law/LawArticleAuditorPanel.tsx
-// PHOENIX PROTOCOL - AUDITOR MODAL WITH PROFESSIONAL "SOKRATI" BRANDING & AUTO-SCROLL
+// PHOENIX PROTOCOL - AUDITOR MODAL V2.0 (CENTRALIZED COLORS)
+// V2.0: Zero ngjyra hardcoded. Të gjitha referencat nga semantike classes.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -120,7 +121,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         return (
           <h4
             key={i}
-            className="text-sm sm:text-base md:text-lg font-bold text-slate-900 dark:text-white mt-6 mb-2.5 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2"
+            className="text-sm sm:text-base md:text-lg font-bold text-text-primary mt-6 mb-2.5 flex items-center gap-2 border-b border-main pb-2"
           >
             {cleanTitle}
           </h4>
@@ -132,7 +133,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
         return (
           <li
             key={i}
-            className="ml-4 sm:ml-6 text-xs sm:text-sm md:text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed list-disc mb-2 font-sans"
+            className="ml-4 sm:ml-6 text-xs sm:text-sm md:text-[15px] text-text-secondary leading-relaxed list-disc mb-2 font-sans"
           >
             {itemText}
           </li>
@@ -143,7 +144,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
       return (
         <p
           key={i}
-          className="text-xs sm:text-sm md:text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed font-sans mb-3.5 text-left"
+          className="text-xs sm:text-sm md:text-[15px] text-text-secondary leading-relaxed font-sans mb-3.5 text-left"
         >
           {cleanParagraph}
         </p>
@@ -170,21 +171,20 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: 15 }}
           transition={{ duration: 0.2 }}
-          style={{ backgroundColor: '#0B101D' }}
-          className="relative z-10 w-full max-w-5xl xl:max-w-6xl bg-white dark:bg-[#0B101D] border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden text-slate-900 dark:text-slate-100"
+          className="relative z-10 w-full max-w-5xl xl:max-w-6xl bg-card border border-main rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden text-text-primary"
         >
           
           {/* Header me Titull dhe Kontrolle */}
-          <div className="px-6 sm:px-8 py-4 sm:py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#070B14] shrink-0">
+          <div className="px-6 sm:px-8 py-4 sm:py-5 border-b border-main flex items-center justify-between bg-surface shrink-0">
             <div className="flex items-center gap-3.5">
               <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start shrink-0">
                 <BrainCircuit size={22} />
               </div>
               <div>
-                <h3 className="text-xs sm:text-base font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                <h3 className="text-xs sm:text-base font-black uppercase tracking-wider text-text-primary">
                   Auditimi Inteligjent i Nenit
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">Analizë dhe këshillim ligjor i verifikuar</p>
+                <p className="text-[11px] sm:text-xs text-text-muted">Analizë dhe këshillim ligjor i verifikuar</p>
               </div>
             </div>
 
@@ -194,7 +194,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 <button
                   type="button"
                   onClick={onReanalyze}
-                  className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] text-slate-400 hover:text-primary-start hover:bg-primary-start/10 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
+                  className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card text-text-muted hover:text-primary-start hover:bg-primary-start/10 border border-main transition-all cursor-pointer shadow-xs"
                   title="Rianalizo nenin nga e para"
                 >
                   <RotateCcw size={16} />
@@ -206,7 +206,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 <button
                   type="button"
                   onClick={onClearCache}
-                  className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] text-slate-400 hover:text-red-500 hover:bg-red-500/10 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-xs"
+                  className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card text-text-muted hover:text-danger-start hover:bg-danger-start/10 border border-main transition-all cursor-pointer shadow-xs"
                   title="Shlyej analizën nga memoria"
                 >
                   <Trash2 size={16} />
@@ -217,7 +217,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
               <button
                 type="button"
                 onClick={onCloseAuditor}
-                className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#0E1526] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer shadow-xs"
+                className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl bg-card hover:bg-hover border border-main text-text-muted hover:text-text-primary transition-all cursor-pointer shadow-xs"
               >
                 <X size={17} />
               </button>
@@ -230,21 +230,21 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
             {/* 1. SEKSIONI I ANALIZËS LIGJORE */}
             <div>
               {summaryError && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-500 text-xs sm:text-sm font-semibold flex items-center gap-2 mb-4">
+                <div className="bg-danger-start/10 border border-danger-start/20 rounded-xl p-4 text-danger-start text-xs sm:text-sm font-semibold flex items-center gap-2 mb-4">
                   <AlertCircle size={17} /> {summaryError}
                 </div>
               )}
 
               {/* GJENDJA FILLARE (KUR NUK KA ANALIZË TË RUAJTUR) */}
               {!summaryContent && !isSummarizing && (
-                <div className="py-12 px-6 border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-[#070B14]/40">
+                <div className="py-12 px-6 border border-dashed border-main rounded-3xl flex flex-col items-center justify-center text-center bg-surface/40">
                   <div className="h-14 w-14 rounded-2xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center text-primary-start mb-4">
                     <Sparkles size={28} />
                   </div>
-                  <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-1.5">
+                  <h4 className="text-base sm:text-lg font-bold text-text-primary mb-1.5">
                     Analizë dhe Interpretim me AI
                   </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mb-6 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-text-muted max-w-lg mb-6 leading-relaxed">
                     Kliko butonin e mëposhtëm për të gjeneruar analizën e thellë ligjore të këtij neni, ose bëj një pyetje direkte në fushën e chat-it.
                   </p>
                   
@@ -268,9 +268,9 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                     <Loader2 size={17} className="animate-spin" />
                     <span>Sokrati duke analizuar...</span>
                   </div>
-                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-full animate-pulse" />
-                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-5/6 animate-pulse" />
-                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-4/6 animate-pulse" />
+                  <div className="h-4 bg-surface rounded-lg w-full animate-pulse" />
+                  <div className="h-4 bg-surface rounded-lg w-5/6 animate-pulse" />
+                  <div className="h-4 bg-surface rounded-lg w-4/6 animate-pulse" />
                 </div>
               )}
 
@@ -285,7 +285,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
               )}
 
               {summaryContent && (
-                <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-400 font-medium">
+                <div className="mt-6 pt-4 border-t border-main flex items-center gap-2 text-xs text-text-muted font-medium">
                   <Sparkles size={14} className="text-primary-start shrink-0" />
                   <span>{t('lawArticle.aiDisclaimer', 'Analizë e ruajtur në memorie për të gjitha pajisjet.')}</span>
                 </div>
@@ -294,15 +294,15 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
 
             {/* 2. SEKSIONI I BISEDËS */}
             {summaryContent && (
-              <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+              <div className="pt-6 border-t border-main">
                 <div ref={chatContainerRef} className="space-y-3.5 mb-2">
                   {messages.map((msg) => (
                     <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                       <div
                         className={`w-full max-w-[85%] p-4 rounded-2xl text-xs sm:text-sm shadow-xs ${
                           msg.role === 'user'
-                            ? 'bg-primary-start/15 border border-primary-start/30 text-slate-900 dark:text-white'
-                            : 'bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'
+                            ? 'bg-primary-start/15 border border-primary-start/30 text-text-primary'
+                            : 'bg-surface border border-main text-text-primary'
                         }`}
                       >
                         {msg.role === 'auditor' ? (
@@ -314,7 +314,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                         ) : (
                           <p className="font-medium whitespace-pre-wrap">{msg.content}</p>
                         )}
-                        <p className="text-[10px] mt-1.5 text-slate-400">
+                        <p className="text-[10px] mt-1.5 text-text-muted">
                           {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
@@ -324,13 +324,13 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                   {/* Sugjerimet */}
                   {showSuggestions && messages.length === 0 && (
                     <div className="flex flex-col gap-2 mt-3">
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
+                      <p className="text-xs text-text-muted font-bold uppercase tracking-wider">Pyetje të sugjeruara:</p>
                       <div className="flex flex-wrap gap-2">
                         {SUGGESTED_QUESTIONS.map((question: string, idx: number) => (
                           <button
                             key={idx}
                             onClick={() => onSendQuery(question)}
-                            className="text-xs bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 hover:border-primary-start/50 text-slate-700 dark:text-slate-300 px-3.5 py-2 rounded-xl transition-all text-left cursor-pointer"
+                            className="text-xs bg-surface border border-main hover:border-primary-start/50 text-text-secondary px-3.5 py-2 rounded-xl transition-all text-left cursor-pointer"
                             type="button"
                           >
                             {question}
@@ -342,7 +342,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
 
                   {isAuditing && (
                     <div className="flex justify-start">
-                      <div className="bg-slate-100 dark:bg-[#070B14] border border-slate-200 dark:border-slate-800 p-3 rounded-2xl flex gap-1.5">
+                      <div className="bg-surface border border-main p-3 rounded-2xl flex gap-1.5">
                         <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                         <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                         <span className="w-1.5 h-1.5 bg-primary-start rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -351,7 +351,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                   )}
 
                   {chatError && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-500 text-xs flex items-center gap-2">
+                    <div className="bg-danger-start/10 border border-danger-start/30 rounded-xl p-3 text-danger-start text-xs flex items-center gap-2">
                       <AlertCircle size={15} /> {chatError}
                     </div>
                   )}
@@ -362,7 +362,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
           </div>
 
           {/* 3. Tastiera Dinamike e Zgjeruar */}
-          <div className="p-4 sm:p-5 bg-slate-50 dark:bg-[#070B14] border-t border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="p-4 sm:p-5 bg-surface border-t border-main shrink-0">
             <div className="flex gap-2.5 items-end max-w-5xl mx-auto w-full">
               <textarea
                 ref={(el) => {
@@ -379,7 +379,7 @@ export const LawArticleAuditorPanel: React.FC<LawArticleAuditorPanelProps> = ({
                 placeholder="Bëj një pyetje konkrete për këtë nen..."
                 rows={1}
                 style={{ height: '44px', minHeight: '44px', maxHeight: '130px' }}
-                className="flex-1 px-4 py-2.5 bg-white dark:bg-[#0B101D] border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm resize-none overflow-y-auto custom-scrollbar text-slate-900 dark:text-white focus:border-primary-start outline-none transition-all placeholder:text-slate-400"
+                className="flex-1 px-4 py-2.5 bg-input border border-main rounded-xl text-xs sm:text-sm resize-none overflow-y-auto custom-scrollbar text-text-primary focus:border-primary-start outline-none transition-all placeholder:text-text-muted"
                 disabled={isAuditing}
               />
               <button

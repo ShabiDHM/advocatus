@@ -1,4 +1,9 @@
 /* FILE: src/index.css */
+/* PHOENIX PROTOCOL - DESIGN SYSTEM V2.2 (FULL CENTRALIZATION) */
+/* V2.2: Shtuar --mockup-dot për terminal dot pattern. */
+/* V2.1: Shtuar RGB variants, status-info, role colors. */
+/* V2.0: Shtuar chart variables për dark/light mode. */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,6 +13,7 @@
     /* --- LIGHT THEME (default) --- */
     --bg-base: #F4F6F9;
     --bg-surface: #ECEEF3;
+    --bg-surface-rgb: 236, 238, 243;
     --bg-card: #FFFFFF;
     --bg-glass: rgba(255, 255, 255, 0.85);
     --bg-input: #EDF0F5;
@@ -26,9 +32,19 @@
     --accent-primary-rgb: 99, 102, 241;
 
     --status-success: #059669;
+    --status-success-rgb: 5, 150, 105;
     --status-warning: #D97706;
+    --status-warning-rgb: 217, 119, 6;
     --status-danger: #DC2626;
+    --status-danger-rgb: 220, 38, 38;
     --status-neutral: #475569;
+    --status-info: #3B82F6;
+    --status-info-rgb: 59, 130, 246;
+
+    /* Role colors për pozicionet ligjore */
+    --role-plaintiff: #9333EA;
+    --role-defendant: #2563EB;
+    --role-neutral: #059669;
 
     /* Typography Scale */
     --text-xs: 0.75rem;
@@ -92,12 +108,26 @@
     --border-primary-solid: #6366F1;
     --border-success-solid: #059669;
     --border-danger-solid: #DC2626;
+
+    /* === CHART COLORS (V2.0 — light mode) === */
+    --chart-blue: #3B82F6;
+    --chart-green: #10B981;
+    --chart-1: #34D399;
+    --chart-2: #60A5FA;
+    --chart-3: #FBBF24;
+    --chart-4: #F87171;
+    --chart-5: #A78BFA;
+    --chart-grid: rgba(15, 22, 35, 0.08);
+
+    /* === MOCKUP COLORS (V2.2 — terminal dot pattern) === */
+    --mockup-dot: #1E293B;
   }
 
   .dark {
     /* --- DARK THEME (override) --- */
     --bg-base: #020617;
     --bg-surface: #0F172A;
+    --bg-surface-rgb: 15, 23, 42;
     --bg-card: #1E293B;
     --bg-glass: rgba(15, 23, 42, 0.85);
     --bg-input: #1E293B;
@@ -114,6 +144,12 @@
     --accent-subtle: rgba(129, 140, 248, 0.15);
     --accent-text: #A5B4FC;
     --accent-primary-rgb: 129, 140, 248;
+
+    --status-success-rgb: 52, 211, 153;
+    --status-warning-rgb: 251, 191, 36;
+    --status-danger-rgb: 248, 113, 113;
+    --status-info: #60A5FA;
+    --status-info-rgb: 96, 165, 250;
 
     /* Typography Scale - same as light mode */
     --text-xs: 0.75rem;
@@ -177,6 +213,19 @@
     --border-primary-solid: #818CF8;
     --border-success-solid: #10B981;
     --border-danger-solid: #F87171;
+
+    /* === CHART COLORS (V2.0 — dark mode) === */
+    --chart-blue: #60A5FA;
+    --chart-green: #34D399;
+    --chart-1: #34D399;
+    --chart-2: #60A5FA;
+    --chart-3: #FBBF24;
+    --chart-4: #F87171;
+    --chart-5: #A78BFA;
+    --chart-grid: rgba(255, 255, 255, 0.1);
+
+    /* === MOCKUP COLORS (V2.2 — terminal dot pattern) === */
+    --mockup-dot: #1E293B;
   }
 
   /* ========== PHOENIX FIX: Ensure root containers fill viewport ========== */
@@ -211,7 +260,6 @@
 
   /* ========== PHOENIX FIX: Spinners survive reduced-motion ========== */
   @media (prefers-reduced-motion: reduce) {
-    /* Exclude any element with a class containing 'spin' from the motion kill-switch */
     *:not([class*="spin"]),
     ::before,
     ::after {

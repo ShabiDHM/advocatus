@@ -1,6 +1,6 @@
 // FILE: src/components/LawCitationLink.tsx
-// PHOENIX PROTOCOL - IN-PLACE LAW ARTICLE VIEWER V19.0 (DEFENSIVE PARAMETER RECOVERY)
-// 100% COMPLETE CODE • OPENS PDF MODAL IN-PLACE • EXTRACTS PARAMS FROM URL • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - IN-PLACE LAW ARTICLE VIEWER V20.0
+// V20.0: Zero hex. emerald-* → success-start, slate-* → semantic.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -68,7 +68,6 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
   });
   const containerRef = useRef<HTMLSpanElement>(null);
 
-  // REZOLVIMI I SIGURT: Nëse articleNum mungon, nxirre menjëherë nga targetUrl ose fullMatch
   const resolvedParams = useMemo(() => {
     let lTitle = lawTitle || '';
     let aNum = articleNum || '';
@@ -178,7 +177,6 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
     };
   }, [showTooltip]);
 
-  // HAPJA E MENJËHERSHME E PDF-SË NË VEND ME PARAMETRA TË SAKTË
   const handleDirectOpenPdf = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -218,7 +216,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          className={`fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/60 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-auto ring-1 ring-black/10 dark:ring-white/10 ${
+          className={`fixed p-3.5 sm:p-4 bg-card text-text-primary border-2 border-success-start/60 rounded-2xl shadow-2xl z-[999999] pointer-events-auto ${
             coords.isMobile
               ? 'left-3 right-3 mx-auto max-w-[360px] w-[calc(100vw-24px)]'
               : 'w-[360px]'
@@ -233,13 +231,13 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 font-black text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-main">
+            <div className="flex items-center gap-1.5 font-black text-xs text-success-start uppercase tracking-wider">
               <ShieldCheck size={15} />
               <span>Verifikim Faktik në Server</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold bg-success-start/10 text-success-start border border-success-start/20 flex items-center gap-1">
                 <CheckCircle2 size={10} />
                 <span>100% ZYRTAR</span>
               </span>
@@ -247,7 +245,7 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-200"
+                  className="p-1 rounded-md text-text-muted hover:text-text-primary"
                 >
                   <X size={13} />
                 </button>
@@ -256,34 +254,34 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           </div>
 
           {/* Titulli i Ligjit & Neni */}
-          <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mb-1.5 leading-snug">
+          <div className="text-xs sm:text-sm font-black text-text-primary mb-1.5 leading-snug">
             {sourceInfo?.matched_law || resolvedParams.lawTitle} • Neni {sourceInfo?.matched_article || resolvedParams.articleNum}
           </div>
 
           {/* Të Dhënat Reale */}
-          <div className="space-y-1 text-[11px] font-sans bg-slate-50 dark:bg-slate-900/90 p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 mb-1.5">
+          <div className="space-y-1 text-[11px] font-sans bg-surface/90 p-2 rounded-xl border border-main text-text-secondary mb-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Burimi në Server:</span>
+              <span className="text-text-muted">Burimi në Server:</span>
               <strong className="truncate max-w-[180px] font-mono text-[10px]" title={sourceInfo?.source_file}>
                 {sourceInfo?.source_file || 'Gazeta Zyrtare e Kosovës'}
               </strong>
             </div>
             {sourceInfo?.page && (
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Vendi në Dokument:</span>
-                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">Faqja {sourceInfo.page}</strong>
+                <span className="text-text-muted">Vendi në Dokument:</span>
+                <strong className="text-success-start font-bold">Faqja {sourceInfo.page}</strong>
               </div>
             )}
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Veprimi:</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">Hapje e Menjëhershme në PDF ✓</strong>
+              <span className="text-text-muted">Veprimi:</span>
+              <strong className="text-success-start">Hapje e Menjëhershme në PDF ✓</strong>
             </div>
           </div>
 
           {/* Udhëzimi me 1-Klikim */}
-          <div className="mt-2 flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-1.5">
+          <div className="mt-2 flex items-center justify-between text-[10.5px] text-text-muted border-t border-main pt-1.5">
             <span>Kliko për të hapur ligjin origjinal</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+            <span className="text-success-start font-bold flex items-center gap-0.5">
               Hap PDF <ExternalLink size={10} />
             </span>
           </div>
@@ -292,8 +290,8 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
           <div
             className={`absolute border-[7px] border-transparent pointer-events-none ${
               coords.isFlippedBelow 
-                ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
-                : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
+                ? 'bottom-full -mb-[1px] border-b-card' 
+                : 'top-full -mt-[1px] border-t-card'
             }`}
             style={{
               left: `${coords.arrowLeftPx}px`,
@@ -329,7 +327,6 @@ export const LawCitationLink: React.FC<LawCitationLinkProps> = ({
         {createPortal(tooltipContent, document.body)}
       </span>
 
-      {/* Dritarja Modale In-Place e PDF-së */}
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{

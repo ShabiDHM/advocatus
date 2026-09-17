@@ -1,5 +1,6 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V13.0 (RISK-COLORED GUARDIAN + CLEAN PROFESSIONAL UI)
+// PHOENIX PROTOCOL - DASHBOARD V14.0 (ZERO HARDCODED COLORS)
+// V14.0: Të gjitha ngjyrat kaluar në semantike — role-*, status-info, danger-start, etj.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -88,40 +89,39 @@ const DashboardPage: React.FC = () => {
     return briefing;
   }, [holidayBriefing, briefing]);
 
-  // FIX: theme tani ka 'bg' + 'border' të veçantë, të cilat ZBATOHEN në JSX.
-  // Ngjyra e kartës tregon nivelin e rrezikut — pa titull redundant.
+  // Ngjyra e kartës tregon nivelin e rrezikut — semantic tokens
   const theme = useMemo(() => {
     const status = effectiveBriefing?.status || 'OPTIMAL';
     switch (status) {
       case 'HOLIDAY':
         return {
-          bg: 'from-indigo-500/[0.06] via-transparent to-transparent',
-          border: 'border-indigo-500/30',
-          icon: <PartyPopper className="h-5 w-5 text-indigo-400" />
+          bg: 'from-status-info/5 via-transparent to-transparent',
+          border: 'border-status-info/30',
+          icon: <PartyPopper className="h-5 w-5 text-status-info" />
         };
       case 'WEEKEND':
         return {
-          bg: 'from-indigo-500/[0.06] via-transparent to-transparent',
-          border: 'border-indigo-500/30',
-          icon: <Coffee className="h-5 w-5 text-indigo-400" />
+          bg: 'from-status-info/5 via-transparent to-transparent',
+          border: 'border-status-info/30',
+          icon: <Coffee className="h-5 w-5 text-status-info" />
         };
       case 'CRITICAL':
         return {
-          bg: 'from-rose-500/[0.10] via-rose-500/[0.03] to-transparent',
-          border: 'border-rose-500/40',
-          icon: <ShieldAlert className="h-5 w-5 animate-pulse text-rose-500" />
+          bg: 'from-danger-start/10 via-danger-start/5 to-transparent',
+          border: 'border-danger-start/40',
+          icon: <ShieldAlert className="h-5 w-5 animate-pulse text-danger-start" />
         };
       case 'WARNING':
         return {
-          bg: 'from-amber-500/[0.08] via-amber-500/[0.02] to-transparent',
-          border: 'border-amber-500/35',
-          icon: <AlertTriangle className="h-5 w-5 text-amber-400" />
+          bg: 'from-warning-start/10 via-warning-start/5 to-transparent',
+          border: 'border-warning-start/40',
+          icon: <AlertTriangle className="h-5 w-5 text-warning-start" />
         };
       default:
         return {
-          bg: 'from-emerald-500/[0.05] via-transparent to-transparent',
-          border: 'border-emerald-500/25',
-          icon: <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+          bg: 'from-success-start/5 via-transparent to-transparent',
+          border: 'border-success-start/30',
+          icon: <CheckCircle2 className="h-5 w-5 text-success-start" />
         };
     }
   }, [effectiveBriefing?.status]);
@@ -165,7 +165,6 @@ const DashboardPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Cross-page sync: rifresko briefing + event-et kur kalendari ndryshon
   useEffect(() => {
     const handler = () => loadData(true);
     window.addEventListener('calendar:event-changed', handler);
@@ -244,7 +243,7 @@ const DashboardPage: React.FC = () => {
     });
   }, [cases, searchTerm]);
 
-  const inputClasses = "w-full px-4 h-11 bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/40 focus:border-primary-start transition-all";
+  const inputClasses = "w-full px-4 h-11 bg-input border border-main rounded-xl text-text-primary placeholder:text-text-muted text-sm focus:outline-none focus:ring-2 focus:ring-primary-start/40 focus:border-primary-start transition-all";
   const labelClasses = "block text-[10px] font-black text-primary-start uppercase tracking-widest mb-1.5 ml-1";
 
   const getGreeting = (): string => {
@@ -292,38 +291,38 @@ const DashboardPage: React.FC = () => {
 
     const hasRiskRadar = effectiveBriefing?.risk_radar && effectiveBriefing.risk_radar.length > 0;
     if (hasRiskRadar) {
-      // FIX: Hequr titulli "RADARI I RREZIKUT" — ngjyra e kartës tregon nivelin e rrezikut.
       return (
         <div className="space-y-2">
-          {effectiveBriefing!.risk_radar!.map((item: RiskAlert) => (
-            <div
-              key={item.id}
-              className={`p-3 rounded-xl border flex items-center justify-between gap-3 backdrop-blur-xl transition-all ${
-                item.level === 'LEVEL_1_PREKLUZIV'
-                  ? 'bg-rose-500/[0.08] border-rose-500/25'
-                  : 'bg-amber-500/[0.06] border-amber-500/20'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  item.level === 'LEVEL_1_PREKLUZIV' ? 'bg-rose-500 animate-ping' : 'bg-amber-500'
-                }`} />
-                <span className={`text-xs sm:text-sm font-bold tracking-tight truncate ${
-                  item.level === 'LEVEL_1_PREKLUZIV' ? 'text-rose-400' : 'text-amber-400'
-                }`}>
-                  {item.title}
-                </span>
+          {effectiveBriefing!.risk_radar!.map((item: RiskAlert) => {
+            const isCritical = item.level === 'LEVEL_1_PREKLUZIV';
+            return (
+              <div
+                key={item.id}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-3 backdrop-blur-xl transition-all ${
+                  isCritical
+                    ? 'bg-danger-start/10 border-danger-start/25'
+                    : 'bg-warning-start/10 border-warning-start/20'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isCritical ? 'bg-danger-start animate-ping' : 'bg-warning-start'
+                  }`} />
+                  <span className={`text-xs sm:text-sm font-bold tracking-tight truncate ${
+                    isCritical ? 'text-danger-start' : 'text-warning-start'
+                  }`}>
+                    {item.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface/60 rounded-lg border border-main shrink-0">
+                  <Timer size={12} className={isCritical ? 'text-danger-start' : 'text-warning-start'} />
+                  <span className="text-[11px] font-bold font-mono text-text-primary tabular-nums">
+                    {formatCountdown(item.seconds_remaining)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface/60 rounded-lg border border-main/40 shrink-0">
-                <Timer size={12} className={
-                  item.level === 'LEVEL_1_PREKLUZIV' ? 'text-rose-400' : 'text-amber-400'
-                } />
-                <span className="text-[11px] font-bold font-mono text-text-primary tabular-nums">
-                  {formatCountdown(item.seconds_remaining)}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -333,7 +332,7 @@ const DashboardPage: React.FC = () => {
       return (
         <div className="space-y-2">
           {previewEvents.map(event => (
-            <div key={event.id} className="p-3 rounded-xl border border-main/60 bg-surface/60 flex items-center gap-3 shadow-sm">
+            <div key={event.id} className="p-3 rounded-xl border border-main bg-surface/60 flex items-center gap-3 shadow-sm">
               <div className="w-1.5 h-1.5 rounded-full bg-primary-start shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs font-bold text-text-primary truncate">{event.title}</p>
@@ -392,7 +391,6 @@ const DashboardPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }} 
             className={`shrink-0 mb-6 rounded-[1.75rem] border overflow-hidden bg-surface transition-colors duration-500 ${theme.border}`}
           >
-            {/* FIX: theme.bg ZBATOHET tani në gradient — ngjyra tregon nivelin e rrezikut */}
             <div className={`p-5 sm:p-7 bg-gradient-to-br transition-colors duration-500 ${theme.bg}`}>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
                 <div className="flex items-start gap-3.5">
@@ -404,7 +402,7 @@ const DashboardPage: React.FC = () => {
                       <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
                         {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                       </h2>
-                      <div className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse shrink-0" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-success-start animate-pulse shrink-0" />
                     </div>
                     <p className="font-bold text-base sm:text-xl text-text-primary tracking-tight leading-snug">
                       {getGreeting()}
@@ -423,7 +421,7 @@ const DashboardPage: React.FC = () => {
                   <button 
                     type="button"
                     onClick={() => window.location.href = '/calendar'} 
-                    className="h-10 w-full md:w-auto px-5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 bg-primary-start hover:bg-opacity-95 text-white shadow-md shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
+                    className="h-10 w-full md:w-auto px-5 rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 bg-primary-start hover:bg-primary-start/90 text-white shadow-md shadow-primary-start/15 hover:scale-[1.02] active:scale-95 transition-all focus:outline-none cursor-pointer"
                   >
                     <Calendar size={14} />
                     {t('briefing.view_calendar', 'Kalendari')}
@@ -460,7 +458,7 @@ const DashboardPage: React.FC = () => {
         <button 
             type="button"
             onClick={() => setShowCreateModal(true)} 
-            className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-opacity-95 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none cursor-pointer"
+            className="h-11 px-4 sm:px-6 bg-primary-start hover:bg-primary-start/90 text-white flex items-center justify-center gap-2 rounded-xl font-bold text-xs uppercase tracking-wider shrink-0 shadow-lg shadow-primary-start/15 focus:outline-none cursor-pointer"
             title={t('dashboard.newCase', 'Rast i Ri')}
         >
           <Plus size={16} strokeWidth={3} /> 
@@ -496,15 +494,15 @@ const DashboardPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white"
+              className="w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-2xl border border-main bg-card text-text-primary"
             >
-              <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <h2 className="text-lg sm:text-xl font-bold tracking-tight uppercase text-slate-900 dark:text-white">
+              <div className="flex justify-between items-center mb-6 border-b border-main pb-3">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight uppercase text-text-primary">
                   {t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}
                 </h2>
                 <button 
                   onClick={() => setShowCreateModal(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  className="p-2 text-text-muted hover:text-text-primary hover:bg-hover rounded-xl transition-colors cursor-pointer"
                   aria-label="Mbyll"
                 >
                   <X size={20} />
@@ -520,8 +518,8 @@ const DashboardPage: React.FC = () => {
                       onClick={() => setClientPosition('PLAINTIFF')}
                       className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                         clientPosition === 'PLAINTIFF'
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-600/20'
-                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                          ? 'bg-role-plaintiff text-white border-role-plaintiff shadow-md'
+                          : 'bg-surface border-main text-text-secondary hover:bg-hover'
                       }`}
                     >
                       <Swords size={13} />
@@ -533,8 +531,8 @@ const DashboardPage: React.FC = () => {
                       onClick={() => setClientPosition('DEFENDANT')}
                       className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                         clientPosition === 'DEFENDANT'
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                          ? 'bg-role-defendant text-white border-role-defendant shadow-md'
+                          : 'bg-surface border-main text-text-secondary hover:bg-hover'
                       }`}
                     >
                       <Shield size={13} />
@@ -546,8 +544,8 @@ const DashboardPage: React.FC = () => {
                       onClick={() => setClientPosition('NEUTRAL')}
                       className={`h-11 px-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                         clientPosition === 'NEUTRAL'
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
-                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                          ? 'bg-role-neutral text-white border-role-neutral shadow-md'
+                          : 'bg-surface border-main text-text-secondary hover:bg-hover'
                       }`}
                     >
                       <Scale size={13} />
@@ -567,7 +565,7 @@ const DashboardPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="pt-3 border-t border-main space-y-3">
                   <div>
                     <label className={labelClasses}>{getClientFieldLabel()}</label>
                     <input 
@@ -601,11 +599,11 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-5 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-5 border-t border-main">
                   <button 
                     type="button" 
                     onClick={() => setShowCreateModal(false)} 
-                    className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 transition-all focus:outline-none cursor-pointer"
+                    className="w-full sm:w-auto px-6 h-11 rounded-xl text-sm font-semibold text-text-secondary hover:bg-hover border border-main transition-all focus:outline-none cursor-pointer"
                   >
                     {t('general.cancel', 'Anulo')}
                   </button>
@@ -628,17 +626,17 @@ const DashboardPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl text-center border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white"
+              className="w-full max-w-md p-6 sm:p-8 rounded-3xl shadow-2xl text-center border border-main bg-card text-text-primary"
             >
-              <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-500/25">
-                <Trash2 className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+              <div className="w-16 h-16 bg-danger-start/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-danger-start/25">
+                <Trash2 className="h-8 w-8 text-danger-start" />
               </div>
 
-              <h2 className="text-lg sm:text-xl font-bold mb-2 uppercase tracking-tight text-slate-900 dark:text-white">
+              <h2 className="text-lg sm:text-xl font-bold mb-2 uppercase tracking-tight text-text-primary">
                 {t('caseDelete.confirmTitle', 'Fshij Rastin?')}
               </h2>
 
-              <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mb-6 leading-relaxed italic font-medium">
+              <p className="text-text-secondary text-xs sm:text-sm mb-6 leading-relaxed italic font-medium">
                 {t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}
               </p>
 
@@ -646,7 +644,7 @@ const DashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCaseToDeleteId(null)}
-                  className="w-full h-11 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 transition-all focus:outline-none cursor-pointer"
+                  className="w-full h-11 rounded-xl text-sm font-semibold text-text-secondary hover:bg-hover border border-main transition-all focus:outline-none cursor-pointer"
                 >
                   {t('general.cancel', 'Anulo')}
                 </button>
@@ -654,7 +652,7 @@ const DashboardPage: React.FC = () => {
                   type="button"
                   onClick={confirmDeleteCase}
                   disabled={isDeletingCase}
-                  className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-rose-600/30 cursor-pointer"
+                  className="w-full h-11 rounded-xl bg-danger-start hover:bg-danger-start/90 text-white font-black flex items-center justify-center gap-2 active:scale-95 text-xs uppercase tracking-wider disabled:opacity-50 transition-all focus:outline-none shadow-lg shadow-danger-start/30 cursor-pointer"
                 >
                   {isDeletingCase ? <Loader2 className="animate-spin h-4 w-4" /> : t('general.delete', 'Fshij')}
                 </button>

@@ -1,6 +1,7 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – HEADER V21.0 (FORENSIC DESK REMOVED)
-// ZERO TS WARNINGS • DYNAMIC PAGE NAVIGATION • 100% COMPLETE CODE
+// PHOENIX PROTOCOL – HEADER V22.0 (ZERO HARDCODED COLORS)
+// V22.0: Hequr style={{}} me hex. Zëvendësuar me semantike classes (bg-canvas, bg-surface, bg-card, danger-start).
+// V21.0: FORENSIC DESK REMOVED
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -124,11 +125,7 @@ const Header: React.FC = () => {
     <>
       {/* 100% OPAQUE SOLID HEADER */}
       <header 
-        className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 border-b border-main shadow-sm transition-colors duration-200"
-        style={{
-          backgroundColor: theme === 'dark' ? '#020617' : '#F4F6F9',
-          opacity: 1
-        }}
+        className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 border-b border-main shadow-sm transition-colors duration-200 bg-canvas"
       >
         {/* Left: Hamburger Menu (ekrane të ngushta/mobile) + Brand Logo */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -149,8 +146,7 @@ const Header: React.FC = () => {
 
         {/* Center: Segmented Navigation Bar (Ekrane Desktop lg+) */}
         <div 
-          className="hidden lg:flex items-center p-1.5 rounded-2xl border border-main gap-1 shadow-xs"
-          style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+          className="hidden lg:flex items-center p-1.5 rounded-2xl border border-main gap-1 shadow-xs bg-surface"
         >
           {navItems.map((item) => {
             const active = isActive(item.path);
@@ -191,7 +187,7 @@ const Header: React.FC = () => {
           >
             <Bell size={18} />
             {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-danger-start rounded-full animate-pulse"></span>
             )}
           </Link>
 
@@ -201,8 +197,7 @@ const Header: React.FC = () => {
               ref={buttonRef}
               type="button"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none cursor-pointer"
-              style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+              className="flex items-center gap-2 p-1 rounded-full border border-main hover:border-primary-start/40 transition-all shadow-xs focus:outline-none cursor-pointer bg-card"
             >
               <div className="h-8 w-8 rounded-full bg-primary-start text-white flex items-center justify-center text-xs font-black">
                 {user?.username?.charAt(0).toUpperCase() || 'U'}
@@ -212,8 +207,7 @@ const Header: React.FC = () => {
             {isProfileOpen && (
               <div 
                 ref={dropdownRef} 
-                className="absolute right-0 mt-2 w-56 border border-main rounded-2xl shadow-2xl py-2 z-[70] text-text-primary"
-                style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+                className="absolute right-0 mt-2 w-56 border border-main rounded-2xl shadow-2xl py-2 z-[70] text-text-primary bg-surface"
               >
                 <div className="px-4 py-2.5 border-b border-main mb-1">
                   <p className="text-sm font-bold text-text-primary truncate">{user?.username}</p>
@@ -238,7 +232,7 @@ const Header: React.FC = () => {
                 <button 
                   type="button"
                   onClick={() => { setIsProfileOpen(false); logout(); }} 
-                  className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  className="w-full flex items-center px-4 py-2.5 text-sm font-bold text-danger-start hover:bg-danger-start/10 transition-colors cursor-pointer"
                 >
                   <LogOut size={16} className="mr-3" />{t('general.logout', 'Dilni')}
                 </button>
@@ -265,8 +259,7 @@ const Header: React.FC = () => {
           ref={mobileMenuRef}
           className={`absolute top-0 left-0 bottom-0 w-72 max-w-[85vw] rounded-r-3xl border-y border-r border-main shadow-2xl transition-transform duration-300 ease-in-out ${
             isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-          } flex flex-col`}
-          style={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#FFFFFF' }}
+          } flex flex-col bg-surface`}
         >
           <div className="flex justify-between items-center p-4 border-b border-main">
             <BrandLogo />
@@ -316,7 +309,7 @@ const Header: React.FC = () => {
             <button
               type="button"
               onClick={() => { setIsMobileMenuOpen(false); logout(); }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-danger-start/10 text-danger-start hover:bg-danger-start/20 transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
             >
               <LogOut size={16} />
               {t('general.logout', 'Dilni')}

@@ -1,6 +1,6 @@
 // FILE: src/components/PrecedentCitationLink.tsx
-// PHOENIX PROTOCOL - INFALLIBLE MOBILE PINNED PRECEDENT VIEWER V20.0
-// 100% COMPLETE CODE • ZERO OVERFLOW • HARD PINNED LEFT:12PX/RIGHT:12PX • ZERO TS WARNINGS
+// PHOENIX PROTOCOL - INFALLIBLE MOBILE PINNED PRECEDENT VIEWER V21.0
+// V21.0: Zero hex. amber-* → warning-start, slate-* → semantic. border-b/t-card.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -150,8 +150,7 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: coords.isFlippedBelow ? -8 : 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          // 🛡️ MBËRTHYERJE E PLOTË NË TELEFON ME left:12px, right:12px (ZERO DALJE JASHTË)
-          className={`fixed p-3.5 sm:p-4 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-auto ring-1 ring-black/10 dark:ring-white/10 ${
+          className={`fixed p-3.5 sm:p-4 bg-card text-text-primary border-2 border-warning-start/50 rounded-2xl shadow-2xl z-[999999] pointer-events-auto ${
             coords.isMobile
               ? 'left-3 right-3 mx-auto max-w-[390px] w-[calc(100vw-24px)]'
               : 'w-[390px]'
@@ -166,20 +165,20 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-black text-xs uppercase tracking-wider">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-main">
+            <div className="flex items-center gap-1.5 text-warning-start font-black text-xs uppercase tracking-wider">
               <Gavel size={15} />
               <span>Gjykata Supreme e Kosovës</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-md bg-warning-start/15 text-warning-start font-mono text-[10px] font-bold">
                 PRECEDENT
               </span>
               {coords.isMobile && (
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-200"
+                  className="p-1 rounded-md text-text-muted hover:text-text-primary"
                 >
                   <X size={13} />
                 </button>
@@ -188,33 +187,33 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           </div>
 
           {/* Numri Zyrtar */}
-          <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mb-1.5 leading-snug">
+          <div className="text-xs sm:text-sm font-black text-text-primary mb-1.5 leading-snug">
             Vendimi: {cleanLabel}
           </div>
 
           {/* Të Dhënat Reale */}
-          <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-2 rounded-xl border border-slate-200 dark:border-slate-800 mb-1.5">
+          <div className="space-y-1 text-xs text-text-secondary font-sans bg-surface/80 p-2 rounded-xl border border-main mb-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">Instanca:</span>
+              <span className="text-text-muted font-medium">Instanca:</span>
               <strong>Kolegji i Gjykatës Supreme</strong>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">Burimi:</span>
-              <strong className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <span className="text-text-muted font-medium">Burimi:</span>
+              <strong className="text-warning-start flex items-center gap-1">
                 <FileText size={11} />
                 Dokument Zyrtar i Arkivuar (PDF)
               </strong>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">Veprimi:</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">Hapje e Menjëhershme në Ekran ✓</strong>
+              <span className="text-text-muted font-medium">Veprimi:</span>
+              <strong className="text-success-start">Hapje e Menjëhershme në Ekran ✓</strong>
             </div>
           </div>
 
           {/* Udhëzimi me 1-Klikim */}
-          <div className="mt-2 flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-1.5">
+          <div className="mt-2 flex items-center justify-between text-[10.5px] text-text-muted border-t border-main pt-1.5">
             <span>Kliko për të hapur aktgjykimin në vend</span>
-            <span className="text-amber-500 font-bold flex items-center gap-0.5">
+            <span className="text-warning-start font-bold flex items-center gap-0.5">
               Hap Këtu <ExternalLink size={10} />
             </span>
           </div>
@@ -223,8 +222,8 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           <div
             className={`absolute border-[7px] border-transparent pointer-events-none ${
               coords.isFlippedBelow 
-                ? 'bottom-full -mb-[1px] border-b-white dark:border-b-[#0b0f19]' 
-                : 'top-full -mt-[1px] border-t-white dark:border-t-[#0b0f19]'
+                ? 'bottom-full -mb-[1px] border-b-card' 
+                : 'top-full -mt-[1px] border-t-card'
             }`}
             style={{
               left: `${coords.arrowLeftPx}px`,
@@ -247,10 +246,10 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
           type="button"
           onClick={handleDirectOpenPdf}
           disabled={isLoadingPdf}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warning-start/10 hover:bg-warning-start/20 border border-warning-start/30 text-warning-start font-bold text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-xs max-w-full cursor-pointer focus:outline-none"
         >
           {isLoadingPdf ? (
-            <Loader2 size={13} className="animate-spin text-amber-500" />
+            <Loader2 size={13} className="animate-spin text-warning-start" />
           ) : (
             <Gavel size={13} className="shrink-0 opacity-90" />
           )}
@@ -260,7 +259,6 @@ export const PrecedentCitationLink: React.FC<PrecedentCitationLinkProps> = ({
         {createPortal(tooltipContent, document.body)}
       </span>
 
-      {/* Dritarja Modale e Menjëhershme */}
       {showPdfModal && pdfUrl && (
         <FileViewerModal
           documentData={{

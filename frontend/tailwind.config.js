@@ -34,9 +34,21 @@ export default {
         'warning-start': 'rgb(var(--status-warning-rgb) / <alpha-value>)',
         'danger-start': 'rgb(var(--status-danger-rgb) / <alpha-value>)',
         
+        // Info status (holiday/weekend)
+        'status-info': 'rgb(var(--status-info-rgb) / <alpha-value>)',
+        
+        // Role colors për pozicionet ligjore
+        'role-plaintiff': 'var(--role-plaintiff)',
+        'role-defendant': 'var(--role-defendant)',
+        'role-neutral': 'var(--role-neutral)',
+        
         // Border Colors
         'border-main': 'var(--border-main)',
         'border-strong': 'var(--border-strong)',
+        
+        // Brand Colors (external, static)
+        'brand-whatsapp': '#25D366',
+        'brand-viber': '#7360F2',
       },
       borderColor: {
         'main': 'var(--border-main)',

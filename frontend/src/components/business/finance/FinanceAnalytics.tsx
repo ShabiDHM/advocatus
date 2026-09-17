@@ -1,9 +1,6 @@
 // FILE: src/components/business/finance/FinanceAnalytics.tsx
-// PHOENIX PROTOCOL - FINANCE ANALYTICS V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Chart colors use semantic variables (primary-start, success-start, etc.).
-// 3. Tooltip styling uses semantic glass-panel.
-// 4. Preserved all analytics functionality.
+// PHOENIX PROTOCOL - FINANCE ANALYTICS V7.0 (CENTRALIZED COLORS)
+// V7.0: Zero ngjyra hardcoded. Të gjitha referencat nga CSS variables.
 
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -18,12 +15,13 @@ interface FinanceAnalyticsProps {
 export const FinanceAnalytics: React.FC<FinanceAnalyticsProps> = ({ data }) => {
     const { t } = useTranslation();
 
+    // Chart colors — referojnë CSS variables për konsistencë dark/light
     const productColors = [
-        '#34d399', // success-start
-        '#60a5fa', // primary-start variant
-        '#fbbf24', // warning-start
-        '#f87171', // danger-start
-        '#a78bfa', // secondary-start
+        'var(--chart-1)',
+        'var(--chart-2)',
+        'var(--chart-3)',
+        'var(--chart-4)',
+        'var(--chart-5)',
     ];
 
     return (
@@ -38,39 +36,39 @@ export const FinanceAnalytics: React.FC<FinanceAnalyticsProps> = ({ data }) => {
                         <AreaChart data={data.sales_trend}>
                             <defs>
                                 <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="var(--chart-blue)" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="var(--chart-blue)" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                             <XAxis 
                                 dataKey="date" 
-                                stroke="#6b7280" 
+                                stroke="var(--text-muted)" 
                                 fontSize={12} 
                                 tickFormatter={(str) => str.slice(5)} 
-                                tick={{ fill: '#9ca3af' }} 
+                                tick={{ fill: 'var(--text-muted)' }} 
                             />
                             <YAxis 
-                                stroke="#6b7280" 
+                                stroke="var(--text-muted)" 
                                 fontSize={12} 
-                                tick={{ fill: '#9ca3af' }} 
+                                tick={{ fill: 'var(--text-muted)' }} 
                                 width={40} 
                             />
                             <Tooltip 
                                 contentStyle={{ 
-                                    backgroundColor: 'var(--bg-canvas)', 
+                                    backgroundColor: 'var(--bg-card)', 
                                     borderColor: 'var(--border-main)', 
                                     color: 'var(--text-primary)', 
                                     borderRadius: '12px',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                                    boxShadow: 'var(--shadow-md)'
                                 }} 
                                 formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.income')]} 
-                                labelStyle={{ color: '#9ca3af', marginBottom: '4px' }} 
+                                labelStyle={{ color: 'var(--text-muted)', marginBottom: '4px' }} 
                             />
                             <Area 
                                 type="monotone" 
                                 dataKey="amount" 
-                                stroke="#3b82f6" 
+                                stroke="var(--chart-blue)" 
                                 strokeWidth={3} 
                                 fillOpacity={1} 
                                 fill="url(#colorSales)" 
@@ -89,27 +87,27 @@ export const FinanceAnalytics: React.FC<FinanceAnalyticsProps> = ({ data }) => {
                     <div className="h-64 w-full min-h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={data.top_products} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={true} vertical={false} />
-                                <XAxis type="number" stroke="#6b7280" fontSize={12} hide />
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={true} vertical={false} />
+                                <XAxis type="number" stroke="var(--text-muted)" fontSize={12} hide />
                                 <YAxis 
                                     dataKey="product_name" 
                                     type="category" 
-                                    stroke="#9ca3af" 
+                                    stroke="var(--text-muted)" 
                                     fontSize={12} 
                                     width={100} 
-                                    tick={{ fill: '#e5e7eb', fontSize: 12 }} 
+                                    tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} 
                                 />
                                 <Tooltip 
                                     contentStyle={{ 
-                                        backgroundColor: 'var(--bg-canvas)', 
+                                        backgroundColor: 'var(--bg-card)', 
                                         borderColor: 'var(--border-main)', 
                                         color: 'var(--text-primary)', 
                                         borderRadius: '12px',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                                        boxShadow: 'var(--shadow-md)'
                                     }} 
                                     formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]} 
                                 />
-                                <Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
+                                <Bar dataKey="total_revenue" fill="var(--chart-green)" radius={[0, 4, 4, 0]} barSize={20}>
                                     {data.top_products.map((_: TopProductItem, index: number) => (
                                         <Cell key={`cell-${index}`} fill={productColors[index % productColors.length]} />
                                     ))}

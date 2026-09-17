@@ -24,7 +24,7 @@ ALBANIAN_MONTHS = {
 # Corporate Colors
 COLOR_PRIMARY = colors.HexColor("#1e293b")  # Navy Blue
 COLOR_ACCENT = colors.HexColor("#4f46e5")   # Indigo
-COLOR_SUCCESS = colors.HexColor("#10b981")  # Emerald
+COLOR_SUCCESS = colors.HexColor("#10B981")  # Emerald
 COLOR_BG_HEADER = colors.HexColor("#f8fafc") # Light Gray
 COLOR_BORDER = colors.HexColor("#e2e8f0")
 
@@ -183,7 +183,7 @@ def generate_monthly_report_pdf(state: WizardState, user: UserInDB, month: int, 
         # Success Box
         data_audit = [[
             Paragraph(
-                "<font color='#10b981'><b>✓ Të dhënat janë konsistente.</b></font><br/>"
+                "<font color='#10B981'><b>✓ Të dhënat janë konsistente.</b></font><br/>"
                 "<font size=10 color='gray'>Sistemi nuk ka gjetur parregullsi në faturat apo shpenzimet e këtij muaji.</font>", 
                 style_value
             )

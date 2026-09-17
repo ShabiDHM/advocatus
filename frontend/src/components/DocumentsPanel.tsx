@@ -1,6 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V26.0 (FORENSIC LAB SELECTION HARMONY)
-// ZERO TS WARNINGS • SINGLE-CLICK ACTIVE SELECTION WITH CHECKMARK • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V27.0 (ZERO HARDCODED COLORS)
+// V27.0: Zëvendësuar rose-* → danger-start, amber-* → warning-start, fix bg-[	var(...)].
+// V26.0: FORENSIC LAB SELECTION HARMONY
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -198,7 +199,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': 
-        return 'bg-[#22c55e] shadow-[0_0_10px_rgba(34,197,94,0.8),0_0_4px_rgba(34,197,94,1)] animate-pulse';
+        return 'bg-success-start shadow-md shadow-success-start/50 animate-pulse';
       case 'CONNECTING': 
         return 'bg-warning-start animate-pulse';
       default: 
@@ -214,7 +215,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       
       {/* Header Bar */}
       <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${
-        isSelectionMode ? 'border-rose-500/30 bg-rose-500/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'
+        isSelectionMode ? 'border-danger-start/30 bg-danger-start/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-main'
       }`}>
         
         {isSelectionMode ? (
@@ -227,12 +228,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     >
                         <XCircle size={20} />
                     </button>
-                    <span className="text-rose-600 dark:text-rose-400 font-bold text-sm">{bulkSelectedIds.size} të zgjedhura</span>
+                    <span className="text-danger-start font-bold text-sm">{bulkSelectedIds.size} të zgjedhura</span>
                 </div>
                 <button 
                     onClick={handleBulkDelete} 
                     disabled={isBulkDeleting}
-                    className="flex items-center gap-2 px-4 h-11 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-rose-600/25 focus:outline-none cursor-pointer active:scale-95"
+                    className="flex items-center gap-2 px-4 h-11 bg-danger-start hover:bg-danger-start/90 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-danger-start/25 focus:outline-none cursor-pointer active:scale-95"
                 >
                     {isBulkDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={15} />}
                     Fshi Të Gjitha
@@ -277,10 +278,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 exit={{ opacity: 0, y: 6, scale: 0.96 }}
                                 transition={{ duration: 0.12 }}
                                 className="absolute right-0 top-12 w-52 rounded-2xl shadow-2xl border border-main z-50 overflow-hidden text-text-primary bg-card divide-y divide-main"
-                                style={{
-                                  backgroundColor: 'var(--bg-card, #ffffff)',
-                                  boxShadow: '0 20px 40px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-main)'
-                                }}
                             >
                                 <button 
                                     onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} 
@@ -314,8 +311,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         <div
           className={`p-3 text-xs rounded-xl mb-4 font-medium flex items-start gap-2 border ${
             uploadNotice.type === 'warning'
-              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
-              : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+              ? 'bg-warning-start/10 text-warning-start border-warning-start/30'
+              : 'bg-danger-start/10 text-danger-start border-danger-start/30'
           }`}
         >
           <AlertTriangle size={15} className="shrink-0 mt-0.5" />
@@ -330,7 +327,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
       )}
       
-      {/* Scrollable Container me Selektim të Njëjtë si te Zyra Forenzike */}
+      {/* Scrollable Container */}
       <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden pr-1.5 custom-finance-scroll min-h-0 bg-canvas/20 rounded-xl p-2 border border-main">
         {documents.length === 0 && (
           <div className="text-text-muted text-center py-12 flex flex-col items-center opacity-60">
@@ -439,7 +436,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <button 
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} 
-                    className="flex items-center justify-center w-8 h-8 hover:bg-rose-500/15 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors focus:outline-none cursor-pointer" 
+                    className="flex items-center justify-center w-8 h-8 hover:bg-danger-start/15 rounded-lg text-danger-start hover:text-danger-start transition-colors focus:outline-none cursor-pointer" 
                     title={t('documentsPanel.delete', 'Fshij')}
                 >
                     <Trash size={13} />

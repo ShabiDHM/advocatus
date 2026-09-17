@@ -1,8 +1,7 @@
 // FILE: src/components/ShareModal.tsx
-// PHOENIX PROTOCOL - SHARE MODAL V6.0 (EXECUTIVE DESIGN SYSTEM)
-// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
-// 2. Preserved all share functionality (WhatsApp, Viber, copy link).
-// 3. Maintained animations and portal rendering.
+// PHOENIX PROTOCOL - SHARE MODAL V7.0 (BRAND COLORS CENTRALIZED)
+// V7.0: Ngjyrat WhatsApp/Viber kaluar në tailwind.config.js si brand-*.
+// V6.0: Executive Design System.
 
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -61,25 +60,25 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, caseId, caseTi
             {/* WhatsApp - Primary */}
             <button 
               onClick={handleWhatsApp} 
-              className="w-full flex items-center justify-between p-4 bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 rounded-xl group transition-all"
+              className="w-full flex items-center justify-between p-4 bg-brand-whatsapp/10 hover:bg-brand-whatsapp/20 border border-brand-whatsapp/30 rounded-xl group transition-all"
             >
                 <div className="flex items-center gap-3">
-                    <Smartphone className="text-[#25D366]" />
-                    <span className="font-bold text-[#25D366]">WhatsApp</span>
+                    <Smartphone className="text-brand-whatsapp" />
+                    <span className="font-bold text-brand-whatsapp">WhatsApp</span>
                 </div>
-                <Share2 size={16} className="text-[#25D366] opacity-50 group-hover:opacity-100" />
+                <Share2 size={16} className="text-brand-whatsapp opacity-50 group-hover:opacity-100" />
             </button>
 
             {/* Viber */}
             <button 
               onClick={handleViber} 
-              className="w-full flex items-center justify-between p-4 bg-[#7360f2]/10 hover:bg-[#7360f2]/20 border border-[#7360f2]/30 rounded-xl group transition-all"
+              className="w-full flex items-center justify-between p-4 bg-brand-viber/10 hover:bg-brand-viber/20 border border-brand-viber/30 rounded-xl group transition-all"
             >
                 <div className="flex items-center gap-3">
-                    <MessageSquare className="text-[#7360f2]" />
-                    <span className="font-bold text-[#7360f2]">Viber</span>
+                    <MessageSquare className="text-brand-viber" />
+                    <span className="font-bold text-brand-viber">Viber</span>
                 </div>
-                <Share2 size={16} className="text-[#7360f2] opacity-50 group-hover:opacity-100" />
+                <Share2 size={16} className="text-brand-viber opacity-50 group-hover:opacity-100" />
             </button>
 
             {/* Copy Link - Fallback */}

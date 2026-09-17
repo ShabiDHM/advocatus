@@ -173,7 +173,7 @@ const ProductShowcase: React.FC = () => {
                                         </span>
                                     </div>
                                     
-                                    <div className="p-5 lg:p-7 flex-1 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
+                                    <div className="p-5 lg:p-7 flex-1 bg-[radial-gradient(var(--mockup-dot)_1px,transparent_1px)] [background-size:16px_16px] relative overflow-hidden flex flex-col justify-center">
                                         {features[activeTab].mockup}
                                     </div>
 

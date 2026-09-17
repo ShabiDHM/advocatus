@@ -1,6 +1,7 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - 100% AUTHENTIC DYNAMIC LAW SEARCH ENGINE V123.1
-// 100% COMPLETE CODE • ZERO TS WARNINGS • ZERO HARDCODED MATRICES • PURE VECTOR-BACKED ARCHITECTURE
+// PHOENIX PROTOCOL - DYNAMIC LAW SEARCH ENGINE V124.0 (ZERO HARDCODED COLORS)
+// V124.0: Slate/emerald/amber → semantic tokens (surface, success-start, warning-start, text-*).
+// V123.1: DYNAMIC LAW SEARCH ENGINE
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -91,10 +92,8 @@ export default function LawSearchPage() {
   const [initialPageNumber, setInitialPageNumber] = useState<number>(1);
   const [showPdfModal, setShowPdfModal] = useState(false);
 
-  // TOOLTIP HOVER STATE
   const [hoveredArticleKey, setHoveredArticleKey] = useState<string | null>(null);
 
-  // AI DIAGNOSTIC STATE
   const [isAnalyzingWithAi, setIsAnalyzingWithAi] = useState(false);
   const [aiDiagnostic, setAiDiagnostic] = useState<AiDiagnosticData | null>(null);
   const [aiCaselawPrecedents, setAiCaselawPrecedents] = useState<Array<{ title: string; source: string; page: number; case_number?: string; interpretation_commentary?: string }>>([]);
@@ -347,7 +346,7 @@ export default function LawSearchPage() {
             </div>
           </div>
 
-          {/* KARTELA E KËRKIMIT TË KRYQËZUAR: AI + DISPOZITAT E VËRTETA + PRECEDENTËT */}
+          {/* KARTELA E KËRKIMIT TË KRYQËZUAR */}
           <AnimatePresence>
             {aiDiagnostic && (
               <motion.div
@@ -382,7 +381,7 @@ export default function LawSearchPage() {
                   🏛️ <strong>Përmbledhja Doktrinore:</strong> {aiDiagnostic.plain_explanation}
                 </div>
 
-                {/* LISTA E NENEVE TË KRYQËZUARA ME TEKST TË PLOTË NGA MONGODB */}
+                {/* LISTA E NENEVE */}
                 {aiDiagnostic.matched_statutes && aiDiagnostic.matched_statutes.length > 0 && (
                   <div className="flex flex-col gap-3">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -419,7 +418,7 @@ export default function LawSearchPage() {
                                   {item.law_title}
                                 </span>
 
-                                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-success-start/10 text-success-start border border-success-start/20 text-[10px] font-bold">
                                   <CheckCircle2 size={11} />
                                   <span>Verifikuar në Bazë</span>
                                 </span>
@@ -432,50 +431,50 @@ export default function LawSearchPage() {
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
                                       exit={{ opacity: 0, y: 10, scale: 0.96 }}
                                       transition={{ duration: 0.15 }}
-                                      className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[460px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-emerald-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none ring-1 ring-black/10 dark:ring-white/10"
+                                      className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[460px] p-4 sm:p-5 bg-card text-text-primary border-2 border-success-start/50 rounded-2xl shadow-2xl z-[999999] pointer-events-none"
                                     >
-                                      <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200 dark:border-slate-800">
-                                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider">
+                                      <div className="flex items-center justify-between pb-2 mb-3 border-b border-main">
+                                        <div className="flex items-center gap-2 text-success-start font-black text-xs uppercase tracking-wider">
                                           <ShieldCheck size={16} />
                                           <span>Verifikim Faktik në Server</span>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-bold">
+                                        <span className="px-2 py-0.5 rounded-md bg-success-start/15 text-success-start font-mono text-[10px] font-bold">
                                           STATUSI: ZYRTAR
                                         </span>
                                       </div>
 
-                                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-2 leading-snug">
+                                      <div className="text-sm sm:text-base font-black text-text-primary mb-2 leading-snug">
                                         {item.law_title}
                                       </div>
 
-                                      <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                                      <div className="space-y-2 text-xs text-text-secondary font-sans bg-surface/80 p-3 rounded-xl border border-main">
                                         <div className="flex items-center justify-between">
-                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Dispozita:</span>
+                                          <span className="text-text-muted font-medium">Dispozita:</span>
                                           <strong className="text-primary-start text-xs sm:text-sm">Neni {item.article_number}</strong>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Burimi në Server:</span>
+                                          <span className="text-text-muted font-medium">Burimi në Server:</span>
                                           <strong className="truncate max-w-[240px] text-right font-mono text-[11px]" title={docSource}>
                                             {docSource}
                                           </strong>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Vendi në Dokument:</span>
-                                          <strong className="text-emerald-600 dark:text-emerald-400">Faqja {docPage} e Aktit Zyrtar</strong>
+                                          <span className="text-text-muted font-medium">Vendi në Dokument:</span>
+                                          <strong className="text-success-start">Faqja {docPage} e Aktit Zyrtar</strong>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                          <span className="text-slate-500 dark:text-slate-400 font-medium">Precedentë të Lidhura:</span>
-                                          <strong className="text-amber-500">{supremeCount} Vendim(e)</strong>
+                                          <span className="text-text-muted font-medium">Precedentë të Lidhura:</span>
+                                          <strong className="text-warning-start">{supremeCount} Vendim(e)</strong>
                                         </div>
                                       </div>
 
                                       {item.verification_tooltip && (
-                                        <p className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed italic border-t border-slate-200 dark:border-slate-800 pt-2">
+                                        <p className="mt-2.5 text-[11px] text-text-muted leading-relaxed italic border-t border-main pt-2">
                                           {item.verification_tooltip}
                                         </p>
                                       )}
 
-                                      <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
+                                      <div className="absolute top-full left-8 -mt-[1px] border-[8px] border-transparent border-t-card" />
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
@@ -491,7 +490,6 @@ export default function LawSearchPage() {
                               </button>
                             </div>
 
-                            {/* PARAGRAFI I LIGJIT */}
                             <div className="p-4 rounded-xl bg-canvas/60 border border-main text-xs sm:text-sm text-text-primary leading-relaxed font-sans">
                               <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-text-muted mb-2 font-bold">
                                 <BookMarked size={13} className="text-primary-start" />
@@ -506,7 +504,7 @@ export default function LawSearchPage() {
                   </div>
                 )}
 
-                {/* PRECEDENTËT DHE AKTGJYKIMET E GJYKATËS SUPREME */}
+                {/* PRECEDENTËT */}
                 {aiCaselawPrecedents.length > 0 && (
                   <div className="flex flex-col gap-2.5 pt-3 border-t border-main/50">
                     <span className="text-[11px] font-black text-text-muted uppercase tracking-wider flex items-center gap-1.5">
@@ -549,7 +547,6 @@ export default function LawSearchPage() {
                               )}
                             </button>
 
-                            {/* TOOLTIP I PRECEDENTIT */}
                             <AnimatePresence>
                               {isCaseHovered && (
                                 <motion.div
@@ -557,29 +554,29 @@ export default function LawSearchPage() {
                                   animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: 10, scale: 0.96 }}
                                   transition={{ duration: 0.15 }}
-                                  className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[420px] p-4 sm:p-5 bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[999999] pointer-events-none"
+                                  className="absolute left-0 bottom-full mb-3 w-[360px] sm:w-[420px] p-4 sm:p-5 bg-card text-text-primary border-2 border-warning-start/50 rounded-2xl shadow-2xl z-[999999] pointer-events-none"
                                 >
-                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-200 dark:border-slate-800">
-                                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-black text-xs uppercase">
+                                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-main">
+                                    <div className="flex items-center gap-1.5 text-warning-start font-black text-xs uppercase">
                                       <Gavel size={15} />
                                       <span>Gjykata Supreme e Kosovës</span>
                                     </div>
-                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[10px] font-bold">
+                                    <span className="px-2 py-0.5 rounded-md bg-warning-start/15 text-warning-start font-mono text-[10px] font-bold">
                                       AKTARKIVË
                                     </span>
                                   </div>
 
-                                  <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-2">
+                                  <div className="text-xs sm:text-sm font-bold text-text-primary mb-2">
                                     {c.title}
                                   </div>
 
-                                  <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300 font-sans bg-slate-50 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                                  <div className="space-y-1 text-xs text-text-secondary font-sans bg-surface/80 p-2.5 rounded-xl border border-main">
                                     <div>Referenca: <strong>Faqja {c.page} e Aktgjykimit Origjinal</strong></div>
                                     <div>Burimi në Server: <strong>{c.source || 'Arkiva Supreme'}</strong></div>
                                     <div>Instanca: <strong>Kolegji i Gjykatës Supreme</strong></div>
                                   </div>
 
-                                  <div className="absolute top-full left-6 -mt-[1px] border-[8px] border-transparent border-t-white dark:border-t-[#0b0f19]" />
+                                  <div className="absolute top-full left-6 -mt-[1px] border-[8px] border-transparent border-t-card" />
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -630,7 +627,7 @@ export default function LawSearchPage() {
           </button>
         </div>
 
-        {/* LISTA E MATERIALEVE TË FILTRUARA */}
+        {/* LISTA E MATERIALEVE */}
         <div className="glass-panel p-5 sm:p-8 mb-12 shadow-sm border border-main bg-surface rounded-3xl" ref={dropdownRef}>
           <div className="flex items-center justify-between mb-4 sm:mb-5 pb-3 border-b border-main">
             <button
@@ -715,7 +712,7 @@ export default function LawSearchPage() {
                                   </>
                                 ) : (
                                   <>
-                                    <Check size={11} className="text-emerald-500 group-hover:text-white" />
+                                    <Check size={11} className="text-success-start group-hover:text-white" />
                                     <span>Kodi Zyrtar • Shiko të gjitha nenet</span>
                                   </>
                                 )}

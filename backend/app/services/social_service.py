@@ -45,12 +45,12 @@ def generate_social_card(case_title: str, client_name: str, status: str) -> byte
     draw.rectangle((card_x, card_y, card_x+card_w, card_y+card_h), fill='#1f2937', outline='#374151', width=3)
 
     # Text
-    draw.text((150, 130), "JURISTI.TECH", font=FONT_SMALL, fill='#3b82f6')
+    draw.text((150, 130), "JURISTI.TECH", font=FONT_SMALL, fill='	#3B82F6')
     draw.text((150, 160), "RAPORTI I RASTIT", font=FONT_SMALL, fill='#9ca3af')
     draw.text((150, 220), case_title.upper(), font=FONT_BOLD, fill='white')
     draw.text((150, 300), f"KLIENTI: {client_name}", font=FONT_REGULAR, fill='#d1d5db')
     
-    status_color = '#10b981' if status == 'Hapur' else '#ef4444'
+    status_color = '#10B981' if status == 'Hapur' else '#ef4444'
     draw.text((150, 340), f"STATUSI: {status.upper()}", font=FONT_REGULAR, fill=status_color)
     draw.text((150, 480), "Siguri e garantuar nga Phoenix Protocol.", font=FONT_SMALL, fill='#6b7280')
 
@@ -84,7 +84,7 @@ def generate_landing_card() -> bytes:
         w_main = 600
     x_pos = (W - w_main) / 2
     
-    draw.text((x_pos, 180), text_main, font=FONT_LOGO, fill='white', stroke_width=2, stroke_fill='#3b82f6')
+    draw.text((x_pos, 180), text_main, font=FONT_LOGO, fill='white', stroke_width=2, stroke_fill='	#3B82F6')
 
     text_sub = "INTELIGJENCA ARTIFICIALE PËR DREJTËSINË"
     try:
@@ -100,7 +100,7 @@ def generate_landing_card() -> bytes:
     except:
         w_feat = 300
     x_pos_feat = (W - w_feat) / 2
-    draw.text((x_pos_feat, 450), features, font=FONT_SMALL, fill='#60a5fa')
+    draw.text((x_pos_feat, 450), features, font=FONT_SMALL, fill=' #60A5FA')
 
     # PHOENIX FIX: JPEG Compression
     output = io.BytesIO()

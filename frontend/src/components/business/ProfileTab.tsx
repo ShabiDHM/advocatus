@@ -1,5 +1,6 @@
 // FILE: src/components/business/ProfileTab.tsx
-// PHOENIX PROTOCOL - PROFILE TAB V7.2 (CIRCULAR LOGO FRAME FIX)
+// PHOENIX PROTOCOL - PROFILE TAB V7.3 (ZERO HARDCODED CSS COLORS)
+// V7.3: bg-white → bg-card. DEFAULT_COLOR ruajtur si vlerë DB (jo CSS).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -10,7 +11,9 @@ import { apiService, API_V1_URL } from '../../services/api';
 import { BusinessProfile, BusinessProfileUpdate } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 
-const DEFAULT_COLOR = '#6366F1'; // Aligned with the app's standard primary color
+// Ky është një vlerë DB (branding_color) — ruhet në MongoDB dhe përdoret
+// për PDF/email. NUK është CSS class, prandaj mbetet hex.
+const DEFAULT_COLOR = '#6366F1';
 
 export const ProfileTab: React.FC = () => {
     const { t } = useTranslation();
@@ -118,7 +121,7 @@ export const ProfileTab: React.FC = () => {
         >
             <form onSubmit={handleProfileSubmit} className="glass-panel border-x border-b border-border-main rounded-3xl p-8 sm:p-10 shadow-sm relative overflow-hidden">
                 
-                {/* Top Border Accent – now the only top border */}
+                {/* Top Border Accent */}
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-hover" />
 
                 {/* --- HEADER SECTION: Title + Logo --- */}
@@ -140,7 +143,7 @@ export const ProfileTab: React.FC = () => {
 
                     {/* Premium Circular Logo Upload Frame */}
                     <div className="relative group cursor-pointer shrink-0" onClick={() => fileInputRef.current?.click()}>
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-border-main shadow-md transition-all duration-300 group-hover:border-primary-start/70 group-hover:shadow-lg hover-lift aspect-square">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-card flex items-center justify-center overflow-hidden border-2 border-border-main shadow-md transition-all duration-300 group-hover:border-primary-start/70 group-hover:shadow-lg hover-lift aspect-square">
                             {logoLoading ? (
                                 <Loader2 className="w-8 h-8 animate-spin text-primary-start" />
                             ) : logoSrc ? (
