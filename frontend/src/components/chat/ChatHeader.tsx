@@ -1,5 +1,6 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V38.0
+// PHOENIX PROTOCOL - CHAT HEADER V39.0 (ZERO HARDCODED COLORS + TAB BUG FIX)
+// V39.0: Fix — tab character brenda var(--status-success). Hardcoded rgba/rose → semantic.
 // V38.0: Renamed button label "Analizo Fashikullin" → "Analizo Rastin"
 
 import React from 'react';
@@ -40,7 +41,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <span
           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             connectionStatus === 'CONNECTED'
-              ? 'bg-[	var(--status-success)] shadow-[0_0_8px_rgba(34,197,94,0.8),0_0_3px_rgba(34,197,94,1)] animate-pulse'
+              ? 'bg-success-start shadow-md shadow-success-start/50 animate-pulse'
               : 'bg-danger-start animate-pulse'
           }`}
           title={connectionStatus === 'CONNECTED' ? 'Lidhja aktive me DeepSeek' : 'Lidhja e shkëputur'}
@@ -86,7 +87,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </button>
         )}
 
-        {/* BUTONI VETËM ME IKONË: ZGJERO / ZVOGËLO (PA TEKST) */}
+        {/* BUTONI VETËM ME IKONË: ZGJERO / ZVOGËLO */}
         {onToggleFullscreen && (
           <button
             type="button"
@@ -123,7 +124,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <button
           type="button"
           onClick={onClearChat}
-          className="flex items-center justify-center w-8 h-8 shrink-0 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all focus:outline-none cursor-pointer"
+          className="flex items-center justify-center w-8 h-8 shrink-0 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-lg transition-all focus:outline-none cursor-pointer"
           title="Pastro Bisedën"
         >
           <Trash2 size={15} />

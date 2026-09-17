@@ -1,5 +1,7 @@
 // FILE: src/components/case/CaseHeaderBar.tsx
-// PHOENIX PROTOCOL - CASE HEADER BAR V19.0 (DOCUMENT & TOTAL PAGE COUNT METRICS)
+// PHOENIX PROTOCOL - CASE HEADER BAR V20.0 (ZERO HARDCODED COLORS)
+// V20.0: Zëvendësuar blue-500, purple-500, emerald-500 → role-defendant, role-plaintiff, role-neutral.
+// V19.0: DOCUMENT & TOTAL PAGE COUNT METRICS
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -90,15 +92,15 @@ export const CaseHeaderBar: React.FC<CaseHeaderBarProps> = ({
           </div>
         </div>
 
-        {/* DJATHAS: Badge Statik Read-Only (I Pandryshueshëm) */}
+        {/* DJATHAS: Badge Statik Read-Only */}
         <div className="flex items-center justify-end shrink-0 select-none">
           <div
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider border shadow-xs cursor-default ${
               clientPosition === 'DEFENDANT'
-                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                ? 'bg-role-defendant/10 text-role-defendant border-role-defendant/30'
                 : clientPosition === 'PLAINTIFF'
-                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30'
-                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                ? 'bg-role-plaintiff/10 text-role-plaintiff border-role-plaintiff/30'
+                : 'bg-role-neutral/10 text-role-neutral border-role-neutral/30'
             }`}
           >
             {clientPosition === 'DEFENDANT' ? (

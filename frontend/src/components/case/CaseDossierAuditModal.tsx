@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9.2
-// V2.9.2: Banner u zhvendos JASHTË body-t scrollable (gjithmonë i dukshëm).
-//         Cache detection edhe nga phase_skipped (më i sigurt).
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.9.3
+// V2.9.3: FIX auto-start — ref pattern për të shmangur timer cancellation.
+// V2.9.2: Banner jashtë body-t + cache detection nga phase_skipped.
 // V2.9.1: reportSource tracking (saved/cache/fresh).
 // V2.9: Banner + butoni "Rianalizo".
 // V2.8: Auto-start prop.
@@ -435,7 +435,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
           continue;
         }
 
-        // ═══ V2.9.2: Detect cache from phase_skipped (final phase) ═══
+        // V2.9.2: Detect cache from phase_skipped
         if (evtType === 'phase_skipped') {
           setCompletedPhases(prev => [...prev, evt.phase as PhaseKey]);
           const skippedPhase = evt.phase;
@@ -559,7 +559,13 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     }
   }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds, phasesToShow, effectiveScope]);
 
-  // ═══ AUTO-START ═══
+  // ═══ V2.9.3: Auto-start me ref (fix timer cancellation) ═══
+  const handleGenerateAuditRef = useRef(handleGenerateAudit);
+
+  useEffect(() => {
+    handleGenerateAuditRef.current = handleGenerateAudit;
+  }, [handleGenerateAudit]);
+
   useEffect(() => {
     if (
       isOpen &&
@@ -572,10 +578,10 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       !hasAutoStartedRef.current
     ) {
       hasAutoStartedRef.current = true;
-      const timer = setTimeout(() => {
-        handleGenerateAudit(false);
-      }, 150);
-      return () => clearTimeout(timer);
+      // V2.9.3: Direct call via ref, no timer cleanup
+      setTimeout(() => {
+        handleGenerateAuditRef.current(false);
+      }, 100);
     }
   }, [
     isOpen,
@@ -585,7 +591,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     isLoading,
     isPurging,
     isSaving,
-    handleGenerateAudit,
+    // handleGenerateAudit removed — accessed via ref
   ]);
 
   const handleClearContent = async () => {
@@ -652,7 +658,6 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
   if (!isOpen) return null;
 
-  // V2.9.2: Banner shows if report exists AND is not fresh
   const showReportBanner = Boolean(reportContent.trim())
     && !isLoading
     && (reportSource === 'cache' || reportSource === 'saved');
@@ -781,7 +786,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           )}
 
-          {/* ═══ V2.9.2: BANNER — I DUKSHËM GJITHMONË (jashtë scroll) ═══ */}
+          {/* BANNER — i dukshëm jashtë scroll */}
           {showReportBanner && (
             <div className="mt-3 p-3 sm:p-4 rounded-xl bg-primary-start/5 border border-primary-start/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
