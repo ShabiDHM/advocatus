@@ -1,6 +1,8 @@
 # FILE: backend/app/api/endpoints/media.py
-# PHOENIX PROTOCOL - MEDIA ROUTER V17.0 (AUDIO/VIDEO DETECTION + CLEAN MIME STREAMING)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • SAFE CLOUD STORAGE UPLOAD
+# PHOENIX PROTOCOL - MEDIA ROUTER V18.0 (DIARIZATION SEGMENTS PERSISTENCE)
+# V18.0: Ruajtja e segmenteve të diarizimit (folës + sekonda) në MongoDB.
+#        Përditësuar komentet "Whisper" → "AssemblyAI".
+# V17.0: AUDIO/VIDEO DETECTION + CLEAN MIME STREAMING
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Query
 from typing import List, Annotated, Dict, Any, Optional
@@ -71,7 +73,8 @@ def orchestrate_media_analysis(
     case_domain: Optional[str] = None
 ):
     """
-    Ekzekuton transkriptimin e thjeshtë (Whisper) dhe e indekson në RAG për klientin.
+    Ekzekuton transkriptimin me AssemblyAI (me diarizim) dhe e indekson në RAG.
+    Ruan transcript + segments (folës + sekonda) në MongoDB.
     """
     media_oid = ObjectId(media_id_str)
     try:
@@ -81,23 +84,30 @@ def orchestrate_media_analysis(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Përdor video_service.py që thjesht nxjerr zërin dhe e transkripton
+        # video_service: nxjerr zërin + transkripton me AssemblyAI
         transcript_result = loop.run_until_complete(
             video_service.analyze_video_evidence_async(file_path, file_name)
         )
         loop.close()
 
         transcript = transcript_result.get("transcription", "[Nuk u detektua zë i kuptueshëm]")
+        segments = transcript_result.get("segments", []) or []  # ← V18.0
 
-        # Ruaj transkriptin
+        # Ruaj transkriptin + segments
         db_client.media_evidence.update_one(
             {"_id": media_oid},
             {"$set": {
                 "transcript": transcript,
+                "segments": segments,
                 "status": "READY",
                 "role": role,
                 "updated_at": datetime.now(timezone.utc)
             }}
+        )
+
+        logger.info(
+            f"✅ [Media Transcription] {file_name}: "
+            f"transcript={len(transcript)} chars, segments={len(segments)}"
         )
 
         # Indeksim në RAG
@@ -156,6 +166,9 @@ async def get_case_media(
         serialized = serialize_media_doc(item)
         if not serialized.get("role"):
             serialized["role"] = role
+        # V18.0: sigurohu që segments ekziston gjithmonë (backward compat)
+        if "segments" not in serialized:
+            serialized["segments"] = []
         items.append(serialized)
     return items
 
@@ -183,11 +196,6 @@ async def upload_case_media(
 
     # ==========================================================
     # FIX 1: DETEKTIMI I SAKTË AUDIO vs VIDEO
-    # Prioriteti:
-    # 1. content_type (më i besueshëm)
-    # 2. Extension (fallback)
-    # .webm/.ogg trajtohen si audio nëse content_type mungon — sepse MediaRecorder
-    # i shfletuesit gjeneron audio/webm (Android/Desktop) ose audio/mp4 (iOS).
     # ==========================================================
     VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
     AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.aac', '.opus', '.flac', '.webm'}
@@ -207,7 +215,6 @@ async def upload_case_media(
         is_video = False
         content_type = file.content_type or 'audio/webm'
     else:
-        # Default: trajto si audio (rasti më i zakonshëm kur s'ka metadata)
         is_video = False
         content_type = file.content_type or 'audio/mpeg'
 
@@ -241,7 +248,6 @@ async def upload_case_media(
         success = await compress_video_for_storage(temp_path, compressed_path)
         if success and os.path.exists(compressed_path):
             final_upload_path = compressed_path
-            # Fshijmë menjëherë atë të rëndën
             try: os.remove(temp_path)
             except Exception: pass
 
@@ -272,6 +278,7 @@ async def upload_case_media(
         "mime_type": content_type,
         "status": "PROCESSING",
         "transcript": "",
+        "segments": [],           # ← V18.0: fusha e re për diarizim
         "visual_analysis": {},
         "role": role,
         "case_domain": case_domain or "UNKNOWN",
@@ -282,7 +289,7 @@ async def upload_case_media(
     result = db.media_evidence.insert_one(media_doc)
     media_id_str = str(result.inserted_id)
 
-    # Dërgo në prapavijë për transkriptim të thjeshtë
+    # Dërgo në prapavijë për transkriptim me AssemblyAI
     background_tasks.add_task(
         orchestrate_media_analysis,
         db,
@@ -358,13 +365,9 @@ async def stream_case_media(
 
     # ==========================================================
     # FIX 2: Heq parametrat e codec-it nga Content-Type HTTP.
-    # "audio/webm;codecs=opus" → "audio/webm"
-    # Browsers nuk e pranojnë codec parametrin në HTTP header dhe
-    # refuzojnë të dekodojnë audio track-un (silence absolute).
     # ==========================================================
     clean_mime = raw_mime.split(';')[0].strip().lower() if ';' in raw_mime else raw_mime.strip().lower()
 
-    # Fallback i sigurt nëse clean_mime është bosh ose i pavlefshëm
     if not clean_mime or '/' not in clean_mime:
         clean_mime = 'video/mp4' if any(filename.lower().endswith(e) for e in ['.mp4', '.mov', '.avi', '.mkv']) else 'audio/webm'
 

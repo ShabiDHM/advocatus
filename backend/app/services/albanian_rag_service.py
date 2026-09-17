@@ -1,6 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V272.0 (NATURAL HUMAN CLIENT CHAT • ZERO HARDCODING)
-# 100% I PLOTË • ZERO ROBOTIC TEMPLATES • PURE DEEPSEEK REASONING • STRICT TENANT ISOLATION
+# PROTOKOLLI PHOENIX - SHËRBIMI DOKTRINAR RAG V273.0
+# V273.0: Removed ForensicAuditService (orphaned).
+#   - Chat me 1 dok → shkon në UNIVERSAL_CHAT me RAG context të dokumentit
+#   - document_ids transmetohet në query_case_knowledge_base për scoping
 
 import os
 import logging
@@ -18,7 +20,6 @@ from app.services.rag.response_generator import ResponseGenerator
 from app.services.pillars.base_pillar_service import BasePillarService
 
 # Shtyllat e Pavarura
-from app.services.pillars.forensic_audit_service import ForensicAuditService
 from app.services.pillars.legal_drafting_service import LegalDraftingService
 from app.services.pillars.statutory_verification_service import StatutoryVerificationService
 
@@ -46,10 +47,11 @@ UDHËZIME TË BASHKËPUNIMIT ME AVOKATIN DHE KLIENTIN:
    - Mbështetuni në faktet reale të shkresave të lëndës dhe në dispozitat përkatëse (LPK, LMD, KPK, KPPRK, Ligji për Familjen, Kushtetuta).
 """
 
+
 def is_valid_legal_report(text: str) -> bool:
     if not text or len(text.strip()) < 150:
         return False
-    
+
     lower_text = text.lower()
     error_markers = [
         "përkohësisht i ngarkuar",
@@ -64,7 +66,7 @@ def is_valid_legal_report(text: str) -> bool:
     for marker in error_markers:
         if marker in lower_text:
             return False
-            
+
     return True
 
 
@@ -82,7 +84,7 @@ class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         self.response_generator = ResponseGenerator()
-        logger.info("✅ [RAG] Juristi AI Natural Client Service V272.0 Initialized.")
+        logger.info("✅ [RAG] Juristi AI Natural Client Service V273.0 Initialized.")
 
     def _optimize_query(self, query: str) -> str:
         cleaned = query.strip()
@@ -96,7 +98,7 @@ class AlbanianRAGService:
         ]
         for preamble in preambles:
             cleaned = re.sub(preamble, "", cleaned, flags=re.IGNORECASE)
-        
+
         abbreviations = {
             r"\bLMD\b": "Ligji për Marrëdhëniet e Detyrimeve",
             r"\bLSHT\b": "Ligji për Shoqëritë Tregtare",
@@ -108,7 +110,7 @@ class AlbanianRAGService:
         }
         for abbr, expansion in abbreviations.items():
             cleaned = re.sub(abbr, f"{abbr} ({expansion})", cleaned, flags=re.IGNORECASE)
-        
+
         return cleaned.strip()
 
     async def chat(
@@ -121,7 +123,7 @@ class AlbanianRAGService:
         history: Optional[List[Dict[str, Any]]] = None,
         domain: Optional[str] = 'automatic'
     ) -> AsyncGenerator[str, None]:
-        
+
         current_date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
         client_position = "PALË NË PROCEDURË"
@@ -164,7 +166,7 @@ class AlbanianRAGService:
                     "user_id": str(user_id),
                     "case_id": str(case_id)
                 }).sort("created_at", -1).limit(10)
-                
+
                 raw_hist = list(past_cursor)
                 raw_hist.reverse()
 
@@ -192,13 +194,12 @@ class AlbanianRAGService:
         ])
 
         is_statutory_verification = any(kw in query_lower for kw in [
-            "verifiko nenet", "a janë të sakta nenet", "referencat ligjore", 
+            "verifiko nenet", "a janë të sakta nenet", "referencat ligjore",
             "baza ligjore", "nenet e ligjit", "nxirr nenet", "kontrollo nenet"
         ])
 
-        if single_doc_obj and not is_case_wide_request and not is_statutory_verification:
-            user_intent = "FORENSIC_AUDIT"
-        elif is_case_wide_request:
+        # V273.0: Intent detection — pa FORENSIC_AUDIT
+        if is_case_wide_request:
             user_intent = "COMPREHENSIVE_ANALYSIS"
             single_doc_obj = None
         elif is_statutory_verification:
@@ -224,35 +225,13 @@ class AlbanianRAGService:
         exec_query = optimized_query
         system_prompt = ""
 
-        if user_intent == "FORENSIC_AUDIT":
-            doc_text = ""
-            if single_doc_obj:
-                doc_text = single_doc_obj.get("content") or single_doc_obj.get("extracted_text") or single_doc_obj.get("text") or ""
-            if not doc_text and db_documents:
-                doc_text = db_documents[0].get("content") or db_documents[0].get("extracted_text") or ""
-
-            doc_name = single_doc_obj.get('file_name', 'Dokument Gjyqësor') if single_doc_obj else 'Dokument'
-            manifest_str = f"Dokumenti në Fokus: {doc_name}"
-            
-            base_prompt = ForensicAuditService.build_prompt(
-                case_title=case_title,
-                client_name=client_name,
-                client_position=client_position,
-                current_date_str=current_date_str,
-                context_str=doc_text,
-                document_text=doc_text,
-                manifest_str=manifest_str,
-                case_domain=detected_domain,
-                query_text=optimized_query,
-                db=self.db,
-                user_id=user_id,
-                case_id=""
-            )
-            system_prompt = base_prompt + "\n\n" + NATURAL_COUNSEL_INSTRUCTION
-
-        elif user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
+        if user_intent in ["COMPREHENSIVE_ANALYSIS", "PILLAR_STRATEGY", "PILLAR_STATUTES", "PILLAR_QUESTIONS", "PILLAR_DAMAGES"]:
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=35
+                user_id=user_id,
+                query_text=optimized_query,
+                case_context_id=case_id,
+                document_ids=document_ids,
+                n_results=35
             )
             global_docs = vector_store_service.query_global_knowledge_base(
                 query_text=optimized_query, n_results=15
@@ -296,7 +275,11 @@ class AlbanianRAGService:
 
         elif user_intent == "DRAFTING":
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
+                user_id=user_id,
+                query_text=optimized_query,
+                case_context_id=case_id,
+                document_ids=document_ids,
+                n_results=25
             )
             global_docs = vector_store_service.query_global_knowledge_base(
                 query_text=optimized_query, n_results=15
@@ -321,7 +304,11 @@ class AlbanianRAGService:
         else:
             # CHAT UNIVERSAL I KLIENTIT (I LIRË, I ZGJUAR DHE BASHKËPUNUES)
             case_docs = vector_store_service.query_case_knowledge_base(
-                user_id=user_id, query_text=optimized_query, case_context_id=case_id, n_results=25
+                user_id=user_id,
+                query_text=optimized_query,
+                case_context_id=case_id,
+                document_ids=document_ids,
+                n_results=25
             )
             global_docs = vector_store_service.query_global_knowledge_base(
                 query_text=optimized_query, n_results=15

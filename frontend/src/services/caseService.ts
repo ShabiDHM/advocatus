@@ -1,5 +1,7 @@
 // FILE: frontend/src/services/caseService.ts
-// PHOENIX PROTOCOL - CASE & FORENSIC ANALYSIS SERVICE MODULE V57.0
+// PHOENIX PROTOCOL - CASE & FORENSIC ANALYSIS SERVICE MODULE V58.0
+// V58.0: Removed dead spreadsheet/forensic-interrogation feature.
+//        (Backend endpoints /analyze/spreadsheet* & /interrogate-finances* no longer exist.)
 // V57.0: Removed dead method clearDocumentAudit.
 
 import { apiClient, API_V1_URL } from './apiClient';
@@ -14,47 +16,11 @@ import type {
   SpreadsheetAnalysisResult
 } from '../data/types';
 
-export interface ForensicMetadata {
-  evidence_hash: string;
-  analysis_timestamp: string;
-  record_count: number;
-}
-
-export interface EnhancedAnomaly {
-  date: string;
-  amount: number;
-  description: string;
-  risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
-  explanation: string;
-  forensic_type?: string;
-  legal_reference?: string;
-  confidence?: number;
-}
-
-export interface ForensicSpreadsheetAnalysisResult {
-  executive_summary: string;
-  anomalies: EnhancedAnomaly[];
-  trends: Array<{ category: string; trend: 'UP' | 'DOWN' | 'STABLE'; percentage: string; comment: string }>;
-  recommendations: string[];
-  forensic_metadata?: ForensicMetadata;
-}
-
-export interface ForensicInterrogationResponse {
-  answer: string;
-  referenced_rows_count?: number;
-  supporting_evidence_count?: number;
-  evidence_references?: string[];
-  chain_of_custody?: any[];
-  forensic_warning?: string;
-  legal_disclaimer?: string;
-}
-
 interface DocumentContentResponse { text: string; }
 interface ReprocessConfirmation { documentId: string; message: string; }
 interface BulkReprocessResponse { count: number; message: string; }
 interface MobileSessionResponse { upload_url: string; }
 interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
-interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 
 export class CaseService {
   public async getCases(): Promise<Case[]> {
@@ -253,7 +219,7 @@ export class CaseService {
     return response.data;
   }
 
-  // ========== MOBILE SESSIONS & FORENSICS ==========
+  // ========== MOBILE SESSIONS ==========
   public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
     const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`;
     const response = await apiClient.post<MobileSessionResponse>(url);
@@ -302,38 +268,7 @@ export class CaseService {
     return response.data;
   }
 
-  public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await apiClient.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData);
-    return response.data;
-  }
-
-  public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('analyst_id', 'frontend_user');
-    formData.append('acquisition_method', 'WEB_UPLOAD');
-    formData.append('lang', lang);
-    const response = await apiClient.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } });
-    return response.data;
-  }
-
-  public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> {
-    const response = await apiClient.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`);
-    return response.data;
-  }
-
-  public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> {
-    const response = await apiClient.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question });
-    return response.data;
-  }
-
-  public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
-    const response = await apiClient.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
-    return response.data;
-  }
-
+  // ========== FINANCE FORENSIC REPORTS (i mbajtur — përdoret nga moduli financiar) ==========
   public async archiveForensicReport(caseId: string, title: string, content: string): Promise<any> {
     const response = await apiClient.post('/finance/forensic-report/archive', { case_id: caseId, title, content });
     return response.data;

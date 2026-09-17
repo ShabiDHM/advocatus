@@ -1,6 +1,8 @@
 # FILE: backend/app/services/video_service.py
-# PHOENIX PROTOCOL - GENERIC VIDEO SERVICE V3.0 (AUDIO-ONLY BYPASS + FFMPEG COMPRESSION)
-# PROTECTS BACKBLAZE B2 FREE TIER • NO FORENSIC MISNOMERS
+# PHOENIX PROTOCOL - GENERIC VIDEO SERVICE V4.0 (DIARIZATION PASSTHROUGH)
+# V4.0: Përcjell segments (folës A/B) nga transcription_service.
+#       Përditësuar komentet "Whisper" → "AssemblyAI".
+# V3.0: AUDIO-ONLY BYPASS + FFMPEG COMPRESSION.
 
 import os
 import logging
@@ -26,7 +28,7 @@ VIDEO_EXTENSIONS = {
 
 def extract_audio_from_video(video_path: str) -> str:
     """
-    Përdor FFmpeg për të nxjerrë VETËM zërin (MP3 64k mono) nga videoja për transkriptim.
+    Përdor FFmpeg për të nxjerrë VETËM zërin (MP3 64k mono) nga videoja.
     """
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Skedari video nuk ekziston: {video_path}")
@@ -38,14 +40,19 @@ def extract_audio_from_video(video_path: str) -> str:
     try:
         cmd = [
             "ffmpeg", "-y", "-i", video_path,
-            "-vn",                  # Heq figurën
+            "-vn",
             "-acodec", "libmp3lame", "-ac", "1", "-ar", "16000", "-b:a", "64k",
             temp_audio_path
         ]
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
+        result = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False
+        )
         if result.returncode != 0:
-            logger.error(f"FFmpeg audio extraction failed: {result.stderr.decode('utf-8', errors='ignore')}")
+            logger.error(
+                f"FFmpeg audio extraction failed: "
+                f"{result.stderr.decode('utf-8', errors='ignore')}"
+            )
             raise RuntimeError("Dështoi nxjerrja e audios nga videoja.")
 
         return temp_audio_path
@@ -58,29 +65,32 @@ def extract_audio_from_video(video_path: str) -> str:
 async def compress_video_for_storage(input_path: str, output_path: str) -> bool:
     """
     Kompreson videon duke përdorur FFmpeg (H.264, CRF 28, Preset Fast)
-    për të mbrojtur limitet e Backblaze B2 Free Tier (ul madhësinë deri në 80%).
+    për të mbrojtur limitet e Backblaze B2 Free Tier.
     """
     try:
         cmd = [
             "ffmpeg", "-y", "-i", input_path,
-            "-vcodec", "libx264", 
-            "-crf", "28",           # Kompresim agresiv por ruan cilësinë e mjaftueshme vizuale
-            "-preset", "fast",      # Procesim i shpejtë
-            "-acodec", "aac", 
-            "-b:a", "128k",         # Audio e kompresuar
+            "-vcodec", "libx264",
+            "-crf", "28",
+            "-preset", "fast",
+            "-acodec", "aac",
+            "-b:a", "128k",
             output_path
         ]
-        
+
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         await proc.communicate()
-        
+
         if proc.returncode == 0 and os.path.exists(output_path):
             logger.info(f"🎥 [VideoService] Video u kompresua me sukses: {output_path}")
             return True
         else:
-            logger.warning(f"⚠️ [VideoService] Kompresimi dështoi (FFmpeg returned {proc.returncode}). Po përdoret origjinali.")
+            logger.warning(
+                f"⚠️ [VideoService] Kompresimi dështoi (FFmpeg returned "
+                f"{proc.returncode}). Po përdoret origjinali."
+            )
             return False
     except Exception as e:
         logger.error(f"❌ [VideoService] Gabim fatal në kompresim: {e}")
@@ -92,15 +102,13 @@ class VideoService:
     Shërbim i përgjithshëm: Nxjerr zërin (vetëm për video) dhe transkripton.
     Për audio-only files, kalon direkt në transkriptim pa FFmpeg.
     """
-    async def analyze_video_evidence_async(self, video_path: str, file_name: str) -> Dict[str, Any]:
+
+    async def analyze_video_evidence_async(
+        self, video_path: str, file_name: str
+    ) -> Dict[str, Any]:
         if not os.path.exists(video_path):
             return {"error": "Skedari video nuk ekziston."}
 
-        # ==========================================================
-        # FIX: Kontrollo extension-in para se të therrësh FFmpeg.
-        # Audio-only files → kalojnë direkt në transkriptim (pa FFmpeg).
-        # Video files → nxjerrin audio track-un me FFmpeg pastaj transkriptohen.
-        # ==========================================================
         _, ext = os.path.splitext(file_name.lower())
         if not ext:
             _, ext = os.path.splitext(video_path.lower())
@@ -108,42 +116,58 @@ class VideoService:
         is_audio_only = ext in AUDIO_ONLY_EXTENSIONS
         is_video = ext in VIDEO_EXTENSIONS
 
-        logger.info(f"🎙️ [Transcription] file='{file_name}' ext='{ext}' → is_audio_only={is_audio_only} is_video={is_video}")
+        logger.info(
+            f"🎙️ [Transcription] file='{file_name}' ext='{ext}' → "
+            f"is_audio_only={is_audio_only} is_video={is_video}"
+        )
 
         temp_audio_path = ""
-        transcription_target_path = video_path  # default: përdor file-in origjinal
+        transcription_target_path = video_path
 
         try:
             if is_video:
                 # Video → nxirr zërin me FFmpeg
                 logger.info(f"🎥 [Video -> Audio] Duke nxjerrë zërin nga: {file_name}")
-                temp_audio_path = await asyncio.to_thread(extract_audio_from_video, video_path)
+                temp_audio_path = await asyncio.to_thread(
+                    extract_audio_from_video, video_path
+                )
                 transcription_target_path = temp_audio_path
             elif is_audio_only:
-                # Audio → kalon direkt në transkriptim
-                logger.info(f"🎧 [Audio -> Whisper] Duke transkriptuar direkt audio: {file_name}")
+                # Audio → kalon direkt në AssemblyAI
+                logger.info(f"🎧 [Audio -> AssemblyAI] Duke transkriptuar direkt: {file_name}")
                 transcription_target_path = video_path
             else:
-                # Extension i panjohur → provo direkt transkriptim (Whisper mund ta pranojë)
-                logger.warning(f"⚠️ [Transcription] Extension i panjohur '{ext}' — po provoj transkriptim direkt.")
+                # Extension i panjohur → provo direkt
+                logger.warning(
+                    f"⚠️ [Transcription] Extension i panjohur '{ext}' — "
+                    f"po provoj transkriptim direkt."
+                )
                 transcription_target_path = video_path
 
-            logger.info("📝 Duke filluar transkriptimin e zërit...")
-            transcript_result = await transcription_service.transcribe_audio_async(transcription_target_path)
+            logger.info("📝 Duke filluar transkriptimin e zërit (AssemblyAI)...")
+            transcript_result = await transcription_service.transcribe_audio_async(
+                transcription_target_path
+            )
 
             return {
                 "status": "success",
                 "transcription": transcript_result.get("text", ""),
+                "segments": transcript_result.get("segments", []),  # ← V4.0
                 "language": transcript_result.get("language", "sq"),
                 "duration_seconds": transcript_result.get("duration", 0),
-                "summary": transcript_result.get("summary", "Transkriptim fjalë për fjalë i nxjerrë nga prova.")
+                "summary": transcript_result.get(
+                    "summary", "Transkriptim fjalë për fjalë i nxjerrë nga prova."
+                ),
             }
         except Exception as e:
             logger.error(f"❌ Gabim gjatë transkriptimit: {e}")
             return {"status": "error", "error": str(e), "transcription": ""}
         finally:
             if temp_audio_path and os.path.exists(temp_audio_path):
-                try: os.remove(temp_audio_path)
-                except Exception: pass
+                try:
+                    os.remove(temp_audio_path)
+                except Exception:
+                    pass
+
 
 video_service = VideoService()

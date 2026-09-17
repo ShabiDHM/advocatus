@@ -1,6 +1,6 @@
 # FILE: backend/app/main.py (LEGAL APP)
-# PHOENIX PROTOCOL - MAIN APPLICATION V18.4 (DEEPSEEK V3 UNIFIED ENGINE)
-# 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS • 3 PURE EVIDENCE LABS
+# PHOENIX PROTOCOL - MAIN APPLICATION V19.0 (FORENSIC DESK REMOVED)
+# 100% COMPLETE CODE • ZERO PY WARNINGS • ZERO PLACEHOLDERS • CASEWORKS UNIFIED
 
 import os
 import logging
@@ -12,7 +12,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from .core.lifespan import lifespan
 from .core.config import settings
 
-# Router Imports - Klienti Normal (Të Paprekur)
+# Router Imports - Klienti Normal
 from .api.endpoints.auth import router as auth_router
 from .api.endpoints.auth_reset import router as auth_reset_router
 from .api.endpoints.users import router as users_router
@@ -31,22 +31,13 @@ from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.laws import router as laws_router
 
-# Router Imports - Zyra Forenzike e Pavarur (3 Laboratorët Realë të Provave)
-from .api.endpoints.forensic import (
-    forensic_dossier_router,
-    forensic_audio_router,
-    forensic_visual_router,
-    forensic_document_router,
-    forensic_chat_router
-)
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore
 
 # --- CORS CONFIGURATION ---
 origins = [
@@ -65,15 +56,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=[
-        "Content-Type", 
-        "Authorization", 
-        "X-Requested-With", 
-        "Accept", 
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
         "Origin",
         "Accept-Language",
         "Accept-Encoding",
-        "X-Forensic-Key",
-        "X-Forensic"
     ],
     expose_headers=["*"],
 )
@@ -81,7 +70,7 @@ app.add_middleware(
 # --- ROUTER ASSEMBLY (API V1) ---
 api_v1_router = APIRouter(prefix="/api/v1")
 
-# 1. Rrugët e Klientit Normal
+# Rrugët e Klientit
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(auth_reset_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
@@ -100,28 +89,22 @@ api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"]
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
 
-# 2. Rrugët e Zyrës Forenzike (3 Laboratorët e Provave + Terminali Forenzik)
-forensic_suite_router = APIRouter(prefix="/forensic", tags=["Forensic Desk"])
-forensic_suite_router.include_router(forensic_dossier_router)
-forensic_suite_router.include_router(forensic_audio_router)
-forensic_suite_router.include_router(forensic_visual_router)
-forensic_suite_router.include_router(forensic_document_router)
-forensic_suite_router.include_router(forensic_chat_router)
-
-api_v1_router.include_router(forensic_suite_router)
-
 # Montimi i plotë në API
 app.include_router(api_v1_router)
+
 
 @app.get("/health")
 def health_check():
     return {
-        "status": "ok", 
-        "version": "1.8.0", 
-        "forensic_engine": "DeepSeek V3 (3 Pure Evidence Labs + Forensic Chat)"
+        "status": "ok",
+        "version": "2.0.0",
+        "engine": "CaseView Unified",
     }
 
+
 # Static Files Mount
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
+FRONTEND_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist"
+)
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")

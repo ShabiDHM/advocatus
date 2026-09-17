@@ -1,21 +1,23 @@
 # FILE: backend/app/services/transcription_service.py
-# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V11.0 (UNIFIED ASSEMBLYAI VERBATIM ENGINE)
-# 100% COMPLETE CODE • ZERO TS/PY WARNINGS • ZERO LLM HALLUCINATIONS
+# PHOENIX PROTOCOL - TRANSCRIPTION SERVICE V13.0 (DIARIZATION SEGMENTS)
+# V13.0: Kthen edhe segments (folës + sekonda) për shfaqje UI.
+# V12.0: Hequr varësia nga app.services.forensic.
 
 import os
 import logging
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-# Importojmë motorin e blinduar AssemblyAI nga Forenzika për unifikim të saktësisë
-from app.services.forensic.forensic_audio_service import (
+# Motorri i pavarur AssemblyAI
+from app.services.assemblyai_service import (
     upload_audio_to_assemblyai,
     submit_diarization_job,
     poll_transcript_status,
-    format_forensic_transcript
+    format_diarized_transcript,
 )
 
 logger = logging.getLogger(__name__)
+
 
 def extract_audio_from_video(video_path: str) -> str:
     audio_path = f"{video_path}.mp3"
@@ -32,10 +34,14 @@ def extract_audio_from_video(video_path: str) -> str:
         logger.warning(f"Moviepy extraction fallback: {e}")
     return video_path
 
-def transcribe_media_file(file_path: str) -> str:
+
+def transcribe_media_file(file_path: str) -> Dict[str, Any]:
     """
-    Ekzekuton transkriptimin fjalë-për-fjalë (Verbatim) duke përdorur motorin kryesor
-    të AssemblyAI që mbështet Code-Switching (Shqip-Anglisht) pa e modifikuar tekstin origjinal.
+    Ekzekuton transkriptimin fjalë-për-fjalë (Verbatim) duke përdorur
+    motorin AssemblyAI me diarizim (folës A/B).
+
+    Returns:
+        {"text": str, "segments": List[dict]}
     """
     processed_path = file_path
     extracted_audio = False
@@ -50,30 +56,45 @@ def transcribe_media_file(file_path: str) -> str:
                 extracted_audio = True
 
         file_size_mb = os.path.getsize(processed_path) / (1024 * 1024)
-        logger.info(f"🎙️ [Client Media ASR] Ngarkimi në motorin akustik ({file_size_mb:.2f} MB)")
+        logger.info(
+            f"🎙️ [Client Media ASR] AssemblyAI upload ({file_size_mb:.2f} MB)"
+        )
 
-        # Përpunimi në AssemblyAI (Unifikuar me Zyrën Forenzike)
+        # Përpunimi në AssemblyAI
         with open(processed_path, "rb") as audio_file:
             raw_bytes = audio_file.read()
 
         upload_url = upload_audio_to_assemblyai(raw_bytes)
         job_id = submit_diarization_job(upload_url)
         assembly_result = poll_transcript_status(job_id)
-        
-        # Përdorim formatimin standard pa asnjë "rregullim" me AI
-        formatted_transcript, _, _ = format_forensic_transcript(assembly_result)
+
+        # V13.0: Mbaj edhe segments
+        formatted_transcript, segments, _ = format_diarized_transcript(assembly_result)
 
         if not formatted_transcript.strip():
-            return "[Nuk u detektua zë i kuptueshëm në këtë incizim.]"
+            return {
+                "text": "[Nuk u detektua zë i kuptueshëm në këtë incizim.]",
+                "segments": [],
+            }
 
-        return formatted_transcript
+        return {
+            "text": formatted_transcript,
+            "segments": segments,
+        }
 
     except Exception as e:
         logger.error(f"❌ Transcription Error: {e}")
-        return f"[Gabim gjatë transkriptimit: {str(e)}]"
+        return {
+            "text": f"[Gabim gjatë transkriptimit: {str(e)}]",
+            "segments": [],
+        }
     finally:
-        # Pastrimi i skedarëve të mbetur të videove
-        if extracted_audio and processed_path != file_path and os.path.exists(processed_path):
+        # Pastrimi i skedarëve të mbetur
+        if (
+            extracted_audio
+            and processed_path != file_path
+            and os.path.exists(processed_path)
+        ):
             try:
                 os.remove(processed_path)
             except Exception:
@@ -81,25 +102,26 @@ def transcribe_media_file(file_path: str) -> str:
 
 
 # =========================================================================
-# 🎯 PHOENIX ADAPTER: KLASA DHE INSTANCA QË PRITET NGA VIDEO_SERVICE
+# PHOENIX ADAPTER: KLASA DHE INSTANCA QË PRITET NGA VIDEO_SERVICE
 # =========================================================================
 class TranscriptionService:
-    """Klasë adapter për pajtueshmëri të plotë me video_service.py të klientit."""
-    
-    def transcribe(self, file_path: str) -> str:
+    """Klasë adapter për pajtueshmëri të plotë me video_service.py."""
+
+    def transcribe(self, file_path: str) -> Dict[str, Any]:
         return transcribe_media_file(file_path)
 
     async def transcribe_audio_async(self, file_path: str) -> Dict[str, Any]:
         """Metodë asinkrone e kërkuar drejtpërdrejt nga VideoService."""
         loop = asyncio.get_running_loop()
-        text = await loop.run_in_executor(None, transcribe_media_file, file_path)
+        result = await loop.run_in_executor(None, transcribe_media_file, file_path)
         return {
-            "text": text,
+            "text": result.get("text", ""),
+            "segments": result.get("segments", []),
             "language": "sq",
             "duration": 0,
-            "summary": "Transkript i plotë Verbatim fjalë-për-fjalë."
+            "summary": "Transkript i plotë Verbatim fjalë-për-fjalë.",
         }
 
 
-# Instanca zyrtare e eksportuar që zhduk gabimin ImportError
+# Instanca zyrtare e eksportuar
 transcription_service = TranscriptionService()

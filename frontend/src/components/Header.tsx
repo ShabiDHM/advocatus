@@ -1,10 +1,10 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL – HEADER V20.0 (RESTORED RESPONSIVE PAGE SELECTOR & MOBILE DRAWER ACCESS)
+// PHOENIX PROTOCOL – HEADER V21.0 (FORENSIC DESK REMOVED)
 // ZERO TS WARNINGS • DYNAMIC PAGE NAVIGATION • 100% COMPLETE CODE
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Bell, LogOut, User as UserIcon, MessageSquare, Shield, ShieldCheck, Scale, Building2, X, BookOpen, Sun, Moon, Menu 
+  Bell, LogOut, User as UserIcon, MessageSquare, Shield, Scale, Building2, X, BookOpen, Sun, Moon, Menu 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -36,17 +36,12 @@ const Header: React.FC = () => {
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // 2. VETËM PËR ADMIN / SUPER ADMIN SHTOHEN LINIQET EKSKLUZIVE
+  // 2. VETËM PËR ADMIN / SUPER ADMIN SHTOHET LINQJA EKSLUZIVE E PANELIT
   if (isAdmin) {
     navItems.splice(1, 0, {
       icon: Shield,
       label: t('sidebar.adminPanel', 'Admin'),
       path: '/admin',
-    });
-    navItems.splice(2, 0, {
-      icon: ShieldCheck,
-      label: 'Zyra Forenzike',
-      path: '/admin/forensic-desk',
     });
   }
 
@@ -118,9 +113,6 @@ const Header: React.FC = () => {
   const isActive = (path: string) => {
     if (path === '/business') {
       return location.pathname.startsWith('/business');
-    }
-    if (path === '/admin/forensic-desk') {
-      return location.pathname.startsWith('/admin/forensic-desk');
     }
     if (path === '/admin') {
       return location.pathname === '/admin' || location.pathname.startsWith('/admin/support');
@@ -227,16 +219,6 @@ const Header: React.FC = () => {
                   <p className="text-sm font-bold text-text-primary truncate">{user?.username}</p>
                   <p className="text-xs text-text-muted truncate">{user?.email}</p>
                 </div>
-
-                {isAdmin && (
-                  <button 
-                    type="button"
-                    onClick={() => { setIsProfileOpen(false); navigate('/admin/forensic-desk'); }} 
-                    className="w-full text-left flex items-center px-4 py-2.5 text-sm font-bold text-primary-start hover:bg-primary-start/10 transition-colors cursor-pointer"
-                  >
-                    <ShieldCheck size={16} className="mr-3 text-primary-start" />Zyra Forenzike
-                  </button>
-                )}
 
                 <button 
                   type="button"

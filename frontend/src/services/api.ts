@@ -1,5 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - MASTER API FACADE V68.0
+// PHOENIX PROTOCOL - MASTER API FACADE V69.0
+// V69.0: Removed bindings for dead spreadsheet methods
+//        (analyzeSpreadsheet, analyzeExistingSpreadsheet, interrogateFinancialRecords).
 // V68.0: Removed dead methods saveDocumentAudit + clearDocumentAudit.
 
 export * from './apiClient';
@@ -79,9 +81,6 @@ class ApiService {
   public getMobileSessionFile = caseService.getMobileSessionFile.bind(caseService);
   public publicMobileUpload = caseService.publicMobileUpload.bind(caseService);
   public fetchImageBlob = caseService.fetchImageBlob.bind(caseService);
-  public analyzeSpreadsheet = caseService.analyzeSpreadsheet.bind(caseService);
-  public analyzeExistingSpreadsheet = caseService.analyzeExistingSpreadsheet.bind(caseService);
-  public interrogateFinancialRecords = caseService.interrogateFinancialRecords.bind(caseService);
 
   // ⚡ Metode Integrale Për Analizën e Shpejtë të Klientit
   public saveCaseAnalysis = async (caseId: string, content: string) => {

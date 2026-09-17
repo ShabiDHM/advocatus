@@ -1,6 +1,6 @@
 // FILE: src/services/caseAnalysisService.ts
-// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.1
-// V1.1: documentIds param — scope analysis to specific documents.
+// PHOENIX PROTOCOL - CASE ANALYSIS SSE CLIENT V1.2
+// V1.2: scope field (case/document) + document_review phase.
 
 import { tokenManager, API_V1_URL, apiClient } from './apiClient';
 
@@ -8,21 +8,30 @@ import { tokenManager, API_V1_URL, apiClient } from './apiClient';
 // TYPES
 // ────────────────────────────────────────────────────────────────────────────
 
-export type AnalysisPhase = 'extraction' | 'cross_reference' | 'synthesis';
+export type AnalysisScope = 'case' | 'document';
+
+export type AnalysisPhase =
+  | 'extraction'
+  | 'cross_reference'
+  | 'synthesis'
+  | 'document_review';
 
 export interface AnalysisEvent {
   event: string;
   phase?: AnalysisPhase;
+  scope?: AnalysisScope;
   case_id?: string;
   case_title?: string;
   force_reprocess?: boolean;
   document_ids?: string[] | null;
+  document_id?: string;
+  document_type?: string;
   is_single_document?: boolean;
   file_name?: string;
-  document_id?: string;
   index?: number;
   total_documents?: number;
   stats?: Record<string, any>;
+  section_stats?: Record<string, any>;
   summary?: Record<string, any>;
   section_key?: string;
   section_title?: string;
@@ -44,11 +53,12 @@ const ANALYSIS_TIMEOUT_MS = 45 * 60 * 1000;
 
 export class CaseAnalysisService {
   /**
-   * Stream analizën e plotë të një lënde.
+   * Stream analizën e plotë të një lënde ose review të një dokumenti.
    *
    * @param caseId - ID e lëndës
    * @param forceReprocess - Nëse true, ri-ekstrakton edhe nëse ekziston cache
    * @param documentIds - Nëse jepet, analiza skopohet VETËM në këto dokumente
+   *                      (mode: "Verifikimi i Dokumentit")
    */
   public async *streamCaseAnalysis(
     caseId: string,
@@ -71,7 +81,7 @@ export class CaseAnalysisService {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
 
-    // V1.1: Body me document_ids
+    // Body: force_reprocess + optional document_ids
     const body: Record<string, any> = {
       force_reprocess: forceReprocess,
     };
@@ -102,7 +112,7 @@ export class CaseAnalysisService {
           if (response.status === 402) errorMsg = 'Abonimi juaj ka skaduar.';
           else if (response.status === 401) errorMsg = 'Sesioni ka skaduar. Rifreskoni faqen.';
           else if (response.status === 403) errorMsg = 'Nuk keni akses në këtë lëndë.';
-          else if (response.status === 404) errorMsg = 'Lënda nuk u gjet.';
+          else if (response.status === 404) errorMsg = 'Lënda ose dokumenti nuk u gjet.';
         }
         throw new Error(errorMsg);
       }
@@ -134,6 +144,7 @@ export class CaseAnalysisService {
           }
         }
 
+        // Përpuno çdo mbetje në buffer
         if (buffer.trim()) {
           const parsed = this._parseSSEBlock(buffer);
           if (parsed) {
@@ -157,6 +168,10 @@ export class CaseAnalysisService {
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────
+  // INTERNAL — parse SSE block
+  // ────────────────────────────────────────────────────────────────────────
+
   private _parseSSEBlock(block: string): AnalysisEvent | null {
     const lines = block.split('\n');
     let dataLine: string | null = null;
@@ -173,6 +188,7 @@ export class CaseAnalysisService {
 
     if (!dataLine) return null;
 
+    // Sentinel — fundi i stream-it
     if (dataLine === '[DONE]') {
       return null;
     }
@@ -184,10 +200,17 @@ export class CaseAnalysisService {
       }
       return null;
     } catch (e) {
-      console.warn('[CaseAnalysisService] Failed to parse SSE data line:', dataLine.slice(0, 100));
+      console.warn(
+        '[CaseAnalysisService] Failed to parse SSE data line:',
+        dataLine.slice(0, 100)
+      );
       return null;
     }
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// SINGLETON
+// ────────────────────────────────────────────────────────────────────────────
 
 export const caseAnalysisService = new CaseAnalysisService();

@@ -1,6 +1,7 @@
 // FILE: frontend/src/components/MediaEvidencePanel.tsx
-// PHOENIX PROTOCOL - MEDIA PANEL V14.0 (PORTAL-RENDERED MODAL)
-// ZERO TS WARNINGS • 100% COMPLETE CODE • SECURE NATIVE AUDIO RECORDING
+// PHOENIX PROTOCOL - MEDIA PANEL V15.0 (DIARIZATION SPEAKER UI)
+// V15.0: Shfaqja e folësve (FOLËSI_A/B/C) me badge me ngjyra + backward compat.
+// V14.0: PORTAL-RENDERED MODAL
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,12 +9,20 @@ import { apiService, API_V1_URL } from '../services/api';
 import { 
     Mic, Upload, Trash2, FileText, 
     Loader2, Download, Save, CheckCircle2,
-    Video, Film, Copy, Square, Activity, X
+    Video, Film, Copy, Square, Activity, X, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAX_FILE_SIZE_MB = 50;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+interface MediaSegment {
+    speaker: string;
+    start: number;
+    end: number;
+    timestamp_label: string;
+    text: string;
+}
 
 interface MediaItem {
     id: string;
@@ -22,6 +31,7 @@ interface MediaItem {
     mime_type?: string;
     status: 'PROCESSING' | 'READY' | 'FAILED';
     transcript: string;
+    segments?: MediaSegment[];
     created_at: string;
 }
 
@@ -30,6 +40,53 @@ interface MediaEvidencePanelProps {
     caseTitle?: string;
     t?: any;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// SPEAKER COLOR MAPPING — Ngjyra të ndryshme sipas folësit
+// ═══════════════════════════════════════════════════════════════════════
+const SPEAKER_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+    'FOLËSI_A': {
+        bg: 'bg-blue-500/5',
+        border: 'border-blue-500/20',
+        text: 'text-blue-600 dark:text-blue-400',
+        badge: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400',
+    },
+    'FOLËSI_B': {
+        bg: 'bg-emerald-500/5',
+        border: 'border-emerald-500/20',
+        text: 'text-emerald-600 dark:text-emerald-400',
+        badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400',
+    },
+    'FOLËSI_C': {
+        bg: 'bg-purple-500/5',
+        border: 'border-purple-500/20',
+        text: 'text-purple-600 dark:text-purple-400',
+        badge: 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400',
+    },
+    'FOLËSI_D': {
+        bg: 'bg-amber-500/5',
+        border: 'border-amber-500/20',
+        text: 'text-amber-600 dark:text-amber-400',
+        badge: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400',
+    },
+};
+
+const DEFAULT_SPEAKER_COLOR = {
+    bg: 'bg-surface',
+    border: 'border-main',
+    text: 'text-text-secondary',
+    badge: 'bg-surface border-main text-text-secondary',
+};
+
+const getSpeakerColor = (speaker: string) => SPEAKER_COLORS[speaker] || DEFAULT_SPEAKER_COLOR;
+
+// Format "FOLËSI_A" → "Folësi A"
+const formatSpeakerLabel = (speaker: string): string => {
+    return speaker
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+};
 
 export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) {
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -42,9 +99,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
     const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ==========================================
-    // VOICE RECORDER STATE
-    // ==========================================
+    // Voice recorder state
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -130,9 +185,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // ==========================================
-    // VOICE RECORDER LOGIC — FORENSIC GRADE
-    // ==========================================
     const pickSupportedMimeType = (): string => {
         const candidates = [
             'audio/webm;codecs=opus',
@@ -155,7 +207,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const startRecording = async () => {
         try {
-            // 1. Constraints të sakta — çaktivizo filtrat që hanë zërin njerëzor
             const audioConstraints: MediaTrackConstraints = {
                 echoCancellation: false,
                 noiseSuppression: false,
@@ -167,7 +218,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
             streamRef.current = stream;
 
-            // 2. Zgjedhja e mimeType — testimi i kandidatëve
             const chosenMime = pickSupportedMimeType();
 
             const options: MediaRecorderOptions = {
@@ -188,10 +238,8 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
             };
 
             mediaRecorder.onstop = async () => {
-                // 3. Prit një tick për chunk-un final (i njohur për iOS Safari)
                 await new Promise(resolve => setTimeout(resolve, 200));
 
-                // Ndal tracks para se të vazhdojmë
                 if (streamRef.current) {
                     streamRef.current.getTracks().forEach(track => track.stop());
                     streamRef.current = null;
@@ -203,7 +251,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 console.log(`🎙️ [Recorder] Blob: size=${audioBlob.size} bytes, type=${blobType}, chunks=${audioChunksRef.current.length}`);
 
                 if (audioBlob.size > 0) {
-                    // 4. Extension i saktë sipas mimeType
                     let ext = 'webm';
                     if (blobType.includes('mp4') || blobType.includes('m4a')) ext = 'm4a';
                     else if (blobType.includes('ogg')) ext = 'ogg';
@@ -217,7 +264,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 }
             };
 
-            // 5. start me timeslice — mbledh chunks çdo 1s (mbron kundër iOS bug)
             mediaRecorder.start(1000);
             setIsRecording(true);
             setRecordingTime(0);
@@ -241,7 +287,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            // Kërko chunk-un final përpara stop
             try {
                 if (mediaRecorderRef.current.state === 'recording') {
                     mediaRecorderRef.current.requestData();
@@ -310,6 +355,16 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
 
     const authToken = apiService.getToken();
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // KALKULO NUMRIN E FOLËSVE UNIKË (për header info)
+    // ═══════════════════════════════════════════════════════════════════════
+    const uniqueSpeakers = useMemo(() => {
+        if (!selectedMedia?.segments || selectedMedia.segments.length === 0) return [];
+        const set = new Set<string>();
+        selectedMedia.segments.forEach(s => s.speaker && set.add(s.speaker));
+        return Array.from(set).sort();
+    }, [selectedMedia]);
+
     return (
         <div className="space-y-4 font-sans">
             {/* KOKA E PANELIT DHE BUTONAT */}
@@ -325,7 +380,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
 
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    {/* BUTTONI I REGJISTRUESIT TË ZËRIT */}
                     {isRecording ? (
                         <button
                             type="button"
@@ -349,7 +403,6 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                         </button>
                     )}
 
-                    {/* BUTTONI I NGARKIMIT */}
                     <input 
                         type="file" 
                         ref={fileInputRef} 
@@ -395,6 +448,9 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                     {mediaItems.map(item => {
                         const streamUrl = `${API_V1_URL}/cases/${caseId}/media/${item.id}/stream${authToken ? `?token=${authToken}` : ''}`;
                         const isVideo = item.media_type === 'video' || /\.(mp4|mov|avi|mkv)$/i.test(item.file_name);
+                        const speakerCount = item.segments?.length
+                            ? new Set(item.segments.map(s => s.speaker)).size
+                            : 0;
 
                         return (
                             <div key={item.id} className="p-4 rounded-xl border border-main bg-card flex flex-col justify-between gap-3 shadow-sm">
@@ -409,7 +465,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                         </div>
                                         <div className="min-w-0">
                                             <h4 className="text-xs font-bold text-text-primary truncate">{item.file_name}</h4>
-                                            <div className="flex items-center gap-2 mt-0.5">
+                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                                 <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
                                                     item.status === 'READY' ? 'bg-status-success/15 text-status-success border border-status-success/30' :
                                                     item.status === 'PROCESSING' ? 'bg-warning-start/15 text-warning-start border border-warning-start/30 animate-pulse' :
@@ -417,6 +473,12 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                                 }`}>
                                                     {item.status === 'READY' ? 'Transkriptuar' : item.status === 'PROCESSING' ? 'Duke transkriptuar...' : 'Dështoi'}
                                                 </span>
+                                                {speakerCount > 0 && (
+                                                    <span className="text-[9px] font-bold text-primary-start bg-primary-start/10 border border-primary-start/20 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                                        <Users size={9} />
+                                                        {speakerCount} {speakerCount === 1 ? 'folës' : 'folës'}
+                                                    </span>
+                                                )}
                                                 <span className="text-[9px] text-text-muted font-mono">
                                                     {new Date(item.created_at).toLocaleDateString()}
                                                 </span>
@@ -463,7 +525,7 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                 </div>
             )}
 
-            {/* MODAL - TRANSKRIPTI VERBATIM (PORTAL-RENDERED - ALWAYS ON TOP) */}
+            {/* MODAL - TRANSKRIPTI VERBATIM */}
             {selectedMedia && createPortal(
                 <AnimatePresence>
                     <div
@@ -497,30 +559,79 @@ export default function MediaEvidencePanel({ caseId }: MediaEvidencePanelProps) 
                                 </button>
                             </div>
 
-                            {/* Modal Body - Transkripti me Sekonda */}
+                            {/* Bar info për folësit (V15.0) */}
+                            {uniqueSpeakers.length > 0 && (
+                                <div className="flex items-center gap-2 pb-3 shrink-0 overflow-x-auto">
+                                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-text-muted uppercase tracking-wider shrink-0">
+                                        <Users size={12} />
+                                        Folësit:
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {uniqueSpeakers.map(speaker => {
+                                            const color = getSpeakerColor(speaker);
+                                            return (
+                                                <span
+                                                    key={speaker}
+                                                    className={`text-[10px] sm:text-xs font-bold px-2 py-1 rounded-lg border ${color.badge}`}
+                                                >
+                                                    {formatSpeakerLabel(speaker)}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Modal Body - Transkripti me Folës + Sekonda */}
                             <div className="flex-1 overflow-y-auto custom-finance-scroll p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-main text-text-primary shadow-inner bg-canvas">
                                 <div className="space-y-2.5 text-sm leading-relaxed">
-                                    {selectedMedia.transcript ? (
-                                        selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
-                                            const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);
-                                            if (timeMatch) {
-                                                const timeStr = timeMatch[0];
-                                                const textStr = line.replace(timeStr, '').trim();
-                                                return (
-                                                    <div key={idx} className="p-2.5 sm:p-3 bg-card rounded-xl border border-main flex items-start gap-2 sm:gap-3 shadow-xs">
-                                                        <span className="text-[10px] sm:text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-1.5 sm:px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
-                                                            {timeStr}
+                                    {/* V15.0: Prioritet — Segments të strukturuara */}
+                                    {selectedMedia.segments && selectedMedia.segments.length > 0 ? (
+                                        selectedMedia.segments.map((seg, idx) => {
+                                            const color = getSpeakerColor(seg.speaker);
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`p-2.5 sm:p-3 rounded-xl border flex items-start gap-2 sm:gap-3 shadow-xs ${color.bg} ${color.border}`}
+                                                >
+                                                    <div className="flex flex-col items-start gap-1 shrink-0">
+                                                        <span className={`text-[10px] sm:text-xs font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded-md border bg-white/40 dark:bg-black/20 ${color.badge}`}>
+                                                            {seg.timestamp_label}
                                                         </span>
-                                                        <p className="text-[11px] sm:text-sm font-medium text-text-primary pt-0.5 leading-normal">
-                                                            {textStr}
-                                                        </p>
+                                                        <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${color.text}`}>
+                                                            {formatSpeakerLabel(seg.speaker)}
+                                                        </span>
                                                     </div>
-                                                );
-                                            }
-                                            return <p key={idx} className="text-[11px] sm:text-sm text-text-secondary leading-normal p-1">{line}</p>;
+                                                    <p className="text-[11px] sm:text-sm font-medium text-text-primary pt-0.5 leading-normal flex-1">
+                                                        {seg.text}
+                                                    </p>
+                                                </div>
+                                            );
                                         })
                                     ) : (
-                                        <p className="text-text-muted text-xs italic">Nuk u gjend transkript audio për këtë provë.</p>
+                                        /* Backward compat: parsing i tekstit të vjetër */
+                                        selectedMedia.transcript ? (
+                                            selectedMedia.transcript.split('\n').filter(Boolean).map((line, idx) => {
+                                                const timeMatch = line.match(/^\[(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})\]/);
+                                                if (timeMatch) {
+                                                    const timeStr = timeMatch[0];
+                                                    const textStr = line.replace(timeStr, '').trim();
+                                                    return (
+                                                        <div key={idx} className="p-2.5 sm:p-3 bg-card rounded-xl border border-main flex items-start gap-2 sm:gap-3 shadow-xs">
+                                                            <span className="text-[10px] sm:text-xs font-mono font-bold text-primary-start bg-primary-start/10 px-1.5 sm:px-2 py-1 rounded-md shrink-0 border border-primary-start/20">
+                                                                {timeStr}
+                                                            </span>
+                                                            <p className="text-[11px] sm:text-sm font-medium text-text-primary pt-0.5 leading-normal">
+                                                                {textStr}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return <p key={idx} className="text-[11px] sm:text-sm text-text-secondary leading-normal p-1">{line}</p>;
+                                            })
+                                        ) : (
+                                            <p className="text-text-muted text-xs italic">Nuk u gjend transkript audio për këtë provë.</p>
+                                        )
                                     )}
                                 </div>
                             </div>

@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V7.0 (ADDED EXCLUSIVE ADMIN FORENSIC DESK ROUTE)
+// PHOENIX PROTOCOL - ROUTING V8.0 (FORENSIC DESK REMOVED)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -22,7 +22,6 @@ import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminSupportPage from './pages/AdminSupportPage';
-import AdminForensicDeskPage from './pages/AdminForensicDeskPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
@@ -102,7 +101,6 @@ const AppRoutes: React.FC = () => {
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/support" element={<AdminSupportPage />} />
-        <Route path="/admin/forensic-desk" element={<AdminForensicDeskPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

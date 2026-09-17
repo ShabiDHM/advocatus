@@ -1,6 +1,6 @@
 // FILE: src/components/chat/ChatHeader.tsx
-// PHOENIX PROTOCOL - CHAT HEADER V37.0 (DYNAMIC DOSSIER/DOCUMENT LABEL)
-// ZERO TS WARNINGS • RESPONSIVE PINNED ACTIONS • 100% COMPLETE CODE
+// PHOENIX PROTOCOL - CHAT HEADER V38.0
+// V38.0: Renamed button label "Analizo Fashikullin" → "Analizo Rastin"
 
 import React from 'react';
 import { Download, Trash2, FileText, Maximize2, Minimize2, Sparkles } from 'lucide-react';
@@ -59,8 +59,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* 2. DJATHTAS: Butoni dinamik 'Analizo', Ikona Zgjero/Zvogëlo, Eksporti dhe Koshi */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-        
-        {/* Butoni Dinamik: Analizo Fashikullin (pa selektim) / Analizo Dokumentin (me selektim) */}
+
+        {/* Butoni Dinamik: Analizo Rastin (pa selektim) / Analizo Dokumentin (me selektim) */}
         {onAnalyzeDocument && (
           <button
             type="button"
@@ -69,7 +69,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             title={
               hasSelectedDoc
                 ? `Kryej pasqyrën e shkresës: ${selectedDocName}`
-                : `Kryej doktrinën e fashikullit të plotë (të gjitha shkresat)`
+                : `Kryej doktrinën e rastit të plotë (të gjitha shkresat)`
             }
           >
             {hasSelectedDoc ? (
@@ -78,10 +78,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <Sparkles size={12} className="shrink-0 text-primary-start" />
             )}
             <span className="hidden sm:inline">
-              {hasSelectedDoc ? 'Analizo Dokumentin' : 'Analizo Fashikullin'}
+              {hasSelectedDoc ? 'Analizo Dokumentin' : 'Analizo Rastin'}
             </span>
             <span className="sm:hidden">
-              {hasSelectedDoc ? 'Analizo' : 'Fashikull'}
+              {hasSelectedDoc ? 'Analizo' : 'Rast'}
             </span>
           </button>
         )}

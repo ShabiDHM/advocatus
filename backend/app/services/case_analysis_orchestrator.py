@@ -1,6 +1,8 @@
 # FILE: backend/app/services/case_analysis_orchestrator.py
-# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.3
-# FIX: document_ids param — scope analysis to specific documents.
+# PHOENIX PROTOCOL - CASE ANALYSIS ORCHESTRATOR V1.5
+# V1.5: Removed document_ids param from synthesis call (V3.3 is case-only).
+#   - case scope → SynthesisService.synthesize()
+#   - document scope → DocumentReviewService.review()
 
 import asyncio
 import logging
@@ -13,6 +15,7 @@ from bson import ObjectId
 from app.services.extraction_pipeline import get_extraction_pipeline
 from app.services.pillars.cross_reference_service import get_cross_reference_service
 from app.services.synthesis_service import get_synthesis_service
+from app.services.document_review_service import get_document_review_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +34,22 @@ SECTION_ORDER = [
     "recommendations",
 ]
 
+# V1.4: SECTION_ORDER për document review (i ndryshëm)
+DOCUMENT_REVIEW_SECTION_ORDER = [
+    "document_summary",
+    "article_verification",
+    "supreme_court_precedents",
+    "drafting_quality",
+    "errors_corrections",
+    "action_steps",
+]
+
 
 class CaseAnalysisOrchestrator:
     """
-    V1.3 — document_ids support.
+    V1.5 — Routing:
+    - document_ids jepet → DocumentReviewService.review()
+    - document_ids null  → SynthesisService.synthesize() (case scope)
     """
 
     def __init__(self, db):
@@ -42,6 +57,7 @@ class CaseAnalysisOrchestrator:
         self.pipeline = get_extraction_pipeline(db)
         self.xref_service = get_cross_reference_service(db)
         self.synthesis = get_synthesis_service(db)
+        self.document_review = get_document_review_service(db)
 
     async def run(
         self,
@@ -57,14 +73,41 @@ class CaseAnalysisOrchestrator:
         case_title = case.get("title") or case.get("case_name") or "Lënda"
         is_single_doc = bool(document_ids and len(document_ids) >= 1)
 
+        # ═══ SCOPE DETECTION ═══
+        if is_single_doc:
+            scope = "document"
+        else:
+            scope = "case"
+
         yield {
             "event": "start",
             "case_id": str(case_id),
             "case_title": case_title,
+            "scope": scope,
             "force_reprocess": force_reprocess,
             "document_ids": document_ids,
             "is_single_document": is_single_doc,
         }
+
+        # ═══════════════════════════════════════════════════════════════
+        # SINGLE-DOCUMENT MODE → Document Review
+        # ═══════════════════════════════════════════════════════════════
+        if is_single_doc:
+            async for evt in self._run_single_document(
+                case_id=case_id,
+                user_id=user_id,
+                document_ids=document_ids,
+                force_reprocess=force_reprocess,
+                case_title=case_title,
+                start_time=start_time,
+                loop=loop,
+            ):
+                yield evt
+            return
+
+        # ═══════════════════════════════════════════════════════════════
+        # CASE MODE → Case Synthesis
+        # ═══════════════════════════════════════════════════════════════
 
         # ═══ PHASE 1 — EXTRACTION ═══
         try:
@@ -75,7 +118,7 @@ class CaseAnalysisOrchestrator:
             async for evt in self.pipeline.run(
                 user_id=user_id,
                 case_id=str(case_id),
-                document_ids=document_ids,
+                document_ids=None,
                 force_reprocess=force_reprocess,
             ):
                 evt_type = evt.get("event", "")
@@ -108,57 +151,38 @@ class CaseAnalysisOrchestrator:
 
         # ═══ PHASE 2 — CROSS-REFERENCE ═══
         xref_stats: Dict[str, Any] = {}
+        existing_xref = self._get_existing_xref(case_id)
 
-        if is_single_doc:
-            # Single document → no cross-references possible
+        if existing_xref and not force_reprocess:
             yield {
                 "event": "phase_skipped",
                 "phase": "cross_reference",
-                "reason": "single_document_mode",
+                "reason": "existing_cross_reference",
             }
-            xref_stats = {
-                "skipped": True,
-                "reason": "single_document_mode",
-            }
+            xref_stats = existing_xref.get("stats", {})
         else:
-            existing_xref = self._get_existing_xref(case_id)
-
-            if existing_xref and not force_reprocess:
+            try:
+                yield {"event": "phase_started", "phase": "cross_reference"}
+                xref_result = await loop.run_in_executor(
+                    None,
+                    lambda: self.xref_service.build(str(case_id)),
+                )
+                xref_stats = xref_result.get("stats", {})
                 yield {
-                    "event": "phase_skipped",
+                    "event": "phase_completed",
                     "phase": "cross_reference",
-                    "reason": "existing_cross_reference",
+                    "stats": xref_stats,
                 }
-                xref_stats = existing_xref.get("stats", {})
-            else:
-                try:
-                    yield {"event": "phase_started", "phase": "cross_reference"}
-                    xref_result = await loop.run_in_executor(
-                        None,
-                        lambda: self.xref_service.build(str(case_id)),
-                    )
-                    xref_stats = xref_result.get("stats", {})
-                    yield {
-                        "event": "phase_completed",
-                        "phase": "cross_reference",
-                        "stats": xref_stats,
-                    }
-                except Exception as e:
-                    logger.exception(f"❌ [ORCH] Cross-reference phase failed: {e}")
-                    yield {"event": "error", "phase": "cross_reference", "message": str(e)}
+            except Exception as e:
+                logger.exception(f"❌ [ORCH] Cross-reference phase failed: {e}")
+                yield {"event": "error", "phase": "cross_reference", "message": str(e)}
 
-        # ═══ PHASE 3 — SYNTHESIS ═══
+        # ═══ PHASE 3 — SYNTHESIS (case-only) ═══
         synthesis_stats: Dict[str, Any] = {}
         synthesis_result_for_markdown: Optional[Dict[str, Any]] = None
         is_cache_hit = False
 
-        existing_synth = None
-        if not is_single_doc:
-            existing_synth = self._get_existing_synthesis(case_id)
-        elif not force_reprocess:
-            existing_synth = self._get_existing_synthesis_for_single_doc(
-                case_id, document_ids[0]
-            )
+        existing_synth = self._get_existing_case_synthesis(case_id)
 
         if existing_synth and not force_reprocess:
             is_cache_hit = True
@@ -193,6 +217,7 @@ class CaseAnalysisOrchestrator:
                     except Exception as e:
                         logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
 
+                # V1.5: Thirrja pa document_ids (case-only)
                 synth_future = loop.run_in_executor(
                     None,
                     lambda: self.synthesis.synthesize(
@@ -200,7 +225,6 @@ class CaseAnalysisOrchestrator:
                         user_id=user_id,
                         progress_callback=_sync_progress,
                         section_stream_callback=_sync_stream,
-                        document_ids=document_ids,
                     ),
                 )
 
@@ -240,7 +264,7 @@ class CaseAnalysisOrchestrator:
 
         # ═══ PHASE 4 — REPORT READY ═══
         if is_cache_hit:
-            report_markdown = self._build_markdown_from_synthesis(
+            report_markdown = self._build_markdown_from_case_synthesis(
                 synthesis_result_for_markdown
             )
             if report_markdown.strip():
@@ -249,11 +273,13 @@ class CaseAnalysisOrchestrator:
                     "content": report_markdown,
                     "content_length": len(report_markdown),
                     "from_cache": True,
+                    "scope": "case",
                 }
         else:
             yield {
                 "event": "report_ready",
                 "from_cache": False,
+                "scope": "case",
             }
 
         # ═══ COMPLETE ═══
@@ -262,10 +288,11 @@ class CaseAnalysisOrchestrator:
         final_summary = {
             "case_id": str(case_id),
             "case_title": case_title,
+            "scope": "case",
             "duration_sec": total_duration,
             "from_cache": is_cache_hit,
-            "is_single_document": is_single_doc,
-            "document_ids": document_ids,
+            "is_single_document": False,
+            "document_ids": None,
             "extraction": extraction_summary,
             "cross_reference": xref_stats,
             "synthesis": synthesis_stats,
@@ -273,18 +300,211 @@ class CaseAnalysisOrchestrator:
         }
 
         logger.info(
-            f"✅ [ORCH] Complete: case={case_id}, "
-            f"single_doc={is_single_doc}, duration={total_duration}s, "
+            f"✅ [ORCH] Complete: case={case_id}, scope=case, "
+            f"duration={total_duration}s, from_cache={is_cache_hit}"
+        )
+
+        yield {"event": "complete", "summary": final_summary}
+
+    # ────────────────────────────────────────────────────────────────────
+    # V1.4 — SINGLE DOCUMENT RUN (Document Review)
+    # ────────────────────────────────────────────────────────────────────
+
+    async def _run_single_document(
+        self,
+        case_id: str,
+        user_id: str,
+        document_ids: List[str],
+        force_reprocess: bool,
+        case_title: str,
+        start_time: float,
+        loop,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Rruga për review të një dokumenti të vetëm.
+        """
+        document_id = document_ids[0]
+
+        # ═══ FAZA 1 — Ekstraktimi i dokumentit (nëse mungon) ═══
+        try:
+            yield {"event": "phase_started", "phase": "extraction"}
+
+            extraction_summary: Dict[str, Any] = {}
+
+            async for evt in self.pipeline.run(
+                user_id=user_id,
+                case_id=str(case_id),
+                document_ids=[document_id],
+                force_reprocess=force_reprocess,
+            ):
+                evt_type = evt.get("event", "")
+
+                if evt_type == "complete":
+                    extraction_summary = evt.get("summary", {})
+                    yield {
+                        "event": "phase_completed",
+                        "phase": "extraction",
+                        "summary": extraction_summary,
+                    }
+                elif evt_type == "error":
+                    yield {
+                        "event": "error",
+                        "phase": "extraction",
+                        "message": evt.get("message", "Unknown error"),
+                    }
+                    yield self._final_error(
+                        start_time, "extraction", evt.get("message", "Unknown")
+                    )
+                    return
+                else:
+                    yield {"phase": "extraction", **evt}
+
+        except Exception as e:
+            logger.exception(f"❌ [ORCH] Single-doc extraction failed: {e}")
+            yield {"event": "error", "phase": "extraction", "message": str(e)}
+            yield self._final_error(start_time, "extraction", str(e))
+            return
+
+        # ═══ FAZA 2 — Document Review ═══
+        review_stats: Dict[str, Any] = {}
+        review_result_for_markdown: Optional[Dict[str, Any]] = None
+        is_cache_hit = False
+
+        existing_review = self._get_existing_document_review(
+            case_id, document_id
+        )
+
+        if existing_review and not force_reprocess:
+            is_cache_hit = True
+            yield {
+                "event": "phase_skipped",
+                "phase": "document_review",
+                "reason": "existing_document_review",
+            }
+            review_stats = existing_review.get("stats", {})
+            review_result_for_markdown = existing_review
+        else:
+            try:
+                yield {"event": "phase_started", "phase": "document_review"}
+
+                event_queue: asyncio.Queue = asyncio.Queue()
+
+                def _sync_progress(event_type: str, data: Dict[str, Any]) -> None:
+                    try:
+                        evt = {"event": event_type, **data}
+                        loop.call_soon_threadsafe(event_queue.put_nowait, evt)
+                    except Exception as e:
+                        logger.warning(f"⚠️ [ORCH] progress bridge failed: {e}")
+
+                def _sync_stream(section_key: str, chunk: str) -> None:
+                    try:
+                        evt = {
+                            "event": "section_chunk",
+                            "section_key": section_key,
+                            "chunk": chunk,
+                        }
+                        loop.call_soon_threadsafe(event_queue.put_nowait, evt)
+                    except Exception as e:
+                        logger.warning(f"⚠️ [ORCH] stream bridge failed: {e}")
+
+                review_future = loop.run_in_executor(
+                    None,
+                    lambda: self.document_review.review(
+                        case_id=str(case_id),
+                        user_id=user_id,
+                        document_id=document_id,
+                        progress_callback=_sync_progress,
+                        section_stream_callback=_sync_stream,
+                    ),
+                )
+
+                while True:
+                    done, _ = await asyncio.wait(
+                        {review_future}, timeout=QUEUE_POLL_INTERVAL_SEC
+                    )
+                    while not event_queue.empty():
+                        try:
+                            evt = event_queue.get_nowait()
+                            yield {"phase": "document_review", **evt}
+                        except asyncio.QueueEmpty:
+                            break
+
+                    if review_future in done:
+                        while not event_queue.empty():
+                            try:
+                                evt = event_queue.get_nowait()
+                                yield {"phase": "document_review", **evt}
+                            except asyncio.QueueEmpty:
+                                break
+                        break
+
+                review_result = review_future.result()
+                review_stats = review_result.get("stats", {})
+                review_result_for_markdown = review_result
+
+                yield {
+                    "event": "phase_completed",
+                    "phase": "document_review",
+                    "stats": review_stats,
+                }
+
+            except Exception as e:
+                logger.exception(f"❌ [ORCH] Document review failed: {e}")
+                yield {
+                    "event": "error",
+                    "phase": "document_review",
+                    "message": str(e),
+                }
+
+        # ═══ FAZA 3 — Report Ready ═══
+        if is_cache_hit:
+            report_markdown = self._build_markdown_from_document_review(
+                review_result_for_markdown
+            )
+            if report_markdown.strip():
+                yield {
+                    "event": "report_ready",
+                    "content": report_markdown,
+                    "content_length": len(report_markdown),
+                    "from_cache": True,
+                    "scope": "document",
+                }
+        else:
+            yield {
+                "event": "report_ready",
+                "from_cache": False,
+                "scope": "document",
+            }
+
+        # ═══ COMPLETE ═══
+        total_duration = round(time.time() - start_time, 2)
+
+        final_summary = {
+            "case_id": str(case_id),
+            "case_title": case_title,
+            "scope": "document",
+            "duration_sec": total_duration,
+            "from_cache": is_cache_hit,
+            "is_single_document": True,
+            "document_ids": document_ids,
+            "extraction": extraction_summary,
+            "document_review": review_stats,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        logger.info(
+            f"✅ [ORCH] Complete: case={case_id}, scope=document, "
+            f"doc={document_id}, duration={total_duration}s, "
             f"from_cache={is_cache_hit}"
         )
 
         yield {"event": "complete", "summary": final_summary}
 
     # ────────────────────────────────────────────────────────────────────
-    # INTERNAL HELPERS
+    # MARKDOWN BUILDERS
     # ────────────────────────────────────────────────────────────────────
 
-    def _build_markdown_from_synthesis(
+    def _build_markdown_from_case_synthesis(
         self,
         synthesis_result: Optional[Dict[str, Any]],
     ) -> str:
@@ -323,6 +543,49 @@ class CaseAnalysisOrchestrator:
 
         return markdown
 
+    def _build_markdown_from_document_review(
+        self,
+        review_result: Optional[Dict[str, Any]],
+    ) -> str:
+        if not review_result:
+            return ""
+
+        sections = review_result.get("sections") or {}
+        if not sections:
+            return ""
+
+        parts: List[str] = []
+        for key in DOCUMENT_REVIEW_SECTION_ORDER:
+            section = sections.get(key)
+            if not section:
+                continue
+            title = section.get("title") or key
+            content = section.get("content") or ""
+            if not content.strip():
+                continue
+            parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
+
+        for key, section in sections.items():
+            if key in DOCUMENT_REVIEW_SECTION_ORDER:
+                continue
+            if not isinstance(section, dict):
+                continue
+            title = section.get("title") or key
+            content = section.get("content") or ""
+            if not content.strip():
+                continue
+            parts.append(f"# {title}\n\n{content.strip()}\n\n---\n\n")
+
+        markdown = "".join(parts).rstrip()
+        if markdown.endswith("---"):
+            markdown = markdown[:-3].rstrip()
+
+        return markdown
+
+    # ────────────────────────────────────────────────────────────────────
+    # LOADERS
+    # ────────────────────────────────────────────────────────────────────
+
     def _load_case(self, case_id: str) -> Dict[str, Any]:
         try:
             c_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
@@ -340,16 +603,18 @@ class CaseAnalysisOrchestrator:
             logger.warning(f"⚠️ [ORCH] xref lookup failed: {e}")
             return None
 
-    def _get_existing_synthesis(self, case_id: str) -> Optional[Dict[str, Any]]:
+    def _get_existing_case_synthesis(self, case_id: str) -> Optional[Dict[str, Any]]:
         try:
-            return self.db[SYNTHESIS_COLLECTION].find_one(
-                {"case_id": str(case_id), "status": "completed", "scope": "case"}
-            )
+            return self.db[SYNTHESIS_COLLECTION].find_one({
+                "case_id": str(case_id),
+                "status": "completed",
+                "scope": "case",
+            })
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH] synthesis lookup failed: {e}")
+            logger.warning(f"⚠️ [ORCH] case synthesis lookup failed: {e}")
             return None
 
-    def _get_existing_synthesis_for_single_doc(
+    def _get_existing_document_review(
         self, case_id: str, document_id: str
     ) -> Optional[Dict[str, Any]]:
         try:
@@ -360,7 +625,7 @@ class CaseAnalysisOrchestrator:
                 "document_ids": [document_id],
             })
         except Exception as e:
-            logger.warning(f"⚠️ [ORCH] single-doc synthesis lookup failed: {e}")
+            logger.warning(f"⚠️ [ORCH] document review lookup failed: {e}")
             return None
 
     def _final_error(
@@ -385,5 +650,5 @@ class CaseAnalysisOrchestrator:
 # FACTORY
 # ────────────────────────────────────────────────────────────────────────────
 
-def get_case_analysis_orchestrator(db: Any) -> CaseAnalysisOrchestrator:
+def get_case_analysis_orchestrator(db) -> CaseAnalysisOrchestrator:
     return CaseAnalysisOrchestrator(db)

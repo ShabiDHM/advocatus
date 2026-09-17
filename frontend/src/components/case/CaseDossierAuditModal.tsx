@@ -1,13 +1,15 @@
 // FILE: frontend/src/components/case/CaseDossierAuditModal.tsx
-// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.5
-// V2.5: document_ids prop — analiza e një dokumenti ose fashikulli.
+// PHOENIX PROTOCOL - CASE DOSSIER AUDIT MODAL V2.6
+// V2.6: Dynamic title based on scope (case vs document).
+//   - scope=case     → "Doktrina e Rastit"
+//   - scope=document → "Verifikimi i Dokumentit"
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle2,
   Loader2, Maximize2, Minimize2, Trash2, ZoomIn, ZoomOut, ArrowDown, Sparkles, Lock, Scale, Folder,
-  FileSearch, GitBranch, FileText, CheckCircle
+  FileSearch, GitBranch, FileText, CheckCircle, ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,7 +29,7 @@ interface CaseDossierAuditModalProps {
   documentNames?: string[];
 }
 
-type PhaseKey = 'extraction' | 'cross_reference' | 'synthesis' | 'idle';
+type PhaseKey = 'extraction' | 'cross_reference' | 'synthesis' | 'document_review' | 'idle';
 
 interface PhaseInfo {
   key: PhaseKey;
@@ -36,7 +38,8 @@ interface PhaseInfo {
   icon: React.ReactNode;
 }
 
-const PHASES: PhaseInfo[] = [
+// Case phases
+const CASE_PHASES: PhaseInfo[] = [
   {
     key: 'extraction',
     label: 'Ekstraktimi',
@@ -54,6 +57,22 @@ const PHASES: PhaseInfo[] = [
     label: 'Sinteza',
     description: 'Duke hartuar doktrinën përfundimtare',
     icon: <FileText size={14} />,
+  },
+];
+
+// Document review phases
+const DOCUMENT_PHASES: PhaseInfo[] = [
+  {
+    key: 'extraction',
+    label: 'Ekstraktimi',
+    description: 'Duke lexuar dokumentin',
+    icon: <FileSearch size={14} />,
+  },
+  {
+    key: 'document_review',
+    label: 'Verifikimi',
+    description: 'Duke verifikuar nenet dhe precedentët',
+    icon: <ShieldCheck size={14} />,
   },
 ];
 
@@ -166,7 +185,7 @@ const markdownToWordHtml = (markdown: string): string => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Doktrina e Fashikullit</title>
+      <title>Raport</title>
       <style>
         body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; }
       </style>
@@ -206,7 +225,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   isOpen,
   onClose,
   caseId,
-  caseName = 'Fashikulli i Lëndës',
+  caseName = 'Lënda',
   clientName = 'Klienti',
   documentCount = 0,
   documentIds,
@@ -225,6 +244,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const [progressDetail, setProgressDetail] = useState<string>('');
   const [completedPhases, setCompletedPhases] = useState<PhaseKey[]>([]);
 
+  // V2.6: dynamic scope
+  const [runtimeScope, setRuntimeScope] = useState<'case' | 'document' | null>(null);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef<boolean>(false);
 
@@ -237,26 +259,34 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
   const activeFont = FONT_LEVELS[fontLevelIndex];
   const markdownComponents = useMemo(() => buildMarkdownComponents(), []);
 
+  // ═══ SCOPE DETECTION (V2.6) ═══
   const isSingleDoc = Boolean(documentIds && documentIds.length > 0);
   const singleDocName = isSingleDoc && documentNames && documentNames.length > 0
     ? documentNames[0]
     : null;
 
-  const reportTitle = isSingleDoc
-    ? (singleDocName ? `Doktrina e Dokumentit` : 'Doktrina e Dokumentit')
-    : 'Doktrina e Fashikullit';
+  // Titulli varet nga scope (i deklaruar ose i runtime)
+  const effectiveScope = runtimeScope || (isSingleDoc ? 'document' : 'case');
+
+  const reportTitle = effectiveScope === 'document'
+    ? 'Verifikimi i Dokumentit'
+    : 'Doktrina e Rastit';
 
   const headerSubtitle = isSingleDoc
     ? `${singleDocName || 'Dokument i vetëm'} • ${clientName}`
     : `${caseName} • ${clientName} • ${documentCount} shkresa`;
 
-  const actionButtonLabel = isSingleDoc
-    ? 'Fillo Analizën e Dokumentit'
-    : 'Fillo Doktrinën e Fashikullit';
+  const actionButtonLabel = effectiveScope === 'document'
+    ? 'Fillo Verifikimin e Dokumentit'
+    : 'Fillo Doktrinën e Rastit';
 
-  const emptyStateDescription = isSingleDoc
-    ? 'Merrni një opinion të prerë strategjik mbi këtë dokument të vetëm. Analiza strukturohet në 6 seksione me streaming real-time.'
-    : `Merrni një opinion të prerë strategjik mbi historikun e plotë të këtij fashikulli me ${documentCount} shkresa — çfarë ka ndodhur, kontradiktat, shkeljet, pozicioni ligjor dhe hapi i ardhshëm konkret.`;
+  const emptyStateDescription = effectiveScope === 'document'
+    ? 'Ky raport verifikon dokumentin tuaj kundrejt bazës ligjore të Gazetës Zyrtare dhe precedentëve të Gjykatës Supreme. Do të shihni: nenet e cituara, verifikimin e tyre, gabimet, dhe rekomandimet për korrigjim.'
+    : `Merrni një opinion të prerë strategjik mbi historikun e plotë të këtij rasti me ${documentCount} shkresa — çfarë ka ndodhur, kontradiktat, shkeljet, pozicioni ligjor dhe hapi i ardhshëm konkret.`;
+
+  const phasesToShow = effectiveScope === 'document'
+    ? DOCUMENT_PHASES
+    : CASE_PHASES;
 
   useEffect(() => {
     if (isOpen && caseId) {
@@ -285,6 +315,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       hasReceivedChunksRef.current = false;
       accumulatedRef.current = '';
       currentSectionTitleRef.current = '';
+      setRuntimeScope(null);
     }
   }, [isOpen]);
 
@@ -310,6 +341,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
     accumulatedRef.current = '';
     currentSectionTitleRef.current = '';
     isUserScrolledUpRef.current = false;
+    setRuntimeScope(null);
 
     try {
       const stream = apiService.streamCaseAnalysis(caseId, false, documentIds);
@@ -319,13 +351,18 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         const evtType = evt.event;
 
         if (evtType === 'start') {
+          // V2.6: lexo scope nga event
+          if (evt.scope === 'case' || evt.scope === 'document') {
+            setRuntimeScope(evt.scope);
+          }
           setPhaseLabel(`Lënda: ${evt.case_title || caseName}`);
           continue;
         }
 
         if (evtType === 'phase_started') {
-          setCurrentPhase(evt.phase as PhaseKey);
-          const phaseCfg = PHASES.find(p => p.key === evt.phase);
+          const phaseKey = evt.phase as PhaseKey;
+          setCurrentPhase(phaseKey);
+          const phaseCfg = phasesToShow.find(p => p.key === phaseKey);
           setPhaseLabel(phaseCfg ? `${phaseCfg.label}...` : evt.phase || '');
           setProgressDetail('');
           continue;
@@ -360,7 +397,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
         if (evtType === 'section_started') {
           const title = evt.section_title || evt.section_key || '';
-          setPhaseLabel(`Sinteza: ${title}`);
+          setPhaseLabel(`${title}`);
           currentSectionTitleRef.current = title;
           accumulatedRef.current += `\n\n# ${title}\n\n`;
           setReportContent(accumulatedRef.current);
@@ -385,9 +422,14 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         if (evtType === 'report_ready') {
           const content = evt.content || '';
           const fromCache = evt.from_cache === true;
+          const scope = evt.scope;
+
+          if (scope === 'case' || scope === 'document') {
+            setRuntimeScope(scope);
+          }
 
           if (fromCache && content.trim() && !hasReceivedChunksRef.current) {
-            setPhaseLabel('Duke shfaqur doktrinën...');
+            setPhaseLabel('Duke shfaqur raportin...');
             await applyTypewriter(
               content,
               (partial) => {
@@ -402,7 +444,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
 
         if (evtType === 'complete') {
           setCurrentPhase('idle');
-          setPhaseLabel('Doktrina u përfundua');
+          setPhaseLabel(
+            effectiveScope === 'document'
+              ? 'Verifikimi u përfundua'
+              : 'Doktrina u përfundua'
+          );
           setProgressDetail('');
           break;
         }
@@ -422,28 +468,28 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
         try {
           await apiService.saveCaseDossierAudit(caseId, finalMarkdown);
         } catch (saveErr) {
-          console.error("Case Dossier Audit Persist Error:", saveErr);
-          alert("Doktrina u gjenerua por nuk mund të ruhej në server.");
+          console.error("Save error:", saveErr);
+          alert("Raporti u gjenerua por nuk mund të ruhej në server.");
         } finally {
           setIsSaving(false);
         }
       }
     } catch (err: any) {
       if (isCancelled()) return;
-      console.error("Case Dossier Audit Error:", err);
+      console.error("Audit error:", err);
       setProgressDetail(`⚠️ ${err?.message || 'Gabim i panjohur'}`);
-      alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit të doktrinës.');
+      alert(err?.message || 'Ndodhi një gabim gjatë gjenerimit.');
     } finally {
       if (!isCancelled()) {
         setIsLoading(false);
         setCurrentPhase('idle');
       }
     }
-  }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds]);
+  }, [caseId, caseName, isLoading, isPurging, isSaving, documentIds, phasesToShow, effectiveScope]);
 
   const handleClearContent = async () => {
     if (!reportContent || !caseId || isPurging) return;
-    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht doktrinën e fashikullit nga serveri (Total Cascade Wipeout)?");
+    const confirmWipe = window.confirm("A jeni i sigurt që dëshironi të asgjësoni plotësisht raportin nga serveri?");
     if (!confirmWipe) return;
 
     setIsPurging(true);
@@ -454,8 +500,8 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
       setCurrentPhase('idle');
       accumulatedRef.current = '';
     } catch (err) {
-      console.error("Could not purge case dossier audit on MongoDB:", err);
-      alert("Dështoi asgjësimi i doktrinës së fashikullit në server.");
+      console.error("Purge error:", err);
+      alert("Dështoi asgjësimi i raportit në server.");
     } finally {
       setIsPurging(false);
     }
@@ -512,10 +558,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               : 'h-[92vh] max-w-5xl max-h-[880px] rounded-2xl sm:rounded-3xl border border-main'
           } p-4 sm:p-6 shadow-2xl bg-card flex flex-col transition-all duration-200 relative overflow-hidden`}
         >
+          {/* Header */}
           <div className="flex items-center justify-between pb-3.5 border-b border-main shrink-0 gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="w-10 h-10 bg-primary-start/15 text-primary-start rounded-2xl flex items-center justify-center border border-primary-start/30 shrink-0">
-                {isSingleDoc ? <FileText className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
+                {effectiveScope === 'document' ? <ShieldCheck className="w-5 h-5" /> : <Folder className="w-5 h-5" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -560,7 +607,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                   onClick={handleClearContent}
                   disabled={isPurging}
                   className="p-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                  title="Fshi doktrinën nga serveri (Total Wipeout)"
+                  title="Fshi raportin nga serveri"
                 >
                   {isPurging ? <Loader2 size={16} className="animate-spin text-rose-500" /> : <Trash2 size={16} />}
                 </button>
@@ -586,10 +633,11 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           </div>
 
+          {/* PROGRESS BAR */}
           {isLoading && (
             <div className="pt-3 pb-1 shrink-0">
               <div className="flex items-center justify-between gap-2 mb-2">
-                {PHASES.map((phase) => {
+                {phasesToShow.map((phase) => {
                   const isActive = currentPhase === phase.key;
                   const isCompleted = completedPhases.includes(phase.key);
                   return (
@@ -621,6 +669,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             </div>
           )}
 
+          {/* Body */}
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
@@ -642,7 +691,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             {!reportContent && !isLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 sm:p-12 my-auto space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-primary-start/10 text-primary-start flex items-center justify-center">
-                  <Scale size={28} />
+                  {effectiveScope === 'document' ? <ShieldCheck size={28} /> : <Scale size={28} />}
                 </div>
                 <div>
                   <h4 className="text-base font-bold text-text-primary">{reportTitle}</h4>
@@ -650,7 +699,9 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                     {emptyStateDescription}
                   </p>
                   <p className="text-[10px] text-text-muted/70 mt-2 font-mono">
-                    Analiza zhvillohet në 3 faza: Ekstraktimi → Lidhjet → Sinteza
+                    {effectiveScope === 'document'
+                      ? 'Verifikimi zhvillohet në 2 faza: Ekstraktimi → Verifikimi'
+                      : 'Analiza zhvillohet në 3 faza: Ekstraktimi → Lidhjet → Sinteza'}
                   </p>
                 </div>
                 <button
@@ -667,12 +718,12 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
               <div className="flex-1 flex flex-col items-center justify-center p-8 my-auto space-y-3">
                 <Loader2 className="w-9 h-9 animate-spin text-primary-start" />
                 <p className="text-xs font-bold text-text-primary uppercase tracking-wider">
-                  {isSingleDoc
-                    ? 'Duke analizuar dokumentin...'
-                    : 'Duke analizuar fashikullin si një tërësi koherente...'}
+                  {effectiveScope === 'document'
+                    ? 'Duke verifikuar dokumentin kundrejt bazës ligjore...'
+                    : 'Duke analizuar rastin si një tërësi koherente...'}
                 </p>
                 <p className="text-[10px] text-text-muted font-mono max-w-md text-center">
-                  Kjo mund të zgjasë disa minuta për dokumente të mëdhenj. Ju lutem mos mbyllni dritaren.
+                  Kjo mund të zgjasë disa minuta. Ju lutem mos mbyllni dritaren.
                 </p>
               </div>
             ) : (
@@ -695,6 +746,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
             )}
           </div>
 
+          {/* Bottom Actions */}
           <div className="flex items-center justify-between pt-3 border-t border-main gap-3 shrink-0">
             {reportContent && !isLoading && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-main text-text-muted text-xs font-medium">
@@ -707,7 +759,7 @@ export const CaseDossierAuditModal: React.FC<CaseDossierAuditModalProps> = ({
                 ) : (
                   <>
                     <Lock size={12} className="text-text-muted" />
-                    <span className="hidden sm:inline">Doktrina është ruajtur (Përdorni koshin për ta asgjësuar nga serveri)</span>
+                    <span className="hidden sm:inline">Raporti është ruajtur (Përdorni koshin për ta asgjësuar)</span>
                     <span className="sm:hidden">E ruajtur</span>
                   </>
                 )}

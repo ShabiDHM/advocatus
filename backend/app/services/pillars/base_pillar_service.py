@@ -1,6 +1,9 @@
 # FILE: backend/app/services/pillars/base_pillar_service.py
-# PHOENIX PROTOCOL - BASE PILLAR SERVICE V131.0 (STREAM-OPTIMIZED • DYNAMIC KOSOVO JURISPRUDENCE • ZERO HARDCODING)
-# 100% COMPLETE CODE • BALANCED RAG DENSITY • FAST TOKEN PIPELINE
+# PHOENIX PROTOCOL - BASE PILLAR SERVICE V132.0
+# V132.0: Removed 3 dead wrapper methods:
+#   - get_timeline_context() (0 external references)
+#   - get_role_guard()       (0 external references)
+#   - get_role_tone()        (0 external references)
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -111,7 +114,7 @@ STATUTORY_CORPUS = {
 
 
 class BasePillarService:
-    """Shërbimi Bazë Universal — V131.0 me Zbulim Autonom Hibrid dhe RAG të Optimizuar."""
+    """Shërbimi Bazë Universal — V132.0 me Zbulim Autonom Hibrid dhe RAG të Optimizuar."""
 
     @staticmethod
     def detect_case_domain(case_title: str = "", context_str: str = "", manifest_str: str = "") -> str:
@@ -174,17 +177,17 @@ class BasePillarService:
         user_id: str = "",
         case_id: str = "",
         query_text: str = "",
-        n_results: int = 8  # Optimizuar nga 35 në 8 për streaming të shpejtë pa ndërprerje
+        n_results: int = 8
     ) -> Tuple[str, str]:
         global_rag_context = ""
         case_rag_context = ""
-        
+
         try:
             from app.services.vector_store_service import (
                 query_global_knowledge_base,
                 query_case_knowledge_base
             )
-            
+
             if query_text:
                 global_results = query_global_knowledge_base(query_text, n_results=n_results)
                 if global_results:
@@ -193,10 +196,9 @@ class BasePillarService:
                         source = res.get("source", "Precedent Suprem")
                         text = res.get("text", "").strip()
                         if text:
-                            # Kufizohet gjatësia për të mos bllokuar memorjen e transmetimit
                             global_parts.append(f"[{source}]: {text[:800]}")
                     global_rag_context = "\n\n".join(global_parts)
-            
+
             if user_id and case_id and query_text:
                 try:
                     case_results = query_case_knowledge_base(
@@ -221,38 +223,10 @@ class BasePillarService:
                         if text:
                             case_parts.append(f"[{source}]: {text[:800]}")
                     case_rag_context = "\n\n".join(case_parts)
-                    
+
         except ImportError as e:
             logger.warning(f"[RAG] Vector store import error: {e}")
         except Exception as e:
             logger.error(f"[RAG] Vector query error: {e}")
-        
+
         return global_rag_context, case_rag_context
-
-    @staticmethod
-    def get_timeline_context(db: Any, case_id: str, user_id: str = "") -> str:
-        try:
-            from app.services.pillars.timeline_service import TimelineService
-            timeline_data = TimelineService.build_case_timeline(db, case_id, user_id)
-            return TimelineService.build_timeline_prompt(timeline_data)
-        except ImportError:
-            return ""
-        except Exception as e:
-            logger.error(f"[Timeline] Error: {e}")
-            return ""
-
-    @staticmethod
-    def get_role_guard(role: str, client_name: str) -> str:
-        try:
-            from app.services.pillars.role_guard_service import RoleGuardService
-            return RoleGuardService.build_role_guard(role, client_name)
-        except ImportError:
-            return ""
-
-    @staticmethod
-    def get_role_tone(role: str) -> str:
-        try:
-            from app.services.pillars.role_guard_service import RoleGuardService
-            return RoleGuardService.get_role_specific_tone(role)
-        except ImportError:
-            return ""
